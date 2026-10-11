@@ -1658,3 +1658,40 @@ fn builtin_simple_replace_ignores_correct_words_that_look_like_table_entries() {
         );
     }
 }
+
+#[test]
+fn grammar_indefinite_determiner_uses_the_article_word_lists() {
+    // GRAMMAR/ESTABLISHED_FACT rewrites "an established fact" to "a fact" with
+    // `<match postag="+INDT">`; the article comes from the build dir word lists.
+    let replacements: Vec<String> = RULES
+        .suggest("This is an established fact.", &*TOKENIZER)
+        .iter()
+        .flat_map(|suggestion| suggestion.replacements().iter().cloned())
+        .collect();
+    assert!(
+        replacements
+            .iter()
+            .any(|replacement| replacement == "a fact"),
+        "{:?}",
+        replacements
+    );
+}
+
+#[test]
+fn grammar_indefinite_determiner_picks_an_from_a_lemma() {
+    // ONE_PLURAL's `<match postag="NN|NN:.*\+INDT">` chooses "an" from the
+    // lemma "hour" (a word list entry, not a spelling heuristic) and prefixes
+    // the synthesized singular.
+    let replacements: Vec<String> = RULES
+        .suggest("I worked for one hours.", &*TOKENIZER)
+        .iter()
+        .flat_map(|suggestion| suggestion.replacements().iter().cloned())
+        .collect();
+    assert!(
+        replacements
+            .iter()
+            .any(|replacement| replacement == "an hour"),
+        "{:?}",
+        replacements
+    );
+}

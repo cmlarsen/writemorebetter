@@ -431,24 +431,54 @@ fn parse_match(
     let postag_regexp = matches!(m.postag_regex.as_deref(), Some("yes"));
 
     let pos_replacer = if let Some(postag) = &m.postag {
-        if postag.contains("+DT") || postag.contains("+INDT") {
-            return Err(Error::Unimplemented(
-                "+DT and +INDT determiners are not implemented.".into(),
-            ));
-        }
+        let postag = postag.trim();
+
+        // LanguageTool's English synthesizer extends synthesis with two special
+        // postags: `+INDT` adds "a"/"an" and `+DT` adds "a"/"an" or "the". In the
+        // regexp form the tag ends with `\+INDT`/`\+DT` (a `\`-escaped `+` in the
+        // XML); the suffix is removed before synthesizing the base tag.
+        let (determiner, base_postag) = if postag == "+INDT" {
+            (Some(Determiner::Indefinite), None)
+        } else if postag == "+DT" {
+            (Some(Determiner::Definite), None)
+        } else if postag_regexp && postag.ends_with("\\+INDT") {
+            (
+                Some(Determiner::Indefinite),
+                Some(postag[..postag.len() - "\\+INDT".len()].trim()),
+            )
+        } else if postag_regexp && postag.ends_with("\\+DT") {
+            (
+                Some(Determiner::Definite),
+                Some(postag[..postag.len() - "\\+DT".len()].trim()),
+            )
+        } else if postag.contains("+DT") || postag.contains("+INDT") {
+            return Err(Error::Unimplemented(format!(
+                "the determiner postag '{}' is not supported here.",
+                postag
+            )));
+        } else {
+            (None, None)
+        };
+
+        // A determiner with an exact postag formats the matched token itself; a
+        // regexp determiner synthesizes the stripped base tag.
+        let synthesis_postag = base_postag.unwrap_or(postag);
 
         // LanguageTool's `setLemmaString` treats a static lemma's `postag` as a regexp even when
         // `postag_regexp` is not set, so a static lemma always uses the regexp synthesis branch.
-        let regex = if postag_regexp || static_lemma.is_some() {
-            Some(Regex::from_java_regex(postag.trim(), true, true)?)
+        let regex = if determiner.is_some() && base_postag.is_none() {
+            None
+        } else if postag_regexp || static_lemma.is_some() {
+            Some(Regex::from_java_regex(synthesis_postag, true, true)?)
         } else {
             None
         };
 
         Some(PosReplacer {
-            postag: postag.trim().to_string(),
+            postag: synthesis_postag.to_string(),
             regex,
             postag_replace: m.postag_replace.clone(),
+            determiner,
         })
     } else {
         None
@@ -987,6 +1017,23 @@ impl Rule {
             None
         };
 
+        let message = Synthesizer {
+            parts: message_parts,
+            use_titlecase_adjust: true,
+        };
+
+        // LanguageTool's `+DT`/`+INDT` synthesis chooses the article from the
+        // build directory's word lists; load them only for rules that use them.
+        let articles = if message.uses_determiner()
+            || suggesters
+                .iter()
+                .any(|suggester| suggester.uses_determiner())
+        {
+            Some(super::builtin::article_data(info.build_dir()))
+        } else {
+            None
+        };
+
         Ok(Rule {
             start: engine.to_graph_id(start)?,
             end: engine.to_graph_id(end)?,
@@ -995,10 +1042,8 @@ impl Rule {
             filter,
             examples,
             suggesters,
-            message: Synthesizer {
-                parts: message_parts,
-                use_titlecase_adjust: true,
-            },
+            message,
+            articles,
             url: data.url.map(|x| x.to_string()),
             short: data.short.map(|x| x.to_string()),
             // fields below need information from rule group / category, so are set later

@@ -135,7 +135,7 @@ pub const TOKENIZER_FORMAT_VERSION: u32 = 1;
 ///
 /// Bump this whenever any type reachable from [Rules] changes its serialized shape. See
 /// [TOKENIZER_FORMAT_VERSION] for why.
-pub const RULES_FORMAT_VERSION: u32 = 1;
+pub const RULES_FORMAT_VERSION: u32 = 2;
 
 /// The longest engine version string accepted in a binary header.
 const MAX_ENGINE_VERSION_LEN: usize = 256;
