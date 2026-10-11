@@ -239,8 +239,10 @@ attempts total. Phase 0 establishes measurement and does not count as an optimiz
 | 6 | [#54](https://github.com/cmlarsen/writemorebetter/pull/54) | Trim spare capacity from tagger FST buffers | -0.66% | -0.293 MiB | -0.449 MiB | +0.53% / +1.24% (interleaved, loaded) | dropped |
 | 7 | [#55](https://github.com/cmlarsen/writemorebetter/pull/55) | Inline buffers for small match graphs | -0.74% | -2.496 MiB | -0.137 MiB | -0.82% / -2.24% (interleaved, loaded) | kept |
 | 8 | [#56](https://github.com/cmlarsen/writemorebetter/pull/56) | Inline buffers for short speller rows | +3.78% | -2.105 MiB | +0.012 MiB | +0.16% / -1.36% (interleaved, loaded) | dropped |
-| 9 | pending | LZ4-compressed lazy examples | pending | pending | pending | -2.87% / -1.04% (interleaved, loaded) | pending |
+| 9 | [#57](https://github.com/cmlarsen/writemorebetter/pull/57) | LZ4-compressed lazy examples | -0.17% | -3.410 MiB | -0.606 MiB | -2.87% / -1.04% (interleaved, loaded) | kept |
+| 10 | [#58](https://github.com/cmlarsen/writemorebetter/pull/58) | Reuse chunker beam heaps | pending | pending | pending | -0.97% / -2.75% (interleaved, loaded) | pending |
 | 12 | [#60](https://github.com/cmlarsen/writemorebetter/pull/60) | Share lazy compiled regex backends for identical sources | pending | pending | pending | +1.13% / -1.26% (interleaved, loaded) | pending |
+| 13 | [#59](https://github.com/cmlarsen/writemorebetter/pull/59) | Compact contiguous NFA for multiword tagging | pending | pending | pending | +1.57% / +0.32% (interleaved, loaded) | pending |
 
 
 Phase 0 merge-base measurements (Ubuntu): 6.6 check 5.2510 s, peak 91.4414 MiB,
@@ -422,6 +424,31 @@ Fresh five-pair Moby medians on retained main: 6.6 check 2.8907 → 2.8079 s
 (-2.87%), peak 88.95 → 87.91 MiB (-1.05); 5.2 check 3.3020 →
 3.2677 s (-1.04%), peak 72.19 → 71.70 MiB (-0.48). The machine was
 busy, including conformance runs; wall time is informational.
+
+CI for attempt 9 passed: instructions 55.169B → 55.072B (-0.17%), allocator calls
+unchanged, 6.6 peak 87.617 → 84.207 MiB (-3.410), 5.2 peak 68.930 → 68.324 MiB
+(-0.606); loaded RSS fell 3.582 MiB on 6.6. #57 was retained as a memory win.
+
+### Attempt 13 — contiguous NFA for multiword tagging
+
+The retained-main allocation profile found 12.92 MiB of live heap in the multiword
+Aho-Corasick automaton (the sparse NFA from aho-corasick 0.7). aho-corasick 1.x offers a
+contiguous NFA that stores the same trie in one buffer; the matcher is built with
+`AhoCorasickKind::ContiguousNFA` and keeps standard match semantics and pattern IDs.
+A differential test compares old (0.7 sparse NFA) and new automata on ambiguous,
+duplicate, Unicode, curly-punctuation and U+2028 patterns. Serialized fields are unchanged,
+so no format version moves. All 24 goldens, fmt, clippy and the workspace tests pass.
+
+Local interleaved pairs under load (five per case, timing informational):
+
+| Rules | Text | Check before/after (s) | Check Δ | Peak before/after (MiB) | Peak Δ (MiB) |
+|---|---|---|---:|---|---:|
+| 52 | moby150k | 1.9928 / 1.9992 | +0.32% | 71.56 / 69.39 | -2.17 |
+| 52 | story1 | 0.1538 / 0.1579 | +2.70% | 63.45 / 61.92 | -1.53 |
+| 66 | moby150k | 2.3816 / 2.4190 | +1.57% | 88.08 / 83.20 | -4.88 |
+| 66 | story1 | 0.1825 / 0.1881 | +3.08% | 74.55 / 69.70 | -4.84 |
+
+CI decides retention.
 
 ### Attempt 12 — shared lazy regex backends
 
