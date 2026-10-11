@@ -838,9 +838,9 @@ impl Composition {
         sentence: &'t MatchSentence,
         mut position: usize,
         mut cur_atom_idx: usize,
+        mut cur_count: u32,
         mut graph: MatchGraph<'t>,
     ) -> Option<MatchGraph<'t>> {
-        let mut cur_count = 0u32;
         let is_match = loop {
             if cur_atom_idx >= self.parts.len() {
                 break true;
@@ -875,6 +875,7 @@ impl Composition {
                         sentence,
                         position,
                         cur_atom_idx + 1,
+                        0,
                         graph.clone(),
                     ) {
                         return Some(graph);
@@ -935,14 +936,19 @@ impl Composition {
             return None;
         }
 
-        let position = start;
-
-        let graph = MatchGraph::new(
+        let mut graph = MatchGraph::new(
             vec![Group::default(); self.parts.len() + 1],
             &self.id_to_idx,
         );
 
-        self.apply_recursive(pool, sentence, position, 0, graph)
+        let (position, count) = if first.quantifier.min > 0 {
+            graph.groups[1] = Group::new(sentence.index(start).span().clone());
+            (start + 1, 1)
+        } else {
+            (start, 0)
+        };
+
+        self.apply_recursive(pool, sentence, position, 0, count, graph)
     }
 }
 
