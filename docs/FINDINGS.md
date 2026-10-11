@@ -24,9 +24,11 @@ and without a JVM. Can we port it, and should we build on an existing Rust port 
    architecture but is stale: no speller, none of LT's Java-coded rules, older rules. A recent third-party
    fork shows that current LT 6.6 rules plus a speller reach 38/49 in Rust, but the fork is not usable as a
    base (crashes and broken rules, see below).
-4. **Memory is fixable.** nlprule's English footprint (~145 MB) is ~110 MB of overhead from inflating a
-   compact 11.6 MB FST dictionary into hash maps at load. Querying the FST directly should bring English to
-   roughly 30–40 MB (estimate, not yet measured).
+4. **Memory is fixable, and has been fixed.** nlprule's English footprint (~145 MB) was mostly load-time
+   inflation: the tagger FST into hash maps, the chunker model into wider types, the multiword list into a
+   dense DFA, SRX regexes into one-pass DFAs. Removing each (M2, 2026-10-11) took the loaded tokenizer from
+   124 MB to 34 MB and peak RSS checking 150 KB with the speller on from 168 MB to 79 MB, with identical
+   output. See `docs/MEMORY.md` for the per-component breakdown.
 5. **N-gram confusions are out of scope for on-device.** Three of LT's catches (heal/heel, peaked/peeked,
    he/the) come from rules backed by LT's ~8 GB n-gram index. An embeddable checker should leave those to a
    separate layer (an LLM pass, or a small model later).
@@ -69,6 +71,7 @@ with an English build dir generated from the LanguageTool 6.6 distribution by th
 | Harper 2.12 | 26 | 6 | 1 | 0 | 1 | **34** |
 | nlprule 0.6.4 (LT 5.2) | 0 | 0 | 5 | 0 | 0 | **5** |
 | writemorebetter M0 (LT 5.2 + speller, en_US) | 28 | 0 | 5 | 0 | 0 | **33** |
+| writemorebetter + M5 builtins (2026-10-11) | 28 | 0 | 5 | 6 | 1 | **40** |
 
 Kinds of grammar errors only LT-family tools caught, with the LT rule that fired (illustrative sentences):
 
@@ -113,8 +116,10 @@ Total flags across the corpus, before any rule tuning: LT 279, Harper 569, nlpru
 | nlprule fork | 0.2 s | 4.84 s | — | 218 MB idle, 350 MB peak | 10.3 MB tokenizer + 38 MB rules |
 | writemorebetter M0, speller off | 0.1 s | 0.66 s | 2.73 s | 157 MB | 11.6 MB tokenizer + 9.1 MB rules |
 | writemorebetter M0, en_US speller | 0.2 s | 0.71 s | 3.19 s | 171 MB | same |
+| writemorebetter after M2, en_US speller | 0.1 s | — | 3.07 s | 79 MB (34 MB after tokenizer load) | 11.6 MB tokenizer + 9.2 MB rules |
 
-The writemorebetter M0 rows (measured 2026-10-11) are upstream nlprule `main` plus the merged spellcheck PR,
+The M2 row was measured with four cargo builds running alongside, so its time is an upper bound; memory is
+unaffected by load. The writemorebetter M0 rows (measured 2026-10-11) are upstream nlprule `main` plus the merged spellcheck PR,
 compiled from upstream's LT 5.2 build dir. Turning the speller on costs 47 ms and ~14 MB, because selecting a
 variant copies the speller FST's words into a hash set; the M2 fix for the tagger applies here too. The speller
 added 126 flags across the corpus: the 28 verified misspellings, the rest mostly names and coined words.
@@ -200,6 +205,15 @@ English first; other languages later as data plus per-language builtins behind a
    typography, dialogue informality ("gonna", "You okay?"), and comma-before-"and" style rules.
 7. **Gate every step** on LT's own embedded rule examples (conformance) and on this corpus's recall table
    (`bench/tools/recall.py`).
+
+## Builtins on fiction (M5)
+
+Ported so far: word repeat, comma/parenthesis whitespace, unpaired brackets and quotes, a/an, uppercase
+sentence start. On the private drafts they add 6 of 7 repeated words and the comma-spacing error. Their other
+flags were: deliberate repetition in fiction voice (intensifiers, a knock-knock joke, a dialogue stutter: 4
+flags, an M7 profile question), quotes opened straight and closed curly (4, real inconsistencies), and a
+space before a comma the truth set does not list (fitz3:95; candidate addition). Uppercase sentence start
+raised nothing on the drafts.
 
 ## Open questions
 
