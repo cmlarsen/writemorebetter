@@ -1,5 +1,6 @@
 use fnv::FnvHasher;
 use fst::Automaton;
+use smallvec::SmallVec;
 use std::{
     cmp::{self, min},
     hash::{Hash, Hasher},
@@ -10,9 +11,9 @@ pub struct LevenshteinState {
     dist: usize,
     n: usize,
     // to compute the next row of the matrix, we also need the row two rows up for transposes
-    prev_row: Option<Vec<usize>>,
+    prev_row: Option<SmallVec<[usize; 16]>>,
     prev_byte: u8,
-    row: Vec<usize>,
+    row: SmallVec<[usize; 16]>,
     hash: u64,
 }
 
@@ -70,7 +71,7 @@ impl<'a> Automaton for Levenshtein<'a> {
             let next_hash = next_hasher.finish();
 
             let row = &state.row;
-            let mut next_row = state.row.to_vec();
+            let mut next_row = state.row.clone();
 
             next_row[0] = state.n + 1;
 
