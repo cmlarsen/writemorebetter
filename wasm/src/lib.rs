@@ -37,17 +37,28 @@ impl Checker {
     ///
     /// `spell_variant` selects a speller dictionary when non-empty (e.g. `"en_US"`); pass
     /// `undefined` (or an empty string) to leave spelling off.
+    ///
+    /// `profile` selects a rule profile by name (`"default"` or `"fiction"`) when
+    /// non-empty; pass `undefined` (or an empty string) to disable nothing. An unknown
+    /// profile name is an error.
     #[wasm_bindgen(constructor)]
     pub fn new(
         tokenizer_bytes: &[u8],
         rules_bytes: &[u8],
         spell_variant: Option<String>,
+        profile: Option<String>,
     ) -> Result<Checker, JsValue> {
         let tokenizer = Tokenizer::from_reader(Cursor::new(tokenizer_bytes))
             .map_err(|err| JsValue::from_str(&format!("failed to load tokenizer: {err}")))?;
 
         let mut rules = Rules::from_reader(Cursor::new(rules_bytes))
             .map_err(|err| JsValue::from_str(&format!("failed to load rules: {err}")))?;
+
+        if let Some(name) = profile.filter(|p| !p.is_empty()) {
+            let profile = nlprule::profile::Profile::by_name(&name)
+                .ok_or_else(|| JsValue::from_str(&format!("unknown profile: {name}")))?;
+            rules.apply_profile(&profile);
+        }
 
         if let Some(variant) = spell_variant.filter(|v| !v.is_empty()) {
             let variant = rules

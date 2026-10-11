@@ -14,7 +14,7 @@ and passes their bytes to the constructor.
 ```js
 const { Checker } = require("./wasm/pkg/writemorebetter_wasm.js");
 
-const checker = new Checker(tokenizerBytes, rulesBytes, "en_US"); // spell_variant optional/undefined
+const checker = new Checker(tokenizerBytes, rulesBytes, "en_US", "fiction"); // spell_variant and profile optional/undefined
 const suggestions = JSON.parse(checker.check("She was not been here since Monday."));
 // [{ start: 4, end: 16, source: "GRAMMAR/WAS_BEEN/1",
 //    message: "Did you mean was not or has not been?",
@@ -22,7 +22,9 @@ const suggestions = JSON.parse(checker.check("She was not been here since Monday
 ```
 
 `start`/`end` are character offsets (Unicode scalar values), not byte offsets. Pass `undefined`
-(or `""`) as `spell_variant` to leave spelling off.
+(or `""`) as `spell_variant` to leave spelling off. Pass `undefined` (or `""`) as `profile` to
+disable nothing; `"fiction"` applies the fiction profile (see `docs/PROFILE.md`) and any other
+name is an error.
 
 ## Prerequisites
 

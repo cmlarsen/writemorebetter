@@ -13,6 +13,20 @@ fn main() {
     let t = Instant::now();
     let mut rules = Rules::new(format!("{}/en_rules.bin", d)).unwrap();
     println!("rules loaded {:.0} MB in {:.2?}", rss(), t.elapsed());
+    let profile_name = std::env::var("PROFILE").unwrap_or_else(|_| "default".into());
+    let profile = nlprule::profile::Profile::by_name(&profile_name)
+        .unwrap_or_else(|| panic!("unknown profile: {}", profile_name));
+    let enabled = |rules: &Rules| {
+        rules.rules().iter().filter(|r| r.enabled()).count()
+            + rules.builtins().iter().filter(|r| r.enabled()).count()
+    };
+    let before = enabled(&rules);
+    let unmatched = rules.apply_profile(&profile);
+    let after = enabled(&rules);
+    println!("profile {}: {} rules disabled", profile.name, before - after);
+    if !unmatched.is_empty() {
+        eprintln!("profile {}: unmatched selectors: {:?}", profile.name, unmatched);
+    }
     let variant = std::env::var("SPELL").unwrap_or_else(|_| "en_US".into());
     if !variant.is_empty() {
         let t = Instant::now();
