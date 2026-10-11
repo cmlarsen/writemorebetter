@@ -129,13 +129,13 @@ pub(crate) const RULES_MAGIC: &[u8; 8] = b"WMBRUL01";
 /// new field, a changed field type, a reordered `enum`, or a changed `serde` attribute.
 /// `bincode` has no schema, so without a bump an older or newer engine would deserialize the
 /// payload into shifted fields and silently produce wrong results instead of failing.
-pub const TOKENIZER_FORMAT_VERSION: u32 = 1;
+pub const TOKENIZER_FORMAT_VERSION: u32 = 2;
 
 /// The on-disk format version of [Rules] binaries.
 ///
 /// Bump this whenever any type reachable from [Rules] changes its serialized shape. See
 /// [TOKENIZER_FORMAT_VERSION] for why.
-pub const RULES_FORMAT_VERSION: u32 = 3;
+pub const RULES_FORMAT_VERSION: u32 = 4;
 
 /// The longest engine version string accepted in a binary header.
 const MAX_ENGINE_VERSION_LEN: usize = 256;

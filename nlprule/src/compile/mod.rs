@@ -76,6 +76,8 @@ impl BuildFilePaths {
 struct TokenizerOptionsOverride {
     #[serde(default)]
     split_contractions: Option<bool>,
+    #[serde(default)]
+    chunk_number_from_last_token: Option<bool>,
 }
 
 #[derive(Error, Debug)]
@@ -142,6 +144,9 @@ pub fn compile(
             serde_json::from_str(&fs::read_to_string(&paths.tokenizer_options_path)?)?;
         if let Some(split_contractions) = options.split_contractions {
             tokenizer_lang_options.split_contractions = split_contractions;
+        }
+        if let Some(chunk_number_from_last_token) = options.chunk_number_from_last_token {
+            tokenizer_lang_options.chunk_number_from_last_token = chunk_number_from_last_token;
         }
         info!(
             "Read tokenizer options from {}.",
