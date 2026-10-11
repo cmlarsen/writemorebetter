@@ -410,10 +410,8 @@ impl<'a, 't> Iterator for Suggestions<'a, 't> {
                 // visible and its examples can be tested.
                 Some(Suggestion::new(
                     rule.id.to_string(),
-                    rule.message
-                        .apply(sentence, &graph, rule.start, rule.end)
-                        .expect("Rules must have a message."),
-                    Span::from_positions(start, end),
+                    match_.message,
+                    Span::from_positions(match_.from, match_.to),
                     Vec::new(),
                 ))
             } else {
