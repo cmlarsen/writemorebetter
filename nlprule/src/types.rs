@@ -368,23 +368,23 @@ impl<'t> IncompleteToken<'t> {
 
     /// Converts this incomplete token to a complete token.
     pub fn into_token(self) -> Token<'t> {
-        let mut word = self.word.clone();
+        let mut word = self.word;
 
         word.tags.push(WordData::new(
-            self.word.text.clone(),
+            word.text.clone(),
             PosId::special(SpecialPos::None),
         ));
 
         if word.tags.iter().all(|x| x.pos.as_str().is_empty()) {
             word.tags.push(WordData::new(
-                self.word.text.clone(),
+                word.text.clone(),
                 PosId::special(SpecialPos::Unknown),
             ));
         }
 
         if self.is_sentence_end {
             word.tags.push(WordData::new(
-                self.word.text,
+                word.text.clone(),
                 PosId::special(SpecialPos::SentEnd),
             ));
         }
