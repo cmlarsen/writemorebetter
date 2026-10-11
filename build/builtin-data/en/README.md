@@ -36,3 +36,7 @@ cp -r build/builtin-data/en/. data/en/builtin/
   `EnglishWordRepeatRule`. A single word allows that word to be repeated; a
   multi-word entry allows the exact token sequence to contain the repetition
   (used for LanguageTool's phrase- and part-of-speech-based exceptions).
+- `word_coherency.txt` — pairs of admitted spellings of the same word (e.g.
+  `adviser;advisor`, `analyse;analyze`), one pair per line. Taken from
+  LanguageTool's `WordCoherencyRule` data. The English word-coherency builtin
+  flags the second spelling when a text mixes both spellings of a pair.

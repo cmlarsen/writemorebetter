@@ -23,6 +23,8 @@ pub enum Builtin {
     AVsAn(en::AVsAn),
     /// Flags a word that is immediately repeated, e.g. `"the the"`.
     WordRepeat(en::WordRepeat),
+    /// Flags a word whose spelling variant was already used earlier in the text.
+    WordCoherency(en::WordCoherency),
 }
 
 impl Builtin {
@@ -33,6 +35,7 @@ impl Builtin {
             Builtin::CommaParenthesisWhitespace(rule) => rule.id(),
             Builtin::AVsAn(rule) => rule.id(),
             Builtin::WordRepeat(rule) => rule.id(),
+            Builtin::WordCoherency(rule) => rule.id(),
         }
     }
 
@@ -48,6 +51,7 @@ impl Builtin {
             Builtin::CommaParenthesisWhitespace(rule) => rule.check_sentences(sentences),
             Builtin::AVsAn(rule) => sentences.iter().flat_map(|x| rule.check(x)).collect(),
             Builtin::WordRepeat(rule) => sentences.iter().flat_map(|x| rule.check(x)).collect(),
+            Builtin::WordCoherency(rule) => rule.check_text(sentences),
         }
     }
 }
