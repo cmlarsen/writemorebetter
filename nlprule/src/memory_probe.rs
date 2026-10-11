@@ -56,6 +56,33 @@ fn load_typed<T: DeserializeOwned>(path: &Path) -> Result<T, String> {
         .map_err(|e| format!("{}: {}", path.display(), e))
 }
 
+/// Loads the tokenizer storage binary through the library's reader, so the probe sees the same
+/// self-describing header validation the engine does.
+fn load_tokenizer(path: &Path) -> Result<Tokenizer, String> {
+    Tokenizer::new(path).map_err(|e| format!("{}: {}", path.display(), e))
+}
+
+/// Loads the rules storage binary through the library's reader.
+fn load_rules(path: &Path) -> Result<Rules, String> {
+    Rules::new(path).map_err(|e| format!("{}: {}", path.display(), e))
+}
+
+fn write_blob_bytes(
+    dir: &Path,
+    name: &str,
+    bytes: &[u8],
+    out: &mut Vec<Extracted>,
+) -> Result<(), String> {
+    let path = dir.join(format!("{}.bin", name));
+    std::fs::write(&path, bytes).map_err(|e| format!("write {}: {}", path.display(), e))?;
+    out.push(Extracted {
+        name: name.to_string(),
+        bytes: bytes.len() as u64,
+        path: path.to_string_lossy().into_owned(),
+    });
+    Ok(())
+}
+
 fn write_blob<T: Serialize>(
     dir: &Path,
     name: &str,
@@ -63,14 +90,36 @@ fn write_blob<T: Serialize>(
     out: &mut Vec<Extracted>,
 ) -> Result<(), String> {
     let bytes = bincode::serialize(value).map_err(|e| format!("serialize {}: {}", name, e))?;
-    let path = dir.join(format!("{}.bin", name));
-    std::fs::write(&path, &bytes).map_err(|e| format!("write {}: {}", path.display(), e))?;
-    out.push(Extracted {
-        name: name.to_string(),
-        bytes: bytes.len() as u64,
-        path: path.to_string_lossy().into_owned(),
-    });
-    Ok(())
+    write_blob_bytes(dir, name, &bytes, out)
+}
+
+/// Writes a [Tokenizer] blob through the library's writer so it carries the self-describing
+/// header and [load] can read it back the same way the engine would.
+fn write_tokenizer_blob(
+    dir: &Path,
+    name: &str,
+    value: &Tokenizer,
+    out: &mut Vec<Extracted>,
+) -> Result<(), String> {
+    let mut bytes = Vec::new();
+    value
+        .to_writer(&mut bytes)
+        .map_err(|e| format!("serialize {}: {}", name, e))?;
+    write_blob_bytes(dir, name, &bytes, out)
+}
+
+/// Writes a [Rules] blob through the library's writer, with the self-describing header.
+fn write_rules_blob(
+    dir: &Path,
+    name: &str,
+    value: &Rules,
+    out: &mut Vec<Extracted>,
+) -> Result<(), String> {
+    let mut bytes = Vec::new();
+    value
+        .to_writer(&mut bytes)
+        .map_err(|e| format!("serialize {}: {}", name, e))?;
+    write_blob_bytes(dir, name, &bytes, out)
 }
 
 /// An [Engine] with no matcher state, used to blank out a field of a rule.
@@ -195,25 +244,25 @@ fn blanked_grammar_rules(rules: &[Rule], blank: GrammarBlank) -> Vec<Rule> {
 /// Deserializes `tokenizer_bin` once and writes each tokenizer component to `out_dir`.
 pub fn extract_tokenizer(tokenizer_bin: &Path, out_dir: &Path) -> Result<Vec<Extracted>, String> {
     std::fs::create_dir_all(out_dir).map_err(|e| format!("{}: {}", out_dir.display(), e))?;
-    let tokenizer: Tokenizer = load_typed(tokenizer_bin)?;
+    let tokenizer: Tokenizer = load_tokenizer(tokenizer_bin)?;
     let mut out = Vec::new();
 
-    write_blob(out_dir, "tokenizer_full", &tokenizer, &mut out)?;
+    write_tokenizer_blob(out_dir, "tokenizer_full", &tokenizer, &mut out)?;
 
     // Partition variants: same tokenizer with one component removed. The loaded cost of that
     // component in context is `tokenizer_full - tokenizer_no_<component>`.
     {
         let mut no_multiword = tokenizer.clone();
         no_multiword.multiword_tagger = None;
-        write_blob(out_dir, "tokenizer_no_multiword", &no_multiword, &mut out)?;
+        write_tokenizer_blob(out_dir, "tokenizer_no_multiword", &no_multiword, &mut out)?;
 
         let mut no_chunker = tokenizer.clone();
         no_chunker.chunker = None;
-        write_blob(out_dir, "tokenizer_no_chunker", &no_chunker, &mut out)?;
+        write_tokenizer_blob(out_dir, "tokenizer_no_chunker", &no_chunker, &mut out)?;
 
         let mut no_disambiguation = tokenizer.clone();
         no_disambiguation.rules = Vec::new();
-        write_blob(
+        write_tokenizer_blob(
             out_dir,
             "tokenizer_no_disambiguation",
             &no_disambiguation,
@@ -222,7 +271,7 @@ pub fn extract_tokenizer(tokenizer_bin: &Path, out_dir: &Path) -> Result<Vec<Ext
 
         let mut no_sentencizer = tokenizer.clone();
         no_sentencizer.sentencizer = srx::Rules::default();
-        write_blob(
+        write_tokenizer_blob(
             out_dir,
             "tokenizer_no_sentencizer",
             &no_sentencizer,
@@ -249,7 +298,7 @@ pub fn extract_tokenizer(tokenizer_bin: &Path, out_dir: &Path) -> Result<Vec<Ext
         ] {
             let mut variant = tokenizer.clone();
             variant.chunker = Some(blanked_chunker(chunker, blank));
-            write_blob(out_dir, name, &variant, &mut out)?;
+            write_tokenizer_blob(out_dir, name, &variant, &mut out)?;
         }
     }
 
@@ -381,20 +430,20 @@ pub fn extract_tokenizer(tokenizer_bin: &Path, out_dir: &Path) -> Result<Vec<Ext
 /// Deserializes `rules_bin` once and writes each rules component to `out_dir`.
 pub fn extract_rules(rules_bin: &Path, out_dir: &Path) -> Result<Vec<Extracted>, String> {
     std::fs::create_dir_all(out_dir).map_err(|e| format!("{}: {}", out_dir.display(), e))?;
-    let rules: Rules = load_typed(rules_bin)?;
+    let rules: Rules = load_rules(rules_bin)?;
     let mut out = Vec::new();
 
-    write_blob(out_dir, "rules_full", &rules, &mut out)?;
+    write_rules_blob(out_dir, "rules_full", &rules, &mut out)?;
 
     // Partition variants: same rules with one component removed.
     {
         let mut no_grammar = rules.clone();
         no_grammar.rules = Vec::new();
-        write_blob(out_dir, "rules_no_grammar", &no_grammar, &mut out)?;
+        write_rules_blob(out_dir, "rules_no_grammar", &no_grammar, &mut out)?;
 
         let mut no_spell = rules.clone();
         no_spell.spell = Spell::default();
-        write_blob(out_dir, "rules_no_spell", &no_spell, &mut out)?;
+        write_rules_blob(out_dir, "rules_no_spell", &no_spell, &mut out)?;
     }
 
     write_blob(out_dir, "grammar_rules", &rules.rules, &mut out)?;
@@ -431,7 +480,7 @@ pub fn extract_all(
 /// Deserializes a single component (identified by the name used in [extract_all]) from `path`.
 pub fn load(name: &str, path: &Path) -> Result<Held, String> {
     let held = match name {
-        "tokenizer_full" => Held::new(load_typed::<Tokenizer>(path)?),
+        "tokenizer_full" => Held::new(load_tokenizer(path)?),
         "tokenizer_no_multiword"
         | "tokenizer_no_chunker"
         | "tokenizer_no_disambiguation"
@@ -445,7 +494,7 @@ pub fn load(name: &str, path: &Path) -> Result<Held, String> {
         | "tokenizer_no_pos_tagdict"
         | "tokenizer_no_chunk_parameters"
         | "tokenizer_no_chunk_outcomes"
-        | "tokenizer_no_chunk_pmap" => Held::new(load_typed::<Tokenizer>(path)?),
+        | "tokenizer_no_chunk_pmap" => Held::new(load_tokenizer(path)?),
         "tagger" => Held::new(load_typed::<crate::tokenizer::tag::Tagger>(path)?),
         "tagger_word_store_fst" | "tagger_tag_fst" | "tagger_synth_fst" => {
             Held::new(load_typed::<Vec<u8>>(path)?)
@@ -476,8 +525,8 @@ pub fn load(name: &str, path: &Path) -> Result<Held, String> {
         "chunker_model_outcome_labels" => Held::new(load_typed::<Vec<String>>(path)?),
         "multiword_tagger" => Held::new(load_typed::<Option<MultiwordTagger>>(path)?),
         "sentencizer" => Held::new(load_typed::<srx::Rules>(path)?),
-        "rules_full" => Held::new(load_typed::<Rules>(path)?),
-        "rules_no_grammar" | "rules_no_spell" => Held::new(load_typed::<Rules>(path)?),
+        "rules_full" => Held::new(load_rules(path)?),
+        "rules_no_grammar" | "rules_no_spell" => Held::new(load_rules(path)?),
         "grammar_rules" | "grammar_no_examples" | "grammar_no_suggesters" | "grammar_no_engine" => {
             Held::new(load_typed::<Vec<Rule>>(path)?)
         }
@@ -500,8 +549,8 @@ pub fn spell_set_variant(held: &mut Held, variant: &str) -> Result<(), String> {
 
 /// Structural facts (counts, on-disk vs loaded element sizes) that explain the measurements.
 pub fn describe(tokenizer_bin: &Path, rules_bin: &Path) -> Result<Vec<(String, String)>, String> {
-    let tokenizer: Tokenizer = load_typed(tokenizer_bin)?;
-    let rules: Rules = load_typed(rules_bin)?;
+    let tokenizer: Tokenizer = load_tokenizer(tokenizer_bin)?;
+    let rules: Rules = load_rules(rules_bin)?;
     let mut facts: Vec<(String, String)> = Vec::new();
 
     let tagger = &*tokenizer.tagger;

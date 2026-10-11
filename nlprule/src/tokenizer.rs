@@ -9,7 +9,7 @@ use crate::{
     rule::MatchSentence,
     types::*,
     utils::{parallelism::MaybeParallelRefIterator, regex::Regex},
-    Error,
+    BinaryKind, Error, TOKENIZER_FORMAT_VERSION,
 };
 use fs_err::File;
 use serde::{Deserialize, Serialize};
@@ -326,19 +326,29 @@ impl Tokenizer {
     ///
     /// # Errors
     /// - If the file can not be opened.
-    /// - If the file content can not be deserialized to a rules set.
+    /// - If the file is not a writemorebetter tokenizer binary written by a compatible engine
+    ///   version ([Error::Format]).
+    /// - If the file content can not be deserialized to a tokenizer.
     pub fn new<P: AsRef<Path>>(p: P) -> Result<Self, Error> {
         let reader = BufReader::new(File::open(p.as_ref())?);
-        Ok(bincode::deserialize_from(reader)?)
+        Self::from_reader(reader)
     }
 
     /// Creates a new tokenizer from a reader.
+    ///
+    /// # Errors
+    /// See [Tokenizer::new].
     pub fn from_reader<R: Read>(reader: R) -> Result<Self, Error> {
+        let mut reader = reader;
+        crate::read_binary_header(&mut reader, BinaryKind::Tokenizer, TOKENIZER_FORMAT_VERSION)?;
         Ok(bincode::deserialize_from(reader)?)
     }
 
-    /// Serializes this rules set to a writer.
+    /// Serializes this tokenizer to a writer, prefixing the payload with the self-describing
+    /// header (magic, format version, engine version).
     pub fn to_writer<W: Write>(&self, writer: W) -> Result<(), Error> {
+        let mut writer = writer;
+        crate::write_binary_header(&mut writer, BinaryKind::Tokenizer, TOKENIZER_FORMAT_VERSION)?;
         Ok(bincode::serialize_into(writer, &self)?)
     }
 

@@ -384,9 +384,10 @@ impl PyTokenizer {
     pub fn __setstate__(&mut self, py: Python, state: PyObject) -> PyResult<()> {
         match state.extract::<&PyBytes>(py) {
             Ok(s) => {
-                self.tokenizer = bincode::deserialize(s.as_bytes()).map_err(|_| {
-                    PyValueError::new_err("deserializing state with `bincode` failed")
-                })?;
+                self.tokenizer =
+                    Arc::new(Tokenizer::from_reader(s.as_bytes()).map_err(|_| {
+                        PyValueError::new_err("deserializing tokenizer state failed")
+                    })?);
                 Ok(())
             }
             Err(e) => Err(e),
@@ -394,12 +395,11 @@ impl PyTokenizer {
     }
 
     pub fn __getstate__(&self, py: Python) -> PyResult<PyObject> {
-        Ok(PyBytes::new(
-            py,
-            &bincode::serialize(&self.tokenizer)
-                .map_err(|_| PyValueError::new_err("serializing state with `bincode` failed"))?,
-        )
-        .to_object(py))
+        let mut bytes = Vec::new();
+        self.tokenizer
+            .to_writer(&mut bytes)
+            .map_err(|_| PyValueError::new_err("serializing tokenizer state failed"))?;
+        Ok(PyBytes::new(py, &bytes).to_object(py))
     }
 }
 
@@ -825,9 +825,8 @@ impl PyRules {
     pub fn __setstate__(&mut self, py: Python, state: PyObject) -> PyResult<()> {
         match state.extract::<&PyBytes>(py) {
             Ok(s) => {
-                let rules: Rules = bincode::deserialize(s.as_bytes()).map_err(|_| {
-                    PyValueError::new_err("deserializing state with `bincode` failed")
-                })?;
+                let rules: Rules = Rules::from_reader(s.as_bytes())
+                    .map_err(|_| PyValueError::new_err("deserializing rules state failed"))?;
                 // a roundtrip through pickle can not preserve references so we need to create a new Arc<RwLock<..>>
                 self.rules = Arc::new(RwLock::new(rules));
                 Ok(())
@@ -837,13 +836,13 @@ impl PyRules {
     }
 
     pub fn __getstate__(&self, py: Python) -> PyResult<PyObject> {
-        Ok(PyBytes::new(
-            py,
-            // rwlock serialization is transparent
-            &bincode::serialize(&self.rules)
-                .map_err(|_| PyValueError::new_err("serializing state with `bincode` failed"))?,
-        )
-        .to_object(py))
+        let mut bytes = Vec::new();
+        // rwlock serialization is transparent
+        self.rules
+            .read()
+            .to_writer(&mut bytes)
+            .map_err(|_| PyValueError::new_err("serializing rules state failed"))?;
+        Ok(PyBytes::new(py, &bytes).to_object(py))
     }
 }
 
