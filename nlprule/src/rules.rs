@@ -189,11 +189,28 @@ impl Rules {
             return Vec::new();
         }
 
-        let sentences: Vec<_> = tokenizer.pipe(text).collect();
-        let mut builtin_suggestions = self.builtin_suggestions(&sentences);
+        let mut suggestions = Vec::new();
+        let mut paragraph = Vec::new();
+
+        for sentence in tokenizer.pipe(text) {
+            let ends_paragraph = sentence.text().contains('\n');
+            paragraph.push(sentence);
+
+            if ends_paragraph {
+                suggestions.extend(self.apply_paragraph(&paragraph));
+                paragraph.clear();
+            }
+        }
+        suggestions.extend(self.apply_paragraph(&paragraph));
+
+        suggestions
+    }
+
+    fn apply_paragraph(&self, sentences: &[Sentence]) -> Vec<Suggestion> {
+        let mut builtin_suggestions = self.builtin_suggestions(sentences);
         let mut suggestions = Vec::new();
 
-        for sentence in &sentences {
+        for sentence in sentences {
             let end = sentence.span().char().end;
             let (own, rest) = builtin_suggestions
                 .into_iter()
