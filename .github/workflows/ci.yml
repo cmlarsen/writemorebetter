@@ -8,7 +8,25 @@ on:
 
 jobs:
   english:
+    name: English (LanguageTool ${{ matrix.lt }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        lt: ["6.6", "5.2"]
+        include:
+          - lt: "6.6"
+            build_dir: data/en-lt66
+            grammar_passing: 4998
+            grammar_runnable: 5718
+            disambig_passing: 979
+            recall_min: 54
+          - lt: "5.2"
+            build_dir: data/en
+            grammar_passing: 4052
+            grammar_runnable: 4055
+            disambig_passing: 843
+            recall_min: 53
     steps:
       - uses: actions/checkout@v4
 
@@ -19,7 +37,84 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
+      # --- LanguageTool build dir -------------------------------------------------
+      # 6.6 is generated on the runner straight from the pinned desktop release
+      # (build/README.md, "Generating a build dir from the latest LanguageTool
+      # release"); 5.2 uses the published Backblaze en.zip. The download/JRE and the
+      # generated directory are cached so a warm run skips the expensive steps; a
+      # cold cache still runs everything below.
+      - name: Cache LanguageTool download and portable JRE
+        if: matrix.lt == '6.6'
+        uses: actions/cache@v4
+        with:
+          path: data/cache
+          key: lt-download-${{ runner.os }}-${{ matrix.lt }}
+
+      - name: Cache generated build dir
+        id: build-dir
+        if: matrix.lt == '6.6'
+        uses: actions/cache@v4
+        with:
+          path: data/en-lt66
+          key: build-dir-${{ runner.os }}-${{ matrix.lt }}-${{ hashFiles('build/make_build_dir.py', 'build/requirements.txt', 'build/chunker.py', 'build/builtin-data/en/**') }}
+
+      - name: Fetch LanguageTool ${{ matrix.lt }} and portable JRE
+        if: matrix.lt == '6.6'
+        run: |
+          mkdir -p data storage
+          eval "$(build/fetch_lt.sh data/cache 6.6)"
+          echo "LT_DIR=$LT_DIR" >> "$GITHUB_ENV"
+          echo "JAVA_BIN=$JAVA_BIN" >> "$GITHUB_ENV"
+
+      - name: Set up Python
+        if: matrix.lt == '6.6'
+        uses: actions/setup-python@v5
+        with:
+          # build/requirements.txt pins old packages (lxml 4.6.3); 3.9 is the newest
+          # interpreter with wheels for them.
+          python-version: '3.9'
+
+      - name: Install build-dir generator dependencies
+        if: matrix.lt == '6.6' && steps.build-dir.outputs.cache-hit != 'true'
+        run: |
+          python3 -m venv data/venv
+          data/venv/bin/pip install -r build/requirements.txt
+
+      - name: Extract LanguageTool ${{ matrix.lt }} tagger and speller dictionaries
+        if: matrix.lt == '6.6' && steps.build-dir.outputs.cache-hit != 'true'
+        run: |
+          # LT 6.x keeps the tagger dictionary and the Morfologik speller dictionaries
+          # inside a jar; extract them next to the other English resources.
+          unzip -o "$LT_DIR/libs/english-pos-dict.jar" \
+              'org/languagetool/resource/en/english.dict' \
+              'org/languagetool/resource/en/english.info' \
+              'org/languagetool/resource/en/hunspell/*.dict' \
+              'org/languagetool/resource/en/hunspell/*.info' \
+              -d "$LT_DIR"
+
+      - name: Generate LanguageTool ${{ matrix.lt }} build dir
+        if: matrix.lt == '6.6' && steps.build-dir.outputs.cache-hit != 'true'
+        run: |
+          data/venv/bin/python build/make_build_dir.py \
+              --lt_dir "$LT_DIR" \
+              --lang_code en \
+              --tag_dict_path "$LT_DIR/org/languagetool/resource/en/english.dict" \
+              --tag_info_path "$LT_DIR/org/languagetool/resource/en/english.info" \
+              --spell_map_path "$LT_DIR/org/languagetool/rules/en/contractions.txt" \
+              --java "$JAVA_BIN" \
+              --out_dir data/en-lt66
+
+      - name: Reuse chunker model and builtin data from the published build dir
+        if: matrix.lt == '6.6' && steps.build-dir.outputs.cache-hit != 'true'
+        run: |
+          curl -sSL -o data/en.zip https://f000.backblazeb2.com/file/nlprule/en.zip
+          unzip -q data/en.zip -d data
+          cp data/en/chunker.json data/en-lt66/chunker.json
+          mkdir -p data/en-lt66/builtin
+          cp -r build/builtin-data/en/. data/en-lt66/builtin/
+
       - name: Download English build data
+        if: matrix.lt == '5.2'
         run: |
           mkdir -p data storage
           curl -sSL -o data/en.zip https://f000.backblazeb2.com/file/nlprule/en.zip
@@ -27,34 +122,44 @@ jobs:
           mkdir -p data/en/builtin
           cp -r build/builtin-data/en/. data/en/builtin/
 
+      # --- Rust: styling, linting, wasm and unit tests run once, in the 5.2 job ----
       - name: Check formatting
+        if: matrix.lt == '5.2'
         run: cargo fmt --all -- --check
 
       - name: Build workspace
+        if: matrix.lt == '5.2'
         run: cargo build --workspace --exclude nlprule-python --all-features
 
       - name: Build wasm
+        if: matrix.lt == '5.2'
         run: cargo build --target wasm32-unknown-unknown --no-default-features --features regex-fancy -p nlprule
 
       - name: Lint with clippy
+        if: matrix.lt == '5.2'
         run: cargo clippy --workspace --exclude nlprule-python --all-features
 
       - name: Compile English binaries
         env:
           RUST_LOG: INFO
-        run: cargo run --release --all-features --bin compile -- --build-dir data/en --tokenizer-out storage/en_tokenizer.bin --rules-out storage/en_rules.bin
+          BUILD_DIR: ${{ matrix.build_dir }}
+        run: cargo run --release --all-features --bin compile -- --build-dir "$BUILD_DIR" --tokenizer-out storage/en_tokenizer.bin --rules-out storage/en_rules.bin
 
       - name: Test
+        if: matrix.lt == '5.2'
         run: cargo test --workspace --exclude nlprule-python --all-features --release
 
       - name: Public corpus recall
+        env:
+          RECALL_MIN: ${{ matrix.recall_min }}
         run: |
           cargo build --release --manifest-path bench/tools/wmb-probe/Cargo.toml
-          python3 bench/tools/public_recall.py --min 53
+          python3 bench/tools/public_recall.py --min "$RECALL_MIN"
 
       - name: Disambiguation conformance
         env:
           RUST_LOG: WARN
+          DISAMBIG_PASSING: ${{ matrix.disambig_passing }}
         run: |
           # the binary exits 1 when any rule fails its examples; the floors below are the gate
           cargo run --release --all-features --bin test_disambiguation -- --tokenizer storage/en_tokenizer.bin > storage/disambiguation_conformance.log 2>&1 || true
@@ -67,18 +172,20 @@ jobs:
             echo "::error::Disambiguation conformance output not found"
             exit 1
           fi
-          if [ "${passing}" -lt 843 ]; then
-            echo "::error::Disambiguation conformance regressed: ${passing}/${runnable} rules passing, baseline is 843 passing"
+          if [ "${passing}" -lt "${DISAMBIG_PASSING}" ]; then
+            echo "::error::Disambiguation conformance regressed: ${passing}/${runnable} rules passing, floor is ${DISAMBIG_PASSING} passing"
             exit 1
           fi
-          if [ "${runnable}" -lt 843 ]; then
-            echo "::error::Disambiguation conformance regressed: ${runnable} runnable rules, baseline is 843 (docs/BASELINE.md)"
+          if [ "${runnable}" -lt "${DISAMBIG_PASSING}" ]; then
+            echo "::error::Disambiguation conformance regressed: ${runnable} runnable rules, floor is ${DISAMBIG_PASSING} (docs/BASELINE.md)"
             exit 1
           fi
 
       - name: Grammar conformance
         env:
           RUST_LOG: WARN
+          GRAMMAR_PASSING: ${{ matrix.grammar_passing }}
+          GRAMMAR_RUNNABLE: ${{ matrix.grammar_runnable }}
         run: |
           # the binary exits 1 when any rule fails its examples; the floors below are the gate
           cargo run --release --all-features --bin test -- --tokenizer storage/en_tokenizer.bin --rules storage/en_rules.bin > storage/grammar_conformance.log 2>&1 || true
@@ -91,11 +198,11 @@ jobs:
             echo "::error::Grammar conformance output not found"
             exit 1
           fi
-          if [ "${passing}" -lt 4052 ]; then
-            echo "::error::Grammar conformance regressed: ${passing}/${runnable} rules passing, baseline is 4052 passing"
+          if [ "${passing}" -lt "${GRAMMAR_PASSING}" ]; then
+            echo "::error::Grammar conformance regressed: ${passing}/${runnable} rules passing, floor is ${GRAMMAR_PASSING} passing"
             exit 1
           fi
-          if [ "${runnable}" -lt 4055 ]; then
-            echo "::error::Grammar conformance regressed: ${runnable} runnable rules, baseline is 4055 (docs/BASELINE.md)"
+          if [ "${runnable}" -lt "${GRAMMAR_RUNNABLE}" ]; then
+            echo "::error::Grammar conformance regressed: ${runnable} runnable rules, floor is ${GRAMMAR_RUNNABLE} (docs/BASELINE.md)"
             exit 1
           fi
