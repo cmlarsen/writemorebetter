@@ -11,16 +11,30 @@ pub enum Conversion {
     StartLower,
     AllUpper,
     StartUpper,
+    /// Uppercase like the matched text: all-uppercase if the match was
+    /// all-uppercase, otherwise only its first character. Mirrors
+    /// LanguageTool's `CaseConversionHelper.convertCase` `PRESERVE`.
+    Preserve,
 }
 
 impl Conversion {
-    fn convert(&self, input: &str) -> String {
+    fn convert(&self, input: &str, sample: &str) -> String {
         match &self {
             Conversion::Nop => input.to_string(),
             Conversion::AllLower => input.to_lowercase(),
             Conversion::StartLower => utils::apply_to_first(input, |c| c.to_lowercase().collect()),
             Conversion::AllUpper => input.to_uppercase(),
             Conversion::StartUpper => utils::apply_to_first(input, |c| c.to_uppercase().collect()),
+            Conversion::Preserve => {
+                let starts_upper = sample.chars().next().map_or(false, char::is_uppercase);
+                if !starts_upper {
+                    input.to_string()
+                } else if sample.chars().all(|c| !c.is_lowercase()) {
+                    input.to_uppercase()
+                } else {
+                    utils::apply_to_first(input, |c| c.to_uppercase().collect())
+                }
+            }
         }
     }
 }
@@ -238,7 +252,7 @@ impl Match {
         Some(
             forms
                 .into_iter()
-                .map(|form| self.conversion.convert(&form))
+                .map(|form| self.conversion.convert(&form, group_text))
                 .collect(),
         )
     }

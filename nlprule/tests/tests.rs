@@ -48,12 +48,22 @@ fn suggest_indices_are_relative_to_input_text() {
         &*TOKENIZER,
     );
 
-    assert_eq!(*suggestions[0].span().char(), 6..9);
-    assert_eq!(*suggestions[0].span().byte(), 6..9);
+    // Newly compiled rules can add suggestions (e.g. TYPOGRAPHY/CURRENCY on
+    // "10€"), so look the two "due" matches up by position instead of index.
+    let first = suggestions
+        .iter()
+        .find(|suggestion| suggestion.span().char().start == 6)
+        .expect("a suggestion for the first \"due\"");
+    assert_eq!(*first.span().char(), 6..9);
+    assert_eq!(*first.span().byte(), 6..9);
 
-    assert_eq!(*suggestions[1].span().char(), 38..41);
+    let second = suggestions
+        .iter()
+        .find(|suggestion| suggestion.span().char().start == 38)
+        .expect("a suggestion for the second \"due\"");
+    assert_eq!(*second.span().char(), 38..41);
     assert_eq!(
-        *suggestions[1].span().byte(),
+        *second.span().byte(),
         38 + '€'.len_utf8() - 1..41 + '€'.len_utf8() - 1
     );
 }

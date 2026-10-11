@@ -91,11 +91,11 @@ jobs:
             echo "::error::Grammar conformance output not found"
             exit 1
           fi
-          if [ "${passing}" -lt 3987 ]; then
-            echo "::error::Grammar conformance regressed: ${passing}/${runnable} rules passing, baseline is 3987 passing"
+          if [ "${passing}" -lt 4052 ]; then
+            echo "::error::Grammar conformance regressed: ${passing}/${runnable} rules passing, baseline is 4052 passing"
             exit 1
           fi
-          if [ "${runnable}" -lt 3989 ]; then
-            echo "::error::Grammar conformance regressed: ${runnable} runnable rules, baseline is 3989 (docs/BASELINE.md)"
+          if [ "${runnable}" -lt 4055 ]; then
+            echo "::error::Grammar conformance regressed: ${runnable} runnable rules, baseline is 4055 (docs/BASELINE.md)"
             exit 1
           fi
