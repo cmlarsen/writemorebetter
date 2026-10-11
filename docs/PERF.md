@@ -233,7 +233,8 @@ attempts total. Phase 0 establishes measurement and does not count as an optimiz
 | 0 | [#48](https://github.com/cmlarsen/writemorebetter/pull/48) | Public golden output and reproducible local/CI harness | +0.13% (baseline 80.792B) | +0.031 MiB (baseline 91.441) | −0.012 MiB (baseline 70.492) | baseline | kept |
 | 1 | [#49](https://github.com/cmlarsen/writemorebetter/pull/49) | Bounded short-input boolean-regex cache | -9.75% | +0.383 MiB | +0.129 MiB | -3.03% / -5.94% (interleaved, loaded) | kept |
 | 2 | [#50](https://github.com/cmlarsen/writemorebetter/pull/50) | Immutable composition buffers as boxed slices | -0.37% | +1.230 MiB | -0.191 MiB | +1.94% / -2.20% (interleaved, loaded) | dropped |
-| 3 | pending | Shared antipattern compositions in each rule set | pending | pending | pending | +0.88% / -0.06% (interleaved, loaded) | pending |
+| 3 | [#51](https://github.com/cmlarsen/writemorebetter/pull/51) | Shared antipattern compositions in each rule set | +0.22% | -5.918 MiB | -1.395 MiB | +0.88% / -0.06% (interleaved, loaded) | kept |
+| 4 | pending | Later mandatory-literal absence guard | pending | pending | pending | -5.02% / -4.40% (interleaved, loaded) | pending |
 
 
 Phase 0 merge-base measurements (Ubuntu): 6.6 check 5.2510 s, peak 91.4414 MiB,
@@ -317,4 +318,22 @@ This attempt is rebased onto retained main after #50 was dropped. All 24 goldens
 37 library tests pass; Clippy has no new warnings. Fresh local interleaved Moby medians:
 6.6 peak 95.05 → 90.20 MiB (-4.84), check 2.6005 → 2.6235 s (+0.88%);
 5.2 peak 73.59 → 72.89 MiB (-0.70), check 2.2168 → 2.2155 s (-0.06%).
-CI results are pending.
+CI passed: peak 91.348 → 85.430 MiB for 6.6 (-5.918), 70.512 → 69.117 MiB
+for 5.2 (-1.395); loaded RSS fell 5.840 / 1.563 MiB. Instructions rose
+72.852B → 73.016B (+0.22%), while allocator calls fell 0.30%. The coordinator
+approved this tradeoff: memory wins exceeding 1 MiB may cost up to +0.5% instructions;
+instruction wins of at least 1% may cost up to 1 MiB peak RSS. Larger costs require
+approval. Every retained tradeoff stays in this ledger so small costs remain visible.
+
+### Attempt 4 — later mandatory-literal guard
+
+Rules beginning with POS/regex constraints can still require a literal later in their
+pattern. Compile a singleton key from a mandatory positive atom, and reject the sentence
+when that literal is absent. Optional/negative/offset atoms and empty literals cannot
+provide this key. Case-insensitive absence checks fall back to full matching for non-ASCII
+keys or tokens because lowercasing differs from Unicode case folding.
+All 24 goldens and 38 library tests pass, including long-s/ß/Kelvin folds and curly
+punctuation/U+2028. Tokenizer/rules formats advance to 7/9. Fresh interleaved Moby
+medians: 6.6 check 2.7488 → 2.6109 s (-5.02%), peak 90.33 → 90.23 MiB;
+5.2 check 2.2601 → 2.1606 s (-4.40%), peak 73.20 → 72.52 MiB. Story medians
+improved 3.3–8.3% across the two sets. CI decides retention.

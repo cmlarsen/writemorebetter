@@ -397,9 +397,16 @@ pub(crate) struct StartPositions {
     lower: fnv::FnvHashMap<Box<str>, Vec<u32>>,
     /// Exact token text -> positions, for case-sensitive keys.
     exact: fnv::FnvHashMap<Box<str>, Vec<u32>>,
+    has_non_ascii: bool,
 }
 
 impl StartPositions {
+    pub(crate) fn may_contain(&self, key: &StartKey) -> bool {
+        // Lowercasing is not full Unicode case folding, so absence is conclusive only for ASCII.
+        (!key.case_sensitive && (self.has_non_ascii || !key.text.is_ascii()))
+            || !self.get(key).is_empty()
+    }
+
     pub(crate) fn get(&self, key: &StartKey) -> &[u32] {
         let map = if key.case_sensitive {
             &self.exact
@@ -425,6 +432,7 @@ impl<'t> MatchSentence<'t> {
             let mut positions = StartPositions::default();
             for i in 0..self.len() {
                 let text = self.index(i).word().text().as_str();
+                positions.has_non_ascii |= !text.is_ascii();
                 if text.is_empty() {
                     continue;
                 }
@@ -726,6 +734,8 @@ pub struct Composition {
     /// scan for a sentence that contains none of the texts. Computed at compile time.
     #[serde(default)]
     pub(crate) start_keys: Option<Box<[StartKey]>>,
+    /// A mandatory literal anywhere in the pattern; absence can reject the whole sentence.
+    pub(crate) required_key: Option<Box<StartKey>>,
 }
 
 /// A literal token text a match must start with, see [`Composition::start_keys`].
@@ -933,5 +943,40 @@ impl Composition {
         );
 
         self.apply_recursive(pool, sentence, position, 0, graph)
+    }
+}
+
+#[cfg(test)]
+mod prefilter_tests {
+    use super::*;
+
+    #[test]
+    fn required_literal_absence_is_conservative_for_unicode_case_folding() {
+        for (pattern, token) in [("ss", "ß"), ("ſ", "s"), ("k", "K")] {
+            assert_eq!(UniCase::new(pattern), UniCase::new(token));
+            let mut positions = StartPositions {
+                has_non_ascii: !token.is_ascii(),
+                ..Default::default()
+            };
+            positions.lower.insert(token.to_lowercase().into(), vec![1]);
+            let key = StartKey {
+                text: pattern.to_lowercase().into(),
+                case_sensitive: false,
+            };
+            assert!(positions.may_contain(&key));
+        }
+        for token in ["“", "’", "—", "…", "\u{2028}"] {
+            let positions = StartPositions {
+                has_non_ascii: !token.is_ascii(),
+                ..Default::default()
+            };
+            let mut key = StartKey {
+                text: "absent".into(),
+                case_sensitive: false,
+            };
+            assert!(positions.may_contain(&key));
+            key.case_sensitive = true;
+            assert!(!positions.may_contain(&key));
+        }
     }
 }
