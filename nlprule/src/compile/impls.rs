@@ -965,6 +965,7 @@ mod composition {
                 negate,
                 case_sensitive: true, // handled by regex, should maybe be an option
                 empty_always_false,
+                reference_conversion: None,
             }
         }
 
@@ -982,7 +983,18 @@ mod composition {
                 negate,
                 case_sensitive,
                 empty_always_false,
+                reference_conversion: None,
             }
+        }
+
+        /// Applies LanguageTool's `case_conversion` to a reference matcher
+        /// (`<match no="…"/>` inside a `<token>`).
+        pub(in crate::compile) fn with_reference_conversion(
+            mut self,
+            conversion: crate::rule::grammar::Conversion,
+        ) -> Self {
+            self.reference_conversion = Some(conversion);
+            self
         }
 
         pub(in crate::compile) fn graph_id(&self) -> Option<GraphId> {

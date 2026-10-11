@@ -3,6 +3,7 @@ from pathlib import Path
 from shutil import copyfile
 import os
 import logging
+import json
 import re
 import shlex
 from zipfile import ZipFile
@@ -146,21 +147,36 @@ def lt_version(lt_dir):
 def write_tokenizer_options(out_dir, lt_dir, lang_code):
     """Select the tokenizer behavior of the LanguageTool version being built.
 
-    LanguageTool 6.6 rewrote its English word tokenizer: contractions are split
-    into a stem and an apostrophe-initial clitic (``do`` + ``n't``) instead of
-    a stem with the apostrophe on its own (``don`` + ``'`` + ``t``). nlprule
-    defaults to the 5.2 behavior; ``tokenizer_options.json`` switches the 6.6+
-    behavior on. Only English currently has a version-specific tokenizer.
+    LanguageTool changed two English behaviors that nlprule defaults to the 5.2
+    form of, and ``tokenizer_options.json`` switches each on per build
+    directory:
+
+    * 5.9 added ``endOfNounPhraseIsSingular``: a noun phrase whose last token is
+      singular is tagged singular even if it contains a plural (``a pens and
+      paper``), where 5.2 tagged it plural if any token was.
+    * 6.6 rewrote its English word tokenizer: contractions are split into a stem
+      and an apostrophe-initial clitic (``do`` + ``n't``) instead of a stem with
+      the apostrophe on its own (``don`` + ``'`` + ``t``).
+
+    Only English currently has version-specific behavior.
     """
     version = lt_version(lt_dir)
-    if lang_code != "en" or version is None or version < (6, 6):
+    if lang_code != "en" or version is None:
         return
-    (out_dir / "tokenizer_options.json").write_text(
-        '{\n    "split_contractions": true\n}\n'
-    )
+
+    options = {}
+    if version >= (5, 9):
+        options["chunk_number_from_last_token"] = True
+    if version >= (6, 6):
+        options["split_contractions"] = True
+    if not options:
+        return
+
+    (out_dir / "tokenizer_options.json").write_text(json.dumps(options, indent=4) + "\n")
     logging.info(
-        "LanguageTool %s: enabling 6.6+ contraction tokenization.",
+        "LanguageTool %s: enabling %s tokenization.",
         ".".join(str(part) for part in version),
+        ", ".join(options),
     )
 
 

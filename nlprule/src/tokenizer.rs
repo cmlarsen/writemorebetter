@@ -233,6 +233,13 @@ pub(crate) struct TokenizerLangOptions {
     /// build directory (see `build/make_build_dir.py`).
     #[serde(default)]
     pub split_contractions: bool,
+    /// Number a noun phrase the way LanguageTool 5.9+ does: a phrase is plural
+    /// only if its *last* token has a plural reading. LanguageTool 5.2 marked a
+    /// noun phrase plural if *any* of its tokens did, so `a pens and paper` was
+    /// plural there and singular from 5.9 on. Defaults to `false` (5.2
+    /// behavior) and is switched on per build directory.
+    #[serde(default)]
+    pub chunk_number_from_last_token: bool,
 }
 
 impl Default for TokenizerLangOptions {
@@ -245,6 +252,7 @@ impl Default for TokenizerLangOptions {
             extra_split_chars: Vec::new(),
             extra_join_regexes: Vec::new(),
             split_contractions: false,
+            chunk_number_from_last_token: false,
         }
     }
 }
@@ -628,7 +636,10 @@ impl Tokenizer {
         let mut sentence = IncompleteSentence::new(tokens, sentence, &self.tagger);
 
         if let Some(chunker) = &self.chunker {
-            chunker.apply(&mut sentence);
+            chunker.apply(
+                &mut sentence,
+                self.lang_options.chunk_number_from_last_token,
+            );
         }
 
         if let Some(multiword_tagger) = &self.multiword_tagger {
