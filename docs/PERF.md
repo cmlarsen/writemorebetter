@@ -236,7 +236,8 @@ attempts total. Phase 0 establishes measurement and does not count as an optimiz
 | 3 | [#51](https://github.com/cmlarsen/writemorebetter/pull/51) | Shared antipattern compositions in each rule set | +0.22% | -5.918 MiB | -1.395 MiB | +0.88% / -0.06% (interleaved, loaded) | kept |
 | 4 | [#52](https://github.com/cmlarsen/writemorebetter/pull/52) | Later mandatory-literal absence guard | -23.79% | -2.277 MiB | +0.102 MiB | -5.02% / -4.40% (interleaved, loaded) | kept |
 | 5 | [#53](https://github.com/cmlarsen/writemorebetter/pull/53) | Reuse successful first-token match | -4.26% / -4.25% (rerun) | +1.727 / +1.742 MiB | -0.113 / +0.098 MiB | -1.35% / +0.73% (interleaved, loaded) | dropped |
-| 6 | pending | Trim spare capacity from tagger FST buffers | pending | pending | pending | pending | pending |
+| 6 | [#54](https://github.com/cmlarsen/writemorebetter/pull/54) | Trim spare capacity from tagger FST buffers | -0.66% | -0.293 MiB | -0.449 MiB | +0.53% / +1.24% (interleaved, loaded) | dropped |
+| 7 | pending | Inline buffers for small match graphs | pending | pending | pending | -0.82% / -2.24% (interleaved, loaded) | pending |
 
 
 Phase 0 merge-base measurements (Ubuntu): 6.6 check 5.2510 s, peak 91.4414 MiB,
@@ -359,10 +360,23 @@ For future conflicts between local and CI RSS evidence, one CI rerun decides ret
 An instruction winner must stay within +1 MiB peak RSS; a memory winner must stay
 within +0.5% instructions. Larger costs require a coordinator decision.
 
-### Attempt 6 — trim deserialized tagger buffers
+### Attempt 6 — trim deserialized tagger buffers (dropped)
 
 The three FST byte buffers retain excess deserialization capacity. A capacity census
 found approximately 2.00 MiB spare on 6.6 and 2.09 MiB on 5.2; shrinking them after
 loading preserves all bytes and FST operations. Measured against retained main after removing rejected attempt 5. All 24 goldens
 and 38 library tests pass; Clippy has only existing warnings. Local five-pair
 check-time deltas (6.6 / 5.2): +0.53% / +1.24%. CI decides retention.
+
+CI passed, but instructions improved only 0.66% (55.574B → 55.208B), with
+peak RSS reductions of 0.293 MiB (6.6) and 0.449 MiB (5.2). Allocator calls
+were unchanged apart from two reallocations. Neither improvement reaches the keep
+threshold, so #54 was closed. Spare capacity need not correspond to resident pages.
+
+### Attempt 7 — inline small match graphs
+
+Keep up to eight match-graph groups inline; larger graphs spill into a vector.
+The current profile attributes 62.30% inclusive time to composition matching.
+This attempt is rebuilt on retained main after #53 and #54 were dropped; no first-token
+reuse or FST-capacity change is included. All 24 goldens and 38 library tests pass.
+Fresh local check deltas (6.6 / 5.2): -0.82% / -2.24%. CI decides retention.
