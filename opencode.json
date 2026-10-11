@@ -1,0 +1,16 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "opencode-go/deepseek-v4.1-flash",
+  "permission": {
+    "external_directory": {
+      "~/CalebApps/writemorebetter/bench/corpus/**": "deny",
+      "~/CalebApps/writemorebetter/bench/runs/**": "deny",
+      "~/orca/workspaces/writemorebetter/*/bench/corpus/**": "deny",
+      "~/orca/workspaces/writemorebetter/*/bench/runs/**": "deny"
+    },
+    "read": {
+      "**/bench/corpus/**": "deny",
+      "**/bench/runs/**": "deny"
+    }
+  }
+}
