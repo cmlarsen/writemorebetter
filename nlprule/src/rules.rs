@@ -15,7 +15,13 @@ use std::{
 
 /// How many sentences to collect before running their rule checks in one parallel region. Large
 /// enough to keep every worker busy on a batch, small enough to bound the memory held at once.
-const PARALLEL_BATCH: usize = 32;
+/// `wasm32` is single-threaded, so it takes the smaller batch to save memory; native targets keep
+/// the larger one unless [`Rules::set_batch_size`] says otherwise.
+const PARALLEL_BATCH: usize = if cfg!(target_arch = "wasm32") {
+    32
+} else {
+    128
+};
 
 /// Language-dependent options for a rule set.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -54,9 +60,18 @@ pub struct Rules {
     /// [`PartId`][crate::rule::engine::composition::PartId]. See that type for why the parts are
     /// not stored inline in each composition.
     pub(crate) parts: crate::rule::engine::composition::PartPool,
+    #[serde(skip)]
+    pub(crate) batch_size: Option<usize>,
 }
 
 impl Rules {
+    /// Sets how many sentences are collected before their rule checks run in one parallel region.
+    /// A smaller batch holds less memory at once but starts more, shorter parallel regions.
+    /// Values below one are treated as one. The default is 128 natively and 32 on `wasm32`.
+    pub fn set_batch_size(&mut self, sentences: usize) {
+        self.batch_size = Some(sentences.max(1));
+    }
+
     /// Creates a new rule set from a path to a binary.
     ///
     /// # Errors
@@ -242,7 +257,7 @@ impl Rules {
 
             if ends_paragraph {
                 self.extend_paragraph(&mut paragraph, &mut batch);
-                if batch.len() >= PARALLEL_BATCH {
+                if batch.len() >= self.batch_size.unwrap_or(PARALLEL_BATCH) {
                     self.flush_batch(&mut batch, &mut suggestions);
                 }
             }
