@@ -13,6 +13,12 @@ struct Opts {
     rules: String,
     #[clap(long, short)]
     ids: Vec<String>,
+    /// Print the id of every rule that passed its examples, one per line.
+    #[clap(long)]
+    list_passing: bool,
+    /// Print the id of every rule that failed its examples, one per line.
+    #[clap(long)]
+    list_failing: bool,
 }
 
 fn main() {
@@ -28,7 +34,15 @@ fn main() {
     let mut passes = 0;
     for rule in rules {
         if opts.ids.is_empty() || opts.ids.contains(&rule.id().to_string()) {
-            passes += rule.test(&tokenizer) as usize;
+            let passed = rule.test(&tokenizer);
+            passes += passed as usize;
+
+            if passed && opts.list_passing {
+                println!("{}", rule.id());
+            }
+            if !passed && opts.list_failing {
+                println!("{}", rule.id());
+            }
         }
     }
 
