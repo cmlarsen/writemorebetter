@@ -21,7 +21,7 @@ pub mod id;
 use engine::Engine;
 
 pub(crate) use engine::composition::{MatchGraph, MatchSentence};
-pub use grammar::Example;
+pub use grammar::{Example, ExampleKind};
 
 use self::{
     disambiguation::PosFilter,
@@ -326,9 +326,15 @@ impl<'a, 't> Iterator for Suggestions<'a, 't> {
                 .flatten()
                 .collect();
 
-            let start = if replacements
-                .iter()
-                .all(|x| utils::no_space_chars().chars().any(|c| x.starts_with(c)))
+            // A rule without a <suggestion> still reports a match, with its
+            // message and no replacement (LanguageTool's behaviour). Such a rule
+            // never has replacements, so mark it here to emit the match below.
+            let no_suggester = rule.suggesters.is_empty();
+
+            let start = if !replacements.is_empty()
+                && replacements
+                    .iter()
+                    .all(|x| utils::no_space_chars().chars().any(|c| x.starts_with(c)))
             {
                 let first_token = graph.groups()[graph.get_index(start)..]
                     .iter()
@@ -398,6 +404,18 @@ impl<'a, 't> Iterator for Suggestions<'a, 't> {
                     Span::from_positions(match_.from, match_.to),
                     replacements,
                 ))
+            } else if no_suggester {
+                // LanguageTool reports a match for a rule without a <suggestion>
+                // with its message and no replacement; emit it so the rule is
+                // visible and its examples can be tested.
+                Some(Suggestion::new(
+                    rule.id.to_string(),
+                    rule.message
+                        .apply(sentence, &graph, rule.start, rule.end)
+                        .expect("Rules must have a message."),
+                    Span::from_positions(start, end),
+                    Vec::new(),
+                ))
             } else {
                 None
             }
@@ -443,6 +461,27 @@ impl fmt::Display for Rule {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.id)
     }
+}
+
+/// Whether the suggestion a rule reported for an example satisfies what the
+/// example expects.
+///
+/// LanguageTool accepts an empty correction (`correction=""`, i.e. delete the
+/// match) when the rule reports a match with no replacement, which is exactly
+/// what a rule without a `<suggestion>` does. An all-empty expectation is
+/// therefore satisfied by an all-empty result at the same span; otherwise the
+/// expectation and the result must share a replacement (LanguageTool compares
+/// the lists, but nlprule keeps a set-like comparison for compatibility).
+fn example_suggestion_matches(expected: &Suggestion, actual: &Suggestion) -> bool {
+    expected.span() == actual.span()
+        && if expected.replacements().iter().all(|x| x.is_empty()) {
+            actual.replacements().iter().all(|x| x.is_empty())
+        } else {
+            expected
+                .replacements()
+                .iter()
+                .any(|x| actual.replacements().contains(x))
+        }
 }
 
 impl Rule {
@@ -543,14 +582,26 @@ impl Rule {
                 .map(|s| s.lshift(shift_delta))
                 .collect();
 
-            let pass = if suggestions.len() > 1 {
-                false
-            } else {
-                match test.suggestion() {
-                    Some(correct_suggestion) => {
-                        suggestions.len() == 1 && correct_suggestion == &suggestions[0]
+            let pass = match test.kind() {
+                // A correct example must not match at all.
+                ExampleKind::Correct => suggestions.is_empty(),
+                // A triggers_error example must match; LanguageTool does not check
+                // the match position or the correction here.
+                ExampleKind::TriggersError => !suggestions.is_empty(),
+                // An incorrect example must match exactly once. A correction pins
+                // the replacement; without one, LanguageTool only requires the
+                // match to start at the marker span and accepts an empty
+                // replacement (what a rule without a <suggestion> produces).
+                ExampleKind::Incorrect => {
+                    if suggestions.len() != 1 {
+                        false
+                    } else if let Some(correct_suggestion) = test.suggestion() {
+                        example_suggestion_matches(correct_suggestion, &suggestions[0])
+                    } else if let Some(marker) = test.marker() {
+                        suggestions[0].span() == marker
+                    } else {
+                        true
                     }
-                    None => suggestions.is_empty(),
                 }
             };
 

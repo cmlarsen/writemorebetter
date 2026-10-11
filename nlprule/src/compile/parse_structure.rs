@@ -866,24 +866,17 @@ impl Rule {
             }
         }
 
-        if suggesters.is_empty() {
-            return Err(Error::Unimplemented(
-                "rules with no suggestion are not implemented.".into(),
-            ));
-        }
+        // A rule with no <suggestion> (neither embedded in <message> nor
+        // standalone) still reports a match with its <message> and no
+        // replacement, so it is compiled normally (see `Suggestions`).
 
         assert!(!message_parts.is_empty(), "Rules must have a message.");
 
         let mut examples = Vec::new();
         for example in &data.examples {
-            if example.kind.is_some() {
-                return Err(Error::Unimplemented(
-                    "examples with `type` (i. e. 'triggers_error') are not implemented.".into(),
-                ));
-            }
-
             let mut texts = Vec::new();
             let mut suggestion: Option<Suggestion> = None;
+            let mut marker_span: Option<Span> = None;
 
             for part in &example.parts {
                 match part {
@@ -905,6 +898,11 @@ impl Rule {
                         let marker_text = marker.text.as_ref().map_or("", |x| x.as_str());
                         texts.push(marker_text);
 
+                        let span = Span::new(
+                            bytes_before..bytes_before + marker_text.len(),
+                            chars_before..chars_before + marker_text.chars().count(),
+                        );
+
                         if let Some(correction_text) = &example.correction {
                             let mut replacements: Vec<_> =
                                 correction_text.split('|').map(|x| x.to_string()).collect();
@@ -924,20 +922,50 @@ impl Rule {
                             suggestion = Some(Suggestion::new(
                                 "_Test".into(),
                                 "_Test".into(),
-                                Span::new(
-                                    bytes_before..bytes_before + marker_text.len(),
-                                    chars_before..chars_before + marker_text.chars().count(),
-                                ),
+                                span.clone(),
                                 replacements,
                             ));
                         }
+
+                        // LanguageTool checks an incorrect example against its
+                        // first marker; a correct example's markers are only
+                        // documentation.
+                        marker_span.get_or_insert(span);
                     }
                 }
             }
 
+            // LanguageTool's `PatternRuleHandler` classifies an example by its
+            // explicit `type` when present and by whether it marks an error
+            // otherwise (see `ExampleKind`). A rule without any <suggestion>
+            // has no correction to compare, so a marker-bearing example is an
+            // incorrect example that only has to match.
+            let kind = match example.kind.as_deref() {
+                Some("correct") => ExampleKind::Correct,
+                Some("incorrect") => ExampleKind::Incorrect,
+                Some("triggers_error") => ExampleKind::TriggersError,
+                Some(other) => {
+                    return Err(Error::Unimplemented(format!(
+                        "unknown example type '{}'",
+                        other
+                    )))
+                }
+                None => {
+                    if example.correction.is_some()
+                        || (marker_span.is_some() && suggesters.is_empty())
+                    {
+                        ExampleKind::Incorrect
+                    } else {
+                        ExampleKind::Correct
+                    }
+                }
+            };
+
             examples.push(Example {
                 text: texts.join(""),
                 suggestion,
+                kind,
+                marker: marker_span,
             });
         }
 
