@@ -142,7 +142,9 @@ pub const TOKENIZER_FORMAT_VERSION: u32 = 2;
 /// Version 3: rule-group unification and grammar-rule parsing changes (M4I).
 /// Version 4: the compact matcher representation above, plus `Rule::examples` stored as a lazily
 /// parsed blob ([`rule::Examples`]).
-pub const RULES_FORMAT_VERSION: u32 = 4;
+/// Version 5: the `+DT`/`+INDT` article word lists moved from every rule to one copy on `Rules`
+/// (`Rule::articles` became `Rule::uses_articles`).
+pub const RULES_FORMAT_VERSION: u32 = 5;
 
 /// The longest engine version string accepted in a binary header.
 const MAX_ENGINE_VERSION_LEN: usize = 256;

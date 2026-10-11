@@ -681,10 +681,19 @@ impl Rules {
             );
         }
 
+        // The article word lists for `+DT`/`+INDT` synthesis are identical for every rule that
+        // uses them; load them once here instead of once per rule.
+        let articles = if rules.iter().any(|rule| rule.uses_articles) {
+            Some(super::builtin::article_data(build_info.build_dir()))
+        } else {
+            None
+        };
+
         Rules {
             rules,
             spell,
             builtins,
+            articles,
         }
     }
 }

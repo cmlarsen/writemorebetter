@@ -55,6 +55,7 @@ const COMPONENTS: &[&str] = &[
     "tokenizer_no_chunk_pmap",
     "rules_no_grammar",
     "rules_no_spell",
+    "rules_no_articles",
     // --- tokenizer ---
     "tagger",
     "tagger_word_store_fst",
@@ -127,6 +128,7 @@ const GRAMMAR_FIELDS: &[(&str, &str)] = &[
     ("unification", "rules_no_gr_unification"),
     ("filter", "rules_no_gr_filter"),
     ("strings (name/url/cat)", "rules_no_gr_strings"),
+    ("articles (rule set)", "rules_no_articles"),
     ("  antipatterns", "rules_no_gr_antipatterns"),
     ("  composition parts", "rules_no_gr_parts"),
     ("  composition id_to_idx", "rules_no_gr_id_to_idx"),

@@ -1071,16 +1071,12 @@ impl Rule {
         };
 
         // LanguageTool's `+DT`/`+INDT` synthesis chooses the article from the
-        // build directory's word lists; load them only for rules that use them.
-        let articles = if message.uses_determiner()
+        // build directory's word lists; record only whether this rule needs them.
+        // The lists are stored once per `Rules` (see `Rules::from_xml`).
+        let uses_articles = message.uses_determiner()
             || suggesters
                 .iter()
-                .any(|suggester| suggester.uses_determiner())
-        {
-            Some(super::builtin::article_data(info.build_dir()))
-        } else {
-            None
-        };
+                .any(|suggester| suggester.uses_determiner());
 
         Ok(Rule {
             start: engine.to_graph_id(start)?,
@@ -1091,7 +1087,7 @@ impl Rule {
             examples: crate::rule::Examples::from_vec(examples),
             suggesters,
             message,
-            articles,
+            uses_articles,
             url: data.url.map(|x| x.to_string()),
             short: data.short.map(|x| x.to_string()),
             // fields below need information from rule group / category, so are set later

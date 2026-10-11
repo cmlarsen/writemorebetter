@@ -43,6 +43,10 @@ pub struct Rules {
     pub(crate) rules: Vec<Rule>,
     pub(crate) spell: Spell,
     pub(crate) builtins: Vec<BuiltinRule>,
+    /// The article word lists for LanguageTool's `+DT`/`+INDT` determiner
+    /// synthesis, shared by every rule that uses one instead of stored per rule.
+    /// `None` when no rule uses determiner synthesis.
+    pub(crate) articles: Option<crate::builtin::en::ArticleData>,
 }
 
 impl Rules {
@@ -155,7 +159,7 @@ impl Rules {
             .map(|(i, rule)| {
                 let mut output = Vec::new();
 
-                for suggestion in rule.apply(&sentence) {
+                for suggestion in rule.apply(&sentence, self.articles.as_ref()) {
                     output.push((i, suggestion));
                 }
 
@@ -244,6 +248,12 @@ impl Rules {
         let suggestions = self.suggest(text, tokenizer);
         apply_suggestions(text, &suggestions)
     }
+
+    /// Tests one rule's examples against `tokenizer`, supplying this set's shared article word
+    /// lists (the `+DT`/`+INDT` determiner synthesis needs them).
+    pub fn test_rule(&self, rule: &Rule, tokenizer: &Tokenizer) -> bool {
+        rule.test(tokenizer, self.articles.as_ref())
+    }
 }
 
 /// Correct a text by applying suggestions to it.
@@ -318,6 +328,7 @@ where
             rules,
             spell: Spell::default(),
             builtins: Vec::new(),
+            articles: None,
         }
     }
 }

@@ -296,6 +296,9 @@ pub struct Suggestions<'a, 't> {
     rule: &'a Rule,
     matches: EngineMatches<'a, 't>,
     sentence: &'t MatchSentence<'t>,
+    /// The article word lists for `+DT`/`+INDT` synthesis, shared by every rule in the set.
+    /// `None` when the rule set has no determiner synthesis.
+    articles: Option<&'a ArticleData>,
     /// Overrides "today" for the time-dependent rule filters; the rule test
     /// harness passes LanguageTool's fixed test date.
     now: Option<filter::Date>,
@@ -309,6 +312,7 @@ impl<'a, 't> Iterator for Suggestions<'a, 't> {
         let sentence = self.sentence;
         let (start, end) = (self.rule.start, self.rule.end);
         let now = self.now;
+        let articles = self.articles;
 
         self.matches.find_map(|graph| {
             if let Some(unification) = &rule.unification {
@@ -323,9 +327,7 @@ impl<'a, 't> Iterator for Suggestions<'a, 't> {
             let replacements: Vec<String> = rule
                 .suggesters
                 .iter()
-                .filter_map(|x| {
-                    x.alternatives(sentence, &graph, start, end, rule.articles.as_ref())
-                })
+                .filter_map(|x| x.alternatives(sentence, &graph, start, end, articles))
                 .flatten()
                 .collect();
 
@@ -375,13 +377,7 @@ impl<'a, 't> Iterator for Suggestions<'a, 't> {
 
             let message = rule
                 .message
-                .apply(
-                    sentence,
-                    &graph,
-                    rule.start,
-                    rule.end,
-                    rule.articles.as_ref(),
-                )
+                .apply(sentence, &graph, rule.start, rule.end, articles)
                 .expect("Rules must have a message.");
 
             let match_ = filter::FilterMatch {
@@ -512,10 +508,12 @@ pub struct Rule {
     pub(crate) category_type: Option<String>,
     pub(crate) unification: Option<Unification>,
     pub(crate) filter: Option<filter::RuleFilter>,
-    /// The article word lists used by `<match postag="+DT|+INDT">` in this rule,
-    /// if it uses one. Loaded from the build directory at compile time (the
-    /// lists are LanguageTool-derived data) and serialized into the rule.
-    pub(crate) articles: Option<ArticleData>,
+    /// Whether this rule's message or a suggestion uses LanguageTool's `+DT`/`+INDT`
+    /// determiner synthesis and therefore needs the article word lists. The lists
+    /// themselves are LanguageTool-derived data, loaded from the build directory at
+    /// compile time, and stored once per [Rules][crate::Rules] instead of once per
+    /// rule.
+    pub(crate) uses_articles: bool,
     pub(crate) enabled: bool,
 }
 
@@ -597,8 +595,12 @@ impl Rule {
         self.category_type.as_deref()
     }
 
-    pub(crate) fn apply<'a, 't>(&'a self, sentence: &'t MatchSentence<'t>) -> Suggestions<'a, 't> {
-        self.apply_with_date(sentence, None)
+    pub(crate) fn apply<'a, 't>(
+        &'a self,
+        sentence: &'t MatchSentence<'t>,
+        articles: Option<&'a ArticleData>,
+    ) -> Suggestions<'a, 't> {
+        self.apply_with_date(sentence, articles, None)
     }
 
     /// Like [`Rule::apply`], but with an explicit "today" for the
@@ -607,19 +609,24 @@ impl Rule {
     fn apply_with_date<'a, 't>(
         &'a self,
         sentence: &'t MatchSentence<'t>,
+        articles: Option<&'a ArticleData>,
         now: Option<filter::Date>,
     ) -> Suggestions<'a, 't> {
         Suggestions {
             matches: self.engine.get_matches(sentence, self.start, self.end),
             rule: self,
             sentence,
+            articles,
             now,
         }
     }
 
     /// Grammar rules always have at least one example associated with them.
     /// This method checks whether the correct action is taken in the examples.
-    pub fn test(&self, tokenizer: &Tokenizer) -> bool {
+    ///
+    /// `articles` are the rule set's shared article word lists; use
+    /// [`Rules::test_rule`][crate::Rules::test_rule] to supply them.
+    pub(crate) fn test(&self, tokenizer: &Tokenizer, articles: Option<&ArticleData>) -> bool {
         let mut passes = Vec::new();
 
         // make sure relative position is handled correctly
@@ -640,7 +647,11 @@ impl Rule {
 
             info!("Sentence: {:#?}", sentence);
             let suggestions: Vec<_> = self
-                .apply_with_date(&MatchSentence::new(&sentence), Some(filter::test_date()))
+                .apply_with_date(
+                    &MatchSentence::new(&sentence),
+                    articles,
+                    Some(filter::test_date()),
+                )
                 .map(|s| s.lshift(shift_delta))
                 .collect();
 

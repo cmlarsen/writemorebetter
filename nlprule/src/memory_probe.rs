@@ -683,6 +683,10 @@ pub fn extract_rules(rules_bin: &Path, out_dir: &Path) -> Result<Vec<Extracted>,
         let mut no_spell = rules.clone();
         no_spell.spell = Spell::default();
         write_rules_blob(out_dir, "rules_no_spell", &no_spell, &mut out)?;
+
+        let mut no_articles = rules.clone();
+        no_articles.articles = None;
+        write_rules_blob(out_dir, "rules_no_articles", &no_articles, &mut out)?;
     }
 
     write_blob(out_dir, "grammar_rules", &rules.rules, &mut out)?;
@@ -776,7 +780,7 @@ pub fn load(name: &str, path: &Path) -> Result<Held, String> {
         "multiword_tagger" => Held::new(load_typed::<Option<MultiwordTagger>>(path)?),
         "sentencizer" => Held::new(load_typed::<srx::Rules>(path)?),
         "rules_full" => Held::new(load_rules(path)?),
-        "rules_no_grammar" | "rules_no_spell" => Held::new(load_rules(path)?),
+        "rules_no_grammar" | "rules_no_spell" | "rules_no_articles" => Held::new(load_rules(path)?),
         name if name.starts_with("rules_no_gr_") => Held::new(load_rules(path)?),
         "grammar_rules" | "grammar_no_examples" | "grammar_no_suggesters" | "grammar_no_engine" => {
             Held::new(load_typed::<Vec<Rule>>(path)?)
@@ -831,6 +835,21 @@ struct GrammarStats {
     matcher_unique: u64,
     regex_seen: std::collections::HashSet<String>,
     matcher_seen: std::collections::HashSet<String>,
+    rules_with_articles: u64,
+    article_bytes: u64,
+    unique_part_seen: std::collections::HashSet<u64>,
+    unique_atom_seen: std::collections::HashSet<u64>,
+    unique_part_bytes: u64,
+    unique_atom_bytes: u64,
+    part_instances: u64,
+    atom_instances: u64,
+}
+
+fn hash_bytes(bytes: &[u8]) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    bytes.hash(&mut hasher);
+    hasher.finish()
 }
 
 impl GrammarStats {
@@ -879,6 +898,20 @@ impl GrammarStats {
                     self.count_regex(regex);
                 }
             }
+        }
+    }
+
+    fn count_part(&mut self, part: &Part) {
+        self.part_instances += 1;
+        let bytes = bincode::serialize(part).expect("part serializes");
+        if self.unique_part_seen.insert(hash_bytes(&bytes)) {
+            self.unique_part_bytes += bytes.len() as u64;
+        }
+
+        self.atom_instances += 1;
+        let abytes = bincode::serialize(&part.atom).expect("atom serializes");
+        if self.unique_atom_seen.insert(hash_bytes(&abytes)) {
+            self.unique_atom_bytes += abytes.len() as u64;
         }
     }
 
@@ -987,9 +1020,16 @@ pub fn describe(tokenizer_bin: &Path, rules_bin: &Path) -> Result<Vec<(String, S
 
     facts.push(("grammar rules".into(), rules.rules.len().to_string()));
 
-    // Structure of the grammar-rule engines: how many parts/atoms/regexes/sets there are, so a
-    // loaded cost can be divided by a count instead of guessed.
     let mut stats = GrammarStats::default();
+    stats.article_bytes = rules
+        .articles
+        .as_ref()
+        .map(|articles| {
+            bincode::serialize(articles)
+                .expect("articles serialize")
+                .len() as u64
+        })
+        .unwrap_or(0);
     // Do identical compositions repeat across rules (e.g. a rulegroup's shared antipattern cloned
     // into every rule)? A byte hash of each composition answers whether interning would pay off.
     let mut seen_compositions: std::collections::HashSet<u64> = std::collections::HashSet::new();
@@ -1010,6 +1050,7 @@ pub fn describe(tokenizer_bin: &Path, rules_bin: &Path) -> Result<Vec<(String, S
                 stats.id_to_idx += engine.composition.id_to_idx.len() as u64;
                 for part in &engine.composition.parts {
                     stats.count_atom(&part.atom);
+                    stats.count_part(part);
                 }
                 let (bytes, unique) = hash_composition(&engine.composition, &mut seen_compositions);
                 stats.main_bytes += bytes;
@@ -1023,6 +1064,7 @@ pub fn describe(tokenizer_bin: &Path, rules_bin: &Path) -> Result<Vec<(String, S
                     stats.id_to_idx += antipattern.id_to_idx.len() as u64;
                     for part in &antipattern.parts {
                         stats.count_atom(&part.atom);
+                        stats.count_part(part);
                     }
                     let (bytes, unique) = hash_composition(antipattern, &mut seen_compositions);
                     stats.anti_bytes += bytes;
@@ -1034,6 +1076,9 @@ pub fn describe(tokenizer_bin: &Path, rules_bin: &Path) -> Result<Vec<(String, S
             Engine::Text(_, _) => {}
         }
         stats.examples += rule.examples.get().len() as u64;
+        if rule.uses_articles {
+            stats.rules_with_articles += 1;
+        }
         for suggester in &rule.suggesters {
             stats.count_synth(suggester);
         }
@@ -1075,6 +1120,22 @@ pub fn describe(tokenizer_bin: &Path, rules_bin: &Path) -> Result<Vec<(String, S
     facts.push((
         "grammar antipattern bytes (total/unique)".into(),
         format!("{}/{}", stats.anti_bytes, stats.anti_unique_bytes),
+    ));
+    facts.push((
+        "grammar parts (instances/unique bytes)".into(),
+        format!("{}/{}", stats.part_instances, stats.unique_part_bytes),
+    ));
+    facts.push((
+        "grammar atoms (instances/unique bytes)".into(),
+        format!("{}/{}", stats.atom_instances, stats.unique_atom_bytes),
+    ));
+    facts.push((
+        "grammar rules using articles".into(),
+        stats.rules_with_articles.to_string(),
+    ));
+    facts.push((
+        "grammar article data bytes (all copies)".into(),
+        stats.article_bytes.to_string(),
     ));
     facts.push((
         "grammar regex string bytes (total/unique)".into(),
