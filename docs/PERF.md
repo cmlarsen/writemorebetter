@@ -241,7 +241,8 @@ attempts total. Phase 0 establishes measurement and does not count as an optimiz
 | 8 | [#56](https://github.com/cmlarsen/writemorebetter/pull/56) | Inline buffers for short speller rows | +3.78% | -2.105 MiB | +0.012 MiB | +0.16% / -1.36% (interleaved, loaded) | dropped |
 | 9 | [#57](https://github.com/cmlarsen/writemorebetter/pull/57) | LZ4-compressed lazy examples | -0.17% | -3.410 MiB | -0.606 MiB | -2.87% / -1.04% (interleaved, loaded) | kept |
 | 10 | [#58](https://github.com/cmlarsen/writemorebetter/pull/58) | Reuse chunker beam heaps | -0.46% / -0.41% (rerun) | +1.496 / -0.457 MiB | -0.000 / -0.020 MiB | -0.97% / -2.75% (interleaved, loaded) | dropped |
-| 12 | [#60](https://github.com/cmlarsen/writemorebetter/pull/60) | Share lazy compiled regex backends for identical sources | pending | pending | pending | +1.13% / -1.26% (interleaved, loaded) | pending |
+| 11 | [#61](https://github.com/cmlarsen/writemorebetter/pull/61) | Prefer the longest mandatory literal for absence guards | -1.52% | -0.555 MiB | +0.082 MiB | +2.40% / +1.23% (interleaved, loaded) | kept |
+| 12 | [#60](https://github.com/cmlarsen/writemorebetter/pull/60) | Share lazy compiled regex backends for identical sources | -0.16% | -2.992 MiB | -0.984 MiB | +1.13% / -1.26% (interleaved, loaded) | kept |
 | 13 | [#59](https://github.com/cmlarsen/writemorebetter/pull/59) | Compact contiguous NFA for multiword tagging | +1.28% | -8.441 MiB | -2.289 MiB | +1.57% / +0.32% (interleaved, loaded) | kept (coordinator-approved) |
 
 
@@ -480,4 +481,29 @@ unchanged. All 24 goldens, fmt, clippy and the workspace tests pass.
 | 66 | moby150k | 2.4933 / 2.5215 | +1.13% | 87.69 / 85.67 | -2.02 |
 | 66 | story1 | 0.1830 / 0.1773 | -3.07% | 74.31 / 73.16 | -1.16 |
 
-CI decides retention.
+CI passed: on the original base 6.6 peak 86.449 → 84.043 MiB (-2.406), 5.2 peak -0.805 MiB,
+instructions 55.111B → 55.011B (-0.18%); rebased onto #59, 6.6 peak 75.492 → 72.500 MiB
+(-2.992), 5.2 peak 66.172 → 65.188 MiB (-0.984), instructions 55.744B → 55.656B (-0.16%),
+allocator calls -0.28%. Loaded RSS was flat within noise. #60 was retained as a memory win.
+
+### Attempt 11 — longest mandatory literal
+
+Attempt 4 compiled the first mandatory positive literal as the absence guard. This
+attempt chooses the longest one instead, so rarer, longer literals reject more sentences.
+Only the compile-time choice changes; no format version moves. All 24 goldens, fmt, clippy
+and the workspace tests pass, and independently built before/after engines produce
+byte-identical grammar and disambiguation passing-ID lists for both rule sets (grammar
+5,977/6,032 and 4,320/4,335; disambiguation 1,012/1,015 and 843/843 passing).
+
+| Rules | Text | Check before/after (s) | Check Δ | Peak before/after (MiB) | Peak Δ (MiB) |
+|---|---|---|---:|---|---:|
+| 52 | moby150k | 1.9780 / 2.0024 | +1.23% | 71.47 / 71.34 | -0.12 |
+| 52 | story1 | 0.1566 / 0.1577 | +0.70% | 63.42 / 63.52 | +0.09 |
+| 66 | moby150k | 2.3818 / 2.4389 | +2.40% | 87.80 / 88.19 | +0.39 |
+| 66 | story1 | 0.1838 / 0.1839 | +0.08% | 74.38 / 74.25 | -0.12 |
+
+The loaded-machine timings do not show a win (an earlier measurement on another revision
+showed -2.9%), but CI instructions fell 55.058B → 54.262B (-1.45%) on the first base and
+55.754B → 54.906B (-1.52%) after rebasing onto #59, with allocator calls -1.40% and 6.6
+peak -0.14% / -0.55 MiB (5.2 +0.15% / +0.08 MiB). #61 was retained as an instruction win
+with no RSS cost.
