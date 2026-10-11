@@ -59,6 +59,10 @@ jobs:
             echo "::error::Disambiguation conformance failed: ${passing:-?}/${runnable:-?} rules passing"
             exit 1
           fi
+          if [ "${runnable}" -lt 843 ]; then
+            echo "::error::Disambiguation conformance regressed: ${runnable} runnable rules, baseline is 843 (docs/BASELINE.md)"
+            exit 1
+          fi
 
       - name: Grammar conformance
         env:
@@ -72,5 +76,9 @@ jobs:
           echo "Rules passing tests: ${passing:-unknown}"
           if [ -z "${runnable}" ] || [ -z "${passing}" ] || [ "${runnable}" != "${passing}" ]; then
             echo "::error::Grammar conformance failed: ${passing:-?}/${runnable:-?} rules passing"
+            exit 1
+          fi
+          if [ "${runnable}" -lt 3749 ]; then
+            echo "::error::Grammar conformance regressed: ${runnable} runnable rules, baseline is 3749 (docs/BASELINE.md)"
             exit 1
           fi
