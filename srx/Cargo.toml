@@ -1,0 +1,41 @@
+[package]
+name = "srx"
+version = "0.1.4"
+authors = ["Benjamin Minixhofer <bminixhofer@gmail.com>"]
+edition = "2018"
+description = "A mostly compliant Rust implementation of the Segmentation Rules eXchange (SRX) 2.0 standard for text segmentation."
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/bminixhofer/srx"
+documentation = "https://docs.rs/srx"
+readme = "README.md"
+
+# NOTE: This crate is vendored from crates.io `srx` 0.1.4 with local
+# modifications (see README.md). `regex-automata` is used directly to build the
+# rule regexes with the one-pass DFA disabled, which keeps the loaded rule set
+# small without changing match results.
+
+[dependencies]
+regex = "1"
+regex-automata = "0.4"
+
+# workaround to use a 'serde' feature which also enables 'serde_regex'
+# see https://github.com/RustCrypto/RSA/pull/41/files
+serde_crate = { package = "serde", version = "1", features = ["derive"], optional = true }
+serde_regex = { version = "1", optional = true }
+
+# used for reading from an XML in SRX format
+serde-xml-rs = { version = "0.4", optional = true }
+thiserror = { version = "1", optional = true }
+
+[dev-dependencies]
+bincode = "1"
+
+[features]
+serde = ["serde_crate", "serde_regex"]
+from_xml = ["serde", "serde-xml-rs", "thiserror"]
+
+# docs.rs-specific configuration
+[package.metadata.docs.rs]
+all-features = true
+# defines the configuration attribute `docsrs`
+rustdoc-args = ["--cfg", "docsrs"]
