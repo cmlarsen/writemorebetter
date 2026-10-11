@@ -52,6 +52,158 @@ where
     result
 }
 
+/// Whether a character is one of the apostrophes LanguageTool treats as part
+/// of a contraction: the ASCII apostrophe and the right single quotation mark.
+#[inline]
+fn is_apostrophe(c: char) -> bool {
+    c == '\'' || c == '\u{2019}'
+}
+
+/// The finite set of auxiliaries LanguageTool 6.6+ recognizes before `n't`
+/// (its `EnglishWordTokenizer` `patternList`).
+const CONTRACTION_NEGATION_STEMS: &[&str] = &[
+    "are", "is", "were", "was", "do", "does", "did", "have", "has", "had", "wo", "would", "ca",
+    "could", "sha", "should", "must", "ai", "ought", "might", "need", "may", "am", "dare", "das",
+    "dass", "hai", "used", "use",
+];
+
+/// Words LanguageTool 6.6+ keeps whole even though they contain an apostrophe.
+fn is_contraction_whole_word(s: &str) -> bool {
+    let lower = s.to_lowercase().replace('\u{2019}', "'");
+    matches!(
+        lower.as_str(),
+        "fo'c'sle"
+            | "rec'd"
+            | "rec's"
+            | "ok'd"
+            | "cc'd"
+            | "cc's"
+            | "dj'd"
+            | "pm'd"
+            | "pd'd"
+            | "rsvp'd"
+    )
+}
+
+/// LanguageTool 6.6+ `patternList` group 2: `(['’]?)(aux)(n['’]t)`.
+/// Returns the non-empty pieces: an optional leading apostrophe, the auxiliary
+/// stem, and the `n't` clitic.
+fn negation_parts(s: &str) -> Option<Vec<&str>> {
+    let starts: Vec<usize> = s.char_indices().map(|(i, _)| i).collect();
+    let n = starts.len();
+    if n < 4 {
+        return None;
+    }
+
+    let (i_n, i_apos, i_t) = (starts[n - 3], starts[n - 2], starts[n - 1]);
+    let c_n = s[i_n..].chars().next()?;
+    let c_apos = s[i_apos..].chars().next()?;
+    let c_t = s[i_t..].chars().next()?;
+
+    if !c_n.eq_ignore_ascii_case(&'n') || !is_apostrophe(c_apos) || !c_t.eq_ignore_ascii_case(&'t')
+    {
+        return None;
+    }
+
+    let mut stem = &s[..i_n];
+    let mut lead = None;
+    if let Some(c) = stem.chars().next() {
+        if is_apostrophe(c) {
+            lead = Some(&stem[..c.len_utf8()]);
+            stem = &stem[c.len_utf8()..];
+        }
+    }
+
+    if !CONTRACTION_NEGATION_STEMS.contains(&stem.to_ascii_lowercase().as_str()) {
+        return None;
+    }
+
+    let mut out = Vec::with_capacity(3);
+    if let Some(lead) = lead {
+        out.push(lead);
+    }
+    out.push(stem);
+    out.push(&s[i_n..]);
+    Some(out)
+}
+
+/// LanguageTool 6.6+ `patternList` group 3:
+/// `(.+)(['’]m|['’]re|['’]ll|['’]ve|['’]d|['’]s)(['’-]?)`.
+/// Returns the stem, the apostrophe-initial clitic and an optional trailing
+/// apostrophe or hyphen.
+fn clitic_parts(s: &str) -> Option<Vec<&str>> {
+    // the optional trailing `['’-]`
+    let mut body = s;
+    let mut tail = "";
+    if let Some(last) = s.chars().last() {
+        if is_apostrophe(last) || last == '-' {
+            let idx = s.len() - last.len_utf8();
+            body = &s[..idx];
+            tail = &s[idx..];
+        }
+    }
+
+    // the greedy `.+` makes the clitic start at the rightmost apostrophe that
+    // is followed by a valid clitic; the stem must be non-empty.
+    let apostrophes: Vec<usize> = body
+        .char_indices()
+        .filter(|(_, c)| is_apostrophe(*c))
+        .map(|(i, _)| i)
+        .collect();
+
+    for &i in apostrophes.iter().rev() {
+        if i == 0 {
+            break;
+        }
+        let apos_len = body[i..].chars().next()?.len_utf8();
+        let after = &body[i + apos_len..];
+        if matches!(
+            after.to_ascii_lowercase().as_str(),
+            "m" | "re" | "ll" | "ve" | "d" | "s"
+        ) {
+            let mut out = vec![&body[..i], &body[i..]];
+            if !tail.is_empty() {
+                out.push(tail);
+            }
+            return Some(out);
+        }
+    }
+
+    None
+}
+
+/// LanguageTool 6.6+ `patternList` group 4: `(['’]t)(was|were|is)`.
+fn t_was_parts(s: &str) -> Option<Vec<&str>> {
+    let starts: Vec<usize> = s.char_indices().map(|(i, _)| i).collect();
+    if starts.len() < 3 {
+        return None;
+    }
+
+    let first = s[starts[0]..].chars().next()?;
+    let second = s[starts[1]..].chars().next()?;
+    if !is_apostrophe(first) || !second.eq_ignore_ascii_case(&'t') {
+        return None;
+    }
+
+    let rest = &s[starts[2]..];
+    if matches!(rest.to_ascii_lowercase().as_str(), "was" | "were" | "is") {
+        Some(vec![&s[..starts[2]], rest])
+    } else {
+        None
+    }
+}
+
+/// The LanguageTool 6.6+ `patternList`: if a word containing an apostrophe
+/// matches one of these shapes, its capture groups are emitted as tokens.
+fn contraction_parts(s: &str) -> Option<Vec<&str>> {
+    if is_contraction_whole_word(s) {
+        return Some(vec![s]);
+    }
+    negation_parts(s)
+        .or_else(|| clitic_parts(s))
+        .or_else(|| t_was_parts(s))
+}
+
 /// Options for a tokenizer.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct TokenizerLangOptions {
@@ -73,6 +225,14 @@ pub(crate) struct TokenizerLangOptions {
     /// Extra language-specific Regexes of which the matches will *not* be split into multiple tokens.
     #[serde(default)]
     pub extra_join_regexes: Vec<Regex>,
+    /// Split English contractions the way LanguageTool 6.6+ does: a contracted
+    /// auxiliary becomes its stem plus an apostrophe-initial clitic (`do` +
+    /// `n't`, `it` + `'s`) instead of a stem with the apostrophe on its own
+    /// (`don` + `'` + `t`). LanguageTool 5.2 (and nlprule before this option)
+    /// use the latter form, so this defaults to `false` and is switched on per
+    /// build directory (see `build/make_build_dir.py`).
+    #[serde(default)]
+    pub split_contractions: bool,
 }
 
 impl Default for TokenizerLangOptions {
@@ -84,6 +244,7 @@ impl Default for TokenizerLangOptions {
             known_failures: Vec::new(),
             extra_split_chars: Vec::new(),
             extra_join_regexes: Vec::new(),
+            split_contractions: false,
         }
     }
 }
@@ -247,21 +408,34 @@ impl Tokenizer {
     fn get_token_ranges<'t>(
         &self,
         text: &'t str,
-    ) -> impl ExactSizeIterator<Item = Range<usize>> + 't {
-        let mut tokens = Vec::new();
+    ) -> impl ExactSizeIterator<Item = (Range<usize>, Option<String>)> + 't {
+        let mut tokens: Vec<(&'t str, Option<String>)> = Vec::new();
 
         let split_char = |c: char| c.is_whitespace() || crate::utils::splitting_chars().contains(c);
         let split_text = |text: &'t str| {
             let mut tokens = Vec::new();
-            for pretoken in split(text, split_char) {
-                // if the token is in the dictionary, we add it right away
-                if self.tagger.id_word(pretoken.into()).1.is_some() {
-                    tokens.push(pretoken);
-                } else {
-                    // otherwise, potentially split it again with `extra_split_chars` e. g. "-"
-                    tokens.extend(split(pretoken, |c| {
-                        split_char(c) || self.lang_options.extra_split_chars.contains(&c)
-                    }));
+            if self.lang_options.split_contractions {
+                // Split on everything except apostrophes first so a whole word
+                // containing an apostrophe can be handed to the contraction
+                // splitter, matching LanguageTool 6.6+'s English word tokenizer.
+                for pretoken in split(text, |c| split_char(c) && !is_apostrophe(c)) {
+                    self.split_contraction_word(pretoken, &mut tokens);
+                }
+            } else {
+                for pretoken in split(text, split_char) {
+                    // if the token is in the dictionary, we add it right away
+                    if self.tagger.id_word(pretoken.into()).1.is_some() {
+                        tokens.push((pretoken, None));
+                    } else {
+                        // otherwise, potentially split it again with `extra_split_chars` e. g. "-"
+                        tokens.extend(
+                            split(pretoken, |c| {
+                                split_char(c) || self.lang_options.extra_split_chars.contains(&c)
+                            })
+                            .into_iter()
+                            .map(|x| (x, None)),
+                        );
+                    }
                 }
             }
             tokens
@@ -287,22 +461,95 @@ impl Tokenizer {
         for range in joins {
             tokens.extend(split_text(&text[prev..range.start]));
             prev = range.end;
-            tokens.push(&text[range]);
+            tokens.push((&text[range], None));
         }
 
         tokens.extend(split_text(&text[prev..text.len()]));
-        tokens.into_iter().map(move |token| {
+        tokens.into_iter().map(move |(token, normalized)| {
             let byte_start = (token.as_ptr() as usize)
                 .checked_sub(text.as_ptr() as usize)
                 .expect("Each token str is a slice of the text str.");
 
-            byte_start..byte_start + token.len()
+            (byte_start..byte_start + token.len(), normalized)
         })
+    }
+
+    /// Splits a single whitespace/punctuation-delimited piece the way
+    /// LanguageTool 6.6+'s `EnglishWordTokenizer` does and appends the tokens
+    /// (slices of `s`) to `out`. Only used when `split_contractions` is on.
+    /// The second component is the text a token should be represented by when
+    /// LanguageTool normalizes it (a recognized contraction is emitted with a
+    /// straight apostrophe even if the input used a curly one).
+    fn split_contraction_word<'t>(&self, s: &'t str, out: &mut Vec<(&'t str, Option<String>)>) {
+        if s.is_empty() {
+            return;
+        }
+
+        if s.chars().any(is_apostrophe) {
+            if let Some(parts) = contraction_parts(s) {
+                for part in parts {
+                    self.words_to_add(part, out);
+                }
+                return;
+            }
+        }
+
+        self.words_to_add(s, out);
+    }
+
+    /// Appends the tokens for a single word the way LanguageTool's
+    /// `EnglishWordTokenizer.wordsToAdd` does: a word without an apostrophe (or
+    /// whose normalized form is known to the tagger) stays whole, an unknown
+    /// word containing apostrophes is split at them.
+    fn words_to_add<'t>(&self, s: &'t str, out: &mut Vec<(&'t str, Option<String>)>) {
+        if s.is_empty() {
+            return;
+        }
+
+        if !s.chars().any(is_apostrophe) {
+            if self.lang_options.extra_split_chars.is_empty() {
+                out.push((s, None));
+            } else {
+                out.extend(
+                    split(s, |c| self.lang_options.extra_split_chars.contains(&c))
+                        .into_iter()
+                        .map(|x| (x, None)),
+                );
+            }
+            return;
+        }
+
+        // LanguageTool looks the word up after normalizing curly apostrophes;
+        // its tagger is case insensitive, so try both the exact and lowercase
+        // forms. When it is known, the normalized form is the token text, so a
+        // recognized contraction is emitted with a straight apostrophe.
+        let normalized = if s.contains('\u{2019}') {
+            s.replace('\u{2019}', "'")
+        } else {
+            s.to_string()
+        };
+
+        let known = self.tagger.id_word(normalized.as_str().into()).1.is_some()
+            || self
+                .tagger
+                .id_word(normalized.to_lowercase().as_str().into())
+                .1
+                .is_some();
+
+        if known {
+            if normalized == s {
+                out.push((s, None));
+            } else {
+                out.push((s, Some(normalized)));
+            }
+        } else {
+            out.extend(split(s, is_apostrophe).into_iter().map(|x| (x, None)));
+        }
     }
 
     pub(crate) fn get_token_strs<'t>(&self, text: &'t str) -> Vec<&'t str> {
         self.get_token_ranges(text)
-            .map(|range| text[range].trim())
+            .map(|(range, _)| text[range].trim())
             .filter(|x| !x.is_empty())
             .collect()
     }
@@ -319,30 +566,44 @@ impl Tokenizer {
 
         let mut tokens: Vec<_> = token_strs
             .enumerate()
-            .filter(|(_, range)| !sentence[range.clone()].trim().is_empty())
-            .map(|(i, range)| {
+            .filter(|(_, (range, _))| !sentence[range.clone()].trim().is_empty())
+            .map(|(i, (range, normalized))| {
                 let byte_start = range.start;
                 let char_start = sentence[..byte_start].chars().count();
-
-                let token_text = sentence[range].trim();
+                let raw = &sentence[range.clone()];
 
                 let is_sentence_start = i == 0;
                 let is_sentence_end = i == n_token_strs - 1;
 
-                IncompleteToken::new(
-                    Word::new(
-                        self.tagger.id_word(token_text.into()),
+                // A normalized token (a recognized contraction whose apostrophe
+                // LanguageTool straightens) keeps its original span even though
+                // its text is an owned, shorter string.
+                let word = match normalized {
+                    Some(normalized) => Word::new(
+                        self.tagger.id_word(normalized.clone().into()),
                         self.tagger
-                            .get_tags_with_options(
-                                token_text,
-                                if is_sentence_start { Some(true) } else { None },
-                                None,
-                            )
-                            .collect(),
+                            .tags_for_normalized(&normalized, is_sentence_start),
                     ),
+                    None => {
+                        let token_text = raw.trim();
+                        Word::new(
+                            self.tagger.id_word(token_text.into()),
+                            self.tagger
+                                .get_tags_with_options(
+                                    token_text,
+                                    if is_sentence_start { Some(true) } else { None },
+                                    None,
+                                )
+                                .collect(),
+                        )
+                    }
+                };
+
+                IncompleteToken::new(
+                    word,
                     Span::new(
-                        byte_start..byte_start + token_text.len(),
-                        char_start..char_start + token_text.chars().count(),
+                        byte_start..range.end,
+                        char_start..char_start + raw.chars().count(),
                     ),
                     is_sentence_end,
                     sentence[..byte_start].ends_with(char::is_whitespace),
@@ -384,5 +645,50 @@ impl Tokenizer {
             inner: self.sentencize(text),
             tokenizer: &self,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn negation_splits_stem_and_clitic() {
+        assert_eq!(negation_parts("didn't"), Some(vec!["did", "n't"]));
+        assert_eq!(negation_parts("ain't"), Some(vec!["ai", "n't"]));
+        assert_eq!(negation_parts("haven’t"), Some(vec!["have", "n’t"]));
+        assert_eq!(negation_parts("isn't"), Some(vec!["is", "n't"]));
+        // not a known auxiliary
+        assert_eq!(negation_parts("glorbn't"), None);
+    }
+
+    #[test]
+    fn clitic_splits_stem_and_clitic() {
+        assert_eq!(clitic_parts("it's"), Some(vec!["it", "'s"]));
+        assert_eq!(clitic_parts("we’re"), Some(vec!["we", "’re"]));
+        assert_eq!(clitic_parts("they've"), Some(vec!["they", "'ve"]));
+        // the greedy `.+` takes the rightmost valid clitic
+        assert_eq!(clitic_parts("he'd've"), Some(vec!["he'd", "'ve"]));
+        // a trailing apostrophe or hyphen is kept as a third piece
+        assert_eq!(clitic_parts("it's'"), Some(vec!["it", "'s", "'"]));
+        assert_eq!(clitic_parts("y'all"), None);
+        assert_eq!(clitic_parts("dogs’"), None);
+    }
+
+    #[test]
+    fn whole_words_and_t_was() {
+        assert!(is_contraction_whole_word("fo’c’sle"));
+        assert_eq!(t_was_parts("'twas"), Some(vec!["'t", "was"]));
+        assert_eq!(t_was_parts("’tis"), Some(vec!["’t", "is"]));
+        assert_eq!(t_was_parts("'nope"), None);
+    }
+
+    #[test]
+    fn contraction_parts_priority() {
+        // negation before clitic: "won't" is `wo` + `n't`, not `won` + `'t`
+        assert_eq!(contraction_parts("won't"), Some(vec!["wo", "n't"]));
+        assert_eq!(contraction_parts("it's"), Some(vec!["it", "'s"]));
+        // no apostrophe -> not a contraction shape
+        assert_eq!(contraction_parts("plain"), None);
     }
 }
