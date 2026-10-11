@@ -10,7 +10,10 @@ use fs_err as fs;
 use log::warn;
 
 use crate::{
-    builtin::{en::AVsAn, en::CommaParenthesisWhitespace, en::WordRepeat, Builtin, BuiltinRule},
+    builtin::{
+        en::AVsAn, en::CommaParenthesisWhitespace, en::MatchMode, en::SimpleReplace,
+        en::WordRepeat, Builtin, BuiltinRule,
+    },
     tokenizer::Tokenizer,
 };
 
@@ -29,6 +32,44 @@ pub(crate) fn for_language(
             )),
             BuiltinRule::new(Builtin::AVsAn(a_vs_an(build_dir))),
             BuiltinRule::new(Builtin::WordRepeat(word_repeat(build_dir, tokenizer))),
+            BuiltinRule::new(Builtin::SimpleReplace(simple_replace(
+                build_dir,
+                "simple_replace_contractions",
+                "EN_CONTRACTION_SPELLING",
+                MatchMode::Single,
+                true,
+                "Possible spelling mistake found.",
+                ", ",
+            ))),
+            BuiltinRule::new(Builtin::SimpleReplace(simple_replace(
+                build_dir,
+                "simple_replace_general",
+                "EN_SIMPLE_REPLACE",
+                MatchMode::Phrase,
+                false,
+                "Did you mean $suggestions?",
+                ", ",
+            ))),
+            BuiltinRule::new(Builtin::SimpleReplace(simple_replace(
+                build_dir,
+                "simple_replace_us",
+                "EN_US_SIMPLE_REPLACE",
+                MatchMode::Phrase,
+                false,
+                "'$match' is a common British expression. Consider using expressions more \
+                 common to American English.",
+                ", ",
+            ))),
+            BuiltinRule::new(Builtin::SimpleReplace(simple_replace(
+                build_dir,
+                "simple_replace_diacritics",
+                "EN_DIACRITICS_REPLACE_ORTHOGRAPHY",
+                MatchMode::Phrase,
+                false,
+                "'$match' is an imported foreign name or expression, which originally has a \
+                 diacritic.",
+                " or ",
+            ))),
         ]),
         _ => Ok(Vec::new()),
     }
@@ -81,6 +122,27 @@ fn word_repeat(build_dir: &Path, tokenizer: &Tokenizer) -> WordRepeat {
         .collect();
 
     WordRepeat::new(exceptions)
+}
+
+/// Builds a table-driven replacement rule from the data list `<name>.txt`.
+#[allow(clippy::too_many_arguments)]
+fn simple_replace(
+    build_dir: &Path,
+    name: &str,
+    id: &str,
+    mode: MatchMode,
+    case_sensitive: bool,
+    message: &str,
+    suggestions_separator: &str,
+) -> SimpleReplace {
+    SimpleReplace::new(
+        id,
+        mode,
+        case_sensitive,
+        message,
+        suggestions_separator,
+        read_list(build_dir, name),
+    )
 }
 
 /// Reads a builtin data list from `<build_dir>/builtin/<name>.txt`. One entry
