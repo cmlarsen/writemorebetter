@@ -679,6 +679,164 @@ fn builtin_comma_is_wired_into_suggest() {
     assert_eq!(flagged.replacements(), &[",".to_string()]);
 }
 
+/// Runs the English word-coherency builtin through the full suggestion
+/// pipeline and returns the flagged text and the first replacement of every
+/// suggestion.
+fn builtin_word_coherency_flags(text: &str) -> Vec<(String, String)> {
+    let chars: Vec<char> = text.chars().collect();
+
+    RULES
+        .suggest(text, &*TOKENIZER)
+        .into_iter()
+        .filter(|suggestion| suggestion.source() == "BUILTIN/EN_WORD_COHERENCY")
+        .map(|suggestion| {
+            (
+                chars[suggestion.span().char().clone()].iter().collect(),
+                suggestion.replacements()[0].clone(),
+            )
+        })
+        .collect()
+}
+
+#[test]
+fn builtin_word_coherency_flags_second_spelling() {
+    // The example from the rule this builtin reimplements.
+    assert_eq!(
+        builtin_word_coherency_flags("He likes archaeology. Really? She likes archeology, too."),
+        vec![("archeology".to_string(), "archaeology".to_string())]
+    );
+}
+
+#[test]
+fn builtin_word_coherency_flags_adviser_after_advisor() {
+    assert_eq!(
+        builtin_word_coherency_flags("She was an adviser. Later the advisor arrived."),
+        vec![("advisor".to_string(), "adviser".to_string())]
+    );
+}
+
+#[test]
+fn builtin_word_coherency_flags_each_occurrence_of_the_second_spelling() {
+    assert_eq!(
+        builtin_word_coherency_flags(
+            "The advisor left. Then the adviser returned. Another adviser waved."
+        ),
+        vec![
+            ("adviser".to_string(), "advisor".to_string()),
+            ("adviser".to_string(), "advisor".to_string()),
+        ],
+    );
+}
+
+#[test]
+fn builtin_word_coherency_replaces_only_the_stem() {
+    // The plural keeps its ending: only the stem changes.
+    assert_eq!(
+        builtin_word_coherency_flags("The advisor arrived. Then two advisers came."),
+        vec![("advisers".to_string(), "advisors".to_string())]
+    );
+}
+
+#[test]
+fn builtin_word_coherency_capitalizes_the_replacement() {
+    assert_eq!(
+        builtin_word_coherency_flags("The advisors met. Then the Adviser left."),
+        vec![("Adviser".to_string(), "Advisor".to_string())]
+    );
+}
+
+#[test]
+fn builtin_word_coherency_flags_inside_curly_quotes() {
+    assert_eq!(
+        builtin_word_coherency_flags(
+            "\u{201c}advisor,\u{201d} she said, and later \u{201c}adviser.\u{201d}"
+        ),
+        vec![("adviser".to_string(), "advisor".to_string())]
+    );
+}
+
+#[test]
+fn builtin_word_coherency_flags_after_curly_apostrophe() {
+    assert_eq!(
+        builtin_word_coherency_flags("Marta\u{2019}s advisor and Marta\u{2019}s adviser."),
+        vec![("adviser".to_string(), "advisor".to_string())]
+    );
+}
+
+#[test]
+fn builtin_word_coherency_flags_across_em_dash() {
+    // The em dash joins neighbouring words into one token, which must not stop
+    // the other variant from being recognised.
+    assert_eq!(
+        builtin_word_coherency_flags(
+            "The advisor waited\u{2014}impatiently\u{2014}for the adviser."
+        ),
+        vec![("adviser".to_string(), "advisor".to_string())]
+    );
+}
+
+#[test]
+fn builtin_word_coherency_flags_across_u2028() {
+    // U+2028 is whitespace inside a paragraph, so both sentences share state.
+    assert_eq!(
+        builtin_word_coherency_flags("The advisor waited.\u{2028}Then the adviser came."),
+        vec![("adviser".to_string(), "advisor".to_string())]
+    );
+}
+
+#[test]
+fn builtin_word_coherency_flags_across_sentences() {
+    assert_eq!(
+        builtin_word_coherency_flags("The advisor waited. Then the adviser came."),
+        vec![("adviser".to_string(), "advisor".to_string())]
+    );
+}
+
+#[test]
+fn builtin_word_coherency_ignores_a_single_spelling() {
+    assert!(builtin_word_coherency_flags("The advisor advised the advisors.").is_empty());
+}
+
+#[test]
+fn builtin_word_coherency_ignores_variants_across_paragraphs() {
+    // Documented limitation: the engine checks one paragraph at a time, so
+    // variants used in different paragraphs are not compared.
+    assert!(builtin_word_coherency_flags("The advisor left.\n\nThe adviser arrived.").is_empty());
+}
+
+#[test]
+fn builtin_word_coherency_ignores_fiction_prose() {
+    for text in &[
+        "\u{201c}I didn\u{2019}t know,\u{201d} she said. \u{201c}Weren\u{2019}t you there?\u{201d}",
+        "\u{2018}Doesn\u{2019}t matter,\u{2019} he said.",
+        "He opened the door\u{2014}then stopped. It was quiet\u{2014}too quiet.",
+        "It wasn\u{2019}t Marta\u{2019}s coat, and it wasn\u{2019}t her hat.",
+        "She waited\u{2026} and waited.",
+        "She waited.\u{2028}Nothing came.",
+        "The sign read \u{201c}no entry\u{201d}, and she obeyed.",
+        "The adviser nodded. She was a good adviser, the best adviser in town.",
+    ] {
+        assert!(
+            builtin_word_coherency_flags(text).is_empty(),
+            "unexpected flags for {:?}: {:?}",
+            text,
+            builtin_word_coherency_flags(text)
+        );
+    }
+}
+
+#[test]
+fn builtin_word_coherency_is_wired_into_suggest() {
+    let suggestions = RULES.suggest(
+        "She was an adviser. Later the advisor arrived.",
+        &*TOKENIZER,
+    );
+    let flagged = suggestions
+        .iter()
+        .find(|suggestion| suggestion.source() == "BUILTIN/EN_WORD_COHERENCY")
+        .expect("the mixed spelling is flagged");
+    assert_eq!(flagged.replacements(), &["adviser".to_string()]);
+}
 /// Runs the English unpaired-bracket and unpaired-quote builtins on one
 /// paragraph and returns the rule id and flagged character of every suggestion.
 fn builtin_unpaired_flags(text: &str) -> Vec<(String, String)> {

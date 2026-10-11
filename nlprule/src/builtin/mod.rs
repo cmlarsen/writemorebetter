@@ -29,6 +29,8 @@ pub enum Builtin {
     UnpairedBrackets(en::UnpairedBrackets),
     /// Flags quotation marks that are never paired within a paragraph.
     UnpairedQuotes(en::UnpairedQuotes),
+    /// Flags a word whose spelling variant was already used earlier in the text.
+    WordCoherency(en::WordCoherency),
 }
 
 impl Builtin {
@@ -42,6 +44,7 @@ impl Builtin {
             Builtin::UppercaseSentenceStart(rule) => rule.id(),
             Builtin::UnpairedBrackets(rule) => rule.id(),
             Builtin::UnpairedQuotes(rule) => rule.id(),
+            Builtin::WordCoherency(rule) => rule.id(),
         }
     }
 
@@ -60,6 +63,7 @@ impl Builtin {
             Builtin::UppercaseSentenceStart(rule) => rule.check(sentences),
             Builtin::UnpairedBrackets(rule) => rule.check(sentences),
             Builtin::UnpairedQuotes(rule) => rule.check(sentences),
+            Builtin::WordCoherency(rule) => rule.check_text(sentences),
         }
     }
 }
