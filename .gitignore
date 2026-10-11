@@ -1,0 +1,15 @@
+target/
+.DS_Store
+__pycache__/
+
+# Private corpus (unpublished fiction) and tool outputs derived from it
+bench/corpus/*
+!bench/corpus/.gitkeep
+bench/runs/*
+!bench/runs/.gitkeep
+
+# Downloaded or generated LanguageTool-derived data
+/data/
+/storage/
+*.bin
+*.bin.gz
