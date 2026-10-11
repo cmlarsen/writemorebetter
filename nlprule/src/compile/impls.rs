@@ -18,7 +18,7 @@ use crate::{
     rule::{
         disambiguation::PosFilter,
         engine::{
-            composition::{GraphId, Matcher, PosMatcher, TextMatcher},
+            composition::{GraphId, Matcher, MatcherKind, PosMatcher, TextMatcher},
             Engine,
         },
         id::Category,
@@ -493,7 +493,7 @@ impl TextMatcher {
         // can not cache a matcher that depends on the graph
         let set = if matcher.graph_id().is_some() {
             None
-        } else if let either::Right(regex) = &matcher.matcher {
+        } else if let MatcherKind::Regex(regex) = &matcher.matcher {
             let mut hasher = DefaultHasher::default();
             regex.hash(&mut hasher);
             matcher.negate.hash(&mut hasher);
@@ -527,7 +527,14 @@ impl TextMatcher {
             None
         };
 
-        TextMatcher { matcher, set }
+        TextMatcher {
+            matcher,
+            set: set.map(|set| {
+                let mut ids: Vec<WordIdInt> = set.into_iter().collect();
+                ids.sort_unstable();
+                ids.into_boxed_slice()
+            }),
+        }
     }
 }
 
@@ -867,19 +874,28 @@ impl Engine {
     pub(in crate::compile) fn to_graph_id(&self, id: usize) -> Result<GraphId, Error> {
         let mut id = GraphId(id);
 
-        let map = match &self {
-            Engine::Token(engine) => &engine.composition.id_to_idx,
-            Engine::Text(_, id_to_idx) => &id_to_idx,
-        };
+        match &self {
+            Engine::Token(engine) => {
+                let map = &engine.composition.id_to_idx;
+                if map.is_empty() {
+                    return Err(Error::Unexpected("graph is empty".into()));
+                }
+                let max_id = GraphId(map.len() - 1);
+                if id.0 >= map.len() {
+                    id = max_id;
+                }
+            }
+            Engine::Text(_, map) => {
+                let max_id = *map
+                    .keys()
+                    .max()
+                    .ok_or_else(|| Error::Unexpected("graph is empty".into()))?;
 
-        let max_id = *map
-            .keys()
-            .max()
-            .ok_or_else(|| Error::Unexpected("graph is empty".into()))?;
-
-        // ideally this should throw an error but LT is more lenient than nlprule
-        if !map.contains_key(&id) {
-            id = max_id;
+                // ideally this should throw an error but LT is more lenient than nlprule
+                if !map.contains_key(&id) {
+                    id = max_id;
+                }
+            }
         }
 
         Ok(id)
@@ -945,7 +961,7 @@ mod composition {
             empty_always_false: bool,
         ) -> Self {
             Matcher {
-                matcher: either::Right(regex),
+                matcher: MatcherKind::Regex(Box::new(regex)),
                 negate,
                 case_sensitive: true, // handled by regex, should maybe be an option
                 empty_always_false,
@@ -959,7 +975,10 @@ mod composition {
             empty_always_false: bool,
         ) -> Self {
             Matcher {
-                matcher: either::Left(string_or_idx),
+                matcher: match string_or_idx {
+                    either::Left(string) => MatcherKind::Text(string.into_boxed_str()),
+                    either::Right(id) => MatcherKind::Graph(id),
+                },
                 negate,
                 case_sensitive,
                 empty_always_false,
@@ -967,7 +986,7 @@ mod composition {
         }
 
         pub(in crate::compile) fn graph_id(&self) -> Option<GraphId> {
-            if let either::Left(either::Right(id)) = &self.matcher {
+            if let MatcherKind::Graph(id) = &self.matcher {
                 Some(*id)
             } else {
                 None
@@ -975,7 +994,7 @@ mod composition {
         }
 
         pub(in crate::compile) fn mut_graph_id(&mut self) -> Option<&mut GraphId> {
-            if let either::Left(either::Right(id)) = &mut self.matcher {
+            if let MatcherKind::Graph(id) = &mut self.matcher {
                 Some(id)
             } else {
                 None
@@ -986,7 +1005,10 @@ mod composition {
     impl Quantifier {
         pub(in crate::compile) fn new(min: usize, max: usize) -> Self {
             assert!(max >= min);
-            Quantifier { min, max }
+            Quantifier {
+                min: min as u32,
+                max: max as u32,
+            }
         }
     }
 
@@ -1045,14 +1067,13 @@ mod composition {
 
     impl Composition {
         pub(in crate::compile) fn new(mut parts: Vec<Part>) -> Result<Self, Error> {
-            let mut id_to_idx = DefaultHashMap::default();
-            id_to_idx.insert(GraphId(0), 0);
-            let mut current_id = 1;
+            // `GraphId(k) -> group index`; keys are the visible parts in order, so the vector is
+            // indexed by `k` and holds `part index + 1` (see `GraphIndex`).
+            let mut id_to_idx: Vec<u32> = vec![0];
 
             for (i, part) in parts.iter().enumerate() {
                 if part.visible {
-                    id_to_idx.insert(GraphId(current_id), i + 1);
-                    current_id += 1;
+                    id_to_idx.push((i + 1) as u32);
                 }
             }
 
@@ -1063,12 +1084,16 @@ mod composition {
             for (i, part) in parts.iter_mut().enumerate() {
                 for id in part.atom.mut_graph_ids() {
                     loop {
-                        let index = *id_to_idx.get(&id).ok_or_else(|| {
-                            Error::Unexpected(format!("id must exist in graph: {:?}", id))
-                        })?;
+                        let index = id_to_idx
+                            .get(id.0)
+                            .copied()
+                            .filter(|&index| index != u32::MAX)
+                            .ok_or_else(|| {
+                                Error::Unexpected(format!("id must exist in graph: {:?}", id))
+                            })?;
 
                         // ideally this should throw an error but LT is more lenient than nlprule
-                        if index > i {
+                        if index > i as u32 {
                             *id = GraphId(id.0 - 1);
                         } else {
                             break;

@@ -445,11 +445,62 @@ impl<'a, 't> Iterator for Suggestions<'a, 't> {
 ///     <example correction="doesn't">He <marker>dosn't</marker> know about it.</example>
 /// </rule>
 /// ```
+/// The `<example>`s of a [Rule], kept as a compact bincode blob and parsed on first use.
+///
+/// Examples are only used by the rule-test binaries; the running engine never reads them. Storing
+/// them as a `Vec<Example>` cost several times their serialized size at load (per-example structs
+/// plus `String`s), so the loaded `Rules` keeps the blob and materializes the [Example]s only when
+/// [Rule::examples] is called.
+#[derive(Debug, Default, Serialize, Deserialize)]
+pub struct Examples {
+    blob: Vec<u8>,
+    #[serde(skip)]
+    cache: once_cell::sync::OnceCell<Vec<Example>>,
+}
+
+impl Examples {
+    /// Packs owned examples into their serialized blob (used while compiling).
+    pub(crate) fn from_vec(examples: Vec<Example>) -> Self {
+        if examples.is_empty() {
+            return Self::default();
+        }
+        let blob = bincode::serialize(&examples).expect("examples must serialize");
+        Self {
+            blob,
+            cache: once_cell::sync::OnceCell::new(),
+        }
+    }
+
+    /// The examples, parsed on first access.
+    pub(crate) fn get(&self) -> &[Example] {
+        self.cache.get_or_init(|| {
+            if self.blob.is_empty() {
+                Vec::new()
+            } else {
+                bincode::deserialize(&self.blob).expect("examples blob must deserialize")
+            }
+        })
+    }
+
+    pub(crate) fn is_empty(&self) -> bool {
+        self.blob.is_empty()
+    }
+}
+
+impl Clone for Examples {
+    fn clone(&self) -> Self {
+        Self {
+            blob: self.blob.clone(),
+            cache: once_cell::sync::OnceCell::new(),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Rule {
     pub(crate) id: Index,
     pub(crate) engine: Engine,
-    pub(crate) examples: Vec<Example>,
+    pub(crate) examples: Examples,
     pub(crate) suggesters: Vec<grammar::Synthesizer>,
     pub(crate) message: grammar::Synthesizer,
     pub(crate) start: GraphId,
@@ -528,7 +579,7 @@ impl Rule {
 
     /// Gets the examples associated with this rule.
     pub fn examples(&self) -> &[Example] {
-        &self.examples
+        self.examples.get()
     }
 
     /// Gets a human-readable name of this rule.
@@ -576,7 +627,7 @@ impl Rule {
         // if the suggestions are shifted back
         let shift_delta = Position { byte: 1, char: 1 };
 
-        for test in self.examples.iter() {
+        for test in self.examples.get().iter() {
             // by convention examples are always considered as one sentence even if the sentencizer would split
             let sentence = tokenizer
                 .disambiguate(

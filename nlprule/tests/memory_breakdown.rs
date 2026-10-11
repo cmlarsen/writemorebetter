@@ -93,6 +93,51 @@ const COMPONENTS: &[&str] = &[
     "grammar_no_engine",
     "spell",
     "spell_en_us",
+    // --- per-field grammar-rule breakdown, inside the full `Rules` ---
+    "rules_no_gr_id",
+    "rules_no_gr_examples",
+    "rules_no_gr_message",
+    "rules_no_gr_suggesters",
+    "rules_no_gr_suggester_parts",
+    "rules_no_gr_engine",
+    "rules_no_gr_unification",
+    "rules_no_gr_filter",
+    "rules_no_gr_strings",
+    "rules_no_gr_antipatterns",
+    "rules_no_gr_parts",
+    "rules_no_gr_id_to_idx",
+    "rules_no_gr_can_stop_mask",
+    "rules_no_gr_text_regex",
+    "rules_no_gr_text_id_to_idx",
+    "rules_no_gr_atoms",
+    "rules_no_gr_quantifiers",
+    "rules_no_gr_regexes",
+    "rules_no_gr_matcher_strings",
+    "rules_no_gr_sets",
+];
+
+/// Grammar-rule fields for the field table, in reporting order: `(label, component)`.
+const GRAMMAR_FIELDS: &[(&str, &str)] = &[
+    ("id (rule index)", "rules_no_gr_id"),
+    ("examples", "rules_no_gr_examples"),
+    ("message synthesizer", "rules_no_gr_message"),
+    ("suggesters", "rules_no_gr_suggesters"),
+    ("  suggester parts", "rules_no_gr_suggester_parts"),
+    ("engine (whole)", "rules_no_gr_engine"),
+    ("unification", "rules_no_gr_unification"),
+    ("filter", "rules_no_gr_filter"),
+    ("strings (name/url/cat)", "rules_no_gr_strings"),
+    ("  antipatterns", "rules_no_gr_antipatterns"),
+    ("  composition parts", "rules_no_gr_parts"),
+    ("  composition id_to_idx", "rules_no_gr_id_to_idx"),
+    ("  composition can_stop_mask", "rules_no_gr_can_stop_mask"),
+    ("  text engine regex", "rules_no_gr_text_regex"),
+    ("  text engine id_to_idx", "rules_no_gr_text_id_to_idx"),
+    ("    part atoms", "rules_no_gr_atoms"),
+    ("    part quantifiers", "rules_no_gr_quantifiers"),
+    ("    all regex strings", "rules_no_gr_regexes"),
+    ("    matcher strings", "rules_no_gr_matcher_strings"),
+    ("    text-matcher sets", "rules_no_gr_sets"),
 ];
 
 const REPETITIONS: usize = 3;
@@ -308,6 +353,21 @@ fn run_parent() {
         rules_full - median("rules_no_spell")
     );
     println!();
+
+    println!("grammar-rule field breakdown (in-context = rules_full minus the field blanked):");
+    println!("| field | serialized MB | in-context MB |");
+    println!("|---|---:|---:|");
+    let rules_full_bytes = measurements["rules_full"].bytes;
+    for (label, name) in GRAMMAR_FIELDS {
+        let m = &measurements[*name];
+        println!(
+            "| {} | {:.2} | {:.2} |",
+            label,
+            (rules_full_bytes - m.bytes) as f64 / 1e6,
+            rules_full - Measurement::median(&m.growths)
+        );
+    }
+    println!();
     println!("chunker in-context breakdown (full minus that sub-field):");
     for (label, name) in [
         ("token model", "tokenizer_no_chunker_token_model"),
@@ -370,4 +430,24 @@ fn memory_breakdown() {
         return;
     }
     run_parent();
+}
+
+/// Prints only the structural facts (fast: one load of each binary, no per-component children).
+#[test]
+#[ignore]
+fn memory_describe() {
+    // The measurement children are spawned with `--ignored` and `M2B_COMPONENT` set; they must
+    // only run `run_child`, otherwise their extra load of both binaries corrupts the RSS reading.
+    if std::env::var("M2B_COMPONENT").is_ok() {
+        return;
+    }
+    let storage = storage_dir();
+    for (key, value) in memory_probe::describe(
+        &storage.join("en_tokenizer.bin"),
+        &storage.join("en_rules.bin"),
+    )
+    .expect("describe")
+    {
+        println!("{:<52} {}", key, value);
+    }
 }
