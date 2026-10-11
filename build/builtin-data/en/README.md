@@ -36,3 +36,11 @@ cp -r build/builtin-data/en/. data/en/builtin/
   `EnglishWordRepeatRule`. A single word allows that word to be repeated; a
   multi-word entry allows the exact token sequence to contain the repetition
   (used for LanguageTool's phrase- and part-of-speech-based exceptions).
+- `wrong_word_in_context.txt` — pairs of commonly confused words with the
+  contexts in which each of them occurs, taken from LanguageTool's
+  `wrongWordInContext.txt` and used by the
+  `ENGLISH_WRONG_WORD_IN_CONTEXT` rule. Tab separated with the columns
+  `word1 word2 match1 match2 context1 context2 [explanation1 explanation2]`;
+  the four patterns are Java regular expressions, translated to Rust `regex`
+  syntax when the rules binary is compiled. Lines whose patterns cannot be
+  translated are skipped and reported with their line number.
