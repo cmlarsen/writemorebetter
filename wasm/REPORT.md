@@ -171,9 +171,11 @@ earlier (21.2 MB) binaries that loads only the tokenizer reported 38.4 MB = 11.6
 26.8 MB structures, against ~34 MB native with wider pointers — so dlmalloc fragmentation is not a
 large term and swapping in `lol_alloc`/`talc` was not justified.
 
-Net: construction RSS 246.2 → 178.6 MB and linear memory 77.1 → 59.1 MB. Native is unaffected:
-`SPELL= /usr/bin/time -l wmb-probe storage moby150k.txt` still reports 34 MB after the tokenizer,
-55 MB after the rules, ~78 MB peak RSS.
+Net: construction RSS 246.2 → 178.6 MB and linear memory 77.1 → 59.1 MB. Native is unaffected: on
+these binaries `SPELL= /usr/bin/time -l wmb-probe storage moby150k.txt` reports 37 MB after the
+tokenizer, 62 MB after the rules and ~88 MB peak RSS — within ±0.5 MB of `origin/main` on the same
+binaries (the increase over the earlier 34/55/79 MB numbers is the larger merged data files, not
+these changes).
 
 ## Part 3 — wasm (fancy) vs native onig
 
@@ -199,9 +201,9 @@ All suggestion sets are identical; there are no differing suggestions to list.
 | `cargo fmt --all -- --check` | pass |
 | `cargo clippy --workspace --exclude nlprule-python --all-features` | pass (0 errors; the wasm crate emits none) |
 | `cargo test --workspace --exclude nlprule-python --all-features --release` | pass |
-| `python3 bench/tools/public_recall.py --min 51` | pass, 51/60 |
-| disambiguation conformance (`test_disambiguation`) | 843 / 843 runnable |
-| grammar conformance (`test`) | 3749 / 3749 runnable |
+| `python3 bench/tools/public_recall.py --min 53` | pass, 53/60 |
+| disambiguation conformance (`test_disambiguation`) | 843 / 843 passing |
+| grammar conformance (`test`) | 4052 / 4055 passing (CI floors) |
 
 M6B-WASM-MEMORY changed `nlprule`'s lazily-cached regex to a boxed `OnceCell` (matching behavior,
 serialized format and conformance unchanged) and the wasm crate's constructor signature and build
