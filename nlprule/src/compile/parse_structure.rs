@@ -303,12 +303,31 @@ fn parse_token(
 
     let text_match_idx = if let Some(parts) = &token.parts {
         match parts.iter().find_map(|x| match x {
-            structure::TokenPart::Sub(sub) => Some(sub.no.parse::<usize>().map(|x| x + 1)),
+            structure::TokenPart::Sub(sub) => Some(sub),
             _ => None,
         }) {
             None => None,
-            Some(Ok(x)) => Some(x),
-            Some(Err(err)) => return Err(err.into()),
+            Some(sub) => {
+                // `<token><match no="…" postag="…"/></token>` re-uses the
+                // referenced match's text; the extra attributes need the
+                // synthesis / case-conversion machinery, so reject them
+                // explicitly instead of silently dropping the constraint.
+                if sub.postag.is_some()
+                    || sub.postag_regexp.is_some()
+                    || sub.postag_replace.is_some()
+                    || sub.case_conversion.is_some()
+                    || sub.regexp_match.is_some()
+                    || sub.regexp_replace.is_some()
+                    || sub.include_skipped.is_some()
+                {
+                    return Err(Error::Unimplemented(
+                        "attributes on <match> inside a <token> (synthesis / case conversion) are not implemented."
+                            .into(),
+                    ));
+                }
+
+                Some(sub.no.parse::<usize>()? + 1)
+            }
         }
     } else {
         None
@@ -439,6 +458,10 @@ fn parse_match(m: structure::Match, engine: &Engine, info: &mut BuildInfo) -> Re
             Some("startlower") => Conversion::StartLower,
             Some("startupper") => Conversion::StartUpper,
             Some("allupper") => Conversion::AllUpper,
+            // mirrors LanguageTool's CaseConversionHelper: uppercase the
+            // replacement if the matched text was uppercase (all-uppercase if
+            // the match was all-uppercase, else just the first char).
+            Some("preserve") => Conversion::Preserve,
             Some(x) => {
                 return Err(Error::Unimplemented(format!(
                     "case conversion {} not supported.",
@@ -585,6 +608,16 @@ fn parse_pattern(
     pattern: structure::Pattern,
     info: &mut BuildInfo,
 ) -> Result<(Composition, usize, usize), Error> {
+    if pattern.raw_pos.as_deref() == Some("yes") {
+        // `raw_pos` matches POS tags on the tagger output before disambiguation.
+        // nlprule only keeps the disambiguated readings at runtime, so this
+        // would silently change matching if ignored.
+        return Err(Error::Unimplemented(
+            "raw_pos on <pattern> (matching pre-disambiguation POS tags) is not implemented."
+                .into(),
+        ));
+    }
+
     let mut start = None;
     let mut end = None;
 
@@ -630,6 +663,15 @@ fn parse_pattern(
                 });
             }
             structure::PatternPart::Feature(_) => {}
+            // documentation-only `<example>` inside `<antipattern>`
+            structure::PatternPart::Example(_) => {}
+            structure::PatternPart::Phraseref(_) => {
+                // `<phraseref>` expands a `<phrase>` that nlprule does not
+                // parse; dropping it would silently change the pattern.
+                return Err(Error::Unimplemented(
+                    "phraseref in <pattern> (phrase expansion) is not implemented.".into(),
+                ));
+            }
         }
     }
 
@@ -739,7 +781,15 @@ impl Rule {
                     x => panic!("unknown case_sensitive value {:?}", x),
                 };
                 let mark = regex.mark.map_or(Ok(0), |x| x.parse())?;
-                let regex = Regex::from_java_regex(&regex.text, false, case_sensitive)?;
+                let regex_text = match regex.kind.as_deref() {
+                    // `smart` (the default) lets a space in the regexp match a
+                    // run of whitespace, like LanguageTool's
+                    // `PatternRuleHandler.replaceSpacesInRegex`.
+                    Some("exact") => regex.text.to_string(),
+                    Some("smart") | None => super::utils::replace_spaces_in_regex(&regex.text),
+                    Some(x) => panic!("unknown regexp type {:?}", x),
+                };
+                let regex = Regex::from_java_regex(&regex_text, false, case_sensitive)?;
                 let id_to_idx: DefaultHashMap<GraphId, usize> = (0..regex.captures_len() + 1)
                     .enumerate()
                     // the IDs in a regex rule are just the same as indices
@@ -832,7 +882,8 @@ impl Rule {
                             ));
                         }
 
-                        texts.push(marker.text.as_str());
+                        let marker_text = marker.text.as_ref().map_or("", |x| x.as_str());
+                        texts.push(marker_text);
 
                         if let Some(correction_text) = &example.correction {
                             let mut replacements: Vec<_> =
@@ -854,8 +905,8 @@ impl Rule {
                                 "_Test".into(),
                                 "_Test".into(),
                                 Span::new(
-                                    bytes_before..bytes_before + marker.text.len(),
-                                    chars_before..chars_before + marker.text.chars().count(),
+                                    bytes_before..bytes_before + marker_text.len(),
+                                    chars_before..chars_before + marker_text.chars().count(),
                                 ),
                                 replacements,
                             ));
@@ -1109,7 +1160,9 @@ impl DisambiguationRule {
                                 ))
                             }))
                         }
-                        structure::PatternPart::Feature(_) => {}
+                        structure::PatternPart::Feature(_)
+                        | structure::PatternPart::Example(_)
+                        | structure::PatternPart::Phraseref(_) => {}
                     }
                 }
 
@@ -1180,7 +1233,9 @@ impl DisambiguationRule {
                             }));
                             mask.push(tokens.tokens[0].unify.is_some());
                         }
-                        structure::PatternPart::Feature(_) => {}
+                        structure::PatternPart::Feature(_)
+                        | structure::PatternPart::Example(_)
+                        | structure::PatternPart::Phraseref(_) => {}
                     }
                 }
 
@@ -1254,11 +1309,12 @@ impl DisambiguationRule {
                                 ));
                             }
 
-                            texts.push(marker.text.as_str());
-                            let length = marker.text.chars().count();
+                            let marker_text = marker.text.as_ref().map_or("", |x| x.as_str());
+                            texts.push(marker_text);
+                            let length = marker_text.chars().count();
 
                             char_span = Some(char_length..char_length + length);
-                            char_length += marker.text.chars().count();
+                            char_length += marker_text.chars().count();
                         }
                     }
                 }

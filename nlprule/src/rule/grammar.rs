@@ -10,16 +10,30 @@ pub enum Conversion {
     StartLower,
     AllUpper,
     StartUpper,
+    /// Uppercase like the matched text: all-uppercase if the match was
+    /// all-uppercase, otherwise only its first character. Mirrors
+    /// LanguageTool's `CaseConversionHelper.convertCase` `PRESERVE`.
+    Preserve,
 }
 
 impl Conversion {
-    fn convert(&self, input: &str) -> String {
+    fn convert(&self, input: &str, sample: &str) -> String {
         match &self {
             Conversion::Nop => input.to_string(),
             Conversion::AllLower => input.to_lowercase(),
             Conversion::StartLower => utils::apply_to_first(input, |c| c.to_lowercase().collect()),
             Conversion::AllUpper => input.to_uppercase(),
             Conversion::StartUpper => utils::apply_to_first(input, |c| c.to_uppercase().collect()),
+            Conversion::Preserve => {
+                let starts_upper = sample.chars().next().map_or(false, char::is_uppercase);
+                if !starts_upper {
+                    input.to_string()
+                } else if sample.chars().all(|c| !c.is_lowercase()) {
+                    input.to_uppercase()
+                } else {
+                    utils::apply_to_first(input, |c| c.to_uppercase().collect())
+                }
+            }
         }
     }
 }
@@ -69,6 +83,9 @@ impl Match {
     fn apply(&self, sentence: &MatchSentence, graph: &MatchGraph) -> Option<String> {
         let text = graph.by_id(self.id).text(sentence);
 
+        // the text this match refers to, used as the sample for `preserve`
+        let sample = text.to_string();
+
         let mut text = if let Some(replacer) = &self.pos_replacer {
             replacer.apply(text, sentence)?
         } else {
@@ -82,7 +99,7 @@ impl Match {
         };
 
         // TODO: maybe return a vector here and propagate accordingly
-        Some(self.conversion.convert(&text))
+        Some(self.conversion.convert(&text, &sample))
     }
 
     fn has_conversion(&self) -> bool {

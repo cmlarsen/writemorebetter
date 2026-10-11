@@ -66,7 +66,7 @@ pub(crate) fn spellchecker_lang_options(lang_code: &str) -> Option<SpellLangOpti
     SPELLCHECKER_LANG_OPTIONS.get(lang_code).cloned()
 }
 
-pub(crate) use regex::from_java_regex;
+pub(crate) use regex::{from_java_regex, replace_spaces_in_regex};
 
 mod regex {
     use std::collections::HashMap;
@@ -323,6 +323,32 @@ mod regex {
         };
     }
 
+    /// Mirrors LanguageTool's `PatternRuleHandler.replaceSpacesInRegex`: for a
+    /// `smart` `<regexp>` (the default), every literal space outside a character
+    /// class matches a run of whitespace (including non-breaking and narrow
+    /// non-breaking space). `type="exact"` skips this.
+    pub fn replace_spaces_in_regex(s: &str) -> String {
+        let mut out = String::with_capacity(s.len());
+        let mut in_bracket = false;
+
+        for c in s.chars() {
+            match c {
+                '[' => {
+                    in_bracket = true;
+                    out.push(c);
+                }
+                ']' => {
+                    in_bracket = false;
+                    out.push(c);
+                }
+                ' ' if !in_bracket => out.push_str("(?:[\\s\u{00A0}\u{202F}]+)"),
+                _ => out.push(c),
+            }
+        }
+
+        out
+    }
+
     /// Does a good effort of converting Java Regexes to regular expressions
     /// usable by `oniguruma` / `fancy-regex`.
     pub fn from_java_regex(
@@ -366,6 +392,17 @@ mod regex {
                             } else {
                                 break Err(error);
                             }
+                        }
+                        // Java accepts `(?)` as an empty inline-flag group (a
+                        // no-op); LanguageTool uses it e.g. in
+                        // `regexp_match="(?)id"`. `regex-syntax` reports it as a
+                        // repetition without an expression, so drop the group.
+                        ErrorKind::RepetitionMissing
+                            if start >= 1
+                                && regex.as_bytes()[start - 1] == b'('
+                                && regex[start..].starts_with("?)") =>
+                        {
+                            regex = format!("{}{}", &regex[..start - 1], &regex[start + 2..]);
                         }
                         _ => break Err(error),
                     }
@@ -429,6 +466,24 @@ mod regex {
         #[test]
         fn nested_quantifiers() {
             assert!(from_java_regex(r"[0-9,.]*{1,}", false, false).is_err())
+        }
+
+        #[test]
+        fn empty_inline_flag_group_removed() {
+            // Java accepts `(?)` as an empty inline-flag group; LanguageTool
+            // uses it in `regexp_match="(?)id"` / `"(?)ife"`.
+            assert_eq!(from_java_regex(r"(?)id", true, false).unwrap(), "id");
+            assert_eq!(from_java_regex(r"(?)ife", true, false).unwrap(), "ife");
+        }
+
+        #[test]
+        fn smart_regexp_space_replacement() {
+            assert_eq!(
+                replace_spaces_in_regex("a b"),
+                "a(?:[\\s\u{00A0}\u{202F}]+)b"
+            );
+            // spaces inside a character class are left alone
+            assert_eq!(replace_spaces_in_regex("[ ]{2}"), "[ ]{2}");
         }
     }
 }

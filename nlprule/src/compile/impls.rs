@@ -484,6 +484,12 @@ impl PosMatcher {
     }
 }
 
+/// Whether a LanguageTool `tags` attribute marks the rule as opt-in
+/// (`tags="picky"`, i. e. Level.PICKY). The value is a space separated list.
+fn has_picky_tag(tags: Option<&str>) -> bool {
+    tags.map_or(false, |tags| tags.split_whitespace().any(|x| x == "picky"))
+}
+
 impl Rules {
     pub(in crate::compile) fn from_xml<P: AsRef<Path>>(
         path: P,
@@ -514,6 +520,26 @@ impl Rules {
                         .join(0)
                     };
 
+                    // LanguageTool's repetition experiment (`min_prev_matches` /
+                    // `distance_tokens`) needs cross-match state, so reject it
+                    // explicitly instead of compiling a rule that ignores the
+                    // constraint.
+                    if rule_structure.min_prev_matches.is_some()
+                        || rule_structure.distance_tokens.is_some()
+                        || group.as_ref().map_or(false, |g| {
+                            g.min_prev_matches.is_some() || g.distance_tokens.is_some()
+                        })
+                    {
+                        *errors
+                            .entry(
+                                "[Rule] feature not implemented: repetition attributes \
+                                 (min_prev_matches / distance_tokens) are not implemented."
+                                    .into(),
+                            )
+                            .or_insert(0) += 1;
+                        return None;
+                    }
+
                     let rule_on = match rule_structure.default.as_deref() {
                         Some("off") | Some("temp_off") => false,
                         Some("on") | None => true,
@@ -531,6 +557,13 @@ impl Rules {
                         Some("on") | None => true,
                         Some(x) => panic!("unknown `default` value: {}", x),
                     };
+
+                    // `tags="picky"` rules are LanguageTool's Level.PICKY and are
+                    // off by default. Rulegroup tags apply to every rule inside.
+                    let picky = has_picky_tag(rule_structure.tags.as_deref())
+                        || group
+                            .as_ref()
+                            .map_or(false, |g| has_picky_tag(g.tags.as_deref()));
 
                     let name = rule_structure.name.as_ref().map_or_else(
                         || {
@@ -550,7 +583,7 @@ impl Rules {
                                 rule.name = name;
                                 rule.category_name = category.name;
                                 rule.category_type = category.kind;
-                                rule.enabled = category_on && group_on && rule_on;
+                                rule.enabled = category_on && group_on && rule_on && !picky;
                                 Some(rule)
                             } else {
                                 None
