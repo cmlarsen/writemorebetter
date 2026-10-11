@@ -242,6 +242,7 @@ attempts total. Phase 0 establishes measurement and does not count as an optimiz
 | 9 | [#57](https://github.com/cmlarsen/writemorebetter/pull/57) | LZ4-compressed lazy examples | -0.17% | -3.410 MiB | -0.606 MiB | -2.87% / -1.04% (interleaved, loaded) | kept |
 | 10 | [#58](https://github.com/cmlarsen/writemorebetter/pull/58) | Reuse chunker beam heaps | -0.46% / -0.41% (rerun) | +1.496 / -0.457 MiB | -0.000 / -0.020 MiB | -0.97% / -2.75% (interleaved, loaded) | dropped |
 | 13 | [#59](https://github.com/cmlarsen/writemorebetter/pull/59) | Compact contiguous NFA for multiword tagging | +1.28% | -8.441 MiB | -2.289 MiB | +1.57% / +0.32% (interleaved, loaded) | kept (coordinator-approved) |
+| 18 | [#67](https://github.com/cmlarsen/writemorebetter/pull/67) | Share immutable speller rows | pending | pending | pending | -4.79% / -0.21% (interleaved, loaded) | pending |
 
 
 Phase 0 merge-base measurements (Ubuntu): 6.6 check 5.2510 s, peak 91.4414 MiB,
@@ -461,3 +462,22 @@ exhausted one cleared. All 24 goldens pass and the output is unchanged. CI measu
 55.083B → 54.831B instructions (-0.46%) with 6.6 peak +1.496 MiB, which disagreed with the
 local -1.11 MiB. The one permitted rerun measured 55.024B → 54.799B (-0.41%) and 6.6 peak
 -0.457 MiB. Neither reaches the keep threshold, so #58 was closed.
+
+### Attempt 18 — share immutable speller rows
+
+Each Levenshtein automaton state cloned its full distance row (and the row two steps up)
+at every byte step. Rows are immutable once built, so they are now `Arc<[usize]>` and the
+previous-row link shares the buffer instead of copying it; the next row is computed in one
+pass. The byte-based recurrence, transposes and prefix cutoff are unchanged. A new test
+compares search results and distances across transposes, prefix limits and UTF-8 words with
+curly quotes, em dashes, ellipses and U+2028. All 24 goldens, fmt, clippy and the workspace
+tests pass.
+
+| Rules | Text | Check before/after (s) | Check Δ | Peak before/after (MiB) | Peak Δ (MiB) |
+|---|---|---|---:|---|---:|
+| 52 | moby150k | 2.5634 / 2.5581 | -0.21% | 69.33 / 68.69 | -0.64 |
+| 52 | story1 | 0.1795 / 0.1810 | +0.85% | 61.61 / 61.56 | -0.05 |
+| 66 | moby150k | 3.0816 / 2.9341 | -4.79% | 83.11 / 82.22 | -0.89 |
+| 66 | story1 | 0.2025 / 0.2035 | +0.49% | 69.66 / 69.48 | -0.17 |
+
+CI decides retention.
