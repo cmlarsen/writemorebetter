@@ -219,8 +219,8 @@ the desktop release), on an idle machine. Conformance pass rate = rules passing 
 | Private corpus recall (49) | 5 | 42 | **45** (LT 6.9 API: 48) |
 | Private corpus flags, fiction profile | 682 (no profile) | 186 | **180** (LT 6.9 API: 279) |
 | Public corpus recall (60) | 9 | 54 | 55 (LT 6.9 API: 56) |
-| Peak RSS, 150 KB of Moby-Dick, speller on | 168 MB | 76 MB | 96 MB |
-| Check time, same text | 2.72 s | 3.0 s | 3.7 s |
+| Peak RSS, 150 KB of Moby-Dick, speller on | 159 MB | 78 MB | 100 MB |
+| Check time, same text (same run, machine under load) | 2.21 s | 2.16 s | 2.63 s |
 | Data on disk (tokenizer + rules) | 11.6 + 7.6 MB | 14.6 + 7.9 MB | 11.9 + 12.6 MB |
 
 On the private drafts, LT 6.6 rules miss only the three n-gram confusions (out of scope on-device) and one
@@ -230,8 +230,9 @@ tokenization (M4H); rule filters (M4G); determiners, `include_skipped`, two-digi
 chunker and suggestion fixes (M4J); the twelve Java builtins (M5).
 
 Memory: M2 removed load-time inflation from the tagger, chunker, multiword tagger, sentencizer and
-speller, and later interned rule-engine parts (139,841 instances, 15,195 distinct). Check time is 10–36%
-slower than 0.6.4 because there are more rules.
+speller, and later interned rule-engine parts (139,841 instances, 15,195 distinct). A compile-time
+required-literal prefilter and per-text sentence batching brought check time back to 0.6.4's despite the
+larger rule set and the speller (`docs/PERF.md`).
 
 ## Builtins on fiction (M5)
 
