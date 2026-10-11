@@ -15,7 +15,7 @@ use std::{
 
 /// How many sentences to collect before running their rule checks in one parallel region. Large
 /// enough to keep every worker busy on a batch, small enough to bound the memory held at once.
-const PARALLEL_BATCH: usize = 128;
+const PARALLEL_BATCH: usize = 32;
 
 /// Language-dependent options for a rule set.
 #[derive(Debug, Clone, Serialize, Deserialize)]
