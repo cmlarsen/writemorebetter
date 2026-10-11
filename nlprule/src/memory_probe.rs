@@ -267,6 +267,12 @@ pub fn extract_tokenizer(tokenizer_bin: &Path, out_dir: &Path) -> Result<Vec<Ext
         &tagger.tag_fst.as_fst().as_bytes().to_vec(),
         &mut out,
     )?;
+    write_blob(
+        out_dir,
+        "tagger_synth_fst",
+        &tagger.synth_fst.as_fst().as_bytes().to_vec(),
+        &mut out,
+    )?;
     write_blob(out_dir, "tagger_tag_store", &tagger.tag_store, &mut out)?;
     write_blob(out_dir, "tagger_word_buf", &tagger.word_buf, &mut out)?;
     write_blob(
@@ -441,7 +447,9 @@ pub fn load(name: &str, path: &Path) -> Result<Held, String> {
         | "tokenizer_no_chunk_outcomes"
         | "tokenizer_no_chunk_pmap" => Held::new(load_typed::<Tokenizer>(path)?),
         "tagger" => Held::new(load_typed::<crate::tokenizer::tag::Tagger>(path)?),
-        "tagger_word_store_fst" | "tagger_tag_fst" => Held::new(load_typed::<Vec<u8>>(path)?),
+        "tagger_word_store_fst" | "tagger_tag_fst" | "tagger_synth_fst" => {
+            Held::new(load_typed::<Vec<u8>>(path)?)
+        }
         "tagger_tag_store" => Held::new(load_typed::<bimap::BiMap<String, PosIdInt>>(path)?),
         "tagger_word_buf" => Held::new(load_typed::<String>(path)?),
         "tagger_word_offsets" => Held::new(load_typed::<Vec<u32>>(path)?),
