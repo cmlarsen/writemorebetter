@@ -242,6 +242,7 @@ attempts total. Phase 0 establishes measurement and does not count as an optimiz
 | 9 | [#57](https://github.com/cmlarsen/writemorebetter/pull/57) | LZ4-compressed lazy examples | -0.17% | -3.410 MiB | -0.606 MiB | -2.87% / -1.04% (interleaved, loaded) | kept |
 | 10 | [#58](https://github.com/cmlarsen/writemorebetter/pull/58) | Reuse chunker beam heaps | -0.46% / -0.41% (rerun) | +1.496 / -0.457 MiB | -0.000 / -0.020 MiB | -0.97% / -2.75% (interleaved, loaded) | dropped |
 | 13 | [#59](https://github.com/cmlarsen/writemorebetter/pull/59) | Compact contiguous NFA for multiword tagging | +1.28% | -8.441 MiB | -2.289 MiB | +1.57% / +0.32% (interleaved, loaded) | kept (coordinator-approved) |
+| 17 | [#66](https://github.com/cmlarsen/writemorebetter/pull/66) | Sentence batch size 128 → 32 | pending | pending | pending | +7.92% / +3.31% (interleaved, loaded) | pending |
 
 
 Phase 0 merge-base measurements (Ubuntu): 6.6 check 5.2510 s, peak 91.4414 MiB,
@@ -461,3 +462,20 @@ exhausted one cleared. All 24 goldens pass and the output is unchanged. CI measu
 55.083B → 54.831B instructions (-0.46%) with 6.6 peak +1.496 MiB, which disagreed with the
 local -1.11 MiB. The one permitted rerun measured 55.024B → 54.799B (-0.41%) and 6.6 peak
 -0.457 MiB. Neither reaches the keep threshold, so #58 was closed.
+
+### Attempt 17 — smaller sentence batches
+
+`PARALLEL_BATCH` bounds how many tokenized sentences are held while their rule checks run in
+one rayon region. Dropping it from 128 to 32 reduces the transient memory held at once at the
+price of more, shorter parallel regions. Output is unchanged (rules stay serial within a
+sentence); all 24 goldens, fmt, clippy and the workspace tests pass. Wall time is a real
+cost here because the callgrind job runs sequentially and cannot see it.
+
+| Rules | Text | Check before/after (s) | Check Δ | Peak before/after (MiB) | Peak Δ (MiB) |
+|---|---|---|---:|---|---:|
+| 52 | moby150k | 2.1329 / 2.2035 | +3.31% | 69.14 / 68.56 | -0.58 |
+| 52 | story1 | 0.1620 / 0.1727 | +6.60% | 61.84 / 60.88 | -0.97 |
+| 66 | moby150k | 2.4955 / 2.6931 | +7.92% | 83.05 / 81.42 | -1.62 |
+| 66 | story1 | 0.1911 / 0.1955 | +2.29% | 69.84 / 68.89 | -0.95 |
+
+CI decides retention (memory wins above 1 MiB may cost up to +0.5% instructions).
