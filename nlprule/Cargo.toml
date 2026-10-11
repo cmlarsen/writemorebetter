@@ -74,6 +74,10 @@ regex-fancy = ["fancy-regex"]
 # used only for compilation and tests
 regex-all-test = ["regex-onig", "regex-fancy"]
 
+# enables the test-only memory measurement probe (see tests/memory_breakdown.rs).
+# off by default and never needed to build or use the library.
+memory-probe = []
+
 # needed for the bin test targets and to compile nlprule binaries, you'll usually not need these
 bin = ["clap", "env_logger"]
 compile = [

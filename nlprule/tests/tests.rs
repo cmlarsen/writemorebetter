@@ -329,6 +329,139 @@ fn builtin_word_repeat_span_covers_case_folded_second_word() {
     );
 }
 
+/// Runs the English a/an builtin through the full suggestion pipeline and
+/// returns the flagged text and the first replacement of every suggestion.
+fn builtin_a_vs_an_flags(text: &str) -> Vec<(String, String)> {
+    let chars: Vec<char> = text.chars().collect();
+
+    RULES
+        .suggest(text, &*TOKENIZER)
+        .into_iter()
+        .filter(|suggestion| suggestion.source() == "BUILTIN/EN_A_VS_AN")
+        .map(|suggestion| {
+            (
+                chars[suggestion.span().char().clone()].iter().collect(),
+                suggestion.replacements()[0].clone(),
+            )
+        })
+        .collect()
+}
+
+#[test]
+fn builtin_a_vs_an_flags_a_apple() {
+    assert_eq!(
+        builtin_a_vs_an_flags("She ate a apple."),
+        vec![("a apple".to_string(), "an".to_string())]
+    );
+}
+
+#[test]
+fn builtin_a_vs_an_flags_a_before_honest() {
+    assert_eq!(
+        builtin_a_vs_an_flags("He is a honest man."),
+        vec![("a honest".to_string(), "an".to_string())]
+    );
+    assert!(builtin_a_vs_an_flags("He is an honest man.").is_empty());
+}
+
+#[test]
+fn builtin_a_vs_an_flags_an_before_consonant() {
+    assert_eq!(
+        builtin_a_vs_an_flags("They met an year ago."),
+        vec![("an year".to_string(), "a".to_string())]
+    );
+}
+
+#[test]
+fn builtin_a_vs_an_accepts_an_hour() {
+    assert!(builtin_a_vs_an_flags("We waited an hour.").is_empty());
+}
+
+#[test]
+fn builtin_a_vs_an_accepts_a_university() {
+    // "university" starts with a vowel letter but a consonant sound.
+    assert!(builtin_a_vs_an_flags("He attends a university.").is_empty());
+}
+
+#[test]
+fn builtin_a_vs_an_accepts_an_mba() {
+    // "MBA" is an abbreviation listed as requiring "an".
+    assert!(builtin_a_vs_an_flags("She has an MBA.").is_empty());
+    assert_eq!(
+        builtin_a_vs_an_flags("She has a MBA."),
+        vec![("a MBA".to_string(), "an".to_string())]
+    );
+}
+
+#[test]
+fn builtin_a_vs_an_accepts_a_one_time() {
+    // Only the part before the hyphen counts; "one" takes "a".
+    assert!(builtin_a_vs_an_flags("It was a one-time thing.").is_empty());
+}
+
+#[test]
+fn builtin_a_vs_an_ignores_unknown_abbreviations() {
+    // All-uppercase words are assumed to be abbreviations with unknown
+    // pronunciation, so no article is enforced.
+    assert!(builtin_a_vs_an_flags("He plugged in a USB cable.").is_empty());
+}
+
+#[test]
+fn builtin_a_vs_an_flags_capitalized_article_at_sentence_start() {
+    assert_eq!(
+        builtin_a_vs_an_flags("A apple fell."),
+        vec![("A apple".to_string(), "An".to_string())]
+    );
+}
+
+#[test]
+fn builtin_a_vs_an_accepts_capitalized_an() {
+    assert!(builtin_a_vs_an_flags("An honest man arrived.").is_empty());
+}
+
+#[test]
+fn builtin_a_vs_an_flags_inside_curly_quotes() {
+    assert_eq!(
+        builtin_a_vs_an_flags("He was a \u{201c}honest\u{201d} man."),
+        vec![("a \u{201c}honest".to_string(), "an".to_string())]
+    );
+    // A correct article inside the quotes is left alone.
+    assert!(builtin_a_vs_an_flags("It took an \u{201c}hour\u{201d} or so\u{2026}").is_empty());
+}
+
+#[test]
+fn builtin_a_vs_an_flags_before_em_dash_word() {
+    // The em dash joins two words into one token; the article still refers to
+    // the "a"-initial word.
+    assert_eq!(
+        builtin_a_vs_an_flags("He gave me a apple\u{2014}then left."),
+        vec![("a apple\u{2014}then".to_string(), "an".to_string())]
+    );
+}
+
+#[test]
+fn builtin_a_vs_an_ignores_correct_prose_with_fiction_punctuation() {
+    // Curly double quotes, curly apostrophes, an em dash and an ellipsis, all
+    // correctly punctuated: no flags.
+    assert!(builtin_a_vs_an_flags(
+        "Marta\u{2019}s an honest friend\u{2014}then she left\u{2026} \u{201c}An hour,\u{201d} she said."
+    )
+    .is_empty());
+}
+
+#[test]
+fn builtin_a_vs_an_checks_across_u2028() {
+    // U+2028 separates two sentences inside one paragraph; each is checked.
+    assert!(builtin_a_vs_an_flags("It was a one-time thing.\u{2028}An honest mistake.").is_empty());
+    assert_eq!(
+        builtin_a_vs_an_flags("It was a apple.\u{2028}An year passed."),
+        vec![
+            ("a apple".to_string(), "an".to_string()),
+            ("An year".to_string(), "A".to_string()),
+        ]
+    );
+}
+
 /// Runs the English comma/parenthesis-whitespace builtin over a paragraph and
 /// returns the flagged text and all replacements of every suggestion.
 fn comma_flags(text: &str) -> Vec<(String, Vec<String>)> {
