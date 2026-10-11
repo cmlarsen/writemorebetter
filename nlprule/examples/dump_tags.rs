@@ -39,11 +39,12 @@ fn main() {
     for sentence in tokenizer.pipe(&text) {
         for token in sentence.tokens() {
             let word = token.word();
-            let joined = pairs(
-                word.tags()
-                    .iter()
-                    .map(|data| (data.lemma().as_str().to_owned(), data.pos().as_str().to_owned())),
-            );
+            let joined = pairs(word.tags().iter().map(|data| {
+                (
+                    data.lemma().as_str().to_owned(),
+                    data.pos().as_str().to_owned(),
+                )
+            }));
             writeln!(out, "{}\t{}", word.text().as_str(), joined).unwrap();
         }
     }
@@ -53,7 +54,10 @@ fn main() {
     let words: BTreeSet<&str> = text.split_whitespace().collect();
     for word in words {
         let joined = pairs(tokenizer.tagger().get_tags(word).map(|data| {
-            (data.lemma().as_str().to_owned(), data.pos().as_str().to_owned())
+            (
+                data.lemma().as_str().to_owned(),
+                data.pos().as_str().to_owned(),
+            )
         }));
         writeln!(out, "{}\t{}", word, joined).unwrap();
     }

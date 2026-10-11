@@ -526,7 +526,10 @@ impl Tagger {
     /// Tags the given text.
     /// Unknown words will not get a numerical id.
     pub fn id_word<'a>(&self, text: Cow<'a, str>) -> WordId<'a> {
-        let id = self.word_store_fst.get(text.as_ref()).map(|v| WordIdInt(v as u32));
+        let id = self
+            .word_store_fst
+            .get(text.as_ref())
+            .map(|v| WordIdInt(v as u32));
         WordId(text, id)
     }
 
