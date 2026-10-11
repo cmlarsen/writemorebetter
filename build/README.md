@@ -87,16 +87,18 @@ Chunker binaries can be downloaded from http://opennlp.sourceforge.net/models-1.
 
 #### Generating a build dir from the latest LanguageTool release
 
-The commands below generate an English build directory straight from the latest LanguageTool
-desktop release (6.6 at the time of writing) with a portable JRE, so no system-wide Java is
-required. They were run on macOS arm64; `build/fetch_lt.sh` selects the platform itself.
+The commands below generate an English build directory straight from a pinned LanguageTool
+desktop release (6.6 below) with a portable JRE, so no system-wide Java is required. Pass the
+version to `build/fetch_lt.sh` to pin it; the default is `stable`. They were run on macOS arm64;
+`build/fetch_lt.sh` selects the platform itself.
 
 ```bash
-# 1. Download LanguageTool-stable.zip and a portable Temurin 21 JRE into the cache.
+# 1. Download LanguageTool 6.6 and a portable Temurin 21 JRE into the cache.
 #    Re-running is cheap: anything already present is reused. The script prints
 #    LT_VERSION, LT_DIR and JAVA_BIN, which eval exports for the steps below.
+#    The second argument pins the version (default: "stable", the latest release).
 #    (Nothing is installed system-wide and no sudo is needed.)
-eval "$(build/fetch_lt.sh data/cache)"
+eval "$(build/fetch_lt.sh data/cache 6.6)"
 
 # 2. Install the Python dependencies into a venv.
 python3 -m venv data/venv
@@ -134,12 +136,9 @@ cp -r build/builtin-data/en/. data/en-lt66/builtin/
 ```
 
 To build and test the binaries from the new directory, use the same commands as above with
-`--build-dir data/en-lt66` instead of `--build-dir data/en`.
-
-Note: with LanguageTool 6.6 this currently fails to compile. Its `disambiguation.xml` uses
-`<disambig action="add" postag="JJS">` in the rule `SECOND_LARGEST_JJS`, and the compiler
-rejects a `postag` on an `add` disambiguation (`postag not supported for `add``). This is a
-compiler limitation, not a build-dir problem; the rest of the directory is generated as above.
+`--build-dir data/en-lt66` instead of `--build-dir data/en`. CI does exactly this: it generates
+the 6.6 directory on the runner (cached across runs) and gates conformance and public recall for
+both 6.6 and the published 5.2 `en.zip`.
 
 #### German
 

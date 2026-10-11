@@ -3,6 +3,21 @@
 The numbers later milestones are measured against. Recorded 2026-10-11 on an Apple M5 Pro, rustc 1.97.1,
 release builds. Update this file only when a milestone deliberately moves the baseline (and say which).
 
+## Current (after M4)
+
+M4 moves the engine to LanguageTool 6.6 and keeps 5.2 as a second CI job. Measured on current `main`
+(2026-10-11, Apple M5 Pro, rustc 1.97.1, release builds), with the 6.6 build dir generated from the
+pinned desktop release and the 5.2 build dir being the published Backblaze `en.zip`:
+
+| Rule set | LT 6.6 runnable | LT 6.6 passing | LT 5.2 runnable | LT 5.2 passing |
+|---|---|---|---|---|
+| Grammar (`grammar.xml` + `style.xml`) | 5,718 | 4,998 | 4,055 | 4,052 |
+| Disambiguation (`disambiguation.xml`) | 1,015 | 979 | 843 | 843 |
+
+Public recall (`bench/tools/public_recall.py` on `bench/public`): 54/60 with LT 6.6, 53/60 with LT 5.2.
+CI gates each version at its own floor (6.6: 4,998 / 5,718 grammar, 979 disambiguation, recall 54;
+5.2: 4,052 / 4,055, 843, recall 53).
+
 ## Conformance
 
 LanguageTool's embedded rule examples, run with the `test` and `test_disambiguation` binaries on binaries
