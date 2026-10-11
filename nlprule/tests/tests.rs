@@ -679,6 +679,164 @@ fn builtin_comma_is_wired_into_suggest() {
     assert_eq!(flagged.replacements(), &[",".to_string()]);
 }
 
+/// Runs the English word-coherency builtin through the full suggestion
+/// pipeline and returns the flagged text and the first replacement of every
+/// suggestion.
+fn builtin_word_coherency_flags(text: &str) -> Vec<(String, String)> {
+    let chars: Vec<char> = text.chars().collect();
+
+    RULES
+        .suggest(text, &*TOKENIZER)
+        .into_iter()
+        .filter(|suggestion| suggestion.source() == "BUILTIN/EN_WORD_COHERENCY")
+        .map(|suggestion| {
+            (
+                chars[suggestion.span().char().clone()].iter().collect(),
+                suggestion.replacements()[0].clone(),
+            )
+        })
+        .collect()
+}
+
+#[test]
+fn builtin_word_coherency_flags_second_spelling() {
+    // The example from the rule this builtin reimplements.
+    assert_eq!(
+        builtin_word_coherency_flags("He likes archaeology. Really? She likes archeology, too."),
+        vec![("archeology".to_string(), "archaeology".to_string())]
+    );
+}
+
+#[test]
+fn builtin_word_coherency_flags_adviser_after_advisor() {
+    assert_eq!(
+        builtin_word_coherency_flags("She was an adviser. Later the advisor arrived."),
+        vec![("advisor".to_string(), "adviser".to_string())]
+    );
+}
+
+#[test]
+fn builtin_word_coherency_flags_each_occurrence_of_the_second_spelling() {
+    assert_eq!(
+        builtin_word_coherency_flags(
+            "The advisor left. Then the adviser returned. Another adviser waved."
+        ),
+        vec![
+            ("adviser".to_string(), "advisor".to_string()),
+            ("adviser".to_string(), "advisor".to_string()),
+        ],
+    );
+}
+
+#[test]
+fn builtin_word_coherency_replaces_only_the_stem() {
+    // The plural keeps its ending: only the stem changes.
+    assert_eq!(
+        builtin_word_coherency_flags("The advisor arrived. Then two advisers came."),
+        vec![("advisers".to_string(), "advisors".to_string())]
+    );
+}
+
+#[test]
+fn builtin_word_coherency_capitalizes_the_replacement() {
+    assert_eq!(
+        builtin_word_coherency_flags("The advisors met. Then the Adviser left."),
+        vec![("Adviser".to_string(), "Advisor".to_string())]
+    );
+}
+
+#[test]
+fn builtin_word_coherency_flags_inside_curly_quotes() {
+    assert_eq!(
+        builtin_word_coherency_flags(
+            "\u{201c}advisor,\u{201d} she said, and later \u{201c}adviser.\u{201d}"
+        ),
+        vec![("adviser".to_string(), "advisor".to_string())]
+    );
+}
+
+#[test]
+fn builtin_word_coherency_flags_after_curly_apostrophe() {
+    assert_eq!(
+        builtin_word_coherency_flags("Marta\u{2019}s advisor and Marta\u{2019}s adviser."),
+        vec![("adviser".to_string(), "advisor".to_string())]
+    );
+}
+
+#[test]
+fn builtin_word_coherency_flags_across_em_dash() {
+    // The em dash joins neighbouring words into one token, which must not stop
+    // the other variant from being recognised.
+    assert_eq!(
+        builtin_word_coherency_flags(
+            "The advisor waited\u{2014}impatiently\u{2014}for the adviser."
+        ),
+        vec![("adviser".to_string(), "advisor".to_string())]
+    );
+}
+
+#[test]
+fn builtin_word_coherency_flags_across_u2028() {
+    // U+2028 is whitespace inside a paragraph, so both sentences share state.
+    assert_eq!(
+        builtin_word_coherency_flags("The advisor waited.\u{2028}Then the adviser came."),
+        vec![("adviser".to_string(), "advisor".to_string())]
+    );
+}
+
+#[test]
+fn builtin_word_coherency_flags_across_sentences() {
+    assert_eq!(
+        builtin_word_coherency_flags("The advisor waited. Then the adviser came."),
+        vec![("adviser".to_string(), "advisor".to_string())]
+    );
+}
+
+#[test]
+fn builtin_word_coherency_ignores_a_single_spelling() {
+    assert!(builtin_word_coherency_flags("The advisor advised the advisors.").is_empty());
+}
+
+#[test]
+fn builtin_word_coherency_ignores_variants_across_paragraphs() {
+    // Documented limitation: the engine checks one paragraph at a time, so
+    // variants used in different paragraphs are not compared.
+    assert!(builtin_word_coherency_flags("The advisor left.\n\nThe adviser arrived.").is_empty());
+}
+
+#[test]
+fn builtin_word_coherency_ignores_fiction_prose() {
+    for text in &[
+        "\u{201c}I didn\u{2019}t know,\u{201d} she said. \u{201c}Weren\u{2019}t you there?\u{201d}",
+        "\u{2018}Doesn\u{2019}t matter,\u{2019} he said.",
+        "He opened the door\u{2014}then stopped. It was quiet\u{2014}too quiet.",
+        "It wasn\u{2019}t Marta\u{2019}s coat, and it wasn\u{2019}t her hat.",
+        "She waited\u{2026} and waited.",
+        "She waited.\u{2028}Nothing came.",
+        "The sign read \u{201c}no entry\u{201d}, and she obeyed.",
+        "The adviser nodded. She was a good adviser, the best adviser in town.",
+    ] {
+        assert!(
+            builtin_word_coherency_flags(text).is_empty(),
+            "unexpected flags for {:?}: {:?}",
+            text,
+            builtin_word_coherency_flags(text)
+        );
+    }
+}
+
+#[test]
+fn builtin_word_coherency_is_wired_into_suggest() {
+    let suggestions = RULES.suggest(
+        "She was an adviser. Later the advisor arrived.",
+        &*TOKENIZER,
+    );
+    let flagged = suggestions
+        .iter()
+        .find(|suggestion| suggestion.source() == "BUILTIN/EN_WORD_COHERENCY")
+        .expect("the mixed spelling is flagged");
+    assert_eq!(flagged.replacements(), &["adviser".to_string()]);
+}
 /// Runs the English unpaired-bracket and unpaired-quote builtins on one
 /// paragraph and returns the rule id and flagged character of every suggestion.
 fn builtin_unpaired_flags(text: &str) -> Vec<(String, String)> {
@@ -1009,6 +1167,199 @@ fn builtin_uppercase_sentence_start_is_wired_into_suggest() {
         .find(|suggestion| suggestion.source() == "BUILTIN/UPPERCASE_SENTENCE_START")
         .expect("lowercase sentence start is flagged");
     assert_eq!(flagged.replacements(), &["Tomorrow".to_string()]);
+}
+/// Runs the English wrong-word-in-context builtin through the full suggestion
+/// pipeline and returns the flagged text and the first replacement of every
+/// suggestion.
+fn builtin_wrong_word_flags(text: &str) -> Vec<(String, String)> {
+    let chars: Vec<char> = text.chars().collect();
+
+    RULES
+        .suggest(text, &*TOKENIZER)
+        .into_iter()
+        .filter(|suggestion| suggestion.source() == "BUILTIN/ENGLISH_WRONG_WORD_IN_CONTEXT")
+        .map(|suggestion| {
+            (
+                chars[suggestion.span().char().clone()].iter().collect(),
+                suggestion.replacements()[0].clone(),
+            )
+        })
+        .collect()
+}
+
+#[test]
+fn builtin_wrong_word_flags_proscribed() {
+    assert_eq!(
+        builtin_wrong_word_flags("I have proscribed you a course of antibiotics."),
+        vec![("proscribed".to_string(), "prescribed".to_string())]
+    );
+}
+
+#[test]
+fn builtin_wrong_word_ignores_correct_prescribed() {
+    assert!(builtin_wrong_word_flags("I have prescribed you a course of antibiotics.").is_empty());
+}
+
+#[test]
+fn builtin_wrong_word_flags_gorilla_for_soldiers() {
+    assert_eq!(
+        builtin_wrong_word_flags("The gorilla charged at the soldiers."),
+        vec![("gorilla".to_string(), "guerilla".to_string())]
+    );
+}
+
+#[test]
+fn builtin_wrong_word_flags_sing_for_contract() {
+    assert_eq!(
+        builtin_wrong_word_flags("Please sing the contract before the meeting."),
+        vec![("sing".to_string(), "sign".to_string())]
+    );
+}
+
+#[test]
+fn builtin_wrong_word_flags_statues_for_government() {
+    assert_eq!(
+        builtin_wrong_word_flags("The statues were passed by the government."),
+        vec![("statues".to_string(), "statutes".to_string())]
+    );
+}
+
+#[test]
+fn builtin_wrong_word_flags_hangers_for_plane() {
+    // "massage"/"message" is already handled by an n-gram rule, so this uses a
+    // pair that only this builtin knows about.
+    assert_eq!(
+        builtin_wrong_word_flags("The plane was kept in the hangers."),
+        vec![("hangers".to_string(), "hangars".to_string())]
+    );
+}
+
+#[test]
+fn builtin_wrong_word_flags_heroin_for_novel() {
+    assert_eq!(
+        builtin_wrong_word_flags("She wrote about heroin in her novels."),
+        vec![("heroin".to_string(), "heroine".to_string())]
+    );
+}
+
+#[test]
+fn builtin_wrong_word_ignores_correct_heroin_context() {
+    // "addiction" is a context of "heroin", so the word is used correctly.
+    assert!(builtin_wrong_word_flags("He was treated for heroin addiction.").is_empty());
+}
+
+#[test]
+fn builtin_wrong_word_ignores_correct_heroine_context() {
+    // "novel" is a context of "heroine", so the word is used correctly.
+    assert!(builtin_wrong_word_flags("The heroine of the novel was brave.").is_empty());
+}
+
+#[test]
+fn builtin_wrong_word_ignores_when_both_words_occur() {
+    assert!(
+        builtin_wrong_word_flags("The statutes and the statues were both mentioned.").is_empty()
+    );
+}
+
+#[test]
+fn builtin_wrong_word_flags_inside_curly_quotes() {
+    assert_eq!(
+        builtin_wrong_word_flags("\u{201c}Please sing the contract,\u{201d} she said."),
+        vec![("sing".to_string(), "sign".to_string())]
+    );
+}
+
+#[test]
+fn builtin_wrong_word_flags_after_curly_apostrophe() {
+    assert_eq!(
+        builtin_wrong_word_flags("Marta\u{2019}s statues were passed by the government."),
+        vec![("statues".to_string(), "statutes".to_string())]
+    );
+}
+
+#[test]
+fn builtin_wrong_word_flags_around_em_dashes() {
+    // The em dashes join "door—then" into a single token; the flagged word is
+    // still its own token.
+    assert_eq!(
+        builtin_wrong_word_flags(
+            "She opened the door\u{2014}then the gorilla charged the \
+                                  soldiers."
+        ),
+        vec![("gorilla".to_string(), "guerilla".to_string())]
+    );
+}
+
+#[test]
+fn builtin_wrong_word_flags_before_ellipsis() {
+    assert_eq!(
+        builtin_wrong_word_flags("Please sing the contract\u{2026} and then leave."),
+        vec![("sing".to_string(), "sign".to_string())]
+    );
+}
+
+#[test]
+fn builtin_wrong_word_flags_across_u2028() {
+    // U+2028 separates two sentences inside one paragraph; each is checked on
+    // its own.
+    assert_eq!(
+        builtin_wrong_word_flags(
+            "Please sing the contract.\u{2028}The statues were passed by the government."
+        ),
+        vec![
+            ("sing".to_string(), "sign".to_string()),
+            ("statues".to_string(), "statutes".to_string()),
+        ]
+    );
+}
+
+#[test]
+fn builtin_wrong_word_ignores_correct_prose_with_fiction_punctuation() {
+    // Curly double and single quotes, curly apostrophes, em dashes and an
+    // ellipsis, all correctly punctuated: no flags.
+    for text in &[
+        "\u{201c}I\u{2019}ve prescribed the medication,\u{201d} she said\u{2026}",
+        "The \u{2018}heroine\u{2019} of the novel was brave\u{2014}and the crowd \
+         cheered\u{2026}",
+        "Marta\u{2019}s statues stood in the garden\u{2014}then the rain came\u{2026}",
+        "The \u{2018}heroine\u{2019} of the novel was brave.",
+    ] {
+        assert!(
+            builtin_wrong_word_flags(text).is_empty(),
+            "unexpected flags for {:?}: {:?}",
+            text,
+            builtin_wrong_word_flags(text)
+        );
+    }
+}
+
+#[test]
+fn builtin_wrong_word_ignores_correct_prose_across_u2028() {
+    // A correct context for "heroine" in the second sentence, an ordinary
+    // sentence in the first one.
+    assert!(builtin_wrong_word_flags(
+        "It was quiet\u{2028}The \u{2018}heroine\u{2019} of the novel was brave\u{2026}"
+    )
+    .is_empty());
+}
+
+#[test]
+fn builtin_wrong_word_ignores_words_without_a_confusion() {
+    // "song" is not one of the confused words, so it is never flagged.
+    assert!(builtin_wrong_word_flags("The song was over\u{2026} and everyone left.").is_empty());
+}
+
+#[test]
+fn builtin_wrong_word_is_wired_into_suggest() {
+    let suggestions = RULES.suggest(
+        "I have proscribed you a course of antibiotics.",
+        &*TOKENIZER,
+    );
+    let flagged = suggestions
+        .iter()
+        .find(|suggestion| suggestion.source() == "BUILTIN/ENGLISH_WRONG_WORD_IN_CONTEXT")
+        .expect("the confused word is flagged");
+    assert_eq!(flagged.replacements(), &["prescribed".to_string()]);
 }
 
 /// Runs the simple-replace builtins over a paragraph and returns the flagged

@@ -52,6 +52,18 @@ cp -r build/builtin-data/en/. data/en/builtin/
   LanguageTool's `en/contractions.txt`. This table is matched
   case-sensitively and one token at a time, so the file keeps its
   case-sensitive forms (`Aint`, `AINT`, ...).
+- `wrong_word_in_context.txt` — pairs of commonly confused words with the
+  contexts in which each of them occurs, taken from LanguageTool's
+  `wrongWordInContext.txt` and used by the
+  `ENGLISH_WRONG_WORD_IN_CONTEXT` rule. Tab separated with the columns
+  `word1 word2 match1 match2 context1 context2 [explanation1 explanation2]`;
+  the four patterns are Java regular expressions, translated to Rust `regex`
+  syntax when the rules binary is compiled. Lines whose patterns cannot be
+  translated are skipped and reported with their line number.
+- `word_coherency.txt` — pairs of admitted spellings of the same word (e.g.
+  `adviser;advisor`, `analyse;analyze`), one pair per line. Taken from
+  LanguageTool's `WordCoherencyRule` data. The English word-coherency builtin
+  flags the second spelling when a text mixes both spellings of a pair.
 - `uppercase_sentence_start_exceptions.txt` — tokens that may start a sentence
   in lowercase without being an error, taken from the exceptions of the
   corresponding capitalization rule. One token per line.
