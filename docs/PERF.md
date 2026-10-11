@@ -240,6 +240,7 @@ attempts total. Phase 0 establishes measurement and does not count as an optimiz
 | 7 | [#55](https://github.com/cmlarsen/writemorebetter/pull/55) | Inline buffers for small match graphs | -0.74% | -2.496 MiB | -0.137 MiB | -0.82% / -2.24% (interleaved, loaded) | kept |
 | 8 | [#56](https://github.com/cmlarsen/writemorebetter/pull/56) | Inline buffers for short speller rows | +3.78% | -2.105 MiB | +0.012 MiB | +0.16% / -1.36% (interleaved, loaded) | dropped |
 | 9 | pending | LZ4-compressed lazy examples | pending | pending | pending | -2.87% / -1.04% (interleaved, loaded) | pending |
+| 14 | [#62](https://github.com/cmlarsen/writemorebetter/pull/62) | Move owned token words instead of cloning tag vectors | pending | pending | pending | +0.50% / +1.42% (interleaved, loaded) | pending |
 
 
 Phase 0 merge-base measurements (Ubuntu): 6.6 check 5.2510 s, peak 91.4414 MiB,
@@ -421,3 +422,18 @@ Fresh five-pair Moby medians on retained main: 6.6 check 2.8907 → 2.8079 s
 (-2.87%), peak 88.95 → 87.91 MiB (-1.05); 5.2 check 3.3020 →
 3.2677 s (-1.04%), peak 72.19 → 71.70 MiB (-0.48). The machine was
 busy, including conformance runs; wall time is informational.
+
+### Attempt 14 — move owned token words
+
+`IncompleteToken::into_token` cloned the whole word, including its tag vector, before
+appending the special tags. It now moves the word it owns. Behavior is unchanged; all 24
+goldens, fmt, clippy and the workspace tests pass.
+
+| Rules | Text | Check before/after (s) | Check Δ | Peak before/after (MiB) | Peak Δ (MiB) |
+|---|---|---|---:|---|---:|
+| 52 | moby150k | 1.9607 / 1.9886 | +1.42% | 71.61 / 71.16 | -0.45 |
+| 52 | story1 | 0.1622 / 0.1527 | -5.82% | 63.39 / 63.38 | -0.02 |
+| 66 | moby150k | 2.3949 / 2.4070 | +0.50% | 88.02 / 87.75 | -0.27 |
+| 66 | story1 | 0.1905 / 0.1995 | +4.71% | 74.45 / 74.20 | -0.25 |
+
+CI decides retention.
