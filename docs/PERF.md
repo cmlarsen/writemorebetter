@@ -230,7 +230,7 @@ attempts total. Phase 0 establishes measurement and does not count as an optimiz
 
 | Attempt | PR | Change | Instructions Δ (6.6) | Peak RSS Δ (6.6) | Peak RSS Δ (5.2) | Local check time Δ (6.6 / 5.2) | Kept/dropped |
 |---|---|---|---:|---:|---:|---|---|
-| 1 | pending | Bounded short-input boolean-regex cache | pending | pending | pending | −7.41% / −3.80% (interleaved, loaded) | pending |
+| 1 | [#49](https://github.com/cmlarsen/writemorebetter/pull/49) | Bounded short-input boolean-regex cache | pending | pending | pending | -3.03% / -5.94% (interleaved, loaded) | pending |
 | 0 | [#48](https://github.com/cmlarsen/writemorebetter/pull/48) | Public golden output and reproducible local/CI harness | +0.13% (baseline 80.792B) | +0.031 MiB (baseline 91.441) | −0.012 MiB (baseline 70.492) | baseline | kept |
 
 
@@ -248,10 +248,11 @@ allocator functions. This selects short-input boolean-regex memoization as attem
 
 ### Attempt 1 — bounded boolean-regex cache
 
-The cache holds 512 exact `(interned pattern identity, UTF-8 input bytes)` keys per
+The cache holds 512 exact `(never-reused pattern ID, UTF-8 input bytes)` keys per
 thread (12 KiB on native 64-bit), with inputs limited to seven bytes. It stores only
 booleans; captures continue through the backend. Collisions are misses, and the
-existing pattern pool retains the allocations used as stable identities. This avoids
+pattern pool assigns monotonically increasing process-unique IDs to distinct patterns;
+IDs are never reused, and construction fails closed on counter exhaustion. This avoids
 repeated Oniguruma parameter allocations and matches without adding unbounded storage.
 
 All 24 goldens and the cache collision/UTF-8 tests pass. Local medians use five
@@ -263,8 +264,13 @@ data directories. The fixed CI/golden measurement method is unchanged.
 
 | Rules | Moby check before / after (s, loaded) | Peak before / after (MiB) |
 |---|---|---|
-| 6.6 | 3.4485 / 3.1931 (−7.41%) | 94.56 / 94.53 |
-| 5.2 | 2.2810 / 2.1943 (−3.80%) | 73.84 / 73.98 |
+| 6.6 | 3.3902 / 3.2874 (-3.03%) | 94.50 / 95.23 |
+| 5.2 | 2.4499 / 2.3044 (-5.94%) | 74.28 / 73.77 |
 
-Sequential sampling: Oniguruma inclusive share 34.0% → 22.7%. CI deltas and
+Initial pointer-keyed prototype sampling: Oniguruma inclusive share 34.0% → 22.7%.
+The reviewed implementation instead uses numeric identities; its CI deltas and
 conformance/public-recall results are pending before keep/drop.
+
+The coordinator requires explicit approval before merging attempts that introduce global,
+static or thread-local state, unsafe code, or address-keyed caches. Attempt 1 includes a
+drop/reload lifecycle test and uses numeric identities instead of addresses.

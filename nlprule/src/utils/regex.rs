@@ -6,8 +6,9 @@
 use once_cell::sync::{Lazy, OnceCell};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::cell::RefCell;
-use std::collections::HashSet;
+use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
 pub use regex_impl::{CaptureMatches, Captures, Match, Matches};
@@ -18,25 +19,29 @@ pub use regex_impl::{CaptureMatches, Captures, Match, Matches};
 /// earlier pattern), and every `Regex` would otherwise own its own copy. Interning stores each
 /// distinct pattern once as an `Arc<str>` and hands out cheap clones. The pool is bounded by the
 /// number of distinct patterns and is intentionally process-wide.
-static PATTERN_POOL: Lazy<Mutex<HashSet<Arc<str>>>> = Lazy::new(|| Mutex::new(HashSet::new()));
+static PATTERN_POOL: Lazy<Mutex<HashMap<Arc<str>, u64>>> = Lazy::new(|| Mutex::new(HashMap::new()));
+static NEXT_PATTERN_ID: AtomicU64 = AtomicU64::new(1);
 
-fn intern_pattern(pattern: String) -> Arc<str> {
+fn intern_pattern(pattern: String) -> (Arc<str>, u64) {
     let mut pool = PATTERN_POOL
         .lock()
         .unwrap_or_else(|error| error.into_inner());
-    if let Some(existing) = pool.get(pattern.as_str()) {
-        return existing.clone();
+    if let Some((existing, id)) = pool.get_key_value(pattern.as_str()) {
+        return (existing.clone(), *id);
     }
+    let id = NEXT_PATTERN_ID
+        .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |id| id.checked_add(1))
+        .expect("regex pattern identity exhausted");
     let interned: Arc<str> = Arc::from(pattern);
-    pool.insert(interned.clone());
-    interned
+    pool.insert(interned.clone(), id);
+    (interned, id)
 }
 
 const SHORT_CACHE_SLOTS: usize = 512;
 
 #[derive(Clone, Copy, Default)]
 struct CacheEntry {
-    key: (usize, u64),
+    key: (u64, u64),
     value: Option<bool>,
 }
 
@@ -49,12 +54,12 @@ impl Default for ShortCache {
 }
 
 impl ShortCache {
-    fn slot(key: (usize, u64)) -> usize {
-        ((key.0 as u64 ^ key.1).wrapping_mul(0x9e37_79b1_85eb_ca87) >> 32) as usize
+    fn slot(key: (u64, u64)) -> usize {
+        ((key.0 ^ key.1).wrapping_mul(0x9e37_79b1_85eb_ca87) >> 32) as usize
             & (SHORT_CACHE_SLOTS - 1)
     }
 
-    fn get(&self, key: (usize, u64)) -> Option<bool> {
+    fn get(&self, key: (u64, u64)) -> Option<bool> {
         let entry = &self.0[Self::slot(key)];
         if entry.key == key {
             entry.value
@@ -63,7 +68,7 @@ impl ShortCache {
         }
     }
 
-    fn insert(&mut self, key: (usize, u64), value: bool) {
+    fn insert(&mut self, key: (u64, u64), value: bool) {
         self.0[Self::slot(key)] = CacheEntry {
             key,
             value: Some(value),
@@ -78,6 +83,7 @@ thread_local! {
 #[derive(Debug)]
 pub struct Regex {
     regex_str: Arc<str>,
+    pattern_id: u64,
     // Boxed so the cache slot is one pointer word. `OnceCell` stores its value inline, and a
     // compiled `fancy_regex::Regex` is large; with ~70k pattern `Regex`es in the English rule set
     // the inline slot alone cost several MB of the loaded rules. The box costs one allocation per
@@ -89,6 +95,7 @@ impl Clone for Regex {
     fn clone(&self) -> Self {
         Regex {
             regex_str: self.regex_str.clone(),
+            pattern_id: self.pattern_id,
             regex: OnceCell::new(),
         }
     }
@@ -125,8 +132,10 @@ impl Regex {
     /// Note that the regex compilation happens on first use, which is why this method does not
     /// return a result.
     pub fn new(regex_str: String) -> Self {
+        let (regex_str, pattern_id) = intern_pattern(regex_str);
         Self {
-            regex_str: intern_pattern(regex_str),
+            regex_str,
+            pattern_id,
             regex: OnceCell::new(),
         }
     }
@@ -159,8 +168,7 @@ impl Regex {
         let mut bytes = [0; 8];
         bytes[..text.len()].copy_from_slice(text.as_bytes());
         bytes[7] = text.len() as u8;
-        // The pool retains every pattern allocation, so its address is a stable identity.
-        let key = (self.regex_str.as_ptr() as usize, u64::from_le_bytes(bytes));
+        let key = (self.pattern_id, u64::from_le_bytes(bytes));
         if let Some(result) = SHORT_CACHE.with(|cache| cache.borrow().get(key)) {
             return result;
         }
@@ -600,6 +608,21 @@ mod short_cache_tests {
         cache.insert(second, false);
         assert_eq!(cache.get(first), None);
         assert_eq!(cache.get(second), Some(false));
+    }
+
+    #[test]
+    fn dropping_and_reloading_patterns_cannot_reuse_a_cached_result() {
+        let first = Regex::new("^(?:cache-lifetime-first|yes)$".into());
+        let id = first.pattern_id;
+        assert!(first.is_match("yes"));
+        drop(first);
+        let second = Regex::new("^(?:cache-lifetime-second|no)$".into());
+        assert_ne!(second.pattern_id, id);
+        assert!(!second.is_match("yes"));
+        drop(second);
+        let reloaded = Regex::new("^(?:cache-lifetime-first|yes)$".into());
+        assert_eq!(reloaded.pattern_id, id);
+        assert!(reloaded.is_match("yes"));
     }
 
     #[test]
