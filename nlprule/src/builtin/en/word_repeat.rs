@@ -73,9 +73,7 @@ impl WordRepeat {
             // The span reaches from the start of the first word to the end of
             // the second one, i.e. it also covers the whitespace in between.
             let start = tokens[prev.start].span().start();
-            let mut end = tokens[cur.start].span().start();
-            end.byte += prev.text.len();
-            end.char += prev.text.chars().count();
+            let end = tokens[cur.end - 1].span().end();
 
             suggestions.push(Suggestion::new(
                 format!("BUILTIN/{}", ID),

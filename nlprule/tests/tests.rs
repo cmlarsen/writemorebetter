@@ -320,3 +320,11 @@ fn builtin_word_repeat_is_wired_into_suggest() {
         .expect("repeated word is flagged");
     assert_eq!(flagged.replacements(), &["into".to_string()]);
 }
+
+#[test]
+fn builtin_word_repeat_span_covers_case_folded_second_word() {
+    assert_eq!(
+        builtin_word_repeat_flags("They lived on the STRASSE straße for years."),
+        vec![("STRASSE straße".to_string(), "STRASSE".to_string())]
+    );
+}

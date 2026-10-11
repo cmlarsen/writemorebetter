@@ -24,6 +24,8 @@ jobs:
           mkdir -p data storage
           curl -sSL -o data/en.zip https://f000.backblazeb2.com/file/nlprule/en.zip
           unzip -q data/en.zip -d data
+          mkdir -p data/en/builtin
+          cp -r build/builtin-data/en/. data/en/builtin/
 
       - name: Check formatting
         run: cargo fmt --all -- --check
@@ -48,7 +50,7 @@ jobs:
       - name: Public corpus recall
         run: |
           cargo build --release --manifest-path bench/tools/wmb-probe/Cargo.toml
-          python3 bench/tools/public_recall.py --min 39
+          python3 bench/tools/public_recall.py --min 46
 
       - name: Disambiguation conformance
         env:
