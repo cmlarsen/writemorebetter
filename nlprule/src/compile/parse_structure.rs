@@ -488,8 +488,13 @@ fn parse_match(
 }
 
 fn parse_synthesizer_text(text: &str, engine: &Engine) -> Result<Vec<SynthesizerPart>, Error> {
+    // LanguageTool resolves a backreference as `\` followed by *all* consecutive
+    // digits: `PatternRuleMatcher.formatMatches` measures `numLen` while the next
+    // character is a digit and then parses the whole number, so `\13` refers to
+    // token 13, not to `\1` followed by a literal `3`. Match that here — a
+    // reference may have more than one digit.
     lazy_static! {
-        static ref MATCH_REGEX: Regex = Regex::new(r"\\(\d)".into());
+        static ref MATCH_REGEX: Regex = Regex::new(r"\\(\d+)".into());
     }
 
     let mut parts = Vec::new();
@@ -1414,5 +1419,51 @@ impl DisambiguationRule {
             examples,
             id: Index::default(),
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Builds a text engine whose graph ids `0..=n` all exist; that is what
+    /// `Engine::to_graph_id` needs to accept a reference without clamping it to
+    /// the last id. The regex itself is never compiled here.
+    fn text_engine(n: usize) -> Engine {
+        let id_to_idx: DefaultHashMap<GraphId, usize> = (0..=n).map(|i| (GraphId(i), i)).collect();
+        Engine::Text(Box::new(Regex::new("".into())), id_to_idx)
+    }
+
+    fn describe(parts: &[SynthesizerPart]) -> Vec<String> {
+        parts
+            .iter()
+            .map(|part| match part {
+                SynthesizerPart::Match(m) => format!("<{}>", m.id.0),
+                SynthesizerPart::Text(t) => t.clone(),
+            })
+            .collect()
+    }
+
+    #[test]
+    fn two_digit_backreferences_are_a_single_reference() {
+        // LanguageTool parses `\` followed by all consecutive digits as one
+        // token reference, so `\13` is token 13, not `\1` plus a literal "3".
+        let engine = text_engine(20);
+        let parts = parse_synthesizer_text(r"\13 \14", &engine).unwrap();
+        assert_eq!(describe(&parts), vec!["<13>", " ", "<14>"]);
+    }
+
+    #[test]
+    fn single_digit_backreferences_still_work() {
+        let engine = text_engine(3);
+        let parts = parse_synthesizer_text(r"a \1 b \2", &engine).unwrap();
+        assert_eq!(describe(&parts), vec!["a ", "<1>", " b ", "<2>"]);
+    }
+
+    #[test]
+    fn text_without_backreferences_is_a_single_part() {
+        let engine = text_engine(1);
+        let parts = parse_synthesizer_text("plain text", &engine).unwrap();
+        assert_eq!(describe(&parts), vec!["plain text"]);
     }
 }
