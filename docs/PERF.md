@@ -244,6 +244,7 @@ attempts total. Phase 0 establishes measurement and does not count as an optimiz
 | 11 | [#61](https://github.com/cmlarsen/writemorebetter/pull/61) | Prefer the longest mandatory literal for absence guards | -1.52% | -0.555 MiB | +0.082 MiB | +2.40% / +1.23% (interleaved, loaded) | kept |
 | 12 | [#60](https://github.com/cmlarsen/writemorebetter/pull/60) | Share lazy compiled regex backends for identical sources | -0.16% | -2.992 MiB | -0.984 MiB | +1.13% / -1.26% (interleaved, loaded) | kept |
 | 13 | [#59](https://github.com/cmlarsen/writemorebetter/pull/59) | Compact contiguous NFA for multiword tagging | +1.28% | -8.441 MiB | -2.289 MiB | +1.57% / +0.32% (interleaved, loaded) | kept (coordinator-approved) |
+| 19 | [#68](https://github.com/cmlarsen/writemorebetter/pull/68) | Reuse the token-text index across disambiguation iterations | pending | pending | pending | -6.10% / -8.34% (interleaved, loaded) | pending |
 
 
 Phase 0 merge-base measurements (Ubuntu): 6.6 check 5.2510 s, peak 91.4414 MiB,
@@ -507,3 +508,23 @@ showed -2.9%), but CI instructions fell 55.058B → 54.262B (-1.45%) on the firs
 55.754B → 54.906B (-1.52%) after rebasing onto #59, with allocator calls -1.40% and 6.6
 peak -0.14% / -0.55 MiB (5.2 +0.15% / +0.08 MiB). #61 was retained as an instruction win
 with no RSS cost.
+
+### Attempt 19 — reuse the token-text index across disambiguation
+
+`disambiguate_up_to_id` re-runs the disambiguation rule list after each rule that changes the
+sentence, and every pass built a fresh `MatchSentence`, and with it a fresh token-text index
+(`StartPositions`). Disambiguation only edits tag lists (`Word` exposes no text mutator) and
+never adds, removes or reorders tokens, so the index is carried from one pass to the next.
+Independently built before/after engines produce byte-identical grammar and disambiguation
+passing-ID lists for both rule sets (grammar 5,977/6,032 and 4,320/4,335; disambiguation
+1,012/1,015 and 843/843). All 24 goldens, fmt, clippy and the workspace tests pass.
+
+| Rules | Text | Check before/after (s) | Check Δ | Peak before/after (MiB) | Peak Δ (MiB) |
+|---|---|---|---:|---|---:|
+| 52 | moby150k | 2.0502 / 1.8792 | -8.34% | 69.00 / 68.98 | -0.02 |
+| 52 | story1 | 0.1613 / 0.1479 | -8.32% | 61.53 / 61.12 | -0.41 |
+| 66 | moby150k | 2.4492 / 2.2999 | -6.10% | 80.73 / 80.62 | -0.11 |
+| 66 | story1 | 0.2056 / 0.2413 | +17.34% | 68.38 / 68.08 | -0.30 |
+
+The 6.6 story1 pair is a load outlier; the other cases and an earlier revision (six texts,
+-6.3% to -13.5%) agree. CI decides retention.
