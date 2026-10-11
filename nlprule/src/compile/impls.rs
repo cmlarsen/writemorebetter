@@ -1,6 +1,7 @@
 use bimap::BiMap;
 use fs_err::File;
 use fst::Map;
+use half::bf16;
 use log::warn;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -689,24 +690,25 @@ pub(in crate::compile) struct ContextData {
 
 impl From<ModelData> for chunk::Model {
     fn from(data: ModelData) -> Self {
-        let mut outcomes: Vec<usize> = Vec::new();
-        let mut parameters: Vec<f32> = Vec::new();
+        let mut outcomes: Vec<u8> = Vec::new();
+        let mut parameters: Vec<bf16> = Vec::new();
 
-        let pmap = data
-            .pmap
-            .into_iter()
-            .map(|(key, value)| {
-                assert_eq!(value.outcomes.len(), value.parameters.len());
+        let pmap = data.pmap.into_iter().map(|(key, value)| {
+            assert_eq!(value.outcomes.len(), value.parameters.len());
 
-                let offset = outcomes.len();
-                let length = value.outcomes.len();
+            let offset = outcomes.len();
+            let length = value.outcomes.len();
 
-                outcomes.extend(value.outcomes);
-                parameters.extend(value.parameters);
+            outcomes.extend(value.outcomes.into_iter().map(|outcome| {
+                assert!(outcome <= u8::MAX as usize);
+                outcome as u8
+            }));
+            parameters.extend(value.parameters.into_iter().map(bf16::from_f32));
 
-                (chunk::hash::hash_str(&key), (offset, length))
-            })
-            .collect::<DefaultHashMap<_, _>>();
+            (chunk::hash::hash_str(&key), (offset, length))
+        });
+
+        let pmap = chunk::Pmap::from_pairs(pmap);
 
         chunk::Model {
             outcome_labels: data.outcome_labels,
@@ -736,7 +738,7 @@ impl chunk::Chunker {
             },
             pos_model: chunk::MaxentPosTagger {
                 model: chunk_data.pos_model.into(),
-                tagdict: chunk_data.pos_tagdict,
+                tagdict: chunk_data.pos_tagdict.into(),
             },
             chunk_model: chunk::MaxentChunker {
                 model: chunk_data.chunk_model.into(),

@@ -12,6 +12,7 @@
 
 use std::path::Path;
 
+use half::bf16;
 use serde::{de::DeserializeOwned, Serialize};
 
 use crate::rule::disambiguation::Disambiguation;
@@ -19,7 +20,9 @@ use crate::rule::engine::composition::Composition;
 use crate::rule::engine::{Engine, TokenEngine};
 use crate::rule::{DisambiguationRule, Rule};
 use crate::spell::Spell;
-use crate::tokenizer::chunk::{Chunker, MaxentChunker, MaxentPosTagger, MaxentTokenizer};
+use crate::tokenizer::chunk::{
+    Chunker, MaxentChunker, MaxentPosTagger, MaxentTokenizer, Pmap, TagDict,
+};
 use crate::tokenizer::multiword::MultiwordTagger;
 use crate::types::{DefaultHashMap, PosIdInt};
 use crate::{Rules, Tokenizer};
@@ -87,7 +90,7 @@ fn empty_model() -> crate::tokenizer::chunk::Model {
         outcome_labels: Vec::new(),
         outcomes: Vec::new(),
         parameters: Vec::new(),
-        pmap: DefaultHashMap::new(),
+        pmap: Pmap::default(),
     }
 }
 
@@ -114,18 +117,18 @@ fn blanked_chunker(chunker: &Chunker, blank: ChunkerBlank) -> Chunker {
         }
         ChunkerBlank::PosModel => {
             out.pos_model.model = empty_model();
-            out.pos_model.tagdict = DefaultHashMap::new();
+            out.pos_model.tagdict = TagDict::default();
         }
         ChunkerBlank::ChunkModel => {
             out.chunk_model.model = empty_model();
         }
         ChunkerBlank::PosParameters => out.pos_model.model.parameters = Vec::new(),
         ChunkerBlank::PosOutcomes => out.pos_model.model.outcomes = Vec::new(),
-        ChunkerBlank::PosPmap => out.pos_model.model.pmap = DefaultHashMap::new(),
-        ChunkerBlank::PosTagdict => out.pos_model.tagdict = DefaultHashMap::new(),
+        ChunkerBlank::PosPmap => out.pos_model.model.pmap = Pmap::default(),
+        ChunkerBlank::PosTagdict => out.pos_model.tagdict = TagDict::default(),
         ChunkerBlank::ChunkParameters => out.chunk_model.model.parameters = Vec::new(),
         ChunkerBlank::ChunkOutcomes => out.chunk_model.model.outcomes = Vec::new(),
-        ChunkerBlank::ChunkPmap => out.chunk_model.model.pmap = DefaultHashMap::new(),
+        ChunkerBlank::ChunkPmap => out.chunk_model.model.pmap = Pmap::default(),
     }
     out
 }
@@ -453,16 +456,14 @@ pub fn load(name: &str, path: &Path) -> Result<Held, String> {
         "chunker" => Held::new(load_typed::<Option<Chunker>>(path)?),
         "chunker_token_model" => Held::new(load_typed::<MaxentTokenizer>(path)?),
         "chunker_pos_model" => Held::new(load_typed::<MaxentPosTagger>(path)?),
-        "chunker_pos_tagdict" => {
-            Held::new(load_typed::<DefaultHashMap<String, Vec<String>>>(path)?)
-        }
+        "chunker_pos_tagdict" => Held::new(load_typed::<TagDict>(path)?),
         "chunker_chunk_model" => Held::new(load_typed::<MaxentChunker>(path)?),
         "chunker_model_parameters"
         | "chunker_token_model_parameters"
-        | "chunker_pos_model_parameters" => Held::new(load_typed::<Vec<f32>>(path)?),
-        "chunker_model_outcomes" => Held::new(load_typed::<Vec<usize>>(path)?),
+        | "chunker_pos_model_parameters" => Held::new(load_typed::<Vec<bf16>>(path)?),
+        "chunker_model_outcomes" => Held::new(load_typed::<Vec<u8>>(path)?),
         "chunker_model_pmap" | "chunker_token_model_pmap" | "chunker_pos_model_pmap" => {
-            Held::new(load_typed::<DefaultHashMap<u64, (usize, usize)>>(path)?)
+            Held::new(load_typed::<Pmap>(path)?)
         }
         "chunker_model_outcome_labels" => Held::new(load_typed::<Vec<String>>(path)?),
         "multiword_tagger" => Held::new(load_typed::<Option<MultiwordTagger>>(path)?),
@@ -527,16 +528,12 @@ pub fn describe(tokenizer_bin: &Path, rules_bin: &Path) -> Result<Vec<(String, S
         ];
         for (name, model) in models {
             facts.push((
-                format!("chunker.{}.parameters (disk bf16 / loaded f32 bytes)", name),
-                format!(
-                    "{} / {}",
-                    model.parameters.len() * 2,
-                    model.parameters.len() * 4
-                ),
+                format!("chunker.{}.parameters (loaded bf16 bytes)", name),
+                format!("{}", model.parameters.len() * 2),
             ));
             facts.push((
-                format!("chunker.{}.outcomes (disk u8 / loaded usize bytes)", name),
-                format!("{} / {}", model.outcomes.len(), model.outcomes.len() * 8),
+                format!("chunker.{}.outcomes (loaded u8 bytes)", name),
+                format!("{}", model.outcomes.len()),
             ));
             facts.push((
                 format!("chunker.{}.pmap entries (disk bytes)", name),

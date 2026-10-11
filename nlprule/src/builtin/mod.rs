@@ -17,10 +17,18 @@ pub mod en;
 /// language-specific state.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Builtin {
+    /// Flags whitespace around commas, full stops, parentheses and quotes.
+    CommaParenthesisWhitespace(en::CommaParenthesisWhitespace),
     /// Flags the wrong indefinite article before a word, e.g. `"a apple"`.
     AVsAn(en::AVsAn),
     /// Flags a word that is immediately repeated, e.g. `"the the"`.
     WordRepeat(en::WordRepeat),
+    /// Flags a sentence that does not start with an uppercase letter.
+    UppercaseSentenceStart(en::UppercaseSentenceStart),
+    /// Flags brackets that are never closed within a paragraph.
+    UnpairedBrackets(en::UnpairedBrackets),
+    /// Flags quotation marks that are never paired within a paragraph.
+    UnpairedQuotes(en::UnpairedQuotes),
 }
 
 impl Builtin {
@@ -28,8 +36,12 @@ impl Builtin {
     /// `"ENGLISH_WORD_REPEAT_RULE"`.
     pub fn id(&self) -> &str {
         match self {
+            Builtin::CommaParenthesisWhitespace(rule) => rule.id(),
             Builtin::AVsAn(rule) => rule.id(),
             Builtin::WordRepeat(rule) => rule.id(),
+            Builtin::UppercaseSentenceStart(rule) => rule.id(),
+            Builtin::UnpairedBrackets(rule) => rule.id(),
+            Builtin::UnpairedQuotes(rule) => rule.id(),
         }
     }
 
@@ -42,8 +54,12 @@ impl Builtin {
     /// (e.g. quotes spanning sentences) see all of them; sentence-level rules check each one separately.
     pub fn check_text(&self, sentences: &[Sentence]) -> Vec<Suggestion> {
         match self {
+            Builtin::CommaParenthesisWhitespace(rule) => rule.check_sentences(sentences),
             Builtin::AVsAn(rule) => sentences.iter().flat_map(|x| rule.check(x)).collect(),
             Builtin::WordRepeat(rule) => sentences.iter().flat_map(|x| rule.check(x)).collect(),
+            Builtin::UppercaseSentenceStart(rule) => rule.check(sentences),
+            Builtin::UnpairedBrackets(rule) => rule.check(sentences),
+            Builtin::UnpairedQuotes(rule) => rule.check(sentences),
         }
     }
 }

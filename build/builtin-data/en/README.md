@@ -18,6 +18,11 @@ cp -r build/builtin-data/en/. data/en/builtin/
 
 ## Files
 
+- `comma_parenthesis_whitespace_domains.txt` — top level domains that the
+  English comma/parenthesis-whitespace rule accepts directly after a full stop
+  (e.g. `foo.org`), taken from LanguageTool's `CommaWhitespaceRule`. The rule
+  also accepts any two-letter sequence and file-name suffixes such as `.exe`;
+  those are shapes and stay in the engine source.
 - `a_vs_an_a.txt` — words that take the determiner "a" even though they begin
   with a vowel letter (e.g. "university", "one"). Taken from LanguageTool's
   `det_a.txt`. Lines starting with `*` are case-sensitive; all others are
@@ -31,3 +36,6 @@ cp -r build/builtin-data/en/. data/en/builtin/
   `EnglishWordRepeatRule`. A single word allows that word to be repeated; a
   multi-word entry allows the exact token sequence to contain the repetition
   (used for LanguageTool's phrase- and part-of-speech-based exceptions).
+- `uppercase_sentence_start_exceptions.txt` — tokens that may start a sentence
+  in lowercase without being an error, taken from the exceptions of the
+  corresponding capitalization rule. One token per line.
