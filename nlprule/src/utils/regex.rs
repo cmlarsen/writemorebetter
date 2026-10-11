@@ -5,6 +5,7 @@
 
 use once_cell::sync::{Lazy, OnceCell};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::cell::RefCell;
 use std::collections::HashSet;
 use std::hash::{Hash, Hasher};
 use std::sync::{Arc, Mutex};
@@ -29,6 +30,49 @@ fn intern_pattern(pattern: String) -> Arc<str> {
     let interned: Arc<str> = Arc::from(pattern);
     pool.insert(interned.clone());
     interned
+}
+
+const SHORT_CACHE_SLOTS: usize = 512;
+
+#[derive(Clone, Copy, Default)]
+struct CacheEntry {
+    key: (usize, u64),
+    value: Option<bool>,
+}
+
+struct ShortCache(Box<[CacheEntry]>);
+
+impl Default for ShortCache {
+    fn default() -> Self {
+        Self(vec![CacheEntry::default(); SHORT_CACHE_SLOTS].into_boxed_slice())
+    }
+}
+
+impl ShortCache {
+    fn slot(key: (usize, u64)) -> usize {
+        ((key.0 as u64 ^ key.1).wrapping_mul(0x9e37_79b1_85eb_ca87) >> 32) as usize
+            & (SHORT_CACHE_SLOTS - 1)
+    }
+
+    fn get(&self, key: (usize, u64)) -> Option<bool> {
+        let entry = &self.0[Self::slot(key)];
+        if entry.key == key {
+            entry.value
+        } else {
+            None
+        }
+    }
+
+    fn insert(&mut self, key: (usize, u64), value: bool) {
+        self.0[Self::slot(key)] = CacheEntry {
+            key,
+            value: Some(value),
+        };
+    }
+}
+
+thread_local! {
+    static SHORT_CACHE: RefCell<ShortCache> = RefCell::new(ShortCache::default());
 }
 
 #[derive(Debug)]
@@ -109,7 +153,20 @@ impl Regex {
     }
 
     pub fn is_match(&self, text: &str) -> bool {
-        self.regex().is_match(text)
+        if text.len() > 7 {
+            return self.regex().is_match(text);
+        }
+        let mut bytes = [0; 8];
+        bytes[..text.len()].copy_from_slice(text.as_bytes());
+        bytes[7] = text.len() as u8;
+        // The pool retains every pattern allocation, so its address is a stable identity.
+        let key = (self.regex_str.as_ptr() as usize, u64::from_le_bytes(bytes));
+        if let Some(result) = SHORT_CACHE.with(|cache| cache.borrow().get(key)) {
+            return result;
+        }
+        let result = self.regex().is_match(text);
+        SHORT_CACHE.with(|cache| cache.borrow_mut().insert(key, result));
+        result
     }
 
     pub fn captures_iter<'r, 't>(&'r self, text: &'t str) -> regex_impl::CaptureMatches<'r, 't> {
@@ -522,5 +579,42 @@ cfg_if::cfg_if! {
         use regex_impl_onig as regex_impl;
     } else {
         use regex_impl_fancy as regex_impl;
+    }
+}
+
+#[cfg(test)]
+mod short_cache_tests {
+    use super::*;
+
+    #[test]
+    fn collisions_and_empty_slots_are_misses() {
+        let mut cache = ShortCache::default();
+        assert_eq!(cache.get((0, 0)), None);
+        let first = (1, 42);
+        let second = (2..10000)
+            .map(|i| (i, 42))
+            .find(|&key| ShortCache::slot(key) == ShortCache::slot(first))
+            .unwrap();
+        cache.insert(first, true);
+        assert_eq!(cache.get(first), Some(true));
+        cache.insert(second, false);
+        assert_eq!(cache.get(first), None);
+        assert_eq!(cache.get(second), Some(false));
+    }
+
+    #[test]
+    fn cached_results_match_backend_at_utf8_boundaries() {
+        let regex = Regex::new("^[“”’—…\u{2028}a-z]+$".into());
+        for text in [
+            "", "a", "abcdefg", "abcdefgh", "”", "’", "—", "…", "\u{2028}", "curly”", "a\0",
+            "line\n", "NO",
+        ] {
+            let expected = regex.regex().is_match(text);
+            assert_eq!(regex.is_match(text), expected, "{text:?}");
+            assert_eq!(regex.is_match(text), expected, "{text:?}");
+        }
+        let other = Regex::new("^NO$".into());
+        assert!(other.is_match("NO"));
+        assert!(!regex.is_match("NO"));
     }
 }
