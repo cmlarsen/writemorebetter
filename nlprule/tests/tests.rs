@@ -199,10 +199,7 @@ fn apply_profile_disables_builtin_by_id() {
     };
     assert!(enabled(&rules));
 
-    let profile = Profile::new(
-        "test",
-        vec!["BUILTIN/UPPERCASE_SENTENCE_START".to_owned()],
-    );
+    let profile = Profile::new("test", vec!["BUILTIN/UPPERCASE_SENTENCE_START".to_owned()]);
     assert!(rules.apply_profile(&profile).is_empty());
     assert!(!enabled(&rules));
 }
