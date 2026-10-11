@@ -27,7 +27,10 @@ const START_QUOTES: [char; 4] = ['\u{201c}', '"', '\'', '\u{2018}'];
 /// Closing counterparts of [`START_QUOTES`], in the same order.
 const END_QUOTES: [char; 4] = ['\u{201d}', '"', '\'', '\u{2019}'];
 
-/// A flattened token of a paragraph together with the sentence it came from.
+/// One character of a paragraph with its exact position and the sentence it came
+/// from. Working per character (rather than per token) makes symbols that the
+/// tokenizer attached to a word, such as the `[` of `[eBook` or the `)` of `_)`,
+/// visible to the rules, and lets a flag span point at that single character.
 struct Piece<'s> {
     text: &'s str,
     start: Position,
@@ -35,18 +38,34 @@ struct Piece<'s> {
     sentence: usize,
 }
 
-/// Flattens all tokens of a paragraph into one list so that a token's
-/// neighbours can be inspected even across a sentence boundary.
+/// Flattens all characters of a paragraph into one list so that a character's
+/// neighbours can be inspected even across a token or sentence boundary. The
+/// per-character byte/char offsets are derived from the token's span plus the
+/// character's offset within the token text, so no slice is ever taken at a byte
+/// that is not a character boundary.
 fn flatten<'s>(sentences: &'s [Sentence<'_>]) -> Vec<Piece<'s>> {
     let mut pieces = Vec::new();
     for (sentence, s) in sentences.iter().enumerate() {
         for token in s.tokens() {
-            pieces.push(Piece {
-                text: token.word().text().as_str(),
-                start: token.span().start(),
-                end: token.span().end(),
-                sentence,
-            });
+            let text = token.word().text().as_str();
+            let start = token.span().start();
+            let mut char_offset = 0;
+            for (byte_offset, ch) in text.char_indices() {
+                let end_byte = byte_offset + ch.len_utf8();
+                pieces.push(Piece {
+                    text: &text[byte_offset..end_byte],
+                    start: Position {
+                        byte: start.byte + byte_offset,
+                        char: start.char + char_offset,
+                    },
+                    end: Position {
+                        byte: start.byte + end_byte,
+                        char: start.char + char_offset + 1,
+                    },
+                    sentence,
+                });
+                char_offset += 1;
+            }
         }
     }
     pieces
@@ -133,9 +152,6 @@ impl UnpairedBrackets {
 
         for (k, piece) in pieces.iter().enumerate() {
             let sym = first_char(piece.text);
-            if piece.text.chars().count() != 1 {
-                continue;
-            }
             if OPEN_BRACKETS.contains(&sym) {
                 if is_bracket_exception(&pieces, k, sym) {
                     continue;
@@ -274,7 +290,9 @@ fn matching_bracket(sym: char) -> char {
 /// normal fiction typography. A closing mark with no opening mark before it is
 /// likewise treated as the tail of such a continuation. Only a genuinely
 /// unmatched closing mark (one that follows opening marks in the same
-/// paragraph) is reported.
+/// paragraph) is reported. A closing mark pairs with the most recent unmatched
+/// opening of the same kind, so correctly nested quotations (for example a
+/// double quote inside a single one) do not trigger a flag.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UnpairedQuotes {}
 
@@ -300,9 +318,6 @@ impl UnpairedQuotes {
 
         for k in 0..pieces.len() {
             let sym = first_char(pieces[k].text);
-            if pieces[k].text.chars().count() != 1 {
-                continue;
-            }
             if START_QUOTES.contains(&sym) && is_opening_quote(&pieces, k) {
                 seen_opening = true;
                 if is_apostrophe_beginning(&pieces, k) {
@@ -315,9 +330,9 @@ impl UnpairedQuotes {
                 if last_apostrophe == Some(sym) {
                     last_apostrophe = None;
                 }
-                if let Some(index) = opening.iter().position(|&(c, ..)| c == sym) {
-                    remove_all_inner(index as isize - 1, &mut opening);
-                }
+                // Unlike LanguageTool, a repeated opening mark is kept on the
+                // stack rather than discarding the earlier one, so a quotation
+                // nested inside another of the same kind stays balanced.
                 opening.push((sym, pieces[k].start, pieces[k].end));
             } else if END_QUOTES.contains(&sym) && is_closing_quote(&pieces, k, &opening) {
                 if is_apostrophe_beginning(&pieces, k) {
@@ -328,7 +343,7 @@ impl UnpairedQuotes {
                 let is_inch =
                     is_inch_symbol && sentence_has_inch(sentences[pieces[k].sentence].text());
                 let start_symbol = corresponding_start(sym);
-                if let Some(index) = opening.iter().position(|&(c, ..)| c == start_symbol) {
+                if let Some(index) = opening.iter().rposition(|&(c, ..)| c == start_symbol) {
                     remove_all_inner(index as isize, &mut opening);
                     opening.remove(index);
                     if last_apostrophe == Some(start_symbol) {

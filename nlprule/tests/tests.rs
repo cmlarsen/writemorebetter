@@ -477,3 +477,25 @@ fn builtin_unpaired_is_wired_into_suggest() {
         .expect("unclosed bracket is flagged");
     assert!(flagged.replacements().is_empty());
 }
+
+#[test]
+fn builtin_unpaired_brackets_sees_symbols_merged_into_words() {
+    // The tokenizer produces "[eBook", "_quietly_." and "_)" etc. as single
+    // tokens; the rule still sees the bracket characters inside them.
+    assert!(builtin_unpaired_flags("See [eBook #2701] here.").is_empty());
+    assert!(builtin_unpaired_flags("He left (_quietly_.) and came back.").is_empty());
+}
+
+#[test]
+fn builtin_unpaired_quotes_sees_mark_merged_into_word() {
+    // "_x“" and "y”_z" are single tokens; the marks still pair.
+    assert!(builtin_unpaired_flags("The marks _x\u{201c} and y\u{201d}_z balance.").is_empty());
+}
+
+#[test]
+fn builtin_unpaired_brackets_flags_unclosed_open_after_word() {
+    assert_eq!(
+        builtin_unpaired_flags("He left (quietly and came back."),
+        vec![bracket_flag("(")]
+    );
+}
