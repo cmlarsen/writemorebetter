@@ -862,6 +862,8 @@ struct GrammarStats {
     unique_atom_seen: std::collections::HashSet<u64>,
     unique_part_bytes: u64,
     unique_atom_bytes: u64,
+    unique_parts: u64,
+    unique_atoms: u64,
     part_instances: u64,
     atom_instances: u64,
 }
@@ -927,12 +929,14 @@ impl GrammarStats {
         let bytes = bincode::serialize(part).expect("part serializes");
         if self.unique_part_seen.insert(hash_bytes(&bytes)) {
             self.unique_part_bytes += bytes.len() as u64;
+            self.unique_parts += 1;
         }
 
         self.atom_instances += 1;
         let abytes = bincode::serialize(&part.atom).expect("atom serializes");
         if self.unique_atom_seen.insert(hash_bytes(&abytes)) {
             self.unique_atom_bytes += abytes.len() as u64;
+            self.unique_atoms += 1;
         }
     }
 
@@ -1147,6 +1151,10 @@ pub fn describe(tokenizer_bin: &Path, rules_bin: &Path) -> Result<Vec<(String, S
     facts.push((
         "grammar parts (instances/unique bytes)".into(),
         format!("{}/{}", stats.part_instances, stats.unique_part_bytes),
+    ));
+    facts.push((
+        "grammar unique parts / unique atoms".into(),
+        format!("{}/{}", stats.unique_parts, stats.unique_atoms),
     ));
     facts.push((
         "grammar atoms (instances/unique bytes)".into(),

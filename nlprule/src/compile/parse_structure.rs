@@ -84,6 +84,7 @@ fn parse_match_attribs(
     text: Option<&str>,
     case_sensitive: bool,
     text_match_idx: Option<usize>,
+    reference_conversion: Option<Conversion>,
     info: &mut BuildInfo,
 ) -> Result<Atom, Error> {
     let mut atoms: Vec<Atom> = Vec::new();
@@ -138,7 +139,7 @@ fn parse_match_attribs(
                 return Err(Error::Unexpected("`text` must be set if regex".into()));
             }
         } else {
-            Matcher::new_string(
+            let matcher = Matcher::new_string(
                 text_match_idx.map_or_else(
                     || {
                         either::Left(
@@ -153,7 +154,11 @@ fn parse_match_attribs(
                 negate,
                 case_sensitive,
                 inflected,
-            )
+            );
+            match (text_match_idx, reference_conversion) {
+                (Some(_), Some(conversion)) => matcher.with_reference_conversion(conversion),
+                _ => matcher,
+            }
         };
 
         if inflected {
@@ -260,11 +265,17 @@ fn get_exceptions(
                 } else {
                     None
                 };
-                let mut atom =
-                    match parse_match_attribs(x, exception_text, case_sensitive, None, info) {
-                        Ok(atom) => atom,
-                        Err(err) => return Some(Err(err)),
-                    };
+                let mut atom = match parse_match_attribs(
+                    x,
+                    exception_text,
+                    case_sensitive,
+                    None,
+                    None,
+                    info,
+                ) {
+                    Ok(atom) => atom,
+                    Err(err) => return Some(Err(err)),
+                };
 
                 let offset = if let Some(scope) = &x.scope {
                     match scope.as_str() {
@@ -309,36 +320,53 @@ fn parse_token(
         None
     };
 
-    let text_match_idx = if let Some(parts) = &token.parts {
+    let text_match = if let Some(parts) = &token.parts {
         match parts.iter().find_map(|x| match x {
             structure::TokenPart::Sub(sub) => Some(sub),
             _ => None,
         }) {
             None => None,
             Some(sub) => {
-                // `<token><match no="…" postag="…"/></token>` re-uses the
-                // referenced match's text; the extra attributes need the
-                // synthesis / case-conversion machinery, so reject them
-                // explicitly instead of silently dropping the constraint.
+                // `<token><match no="…" postag="…"/></token>` performs
+                // inflection synthesis, which is not implemented. `no` and
+                // `case_conversion` (a plain reference match) are.
                 if sub.postag.is_some()
                     || sub.postag_regexp.is_some()
                     || sub.postag_replace.is_some()
-                    || sub.case_conversion.is_some()
                     || sub.regexp_match.is_some()
                     || sub.regexp_replace.is_some()
                     || sub.include_skipped.is_some()
                 {
                     return Err(Error::Unimplemented(
-                        "attributes on <match> inside a <token> (synthesis / case conversion) are not implemented."
+                        "attributes on <match> inside a <token> (synthesis) are not implemented."
                             .into(),
                     ));
                 }
 
-                Some(sub.no.parse::<usize>()? + 1)
+                let conversion = match sub.case_conversion.as_deref() {
+                    None => None,
+                    Some("alllower") => Some(Conversion::AllLower),
+                    Some("startlower") => Some(Conversion::StartLower),
+                    Some("allupper") => Some(Conversion::AllUpper),
+                    Some("startupper") => Some(Conversion::StartUpper),
+                    Some("preserve") => Some(Conversion::Preserve),
+                    Some(x) => {
+                        return Err(Error::Unimplemented(format!(
+                            "case conversion {} not supported.",
+                            x
+                        )))
+                    }
+                };
+
+                Some((sub.no.parse::<usize>()? + 1, conversion))
             }
         }
     } else {
         None
+    };
+    let (text_match_idx, reference_conversion) = match text_match {
+        Some((idx, conversion)) => (Some(idx), conversion),
+        None => (None, None),
     };
 
     let min = token
@@ -368,7 +396,14 @@ fn parse_token(
     }
 
     let quantifier = Quantifier::new(min, max);
-    let mut atom = parse_match_attribs(token, text, case_sensitive, text_match_idx, info)?;
+    let mut atom = parse_match_attribs(
+        token,
+        text,
+        case_sensitive,
+        text_match_idx,
+        reference_conversion,
+        info,
+    )?;
     atom = AndAtom::and(vec![
         atom,
         get_exceptions(token, case_sensitive, false, info)?,
