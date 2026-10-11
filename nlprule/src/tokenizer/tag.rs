@@ -1,16 +1,11 @@
 //! A dictionary-based tagger.
 
-use crate::{types::*, utils::parallelism::MaybeParallelRefIterator};
+use crate::types::*;
 use bimap::BiMap;
-use fst::{IntoStreamer, Map, Streamer};
+use fst::{Map, Streamer};
 use log::error;
 use serde::{Deserialize, Serialize};
-use std::{
-    borrow::Cow,
-    cell::UnsafeCell,
-    fmt,
-    iter::{once, FusedIterator},
-};
+use std::{borrow::Cow, fmt, iter::FusedIterator};
 
 #[derive(Debug, Copy, Clone, Serialize, Deserialize, Hash, Eq, PartialEq, Ord, PartialOrd)]
 #[serde(transparent)]
@@ -185,214 +180,78 @@ impl Default for TaggerLangOptions {
 }
 
 #[derive(Serialize, Deserialize)]
-struct TaggerFields {
-    tag_fst: Vec<u8>,
-    word_store_fst: Vec<u8>,
-    tag_store: BiMap<String, PosIdInt>,
-    lang_options: TaggerLangOptions,
-    anchors: Vec<String>,
+pub(crate) struct TaggerFields {
+    pub(crate) tag_fst: Vec<u8>,
+    pub(crate) word_store_fst: Vec<u8>,
+    pub(crate) tag_store: BiMap<String, PosIdInt>,
+    pub(crate) lang_options: TaggerLangOptions,
+    /// Kept for serialized-format compatibility. The FSTs are queried directly at load, so the
+    /// anchors (used by the old parallel inflation code) are no longer read.
+    #[allow(dead_code)]
+    pub(crate) anchors: Vec<String>,
 }
 
 impl From<Tagger> for TaggerFields {
     fn from(tagger: Tagger) -> Self {
-        let mut tag_fst_items = Vec::new();
-
-        for (word_id, map) in tagger.tags.iter() {
-            let word = tagger.str_for_word_id(&word_id);
-
-            for (i, (inflect_id, pos_id)) in map.iter().enumerate() {
-                assert!(i < 255);
-
-                let key: Vec<u8> = word
-                    .as_bytes()
-                    .iter()
-                    .chain(once(&(i as u8)))
-                    .copied()
-                    .collect();
-                let pos_bytes = pos_id.0.to_be_bytes();
-                let inflect_bytes = inflect_id.0.to_be_bytes();
-
-                let value = u64::from_be_bytes([
-                    inflect_bytes[0],
-                    inflect_bytes[1],
-                    inflect_bytes[2],
-                    inflect_bytes[3],
-                    0,
-                    0,
-                    pos_bytes[0],
-                    pos_bytes[1],
-                ]);
-                tag_fst_items.push((key, value));
-            }
-        }
-
-        tag_fst_items.sort_by(|(a, _), (b, _)| a.cmp(b));
-
-        let mut word_store_items: Vec<_> = tagger
-            .word_store
-            .iter()
-            .map(|(key, value)| (key.clone(), value.0 as u64))
-            .collect();
-        word_store_items.sort_by(|(a, _), (b, _)| a.cmp(b));
-
-        let anchors = word_store_items
-            .iter()
-            .map(|(key, _)| key.clone())
-            // The distance between anchors, there are usually more than 300k words, so a step of 1000 allows dividing
-            // the work between threads nicely. Changing this by a factor of 10 only makes a couple of percent difference in speed.
-            .step_by(1_000)
-            .collect();
-
-        let tag_fst = Map::from_iter(tag_fst_items)
-            .unwrap()
-            .into_fst()
-            .as_bytes()
-            .to_vec();
-        let word_store_fst = Map::from_iter(word_store_items)
-            .unwrap()
-            .into_fst()
-            .as_bytes()
-            .to_vec();
+        let tag_fst = tagger.tag_fst.into_fst().as_bytes().to_vec();
+        let word_store_fst = tagger.word_store_fst.into_fst().as_bytes().to_vec();
 
         TaggerFields {
             tag_fst,
             word_store_fst,
             tag_store: tagger.tag_store,
             lang_options: tagger.lang_options,
-            anchors,
+            anchors: Vec::new(),
         }
-    }
-}
-
-/// An (unsafe) shared mutable slice. Can be used if the same index in the slice will never
-/// be used in different threads. See https://stackoverflow.com/a/65182786.
-#[derive(Copy, Clone)]
-struct UnsafeSlice<'a, T> {
-    slice: &'a [UnsafeCell<T>],
-}
-unsafe impl<'a, T: Send + Sync> Send for UnsafeSlice<'a, T> {}
-unsafe impl<'a, T: Send + Sync> Sync for UnsafeSlice<'a, T> {}
-
-impl<'a, T> UnsafeSlice<'a, T> {
-    pub fn new(slice: &'a mut [T]) -> Self {
-        let ptr = slice as *mut [T] as *const [UnsafeCell<T>];
-        Self {
-            slice: unsafe { &*ptr },
-        }
-    }
-
-    /// SAFETY: It is UB if two threads write to the same index without
-    /// synchronization.
-    pub unsafe fn write(&self, i: usize, value: T) {
-        let ptr = self.slice[i].get();
-        *ptr = value;
     }
 }
 
 impl From<TaggerFields> for Tagger {
     fn from(data: TaggerFields) -> Self {
         let word_store_fst = Map::new(data.word_store_fst).unwrap();
-        let mut word_store: BiMap<String, WordIdInt> = BiMap::with_capacity(word_store_fst.len());
-        let mut stream = word_store_fst.into_stream();
+        let tag_fst = Map::new(data.tag_fst).unwrap();
 
-        while let Some((key, value)) = stream.next() {
-            word_store.insert(
-                std::str::from_utf8(key)
-                    .expect("word store keys are valid utf-8.")
-                    .to_owned(),
-                WordIdInt(value as u32),
-            );
+        // Build a compact word-id -> word index: every word concatenated into a single buffer
+        // plus the start offset of each word (and a trailing sentinel with the buffer length).
+        // Word ids are dense `0..len`. The FST streams in key order, not id order, so two passes
+        // are used to lay the words out in id order without allocating a `String` per word.
+        let n = word_store_fst.len();
+        let mut word_offsets = vec![0u32; n + 1];
+
+        {
+            let mut stream = word_store_fst.stream();
+            while let Some((key, value)) = stream.next() {
+                word_offsets[value as usize + 1] = key.len() as u32;
+            }
         }
 
-        let tag_fst = Map::new(data.tag_fst).unwrap();
-        let anchors = data.anchors;
+        let mut total = 0u32;
+        for i in 0..n {
+            let len = word_offsets[i + 1];
+            word_offsets[i] = total;
+            total += len;
+        }
+        word_offsets[n] = total;
 
-        let mut tags: Vec<Option<Vec<(WordIdInt, PosIdInt)>>> = vec![None; word_store.len()];
-        let tag_slice = UnsafeSlice::new(tags.as_mut_slice());
-
-        // Anchors are strings set at more or less equal distance in the FST.
-        // Here, we iterate from one anchor to the next, on each thread.
-        // Because keys in the FST are sorted, we know that each thread will
-        // deal with a disjoint set of words. Thus, the accessed indices never overlap
-        // and we can use the `UnsafeSlice` to avoid synchronization.
-        anchors.maybe_par_iter().enumerate().for_each(|(i, _)| {
-            let mut stream_builder = tag_fst.range().ge(anchors[i].as_bytes());
-
-            if i + 1 < anchors.len() {
-                stream_builder = stream_builder.lt(anchors[i + 1].as_bytes());
-            }
-
-            let mut stream = stream_builder.into_stream();
-
-            let mut current_word_id: Option<WordIdInt> = None;
-            let mut current_vec: Option<Vec<(WordIdInt, PosIdInt)>> = None;
-
+        let mut word_buf = vec![0u8; total as usize];
+        {
+            let mut stream = word_store_fst.stream();
             while let Some((key, value)) = stream.next() {
-                let word = std::str::from_utf8(&key[..key.len() - 1]).unwrap();
-                let word_id = *word_store.get_by_left(word).unwrap();
-
-                let value_bytes = value.to_be_bytes();
-                let lemma_id = WordIdInt(u32::from_be_bytes([
-                    value_bytes[0],
-                    value_bytes[1],
-                    value_bytes[2],
-                    value_bytes[3],
-                ]));
-                let pos_id = PosIdInt(u16::from_be_bytes([value_bytes[6], value_bytes[7]]));
-
-                if current_word_id == Some(word_id) {
-                    current_vec.as_mut().unwrap().push((lemma_id, pos_id));
-                } else {
-                    if let Some(id) = current_word_id {
-                        let word_id_idx = id.0 as usize;
-                        // SAFETY: see above. The word index is unique to this chunk.
-                        unsafe { tag_slice.write(word_id_idx, current_vec.take()) };
-                    }
-
-                    current_word_id = Some(word_id);
-                    current_vec = Some(vec![(lemma_id, pos_id)]);
-                }
+                let start = word_offsets[value as usize] as usize;
+                word_buf[start..start + key.len()].copy_from_slice(key);
             }
+        }
 
-            if let Some(vec) = current_vec {
-                let word_id_idx = current_word_id.unwrap().0 as usize;
-
-                // SAFETY: see above. The word index is unique to this chunk.
-                unsafe { tag_slice.write(word_id_idx, Some(vec)) };
-            }
-        });
+        let word_buf = String::from_utf8(word_buf).expect("word store keys are valid utf-8.");
 
         Tagger {
-            tags: WordIdMap(tags),
+            word_store_fst,
+            tag_fst,
             tag_store: data.tag_store,
-            word_store,
             lang_options: data.lang_options,
+            word_buf,
+            word_offsets,
         }
-    }
-}
-
-#[derive(Default, Serialize, Deserialize, Clone)]
-pub(crate) struct WordIdMap<T>(pub Vec<Option<T>>);
-
-impl<T: Clone + Default> WordIdMap<T> {
-    pub fn get(&self, id: &WordIdInt) -> Option<&T> {
-        self.0
-            .get(id.0 as usize)
-            .map(|value| value.as_ref())
-            .flatten()
-    }
-
-    pub fn iter(&self) -> impl Iterator<Item = (WordIdInt, &T)> {
-        self.0
-            .iter()
-            .enumerate()
-            .filter_map(|(index, maybe_value)| {
-                if let Some(value) = maybe_value {
-                    Some((WordIdInt(index as u32), value))
-                } else {
-                    None
-                }
-            })
     }
 }
 
@@ -404,18 +263,18 @@ pub(crate) enum AddLower {
 
 struct RawTagIter<'a> {
     tagger: &'a Tagger,
-    slice_iter: std::slice::Iter<'a, (WordIdInt, PosIdInt)>,
+    tags: std::vec::IntoIter<(WordIdInt, PosIdInt)>,
 }
 
 impl<'a> Iterator for RawTagIter<'a> {
     type Item = WordData<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.slice_iter.next().map(move |(lemma_id, pos_id)| {
+        let tagger = self.tagger;
+        self.tags.next().map(move |(lemma_id, pos_id)| {
             WordData::new(
-                self.tagger
-                    .id_word(self.tagger.str_for_word_id(lemma_id).into()),
-                self.tagger.id_tag(self.tagger.str_for_pos_id(pos_id)),
+                tagger.id_word(tagger.str_for_word_id(&lemma_id).into()),
+                tagger.id_tag(tagger.str_for_pos_id(&pos_id)),
             )
         })
     }
@@ -424,7 +283,7 @@ impl<'a> Iterator for RawTagIter<'a> {
 impl<'a> FusedIterator for RawTagIter<'a> {}
 impl<'a> ExactSizeIterator for RawTagIter<'a> {
     fn len(&self) -> usize {
-        self.slice_iter.len()
+        self.tags.len()
     }
 }
 
@@ -508,45 +367,77 @@ impl<'a> ExactSizeIterator for TagIter<'a> {
 ///
 /// ## Implementation
 ///
-/// The tagger stores two bidirectional maps:
+/// The tagger keeps the two FSTs from the serialized format and queries them directly:
 /// - A POS bimap: A bimap assigning each POS tag a 16-bit ID. POS tags are a closed set, so there is an entry
 /// for every tag in the bimap. This allows e.g. storing a set of IDs of matching tags for a regex instead of actually
 /// evaluating it in the matcher logic.
-/// - A word bimap: A bimap assigning each known word a 32-bit ID. Words are not a closed set, so if an entry in this map
+/// - A word FST: maps each known word to a 32-bit ID. Words are not a closed set, so if an entry in this map
 /// does not exist it only means that the word is not known to nlprule. Still, the map can be used for optimizations similar
-/// to the POS bimap. The word bimap also stores lemmas since there is often a large overlap between known words
+/// to the POS bimap. The word FST also stores lemmas since there is often a large overlap between known words
 /// and known lemmas.
 ///
-/// These two maps can be used to relatively cheaply in terms of memory allow (1) while retaining fast lookup.
+/// These are queried directly (instead of being inflated into hash maps at load) so memory stays close to the
+/// size of the binary while retaining fast lookup. A compact id -> word index (one concatenated buffer plus start
+/// offsets) supports reverse lookups.
 ///
-/// There is a `tags` map which associates a Word ID with *multiple* pairs of
-/// `(lemma_id, pos_id)` where the ID for the lemma is a regular 32-bit Word ID.
+/// The tag FST associates a Word ID with *multiple* pairs of `(lemma_id, pos_id)` where the
+/// ID for the lemma is a regular 32-bit Word ID; keys are the word bytes followed by one index byte.
 #[derive(Default, Serialize, Deserialize, Clone)]
 #[serde(from = "TaggerFields", into = "TaggerFields")]
 pub struct Tagger {
-    pub(crate) tags: WordIdMap<Vec<(WordIdInt, PosIdInt)>>,
+    pub(crate) word_store_fst: Map<Vec<u8>>,
+    pub(crate) tag_fst: Map<Vec<u8>>,
     pub(crate) tag_store: BiMap<String, PosIdInt>,
-    pub(crate) word_store: BiMap<String, WordIdInt>,
     pub(crate) lang_options: TaggerLangOptions,
+    /// All words concatenated in id order.
+    pub(crate) word_buf: String,
+    /// Start offset of each word id in `word_buf`, plus a trailing sentinel (`word_buf.len()`).
+    pub(crate) word_offsets: Vec<u32>,
 }
 
 impl Tagger {
-    /// Directly looks up the given word in the `tags` map and returns
+    /// Directly looks up the given word in the tag FST and returns
     /// corresponding [WordData].
     fn get_raw(&self, word: &str) -> RawTagIter {
-        let slice = if let Some(pairs) = self
-            .word_store
-            .get_by_left(word)
-            .and_then(|x| self.tags.get(x))
-        {
-            pairs.as_slice()
-        } else {
-            &[]
-        };
+        // Keys are the word bytes followed by exactly one index byte. The index bytes of a word
+        // are contiguous `0..n` (the compiler assigns them with `enumerate`), so querying the FST
+        // per index until the first miss yields exactly the same tags in the same order as a
+        // prefix range scan would. A range scan is avoided deliberately: for a word that is a
+        // prefix of many others (e.g. `a`, `i`, `the`) the `word + [0] ..= word + [254]` range
+        // walks the whole subtree of longer words before filtering them out by key length, which
+        // costs O(FST section) per lookup.
+        let mut tags = Vec::new();
+        let word_bytes = word.as_bytes();
+        let mut key = Vec::with_capacity(word_bytes.len() + 1);
+        key.extend_from_slice(word_bytes);
+        key.push(0);
+
+        let mut index: u8 = 0;
+        loop {
+            *key.last_mut().unwrap() = index;
+            match self.tag_fst.get(&key) {
+                Some(value) => {
+                    let value_bytes = value.to_be_bytes();
+                    let lemma_id = WordIdInt(u32::from_be_bytes([
+                        value_bytes[0],
+                        value_bytes[1],
+                        value_bytes[2],
+                        value_bytes[3],
+                    ]));
+                    let pos_id = PosIdInt(u16::from_be_bytes([value_bytes[6], value_bytes[7]]));
+                    tags.push((lemma_id, pos_id));
+                }
+                None => break,
+            }
+            if index == 254 {
+                break;
+            }
+            index += 1;
+        }
 
         RawTagIter {
             tagger: &self,
-            slice_iter: slice.iter(),
+            tags: tags.into_iter(),
         }
     }
 
@@ -589,15 +480,25 @@ impl Tagger {
     }
 
     #[allow(dead_code)] // used by compile module
-    pub(crate) fn word_store(&self) -> &BiMap<String, WordIdInt> {
-        &self.word_store
+    pub(crate) fn word_store(&self) -> impl Iterator<Item = (String, WordIdInt)> + '_ {
+        let mut stream = self.word_store_fst.stream();
+        std::iter::from_fn(move || {
+            stream.next().map(|(key, value)| {
+                (
+                    std::str::from_utf8(key)
+                        .expect("word store keys are valid utf-8.")
+                        .to_owned(),
+                    WordIdInt(value as u32),
+                )
+            })
+        })
     }
 
     /// Gets the string associated with a word ID.
     pub(crate) fn str_for_word_id(&self, id: &WordIdInt) -> &str {
-        self.word_store
-            .get_by_right(id)
-            .expect("only valid word ids are created")
+        let start = self.word_offsets[id.0 as usize] as usize;
+        let end = self.word_offsets[id.0 as usize + 1] as usize;
+        &self.word_buf[start..end]
     }
 
     /// Gets the string associated with a POS ID.
@@ -625,7 +526,10 @@ impl Tagger {
     /// Tags the given text.
     /// Unknown words will not get a numerical id.
     pub fn id_word<'a>(&self, text: Cow<'a, str>) -> WordId<'a> {
-        let id = self.word_store.get_by_left(text.as_ref()).copied();
+        let id = self
+            .word_store_fst
+            .get(text.as_ref())
+            .map(|v| WordIdInt(v as u32));
         WordId(text, id)
     }
 

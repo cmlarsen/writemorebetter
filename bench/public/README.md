@@ -55,6 +55,9 @@ Scores on 2026-10-11 (LanguageTool via its public API, free tier):
 
 The ranking matches the private corpus (48 / 33 / 5 of 49).
 
+CI runs `python3 bench/tools/public_recall.py --min <floor>` and fails when the engine's total drops below the
+floor. Raise the floor in `.github/workflows/ci.yml` whenever a change raises recall.
+
 The corpus is a stand-in, not a replacement for the private fiction corpus; treat its absolute
 recall numbers as indicative rather than final.
 

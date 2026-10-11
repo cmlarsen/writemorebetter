@@ -147,8 +147,8 @@ pub fn compile(
     )?;
 
     let mut hasher = DefaultHasher::default();
-    let mut word_store = tagger.word_store().iter().collect::<Vec<_>>();
-    word_store.sort_by(|a, b| a.1.cmp(b.1));
+    let mut word_store = tagger.word_store().collect::<Vec<_>>();
+    word_store.sort_by(|a, b| a.1.cmp(&b.1));
     word_store.hash(&mut hasher);
     let word_store_hash = hasher.finish();
 

@@ -45,6 +45,11 @@ jobs:
       - name: Test
         run: cargo test --workspace --exclude nlprule-python --all-features --release
 
+      - name: Public corpus recall
+        run: |
+          cargo build --release --manifest-path bench/tools/wmb-probe/Cargo.toml
+          python3 bench/tools/public_recall.py --min 39
+
       - name: Disambiguation conformance
         env:
           RUST_LOG: WARN

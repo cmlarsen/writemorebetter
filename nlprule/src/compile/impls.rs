@@ -1,5 +1,6 @@
 use bimap::BiMap;
 use fs_err::File;
+use fst::Map;
 use log::warn;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -7,6 +8,7 @@ use std::{
     collections::{HashMap, HashSet},
     hash::{Hash, Hasher},
     io::{self, BufRead, BufReader},
+    iter::once,
     path::Path,
 };
 
@@ -26,7 +28,7 @@ use crate::{
     tokenizer::{
         chunk,
         multiword::{MultiwordTagger, MultiwordTaggerFields},
-        tag::{Tagger, TaggerLangOptions, WordIdMap},
+        tag::{Tagger, TaggerFields, TaggerLangOptions},
         Tokenizer, TokenizerLangOptions,
     },
     types::*,
@@ -330,12 +332,69 @@ impl Tagger {
             }
         }
 
-        Ok(Tagger {
-            tags: WordIdMap(tags),
-            word_store,
+        // Build the tag FST directly from the intermediate maps: word bytes + one index byte
+        // -> packed (lemma id, pos id). This is the same layout the loaded tagger queries.
+        let mut tag_fst_items: Vec<(Vec<u8>, u64)> = Vec::new();
+
+        for (word_id, map) in tags.iter().enumerate() {
+            if let Some(map) = map {
+                let word = word_store
+                    .get_by_right(&WordIdInt::from_value_unchecked(word_id as u32))
+                    .expect("word id exists");
+
+                for (i, (inflect_id, pos_id)) in map.iter().enumerate() {
+                    assert!(i < 255);
+
+                    let key: Vec<u8> = word
+                        .as_bytes()
+                        .iter()
+                        .chain(once(&(i as u8)))
+                        .copied()
+                        .collect();
+                    let pos_bytes = pos_id.value().to_be_bytes();
+                    let inflect_bytes = inflect_id.value().to_be_bytes();
+
+                    let value = u64::from_be_bytes([
+                        inflect_bytes[0],
+                        inflect_bytes[1],
+                        inflect_bytes[2],
+                        inflect_bytes[3],
+                        0,
+                        0,
+                        pos_bytes[0],
+                        pos_bytes[1],
+                    ]);
+                    tag_fst_items.push((key, value));
+                }
+            }
+        }
+
+        tag_fst_items.sort_by(|(a, _), (b, _)| a.cmp(b));
+        let tag_fst = Map::from_iter(tag_fst_items)
+            .unwrap()
+            .into_fst()
+            .as_bytes()
+            .to_vec();
+
+        let mut word_store_items: Vec<(String, u64)> = word_store
+            .iter()
+            .map(|(key, value)| (key.clone(), value.value() as u64))
+            .collect();
+        word_store_items.sort_by(|(a, _), (b, _)| a.cmp(b));
+        let word_store_fst = Map::from_iter(word_store_items)
+            .unwrap()
+            .into_fst()
+            .as_bytes()
+            .to_vec();
+
+        Ok(TaggerFields {
+            tag_fst,
+            word_store_fst,
             tag_store,
             lang_options,
-        })
+            anchors: Vec::new(),
+        }
+        .into())
     }
 }
 
@@ -384,13 +443,13 @@ impl TextMatcher {
             if let Some(set) = info.mut_regex_cache().get(&matcher_hash) {
                 set.clone()
             } else {
-                let data: Vec<_> = info.tagger().word_store().iter().collect();
+                let data: Vec<_> = info.tagger().word_store().collect();
 
                 let set: DefaultHashSet<_> = data
                     .into_maybe_par_iter()
                     .filter_map(|(word, id)| {
                         if matcher.is_match(word.as_str(), None, None) {
-                            Some(*id)
+                            Some(id)
                         } else {
                             None
                         }
