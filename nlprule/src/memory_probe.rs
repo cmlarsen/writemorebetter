@@ -134,6 +134,7 @@ fn empty_engine() -> Engine {
             parts: Vec::new(),
             id_to_idx: Vec::new(),
             can_stop_mask: Vec::new(),
+            start_keys: None,
         },
         antipatterns: Vec::new(),
     })

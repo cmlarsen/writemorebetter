@@ -1,4 +1,5 @@
 use std::iter;
+use std::sync::OnceLock;
 
 use crate::{tokenizer::tag::Tagger, types::*, utils::regex::Regex};
 use enum_dispatch::enum_dispatch;
@@ -384,6 +385,29 @@ impl GraphId {
 pub struct MatchSentence<'t> {
     sentence: &'t Sentence<'t>,
     sent_start: &'t Token<'t>,
+    /// Token positions by token text, built on first use (see [`MatchSentence::start_positions`]).
+    start_positions: OnceLock<StartPositions>,
+}
+
+/// Token positions in a sentence, keyed by token text (and its lowercase form), used to jump
+/// straight to the positions a rule can start at (see [`Composition::start_keys`]).
+#[derive(Debug, Default, Clone, PartialEq)]
+pub(crate) struct StartPositions {
+    /// Lowercased token text -> positions, for case-insensitive keys.
+    lower: fnv::FnvHashMap<Box<str>, Vec<u32>>,
+    /// Exact token text -> positions, for case-sensitive keys.
+    exact: fnv::FnvHashMap<Box<str>, Vec<u32>>,
+}
+
+impl StartPositions {
+    pub(crate) fn get(&self, key: &StartKey) -> &[u32] {
+        let map = if key.case_sensitive {
+            &self.exact
+        } else {
+            &self.lower
+        };
+        map.get(key.text.as_ref()).map_or(&[], Vec::as_slice)
+    }
 }
 
 impl<'t> MatchSentence<'t> {
@@ -391,7 +415,32 @@ impl<'t> MatchSentence<'t> {
         MatchSentence {
             sentence,
             sent_start: Token::sent_start(),
+            start_positions: OnceLock::new(),
         }
+    }
+
+    /// The positions of every token by text, built once per sentence.
+    pub(crate) fn start_positions(&self) -> &StartPositions {
+        self.start_positions.get_or_init(|| {
+            let mut positions = StartPositions::default();
+            for i in 0..self.len() {
+                let text = self.index(i).word().text().as_str();
+                if text.is_empty() {
+                    continue;
+                }
+                positions
+                    .exact
+                    .entry(text.into())
+                    .or_insert_with(Vec::new)
+                    .push(i as u32);
+                positions
+                    .lower
+                    .entry(text.to_lowercase().into_boxed_str())
+                    .or_insert_with(Vec::new)
+                    .push(i as u32);
+            }
+            positions
+        })
     }
 
     pub fn index(&self, index: usize) -> &Token {
@@ -640,7 +689,87 @@ pub struct Composition {
     /// [`GraphIndex`] for why this is not a map.
     pub(crate) id_to_idx: Vec<u32>,
     pub(crate) can_stop_mask: Vec<bool>,
+    /// Literal token texts such that a match of this composition can only *start* at a token
+    /// whose text is one of them. `None` when the first part is not a required literal (a regex,
+    /// a POS constraint, an optional token, …). The matcher uses this to skip the whole position
+    /// scan for a sentence that contains none of the texts. Computed at compile time.
+    #[serde(default)]
+    pub(crate) start_keys: Option<Box<[StartKey]>>,
 }
+
+/// A literal token text a match must start with, see [`Composition::start_keys`].
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct StartKey {
+    /// The text to look for; already lowercased when `case_sensitive` is `false`.
+    pub(crate) text: Box<str>,
+    pub(crate) case_sensitive: bool,
+}
+
+impl Atom {
+    /// Collects the literal texts such that, if this atom matches a token, that token's text is
+    /// one of them. Returns `false` when the atom cannot be constrained this way (a regex, a POS
+    /// constraint, a negation, or an offset that moves the check away from the start position).
+    ///
+    /// The returned set is a *superset* of the texts that can match, so using it to skip whole
+    /// rules is sound as long as at least one collected text must match.
+    pub(crate) fn start_keys(&self, out: &mut Vec<StartKey>) -> bool {
+        match self {
+            Atom::TextAtom(atom) => {
+                let matcher = &atom.matcher.matcher;
+                match &matcher.matcher {
+                    MatcherKind::Text(text) if !matcher.negate => {
+                        out.push(StartKey {
+                            text: if matcher.case_sensitive {
+                                text.clone()
+                            } else {
+                                text.to_lowercase().into_boxed_str()
+                            },
+                            case_sensitive: matcher.case_sensitive,
+                        });
+                        true
+                    }
+                    _ => false,
+                }
+            }
+            // A conjunction matches every branch at the same position, so any single branch that
+            // yields keys is enough.
+            Atom::AndAtom(and) => {
+                let mut best: Option<Vec<StartKey>> = None;
+                for atom in &and.atoms {
+                    let mut keys = Vec::new();
+                    if atom.start_keys(&mut keys)
+                        && !keys.is_empty()
+                        && best.as_ref().map_or(true, |b| keys.len() < b.len())
+                    {
+                        best = Some(keys);
+                    }
+                }
+                match best {
+                    Some(keys) => {
+                        out.extend(keys);
+                        true
+                    }
+                    None => false,
+                }
+            }
+            // A disjunction matches one branch; every branch must be constrained for the union to
+            // be a sound prefilter.
+            Atom::OrAtom(or) => {
+                let mut keys = Vec::new();
+                for atom in &or.atoms {
+                    if !atom.start_keys(&mut keys) {
+                        return false;
+                    }
+                }
+                out.extend(keys);
+                true
+            }
+            // An offset moves the check to another position, so it cannot pin the start token.
+            _ => false,
+        }
+    }
+}
+
 
 impl Composition {
     fn next_can_match(
