@@ -10,7 +10,10 @@ use fs_err as fs;
 use log::warn;
 
 use crate::{
-    builtin::{en::WordRepeat, Builtin, BuiltinRule},
+    builtin::{
+        en::{UnpairedBrackets, UnpairedQuotes, WordRepeat},
+        Builtin, BuiltinRule,
+    },
     tokenizer::Tokenizer,
 };
 
@@ -23,9 +26,11 @@ pub(crate) fn for_language(
     tokenizer: &Tokenizer,
 ) -> Result<Vec<BuiltinRule>, Error> {
     match lang_code.trim() {
-        "en" => Ok(vec![BuiltinRule::new(Builtin::WordRepeat(word_repeat(
-            build_dir, tokenizer,
-        )))]),
+        "en" => Ok(vec![
+            BuiltinRule::new(Builtin::WordRepeat(word_repeat(build_dir, tokenizer))),
+            BuiltinRule::new(Builtin::UnpairedBrackets(UnpairedBrackets::new())),
+            BuiltinRule::new(Builtin::UnpairedQuotes(UnpairedQuotes::new())),
+        ]),
         _ => Ok(Vec::new()),
     }
 }

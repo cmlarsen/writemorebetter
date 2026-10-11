@@ -19,6 +19,10 @@ pub mod en;
 pub enum Builtin {
     /// Flags a word that is immediately repeated, e.g. `"the the"`.
     WordRepeat(en::WordRepeat),
+    /// Flags brackets that are never closed within a paragraph.
+    UnpairedBrackets(en::UnpairedBrackets),
+    /// Flags quotation marks that are never paired within a paragraph.
+    UnpairedQuotes(en::UnpairedQuotes),
 }
 
 impl Builtin {
@@ -27,6 +31,8 @@ impl Builtin {
     pub fn id(&self) -> &str {
         match self {
             Builtin::WordRepeat(rule) => rule.id(),
+            Builtin::UnpairedBrackets(rule) => rule.id(),
+            Builtin::UnpairedQuotes(rule) => rule.id(),
         }
     }
 
@@ -40,6 +46,8 @@ impl Builtin {
     pub fn check_text(&self, sentences: &[Sentence]) -> Vec<Suggestion> {
         match self {
             Builtin::WordRepeat(rule) => sentences.iter().flat_map(|x| rule.check(x)).collect(),
+            Builtin::UnpairedBrackets(rule) => rule.check(sentences),
+            Builtin::UnpairedQuotes(rule) => rule.check(sentences),
         }
     }
 }
