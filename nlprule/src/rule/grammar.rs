@@ -39,11 +39,34 @@ impl Conversion {
     }
 }
 
+/// What LanguageTool expects a rule to do for one `<example>`.
+///
+/// LanguageTool's `PatternRuleHandler` classifies an example as an incorrect
+/// example when it carries a `<marker>` or a `correction` attribute (or
+/// `type="incorrect"`), as an error-triggering example when it carries
+/// `type="triggers_error"`, and as a correct example otherwise.
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub enum ExampleKind {
+    /// The rule must not match (LanguageTool's `CorrectExample`).
+    Correct,
+    /// The rule must match exactly once; the match must be at the `<marker>`
+    /// span, and the correction is checked if the example carries one
+    /// (LanguageTool's `IncorrectExample`).
+    Incorrect,
+    /// The rule must match, but neither the match position nor a correction are
+    /// checked (LanguageTool's `ErrorTriggeringExample`, `type="triggers_error"`).
+    TriggersError,
+}
+
 /// An example associated with a [Rule][crate::rule::Rule].
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Example {
     pub(crate) text: String,
     pub(crate) suggestion: Option<Suggestion>,
+    /// What LanguageTool expects of the rule for this example.
+    pub(crate) kind: ExampleKind,
+    /// The span of the `<marker>` in `text`, if the example has one.
+    pub(crate) marker: Option<Span>,
 }
 
 impl Example {
@@ -57,6 +80,16 @@ impl Example {
     /// * If it is `Some`, the associated rule should return a suggestion with equivalent range and suggestions.
     pub fn suggestion(&self) -> Option<&Suggestion> {
         self.suggestion.as_ref()
+    }
+
+    /// What LanguageTool expects of this rule for this example.
+    pub fn kind(&self) -> &ExampleKind {
+        &self.kind
+    }
+
+    /// The span of the example's `<marker>` in [`Example::text`], if it has one.
+    pub(crate) fn marker(&self) -> Option<&Span> {
+        self.marker.as_ref()
     }
 }
 

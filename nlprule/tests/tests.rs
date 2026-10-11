@@ -43,7 +43,14 @@ fn can_tokenize_anything(text: String) -> bool {
 
 #[test]
 fn suggest_indices_are_relative_to_input_text() {
-    let suggestions = RULES.suggest(
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    // A newly compiled rule without a suggestion (GRAMMAR/PRP_MD_NN/4) also
+    // matches "can due" and would mask the due/do suggestion, so turn it off.
+    rules
+        .select_mut(&Category::new("grammar").join("prp_md_nn").into())
+        .for_each(|x| x.disable());
+
+    let suggestions = rules.suggest(
         "I can due his homework for 10€. I can due his homework.",
         &*TOKENIZER,
     );
@@ -122,6 +129,12 @@ fn no_gaps_between_sentences(text: String) {
 #[test]
 fn rules_can_be_disabled_enabled() {
     let mut rules = Rules::new(RULES_PATH).unwrap();
+
+    // A newly compiled no-suggestion rule (GRAMMAR/PRP_MD_NN/4) also matches
+    // "I can due his homework" and would otherwise hide the due/do suggestion.
+    rules
+        .select_mut(&Category::new("grammar").join("prp_md_nn").into())
+        .for_each(|x| x.disable());
 
     // enabled by default
     assert!(!rules
