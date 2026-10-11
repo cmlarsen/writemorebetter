@@ -13,6 +13,10 @@ use std::{
     path::Path,
 };
 
+/// How many sentences to collect before running their rule checks in one parallel region. Large
+/// enough to keep every worker busy on a batch, small enough to bound the memory held at once.
+const PARALLEL_BATCH: usize = 128;
+
 /// Language-dependent options for a rule set.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct RulesLangOptions {
@@ -151,12 +155,24 @@ impl Rules {
         sentence: &Sentence,
         builtin_suggestions: Vec<Suggestion>,
     ) -> Vec<Suggestion> {
+        self.apply_with_impl(sentence, builtin_suggestions, true)
+    }
+
+    /// Like [`Rules::apply_with`], but with the rule loop forced serial (`parallel = false`). Used
+    /// when many sentences are already processed in parallel, so that parallelizing the rules of
+    /// each sentence as well would only add rayon dispatch overhead per sentence.
+    fn apply_with_impl(
+        &self,
+        sentence: &Sentence,
+        builtin_suggestions: Vec<Suggestion>,
+        parallel: bool,
+    ) -> Vec<Suggestion> {
         let spell_suggestions = self.spell.suggest(sentence);
         let sentence = MatchSentence::new(sentence);
 
         let mut output: Vec<(usize, Suggestion)> = self
             .rules
-            .maybe_par_iter()
+            .maybe_par_iter_cond(parallel)
             .enumerate()
             .filter(|(_, rule)| rule.enabled())
             .map(|(i, rule)| {
@@ -214,36 +230,68 @@ impl Rules {
 
         let mut suggestions = Vec::new();
         let mut paragraph = Vec::new();
+        // Sentences are tokenized/disambiguated sequentially (the sentencizer drives that), but
+        // their rule checks are collected into batches and run in parallel: one rayon region per
+        // batch instead of one per sentence, which keeps the workers busy instead of repeatedly
+        // waking for a single sentence's few thousand rules.
+        let mut batch: Vec<(Sentence, Vec<Suggestion>)> = Vec::new();
 
         for sentence in tokenizer.pipe(text) {
             let ends_paragraph = sentence.text().contains('\n');
             paragraph.push(sentence);
 
             if ends_paragraph {
-                suggestions.extend(self.apply_paragraph(&paragraph));
-                paragraph.clear();
+                self.extend_paragraph(&mut paragraph, &mut batch);
+                if batch.len() >= PARALLEL_BATCH {
+                    self.flush_batch(&mut batch, &mut suggestions);
+                }
             }
         }
-        suggestions.extend(self.apply_paragraph(&paragraph));
+        self.extend_paragraph(&mut paragraph, &mut batch);
+        self.flush_batch(&mut batch, &mut suggestions);
 
         suggestions
     }
 
-    fn apply_paragraph(&self, sentences: &[Sentence]) -> Vec<Suggestion> {
-        let mut builtin_suggestions = self.builtin_suggestions(sentences);
-        let mut suggestions = Vec::new();
+    /// Adds one paragraph's `(sentence, builtin suggestions)` pairs to the pending batch.
+    fn extend_paragraph<'t>(
+        &self,
+        paragraph: &mut Vec<Sentence<'t>>,
+        batch: &mut Vec<(Sentence<'t>, Vec<Suggestion>)>,
+    ) {
+        let mut builtin_suggestions = self.builtin_suggestions(paragraph);
 
-        for sentence in sentences {
+        for sentence in paragraph.drain(..) {
             let end = sentence.span().char().end;
             let (own, rest) = builtin_suggestions
                 .into_iter()
                 .partition(|x| x.span().char().start < end);
             builtin_suggestions = rest;
+            batch.push((sentence, own));
+        }
+    }
 
-            suggestions.extend(self.apply_with(sentence, own));
+    /// Runs the pending batch in parallel (rules serial within a sentence) and appends the
+    /// per-sentence results to `out` in order.
+    fn flush_batch<'t>(
+        &self,
+        batch: &mut Vec<(Sentence<'t>, Vec<Suggestion>)>,
+        out: &mut Vec<Suggestion>,
+    ) {
+        if batch.is_empty() {
+            return;
         }
 
-        suggestions
+        let results: Vec<Vec<Suggestion>> = batch
+            .maybe_par_iter()
+            .map(|(sentence, builtin)| self.apply_with_impl(sentence, builtin.clone(), false))
+            .collect();
+
+        out.reserve(results.iter().map(Vec::len).sum());
+        for result in results {
+            out.extend(result);
+        }
+        batch.clear();
     }
 
     /// Correct a text by first tokenizing, then finding all suggestions and choosing the first replacement of each suggestion.

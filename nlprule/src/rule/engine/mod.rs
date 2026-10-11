@@ -64,11 +64,40 @@ pub enum Engine {
     Text(Box<Regex>, DefaultHashMap<GraphId, usize>),
 }
 
-struct TokenMatches<'a> {
+struct TokenMatches<'a, 't> {
     engine: &'a TokenEngine,
     pool: &'a PartPool,
     index: usize,
+    /// Marks the character ranges already claimed by a match of this rule, so a later
+    /// starting position cannot emit an overlapping match. Starts empty and grows on the
+    /// first match only: most rules never match a given sentence, and eagerly allocating a
+    /// `Vec` sized to the sentence's character count for every rule made the matcher allocate
+    /// once per (rule, sentence) regardless.
     mask: Vec<bool>,
+    /// The token positions a match can start at, when the composition's first part is a required
+    /// literal (see [`Composition::start_keys`]).
+    starts: Starts<'t>,
+    cursor: usize,
+}
+
+/// Which token positions a rule can start a match at.
+enum Starts<'t> {
+    /// Every position (no prefilter).
+    All,
+    /// The positions of a single required literal, borrowed from the sentence's index.
+    Positions(&'t [u32]),
+    /// The merged positions of several required literals.
+    Multi(Box<[u32]>),
+}
+
+impl Starts<'_> {
+    fn as_slice(&self) -> Option<&[u32]> {
+        match self {
+            Starts::All => None,
+            Starts::Positions(positions) => Some(positions),
+            Starts::Multi(positions) => Some(positions),
+        }
+    }
 }
 
 struct TextMatches<'a, 't> {
@@ -78,7 +107,7 @@ struct TextMatches<'a, 't> {
 }
 
 enum InnerMatches<'a: 't, 't> {
-    Token(TokenMatches<'a>),
+    Token(TokenMatches<'a, 't>),
     Text(TextMatches<'a, 't>),
 }
 
@@ -98,27 +127,46 @@ impl<'a, 't> Iterator for EngineMatches<'a, 't> {
         let end_id = self.end;
 
         match &mut self.inner {
-            InnerMatches::Token(inner) => (inner.index..sentence.len()).find_map(|i| {
-                inner
-                    .engine
-                    .get_match(inner.pool, sentence, i)
-                    .and_then(|graph| {
-                        let start_group = graph.by_id(start_id);
-                        let end_group = graph.by_id(end_id);
+            InnerMatches::Token(inner) => loop {
+                let filtered = !matches!(&inner.starts, Starts::All);
+                let i = if let Some(starts) = inner.starts.as_slice() {
+                    if inner.cursor >= starts.len() {
+                        return None;
+                    }
+                    starts[inner.cursor] as usize
+                } else {
+                    if inner.index >= sentence.len() {
+                        return None;
+                    }
+                    inner.index
+                };
+                if filtered {
+                    inner.cursor += 1;
+                } else {
+                    inner.index += 1;
+                }
 
-                        let start = start_group.span.char().start - sentence.span().char().start;
-                        let end = end_group.span.char().end - sentence.span().char().start;
+                let graph = match inner.engine.get_match(inner.pool, sentence, i) {
+                    Some(graph) => graph,
+                    None => continue,
+                };
 
-                        if inner.mask[start..end].iter().all(|x| !x) {
-                            inner.mask[start..end].iter_mut().for_each(|x| *x = true);
+                let start_group = graph.by_id(start_id);
+                let end_group = graph.by_id(end_id);
 
-                            inner.index += 1;
-                            Some(graph)
-                        } else {
-                            None
-                        }
-                    })
-            }),
+                let start = start_group.span.char().start - sentence.span().char().start;
+                let end = end_group.span.char().end - sentence.span().char().start;
+
+                if inner.mask.len() < end {
+                    inner.mask.resize(end, false);
+                }
+
+                if inner.mask[start..end].iter().all(|x| !x) {
+                    inner.mask[start..end].iter_mut().for_each(|x| *x = true);
+                    return Some(graph);
+                }
+                // Overlaps a match already emitted by this rule: try the next candidate.
+            },
             InnerMatches::Text(inner) => inner.captures.next().map(|captures| {
                 let bi_to_ci = &inner.byte_idx_to_char_idx;
                 let mut groups = Vec::new();
@@ -158,12 +206,35 @@ impl Engine {
         end: GraphId,
     ) -> EngineMatches<'a, 't> {
         let inner = match &self {
-            Engine::Token(engine) => InnerMatches::Token(TokenMatches {
-                engine,
-                pool,
-                index: 0,
-                mask: vec![false; sentence.text().chars().count()],
-            }),
+            Engine::Token(engine) => {
+                // If the composition's first part is a required literal, only the positions of
+                // tokens with that text can start a match, so jump straight to them (and skip the
+                // rule entirely when there are none).
+                let starts = match engine.composition.start_keys.as_deref() {
+                    None => Starts::All,
+                    Some([key]) => Starts::Positions(sentence.start_positions().get(key)),
+                    Some(keys) => {
+                        let positions = sentence.start_positions();
+                        let mut starts: Vec<u32> = Vec::new();
+                        for key in keys {
+                            starts.extend_from_slice(positions.get(key));
+                        }
+                        starts.sort_unstable();
+                        starts.dedup();
+                        Starts::Multi(starts.into_boxed_slice())
+                    }
+                };
+
+                InnerMatches::Token(TokenMatches {
+                    engine,
+                    pool,
+                    index: 0,
+                    mask: Vec::new(),
+                    starts,
+                    cursor: 0,
+                })
+            }
+
             Engine::Text(regex, id_to_idx) => {
                 let mut bi_to_ci: DefaultHashMap<usize, usize> = sentence
                     .text()

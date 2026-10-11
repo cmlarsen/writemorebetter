@@ -1099,6 +1099,19 @@ mod composition {
             mut parts: Vec<Part>,
             pool: &mut PartInterner,
         ) -> Result<Self, Error> {
+            // A required literal first part lets the matcher jump straight to the token
+            // positions that can start a match (see `Composition::start_keys`).
+            let start_keys = if parts[0].quantifier.min > 0 {
+                let mut keys = Vec::new();
+                if parts[0].atom.start_keys(&mut keys) && !keys.is_empty() {
+                    Some(keys.into_boxed_slice())
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+
             // `GraphId(k) -> group index`; keys are the visible parts in order, so the vector is
             // indexed by `k` and holds `part index + 1` (see `GraphIndex`).
             let mut id_to_idx: Vec<u32> = vec![0];
@@ -1138,6 +1151,7 @@ mod composition {
                 parts: parts.into_iter().map(|part| pool.intern(part)).collect(),
                 id_to_idx,
                 can_stop_mask,
+                start_keys,
             })
         }
     }
