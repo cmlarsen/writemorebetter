@@ -115,14 +115,26 @@ impl Rules {
     }
 
     /// Compute the suggestions for the given sentence by checking all rules.
+    /// Builtin rules that look across sentences only see this sentence; use [Rules::suggest] for full context.
     pub fn apply(&self, sentence: &Sentence) -> Vec<Suggestion> {
-        let spell_suggestions = self.spell.suggest(sentence);
-        let builtin_suggestions: Vec<Suggestion> = self
-            .builtins
+        let builtin_suggestions = self.builtin_suggestions(std::slice::from_ref(sentence));
+        self.apply_with(sentence, builtin_suggestions)
+    }
+
+    fn builtin_suggestions(&self, sentences: &[Sentence]) -> Vec<Suggestion> {
+        self.builtins
             .iter()
             .filter(|rule| rule.enabled())
-            .flat_map(|rule| rule.builtin().check(sentence))
-            .collect();
+            .flat_map(|rule| rule.builtin().check_text(sentences))
+            .collect()
+    }
+
+    fn apply_with(
+        &self,
+        sentence: &Sentence,
+        builtin_suggestions: Vec<Suggestion>,
+    ) -> Vec<Suggestion> {
+        let spell_suggestions = self.spell.suggest(sentence);
         let sentence = MatchSentence::new(sentence);
 
         let mut output: Vec<(usize, Suggestion)> = self
@@ -159,9 +171,10 @@ impl Rules {
             .into_iter()
             .filter_map(|(_, suggestion)| {
                 let span = suggestion.span().clone().lshift(sentence.span().start());
+                let range = span.char().start.min(mask.len())..span.char().end.min(mask.len());
 
-                if mask[span.char().clone()].iter().all(|x| !x) {
-                    mask[span.char().clone()].iter_mut().for_each(|x| *x = true);
+                if mask[range.clone()].iter().all(|x| !x) {
+                    mask[range].iter_mut().for_each(|x| *x = true);
                     Some(suggestion)
                 } else {
                     None
@@ -176,11 +189,18 @@ impl Rules {
             return Vec::new();
         }
 
+        let sentences: Vec<_> = tokenizer.pipe(text).collect();
+        let mut builtin_suggestions = self.builtin_suggestions(&sentences);
         let mut suggestions = Vec::new();
 
-        // get suggestions sentence by sentence
-        for sentence in tokenizer.pipe(text) {
-            suggestions.extend(self.apply(&sentence));
+        for sentence in &sentences {
+            let end = sentence.span().char().end;
+            let (own, rest) = builtin_suggestions
+                .into_iter()
+                .partition(|x| x.span().char().start < end);
+            builtin_suggestions = rest;
+
+            suggestions.extend(self.apply_with(sentence, own));
         }
 
         suggestions

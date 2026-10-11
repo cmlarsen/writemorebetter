@@ -32,8 +32,14 @@ impl Builtin {
 
     /// Runs this rule on one sentence and returns the suggestions it produces.
     pub fn check(&self, sentence: &Sentence) -> Vec<Suggestion> {
+        self.check_text(std::slice::from_ref(sentence))
+    }
+
+    /// Runs this rule on consecutive sentences of one text. Rules that need context beyond one sentence
+    /// (e.g. quotes spanning sentences) see all of them; sentence-level rules check each one separately.
+    pub fn check_text(&self, sentences: &[Sentence]) -> Vec<Suggestion> {
         match self {
-            Builtin::WordRepeat(rule) => rule.check(sentence),
+            Builtin::WordRepeat(rule) => sentences.iter().flat_map(|x| rule.check(x)).collect(),
         }
     }
 }
