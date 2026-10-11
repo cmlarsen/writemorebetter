@@ -936,10 +936,12 @@ impl Rule {
             }
 
             // LanguageTool's `PatternRuleHandler` classifies an example by its
-            // explicit `type` when present and by whether it marks an error
-            // otherwise (see `ExampleKind`). A rule without any <suggestion>
-            // has no correction to compare, so a marker-bearing example is an
-            // incorrect example that only has to match.
+            // explicit `type` when present and by whether it carries a
+            // `correction` otherwise; a `<marker>` alone does not make an
+            // example incorrect (`PatternRuleHandler.java`, LT 6.6, classifies
+            // as incorrect when `type="incorrect"` or a `correction` attribute
+            // is present). `PatternRuleTest.testCorrectSentences` then asserts
+            // that a correct example does not match, markers or not.
             let kind = match example.kind.as_deref() {
                 Some("correct") => ExampleKind::Correct,
                 Some("incorrect") => ExampleKind::Incorrect,
@@ -951,9 +953,7 @@ impl Rule {
                     )))
                 }
                 None => {
-                    if example.correction.is_some()
-                        || (marker_span.is_some() && suggesters.is_empty())
-                    {
+                    if example.correction.is_some() {
                         ExampleKind::Incorrect
                     } else {
                         ExampleKind::Correct
