@@ -21,7 +21,7 @@ pub mod id;
 
 use engine::Engine;
 
-pub(crate) use engine::composition::{MatchGraph, MatchSentence};
+pub(crate) use engine::composition::{MatchGraph, MatchSentence, PartPool};
 pub use grammar::{Example, ExampleKind};
 
 use self::{
@@ -133,14 +133,17 @@ impl DisambiguationRule {
         &self.id
     }
 
-    pub(crate) fn apply<'t>(&'t self, sentence: &MatchSentence<'t>) -> Changes {
+    pub(crate) fn apply<'t>(&'t self, pool: &'t PartPool, sentence: &MatchSentence<'t>) -> Changes {
         if matches!(self.disambiguations, disambiguation::Disambiguation::Nop) {
             return Changes::default();
         }
 
         let mut all_spans = Vec::new();
 
-        for graph in self.engine.get_matches(sentence, self.start, self.end) {
+        for graph in self
+            .engine
+            .get_matches(pool, sentence, self.start, self.end)
+        {
             if let Some(unification) = &self.unification {
                 if !unification.keep(&graph, sentence) {
                     continue;
@@ -193,7 +196,7 @@ impl DisambiguationRule {
 
     /// Often there are examples associated with a rule.
     /// This method checks whether the correct action is taken in the examples.
-    pub fn test(&self, tokenizer: &Tokenizer) -> bool {
+    pub fn test(&self, tokenizer: &Tokenizer, pool: &PartPool) -> bool {
         let mut passes = Vec::new();
 
         for (i, test) in self.examples.iter().enumerate() {
@@ -216,7 +219,7 @@ impl DisambiguationRule {
             let sentence_before_complete =
                 sentence_before.clone().rshift(shift_delta).into_sentence();
             let changes = self
-                .apply(&MatchSentence::new(&sentence_before_complete))
+                .apply(pool, &MatchSentence::new(&sentence_before_complete))
                 .lshift(shift_delta);
 
             let mut sentence_after = sentence_before.clone();
@@ -597,10 +600,11 @@ impl Rule {
 
     pub(crate) fn apply<'a, 't>(
         &'a self,
+        pool: &'a PartPool,
         sentence: &'t MatchSentence<'t>,
         articles: Option<&'a ArticleData>,
     ) -> Suggestions<'a, 't> {
-        self.apply_with_date(sentence, articles, None)
+        self.apply_with_date(pool, sentence, articles, None)
     }
 
     /// Like [`Rule::apply`], but with an explicit "today" for the
@@ -608,12 +612,15 @@ impl Rule {
     /// fixed test date).
     fn apply_with_date<'a, 't>(
         &'a self,
+        pool: &'a PartPool,
         sentence: &'t MatchSentence<'t>,
         articles: Option<&'a ArticleData>,
         now: Option<filter::Date>,
     ) -> Suggestions<'a, 't> {
         Suggestions {
-            matches: self.engine.get_matches(sentence, self.start, self.end),
+            matches: self
+                .engine
+                .get_matches(pool, sentence, self.start, self.end),
             rule: self,
             sentence,
             articles,
@@ -626,7 +633,12 @@ impl Rule {
     ///
     /// `articles` are the rule set's shared article word lists; use
     /// [`Rules::test_rule`][crate::Rules::test_rule] to supply them.
-    pub(crate) fn test(&self, tokenizer: &Tokenizer, articles: Option<&ArticleData>) -> bool {
+    pub(crate) fn test(
+        &self,
+        tokenizer: &Tokenizer,
+        pool: &PartPool,
+        articles: Option<&ArticleData>,
+    ) -> bool {
         let mut passes = Vec::new();
 
         // make sure relative position is handled correctly
@@ -648,6 +660,7 @@ impl Rule {
             info!("Sentence: {:#?}", sentence);
             let suggestions: Vec<_> = self
                 .apply_with_date(
+                    pool,
                     &MatchSentence::new(&sentence),
                     articles,
                     Some(filter::test_date()),

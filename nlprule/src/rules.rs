@@ -10,7 +10,6 @@ use fs_err::File;
 use serde::{Deserialize, Serialize};
 use std::{
     io::{BufReader, Read, Write},
-    iter::FromIterator,
     path::Path,
 };
 
@@ -47,6 +46,10 @@ pub struct Rules {
     /// synthesis, shared by every rule that uses one instead of stored per rule.
     /// `None` when no rule uses determiner synthesis.
     pub(crate) articles: Option<crate::builtin::en::ArticleData>,
+    /// The distinct matcher parts of every rule engine, addressed by
+    /// [`PartId`][crate::rule::engine::composition::PartId]. See that type for why the parts are
+    /// not stored inline in each composition.
+    pub(crate) parts: crate::rule::engine::composition::PartPool,
 }
 
 impl Rules {
@@ -159,7 +162,7 @@ impl Rules {
             .map(|(i, rule)| {
                 let mut output = Vec::new();
 
-                for suggestion in rule.apply(&sentence, self.articles.as_ref()) {
+                for suggestion in rule.apply(&self.parts, &sentence, self.articles.as_ref()) {
                     output.push((i, suggestion));
                 }
 
@@ -250,9 +253,9 @@ impl Rules {
     }
 
     /// Tests one rule's examples against `tokenizer`, supplying this set's shared article word
-    /// lists (the `+DT`/`+INDT` determiner synthesis needs them).
+    /// lists and part pool (the `+DT`/`+INDT` determiner synthesis needs the former).
     pub fn test_rule(&self, rule: &Rule, tokenizer: &Tokenizer) -> bool {
-        rule.test(tokenizer, self.articles.as_ref())
+        rule.test(tokenizer, &self.parts, self.articles.as_ref())
     }
 }
 
@@ -315,20 +318,5 @@ impl IntoIterator for Rules {
     type IntoIter = std::vec::IntoIter<Rule>;
     fn into_iter(self) -> Self::IntoIter {
         self.rules.into_iter()
-    }
-}
-
-impl<R> FromIterator<R> for Rules
-where
-    R: Into<Rule>,
-{
-    fn from_iter<I: IntoIterator<Item = R>>(iter: I) -> Self {
-        let rules: Vec<Rule> = iter.into_iter().map(|x| x.into()).collect();
-        Self {
-            rules,
-            spell: Spell::default(),
-            builtins: Vec::new(),
-            articles: None,
-        }
     }
 }

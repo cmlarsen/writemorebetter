@@ -5,7 +5,7 @@ use crate::{
 use serde::{Deserialize, Serialize};
 pub mod composition;
 
-use composition::{Composition, GraphId, Group, MatchGraph, MatchSentence};
+use composition::{Composition, GraphId, Group, MatchGraph, MatchSentence, PartPool};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TokenEngine {
@@ -14,14 +14,19 @@ pub struct TokenEngine {
 }
 
 impl TokenEngine {
-    fn get_match<'t>(&'t self, sentence: &'t MatchSentence, i: usize) -> Option<MatchGraph<'t>> {
-        if let Some(graph) = self.composition.apply(sentence, i) {
+    fn get_match<'t>(
+        &'t self,
+        pool: &'t PartPool,
+        sentence: &'t MatchSentence,
+        i: usize,
+    ) -> Option<MatchGraph<'t>> {
+        if let Some(graph) = self.composition.apply(pool, sentence, i) {
             let mut blocked = false;
 
             // TODO: cache / move to outer loop
             for i in 0..sentence.len() {
                 for antipattern in &self.antipatterns {
-                    if let Some(anti_graph) = antipattern.apply(sentence, i) {
+                    if let Some(anti_graph) = antipattern.apply(pool, sentence, i) {
                         let anti_start = anti_graph.by_index(0).span.char().start;
                         let anti_end = anti_graph
                             .by_index(anti_graph.groups().len() - 1)
@@ -61,6 +66,7 @@ pub enum Engine {
 
 struct TokenMatches<'a> {
     engine: &'a TokenEngine,
+    pool: &'a PartPool,
     index: usize,
     mask: Vec<bool>,
 }
@@ -93,22 +99,25 @@ impl<'a, 't> Iterator for EngineMatches<'a, 't> {
 
         match &mut self.inner {
             InnerMatches::Token(inner) => (inner.index..sentence.len()).find_map(|i| {
-                inner.engine.get_match(sentence, i).and_then(|graph| {
-                    let start_group = graph.by_id(start_id);
-                    let end_group = graph.by_id(end_id);
+                inner
+                    .engine
+                    .get_match(inner.pool, sentence, i)
+                    .and_then(|graph| {
+                        let start_group = graph.by_id(start_id);
+                        let end_group = graph.by_id(end_id);
 
-                    let start = start_group.span.char().start - sentence.span().char().start;
-                    let end = end_group.span.char().end - sentence.span().char().start;
+                        let start = start_group.span.char().start - sentence.span().char().start;
+                        let end = end_group.span.char().end - sentence.span().char().start;
 
-                    if inner.mask[start..end].iter().all(|x| !x) {
-                        inner.mask[start..end].iter_mut().for_each(|x| *x = true);
+                        if inner.mask[start..end].iter().all(|x| !x) {
+                            inner.mask[start..end].iter_mut().for_each(|x| *x = true);
 
-                        inner.index += 1;
-                        Some(graph)
-                    } else {
-                        None
-                    }
-                })
+                            inner.index += 1;
+                            Some(graph)
+                        } else {
+                            None
+                        }
+                    })
             }),
             InnerMatches::Text(inner) => inner.captures.next().map(|captures| {
                 let bi_to_ci = &inner.byte_idx_to_char_idx;
@@ -143,6 +152,7 @@ impl<'a, 't> Iterator for EngineMatches<'a, 't> {
 impl Engine {
     pub fn get_matches<'a, 't>(
         &'a self,
+        pool: &'a PartPool,
         sentence: &'t MatchSentence,
         start: GraphId,
         end: GraphId,
@@ -150,6 +160,7 @@ impl Engine {
         let inner = match &self {
             Engine::Token(engine) => InnerMatches::Token(TokenMatches {
                 engine,
+                pool,
                 index: 0,
                 mask: vec![false; sentence.text().chars().count()],
             }),

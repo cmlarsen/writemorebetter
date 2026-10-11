@@ -319,6 +319,10 @@ pub struct Tokenizer {
     pub(crate) multiword_tagger: Option<MultiwordTagger>,
     pub(crate) tagger: Arc<Tagger>,
     pub(crate) lang_options: TokenizerLangOptions,
+    /// The distinct matcher parts of every disambiguation rule engine, addressed by
+    /// [`PartId`][crate::rule::engine::composition::PartId]. See that type for why the parts are
+    /// not stored inline in each composition.
+    pub(crate) parts: crate::rule::engine::composition::PartPool,
 }
 
 impl Tokenizer {
@@ -357,6 +361,11 @@ impl Tokenizer {
         &self.rules
     }
 
+    /// Tests one disambiguation rule's examples, supplying this tokenizer's shared part pool.
+    pub fn test_rule(&self, rule: &DisambiguationRule, tokenizer: &Tokenizer) -> bool {
+        rule.test(tokenizer, &self.parts)
+    }
+
     /// Gets the lexical tagger.
     pub fn tagger(&self) -> &Arc<Tagger> {
         &self.tagger
@@ -389,7 +398,7 @@ impl Tokenizer {
                 .maybe_par_iter()
                 .enumerate()
                 .filter_map(|(j, rule)| {
-                    let changes = rule.apply(&match_sentence);
+                    let changes = rule.apply(&self.parts, &match_sentence);
                     if changes.is_empty() {
                         None
                     } else {

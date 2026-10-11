@@ -18,7 +18,7 @@ use crate::{
     rule::{
         disambiguation::PosFilter,
         engine::{
-            composition::{GraphId, Matcher, MatcherKind, PosMatcher, TextMatcher},
+            composition::{GraphId, Matcher, MatcherKind, PartInterner, PosMatcher, TextMatcher},
             Engine,
         },
         id::Category,
@@ -566,6 +566,7 @@ impl Rules {
     ) -> Self {
         let rules = super::parse_structure::read_rules(path);
         let mut errors: HashMap<String, usize> = HashMap::new();
+        let mut pool = PartInterner::default();
 
         let rules: Vec<_> = rules
             .into_iter()
@@ -639,7 +640,7 @@ impl Rules {
                         |x| x.clone(),
                     );
 
-                    match Rule::from_rule_structure(rule_structure, build_info) {
+                    match Rule::from_rule_structure(rule_structure, build_info, &mut pool) {
                         Ok(mut rule) => {
                             if (options.ids.is_empty()
                                 || options.ids.iter().any(|x| x.is_match(&id)))
@@ -694,6 +695,7 @@ impl Rules {
             spell,
             builtins,
             articles,
+            parts: pool.into_pool(),
         }
     }
 }
@@ -709,6 +711,7 @@ impl Tokenizer {
     ) -> Result<Self, Error> {
         let rules = super::parse_structure::read_disambiguation_rules(path);
         let mut errors: HashMap<String, usize> = HashMap::new();
+        let mut pool = PartInterner::default();
 
         let rules: Vec<_> = rules
             .into_iter()
@@ -728,7 +731,11 @@ impl Tokenizer {
                         .join(0)
                     };
 
-                    match DisambiguationRule::from_rule_structure(rule_structure, build_info) {
+                    match DisambiguationRule::from_rule_structure(
+                        rule_structure,
+                        build_info,
+                        &mut pool,
+                    ) {
                         Ok(mut rule) => {
                             if (lang_options.ids.is_empty()
                                 || lang_options.ids.iter().any(|x| x.is_match(&id)))
@@ -780,6 +787,7 @@ impl Tokenizer {
             multiword_tagger,
             rules,
             lang_options,
+            parts: pool.into_pool(),
         })
     }
 }
@@ -916,7 +924,7 @@ mod composition {
     use crate::{
         rule::engine::composition::{
             AndAtom, Atom, Composition, FalseAtom, GraphId, NotAtom, OffsetAtom, OrAtom, Part,
-            Quantifier, TrueAtom,
+            PartInterner, Quantifier, TrueAtom,
         },
         utils::regex::Regex,
     };
@@ -1075,7 +1083,10 @@ mod composition {
     }
 
     impl Composition {
-        pub(in crate::compile) fn new(mut parts: Vec<Part>) -> Result<Self, Error> {
+        pub(in crate::compile) fn new(
+            mut parts: Vec<Part>,
+            pool: &mut PartInterner,
+        ) -> Result<Self, Error> {
             // `GraphId(k) -> group index`; keys are the visible parts in order, so the vector is
             // indexed by `k` and holds `part index + 1` (see `GraphIndex`).
             let mut id_to_idx: Vec<u32> = vec![0];
@@ -1112,7 +1123,7 @@ mod composition {
             }
 
             Ok(Composition {
-                parts,
+                parts: parts.into_iter().map(|part| pool.intern(part)).collect(),
                 id_to_idx,
                 can_stop_mask,
             })
