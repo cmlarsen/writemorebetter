@@ -226,3 +226,72 @@ pub enum DisambiguationExample {
     Unchanged(String),
     Changed(DisambiguationChange),
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `<disambig action="add" postag="JJS">` compiles to an [`Disambiguation::Add`]
+    /// with an empty lemma. At runtime the matched token's text is used as the
+    /// lemma, like LanguageTool does when the added reading has no lemma.
+    #[test]
+    fn add_with_empty_lemma_uses_token_text() {
+        let text = WordId("second-largest".into(), None);
+        let pos_nn = PosId::regular("NN", PosIdInt::from_value_unchecked(0));
+
+        let mut token = IncompleteToken::new(
+            Word::new(text.clone(), vec![WordData::new(text.clone(), pos_nn)]),
+            Span::new(0..13, 0..13),
+            false,
+            false,
+            Vec::new(),
+        );
+
+        let disambiguation = Disambiguation::Add(vec![owned::WordData::new(
+            owned::WordId("".into(), None),
+            owned::PosId("JJS".into(), PosIdInt::from_value_unchecked(1)),
+        )]);
+
+        disambiguation.apply(vec![vec![&mut token]]);
+
+        let added = token
+            .word()
+            .tags()
+            .iter()
+            .find(|x| x.pos().as_str() == "JJS")
+            .expect("a JJS reading must have been added");
+
+        assert_eq!(added.lemma().as_str(), "second-largest");
+    }
+
+    /// An explicit lemma is kept as-is.
+    #[test]
+    fn add_with_lemma_keeps_lemma() {
+        let text = WordId("second-largest".into(), None);
+        let pos_nn = PosId::regular("NN", PosIdInt::from_value_unchecked(0));
+
+        let mut token = IncompleteToken::new(
+            Word::new(text.clone(), vec![WordData::new(text.clone(), pos_nn)]),
+            Span::new(0..13, 0..13),
+            false,
+            false,
+            Vec::new(),
+        );
+
+        let disambiguation = Disambiguation::Add(vec![owned::WordData::new(
+            owned::WordId("large".into(), None),
+            owned::PosId("JJS".into(), PosIdInt::from_value_unchecked(1)),
+        )]);
+
+        disambiguation.apply(vec![vec![&mut token]]);
+
+        let added = token
+            .word()
+            .tags()
+            .iter()
+            .find(|x| x.pos().as_str() == "JJS")
+            .expect("a JJS reading must have been added");
+
+        assert_eq!(added.lemma().as_str(), "large");
+    }
+}
