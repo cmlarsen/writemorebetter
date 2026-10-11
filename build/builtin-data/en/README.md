@@ -40,3 +40,6 @@ cp -r build/builtin-data/en/. data/en/builtin/
   `adviser;advisor`, `analyse;analyze`), one pair per line. Taken from
   LanguageTool's `WordCoherencyRule` data. The English word-coherency builtin
   flags the second spelling when a text mixes both spellings of a pair.
+- `uppercase_sentence_start_exceptions.txt` — tokens that may start a sentence
+  in lowercase without being an error, taken from the exceptions of the
+  corresponding capitalization rule. One token per line.

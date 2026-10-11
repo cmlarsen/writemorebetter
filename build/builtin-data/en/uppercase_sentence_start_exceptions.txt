@@ -1,0 +1,11 @@
+# Tokens that may start a sentence in lowercase without being an error.
+# Taken from the exceptions of the corresponding rule in the rule set.
+# One entry per line; blank lines and lines starting with '#' are ignored.
+n
+w
+x86
+ⓒ
+ø
+cc
+pH
+heylogin

@@ -56,6 +56,7 @@ where
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct TokenizerLangOptions {
     /// Whether to allow errors while constructing the tokenizer.
+    #[serde(default)]
     pub allow_errors: bool,
     /// Disambiguation Rule selectors to use in this tokenizer.
     #[serde(default)]

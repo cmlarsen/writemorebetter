@@ -1035,18 +1035,23 @@ impl DisambiguationRule {
                 }
             }
             Some("add") => {
-                if data.disambig.postag.is_some() {
-                    return Err(Error::Unimplemented(
-                        "postag not supported for `add`.".into(),
-                    ));
+                if let Some(postag) = data.disambig.postag.as_ref() {
+                    // `<disambig action="add" postag="…">`: add a reading with the
+                    // given POS tag. An empty lemma means the matched token's text
+                    // is used as the lemma at runtime, like LT does when the
+                    // reading has no lemma (Disambiguation::Add).
+                    Ok(Disambiguation::Add(vec![owned::WordData::new(
+                        info.tagger.id_word("".into()).to_owned_id(),
+                        info.tagger.id_tag(postag).to_owned_id(),
+                    )]))
+                } else {
+                    Ok(Disambiguation::Add(
+                        word_datas
+                            .into_iter()
+                            .map(|x| x.left().expect("match not supported for `add`"))
+                            .collect(),
+                    ))
                 }
-
-                Ok(Disambiguation::Add(
-                    word_datas
-                        .into_iter()
-                        .map(|x| x.left().expect("match not supported for `add`"))
-                        .collect(),
-                ))
             }
             Some("replace") => Ok(Disambiguation::Replace(
                 word_datas
