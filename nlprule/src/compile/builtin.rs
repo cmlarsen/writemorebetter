@@ -10,7 +10,7 @@ use fs_err as fs;
 use log::warn;
 
 use crate::{
-    builtin::{en::AVsAn, en::CommaParenthesisWhitespace, en::WordRepeat, Builtin, BuiltinRule},
+    builtin::{en::*, Builtin, BuiltinRule},
     tokenizer::Tokenizer,
 };
 
@@ -24,6 +24,8 @@ pub(crate) fn for_language(
 ) -> Result<Vec<BuiltinRule>, Error> {
     match lang_code.trim() {
         "en" => Ok(vec![
+            BuiltinRule::new(Builtin::UnpairedBrackets(UnpairedBrackets::new())),
+            BuiltinRule::new(Builtin::UnpairedQuotes(UnpairedQuotes::new())),
             BuiltinRule::new(Builtin::CommaParenthesisWhitespace(
                 comma_parenthesis_whitespace(build_dir),
             )),

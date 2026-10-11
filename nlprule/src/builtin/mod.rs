@@ -23,6 +23,10 @@ pub enum Builtin {
     AVsAn(en::AVsAn),
     /// Flags a word that is immediately repeated, e.g. `"the the"`.
     WordRepeat(en::WordRepeat),
+    /// Flags brackets that are never closed within a paragraph.
+    UnpairedBrackets(en::UnpairedBrackets),
+    /// Flags quotation marks that are never paired within a paragraph.
+    UnpairedQuotes(en::UnpairedQuotes),
 }
 
 impl Builtin {
@@ -33,6 +37,8 @@ impl Builtin {
             Builtin::CommaParenthesisWhitespace(rule) => rule.id(),
             Builtin::AVsAn(rule) => rule.id(),
             Builtin::WordRepeat(rule) => rule.id(),
+            Builtin::UnpairedBrackets(rule) => rule.id(),
+            Builtin::UnpairedQuotes(rule) => rule.id(),
         }
     }
 
@@ -48,6 +54,8 @@ impl Builtin {
             Builtin::CommaParenthesisWhitespace(rule) => rule.check_sentences(sentences),
             Builtin::AVsAn(rule) => sentences.iter().flat_map(|x| rule.check(x)).collect(),
             Builtin::WordRepeat(rule) => sentences.iter().flat_map(|x| rule.check(x)).collect(),
+            Builtin::UnpairedBrackets(rule) => rule.check(sentences),
+            Builtin::UnpairedQuotes(rule) => rule.check(sentences),
         }
     }
 }
