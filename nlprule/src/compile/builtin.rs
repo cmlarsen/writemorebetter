@@ -10,7 +10,7 @@ use fs_err as fs;
 use log::warn;
 
 use crate::{
-    builtin::{en::UppercaseSentenceStart, en::WordRepeat, Builtin, BuiltinRule},
+    builtin::{en::*, Builtin, BuiltinRule},
     tokenizer::Tokenizer,
 };
 
@@ -28,6 +28,12 @@ pub(crate) fn for_language(
             BuiltinRule::new(Builtin::UppercaseSentenceStart(uppercase_sentence_start(
                 build_dir,
             ))),
+            BuiltinRule::new(Builtin::UnpairedBrackets(UnpairedBrackets::new())),
+            BuiltinRule::new(Builtin::UnpairedQuotes(UnpairedQuotes::new())),
+            BuiltinRule::new(Builtin::CommaParenthesisWhitespace(
+                comma_parenthesis_whitespace(build_dir),
+            )),
+            BuiltinRule::new(Builtin::AVsAn(a_vs_an(build_dir))),
         ]),
         _ => Ok(Vec::new()),
     }
@@ -35,6 +41,32 @@ pub(crate) fn for_language(
 
 fn uppercase_sentence_start(build_dir: &Path) -> UppercaseSentenceStart {
     UppercaseSentenceStart::new(read_list(build_dir, "uppercase_sentence_start_exceptions"))
+}
+
+fn comma_parenthesis_whitespace(build_dir: &Path) -> CommaParenthesisWhitespace {
+    CommaParenthesisWhitespace::new(read_list(build_dir, "comma_parenthesis_whitespace_domains"))
+}
+
+/// Reads the two article word lists. Entries from a `*`-prefixed line are kept
+/// case-sensitively; all other entries are lowercased.
+fn a_vs_an(build_dir: &Path) -> AVsAn {
+    let normalize = |lines: Vec<String>| {
+        lines
+            .into_iter()
+            .map(|line| {
+                if let Some(case_sensitive) = line.strip_prefix('*') {
+                    case_sensitive.to_owned()
+                } else {
+                    line.to_lowercase()
+                }
+            })
+            .collect()
+    };
+
+    let requires_a = normalize(read_list(build_dir, "a_vs_an_a"));
+    let requires_an = normalize(read_list(build_dir, "a_vs_an_an"));
+
+    AVsAn::new(requires_a, requires_an)
 }
 
 fn word_repeat(build_dir: &Path, tokenizer: &Tokenizer) -> WordRepeat {

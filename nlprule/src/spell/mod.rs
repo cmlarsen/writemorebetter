@@ -1,5 +1,5 @@
 //! Structures and implementations related to spellchecking.
-use fst::{IntoStreamer, Map, MapBuilder, Streamer};
+use fst::{IntoStreamer, Map, Streamer};
 use serde::{Deserialize, Serialize};
 use std::{
     cmp::Ordering,
@@ -194,13 +194,15 @@ impl Variant {
 }
 
 /// Spellchecker logic for one variant. Does the actual work.
+///
+/// Holds no copy of the valid words: lookups go against the shared speller FST (passed in by the caller)
+/// and accept a word only if its [`SpellInt`] carries the bit for this variant.
 #[derive(Debug, Clone)]
 pub(crate) struct VariantChecker {
     variant: Variant,
-    fst: Vec<u8>,
+    variant_index: usize,
     max_freq: usize,
     multiwords: DefaultHashMap<String, Vec<Vec<String>>>,
-    set: DefaultHashSet<String>,
     map: DefaultHashMap<String, String>,
     lang_options: SpellLangOptions,
     options: SpellOptions,
@@ -210,9 +212,11 @@ impl VariantChecker {
     /// Checks the validity of one word.
     /// NB: The ordering of this chain of `||` operators is somewhat nontrivial. Could potentially be improved by benchmarking.
     /// If this is true, the token is always correct. The converse is not true because e.g. multiwords are checked separately.
-    fn check_word(&self, word: &str, recurse: bool) -> bool {
+    fn check_word(&self, fst: &Map<&[u8]>, word: &str, recurse: bool) -> bool {
         word.is_empty()
-            || self.set.contains(word)
+            || fst
+                .get(word)
+                .map_or(false, |v| SpellInt(v).contains_variant(self.variant_index))
             || word
                 .chars()
                 .all(|x| x.is_symbol() || x.is_punctuation() || x.is_numeric())
@@ -220,16 +224,20 @@ impl VariantChecker {
                 // for title case words, it is enough if the lowercase variant is known.
                 // it is possible that `is_title_case` is still true for word where `.to_lowercase()` was called so we need a `recurse` parameter.
                 && is_title_case(word)
-                && self.check_word(&apply_to_first(word, |x| x.to_lowercase().collect()), false))
+                && self.check_word(
+                    fst,
+                    &apply_to_first(word, |x| x.to_lowercase().collect()),
+                    false,
+                ))
     }
 
     /// Populates `correct_mask` according to the correctness of the given zeroth token.
     /// - `correct_mask[0]` is `true` if the zeroth token is correct, `false` if it is not correct.
     /// - Indices `1..n` of `correct_mask` are `true` if the `n`th token is also definitely correct.
     ///     If they are `false`, they need to be checked separately.  
-    fn check(&self, tokens: &[Token], correct_mask: &mut [bool]) {
+    fn check(&self, fst: &Map<&[u8]>, tokens: &[Token], correct_mask: &mut [bool]) {
         let word = tokens[0].word().text().as_str();
-        let mut word_is_correct = self.check_word(word, true);
+        let mut word_is_correct = self.check_word(fst, word, true);
 
         if !word_is_correct {
             // there exist multiple valid hyphens, see https://jkorpela.fi/dashes.html
@@ -245,7 +253,7 @@ impl VariantChecker {
             if word.contains(separators.as_slice())
                 && word
                     .split(separators.as_slice())
-                    .all(|x| self.check_word(x, true))
+                    .all(|x| self.check_word(fst, x, true))
             {
                 word_is_correct = true;
             }
@@ -269,21 +277,25 @@ impl VariantChecker {
         }
     }
 
-    fn search(&self, word: &str) -> Vec<String> {
+    fn search(&self, fst: &Map<&[u8]>, word: &str) -> Vec<String> {
         if let Some(candidate) = self.map.get(word) {
             return vec![candidate.to_owned()];
         }
 
-        let used_fst = Map::new(self.fst.as_slice()).expect("used fst must be valid.");
         let query = levenshtein::Levenshtein::new(word, self.options.max_distance, 2);
 
         let mut out = BinaryHeap::with_capacity(self.options.top_n);
 
-        let mut stream = used_fst.search_with_state(query).into_stream();
+        let mut stream = fst.search_with_state(query).into_stream();
         while let Some((k, v, s)) = stream.next() {
-            let state = s.expect("matching levenshtein state is always `Some`.");
-
             let id = SpellInt(v);
+
+            // The shared FST holds every variant's words; skip entries for other variants.
+            if !id.contains_variant(self.variant_index) {
+                continue;
+            }
+
+            let state = s.expect("matching levenshtein state is always `Some`.");
 
             let term = String::from_utf8(k.to_vec()).expect("fst keys must be valid utf-8.");
             out.push(Candidate {
@@ -375,39 +387,15 @@ impl Spell {
         let mut checker = match self.variant_checker.take() {
             // if the variant checker exists and uses the correct variant, we don't need to rebuild
             Some(checker) if checker.variant == variant => checker,
-            _ => {
-                let mut used_fst_builder = MapBuilder::memory();
-                let mut set = DefaultHashSet::new();
-
-                let fst = Map::new(&self.fst).expect("serialized fst must be valid.");
-                let mut stream = fst.into_stream();
-
-                while let Some((k, v)) = stream.next() {
-                    if SpellInt(v).contains_variant(variant_index) {
-                        set.insert(
-                            String::from_utf8(k.to_vec()).expect("fst keys must be valid utf-8."),
-                        );
-                        used_fst_builder
-                            .insert(k, v)
-                            .expect("fst stream returns values in lexicographic order.");
-                    }
-                }
-
-                let fst = used_fst_builder
-                    .into_inner()
-                    .expect("subset of valid fst must be valid.");
-
-                VariantChecker {
-                    variant,
-                    fst,
-                    multiwords: DefaultHashMap::new(),
-                    set,
-                    map: self.map.clone(),
-                    max_freq: self.max_freq,
-                    options: self.options.clone(),
-                    lang_options: self.lang_options.clone(),
-                }
-            }
+            _ => VariantChecker {
+                variant,
+                variant_index,
+                multiwords: DefaultHashMap::new(),
+                map: self.map.clone(),
+                max_freq: self.max_freq,
+                options: self.options.clone(),
+                lang_options: self.lang_options.clone(),
+            },
         };
 
         // `multiwords` depend on the whitelist. For convenience we always rebuild this.
@@ -472,6 +460,9 @@ impl Spell {
             return Vec::new();
         };
 
+        // Share the FST with the checker instead of materializing a per-variant copy.
+        let fst = Map::new(self.fst.as_slice()).expect("serialized fst must be valid.");
+
         let mut suggestions = Vec::new();
         let mut correct_mask = vec![false; tokens.len()];
 
@@ -479,7 +470,7 @@ impl Spell {
             let text = token.word().text().as_str();
 
             if !correct_mask[i] {
-                variant_checker.check(&tokens[i..], &mut correct_mask[i..]);
+                variant_checker.check(&fst, &tokens[i..], &mut correct_mask[i..]);
             }
             if correct_mask[i] || token.ignore_spelling() {
                 continue;
@@ -489,7 +480,7 @@ impl Spell {
                 "SPELLCHECK/SINGLE".into(),
                 "Possibly misspelled word.".into(),
                 token.span().clone(),
-                variant_checker.search(text),
+                variant_checker.search(&fst, text),
             ));
         }
 

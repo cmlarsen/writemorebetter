@@ -26,7 +26,7 @@ fst = "0.4"
 fs-err = "2.5"
 aho-corasick = "0.7"
 half = { version = "1.7", features = ["serde"] }
-srx = { version = "^0.1.3", features = ["serde"] }
+srx = { path = "../srx", version = "0.1.4", features = ["serde"] }
 once_cell = "1"
 cfg-if = "1"
 fnv = "1"
@@ -73,6 +73,10 @@ regex-fancy = ["fancy-regex"]
 # this enables both regex backends at the same time and makes sure they are equivalent
 # used only for compilation and tests
 regex-all-test = ["regex-onig", "regex-fancy"]
+
+# enables the test-only memory measurement probe (see tests/memory_breakdown.rs).
+# off by default and never needed to build or use the library.
+memory-probe = []
 
 # needed for the bin test targets and to compile nlprule binaries, you'll usually not need these
 bin = ["clap", "env_logger"]
