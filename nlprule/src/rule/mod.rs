@@ -14,6 +14,7 @@ use std::fmt;
 
 pub(crate) mod disambiguation;
 pub(crate) mod engine;
+pub(crate) mod filter;
 pub(crate) mod grammar;
 pub mod id;
 
@@ -294,6 +295,9 @@ pub struct Suggestions<'a, 't> {
     rule: &'a Rule,
     matches: EngineMatches<'a, 't>,
     sentence: &'t MatchSentence<'t>,
+    /// Overrides "today" for the time-dependent rule filters; the rule test
+    /// harness passes LanguageTool's fixed test date.
+    now: Option<filter::Date>,
 }
 
 impl<'a, 't> Iterator for Suggestions<'a, 't> {
@@ -303,6 +307,7 @@ impl<'a, 't> Iterator for Suggestions<'a, 't> {
         let rule = self.rule;
         let sentence = self.sentence;
         let (start, end) = (self.rule.start, self.rule.end);
+        let now = self.now;
 
         self.matches.find_map(|graph| {
             if let Some(unification) = &rule.unification {
@@ -356,17 +361,41 @@ impl<'a, 't> Iterator for Suggestions<'a, 't> {
             // fix e. g. "Super , dass"
             let replacements: Vec<String> = replacements
                 .into_iter()
-                .filter(|suggestion| *suggestion != text_before)
                 .map(|x| utils::fix_nospace_chars(&x))
+                .collect();
+
+            let message = rule
+                .message
+                .apply(sentence, &graph, rule.start, rule.end)
+                .expect("Rules must have a message.");
+
+            let match_ = filter::FilterMatch {
+                from: start,
+                to: end,
+                message,
+                replacements,
+            };
+
+            // A rule filter may veto the match entirely or return it with
+            // rewritten suggestions / range. It sees the raw suggestions
+            // (before the "suggestion equals the matched text" cleanup below),
+            // as LanguageTool filters do.
+            let match_ = match &rule.filter {
+                Some(rule_filter) => rule_filter.accept(match_, sentence, &graph, now)?,
+                None => match_,
+            };
+
+            let replacements: Vec<String> = match_
+                .replacements
+                .into_iter()
+                .filter(|suggestion| suggestion.as_str() != text_before)
                 .collect();
 
             if !replacements.is_empty() {
                 Some(Suggestion::new(
                     rule.id.to_string(),
-                    rule.message
-                        .apply(sentence, &graph, rule.start, rule.end)
-                        .expect("Rules must have a message."),
-                    Span::from_positions(start, end),
+                    match_.message,
+                    Span::from_positions(match_.from, match_.to),
                     replacements,
                 ))
             } else {
@@ -406,6 +435,7 @@ pub struct Rule {
     pub(crate) category_name: String,
     pub(crate) category_type: Option<String>,
     pub(crate) unification: Option<Unification>,
+    pub(crate) filter: Option<filter::RuleFilter>,
     pub(crate) enabled: bool,
 }
 
@@ -467,10 +497,22 @@ impl Rule {
     }
 
     pub(crate) fn apply<'a, 't>(&'a self, sentence: &'t MatchSentence<'t>) -> Suggestions<'a, 't> {
+        self.apply_with_date(sentence, None)
+    }
+
+    /// Like [`Rule::apply`], but with an explicit "today" for the
+    /// time-dependent filters (the rule test harness passes LanguageTool's
+    /// fixed test date).
+    fn apply_with_date<'a, 't>(
+        &'a self,
+        sentence: &'t MatchSentence<'t>,
+        now: Option<filter::Date>,
+    ) -> Suggestions<'a, 't> {
         Suggestions {
             matches: self.engine.get_matches(sentence, self.start, self.end),
-            rule: &self,
+            rule: self,
             sentence,
+            now,
         }
     }
 
@@ -497,7 +539,7 @@ impl Rule {
 
             info!("Sentence: {:#?}", sentence);
             let suggestions: Vec<_> = self
-                .apply(&MatchSentence::new(&sentence))
+                .apply_with_date(&MatchSentence::new(&sentence), Some(filter::test_date()))
                 .map(|s| s.lshift(shift_delta))
                 .collect();
 

@@ -1150,3 +1150,210 @@ pub(in crate::compile) mod filters {
         }
     }
 }
+
+/// Build-time construction of the grammar-rule filters
+/// ([`crate::rule::filter::RuleFilter`]).
+///
+/// Filters whose class needs resources the on-device engine does not have (a
+/// speller suggestion model, LanguageTool's multitoken-speller data) stay
+/// compile errors that name the class, so a rule can never silently ignore its
+/// filter.
+pub(in crate::compile) mod rule_filters {
+    use std::{collections::HashMap, path::Path};
+
+    use log::warn;
+
+    use super::Error;
+    use crate::rule::filter::{
+        Adverb, ApostropheType, ArgValue, DateCheck, DateCheckKind, DateRange, FutureDate,
+        NewYearDate, RegexAntiPattern, RuleFilter, UnderlineSpaces, WordFrom, YmdDateCheck,
+    };
+    use crate::utils::regex::Regex;
+
+    /// Splits LanguageTool's `args` attribute (`key:value` pairs, whitespace
+    /// separated) into a map.
+    fn split_args(args: &str) -> HashMap<String, String> {
+        args.split_whitespace()
+            .filter(|x| !x.is_empty())
+            .map(|arg| {
+                let idx = arg.find(':').unwrap_or_else(|| {
+                    panic!("invalid filter argument (expected 'key:value'): {}", arg)
+                });
+                (arg[..idx].to_string(), arg[idx + 1..].to_string())
+            })
+            .collect()
+    }
+
+    /// Turns one argument value into a [`ArgValue`]. Token references (`\1`)
+    /// only exist for `<pattern>` rules; `<regexp>` rules receive their
+    /// arguments verbatim (LanguageTool's `RegexRuleFilterEvaluator`).
+    fn to_arg_value(value: &str, is_regex_rule: bool) -> ArgValue {
+        if !is_regex_rule {
+            if let Some(rest) = value.strip_prefix('\\') {
+                if let Ok(index) = rest.parse::<usize>() {
+                    return ArgValue::Token(index);
+                }
+            }
+        }
+        ArgValue::Static(value.to_string())
+    }
+
+    fn required<'a>(args: &'a HashMap<String, String>, key: &str) -> Result<&'a str, Error> {
+        args.get(key).map(String::as_str).ok_or_else(|| {
+            Error::Unexpected(format!("filter is missing required argument '{}'", key))
+        })
+    }
+
+    fn optional_usize(args: &HashMap<String, String>, key: &str) -> Result<Option<usize>, Error> {
+        args.get(key)
+            .map(|x| x.parse())
+            .transpose()
+            .map_err(Error::from)
+    }
+
+    /// Reads the LanguageTool adverb -> adjective table used by `AdverbFilter`
+    /// (LGPL data, loaded from the build directory like the builtin lists).
+    fn adverb_table(build_dir: &Path) -> HashMap<String, String> {
+        let path = build_dir.join("builtin").join("adverb_adjective.txt");
+        match fs_err::read_to_string(&path) {
+            Ok(content) => content
+                .lines()
+                .map(str::trim)
+                .filter(|line| !line.is_empty() && !line.starts_with('#'))
+                .filter_map(|line| {
+                    let mut parts = line.split('\t');
+                    let adverb = parts.next()?.trim();
+                    let adjective = parts.next()?.trim();
+                    Some((adverb.to_string(), adjective.to_string()))
+                })
+                .collect(),
+            Err(_) => {
+                warn!(
+                    "Builtin data file {} does not exist. AdverbFilter will use an empty table.",
+                    path.display()
+                );
+                HashMap::new()
+            }
+        }
+    }
+
+    /// Builds the filter for a rule's `<filter>` element.
+    ///
+    /// `class` is the fully qualified LanguageTool class name; `args` is the raw
+    /// `args` attribute. Unknown classes and classes whose resources are not
+    /// available are reported as errors that name the class.
+    pub(in crate::compile) fn get_rule_filter(
+        class: &str,
+        args: &str,
+        is_regex_rule: bool,
+        build_dir: &Path,
+    ) -> Result<RuleFilter, Error> {
+        let name = class.rsplit('.').next().unwrap_or(class);
+        let args = split_args(args);
+
+        Ok(match name {
+            "UnderlineSpacesFilter" => {
+                let spaces = required(&args, "underlineSpaces")?;
+                RuleFilter::UnderlineSpaces(UnderlineSpaces {
+                    before: spaces == "before" || spaces == "both",
+                    after: spaces == "after" || spaces == "both",
+                })
+            }
+            "OrdinalSuffixFilter" => RuleFilter::OrdinalSuffix,
+            "ApostropheTypeFilter" => {
+                let word_from = required(&args, "wordFrom")?;
+                let word_from = if word_from == "marker" {
+                    WordFrom::Marker
+                } else {
+                    WordFrom::Index(word_from.parse()?)
+                };
+                RuleFilter::ApostropheType(ApostropheType {
+                    word_from,
+                    has_typographical_apostrophe: required(&args, "hasTypographicalApostrophe")?
+                        .eq_ignore_ascii_case("true"),
+                })
+            }
+            "RegexAntiPatternFilter" => {
+                let antipatterns = required(&args, "antipatterns")?;
+                let regexes = antipatterns
+                    .split('|')
+                    .map(|pattern| Regex::from_java_regex(pattern, false, true))
+                    .collect::<Result<Vec<_>, _>>()?;
+                RuleFilter::RegexAntiPattern(RegexAntiPattern { regexes })
+            }
+            "DateRangeChecker" => RuleFilter::DateRangeChecker(DateRange {
+                x: to_arg_value(required(&args, "x")?, is_regex_rule),
+                y: to_arg_value(required(&args, "y")?, is_regex_rule),
+            }),
+            "AdverbFilter" => RuleFilter::Adverb(Adverb {
+                adverb_to_adjective: adverb_table(build_dir),
+                adverb: to_arg_value(required(&args, "adverb")?, is_regex_rule),
+                noun: to_arg_value(required(&args, "noun")?, is_regex_rule),
+            }),
+            "FutureDateFilter" => RuleFilter::FutureDate(FutureDate {
+                year: to_arg_value(required(&args, "year")?, is_regex_rule),
+                month: to_arg_value(required(&args, "month")?, is_regex_rule),
+                day: to_arg_value(required(&args, "day")?, is_regex_rule),
+            }),
+            "DateCheckFilter" => {
+                let kind = if args.get("weekDay").map_or(false, |x| x.starts_with('\\')) {
+                    // LanguageTool 5.2: the arguments are the matched token texts.
+                    DateCheckKind::Text {
+                        week_day: to_arg_value(required(&args, "weekDay")?, is_regex_rule),
+                        day: to_arg_value(required(&args, "day")?, is_regex_rule),
+                        month: to_arg_value(required(&args, "month")?, is_regex_rule),
+                        year: args.get("year").map(|v| to_arg_value(v, is_regex_rule)),
+                    }
+                } else {
+                    // LanguageTool 6.6: the arguments are pattern-token indices.
+                    DateCheckKind::Index {
+                        week_day: required(&args, "weekDay")?.parse()?,
+                        day: optional_usize(&args, "day")?,
+                        month: optional_usize(&args, "month")?,
+                        year: optional_usize(&args, "year")?,
+                        date: optional_usize(&args, "date")?,
+                    }
+                };
+                RuleFilter::DateCheck(DateCheck { kind })
+            }
+            "YMDDateCheckFilter" => RuleFilter::YmdDateCheck(YmdDateCheck {
+                date: to_arg_value(required(&args, "date")?, is_regex_rule),
+                week_day: to_arg_value(required(&args, "weekDay")?, is_regex_rule),
+            }),
+            "NewYearDateFilter" => RuleFilter::NewYearDate(NewYearDate {
+                year: to_arg_value(required(&args, "year")?, is_regex_rule),
+                month: to_arg_value(required(&args, "month")?, is_regex_rule),
+                day: to_arg_value(required(&args, "day")?, is_regex_rule),
+                date: None,
+            }),
+            "YMDNewYearDateFilter" => RuleFilter::NewYearDate(NewYearDate {
+                year: ArgValue::Static(String::new()),
+                month: ArgValue::Static(String::new()),
+                day: ArgValue::Static(String::new()),
+                date: Some(to_arg_value(required(&args, "date")?, is_regex_rule)),
+            }),
+            "MultitokenSpellerFilter" => {
+                return Err(Error::Unimplemented(format!(
+                    "filter class '{}' needs LanguageTool's multitoken-speller data, \
+                     which is not available to the on-device engine.",
+                    class
+                )))
+            }
+            "EnglishSuppressMisspelledSuggestionsFilter"
+            | "FindSuggestionsFilter"
+            | "EnglishNumberInWordFilter" => {
+                return Err(Error::Unimplemented(format!(
+                    "filter class '{}' needs the speller suggestion model at match time, \
+                     which the rule engine does not expose yet.",
+                    class
+                )))
+            }
+            _ => {
+                return Err(Error::Unexpected(format!(
+                    "unsupported filter class '{}'",
+                    class
+                )))
+            }
+        })
+    }
+}

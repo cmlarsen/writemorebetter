@@ -172,7 +172,7 @@ pub fn compile(
         RegexCache::new(word_store_hash)
     };
 
-    let mut build_info = BuildInfo::new(Arc::new(tagger), regex_cache);
+    let mut build_info = BuildInfo::new(Arc::new(tagger), regex_cache, build_dir.to_path_buf());
     let chunker = if paths.chunker_path.exists() {
         info!("{} exists. Building chunker.", paths.chunker_path.display());
         let reader = BufReader::new(File::open(paths.chunker_path)?);
