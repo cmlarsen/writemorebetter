@@ -67,3 +67,7 @@ cp -r build/builtin-data/en/. data/en/builtin/
 - `uppercase_sentence_start_exceptions.txt` — tokens that may start a sentence
   in lowercase without being an error, taken from the exceptions of the
   corresponding capitalization rule. One token per line.
+- `adverb_adjective.txt` — adverb -> adjective pairs used by the English
+  `AdverbFilter` rule filter (`org.languagetool.rules.en.AdverbFilter`), copied
+  from that class's table. Tab separated `adverb<TAB>adjective`; loaded at
+  compile time when a rule with that filter is built.

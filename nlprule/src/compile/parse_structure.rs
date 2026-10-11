@@ -1,4 +1,4 @@
-use std::{ops::Range, sync::Arc};
+use std::{ops::Range, path::PathBuf, sync::Arc};
 
 use super::{structure, Error};
 use crate::{tokenizer::tag::Tagger, types::*};
@@ -52,13 +52,15 @@ impl RegexCache {
 pub(crate) struct BuildInfo {
     tagger: Arc<Tagger>,
     regex_cache: RegexCache,
+    build_dir: PathBuf,
 }
 
 impl BuildInfo {
-    pub fn new(tagger: Arc<Tagger>, regex_cache: RegexCache) -> Self {
+    pub fn new(tagger: Arc<Tagger>, regex_cache: RegexCache, build_dir: PathBuf) -> Self {
         BuildInfo {
             tagger,
             regex_cache,
+            build_dir,
         }
     }
 
@@ -68,6 +70,12 @@ impl BuildInfo {
 
     pub fn mut_regex_cache(&mut self) -> &mut RegexCache {
         &mut self.regex_cache
+    }
+
+    /// The directory the rules are compiled from; filter data tables live under
+    /// its `builtin/` directory.
+    pub fn build_dir(&self) -> &std::path::Path {
+        &self.build_dir
     }
 }
 
@@ -737,11 +745,7 @@ impl Rule {
         data: structure::Rule,
         info: &mut BuildInfo,
     ) -> Result<Rule, Error> {
-        if data.filter.is_some() {
-            return Err(Error::Unimplemented(
-                "rules with filter are not implemented.".into(),
-            ));
-        }
+        let is_regex_rule = data.regex.is_some();
 
         let (engine, start, end) = match (&data.pattern, data.regex) {
             (Some(_), Some(_)) => Err(Error::Unexpected(
@@ -819,6 +823,17 @@ impl Rule {
                 .map(|part| part.unify)
                 .collect();
             Some((unify_filters, unify_mask))
+        } else {
+            None
+        };
+
+        let filter = if let Some(filter_data) = &data.filter {
+            Some(super::impls::rule_filters::get_rule_filter(
+                &filter_data.class,
+                &filter_data.args,
+                is_regex_rule,
+                info.build_dir(),
+            )?)
         } else {
             None
         };
@@ -921,10 +936,12 @@ impl Rule {
             }
 
             // LanguageTool's `PatternRuleHandler` classifies an example by its
-            // explicit `type` when present and by whether it marks an error
-            // otherwise (see `ExampleKind`). A rule without any <suggestion>
-            // has no correction to compare, so a marker-bearing example is an
-            // incorrect example that only has to match.
+            // explicit `type` when present and by whether it carries a
+            // `correction` otherwise; a `<marker>` alone does not make an
+            // example incorrect (`PatternRuleHandler.java`, LT 6.6, classifies
+            // as incorrect when `type="incorrect"` or a `correction` attribute
+            // is present). `PatternRuleTest.testCorrectSentences` then asserts
+            // that a correct example does not match, markers or not.
             let kind = match example.kind.as_deref() {
                 Some("correct") => ExampleKind::Correct,
                 Some("incorrect") => ExampleKind::Incorrect,
@@ -936,9 +953,7 @@ impl Rule {
                     )))
                 }
                 None => {
-                    if example.correction.is_some()
-                        || (marker_span.is_some() && suggesters.is_empty())
-                    {
+                    if example.correction.is_some() {
                         ExampleKind::Incorrect
                     } else {
                         ExampleKind::Correct
@@ -972,6 +987,7 @@ impl Rule {
             end: engine.to_graph_id(end)?,
             engine,
             unification,
+            filter,
             examples,
             suggesters,
             message: Synthesizer {

@@ -443,6 +443,12 @@ impl<'t> MatchGraph<'t> {
             .expect("only valid graph indices exist")
     }
 
+    /// Like [`MatchGraph::get_index`] but returns `None` for an id that is not
+    /// part of this graph (filters may reference tokens that did not match).
+    pub fn get_index_opt(&self, id: GraphId) -> Option<usize> {
+        self.id_to_idx.get(&id).copied()
+    }
+
     pub fn groups(&self) -> &[Group] {
         &self.groups[..]
     }
