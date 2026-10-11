@@ -240,6 +240,7 @@ attempts total. Phase 0 establishes measurement and does not count as an optimiz
 | 7 | [#55](https://github.com/cmlarsen/writemorebetter/pull/55) | Inline buffers for small match graphs | -0.74% | -2.496 MiB | -0.137 MiB | -0.82% / -2.24% (interleaved, loaded) | kept |
 | 8 | [#56](https://github.com/cmlarsen/writemorebetter/pull/56) | Inline buffers for short speller rows | +3.78% | -2.105 MiB | +0.012 MiB | +0.16% / -1.36% (interleaved, loaded) | dropped |
 | 9 | pending | LZ4-compressed lazy examples | pending | pending | pending | -2.87% / -1.04% (interleaved, loaded) | pending |
+| 15 | [#63](https://github.com/cmlarsen/writemorebetter/pull/63) | Raise boolean-regex cache to 2048 slots per thread | pending | pending | pending | +0.93% / -1.31% (interleaved, loaded) | pending |
 
 
 Phase 0 merge-base measurements (Ubuntu): 6.6 check 5.2510 s, peak 91.4414 MiB,
@@ -421,3 +422,20 @@ Fresh five-pair Moby medians on retained main: 6.6 check 2.8907 → 2.8079 s
 (-2.87%), peak 88.95 → 87.91 MiB (-1.05); 5.2 check 3.3020 →
 3.2677 s (-1.04%), peak 72.19 → 71.70 MiB (-0.48). The machine was
 busy, including conformance runs; wall time is informational.
+
+### Attempt 15 — larger bounded boolean-regex cache
+
+The attempt-1 cache holds 512 exact-key slots per thread. This attempt quadruples it to
+2048 (48 KiB per thread on native 64-bit) to raise the hit rate on repeated short inputs.
+Keys, input limit and miss behavior are unchanged; no new global state. All 24 goldens, fmt,
+clippy and the workspace tests pass. The cost is per-thread memory, which multiplies by
+the rayon thread count (about 0.8 MiB locally on 15 threads).
+
+| Rules | Text | Check before/after (s) | Check Δ | Peak before/after (MiB) | Peak Δ (MiB) |
+|---|---|---|---:|---|---:|
+| 52 | moby150k | 2.0029 / 1.9766 | -1.31% | 71.45 / 72.38 | +0.92 |
+| 52 | story1 | 0.1571 / 0.1537 | -2.18% | 63.50 / 64.34 | +0.84 |
+| 66 | moby150k | 2.4809 / 2.5041 | +0.93% | 87.91 / 88.70 | +0.80 |
+| 66 | story1 | 0.1935 / 0.1962 | +1.40% | 74.36 / 75.14 | +0.78 |
+
+CI decides retention (instruction wins of at least 1% may cost up to 1 MiB peak).
