@@ -1,0 +1,312 @@
+{
+  "story1": [
+    {
+      "line": 13,
+      "text": "recieve",
+      "kind": "spell"
+    },
+    {
+      "line": 17,
+      "text": "untill",
+      "kind": "spell"
+    },
+    {
+      "line": 25,
+      "text": "the the",
+      "kind": "repeat"
+    },
+    {
+      "line": 27,
+      "text": "is would",
+      "kind": "grammar"
+    },
+    {
+      "line": 28,
+      "text": "into into",
+      "kind": "repeat"
+    },
+    {
+      "line": 29,
+      "text": "seperate",
+      "kind": "spell"
+    },
+    {
+      "line": 31,
+      "text": "said , and",
+      "kind": "punct"
+    },
+    {
+      "line": 32,
+      "text": "trough",
+      "kind": "grammar"
+    },
+    {
+      "line": 33,
+      "text": "a boxes",
+      "kind": "grammar"
+    },
+    {
+      "line": 34,
+      "text": "peaked through",
+      "kind": "ngram"
+    },
+    {
+      "line": 40,
+      "text": "definately",
+      "kind": "spell"
+    },
+    {
+      "line": 41,
+      "text": "wierd",
+      "kind": "spell"
+    },
+    {
+      "line": 42,
+      "text": "beleive",
+      "kind": "spell"
+    }
+  ],
+  "story2": [
+    {
+      "line": 13,
+      "text": "occured",
+      "kind": "spell"
+    },
+    {
+      "line": 16,
+      "text": "neccessary",
+      "kind": "spell"
+    },
+    {
+      "line": 23,
+      "text": "accomodate",
+      "kind": "spell"
+    },
+    {
+      "line": 25,
+      "text": "was was",
+      "kind": "repeat"
+    },
+    {
+      "line": 29,
+      "text": "arguement",
+      "kind": "spell"
+    },
+    {
+      "line": 33,
+      "text": "on on",
+      "kind": "repeat"
+    },
+    {
+      "line": 38,
+      "text": "like take",
+      "kind": "grammar"
+    },
+    {
+      "line": 42,
+      "text": "is seems",
+      "kind": "grammar"
+    },
+    {
+      "line": 81,
+      "text": "snow,and",
+      "kind": "punct"
+    },
+    {
+      "line": 86,
+      "text": "heal of",
+      "kind": "ngram"
+    },
+    {
+      "line": 89,
+      "text": "embarass",
+      "kind": "spell"
+    },
+    {
+      "line": 90,
+      "text": "tomorow",
+      "kind": "spell"
+    },
+    {
+      "line": 93,
+      "text": "more better",
+      "kind": "grammar"
+    }
+  ],
+  "story3": [
+    {
+      "line": 19,
+      "text": "buisness",
+      "kind": "spell"
+    },
+    {
+      "line": 24,
+      "text": "freind",
+      "kind": "spell"
+    },
+    {
+      "line": 25,
+      "text": "goverment",
+      "kind": "spell"
+    },
+    {
+      "line": 28,
+      "text": "happend",
+      "kind": "spell"
+    },
+    {
+      "line": 32,
+      "text": "immediatly",
+      "kind": "spell"
+    },
+    {
+      "line": 38,
+      "text": "wind , then",
+      "kind": "punct"
+    },
+    {
+      "line": 41,
+      "text": "The we",
+      "kind": "grammar"
+    },
+    {
+      "line": 42,
+      "text": "could of",
+      "kind": "grammar"
+    },
+    {
+      "line": 44,
+      "text": "Your welcome",
+      "kind": "grammar"
+    },
+    {
+      "line": 45,
+      "text": "He book",
+      "kind": "ngram"
+    },
+    {
+      "line": 46,
+      "text": "knowlege",
+      "kind": "spell"
+    },
+    {
+      "line": 47,
+      "text": "to to",
+      "kind": "repeat"
+    },
+    {
+      "line": 94,
+      "text": "and and",
+      "kind": "repeat"
+    }
+  ],
+  "story4": [
+    {
+      "line": 13,
+      "text": "succesful",
+      "kind": "spell"
+    },
+    {
+      "line": 16,
+      "text": "truely",
+      "kind": "spell"
+    },
+    {
+      "line": 20,
+      "text": "adress",
+      "kind": "spell"
+    },
+    {
+      "line": 26,
+      "text": "begining",
+      "kind": "spell"
+    },
+    {
+      "line": 31,
+      "text": "familar",
+      "kind": "spell"
+    },
+    {
+      "line": 33,
+      "text": "should of",
+      "kind": "grammar"
+    },
+    {
+      "line": 34,
+      "text": "Less people",
+      "kind": "grammar"
+    },
+    {
+      "line": 35,
+      "text": "concious",
+      "kind": "spell"
+    },
+    {
+      "line": 39,
+      "text": "a apple",
+      "kind": "grammar"
+    },
+    {
+      "line": 46,
+      "text": "whether turned",
+      "kind": "ngram"
+    },
+    {
+      "line": 48,
+      "text": "It it",
+      "kind": "repeat"
+    },
+    {
+      "line": 90,
+      "text": "the door,and",
+      "kind": "punct"
+    }
+  ],
+  "story5": [
+    {
+      "line": 5,
+      "text": "enviroment",
+      "kind": "spell"
+    },
+    {
+      "line": 22,
+      "text": "diffrent",
+      "kind": "spell"
+    },
+    {
+      "line": 28,
+      "text": "foriegn",
+      "kind": "spell"
+    },
+    {
+      "line": 35,
+      "text": "gratefull",
+      "kind": "spell"
+    },
+    {
+      "line": 36,
+      "text": "hieght",
+      "kind": "spell"
+    },
+    {
+      "line": 39,
+      "text": "independant",
+      "kind": "spell"
+    },
+    {
+      "line": 42,
+      "text": "a was",
+      "kind": "grammar"
+    },
+    {
+      "line": 45,
+      "text": "dogs are",
+      "kind": "grammar"
+    },
+    {
+      "line": 78,
+      "text": "She she",
+      "kind": "repeat"
+    }
+  ]
+}
