@@ -232,7 +232,8 @@ attempts total. Phase 0 establishes measurement and does not count as an optimiz
 |---|---|---|---:|---:|---:|---|---|
 | 0 | [#48](https://github.com/cmlarsen/writemorebetter/pull/48) | Public golden output and reproducible local/CI harness | +0.13% (baseline 80.792B) | +0.031 MiB (baseline 91.441) | −0.012 MiB (baseline 70.492) | baseline | kept |
 | 1 | [#49](https://github.com/cmlarsen/writemorebetter/pull/49) | Bounded short-input boolean-regex cache | -9.75% | +0.383 MiB | +0.129 MiB | -3.03% / -5.94% (interleaved, loaded) | kept |
-| 2 | pending | Immutable composition buffers as boxed slices | pending | pending | pending | +1.94% / -2.20% (interleaved, loaded) | pending |
+| 2 | [#50](https://github.com/cmlarsen/writemorebetter/pull/50) | Immutable composition buffers as boxed slices | -0.37% | +1.230 MiB | -0.191 MiB | +1.94% / -2.20% (interleaved, loaded) | dropped |
+| 3 | pending | Shared antipattern compositions in each rule set | pending | pending | pending | +0.88% / -0.06% (interleaved, loaded) | pending |
 
 
 Phase 0 merge-base measurements (Ubuntu): 6.6 check 5.2510 s, peak 91.4414 MiB,
@@ -299,4 +300,21 @@ from 88 to 64 bytes (1.02 MiB of metadata). Serialized sequences and matcher log
 remain unchanged. All 24 goldens and 37 library tests pass; Clippy has no new warnings.
 Five interleaved loaded-machine pairs measured Moby peak 94.80 → 93.30 MiB for 6.6
 and 73.81 → 73.59 MiB for 5.2, with check times 2.7895 → 2.8436 s and
-2.2876 → 2.2372 s. CI decides retention.
+2.2876 → 2.2372 s. CI measured 72.926B → 72.655B instructions (-0.37%),
+6.6 peak 91.582 → 92.813 MiB (+1.230 MiB), and 5.2 peak 70.566 → 70.375 MiB.
+All existing CI checks passed, but the Linux RSS result conflicts with the local saving
+and exceeds the agreed noise threshold, so #50 was closed. Allocator call totals were
+unchanged; the discrepancy may reflect allocation layout, but was not attributed.
+
+### Attempt 3 — per-rule-set antipattern sharing
+
+The 6.6 rules refer to 38,407 antipattern compositions, but only 8,975 have distinct
+serialized content. The compiler interns them in the rule set's immutable part pool;
+each rule keeps ordered 32-bit IDs. Identity includes every composition field, including
+graph indices, optional-tail masks and literal keys. No global state is introduced.
+Tokenizer/rules formats advance to 6/8, and old binaries are rejected explicitly.
+This attempt is rebased onto retained main after #50 was dropped. All 24 goldens and
+37 library tests pass; Clippy has no new warnings. Fresh local interleaved Moby medians:
+6.6 peak 95.05 → 90.20 MiB (-4.84), check 2.6005 → 2.6235 s (+0.88%);
+5.2 peak 73.59 → 72.89 MiB (-0.70), check 2.2168 → 2.2155 s (-0.06%).
+CI results are pending.
