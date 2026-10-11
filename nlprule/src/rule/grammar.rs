@@ -1,4 +1,7 @@
 use super::engine::composition::{GraphId, MatchGraph, MatchSentence};
+use crate::builtin::en::{
+    indefinite_article, lowercase_first_char_if_capitalized, Article, ArticleData,
+};
 use crate::tokenizer::tag::Tagger;
 use crate::types::*;
 use crate::utils::{self, regex::Regex};
@@ -102,6 +105,18 @@ pub struct PosReplacer {
     pub(crate) regex: Option<Regex>,
     /// The `postag_replace` regex replacement applied to the matched token's own POS tag.
     pub(crate) postag_replace: Option<String>,
+    /// LanguageTool's English determiner extensions (`+DT`/`+INDT`), if this
+    /// match uses one. `None` for a normal synthesis.
+    pub(crate) determiner: Option<Determiner>,
+}
+
+/// LanguageTool's English synthesizer extensions that prepend an article.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Determiner {
+    /// `+INDT`: add "a" or "an", chosen for the following word.
+    Indefinite,
+    /// `+DT`: add "a"/"an" or "the".
+    Definite,
 }
 
 impl PosReplacer {
@@ -174,8 +189,42 @@ impl PosReplacer {
         id: GraphId,
         static_lemma: Option<&str>,
         group_text: &str,
+        articles: Option<&ArticleData>,
     ) -> Option<Vec<String>> {
         let tagger = sentence.tagger();
+
+        // `+DT`/`+INDT` without a regexp tag: LanguageTool's `EnglishSynthesizer`
+        // returns the article chosen for the matched token itself (plus "the ..."
+        // for `+DT`).
+        if let Some(determiner) = self.determiner {
+            if self.regex.is_none() {
+                let article = articles.map_or(Article::Unknown, |data| data.article(group_text));
+                let mut forms = vec![indefinite_article(article, group_text)];
+
+                if determiner == Determiner::Definite {
+                    forms.push(format!(
+                        "the {}",
+                        lowercase_first_char_if_capitalized(group_text)
+                    ));
+                }
+
+                return Some(forms);
+            }
+        }
+
+        // The article a `+DT`/`+INDT` regexp form is prefixed with; it is chosen
+        // per lemma (`+INDT`) or is "the" (`+DT`).
+        let determiner_prefix = |lemma: &str| match self.determiner {
+            Some(Determiner::Definite) => "the ".to_string(),
+            Some(Determiner::Indefinite) => {
+                match articles.map_or(Article::Unknown, |data| data.article(lemma)) {
+                    Article::A => "a ".to_string(),
+                    Article::An => "an ".to_string(),
+                    Article::Unknown => String::new(),
+                }
+            }
+            None => String::new(),
+        };
 
         let readings: Vec<(&str, &str)> = graph
             .by_id(id)
@@ -201,7 +250,7 @@ impl PosReplacer {
             forms.extend(
                 self.synthesize_target(tagger, lemma, &target)
                     .into_iter()
-                    .map(str::to_string),
+                    .map(|form| format!("{}{}", determiner_prefix(lemma), form)),
             );
         } else if self.regex.is_some() {
             let target = self.target_pos_tag(&readings);
@@ -209,7 +258,7 @@ impl PosReplacer {
                 forms.extend(
                     self.synthesize_target(tagger, lemma, &target)
                         .into_iter()
-                        .map(str::to_string),
+                        .map(|form| format!("{}{}", determiner_prefix(lemma), form)),
                 );
             }
         } else {
@@ -239,6 +288,24 @@ impl PosReplacer {
     }
 }
 
+/// How LanguageTool's `<match include_skipped="...">` extends the match with the
+/// tokens skipped by the `skip` attribute of the referenced pattern token.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum IncludeRange {
+    /// `all`: the matched tokens followed by the skipped tokens.
+    All,
+    /// `following`: only the skipped tokens that follow the matched token.
+    Following,
+}
+
+/// A resolved `include_skipped`: which range to take and the graph index of the
+/// skip group that follows the referenced element.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+pub(crate) struct IncludeSkipped {
+    pub(crate) range: IncludeRange,
+    pub(crate) group: usize,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Match {
     pub(crate) id: GraphId,
@@ -247,6 +314,8 @@ pub struct Match {
     pub(crate) regex_replacer: Option<(Regex, String)>,
     /// The static lemma of `<match>lemma</match>`, if present.
     pub(crate) static_lemma: Option<String>,
+    /// The `include_skipped` attribute, resolved to the following skip group.
+    pub(crate) include_skipped: Option<IncludeSkipped>,
 }
 
 impl Match {
@@ -254,24 +323,60 @@ impl Match {
     ///
     /// A match that synthesizes several forms yields several alternatives; each is converted with
     /// the configured case conversion, matching the point at which LanguageTool converts case.
-    fn forms(&self, sentence: &MatchSentence, graph: &MatchGraph) -> Option<Vec<String>> {
+    fn forms(
+        &self,
+        sentence: &MatchSentence,
+        graph: &MatchGraph,
+        articles: Option<&ArticleData>,
+    ) -> Option<Vec<String>> {
         let group_text = graph.by_id(self.id).text(sentence);
 
         let forms = if let Some(replacer) = &self.pos_replacer {
             // LanguageTool's `toFinalString` overwrites the token with the synthesized forms, so
             // `regexp_match`/`regexp_replace` does not apply here.
-            replacer.apply(
+            let mut forms = replacer.apply(
                 sentence,
                 graph,
                 self.id,
                 self.static_lemma.as_deref(),
                 group_text,
-            )?
+                articles,
+            )?;
+
+            // `include_skipped` appends the skipped tokens to every synthesized
+            // form (or replaces them with just the skipped tokens for
+            // "following"), matching `MatchState.toFinalString`.
+            if let Some(include) = self.include_skipped {
+                let skipped = self.skipped_text(sentence, graph);
+                forms = match include.range {
+                    IncludeRange::All => forms
+                        .into_iter()
+                        .map(|form| format!("{}{}", form, skipped))
+                        .collect(),
+                    IncludeRange::Following => vec![skipped.trim_start().to_string()],
+                };
+            }
+
+            forms
         } else {
             let raw = self
                 .static_lemma
                 .clone()
                 .unwrap_or_else(|| group_text.to_string());
+
+            // Without a synthesis, the match text is extended over the skipped
+            // tokens directly.
+            let raw = match self.include_skipped {
+                None => raw,
+                Some(include) => match include.range {
+                    IncludeRange::All => {
+                        format!("{}{}", raw, self.skipped_text(sentence, graph))
+                    }
+                    IncludeRange::Following => {
+                        self.skipped_text(sentence, graph).trim_start().to_string()
+                    }
+                },
+            };
 
             let raw = if let Some((regex, replacement)) = &self.regex_replacer {
                 regex.replace_all(&raw, replacement)
@@ -290,8 +395,33 @@ impl Match {
         )
     }
 
+    /// The tokens skipped by the referenced element, including the whitespace
+    /// before the first one (LanguageTool's `skippedTokens`).
+    fn skipped_text<'a>(&self, sentence: &'a MatchSentence, graph: &MatchGraph) -> &'a str {
+        match self.include_skipped {
+            None => "",
+            Some(include) => {
+                let group = graph.by_id(self.id);
+                let skipped = graph.by_index(include.group);
+
+                if skipped.span.end() <= group.span.end() {
+                    return "";
+                }
+
+                sentence.slice(Span::from_positions(group.span.end(), skipped.span.end()))
+            }
+        }
+    }
+
     fn has_conversion(&self) -> bool {
         !matches!(self.conversion, Conversion::Nop)
+    }
+
+    /// Whether this match uses LanguageTool's `+DT`/`+INDT` determiner synthesis.
+    pub(crate) fn has_determiner(&self) -> bool {
+        self.pos_replacer
+            .as_ref()
+            .map_or(false, |replacer| replacer.determiner.is_some())
     }
 }
 
@@ -320,6 +450,7 @@ impl Synthesizer {
         graph: &MatchGraph,
         start: GraphId,
         _end: GraphId,
+        articles: Option<&ArticleData>,
     ) -> Option<Vec<String>> {
         let mut output = vec![String::new()];
 
@@ -331,7 +462,7 @@ impl Synthesizer {
         for part in &self.parts {
             let nexts: Vec<String> = match part {
                 SynthesizerPart::Text(t) => vec![t.clone()],
-                SynthesizerPart::Match(m) => m.forms(sentence, graph)?,
+                SynthesizerPart::Match(m) => m.forms(sentence, graph, articles)?,
             };
 
             let mut combined = Vec::with_capacity(output.len() * nexts.len());
@@ -383,7 +514,20 @@ impl Synthesizer {
         graph: &MatchGraph,
         start: GraphId,
         end: GraphId,
+        articles: Option<&ArticleData>,
     ) -> Option<String> {
-        Some(self.alternatives(sentence, graph, start, end)?.join("|"))
+        Some(
+            self.alternatives(sentence, graph, start, end, articles)?
+                .join("|"),
+        )
+    }
+
+    /// Whether any part of this synthesizer uses LanguageTool's `+DT`/`+INDT`
+    /// determiner synthesis (and therefore needs the article word lists).
+    pub(crate) fn uses_determiner(&self) -> bool {
+        self.parts.iter().any(|part| match part {
+            SynthesizerPart::Match(m) => m.has_determiner(),
+            SynthesizerPart::Text(_) => false,
+        })
     }
 }

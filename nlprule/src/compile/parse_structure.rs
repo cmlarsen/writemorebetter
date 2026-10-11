@@ -406,15 +406,55 @@ fn parse_match(
     engine: &Engine,
     _info: &mut BuildInfo,
 ) -> Result<Match, Error> {
-    if m.include_skipped.is_some() {
-        return Err(Error::Unimplemented(
-            "include_skipped in `match` is not implemented.".into(),
-        ));
-    }
-
     let id =
         m.no.parse::<usize>()
             .expect("no must be parsable as usize.");
+    let graph_id = engine.to_graph_id(id)?;
+
+    // `<match include_skipped="...">` includes the tokens skipped by the
+    // referenced token's `skip` attribute. In the compiled pattern those tokens
+    // form an invisible part directly after the referenced element, so remember
+    // its graph index; without a `skip` attribute the attribute has no effect.
+    let include_skipped = match m.include_skipped.as_deref() {
+        None => None,
+        Some(value) => {
+            let range = match value {
+                "all" => IncludeRange::All,
+                "following" => IncludeRange::Following,
+                other => {
+                    return Err(Error::Unimplemented(format!(
+                        "include_skipped value '{}' is not supported.",
+                        other
+                    )))
+                }
+            };
+
+            match engine {
+                Engine::Token(engine) => {
+                    // `id_to_idx` maps a graph id to `part_index + 1`; the skip
+                    // part, if any, is the part right after the referenced one.
+                    let group = *engine.composition.id_to_idx.get(&graph_id).ok_or_else(|| {
+                        Error::Unexpected("match reference is not in the pattern".into())
+                    })?;
+                    let has_skip = engine
+                        .composition
+                        .parts
+                        .get(group)
+                        .map_or(false, |part| !part.visible);
+
+                    has_skip.then_some(IncludeSkipped {
+                        range,
+                        group: group + 1,
+                    })
+                }
+                Engine::Text(..) => {
+                    return Err(Error::Unimplemented(
+                        "include_skipped in `match` is not implemented for regexp rules.".into(),
+                    ))
+                }
+            }
+        }
+    };
 
     let case_conversion = if let Some(conversion) = &m.case_conversion {
         Some(conversion.as_str())
@@ -431,24 +471,54 @@ fn parse_match(
     let postag_regexp = matches!(m.postag_regex.as_deref(), Some("yes"));
 
     let pos_replacer = if let Some(postag) = &m.postag {
-        if postag.contains("+DT") || postag.contains("+INDT") {
-            return Err(Error::Unimplemented(
-                "+DT and +INDT determiners are not implemented.".into(),
-            ));
-        }
+        let postag = postag.trim();
+
+        // LanguageTool's English synthesizer extends synthesis with two special
+        // postags: `+INDT` adds "a"/"an" and `+DT` adds "a"/"an" or "the". In the
+        // regexp form the tag ends with `\+INDT`/`\+DT` (a `\`-escaped `+` in the
+        // XML); the suffix is removed before synthesizing the base tag.
+        let (determiner, base_postag) = if postag == "+INDT" {
+            (Some(Determiner::Indefinite), None)
+        } else if postag == "+DT" {
+            (Some(Determiner::Definite), None)
+        } else if postag_regexp && postag.ends_with("\\+INDT") {
+            (
+                Some(Determiner::Indefinite),
+                Some(postag[..postag.len() - "\\+INDT".len()].trim()),
+            )
+        } else if postag_regexp && postag.ends_with("\\+DT") {
+            (
+                Some(Determiner::Definite),
+                Some(postag[..postag.len() - "\\+DT".len()].trim()),
+            )
+        } else if postag.contains("+DT") || postag.contains("+INDT") {
+            return Err(Error::Unimplemented(format!(
+                "the determiner postag '{}' is not supported here.",
+                postag
+            )));
+        } else {
+            (None, None)
+        };
+
+        // A determiner with an exact postag formats the matched token itself; a
+        // regexp determiner synthesizes the stripped base tag.
+        let synthesis_postag = base_postag.unwrap_or(postag);
 
         // LanguageTool's `setLemmaString` treats a static lemma's `postag` as a regexp even when
         // `postag_regexp` is not set, so a static lemma always uses the regexp synthesis branch.
-        let regex = if postag_regexp || static_lemma.is_some() {
-            Some(Regex::from_java_regex(postag.trim(), true, true)?)
+        let regex = if determiner.is_some() && base_postag.is_none() {
+            None
+        } else if postag_regexp || static_lemma.is_some() {
+            Some(Regex::from_java_regex(synthesis_postag, true, true)?)
         } else {
             None
         };
 
         Some(PosReplacer {
-            postag: postag.trim().to_string(),
+            postag: synthesis_postag.to_string(),
             regex,
             postag_replace: m.postag_replace.clone(),
+            determiner,
         })
     } else {
         None
@@ -463,7 +533,7 @@ fn parse_match(
     };
 
     Ok(Match {
-        id: engine.to_graph_id(id)?,
+        id: graph_id,
         conversion: match case_conversion {
             Some("alllower") => Conversion::AllLower,
             Some("startlower") => Conversion::StartLower,
@@ -484,12 +554,18 @@ fn parse_match(
         pos_replacer,
         regex_replacer,
         static_lemma,
+        include_skipped,
     })
 }
 
 fn parse_synthesizer_text(text: &str, engine: &Engine) -> Result<Vec<SynthesizerPart>, Error> {
+    // LanguageTool resolves a backreference as `\` followed by *all* consecutive
+    // digits: `PatternRuleMatcher.formatMatches` measures `numLen` while the next
+    // character is a digit and then parses the whole number, so `\13` refers to
+    // token 13, not to `\1` followed by a literal `3`. Match that here — a
+    // reference may have more than one digit.
     lazy_static! {
-        static ref MATCH_REGEX: Regex = Regex::new(r"\\(\d)".into());
+        static ref MATCH_REGEX: Regex = Regex::new(r"\\(\d+)".into());
     }
 
     let mut parts = Vec::new();
@@ -518,6 +594,7 @@ fn parse_synthesizer_text(text: &str, engine: &Engine) -> Result<Vec<Synthesizer
                 pos_replacer: None,
                 regex_replacer: None,
                 static_lemma: None,
+                include_skipped: None,
             }
             .into(),
         ));
@@ -982,6 +1059,23 @@ impl Rule {
             None
         };
 
+        let message = Synthesizer {
+            parts: message_parts,
+            use_titlecase_adjust: true,
+        };
+
+        // LanguageTool's `+DT`/`+INDT` synthesis chooses the article from the
+        // build directory's word lists; load them only for rules that use them.
+        let articles = if message.uses_determiner()
+            || suggesters
+                .iter()
+                .any(|suggester| suggester.uses_determiner())
+        {
+            Some(super::builtin::article_data(info.build_dir()))
+        } else {
+            None
+        };
+
         Ok(Rule {
             start: engine.to_graph_id(start)?,
             end: engine.to_graph_id(end)?,
@@ -990,10 +1084,8 @@ impl Rule {
             filter,
             examples,
             suggesters,
-            message: Synthesizer {
-                parts: message_parts,
-                use_titlecase_adjust: true,
-            },
+            message,
+            articles,
             url: data.url.map(|x| x.to_string()),
             short: data.short.map(|x| x.to_string()),
             // fields below need information from rule group / category, so are set later
@@ -1414,5 +1506,51 @@ impl DisambiguationRule {
             examples,
             id: Index::default(),
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Builds a text engine whose graph ids `0..=n` all exist; that is what
+    /// `Engine::to_graph_id` needs to accept a reference without clamping it to
+    /// the last id. The regex itself is never compiled here.
+    fn text_engine(n: usize) -> Engine {
+        let id_to_idx: DefaultHashMap<GraphId, usize> = (0..=n).map(|i| (GraphId(i), i)).collect();
+        Engine::Text(Box::new(Regex::new("".into())), id_to_idx)
+    }
+
+    fn describe(parts: &[SynthesizerPart]) -> Vec<String> {
+        parts
+            .iter()
+            .map(|part| match part {
+                SynthesizerPart::Match(m) => format!("<{}>", m.id.0),
+                SynthesizerPart::Text(t) => t.clone(),
+            })
+            .collect()
+    }
+
+    #[test]
+    fn two_digit_backreferences_are_a_single_reference() {
+        // LanguageTool parses `\` followed by all consecutive digits as one
+        // token reference, so `\13` is token 13, not `\1` plus a literal "3".
+        let engine = text_engine(20);
+        let parts = parse_synthesizer_text(r"\13 \14", &engine).unwrap();
+        assert_eq!(describe(&parts), vec!["<13>", " ", "<14>"]);
+    }
+
+    #[test]
+    fn single_digit_backreferences_still_work() {
+        let engine = text_engine(3);
+        let parts = parse_synthesizer_text(r"a \1 b \2", &engine).unwrap();
+        assert_eq!(describe(&parts), vec!["a ", "<1>", " b ", "<2>"]);
+    }
+
+    #[test]
+    fn text_without_backreferences_is_a_single_part() {
+        let engine = text_engine(1);
+        let parts = parse_synthesizer_text("plain text", &engine).unwrap();
+        assert_eq!(describe(&parts), vec!["plain text"]);
     }
 }
