@@ -241,6 +241,7 @@ attempts total. Phase 0 establishes measurement and does not count as an optimiz
 | 8 | [#56](https://github.com/cmlarsen/writemorebetter/pull/56) | Inline buffers for short speller rows | +3.78% | -2.105 MiB | +0.012 MiB | +0.16% / -1.36% (interleaved, loaded) | dropped |
 | 9 | [#57](https://github.com/cmlarsen/writemorebetter/pull/57) | LZ4-compressed lazy examples | -0.17% | -3.410 MiB | -0.606 MiB | -2.87% / -1.04% (interleaved, loaded) | kept |
 | 10 | [#58](https://github.com/cmlarsen/writemorebetter/pull/58) | Reuse chunker beam heaps | pending | pending | pending | -0.97% / -2.75% (interleaved, loaded) | pending |
+| 12 | [#60](https://github.com/cmlarsen/writemorebetter/pull/60) | Share lazy compiled regex backends for identical sources | pending | pending | pending | +1.13% / -1.26% (interleaved, loaded) | pending |
 | 13 | [#59](https://github.com/cmlarsen/writemorebetter/pull/59) | Compact contiguous NFA for multiword tagging | pending | pending | pending | +1.57% / +0.32% (interleaved, loaded) | pending |
 
 
@@ -446,5 +447,24 @@ Local interleaved pairs under load (five per case, timing informational):
 | 52 | story1 | 0.1538 / 0.1579 | +2.70% | 63.45 / 61.92 | -1.53 |
 | 66 | moby150k | 2.3816 / 2.4190 | +1.57% | 88.08 / 83.20 | -4.88 |
 | 66 | story1 | 0.1825 / 0.1881 | +3.08% | 74.55 / 69.70 | -4.84 |
+
+CI decides retention.
+
+### Attempt 12 — shared lazy regex backends
+
+Identical regex sources in one rule set each held their own lazily compiled backend. The
+existing process-wide pattern pool now also holds a weak reference to one shared backend
+cell per pattern, so identical patterns compile once and the backend is freed with its last
+`Regex`; a pattern reloaded afterwards recompiles lazily with the same identity. No new
+static, thread-local or unsafe state: the weak reference lives in the entry the pool already
+had. A lifecycle test covers sharing, release and lazy reload. Serialized fields are
+unchanged. All 24 goldens, fmt, clippy and the workspace tests pass.
+
+| Rules | Text | Check before/after (s) | Check Δ | Peak before/after (MiB) | Peak Δ (MiB) |
+|---|---|---|---:|---|---:|
+| 52 | moby150k | 2.1228 / 2.0960 | -1.26% | 71.53 / 70.80 | -0.73 |
+| 52 | story1 | 0.1526 / 0.1631 | +6.91% | 63.50 / 62.72 | -0.78 |
+| 66 | moby150k | 2.4933 / 2.5215 | +1.13% | 87.69 / 85.67 | -2.02 |
+| 66 | story1 | 0.1830 / 0.1773 | -3.07% | 74.31 / 73.16 | -1.16 |
 
 CI decides retention.
