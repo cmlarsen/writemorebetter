@@ -747,4 +747,51 @@ impl Suggestion {
         self.span = self.span.lshift(position);
         self
     }
+
+    /// Uses the apostrophe style of the replaced text in the replacements: if `original` has curly
+    /// apostrophes and no straight ones, straight apostrophes in the replacements become curly.
+    pub(crate) fn match_apostrophes(mut self, original: &str) -> Self {
+        if original.contains('\u{2019}') && !original.contains('\'') {
+            for replacement in self.replacements.iter_mut() {
+                if replacement.contains('\'') {
+                    *replacement = replacement.replace('\'', "\u{2019}");
+                }
+            }
+        }
+        self
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn suggestion(replacements: &[&str]) -> Suggestion {
+        Suggestion::new(
+            "TEST".into(),
+            "test".into(),
+            Span::default(),
+            replacements.iter().map(|x| x.to_string()).collect(),
+        )
+    }
+
+    #[test]
+    fn replacements_follow_curly_apostrophes() {
+        let s = suggestion(&["doesn't", "does not"]).match_apostrophes("dosn\u{2019}t");
+        assert_eq!(s.replacements(), ["doesn\u{2019}t", "does not"]);
+    }
+
+    #[test]
+    fn replacements_keep_straight_apostrophes() {
+        let s = suggestion(&["doesn't"]).match_apostrophes("dosn't");
+        assert_eq!(s.replacements(), ["doesn't"]);
+        let s = suggestion(&["doesn't"]).match_apostrophes("dosnt");
+        assert_eq!(s.replacements(), ["doesn't"]);
+    }
+
+    #[test]
+    fn mixed_apostrophes_are_left_alone() {
+        let s = suggestion(&["it's"]).match_apostrophes("it\u{2019}s 'quoted'");
+        assert_eq!(s.replacements(), ["it's"]);
+    }
 }
