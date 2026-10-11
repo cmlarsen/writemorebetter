@@ -24,16 +24,23 @@ pub(crate) fn for_language(
 ) -> Result<Vec<BuiltinRule>, Error> {
     match lang_code.trim() {
         "en" => Ok(vec![
+            BuiltinRule::new(Builtin::WordRepeat(word_repeat(build_dir, tokenizer))),
+            BuiltinRule::new(Builtin::UppercaseSentenceStart(uppercase_sentence_start(
+                build_dir,
+            ))),
             BuiltinRule::new(Builtin::UnpairedBrackets(UnpairedBrackets::new())),
             BuiltinRule::new(Builtin::UnpairedQuotes(UnpairedQuotes::new())),
             BuiltinRule::new(Builtin::CommaParenthesisWhitespace(
                 comma_parenthesis_whitespace(build_dir),
             )),
             BuiltinRule::new(Builtin::AVsAn(a_vs_an(build_dir))),
-            BuiltinRule::new(Builtin::WordRepeat(word_repeat(build_dir, tokenizer))),
         ]),
         _ => Ok(Vec::new()),
     }
+}
+
+fn uppercase_sentence_start(build_dir: &Path) -> UppercaseSentenceStart {
+    UppercaseSentenceStart::new(read_list(build_dir, "uppercase_sentence_start_exceptions"))
 }
 
 fn comma_parenthesis_whitespace(build_dir: &Path) -> CommaParenthesisWhitespace {

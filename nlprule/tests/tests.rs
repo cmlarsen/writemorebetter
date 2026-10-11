@@ -849,3 +849,164 @@ fn builtin_unpaired_brackets_flags_unclosed_open_after_word() {
         vec![bracket_flag("(")]
     );
 }
+
+/// Runs the uppercase-sentence-start builtin over the paragraphs of `text` and
+/// returns the flagged text and the first replacement of every suggestion.
+fn builtin_uppercase_sentence_start_flags(text: &str) -> Vec<(String, String)> {
+    let chars: Vec<char> = text.chars().collect();
+    let mut flags = Vec::new();
+    let mut paragraph: Vec<nlprule::types::Sentence<'_>> = Vec::new();
+
+    for sentence in TOKENIZER.pipe(text) {
+        let ends_paragraph = sentence.text().contains('\n');
+        paragraph.push(sentence);
+
+        if ends_paragraph {
+            flags.extend(uppercase_sentence_start_flags(&paragraph, &chars));
+            paragraph.clear();
+        }
+    }
+    flags.extend(uppercase_sentence_start_flags(&paragraph, &chars));
+    flags
+}
+
+fn uppercase_sentence_start_flags(
+    paragraph: &[nlprule::types::Sentence<'_>],
+    chars: &[char],
+) -> Vec<(String, String)> {
+    RULES
+        .builtins()
+        .iter()
+        .flat_map(|rule| rule.builtin().check_text(paragraph))
+        .filter(|suggestion| suggestion.source() == "BUILTIN/UPPERCASE_SENTENCE_START")
+        .map(|suggestion| {
+            (
+                chars[suggestion.span().char().clone()].iter().collect(),
+                suggestion.replacements()[0].clone(),
+            )
+        })
+        .collect()
+}
+
+#[test]
+fn builtin_uppercase_sentence_start_flags_simple() {
+    assert_eq!(
+        builtin_uppercase_sentence_start_flags("this is wrong. Also fine."),
+        vec![("this".to_string(), "This".to_string())]
+    );
+}
+
+#[test]
+fn builtin_uppercase_sentence_start_flags_curly_apostrophe() {
+    assert_eq!(
+        builtin_uppercase_sentence_start_flags("don\u{2019}t go there."),
+        vec![("don".to_string(), "Don".to_string())]
+    );
+}
+
+#[test]
+fn builtin_uppercase_sentence_start_flags_across_u2028() {
+    // U+2028 is whitespace inside a paragraph, so the second sentence is still
+    // checked against the first one.
+    assert_eq!(
+        builtin_uppercase_sentence_start_flags("Good.\u{2028}bad start here."),
+        vec![("bad".to_string(), "Bad".to_string())]
+    );
+}
+
+#[test]
+fn builtin_uppercase_sentence_start_ignores_dialogue_tag_after_comma() {
+    // "she" follows a closing quote after a comma inside the quote and does not
+    // start a new sentence.
+    assert!(builtin_uppercase_sentence_start_flags(
+        "\u{201c}I don\u{2019}t know,\u{201d} she said."
+    )
+    .is_empty());
+}
+
+#[test]
+fn builtin_uppercase_sentence_start_ignores_dialogue_tag_after_question() {
+    assert!(builtin_uppercase_sentence_start_flags("\u{201c}Where?\u{201d} he asked.").is_empty());
+}
+
+#[test]
+fn builtin_uppercase_sentence_start_ignores_dialogue_tag_after_exclamation() {
+    assert!(
+        builtin_uppercase_sentence_start_flags("\u{201c}Stop!\u{201d} she shouted.").is_empty()
+    );
+}
+
+#[test]
+fn builtin_uppercase_sentence_start_ignores_ellipsis_continuation() {
+    // The sentence splitter treats the ellipsis as a boundary, but "maybe"
+    // continues the sentence.
+    assert!(builtin_uppercase_sentence_start_flags(
+        "\u{201c}I thought\u{2026} maybe not.\u{201d} She shrugged."
+    )
+    .is_empty());
+    assert!(builtin_uppercase_sentence_start_flags("She waited\u{2026} and waited.").is_empty());
+}
+
+#[test]
+fn builtin_uppercase_sentence_start_ignores_em_dash() {
+    // The em dash joins words into a single token, so "then" is not a sentence
+    // start.
+    assert!(
+        builtin_uppercase_sentence_start_flags("He opened the door\u{2014}then stopped.")
+            .is_empty()
+    );
+}
+
+#[test]
+fn builtin_uppercase_sentence_start_ignores_number_start() {
+    assert!(
+        builtin_uppercase_sentence_start_flags("42 apples were on the table. 3.14 is pi.")
+            .is_empty()
+    );
+}
+
+#[test]
+fn builtin_uppercase_sentence_start_ignores_quoted_capital() {
+    assert!(builtin_uppercase_sentence_start_flags("\u{201c}Hello,\u{201d} she said.").is_empty());
+}
+
+#[test]
+fn builtin_uppercase_sentence_start_ignores_camel_case() {
+    // "iPhone" and "eBay" start lowercase but are not errors.
+    assert!(builtin_uppercase_sentence_start_flags("iPhone sales rose. eBay is fine.").is_empty());
+}
+
+#[test]
+fn builtin_uppercase_sentence_start_ignores_exceptions() {
+    assert!(builtin_uppercase_sentence_start_flags("pH matters here. x86 is old.").is_empty());
+}
+
+#[test]
+fn builtin_uppercase_sentence_start_ignores_correct_fiction_prose() {
+    for text in &[
+        "\u{201c}I didn\u{2019}t know,\u{201d} she said. \u{201c}Weren\u{2019}t you there?\u{201d}",
+        "\u{2018}Doesn\u{2019}t matter,\u{2019} he said.",
+        "He opened the door\u{2014}then stopped. It was quiet\u{2014}too quiet.",
+        "Pages 10\u{2013}12 were missing\u{2013}or torn out.",
+        "She waited\u{2026} and waited.",
+        "Marta\u{2019}s letter arrived. She read it slowly.",
+        "She waited.\u{2028}Nothing came.",
+        "The lighthouse blinked\u{2026} then went dark.",
+    ] {
+        assert!(
+            builtin_uppercase_sentence_start_flags(text).is_empty(),
+            "{}",
+            text
+        );
+    }
+}
+
+#[test]
+fn builtin_uppercase_sentence_start_is_wired_into_suggest() {
+    let suggestions = RULES.suggest("tomorrow we sail.", &*TOKENIZER);
+    let flagged = suggestions
+        .iter()
+        .find(|suggestion| suggestion.source() == "BUILTIN/UPPERCASE_SENTENCE_START")
+        .expect("lowercase sentence start is flagged");
+    assert_eq!(flagged.replacements(), &["Tomorrow".to_string()]);
+}
