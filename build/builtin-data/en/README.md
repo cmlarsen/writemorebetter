@@ -52,3 +52,6 @@ cp -r build/builtin-data/en/. data/en/builtin/
   LanguageTool's `en/contractions.txt`. This table is matched
   case-sensitively and one token at a time, so the file keeps its
   case-sensitive forms (`Aint`, `AINT`, ...).
+- `uppercase_sentence_start_exceptions.txt` — tokens that may start a sentence
+  in lowercase without being an error, taken from the exceptions of the
+  corresponding capitalization rule. One token per line.
