@@ -10,7 +10,7 @@ use fs_err as fs;
 use log::warn;
 
 use crate::{
-    builtin::{en::AVsAn, en::WordRepeat, Builtin, BuiltinRule},
+    builtin::{en::AVsAn, en::CommaParenthesisWhitespace, en::WordRepeat, Builtin, BuiltinRule},
     tokenizer::Tokenizer,
 };
 
@@ -24,11 +24,18 @@ pub(crate) fn for_language(
 ) -> Result<Vec<BuiltinRule>, Error> {
     match lang_code.trim() {
         "en" => Ok(vec![
+            BuiltinRule::new(Builtin::CommaParenthesisWhitespace(
+                comma_parenthesis_whitespace(build_dir),
+            )),
             BuiltinRule::new(Builtin::AVsAn(a_vs_an(build_dir))),
             BuiltinRule::new(Builtin::WordRepeat(word_repeat(build_dir, tokenizer))),
         ]),
         _ => Ok(Vec::new()),
     }
+}
+
+fn comma_parenthesis_whitespace(build_dir: &Path) -> CommaParenthesisWhitespace {
+    CommaParenthesisWhitespace::new(read_list(build_dir, "comma_parenthesis_whitespace_domains"))
 }
 
 /// Reads the two article word lists. Entries from a `*`-prefixed line are kept

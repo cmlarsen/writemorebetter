@@ -50,7 +50,7 @@ jobs:
       - name: Public corpus recall
         run: |
           cargo build --release --manifest-path bench/tools/wmb-probe/Cargo.toml
-          python3 bench/tools/public_recall.py --min 47
+          python3 bench/tools/public_recall.py --min 51
 
       - name: Disambiguation conformance
         env:
