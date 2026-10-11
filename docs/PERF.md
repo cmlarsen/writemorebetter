@@ -230,4 +230,52 @@ attempts total. Phase 0 establishes measurement and does not count as an optimiz
 
 | Attempt | PR | Change | Instructions Δ (6.6) | Peak RSS Δ (6.6) | Peak RSS Δ (5.2) | Local check time Δ (6.6 / 5.2) | Kept/dropped |
 |---|---|---|---:|---:|---:|---|---|
-| 0 | pending | Public golden output and reproducible local/CI harness | pending | pending | pending | baseline | review pending |
+| 1 | [#49](https://github.com/cmlarsen/writemorebetter/pull/49) | Bounded short-input boolean-regex cache | pending | pending | pending | -3.03% / -5.94% (interleaved, loaded) | pending |
+| 0 | [#48](https://github.com/cmlarsen/writemorebetter/pull/48) | Public golden output and reproducible local/CI harness | +0.13% (baseline 80.792B) | +0.031 MiB (baseline 91.441) | −0.012 MiB (baseline 70.492) | baseline | kept |
+
+
+Phase 0 merge-base measurements (Ubuntu): 6.6 check 5.2510 s, peak 91.4414 MiB,
+loaded 68.7734 MiB; 5.2 check 4.3636 s, peak 70.4922 MiB, loaded 53.9844 MiB.
+The no-engine-change PR varied by 0.13% instructions, less than 0.04 MiB peak RSS,
+and 8–12% wall time; allocation call totals were identical at 56,549,256. The fixed
+job finished in 17m37s after dropping the optional Memcheck pass. Local five-run
+baseline on the committed excerpt: 6.6 2.7091 s / 94.56 MiB; 5.2 2.3189 s / 73.92 MiB.
+
+The sequential sampling profile attributes 72% inclusive time to composition matching
+and 34% to Oniguruma; Callgrind attributes approximately 13% of instructions to
+allocator functions. This selects short-input boolean-regex memoization as attempt 1.
+
+
+### Attempt 1 — bounded boolean-regex cache
+
+The cache holds 512 exact `(never-reused pattern ID, UTF-8 input bytes)` keys per
+thread (12 KiB on native 64-bit), with inputs limited to seven bytes. It stores only
+booleans; captures continue through the backend. Collisions are misses, and the
+pattern pool assigns monotonically increasing process-unique IDs to distinct patterns;
+IDs are never reused, and construction fails closed on counter exhaustion. This avoids
+repeated Oniguruma parameter allocations and matches without adding unbounded storage.
+
+All 24 goldens and the cache collision/UTF-8 tests pass. Local medians use five
+**interleaved A/B pairs under load**, as authorized by the coordinator for every M8
+attempt; local time is informational and CI instructions/RSS decide retention.
+`python3 bench/tools/perf_pair.py --before <snapshot> --output <report-dir>` reproduces
+the comparison; the snapshot contains the before `wmb-probe` executable plus `52/66`
+data directories. The fixed CI/golden measurement method is unchanged.
+
+| Rules | Moby check before / after (s, loaded) | Peak before / after (MiB) |
+|---|---|---|
+| 6.6 | 3.3902 / 3.2874 (-3.03%) | 94.50 / 95.23 |
+| 5.2 | 2.4499 / 2.3044 (-5.94%) | 74.28 / 73.77 |
+
+Initial pointer-keyed prototype sampling: Oniguruma inclusive share 34.0% → 22.7%.
+The reviewed implementation instead uses numeric identities; its CI deltas and
+conformance/public-recall results are pending before keep/drop.
+
+The coordinator requires explicit approval before merging attempts that introduce global,
+static or thread-local state, unsafe code, or address-keyed caches. Attempt 1 includes a
+drop/reload lifecycle test and uses numeric identities instead of addresses.
+
+The global pattern pool never evicts its strings or IDs: they outlive every `Rules`.
+Its retained memory grows with the distinct patterns ever loaded (usually one or two
+English data sets), even after dropping a rule set. Compiled regexes currently remain
+owned by each `Regex`; the pool retains pattern strings and identities, not those backends.
