@@ -1,5 +1,5 @@
-use std::iter;
 use std::sync::OnceLock;
+use std::{convert::TryFrom, iter};
 
 use crate::{tokenizer::tag::Tagger, types::*, utils::regex::Regex};
 use enum_dispatch::enum_dispatch;
@@ -618,16 +618,29 @@ pub struct Part {
 #[serde(transparent)]
 pub struct PartId(pub u32);
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(transparent)]
+pub(crate) struct AntipatternId(u32);
+
 /// The distinct [`Part`]s of a rule set, addressed by [`PartId`]. See [`PartId`] for why this
 /// exists.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct PartPool {
     parts: Vec<Part>,
+    antipatterns: Vec<Composition>,
 }
 
 impl PartPool {
-    pub(crate) fn from_parts(parts: Vec<Part>) -> Self {
-        PartPool { parts }
+    pub(crate) fn antipattern(&self, id: AntipatternId) -> &Composition {
+        &self.antipatterns[id.0 as usize]
+    }
+
+    pub(crate) fn antipatterns_mut(&mut self) -> &mut Vec<Composition> {
+        &mut self.antipatterns
+    }
+
+    pub(crate) fn antipatterns(&self) -> &[Composition] {
+        &self.antipatterns
     }
 
     pub fn get(&self, id: PartId) -> &Part {
@@ -658,6 +671,8 @@ impl PartPool {
 pub(crate) struct PartInterner {
     seen: std::collections::HashMap<Vec<u8>, PartId>,
     parts: Vec<Part>,
+    seen_antipatterns: std::collections::HashMap<Vec<u8>, AntipatternId>,
+    antipatterns: Vec<Composition>,
 }
 
 impl PartInterner {
@@ -676,8 +691,24 @@ impl PartInterner {
         &self.parts[id.0 as usize]
     }
 
+    pub(crate) fn intern_antipattern(&mut self, composition: Composition) -> AntipatternId {
+        let key = bincode::serialize(&composition).expect("composition serializes");
+        if let Some(id) = self.seen_antipatterns.get(&key) {
+            return *id;
+        }
+        let id = AntipatternId(
+            u32::try_from(self.antipatterns.len()).expect("antipattern pool index exhausted"),
+        );
+        self.antipatterns.push(composition);
+        self.seen_antipatterns.insert(key, id);
+        id
+    }
+
     pub(crate) fn into_pool(self) -> PartPool {
-        PartPool::from_parts(self.parts)
+        PartPool {
+            parts: self.parts,
+            antipatterns: self.antipatterns,
+        }
     }
 }
 

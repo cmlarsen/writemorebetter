@@ -377,9 +377,6 @@ fn blank_rule(rule: &mut Rule, blank: GrammarBlank, pool: &mut PartPool) {
         GrammarBlank::Parts => {
             if let Engine::Token(token) = &mut rule.engine {
                 token.composition.parts.clear();
-                for antipattern in token.antipatterns.iter_mut() {
-                    antipattern.parts.clear();
-                }
             }
         }
         GrammarBlank::PartPool => {
@@ -388,17 +385,11 @@ fn blank_rule(rule: &mut Rule, blank: GrammarBlank, pool: &mut PartPool) {
         GrammarBlank::IdToIdx => {
             if let Engine::Token(token) = &mut rule.engine {
                 token.composition.id_to_idx.clear();
-                for antipattern in token.antipatterns.iter_mut() {
-                    antipattern.id_to_idx.clear();
-                }
             }
         }
         GrammarBlank::CanStopMask => {
             if let Engine::Token(token) = &mut rule.engine {
                 token.composition.can_stop_mask.clear();
-                for antipattern in token.antipatterns.iter_mut() {
-                    antipattern.can_stop_mask.clear();
-                }
             }
         }
         GrammarBlank::TextRegex => {
@@ -472,6 +463,21 @@ pub const GRAMMAR_FIELD_BLANKS: &[(&str, GrammarBlank)] = &[
     ("rules_no_gr_sets", GrammarBlank::Sets),
 ];
 
+fn blank_antipattern_pool(pool: &mut PartPool, blank: GrammarBlank) {
+    if matches!(blank, GrammarBlank::Engine | GrammarBlank::Antipatterns) {
+        pool.antipatterns_mut().clear();
+    } else {
+        for antipattern in pool.antipatterns_mut() {
+            match blank {
+                GrammarBlank::Parts => antipattern.parts.clear(),
+                GrammarBlank::IdToIdx => antipattern.id_to_idx.clear(),
+                GrammarBlank::CanStopMask => antipattern.can_stop_mask.clear(),
+                _ => {}
+            }
+        }
+    }
+}
+
 fn blanked_grammar_rules(
     rules: &[Rule],
     parts: &PartPool,
@@ -479,6 +485,7 @@ fn blanked_grammar_rules(
 ) -> (Vec<Rule>, PartPool) {
     let mut out = rules.to_vec();
     let mut pool = parts.clone();
+    blank_antipattern_pool(&mut pool, blank);
     for rule in out.iter_mut() {
         blank_rule(rule, blank, &mut pool);
     }
@@ -727,6 +734,7 @@ pub fn extract_rules(rules_bin: &Path, out_dir: &Path) -> Result<Vec<Extracted>,
     for (name, blank) in GRAMMAR_FIELD_BLANKS {
         let mut variant = rules.clone();
         let pool = &mut variant.parts;
+        blank_antipattern_pool(pool, *blank);
         for rule in variant.rules.iter_mut() {
             blank_rule(rule, *blank, pool);
         }
@@ -1086,6 +1094,7 @@ pub fn describe(tokenizer_bin: &Path, rules_bin: &Path) -> Result<Vec<(String, S
                 }
                 stats.antipatterns += engine.antipatterns.len() as u64;
                 for antipattern in &engine.antipatterns {
+                    let antipattern = rules.parts.antipattern(*antipattern);
                     stats.compositions += 1;
                     stats.antipattern_parts += antipattern.parts.len() as u64;
                     stats.id_to_idx += antipattern.id_to_idx.len() as u64;
@@ -1120,6 +1129,10 @@ pub fn describe(tokenizer_bin: &Path, rules_bin: &Path) -> Result<Vec<(String, S
             stats.antipattern_parts,
         ),
         ("grammar antipattern compositions", stats.antipatterns),
+        (
+            "grammar stored antipattern compositions",
+            rules.parts.antipatterns().len() as u64,
+        ),
         ("grammar id_to_idx entries", stats.id_to_idx),
         ("grammar atom ChunkAtom", stats.chunk),
         ("grammar atom TextAtom", stats.text),
