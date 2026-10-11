@@ -234,7 +234,10 @@ attempts total. Phase 0 establishes measurement and does not count as an optimiz
 | 1 | [#49](https://github.com/cmlarsen/writemorebetter/pull/49) | Bounded short-input boolean-regex cache | -9.75% | +0.383 MiB | +0.129 MiB | -3.03% / -5.94% (interleaved, loaded) | kept |
 | 2 | [#50](https://github.com/cmlarsen/writemorebetter/pull/50) | Immutable composition buffers as boxed slices | -0.37% | +1.230 MiB | -0.191 MiB | +1.94% / -2.20% (interleaved, loaded) | dropped |
 | 3 | [#51](https://github.com/cmlarsen/writemorebetter/pull/51) | Shared antipattern compositions in each rule set | +0.22% | -5.918 MiB | -1.395 MiB | +0.88% / -0.06% (interleaved, loaded) | kept |
-| 4 | pending | Later mandatory-literal absence guard | pending | pending | pending | -5.02% / -4.40% (interleaved, loaded) | pending |
+| 4 | [#52](https://github.com/cmlarsen/writemorebetter/pull/52) | Later mandatory-literal absence guard | -23.79% | -2.277 MiB | +0.102 MiB | -5.02% / -4.40% (interleaved, loaded) | kept |
+| 5 | [#53](https://github.com/cmlarsen/writemorebetter/pull/53) | Reuse successful first-token match | -4.26% / -4.25% (rerun) | +1.727 / +1.742 MiB | -0.113 / +0.098 MiB | -1.35% / +0.73% (interleaved, loaded) | dropped |
+| 6 | [#54](https://github.com/cmlarsen/writemorebetter/pull/54) | Trim spare capacity from tagger FST buffers | -0.66% | -0.293 MiB | -0.449 MiB | +0.53% / +1.24% (interleaved, loaded) | dropped |
+| 7 | pending | Inline buffers for small match graphs | pending | pending | pending | -0.82% / -2.24% (interleaved, loaded) | pending |
 
 
 Phase 0 merge-base measurements (Ubuntu): 6.6 check 5.2510 s, peak 91.4414 MiB,
@@ -337,3 +340,43 @@ punctuation/U+2028. Tokenizer/rules formats advance to 7/9. Fresh interleaved Mo
 medians: 6.6 check 2.7488 → 2.6109 s (-5.02%), peak 90.33 → 90.23 MiB;
 5.2 check 2.2601 → 2.1606 s (-4.40%), peak 73.20 → 72.52 MiB. Story medians
 improved 3.3–8.3% across the two sets. CI decides retention.
+
+Attempt 4 was retained: CI instructions fell from 72.938B to 55.587B (-23.79%),
+allocator calls fell 18.47%, and peak RSS changed by -2.277 MiB (6.6) and
++0.102 MiB (5.2). Independently built archives immediately before and after #52
+produce byte-identical grammar and disambiguation passing-ID lists for both rule sets:
+5,977/6,032 and 4,320/4,335 grammar examples; 1,012/1,015 and 843/843 disambiguation.
+
+### Attempt 5 — reuse the first successful token match (dropped)
+
+Skipping the duplicate mandatory-first-atom check reduced instructions by 4.26% and
+allocator calls by 2.11%, with identical goldens and grammar passing-ID lists. Local
+interleaved medians showed peak RSS decreasing 1.22 MiB on 6.6, but CI showed an
+increase of 1.727 MiB. The coordinator required one rerun to resolve conflicting RSS
+evidence; the rerun again increased peak by 1.742 MiB while reducing instructions
+4.25%, so #53 was dropped. Both CI runs passed correctness checks.
+
+For future conflicts between local and CI RSS evidence, one CI rerun decides retention.
+An instruction winner must stay within +1 MiB peak RSS; a memory winner must stay
+within +0.5% instructions. Larger costs require a coordinator decision.
+
+### Attempt 6 — trim deserialized tagger buffers (dropped)
+
+The three FST byte buffers retain excess deserialization capacity. A capacity census
+found approximately 2.00 MiB spare on 6.6 and 2.09 MiB on 5.2; shrinking them after
+loading preserves all bytes and FST operations. Measured against retained main after removing rejected attempt 5. All 24 goldens
+and 38 library tests pass; Clippy has only existing warnings. Local five-pair
+check-time deltas (6.6 / 5.2): +0.53% / +1.24%. CI decides retention.
+
+CI passed, but instructions improved only 0.66% (55.574B → 55.208B), with
+peak RSS reductions of 0.293 MiB (6.6) and 0.449 MiB (5.2). Allocator calls
+were unchanged apart from two reallocations. Neither improvement reaches the keep
+threshold, so #54 was closed. Spare capacity need not correspond to resident pages.
+
+### Attempt 7 — inline small match graphs
+
+Keep up to eight match-graph groups inline; larger graphs spill into a vector.
+The current profile attributes 62.30% inclusive time to composition matching.
+This attempt is rebuilt on retained main after #53 and #54 were dropped; no first-token
+reuse or FST-capacity change is included. All 24 goldens and 38 library tests pass.
+Fresh local check deltas (6.6 / 5.2): -0.82% / -2.24%. CI decides retention.

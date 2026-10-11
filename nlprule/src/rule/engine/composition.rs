@@ -5,6 +5,7 @@ use crate::{tokenizer::tag::Tagger, types::*, utils::regex::Regex};
 use enum_dispatch::enum_dispatch;
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
+use smallvec::{smallvec, SmallVec};
 use unicase::UniCase;
 
 type Context<'a, 't> = (&'a MatchSentence<'t>, &'a MatchGraph<'t>);
@@ -497,30 +498,23 @@ pub(crate) enum GraphIndex<'t> {
 
 #[derive(Debug, Clone)]
 pub struct MatchGraph<'t> {
-    groups: Vec<Group>,
+    groups: SmallVec<[Group; 8]>,
     id_to_idx: GraphIndex<'t>,
 }
 
 impl<'t> Default for MatchGraph<'t> {
     fn default() -> Self {
         MatchGraph {
-            groups: Vec::new(),
+            groups: SmallVec::new(),
             id_to_idx: GraphIndex::Slice(&[]),
         }
     }
 }
 
 impl<'t> MatchGraph<'t> {
-    pub fn new(groups: Vec<Group>, id_to_idx: &'t [u32]) -> Self {
-        MatchGraph {
-            groups,
-            id_to_idx: GraphIndex::Slice(id_to_idx),
-        }
-    }
-
     pub fn new_map(groups: Vec<Group>, id_to_idx: &'t DefaultHashMap<GraphId, usize>) -> Self {
         MatchGraph {
-            groups,
+            groups: groups.into(),
             id_to_idx: GraphIndex::Map(id_to_idx),
         }
     }
@@ -937,10 +931,10 @@ impl Composition {
 
         let position = start;
 
-        let graph = MatchGraph::new(
-            vec![Group::default(); self.parts.len() + 1],
-            &self.id_to_idx,
-        );
+        let graph = MatchGraph {
+            groups: smallvec![Group::default(); self.parts.len() + 1],
+            id_to_idx: GraphIndex::Slice(&self.id_to_idx),
+        };
 
         self.apply_recursive(pool, sentence, position, 0, graph)
     }
