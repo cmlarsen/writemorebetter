@@ -17,14 +17,14 @@ jobs:
         include:
           - lt: "6.6"
             build_dir: data/en-lt66
-            grammar_passing: 5959
-            grammar_runnable: 6031
-            disambig_passing: 1011
+            grammar_passing: 5977
+            grammar_runnable: 6032
+            disambig_passing: 1012
             recall_min: 55
           - lt: "5.2"
             build_dir: data/en
-            grammar_passing: 4319
-            grammar_runnable: 4334
+            grammar_passing: 4320
+            grammar_runnable: 4335
             disambig_passing: 843
             recall_min: 54
     steps:
