@@ -13,6 +13,7 @@ use std::{
 };
 
 use crate::{
+    builtin::BuiltinRule,
     rule::{
         disambiguation::PosFilter,
         engine::{
@@ -488,6 +489,7 @@ impl Rules {
         build_info: &mut BuildInfo,
         spell: Spell,
         options: RulesLangOptions,
+        builtins: Vec<BuiltinRule>,
     ) -> Self {
         let rules = super::parse_structure::read_rules(path);
         let mut errors: HashMap<String, usize> = HashMap::new();
@@ -579,7 +581,11 @@ impl Rules {
             );
         }
 
-        Rules { rules, spell }
+        Rules {
+            rules,
+            spell,
+            builtins,
+        }
     }
 }
 

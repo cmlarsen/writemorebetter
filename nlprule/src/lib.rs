@@ -74,6 +74,7 @@ use std::io;
 
 use thiserror::Error;
 
+pub mod builtin;
 #[cfg(feature = "compile")]
 pub mod compile;
 mod filter;

@@ -3,7 +3,8 @@
 use crate::types::*;
 use crate::utils::parallelism::MaybeParallelRefIterator;
 use crate::{
-    rule::id::Selector, rule::MatchSentence, rule::Rule, spell::Spell, tokenizer::Tokenizer, Error,
+    builtin::BuiltinRule, rule::id::Selector, rule::MatchSentence, rule::Rule, spell::Spell,
+    tokenizer::Tokenizer, Error,
 };
 use fs_err::File;
 use serde::{Deserialize, Serialize};
@@ -41,6 +42,7 @@ impl Default for RulesLangOptions {
 pub struct Rules {
     pub(crate) rules: Vec<Rule>,
     pub(crate) spell: Spell,
+    pub(crate) builtins: Vec<BuiltinRule>,
 }
 
 impl Rules {
@@ -86,6 +88,16 @@ impl Rules {
         &mut self.rules
     }
 
+    /// All builtin rules.
+    pub fn builtins(&self) -> &[BuiltinRule] {
+        &self.builtins
+    }
+
+    /// All builtin rules (mutable).
+    pub fn builtins_mut(&mut self) -> &mut [BuiltinRule] {
+        &mut self.builtins
+    }
+
     /// Returns an iterator over all rules matching the selector.
     pub fn select<'a>(&'a self, selector: &'a Selector) -> RulesIter<'a> {
         RulesIter {
@@ -105,6 +117,12 @@ impl Rules {
     /// Compute the suggestions for the given sentence by checking all rules.
     pub fn apply(&self, sentence: &Sentence) -> Vec<Suggestion> {
         let spell_suggestions = self.spell.suggest(sentence);
+        let builtin_suggestions: Vec<Suggestion> = self
+            .builtins
+            .iter()
+            .filter(|rule| rule.enabled())
+            .flat_map(|rule| rule.builtin().check(sentence))
+            .collect();
         let sentence = MatchSentence::new(sentence);
 
         let mut output: Vec<(usize, Suggestion)> = self
@@ -125,6 +143,7 @@ impl Rules {
             .collect();
 
         output.extend(spell_suggestions.into_iter().map(|x| (0, x)));
+        output.extend(builtin_suggestions.into_iter().map(|x| (0, x)));
 
         output.sort_by(|(ia, a), (ib, b)| {
             a.span()
@@ -245,6 +264,7 @@ where
         Self {
             rules,
             spell: Spell::default(),
+            builtins: Vec::new(),
         }
     }
 }
