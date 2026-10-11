@@ -10,7 +10,7 @@ use fs_err as fs;
 use log::warn;
 
 use crate::{
-    builtin::{en::WordRepeat, Builtin, BuiltinRule},
+    builtin::{en::UppercaseSentenceStart, en::WordRepeat, Builtin, BuiltinRule},
     tokenizer::Tokenizer,
 };
 
@@ -23,11 +23,18 @@ pub(crate) fn for_language(
     tokenizer: &Tokenizer,
 ) -> Result<Vec<BuiltinRule>, Error> {
     match lang_code.trim() {
-        "en" => Ok(vec![BuiltinRule::new(Builtin::WordRepeat(word_repeat(
-            build_dir, tokenizer,
-        )))]),
+        "en" => Ok(vec![
+            BuiltinRule::new(Builtin::WordRepeat(word_repeat(build_dir, tokenizer))),
+            BuiltinRule::new(Builtin::UppercaseSentenceStart(uppercase_sentence_start(
+                build_dir,
+            ))),
+        ]),
         _ => Ok(Vec::new()),
     }
+}
+
+fn uppercase_sentence_start(build_dir: &Path) -> UppercaseSentenceStart {
+    UppercaseSentenceStart::new(read_list(build_dir, "uppercase_sentence_start_exceptions"))
 }
 
 fn word_repeat(build_dir: &Path, tokenizer: &Tokenizer) -> WordRepeat {

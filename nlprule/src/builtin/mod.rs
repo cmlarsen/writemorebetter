@@ -19,6 +19,8 @@ pub mod en;
 pub enum Builtin {
     /// Flags a word that is immediately repeated, e.g. `"the the"`.
     WordRepeat(en::WordRepeat),
+    /// Flags a sentence that does not start with an uppercase letter.
+    UppercaseSentenceStart(en::UppercaseSentenceStart),
 }
 
 impl Builtin {
@@ -27,6 +29,7 @@ impl Builtin {
     pub fn id(&self) -> &str {
         match self {
             Builtin::WordRepeat(rule) => rule.id(),
+            Builtin::UppercaseSentenceStart(rule) => rule.id(),
         }
     }
 
@@ -40,6 +43,7 @@ impl Builtin {
     pub fn check_text(&self, sentences: &[Sentence]) -> Vec<Suggestion> {
         match self {
             Builtin::WordRepeat(rule) => sentences.iter().flat_map(|x| rule.check(x)).collect(),
+            Builtin::UppercaseSentenceStart(rule) => rule.check(sentences),
         }
     }
 }
