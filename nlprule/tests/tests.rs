@@ -1361,3 +1361,196 @@ fn builtin_wrong_word_is_wired_into_suggest() {
         .expect("the confused word is flagged");
     assert_eq!(flagged.replacements(), &["prescribed".to_string()]);
 }
+
+/// Runs the simple-replace builtins over a paragraph and returns the flagged
+/// text and all replacements of every suggestion from `id`.
+fn builtin_simple_replace_flags(text: &str, id: &str) -> Vec<(String, Vec<String>)> {
+    let sentences: Vec<_> = TOKENIZER.pipe(text).collect();
+    let chars: Vec<char> = text.chars().collect();
+    let source = format!("BUILTIN/{}", id);
+
+    RULES
+        .builtins()
+        .iter()
+        .flat_map(|rule| rule.builtin().check_text(&sentences))
+        .filter(|suggestion| suggestion.source() == source)
+        .map(|suggestion| {
+            (
+                chars[suggestion.span().char().clone()].iter().collect(),
+                suggestion.replacements().to_vec(),
+            )
+        })
+        .collect()
+}
+
+/// Runs every simple-replace builtin over a paragraph and returns the flagged
+/// words; used for negative tests.
+fn all_simple_replace_flags(text: &str) -> Vec<(String, String)> {
+    let sentences: Vec<_> = TOKENIZER.pipe(text).collect();
+    let chars: Vec<char> = text.chars().collect();
+
+    RULES
+        .builtins()
+        .iter()
+        .flat_map(|rule| rule.builtin().check_text(&sentences))
+        .filter(|suggestion| {
+            matches!(
+                suggestion.source(),
+                "BUILTIN/EN_SIMPLE_REPLACE"
+                    | "BUILTIN/EN_US_SIMPLE_REPLACE"
+                    | "BUILTIN/EN_DIACRITICS_REPLACE_ORTHOGRAPHY"
+                    | "BUILTIN/EN_CONTRACTION_SPELLING"
+            )
+        })
+        .map(|suggestion| {
+            (
+                suggestion.source().to_owned(),
+                chars[suggestion.span().char().clone()].iter().collect(),
+            )
+        })
+        .collect()
+}
+
+#[test]
+fn builtin_simple_replace_flags_us_word() {
+    assert_eq!(
+        builtin_simple_replace_flags("Are baked crisps healthy?", "EN_US_SIMPLE_REPLACE"),
+        vec![("crisps".to_string(), vec!["chips".to_string()])]
+    );
+}
+
+#[test]
+fn builtin_simple_replace_flags_general_phrase() {
+    assert_eq!(
+        builtin_simple_replace_flags("We met at Sankt Moritz.", "EN_SIMPLE_REPLACE"),
+        vec![("Sankt Moritz".to_string(), vec!["Saint Moritz".to_string()])]
+    );
+}
+
+#[test]
+fn builtin_simple_replace_flags_diacritics() {
+    assert_eq!(
+        builtin_simple_replace_flags(
+            "He used the word blase.",
+            "EN_DIACRITICS_REPLACE_ORTHOGRAPHY"
+        ),
+        vec![("blase".to_string(), vec!["blasé".to_string()])]
+    );
+}
+
+#[test]
+fn builtin_simple_replace_flags_contraction() {
+    assert_eq!(
+        builtin_simple_replace_flags("I dont know.", "EN_CONTRACTION_SPELLING"),
+        vec![("dont".to_string(), vec!["don't".to_string()])]
+    );
+}
+
+#[test]
+fn builtin_simple_replace_contraction_is_case_sensitive() {
+    assert_eq!(
+        builtin_simple_replace_flags("I DONT know.", "EN_CONTRACTION_SPELLING"),
+        vec![("DONT".to_string(), vec!["DON'T".to_string()])]
+    );
+    // There is no table entry for this mixed casing.
+    assert!(builtin_simple_replace_flags("I DoNT know.", "EN_CONTRACTION_SPELLING").is_empty());
+}
+
+#[test]
+fn builtin_simple_replace_capitalizes_phrase_suggestion() {
+    assert_eq!(
+        builtin_simple_replace_flags("Crisps are baked.", "EN_US_SIMPLE_REPLACE"),
+        vec![("Crisps".to_string(), vec!["Chips".to_string()])]
+    );
+}
+
+#[test]
+fn builtin_simple_replace_flags_inside_curly_quotes() {
+    // The opening quote is skipped when finding the sentence start, so the
+    // suggestion is capitalized as the first word of the sentence.
+    assert_eq!(
+        builtin_simple_replace_flags("\u{201c}crisps\u{201d} are baked.", "EN_US_SIMPLE_REPLACE"),
+        vec![("crisps".to_string(), vec!["Chips".to_string()])]
+    );
+}
+
+#[test]
+fn builtin_simple_replace_treats_em_dash_joined_words_as_one_token() {
+    // The tokenizer keeps an em-dash-joined run as a single token, so a table
+    // word inside it is not matched. This mirrors the word-repeat builtin.
+    assert!(builtin_simple_replace_flags("crisps\u{2014}then", "EN_US_SIMPLE_REPLACE").is_empty());
+}
+
+#[test]
+fn builtin_simple_replace_flags_before_ellipsis() {
+    assert_eq!(
+        builtin_simple_replace_flags("crisps\u{2026}then", "EN_US_SIMPLE_REPLACE"),
+        vec![("crisps".to_string(), vec!["Chips".to_string()])]
+    );
+}
+
+#[test]
+fn builtin_simple_replace_flags_across_u2028() {
+    assert_eq!(
+        builtin_simple_replace_flags("crisps\u{2028}are stale", "EN_US_SIMPLE_REPLACE"),
+        vec![("crisps".to_string(), vec!["Chips".to_string()])]
+    );
+}
+
+#[test]
+fn builtin_simple_replace_phrase_spans_curly_quoted_dialogue() {
+    assert_eq!(
+        builtin_simple_replace_flags(
+            "\u{201c}We met at Sankt Moritz,\u{201d} she said.",
+            "EN_SIMPLE_REPLACE"
+        ),
+        vec![("Sankt Moritz".to_string(), vec!["Saint Moritz".to_string()])]
+    );
+}
+
+#[test]
+fn builtin_simple_replace_contraction_is_wired_into_suggest() {
+    let suggestions = RULES.suggest("I dont know.", &*TOKENIZER);
+    let flagged = suggestions
+        .iter()
+        .find(|suggestion| suggestion.source() == "BUILTIN/EN_CONTRACTION_SPELLING")
+        .expect("a missing apostrophe is flagged");
+    assert_eq!(flagged.replacements(), &["don't".to_string()]);
+}
+
+#[test]
+fn builtin_simple_replace_ignores_correctly_punctuated_fiction() {
+    for text in &[
+        "\u{201c}I didn\u{2019}t know,\u{201d} she said\u{2014}then paused\u{2026}",
+        "\u{2018}Doesn\u{2019}t matter,\u{2019} he said. \u{2018}It\u{2019}s Marta\u{2019}s coat.\u{2019}",
+        "He opened the door\u{2014}then stopped. It was quiet\u{2014}too quiet.",
+        "It wasn\u{2019}t Marta\u{2019}s coat, and it wasn\u{2019}t her hat.",
+        "She waited\u{2026} and waited. Nobody came.",
+        "She waited.\u{2028}Nothing came.",
+        "\u{201c}We\u{2019}re not going,\u{201d} he said, \u{201c}and that\u{2019}s final.\u{201d}",
+        "I won\u{2019}t go, and you don\u{2019}t have to either.",
+    ] {
+        let flags = all_simple_replace_flags(text);
+        assert!(flags.is_empty(), "unexpected flags for {:?}: {:?}", text, flags);
+    }
+}
+
+#[test]
+fn builtin_simple_replace_ignores_correct_words_that_look_like_table_entries() {
+    // "Its" is not "it's", "resume" is not a foreign word here, and a plain
+    // "cafe" is not in the diacritics table (only "cafe au lait" and friends).
+    for text in &[
+        "Its cover was torn.",
+        "Please resume the work.",
+        "We drank coffee at the cafe.",
+        "The frame was wrought of iron.",
+    ] {
+        let flags = all_simple_replace_flags(text);
+        assert!(
+            flags.is_empty(),
+            "unexpected flags for {:?}: {:?}",
+            text,
+            flags
+        );
+    }
+}
