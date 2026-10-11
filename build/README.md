@@ -85,6 +85,62 @@ python build/make_build_dir.py \
 
 Chunker binaries can be downloaded from http://opennlp.sourceforge.net/models-1.5/.
 
+#### Generating a build dir from the latest LanguageTool release
+
+The commands below generate an English build directory straight from the latest LanguageTool
+desktop release (6.6 at the time of writing) with a portable JRE, so no system-wide Java is
+required. They were run on macOS arm64; `build/fetch_lt.sh` selects the platform itself.
+
+```bash
+# 1. Download LanguageTool-stable.zip and a portable Temurin 21 JRE into the cache.
+#    Re-running is cheap: anything already present is reused. The script prints
+#    LT_VERSION, LT_DIR and JAVA_BIN, which eval exports for the steps below.
+#    (Nothing is installed system-wide and no sudo is needed.)
+eval "$(build/fetch_lt.sh data/cache)"
+
+# 2. Install the Python dependencies into a venv.
+python3 -m venv data/venv
+data/venv/bin/pip install -r build/requirements.txt
+
+# 3. LanguageTool 6.6 keeps the tagger dictionary and the Morfologik speller dictionaries
+#    inside a jar; extract them next to the other English resources so make_build_dir.py
+#    can read them from disk (the tagger dictionary used to sit in resource/en/ directly).
+unzip -o "$LT_DIR/libs/english-pos-dict.jar" \
+    'org/languagetool/resource/en/english.dict' \
+    'org/languagetool/resource/en/english.info' \
+    'org/languagetool/resource/en/hunspell/*.dict' \
+    'org/languagetool/resource/en/hunspell/*.info' \
+    -d "$LT_DIR"
+
+# 4. Generate the build directory. No chunker model flags: the chunker is reused from the
+#    published en.zip in the next step. LanguageTool loads English rules from grammar.xml
+#    and style.xml; make_build_dir.py merges style.xml's categories into grammar.xml so
+#    nlprule sees the full rule set.
+data/venv/bin/python build/make_build_dir.py \
+    --lt_dir "$LT_DIR" \
+    --lang_code en \
+    --tag_dict_path "$LT_DIR/org/languagetool/resource/en/english.dict" \
+    --tag_info_path "$LT_DIR/org/languagetool/resource/en/english.info" \
+    --spell_map_path "$LT_DIR/org/languagetool/rules/en/contractions.txt" \
+    --java "$JAVA_BIN" \
+    --out_dir data/en-lt66
+
+# 5. Reuse the chunker model and the builtin data from the published build dir.
+curl -sSL -o data/en.zip https://f000.backblazeb2.com/file/nlprule/en.zip
+unzip -q data/en.zip -d data
+cp data/en/chunker.json data/en-lt66/chunker.json
+mkdir -p data/en-lt66/builtin
+cp -r build/builtin-data/en/. data/en-lt66/builtin/
+```
+
+To build and test the binaries from the new directory, use the same commands as above with
+`--build-dir data/en-lt66` instead of `--build-dir data/en`.
+
+Note: with LanguageTool 6.6 this currently fails to compile. Its `disambiguation.xml` uses
+`<disambig action="add" postag="JJS">` in the rule `SECOND_LARGEST_JJS`, and the compiler
+rejects a `postag` on an `add` disambiguation (`postag not supported for `add``). This is a
+compiler limitation, not a build-dir problem; the rest of the directory is generated as above.
+
 #### German
 
 ```bash
