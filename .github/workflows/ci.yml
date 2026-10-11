@@ -50,7 +50,7 @@ jobs:
       - name: Public corpus recall
         run: |
           cargo build --release --manifest-path bench/tools/wmb-probe/Cargo.toml
-          python3 bench/tools/public_recall.py --min 51
+          python3 bench/tools/public_recall.py --min 53
 
       - name: Disambiguation conformance
         env:
@@ -85,7 +85,7 @@ jobs:
             echo "::error::Grammar conformance failed: ${passing:-?}/${runnable:-?} rules passing"
             exit 1
           fi
-          if [ "${runnable}" -lt 3749 ]; then
-            echo "::error::Grammar conformance regressed: ${runnable} runnable rules, baseline is 3749 (docs/BASELINE.md)"
+          if [ "${runnable}" -lt 3989 ]; then
+            echo "::error::Grammar conformance regressed: ${runnable} runnable rules, baseline is 3989 (docs/BASELINE.md)"
             exit 1
           fi
