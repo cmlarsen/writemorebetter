@@ -1,0 +1,19 @@
+4 | SPELLCHECK/SINGLE | "Aldermere" -> [] | Possibly misspelled word.
+8 | REDUNDANCY/WHETHER/6 | "whether or not" -> ["whether"] | Consider shortening this phrase to just whether. It is correct though if you mean 'regardless of whether'.
+13 | SPELLCHECK/SINGLE | "occured" -> ["occurred", "occur", "accused", "occurs", "occupied", "obscured", "accrued", "scoured", "occluded", "accursed"] | Possibly misspelled word.
+16 | SPELLCHECK/SINGLE | "neccessary" -> ["necessary"] | Possibly misspelled word.
+22 | PUNCTUATION/PRP_COMMA/0 | "us" -> ["us,"] | Consider adding a comma here.
+23 | SPELLCHECK/SINGLE | "accomodate" -> ["accommodate", "accommodates", "accommodated"] | Possibly misspelled word.
+25 | BUILTIN/ENGLISH_WORD_REPEAT_RULE | "was was" -> ["was"] | Possible typo: you repeated a word.
+29 | SPELLCHECK/SINGLE | "arguement" -> ["argument", "agreement", "arguments"] | Possibly misspelled word.
+33 | BUILTIN/ENGLISH_WORD_REPEAT_RULE | "on on" -> ["on"] | Possible typo: you repeated a word.
+38 | GRAMMAR/MISSING_TO_BEFORE_A_VERB/3 | "like take" -> ["like to take"] | The verb "take" needs to be in the to-infinitive form.
+42 | GRAMMAR/IS_VBZ/0 | "is seems" -> ["is seeming", "it seems", "seems"] | The verb form seems incorrect.
+51 | PUNCTUATION/COMMA_COMPOUND_SENTENCE/0 | "watching and" -> ["watching, and"] | Use a comma before 'and' if it connects two independent clauses (unless they are closely connected and short).
+64 | SPELLCHECK/SINGLE | "Teodor" -> ["Theodor", "Theodore", "vendor", "Tudor", "Theodora", "Leonor"] | Possibly misspelled word.
+77 | GRAMMAR/BEEN_PART_AGREEMENT/0 | "have" -> ["had", "hadst", "having"] | Consider using either the past participle had or the present participle having here.|Consider using either the past participle hadst or the present participle having here.
+81 | BUILTIN/COMMA_PARENTHESIS_WHITESPACE | ",and" -> [", and"] | Put a space after the comma.
+86 | GRAMMAR/A_INFINITIVE/0 | "the heal" -> [] | After 'the', do not use a verb. Make sure that the spelling of 'heal' is correct. If 'heal' is the first word in a compound adjective, use a hyphen between the two words. Note: This error message can occur if you use a verb as a noun, and the word is not a noun in standard English.
+89 | SPELLCHECK/SINGLE | "embarass" -> ["embarrass", "embarks"] | Possibly misspelled word.
+90 | SPELLCHECK/SINGLE | "tomorow" -> ["tomorrow", "Comoros", "tomorrows"] | Possibly misspelled word.
+93 | GRAMMAR/MOST_COMPARATIVE/1 | "more better" -> ["better"] | Use only better (without 'more') when you use the comparative.

@@ -1,0 +1,15 @@
+4 | SPELLCHECK/SINGLE | "Kerrow" -> ["terror", "Kerry", "Kerr", "regrow", "Kerri", "Jerrod", "Karroo", "Cerro"] | Possibly misspelled word.
+5 | SPELLCHECK/SINGLE | "Bellhaven" -> [] | Possibly misspelled word.
+13 | SPELLCHECK/SINGLE | "recieve" -> ["receive", "relieve", "received", "believe", "receiver", "receives", "retrieve", "relieved", "revive", "recipe"] | Possibly misspelled word.
+17 | SPELLCHECK/SINGLE | "untill" -> ["until", "uphill", "infill", "instill", "untied", "unwell", "untold", "untie", "untidy", "anthill"] | Possibly misspelled word.
+25 | GRAMMAR/DT_DT/0 | "the the" -> ["the", "the"] | Maybe you need to remove one determiner so that only the or the is left.
+28 | BUILTIN/ENGLISH_WORD_REPEAT_RULE | "into into" -> ["into"] | Possible typo: you repeated a word.
+29 | SPELLCHECK/SINGLE | "seperate" -> ["separate", "separated", "generate", "desperate", "temperate", "separates", "sewerage", "venerate", "serrate", "federate"] | Possibly misspelled word.
+31 | BUILTIN/COMMA_PARENTHESIS_WHITESPACE | " ," -> [","] | Put a space after the comma, but not before the comma.
+32 | CONFUSED_WORDS/TROUGH_THROUGH/0 | "trough" -> ["through"] | Did you mean the preposition through (e.g. "walk through a door")?
+33 | GRAMMAR/A_NNS/1 | "a boxes" -> ["a box", "boxes"] | The plural noun "boxes" cannot be used with the article "a". Did you mean a box or boxes?
+40 | SPELLCHECK/SINGLE | "definately" -> ["definitely", "delicately", "defiantly"] | Possibly misspelled word.
+41 | SPELLCHECK/SINGLE | "wierd" -> ["wired", "weird", "wield", "were", "where", "died", "field", "word", "aired", "wind"] | Possibly misspelled word.
+42 | SPELLCHECK/SINGLE | "beleive" -> ["believe", "believed", "receive", "believes", "relieve", "believer", "deceive", "relive", "beehive", "belie"] | Possibly misspelled word.
+57 | PUNCTUATION/COMMA_COMPOUND_SENTENCE/0 | "failed and" -> ["failed, and"] | Use a comma before 'and' if it connects two independent clauses (unless they are closely connected and short).
+90 | PUNCTUATION/COMMA_COMPOUND_SENTENCE/0 | "change and" -> ["change, and"] | Use a comma before 'and' if it connects two independent clauses (unless they are closely connected and short).
