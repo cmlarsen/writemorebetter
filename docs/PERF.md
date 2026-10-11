@@ -239,7 +239,11 @@ attempts total. Phase 0 establishes measurement and does not count as an optimiz
 | 6 | [#54](https://github.com/cmlarsen/writemorebetter/pull/54) | Trim spare capacity from tagger FST buffers | -0.66% | -0.293 MiB | -0.449 MiB | +0.53% / +1.24% (interleaved, loaded) | dropped |
 | 7 | [#55](https://github.com/cmlarsen/writemorebetter/pull/55) | Inline buffers for small match graphs | -0.74% | -2.496 MiB | -0.137 MiB | -0.82% / -2.24% (interleaved, loaded) | kept |
 | 8 | [#56](https://github.com/cmlarsen/writemorebetter/pull/56) | Inline buffers for short speller rows | +3.78% | -2.105 MiB | +0.012 MiB | +0.16% / -1.36% (interleaved, loaded) | dropped |
-| 9 | pending | LZ4-compressed lazy examples | pending | pending | pending | -2.87% / -1.04% (interleaved, loaded) | pending |
+| 9 | [#57](https://github.com/cmlarsen/writemorebetter/pull/57) | LZ4-compressed lazy examples | -0.17% | -3.410 MiB | -0.606 MiB | -2.87% / -1.04% (interleaved, loaded) | kept |
+| 10 | [#58](https://github.com/cmlarsen/writemorebetter/pull/58) | Reuse chunker beam heaps | -0.46% / -0.41% (rerun) | +1.496 / -0.457 MiB | -0.000 / -0.020 MiB | -0.97% / -2.75% (interleaved, loaded) | dropped |
+| 11 | [#61](https://github.com/cmlarsen/writemorebetter/pull/61) | Prefer the longest mandatory literal for absence guards | -1.52% | -0.555 MiB | +0.082 MiB | +2.40% / +1.23% (interleaved, loaded) | kept |
+| 12 | [#60](https://github.com/cmlarsen/writemorebetter/pull/60) | Share lazy compiled regex backends for identical sources | -0.16% | -2.992 MiB | -0.984 MiB | +1.13% / -1.26% (interleaved, loaded) | kept |
+| 13 | [#59](https://github.com/cmlarsen/writemorebetter/pull/59) | Compact contiguous NFA for multiword tagging | +1.28% | -8.441 MiB | -2.289 MiB | +1.57% / +0.32% (interleaved, loaded) | kept (coordinator-approved) |
 | 15 | [#63](https://github.com/cmlarsen/writemorebetter/pull/63) | Raise boolean-regex cache to 2048 slots per thread | pending | pending | pending | +0.93% / -1.31% (interleaved, loaded) | pending |
 
 
@@ -422,6 +426,88 @@ Fresh five-pair Moby medians on retained main: 6.6 check 2.8907 → 2.8079 s
 (-2.87%), peak 88.95 → 87.91 MiB (-1.05); 5.2 check 3.3020 →
 3.2677 s (-1.04%), peak 72.19 → 71.70 MiB (-0.48). The machine was
 busy, including conformance runs; wall time is informational.
+
+CI for attempt 9 passed: instructions 55.169B → 55.072B (-0.17%), allocator calls
+unchanged, 6.6 peak 87.617 → 84.207 MiB (-3.410), 5.2 peak 68.930 → 68.324 MiB
+(-0.606); loaded RSS fell 3.582 MiB on 6.6. #57 was retained as a memory win.
+
+### Attempt 13 — contiguous NFA for multiword tagging
+
+The retained-main allocation profile found 12.92 MiB of live heap in the multiword
+Aho-Corasick automaton (the sparse NFA from aho-corasick 0.7). aho-corasick 1.x offers a
+contiguous NFA that stores the same trie in one buffer; the matcher is built with
+`AhoCorasickKind::ContiguousNFA` and keeps standard match semantics and pattern IDs.
+A differential test compares old (0.7 sparse NFA) and new automata on ambiguous,
+duplicate, Unicode, curly-punctuation and U+2028 patterns. Serialized fields are unchanged,
+so no format version moves. All 24 goldens, fmt, clippy and the workspace tests pass.
+
+Local interleaved pairs under load (five per case, timing informational):
+
+| Rules | Text | Check before/after (s) | Check Δ | Peak before/after (MiB) | Peak Δ (MiB) |
+|---|---|---|---:|---|---:|
+| 52 | moby150k | 1.9928 / 1.9992 | +0.32% | 71.56 / 69.39 | -2.17 |
+| 52 | story1 | 0.1538 / 0.1579 | +2.70% | 63.45 / 61.92 | -1.53 |
+| 66 | moby150k | 2.3816 / 2.4190 | +1.57% | 88.08 / 83.20 | -4.88 |
+| 66 | story1 | 0.1825 / 0.1881 | +3.08% | 74.55 / 69.70 | -4.84 |
+
+CI for attempt 13 passed: 6.6 peak 84.371 → 75.930 MiB (-8.441), loaded RSS
+61.914 → 53.598 MiB (-8.316), 5.2 peak 68.481 → 66.191 MiB (-2.289). Instructions rose
+55.047B → 55.752B (+1.28%) and allocator calls fell 0.23%. The instruction cost exceeds the
++0.5% allowance for a memory win, so the coordinator decided: a 10% peak-RSS cut is worth
++1.28% instructions. #59 was retained with that approval.
+
+### Attempt 10 — reuse chunker beam heaps (dropped)
+
+The chunker cloned a sequence for every beam entry at every token step (198 MB of
+allocation traffic in the retained-main profile); the heaps are now swapped and the
+exhausted one cleared. All 24 goldens pass and the output is unchanged. CI measured
+55.083B → 54.831B instructions (-0.46%) with 6.6 peak +1.496 MiB, which disagreed with the
+local -1.11 MiB. The one permitted rerun measured 55.024B → 54.799B (-0.41%) and 6.6 peak
+-0.457 MiB. Neither reaches the keep threshold, so #58 was closed.
+
+### Attempt 12 — shared lazy regex backends
+
+Identical regex sources in one rule set each held their own lazily compiled backend. The
+existing process-wide pattern pool now also holds a weak reference to one shared backend
+cell per pattern, so identical patterns compile once and the backend is freed with its last
+`Regex`; a pattern reloaded afterwards recompiles lazily with the same identity. No new
+static, thread-local or unsafe state: the weak reference lives in the entry the pool already
+had. A lifecycle test covers sharing, release and lazy reload. Serialized fields are
+unchanged. All 24 goldens, fmt, clippy and the workspace tests pass.
+
+| Rules | Text | Check before/after (s) | Check Δ | Peak before/after (MiB) | Peak Δ (MiB) |
+|---|---|---|---:|---|---:|
+| 52 | moby150k | 2.1228 / 2.0960 | -1.26% | 71.53 / 70.80 | -0.73 |
+| 52 | story1 | 0.1526 / 0.1631 | +6.91% | 63.50 / 62.72 | -0.78 |
+| 66 | moby150k | 2.4933 / 2.5215 | +1.13% | 87.69 / 85.67 | -2.02 |
+| 66 | story1 | 0.1830 / 0.1773 | -3.07% | 74.31 / 73.16 | -1.16 |
+
+CI passed: on the original base 6.6 peak 86.449 → 84.043 MiB (-2.406), 5.2 peak -0.805 MiB,
+instructions 55.111B → 55.011B (-0.18%); rebased onto #59, 6.6 peak 75.492 → 72.500 MiB
+(-2.992), 5.2 peak 66.172 → 65.188 MiB (-0.984), instructions 55.744B → 55.656B (-0.16%),
+allocator calls -0.28%. Loaded RSS was flat within noise. #60 was retained as a memory win.
+
+### Attempt 11 — longest mandatory literal
+
+Attempt 4 compiled the first mandatory positive literal as the absence guard. This
+attempt chooses the longest one instead, so rarer, longer literals reject more sentences.
+Only the compile-time choice changes; no format version moves. All 24 goldens, fmt, clippy
+and the workspace tests pass, and independently built before/after engines produce
+byte-identical grammar and disambiguation passing-ID lists for both rule sets (grammar
+5,977/6,032 and 4,320/4,335; disambiguation 1,012/1,015 and 843/843 passing).
+
+| Rules | Text | Check before/after (s) | Check Δ | Peak before/after (MiB) | Peak Δ (MiB) |
+|---|---|---|---:|---|---:|
+| 52 | moby150k | 1.9780 / 2.0024 | +1.23% | 71.47 / 71.34 | -0.12 |
+| 52 | story1 | 0.1566 / 0.1577 | +0.70% | 63.42 / 63.52 | +0.09 |
+| 66 | moby150k | 2.3818 / 2.4389 | +2.40% | 87.80 / 88.19 | +0.39 |
+| 66 | story1 | 0.1838 / 0.1839 | +0.08% | 74.38 / 74.25 | -0.12 |
+
+The loaded-machine timings do not show a win (an earlier measurement on another revision
+showed -2.9%), but CI instructions fell 55.058B → 54.262B (-1.45%) on the first base and
+55.754B → 54.906B (-1.52%) after rebasing onto #59, with allocator calls -1.40% and 6.6
+peak -0.14% / -0.55 MiB (5.2 +0.15% / +0.08 MiB). #61 was retained as an instruction win
+with no RSS cost.
 
 ### Attempt 15 — larger bounded boolean-regex cache
 

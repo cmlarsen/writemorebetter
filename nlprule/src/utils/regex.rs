@@ -9,7 +9,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, Weak};
 
 pub use regex_impl::{CaptureMatches, Captures, Match, Matches};
 
@@ -19,22 +19,44 @@ pub use regex_impl::{CaptureMatches, Captures, Match, Matches};
 /// earlier pattern), and every `Regex` would otherwise own its own copy. Interning stores each
 /// distinct pattern once as an `Arc<str>` and hands out cheap clones. The pool is bounded by the
 /// number of distinct patterns and is intentionally process-wide.
-static PATTERN_POOL: Lazy<Mutex<HashMap<Arc<str>, u64>>> = Lazy::new(|| Mutex::new(HashMap::new()));
+type BackendCell = OnceCell<Box<regex_impl::Regex>>;
+
+struct PatternEntry {
+    id: u64,
+    backend: Weak<BackendCell>,
+}
+
+static PATTERN_POOL: Lazy<Mutex<HashMap<Arc<str>, PatternEntry>>> =
+    Lazy::new(|| Mutex::new(HashMap::new()));
 static NEXT_PATTERN_ID: AtomicU64 = AtomicU64::new(1);
 
-fn intern_pattern(pattern: String) -> (Arc<str>, u64) {
+fn intern_pattern(pattern: String) -> (Arc<str>, u64, Arc<BackendCell>) {
     let mut pool = PATTERN_POOL
         .lock()
         .unwrap_or_else(|error| error.into_inner());
-    if let Some((existing, id)) = pool.get_key_value(pattern.as_str()) {
-        return (existing.clone(), *id);
+    if let Some((existing, entry)) = pool.get_key_value(pattern.as_str()) {
+        let existing = existing.clone();
+        let id = entry.id;
+        let backend = entry.backend.upgrade().unwrap_or_else(|| {
+            let backend = Arc::new(BackendCell::new());
+            pool.get_mut(existing.as_ref()).unwrap().backend = Arc::downgrade(&backend);
+            backend
+        });
+        return (existing, id, backend);
     }
     let id = NEXT_PATTERN_ID
         .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |id| id.checked_add(1))
         .expect("regex pattern identity exhausted");
     let interned: Arc<str> = Arc::from(pattern);
-    pool.insert(interned.clone(), id);
-    (interned, id)
+    let backend = Arc::new(BackendCell::new());
+    pool.insert(
+        interned.clone(),
+        PatternEntry {
+            id,
+            backend: Arc::downgrade(&backend),
+        },
+    );
+    (interned, id, backend)
 }
 
 const SHORT_CACHE_SLOTS: usize = 2048;
@@ -84,11 +106,8 @@ thread_local! {
 pub struct Regex {
     regex_str: Arc<str>,
     pattern_id: u64,
-    // Boxed so the cache slot is one pointer word. `OnceCell` stores its value inline, and a
-    // compiled `fancy_regex::Regex` is large; with ~70k pattern `Regex`es in the English rule set
-    // the inline slot alone cost several MB of the loaded rules. The box costs one allocation per
-    // regex that is actually compiled. Serialization is unchanged: only `regex_str` is written.
-    regex: OnceCell<Box<regex_impl::Regex>>,
+    // The pool holds only a weak reference: compiled backends are freed with their last Regex.
+    regex: Arc<BackendCell>,
 }
 
 impl Clone for Regex {
@@ -96,7 +115,7 @@ impl Clone for Regex {
         Regex {
             regex_str: self.regex_str.clone(),
             pattern_id: self.pattern_id,
-            regex: OnceCell::new(),
+            regex: self.regex.clone(),
         }
     }
 }
@@ -132,11 +151,11 @@ impl Regex {
     /// Note that the regex compilation happens on first use, which is why this method does not
     /// return a result.
     pub fn new(regex_str: String) -> Self {
-        let (regex_str, pattern_id) = intern_pattern(regex_str);
+        let (regex_str, pattern_id, regex) = intern_pattern(regex_str);
         Self {
             regex_str,
             pattern_id,
-            regex: OnceCell::new(),
+            regex,
         }
     }
 
@@ -593,6 +612,28 @@ cfg_if::cfg_if! {
 #[cfg(test)]
 mod short_cache_tests {
     use super::*;
+
+    #[test]
+    fn shared_backends_are_released_and_reloaded_lazily() {
+        let pattern = "^shared-backend-lifecycle-test$";
+        let first = Regex::new(pattern.into());
+        let second = Regex::new(pattern.into());
+        let cloned = first.clone();
+        assert!(Arc::ptr_eq(&first.regex, &second.regex));
+        assert!(Arc::ptr_eq(&first.regex, &cloned.regex));
+        assert!(first.is_match("shared-backend-lifecycle-test"));
+        assert!(second.regex.get().is_some());
+        let id = first.pattern_id;
+        let weak = Arc::downgrade(&first.regex);
+        drop(first);
+        drop(second);
+        drop(cloned);
+        assert!(weak.upgrade().is_none());
+        let reloaded = Regex::new(pattern.into());
+        assert_eq!(reloaded.pattern_id, id);
+        assert!(reloaded.regex.get().is_none());
+        assert!(reloaded.is_match("shared-backend-lifecycle-test"));
+    }
 
     #[test]
     fn collisions_and_empty_slots_are_misses() {

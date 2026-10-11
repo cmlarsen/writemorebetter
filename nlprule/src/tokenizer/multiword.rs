@@ -1,7 +1,7 @@
 //! Checks if the input text contains multi-token phrases from a finite list (might contain e. g. city names) and assigns lemmas and part-of-speech tags accordingly.
 
 use crate::types::*;
-use aho_corasick::{AhoCorasick, AhoCorasickBuilder};
+use aho_corasick::{AhoCorasick, AhoCorasickBuilder, AhoCorasickKind};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
@@ -11,16 +11,10 @@ pub(crate) struct MultiwordTaggerFields {
 
 impl From<MultiwordTaggerFields> for MultiwordTagger {
     fn from(data: MultiwordTaggerFields) -> Self {
-        // `AhoCorasick::new_auto_configured` enables a dense DFA for a pattern list this size
-        // (<= 5000 phrases). The DFA's transition table costs ~15 MB to hold a ~50 KB phrase
-        // list, because every state carries a row over the transition alphabet. The NFA has the
-        // exact same search semantics - `auto_configure` never touches `match_kind`, so both are
-        // `MatchKind::Standard`, which also makes `find_iter` report overlapping matches - but
-        // stores the trie's transitions sparsely. Nothing about the serialized form changes:
-        // `matcher` is `#[serde(skip)]` and is rebuilt here on every load.
         let matcher = AhoCorasickBuilder::new()
-            .dfa(false)
-            .build(data.multiwords.iter().map(|(word, _)| word.as_str()));
+            .kind(Some(AhoCorasickKind::ContiguousNFA))
+            .build(data.multiwords.iter().map(|(word, _)| word.as_str()))
+            .expect("multiword automaton must build");
         MultiwordTagger {
             matcher,
             multiwords: data.multiwords,
@@ -67,7 +61,7 @@ impl MultiwordTagger {
             if let (Some(start), Some(end)) =
                 (start_indices.get(&m.start()), end_indices.get(&m.end()))
             {
-                let (word, pos) = &self.multiwords[m.pattern()];
+                let (word, pos) = &self.multiwords[m.pattern().as_usize()];
                 // end index is inclusive
                 for token in sentence.iter_mut().skip(*start).take((end + 1) - start) {
                     let mut data =
@@ -78,6 +72,53 @@ impl MultiwordTagger {
                     *token.ignore_spelling_mut() = true;
                 }
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn compact_matcher_preserves_standard_match_order_and_utf8_offsets() {
+        let patterns = [
+            "he",
+            "she",
+            "hers",
+            "his",
+            "New York",
+            "York",
+            "São Paulo",
+            "Paulo",
+            "“a”—…",
+            "\u{2028}",
+            "she",
+        ];
+        let old = aho_corasick_old::AhoCorasickBuilder::new()
+            .dfa(false)
+            .build(patterns);
+        let compact = AhoCorasickBuilder::new()
+            .kind(Some(AhoCorasickKind::ContiguousNFA))
+            .build(patterns)
+            .unwrap();
+        for text in [
+            "ushers his she hers",
+            "New York York",
+            "São Paulo Paulo",
+            "“a”—…\u{2028}she",
+            "It’s fine—…\u{2028}",
+            "",
+        ] {
+            let expected: Vec<_> = old
+                .find_iter(text)
+                .map(|m| (m.pattern(), m.start(), m.end()))
+                .collect();
+            let actual: Vec<_> = compact
+                .find_iter(text)
+                .map(|m| (m.pattern().as_usize(), m.start(), m.end()))
+                .collect();
+            assert_eq!(actual, expected, "{text:?}");
         }
     }
 }
