@@ -23,6 +23,8 @@ pub enum Builtin {
     AVsAn(en::AVsAn),
     /// Flags a word that is immediately repeated, e.g. `"the the"`.
     WordRepeat(en::WordRepeat),
+    /// Flags a word that is easily confused with another one, based on context.
+    WrongWordInContext(en::WrongWordInContext),
     /// Flags a sentence that does not start with an uppercase letter.
     UppercaseSentenceStart(en::UppercaseSentenceStart),
     /// Flags brackets that are never closed within a paragraph.
@@ -41,6 +43,7 @@ impl Builtin {
             Builtin::CommaParenthesisWhitespace(rule) => rule.id(),
             Builtin::AVsAn(rule) => rule.id(),
             Builtin::WordRepeat(rule) => rule.id(),
+            Builtin::WrongWordInContext(rule) => rule.id(),
             Builtin::UppercaseSentenceStart(rule) => rule.id(),
             Builtin::UnpairedBrackets(rule) => rule.id(),
             Builtin::UnpairedQuotes(rule) => rule.id(),
@@ -60,6 +63,7 @@ impl Builtin {
             Builtin::CommaParenthesisWhitespace(rule) => rule.check_sentences(sentences),
             Builtin::AVsAn(rule) => sentences.iter().flat_map(|x| rule.check(x)).collect(),
             Builtin::WordRepeat(rule) => sentences.iter().flat_map(|x| rule.check(x)).collect(),
+            Builtin::WrongWordInContext(rule) => rule.check_sentences(sentences),
             Builtin::UppercaseSentenceStart(rule) => rule.check(sentences),
             Builtin::UnpairedBrackets(rule) => rule.check(sentences),
             Builtin::UnpairedQuotes(rule) => rule.check(sentences),
