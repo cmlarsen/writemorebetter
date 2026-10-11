@@ -174,8 +174,14 @@ impl Rules {
                 let range = span.char().start.min(mask.len())..span.char().end.min(mask.len());
 
                 if mask[range.clone()].iter().all(|x| !x) {
-                    mask[range].iter_mut().for_each(|x| *x = true);
-                    Some(suggestion)
+                    mask[range.clone()].iter_mut().for_each(|x| *x = true);
+                    let original: String = sentence
+                        .text()
+                        .chars()
+                        .skip(range.start)
+                        .take(range.len())
+                        .collect();
+                    Some(suggestion.match_apostrophes(&original))
                 } else {
                     None
                 }
