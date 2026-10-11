@@ -36,6 +36,22 @@ cp -r build/builtin-data/en/. data/en/builtin/
   `EnglishWordRepeatRule`. A single word allows that word to be repeated; a
   multi-word entry allows the exact token sequence to contain the repetition
   (used for LanguageTool's phrase- and part-of-speech-based exceptions).
+- `simple_replace_general.txt` — the general wrong-word/phrase table for the
+  English `SimpleReplace` builtin (LanguageTool rule `EN_SIMPLE_REPLACE`),
+  copied verbatim from LanguageTool's `en/replace.txt`. Kept in LanguageTool's
+  `wrong=replacement` format so it can be refreshed; `|` separates alternative
+  forms or suggestions and a tab introduces a per-entry message.
+- `simple_replace_us.txt` — British words that are wrong in American English
+  (LanguageTool rule `EN_US_SIMPLE_REPLACE`), copied verbatim from
+  LanguageTool's `en/en-US/replace.txt` in the same format.
+- `simple_replace_diacritics.txt` — words that should carry a diacritic
+  (LanguageTool rule `EN_DIACRITICS_REPLACE_ORTHOGRAPHY`), copied verbatim from
+  LanguageTool's `en/diacritics.txt` in the same format.
+- `simple_replace_contractions.txt` — contractions missing their apostrophe
+  (LanguageTool rule `EN_CONTRACTION_SPELLING`), copied verbatim from
+  LanguageTool's `en/contractions.txt`. This table is matched
+  case-sensitively and one token at a time, so the file keeps its
+  case-sensitive forms (`Aint`, `AINT`, ...).
 - `wrong_word_in_context.txt` — pairs of commonly confused words with the
   contexts in which each of them occurs, taken from LanguageTool's
   `wrongWordInContext.txt` and used by the

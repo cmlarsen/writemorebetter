@@ -23,6 +23,9 @@ pub enum Builtin {
     AVsAn(en::AVsAn),
     /// Flags a word that is immediately repeated, e.g. `"the the"`.
     WordRepeat(en::WordRepeat),
+    /// Flags words or phrases from a replacement table, e.g. `"crisps"` in
+    /// American English.
+    SimpleReplace(en::SimpleReplace),
     /// Flags a word that is easily confused with another one, based on context.
     WrongWordInContext(en::WrongWordInContext),
     /// Flags a sentence that does not start with an uppercase letter.
@@ -43,6 +46,7 @@ impl Builtin {
             Builtin::CommaParenthesisWhitespace(rule) => rule.id(),
             Builtin::AVsAn(rule) => rule.id(),
             Builtin::WordRepeat(rule) => rule.id(),
+            Builtin::SimpleReplace(rule) => rule.id(),
             Builtin::WrongWordInContext(rule) => rule.id(),
             Builtin::UppercaseSentenceStart(rule) => rule.id(),
             Builtin::UnpairedBrackets(rule) => rule.id(),
@@ -63,6 +67,7 @@ impl Builtin {
             Builtin::CommaParenthesisWhitespace(rule) => rule.check_sentences(sentences),
             Builtin::AVsAn(rule) => sentences.iter().flat_map(|x| rule.check(x)).collect(),
             Builtin::WordRepeat(rule) => sentences.iter().flat_map(|x| rule.check(x)).collect(),
+            Builtin::SimpleReplace(rule) => sentences.iter().flat_map(|x| rule.check(x)).collect(),
             Builtin::WrongWordInContext(rule) => rule.check_sentences(sentences),
             Builtin::UppercaseSentenceStart(rule) => rule.check(sentences),
             Builtin::UnpairedBrackets(rule) => rule.check(sentences),
