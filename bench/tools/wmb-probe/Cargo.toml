@@ -8,3 +8,5 @@ libc = "0.2"
 serde_json = "1"
 [profile.release]
 debug = false
+
+[workspace]
