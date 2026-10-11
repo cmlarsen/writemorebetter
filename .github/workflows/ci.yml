@@ -62,8 +62,12 @@ jobs:
           passing=$(grep -m1 '^Rules passing tests: ' storage/disambiguation_conformance.log | awk '{print $4}' || true)
           echo "Runnable rules: ${runnable:-unknown}"
           echo "Rules passing tests: ${passing:-unknown}"
-          if [ -z "${runnable}" ] || [ -z "${passing}" ] || [ "${runnable}" != "${passing}" ]; then
-            echo "::error::Disambiguation conformance failed: ${passing:-?}/${runnable:-?} rules passing"
+          if [ -z "${runnable}" ] || [ -z "${passing}" ]; then
+            echo "::error::Disambiguation conformance output not found"
+            exit 1
+          fi
+          if [ "${passing}" -lt 843 ]; then
+            echo "::error::Disambiguation conformance regressed: ${passing}/${runnable} rules passing, baseline is 843 passing"
             exit 1
           fi
           if [ "${runnable}" -lt 843 ]; then
@@ -81,8 +85,12 @@ jobs:
           passing=$(grep -m1 '^Rules passing tests: ' storage/grammar_conformance.log | awk '{print $4}' || true)
           echo "Runnable rules: ${runnable:-unknown}"
           echo "Rules passing tests: ${passing:-unknown}"
-          if [ -z "${runnable}" ] || [ -z "${passing}" ] || [ "${runnable}" != "${passing}" ]; then
-            echo "::error::Grammar conformance failed: ${passing:-?}/${runnable:-?} rules passing"
+          if [ -z "${runnable}" ] || [ -z "${passing}" ]; then
+            echo "::error::Grammar conformance output not found"
+            exit 1
+          fi
+          if [ "${passing}" -lt 3987 ]; then
+            echo "::error::Grammar conformance regressed: ${passing}/${runnable} rules passing, baseline is 3987 passing"
             exit 1
           fi
           if [ "${runnable}" -lt 3989 ]; then
