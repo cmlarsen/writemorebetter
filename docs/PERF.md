@@ -234,7 +234,8 @@ attempts total. Phase 0 establishes measurement and does not count as an optimiz
 | 1 | [#49](https://github.com/cmlarsen/writemorebetter/pull/49) | Bounded short-input boolean-regex cache | -9.75% | +0.383 MiB | +0.129 MiB | -3.03% / -5.94% (interleaved, loaded) | kept |
 | 2 | [#50](https://github.com/cmlarsen/writemorebetter/pull/50) | Immutable composition buffers as boxed slices | -0.37% | +1.230 MiB | -0.191 MiB | +1.94% / -2.20% (interleaved, loaded) | dropped |
 | 3 | [#51](https://github.com/cmlarsen/writemorebetter/pull/51) | Shared antipattern compositions in each rule set | +0.22% | -5.918 MiB | -1.395 MiB | +0.88% / -0.06% (interleaved, loaded) | kept |
-| 4 | pending | Later mandatory-literal absence guard | pending | pending | pending | -5.02% / -4.40% (interleaved, loaded) | pending |
+| 4 | [#52](https://github.com/cmlarsen/writemorebetter/pull/52) | Later mandatory-literal absence guard | -23.79% | -2.277 MiB | +0.102 MiB | -5.02% / -4.40% (interleaved, loaded) | kept |
+| 5 | pending | Reuse successful first-token match | pending | pending | pending | -1.35% / +0.73% (interleaved, loaded) | pending |
 
 
 Phase 0 merge-base measurements (Ubuntu): 6.6 check 5.2510 s, peak 91.4414 MiB,
@@ -336,4 +337,20 @@ All 24 goldens and 38 library tests pass, including long-s/ß/Kelvin folds and c
 punctuation/U+2028. Tokenizer/rules formats advance to 7/9. Fresh interleaved Moby
 medians: 6.6 check 2.7488 → 2.6109 s (-5.02%), peak 90.33 → 90.23 MiB;
 5.2 check 2.2601 → 2.1606 s (-4.40%), peak 73.20 → 72.52 MiB. Story medians
-improved 3.3–8.3% across the two sets. CI decides retention.
+improved 3.3–8.3% across the two sets. CI passed: instructions 72.938B → 55.587B
+(-23.79%), allocator calls 46.957M → 38.283M (-18.47%), 6.6 peak
+87.730 → 85.453 MiB (-2.277), 5.2 peak 69.105 → 69.207 MiB (+0.102).
+The small 5.2 RSS cost is inside the coordinator's tradeoff tolerance; #52 was retained.
+
+### Attempt 5 — reuse the first successful token match
+
+The first mandatory atom is tested before allocating a graph, then was tested again at
+the start of recursive matching. Seed its group span and initial count from that successful
+test; optional-first behavior and recursive-transition count resets remain unchanged.
+The sequential profile attributes 60.6% inclusive time to composition matching and 11.9%
+self time to atom matching. All 24 goldens and 38 library tests pass, and exact sorted
+embedded-example passing-ID lists are identical for both rule sets: 5,977/6,032 (99.09%)
+and 4,320/4,335 (99.65%). Both data sets were rebuilt; Clippy has no new warnings.
+Local interleaved Moby medians: 6.6 check 2.6935 → 2.6570 s (-1.35%), peak
+90.80 → 89.58 MiB; 5.2 check 3.2325 → 3.2561 s (+0.73%), peak 72.80 → 73.38 MiB.
+CI decides retention.
