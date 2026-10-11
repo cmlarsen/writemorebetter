@@ -446,7 +446,8 @@ fn memory_describe() {
         &storage.join("en_tokenizer.bin"),
         &storage.join("en_rules.bin"),
     )
-    .expect("describe") {
+    .expect("describe")
+    {
         println!("{:<52} {}", key, value);
     }
 }

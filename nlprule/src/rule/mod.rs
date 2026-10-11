@@ -2,6 +2,7 @@
 
 use crate::types::*;
 use crate::{
+    builtin::en::ArticleData,
     filter::{Filter, Filterable},
     tokenizer::Tokenizer,
     utils,
@@ -322,7 +323,9 @@ impl<'a, 't> Iterator for Suggestions<'a, 't> {
             let replacements: Vec<String> = rule
                 .suggesters
                 .iter()
-                .filter_map(|x| x.alternatives(sentence, &graph, start, end))
+                .filter_map(|x| {
+                    x.alternatives(sentence, &graph, start, end, rule.articles.as_ref())
+                })
                 .flatten()
                 .collect();
 
@@ -372,7 +375,13 @@ impl<'a, 't> Iterator for Suggestions<'a, 't> {
 
             let message = rule
                 .message
-                .apply(sentence, &graph, rule.start, rule.end)
+                .apply(
+                    sentence,
+                    &graph,
+                    rule.start,
+                    rule.end,
+                    rule.articles.as_ref(),
+                )
                 .expect("Rules must have a message.");
 
             let match_ = filter::FilterMatch {
@@ -503,6 +512,10 @@ pub struct Rule {
     pub(crate) category_type: Option<String>,
     pub(crate) unification: Option<Unification>,
     pub(crate) filter: Option<filter::RuleFilter>,
+    /// The article word lists used by `<match postag="+DT|+INDT">` in this rule,
+    /// if it uses one. Loaded from the build directory at compile time (the
+    /// lists are LanguageTool-derived data) and serialized into the rule.
+    pub(crate) articles: Option<ArticleData>,
     pub(crate) enabled: bool,
 }
 

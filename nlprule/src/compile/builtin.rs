@@ -4,6 +4,7 @@
 //! `<build_dir>/builtin/<name>.txt` and serialized into the rules binary, which
 //! keeps that LGPL data out of the engine source.
 
+use std::collections::HashSet;
 use std::path::Path;
 
 use fs_err as fs;
@@ -90,9 +91,9 @@ fn comma_parenthesis_whitespace(build_dir: &Path) -> CommaParenthesisWhitespace 
     CommaParenthesisWhitespace::new(read_list(build_dir, "comma_parenthesis_whitespace_domains"))
 }
 
-/// Reads the two article word lists. Entries from a `*`-prefixed line are kept
-/// case-sensitively; all other entries are lowercased.
-fn a_vs_an(build_dir: &Path) -> AVsAn {
+/// Reads and normalizes the two article word lists. Entries from a
+/// `*`-prefixed line are kept case-sensitively; all other entries are lowercased.
+fn a_and_an_words(build_dir: &Path) -> (HashSet<String>, HashSet<String>) {
     let normalize = |lines: Vec<String>| {
         lines
             .into_iter()
@@ -106,10 +107,24 @@ fn a_vs_an(build_dir: &Path) -> AVsAn {
             .collect()
     };
 
-    let requires_a = normalize(read_list(build_dir, "a_vs_an_a"));
-    let requires_an = normalize(read_list(build_dir, "a_vs_an_an"));
+    (
+        normalize(read_list(build_dir, "a_vs_an_a")),
+        normalize(read_list(build_dir, "a_vs_an_an")),
+    )
+}
+
+fn a_vs_an(build_dir: &Path) -> AVsAn {
+    let (requires_a, requires_an) = a_and_an_words(build_dir);
 
     AVsAn::new(requires_a, requires_an)
+}
+
+/// The article word lists for the `+DT`/`+INDT` synthesis in grammar rules
+/// (LanguageTool's `EnglishSynthesizer`), read from the same build-dir lists as
+/// the a-vs-an builtin.
+pub(crate) fn article_data(build_dir: &Path) -> ArticleData {
+    let (requires_a, requires_an) = a_and_an_words(build_dir);
+    ArticleData::new(requires_a, requires_an)
 }
 
 fn word_repeat(build_dir: &Path, tokenizer: &Tokenizer) -> WordRepeat {

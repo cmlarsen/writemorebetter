@@ -28,6 +28,74 @@ enum Determiner {
     Unknown,
 }
 
+/// The article a word takes, as used by LanguageTool's `+DT`/`+INDT`
+/// synthesizer extensions (`EnglishSynthesizer`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) enum Article {
+    /// Only "a" is correct (LanguageTool's `A` and `A_OR_AN`, where both are
+    /// acceptable and "a" is returned).
+    A,
+    /// Only "an" is correct.
+    An,
+    /// The word could not be classified (e.g. an abbreviation); add no article.
+    Unknown,
+}
+
+/// The two word lists that decide between "a" and "an".
+///
+/// Kept as plain data so it can be serialized into the rules binary (the lists
+/// are LanguageTool-derived, LGPL-2.1) and shared between the a-vs-an builtin
+/// and grammar rules that use `<match postag="+DT|+INDT">`.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub(crate) struct ArticleData {
+    /// Words (stored lowercased unless they came from a `*`-prefixed,
+    /// case-sensitive line) that take "a".
+    requires_a: HashSet<String>,
+    /// Words that take "an", with the same case normalization as `requires_a`.
+    requires_an: HashSet<String>,
+}
+
+impl ArticleData {
+    pub(crate) fn new(requires_a: HashSet<String>, requires_an: HashSet<String>) -> Self {
+        ArticleData {
+            requires_a,
+            requires_an,
+        }
+    }
+
+    /// The article a bare word takes, mirroring LanguageTool's
+    /// `AvsAnRule.suggestAorAn`/`getCorrectDeterminerFor`.
+    pub(crate) fn article(&self, word: &str) -> Article {
+        match self.determiner_for_word(word) {
+            Determiner::A | Determiner::AOrAn => Article::A,
+            Determiner::An => Article::An,
+            Determiner::Unknown => Article::Unknown,
+        }
+    }
+
+    /// The dash/quote split and cleanup LanguageTool applies before classifying.
+    fn determiner_for_word(&self, word: &str) -> Determiner {
+        let mut word = word;
+
+        if let Some(before) = word.split(['-', '\'']).next() {
+            if !before.eq_ignore_ascii_case("a") {
+                word = before;
+            }
+        }
+
+        let cleaned;
+        if word != "-" {
+            cleaned = cleanup(word);
+            if cleaned.is_empty() {
+                return Determiner::Unknown;
+            }
+            word = &cleaned;
+        }
+
+        classify(&self.requires_a, &self.requires_an, word)
+    }
+}
+
 /// Flags the wrong indefinite article before a word, e.g. `"a apple"`.
 ///
 /// Words whose spelling disagrees with their pronunciation are read from two
@@ -162,37 +230,63 @@ impl AVsAn {
             word = &cleaned;
         }
 
-        let lower = word.to_lowercase();
-        let mut determiner = Determiner::Unknown;
-
-        if self.requires_a.contains(&lower) || self.requires_a.contains(word) {
-            determiner = Determiner::A;
-        }
-        if self.requires_an.contains(&lower) || self.requires_an.contains(word) {
-            determiner = if determiner == Determiner::A {
-                Determiner::AOrAn
-            } else {
-                Determiner::An
-            };
-        }
-
-        if determiner == Determiner::Unknown {
-            let first = word.chars().next().expect("word is not empty");
-            determiner = if is_all_uppercase(word) || is_mixed_case(word) {
-                // An all-uppercase or mixed-case word is likely an abbreviation
-                // whose pronunciation is unknown, so never complain.
-                Determiner::Unknown
-            } else if matches_an_prefix(&lower)
-                || (is_vowel(first) && !matches_an_exception_prefix(&lower))
-            {
-                Determiner::An
-            } else {
-                Determiner::A
-            };
-        }
-
-        determiner
+        classify(&self.requires_a, &self.requires_an, word)
     }
+}
+
+/// Classifies `word` by the word lists and the spelling heuristic, mirroring
+/// LanguageTool's `AvsAnRule.getCorrectDeterminerFor`. `word` must be non-empty.
+fn classify(requires_a: &HashSet<String>, requires_an: &HashSet<String>, word: &str) -> Determiner {
+    let lower = word.to_lowercase();
+    let mut determiner = Determiner::Unknown;
+
+    if requires_a.contains(&lower) || requires_a.contains(word) {
+        determiner = Determiner::A;
+    }
+    if requires_an.contains(&lower) || requires_an.contains(word) {
+        determiner = if determiner == Determiner::A {
+            Determiner::AOrAn
+        } else {
+            Determiner::An
+        };
+    }
+
+    if determiner == Determiner::Unknown {
+        let first = word.chars().next().expect("word is not empty");
+        determiner = if is_all_uppercase(word) || is_mixed_case(word) {
+            // An all-uppercase or mixed-case word is likely an abbreviation
+            // whose pronunciation is unknown, so never complain.
+            Determiner::Unknown
+        } else if matches_an_prefix(&lower)
+            || (is_vowel(first) && !matches_an_exception_prefix(&lower))
+        {
+            Determiner::An
+        } else {
+            Determiner::A
+        };
+    }
+
+    determiner
+}
+
+/// The suggestion LanguageTool's `EnglishSynthesizer` produces for `+INDT`:
+/// the chosen article followed by the word (`AvsAnRule.suggestAorAn`), or the
+/// word unchanged when the article is unknown (e.g. an abbreviation).
+pub(crate) fn indefinite_article(article: Article, word: &str) -> String {
+    match article {
+        Article::A => format!("a {}", lowercase_first_char_if_capitalized(word)),
+        Article::An => format!("an {}", lowercase_first_char_if_capitalized(word)),
+        Article::Unknown => word.to_string(),
+    }
+}
+
+/// LanguageTool's `StringTools.lowercaseFirstCharIfCapitalized`: lowercases the
+/// first character of a capitalized word and leaves anything else unchanged.
+pub(crate) fn lowercase_first_char_if_capitalized(word: &str) -> String {
+    if !is_capitalized_word(word) {
+        return word.to_string();
+    }
+    crate::utils::apply_to_first(word, |c| c.to_lowercase().collect())
 }
 
 /// Whether `text` is the indefinite article "a" or "an" (any capitalization).
@@ -302,4 +396,40 @@ fn is_lowercase_letters(text: &str) -> bool {
 /// Whether `c` is one of the five vowels recognized by the rule.
 fn is_vowel(c: char) -> bool {
     matches!(c.to_ascii_lowercase(), 'a' | 'e' | 'i' | 'o' | 'u')
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn data() -> ArticleData {
+        ArticleData::new(
+            ["university", "one"]
+                .iter()
+                .map(|s| s.to_string())
+                .collect(),
+            ["hour", "honest"].iter().map(|s| s.to_string()).collect(),
+        )
+    }
+
+    #[test]
+    fn article_uses_the_word_lists_then_spelling() {
+        let data = data();
+        assert_eq!(data.article("hour"), Article::An);
+        assert_eq!(data.article("Hour"), Article::An);
+        assert_eq!(data.article("university"), Article::A);
+        assert_eq!(data.article("apple"), Article::An);
+        assert_eq!(data.article("banana"), Article::A);
+        // An all-uppercase word's pronunciation is unknown.
+        assert_eq!(data.article("NASA"), Article::Unknown);
+    }
+
+    #[test]
+    fn indefinite_article_matches_language_tool_output() {
+        assert_eq!(indefinite_article(Article::A, "page"), "a page");
+        assert_eq!(indefinite_article(Article::An, "Hour"), "an hour");
+        assert_eq!(indefinite_article(Article::An, "Apple"), "an apple");
+        // Unknown articles are left without one, as in `suggestAorAn`.
+        assert_eq!(indefinite_article(Article::Unknown, "NASA"), "NASA");
+    }
 }

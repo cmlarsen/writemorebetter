@@ -17,18 +17,19 @@ use serde::{de::DeserializeOwned, Serialize};
 
 use crate::rule::disambiguation::Disambiguation;
 use crate::rule::engine::composition::{
-    Atom, Composition, GraphId, Matcher, MatcherKind, Part, Quantifier, TextMatcher, WordDataMatcher,
+    Atom, Composition, GraphId, Matcher, MatcherKind, Part, Quantifier, TextMatcher,
+    WordDataMatcher,
 };
 use crate::rule::engine::{Engine, TokenEngine};
 use crate::rule::grammar::{Synthesizer, SynthesizerPart};
 use crate::rule::{DisambiguationRule, Rule};
 use crate::spell::Spell;
-use crate::utils::regex::Regex;
 use crate::tokenizer::chunk::{
     Chunker, MaxentChunker, MaxentPosTagger, MaxentTokenizer, Pmap, TagDict,
 };
 use crate::tokenizer::multiword::MultiwordTagger;
 use crate::types::{DefaultHashMap, PosIdInt};
+use crate::utils::regex::Regex;
 use crate::{Rules, Tokenizer};
 
 /// A component serialized to its own file by [extract_tokenizer]/[extract_rules].
@@ -992,7 +993,8 @@ pub fn describe(tokenizer_bin: &Path, rules_bin: &Path) -> Result<Vec<(String, S
     // Do identical compositions repeat across rules (e.g. a rulegroup's shared antipattern cloned
     // into every rule)? A byte hash of each composition answers whether interning would pay off.
     let mut seen_compositions: std::collections::HashSet<u64> = std::collections::HashSet::new();
-    let hash_composition = |composition: &Composition, seen: &mut std::collections::HashSet<u64>| {
+    let hash_composition = |composition: &Composition,
+                            seen: &mut std::collections::HashSet<u64>| {
         use std::hash::{Hash, Hasher};
         let bytes = bincode::serialize(composition).expect("composition serializes");
         let mut hasher = std::collections::hash_map::DefaultHasher::new();
@@ -1040,15 +1042,24 @@ pub fn describe(tokenizer_bin: &Path, rules_bin: &Path) -> Result<Vec<(String, S
     for (key, value) in [
         ("grammar token compositions", stats.compositions),
         ("grammar composition parts (main)", stats.main_parts),
-        ("grammar composition parts (antipattern)", stats.antipattern_parts),
+        (
+            "grammar composition parts (antipattern)",
+            stats.antipattern_parts,
+        ),
         ("grammar antipattern compositions", stats.antipatterns),
         ("grammar id_to_idx entries", stats.id_to_idx),
         ("grammar atom ChunkAtom", stats.chunk),
         ("grammar atom TextAtom", stats.text),
         ("grammar atom WordDataAtom", stats.word),
         ("grammar atom SpaceBeforeAtom", stats.space),
-        ("grammar atom And/Or/Not/Offset", stats.and + stats.or + stats.not + stats.offset),
-        ("grammar atom True/False", stats.true_atom + stats.false_atom),
+        (
+            "grammar atom And/Or/Not/Offset",
+            stats.and + stats.or + stats.not + stats.offset,
+        ),
+        (
+            "grammar atom True/False",
+            stats.true_atom + stats.false_atom,
+        ),
         ("grammar regexes (atoms+suggesters)", stats.regexes),
         ("grammar matcher strings", stats.matcher_strings),
         ("grammar text-matcher sets", stats.sets),
@@ -1081,12 +1092,18 @@ pub fn describe(tokenizer_bin: &Path, rules_bin: &Path) -> Result<Vec<(String, S
         ("size_of Atom", std::mem::size_of::<Atom>()),
         ("size_of TextMatcher", std::mem::size_of::<TextMatcher>()),
         ("size_of Matcher", std::mem::size_of::<Matcher>()),
-        ("size_of WordDataMatcher", std::mem::size_of::<WordDataMatcher>()),
+        (
+            "size_of WordDataMatcher",
+            std::mem::size_of::<WordDataMatcher>(),
+        ),
         (
             "size_of Example",
             std::mem::size_of::<crate::rule::grammar::Example>(),
         ),
-        ("size_of Index", std::mem::size_of::<crate::rule::id::Index>()),
+        (
+            "size_of Index",
+            std::mem::size_of::<crate::rule::id::Index>(),
+        ),
     ] {
         facts.push((key.into(), value.to_string()));
     }

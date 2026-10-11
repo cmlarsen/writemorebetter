@@ -139,9 +139,10 @@ pub const TOKENIZER_FORMAT_VERSION: u32 = 2;
 /// Bump this whenever any type reachable from [Rules] changes its serialized shape. See
 /// [TOKENIZER_FORMAT_VERSION] for why.
 ///
-/// Version 2: the compact matcher representation above, plus `Rule::examples` stored as a lazily
+/// Version 3: rule-group unification and grammar-rule parsing changes (M4I).
+/// Version 4: the compact matcher representation above, plus `Rule::examples` stored as a lazily
 /// parsed blob ([`rule::Examples`]).
-pub const RULES_FORMAT_VERSION: u32 = 2;
+pub const RULES_FORMAT_VERSION: u32 = 4;
 
 /// The longest engine version string accepted in a binary header.
 const MAX_ENGINE_VERSION_LEN: usize = 256;

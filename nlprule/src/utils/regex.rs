@@ -20,7 +20,9 @@ pub use regex_impl::{CaptureMatches, Captures, Match, Matches};
 static PATTERN_POOL: Lazy<Mutex<HashSet<Arc<str>>>> = Lazy::new(|| Mutex::new(HashSet::new()));
 
 fn intern_pattern(pattern: String) -> Arc<str> {
-    let mut pool = PATTERN_POOL.lock().unwrap_or_else(|error| error.into_inner());
+    let mut pool = PATTERN_POOL
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
     if let Some(existing) = pool.get(pattern.as_str()) {
         return existing.clone();
     }
