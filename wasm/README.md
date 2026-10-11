@@ -24,6 +24,12 @@ const suggestions = JSON.parse(checker.check("She was not been here since Monday
 `start`/`end` are character offsets (Unicode scalar values), not byte offsets. Pass `undefined`
 (or `""`) as `spell_variant` to leave spelling off.
 
+The two byte buffers are consumed by the constructor: wasm-bindgen copies them into wasm linear
+memory, and the module does not need the JS copies afterwards. **Do not keep `tokenizerBytes` /
+`rulesBytes` alive** — read them, construct once, and drop them. The copies were ~21 MB of the
+process RSS when retained, and the wasm heap cannot give back the memory it used to read them
+(see `memory.mjs` and REPORT.md).
+
 ## Prerequisites
 
 ```sh
@@ -54,7 +60,10 @@ wasm-bindgen --target nodejs --out-dir wasm/pkg \
 wasm-opt -Oz -o wasm/pkg/writemorebetter_wasm_bg.wasm wasm/pkg/writemorebetter_wasm_bg.wasm
 ```
 
-`wasm/pkg/` is git-ignored.
+`wasm/pkg/` is git-ignored. `.cargo/config.toml` sets `-C opt-level=z` for
+`wasm32-unknown-unknown`: the module is built for footprint, not throughput, and V8's TurboFan
+tier-up turns the bigger `opt-level=3` functions into tens of MB of JIT code at load time (see
+REPORT.md). `wasm-opt -Oz` runs after and cannot undo that inlining, so it is a compile-time flag.
 
 ## Run the benchmarks
 
@@ -64,6 +73,7 @@ curl -sSL -o storage/pg2701.txt https://www.gutenberg.org/cache/epub/2701/pg2701
 head -c 150000 storage/pg2701.txt > storage/moby150k.txt
 
 node wasm/bench.mjs          # construction time, per-check time, memory, with speller off and on
+node wasm/memory.mjs         # where the RSS goes (Node baseline, JS copies, wasm linear memory)
 node wasm/compare.mjs        # suggestion sets vs the native onig build (bench/tools/wmb-probe)
 ```
 
