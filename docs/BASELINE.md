@@ -3,7 +3,24 @@
 The numbers later milestones are measured against. Recorded 2026-10-11 on an Apple M5 Pro, rustc 1.97.1,
 release builds. Update this file only when a milestone deliberately moves the baseline (and say which).
 
-## Current (after M4)
+## Current (after M4F)
+
+M4F compiles the rules that have no `<suggestion>` and the examples that carry a
+`type` (`triggers_error`), so both compiler errors are gone. Measured on this
+branch (2026-10-11, Apple M5 Pro, rustc 1.97.1, release builds); see
+`docs/M4F-NOSUGG.md` for the full accounting:
+
+| Rule set | LT 6.6 runnable | LT 6.6 passing | LT 5.2 runnable | LT 5.2 passing |
+|---|---|---|---|---|
+| Grammar (`grammar.xml` + `style.xml`) | 5,934 | 5,121 | 4,252 | 4,187 |
+| Disambiguation (`disambiguation.xml`) | 1,015 | 979 | 843 | 843 |
+
+Pass rate of all `<rule>` elements: 6.6 5,121 / 6,098 = 84.0%, 5.2 4,187 / 4,366
+= 95.9%. Public recall: 55/60 with LT 6.6, 54/60 with LT 5.2. The CI floors in
+`.github/workflows/ci.yml` (M4E) still hold; they could be raised to these
+numbers, but that is another worker's file.
+
+## After M4
 
 M4 moves the engine to LanguageTool 6.6 and keeps 5.2 as a second CI job. Measured on current `main`
 (2026-10-11, Apple M5 Pro, rustc 1.97.1, release builds), with the 6.6 build dir generated from the
