@@ -19,8 +19,6 @@ const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, "..");
 
 const { Checker } = require(join(here, "pkg", "writemorebetter_wasm.js"));
-const tokenizerBytes = readFileSync(join(root, "storage", "en_tokenizer.bin"));
-const rulesBytes = readFileSync(join(root, "storage", "en_rules.bin"));
 const probe = join(root, "bench", "tools", "wmb-probe", "target", "release", "wmb-probe");
 
 let files = process.argv.slice(2).map((f) => [basename(f), f]);
@@ -30,7 +28,13 @@ if (files.length === 0) {
   if (existsSync(moby)) files.push(["moby150k", moby]);
 }
 
-const checker = new Checker(tokenizerBytes, rulesBytes, "en_US");
+// The binaries are read inline: they are copied into wasm linear memory by the constructor and
+// should not be kept alive in JS afterwards (see wasm/README.md).
+const checker = new Checker(
+  readFileSync(join(root, "storage", "en_tokenizer.bin")),
+  readFileSync(join(root, "storage", "en_rules.bin")),
+  "en_US",
+);
 
 // Rust's `{:?}` escaping: \n \r \t \0 \\ \" \' and \u{XXXX}.
 function unescapeRust(inner) {

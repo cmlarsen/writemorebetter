@@ -35,6 +35,11 @@ pub struct Checker {
 impl Checker {
     /// Creates a checker from the bytes of the tokenizer and rules binaries.
     ///
+    /// Both byte buffers are taken by value: wasm-bindgen's `&[u8]` arguments are copied into
+    /// linear memory and never freed by the generated shim, so every construction leaked their
+    /// full size (about 21 MB for the English binaries) for the lifetime of the process. Owning
+    /// them here lets each buffer be dropped as soon as it has been deserialized.
+    ///
     /// `spell_variant` selects a speller dictionary when non-empty (e.g. `"en_US"`); pass
     /// `undefined` (or an empty string) to leave spelling off.
     ///
@@ -43,8 +48,8 @@ impl Checker {
     /// profile name is an error.
     #[wasm_bindgen(constructor)]
     pub fn new(
-        tokenizer_bytes: &[u8],
-        rules_bytes: &[u8],
+        tokenizer_bytes: Vec<u8>,
+        rules_bytes: Vec<u8>,
         spell_variant: Option<String>,
         profile: Option<String>,
     ) -> Result<Checker, JsValue> {

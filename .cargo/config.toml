@@ -1,0 +1,22 @@
+# Build the WebAssembly package for size, not speed.
+#
+# The `writemorebetter-wasm` module is loaded once per process, but V8's TurboFan tier-up compiles
+# every hot wasm function at load time, and the optimized machine code it emits is far larger than
+# the wasm it came from. `opt-level = 3` inlines aggressively, producing large functions that
+# tier-up turns into ~80 MB of resident JIT code; keeping functions small roughly halves it.
+# `wasm-opt -Oz` runs later and cannot undo the inlining opt-level 3 already did, so this has to be
+# a compile-time flag. `opt-level = "s"` is the fastest profile with the smaller JIT footprint.
+#
+# Measured on the English binaries in Node (wasm/REPORT.md, "Memory: where the construction RSS
+# goes"); the RSS column at opt-level 3 was ~230 MB on the build where these were taken:
+#
+#   opt-level   module   RSS after construction   story1 check   moby150k check
+#   3           1.78 MB  ~233 MB                  272 ms         3793 ms
+#   2           1.83 MB  ~214 MB                  296 ms         4047 ms
+#   s           1.56 MB  ~181 MB                  352 ms         4691 ms
+#   z           1.40 MB  ~178 MB                  407 ms         5313 ms
+#
+# `z` saves ~1.5 MB more of wasm but is ~13% slower again. Going back to the default is a one-line
+# change here.
+[target.wasm32-unknown-unknown]
+rustflags = ["-C", "opt-level=s"]
