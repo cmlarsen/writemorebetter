@@ -34,11 +34,26 @@ Run any checker over `bench/public/*.txt` and compare its flags to `truth.json`.
 when the checker flags the same line and its flagged span overlaps the truth entry's `text` (the
 substring-either-direction rule used by `bench/tools/recall.py`).
 
-The existing scorer can be pointed at this corpus directly:
+Write runs under any directory (named `<tool>-story1.log` etc., as in `bench/README.md`) and point the
+scorer at it:
 
 ```bash
-python3 bench/tools/recall.py --truth bench/public/truth.json --runs bench/public/runs
+mkdir -p /tmp/public-runs
+for n in story1 story2 story3 story4 story5; do
+  SHOW=1 bench/tools/wmb-probe/target/release/wmb-probe storage bench/public/$n.txt > /tmp/public-runs/wmb-$n.log
+done
+python3 bench/tools/recall.py --truth bench/public/truth.json --runs /tmp/public-runs
 ```
+
+Scores on 2026-10-11 (LanguageTool via its public API, free tier):
+
+| Tool | Spell (30) | Repeat (8) | Grammar (14) | N-gram (4) | Punct (4) | Total (60) |
+|---|---|---|---|---|---|---|
+| LanguageTool 6.9 (API) | 30 | 8 | 12 | 2 | 4 | 56 |
+| writemorebetter (M0, en_US speller) | 30 | 1 | 8 | 0 | 0 | 39 |
+| nlprule 0.6.4 | 0 | 1 | 8 | 0 | 0 | 9 |
+
+The ranking matches the private corpus (48 / 33 / 5 of 49).
 
 The corpus is a stand-in, not a replacement for the private fiction corpus; treat its absolute
 recall numbers as indicative rather than final.
