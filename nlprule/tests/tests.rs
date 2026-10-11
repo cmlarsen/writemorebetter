@@ -194,3 +194,129 @@ fn spellchecker_flags_misspellings_next_to_fiction_punctuation() {
         vec!["Patenice\u{2014}always"]
     );
 }
+
+/// Runs the English word-repeat builtin directly on a single sentence and
+/// returns the flagged text and the first replacement of every suggestion.
+fn builtin_word_repeat_flags(text: &str) -> Vec<(String, String)> {
+    let sentence = TOKENIZER
+        .pipe(text)
+        .next()
+        .expect("test input contains a sentence");
+    let chars: Vec<char> = text.chars().collect();
+
+    RULES
+        .builtins()
+        .iter()
+        .flat_map(|rule| rule.builtin().check(&sentence))
+        .filter(|suggestion| suggestion.source() == "BUILTIN/ENGLISH_WORD_REPEAT_RULE")
+        .map(|suggestion| {
+            (
+                chars[suggestion.span().char().clone()].iter().collect(),
+                suggestion.replacements()[0].clone(),
+            )
+        })
+        .collect()
+}
+
+#[test]
+fn builtin_word_repeat_flags_simple() {
+    assert_eq!(
+        builtin_word_repeat_flags("We carried it into into the shed."),
+        vec![("into into".to_string(), "into".to_string())]
+    );
+}
+
+#[test]
+fn builtin_word_repeat_flags_curly_quotes() {
+    assert_eq!(
+        builtin_word_repeat_flags("\u{201c}The the door,\u{201d} she said."),
+        vec![("The the".to_string(), "The".to_string())]
+    );
+}
+
+#[test]
+fn builtin_word_repeat_flags_curly_apostrophe() {
+    assert_eq!(
+        builtin_word_repeat_flags("I don\u{2019}t don\u{2019}t know."),
+        vec![(
+            "don\u{2019}t don\u{2019}t".to_string(),
+            "don\u{2019}t".to_string()
+        )]
+    );
+}
+
+#[test]
+fn builtin_word_repeat_flags_before_ellipsis() {
+    assert_eq!(
+        builtin_word_repeat_flags("It was was late\u{2026}"),
+        vec![("was was".to_string(), "was".to_string())]
+    );
+}
+
+#[test]
+fn builtin_word_repeat_flags_across_u2028() {
+    // U+2028 is whitespace inside a paragraph, so the words are still repeated.
+    assert_eq!(
+        builtin_word_repeat_flags("the\u{2028}the end"),
+        vec![("the\u{2028}the".to_string(), "the".to_string())]
+    );
+}
+
+#[test]
+fn builtin_word_repeat_ignores_had_had_exception() {
+    assert!(builtin_word_repeat_flags("He had had enough.").is_empty());
+}
+
+#[test]
+fn builtin_word_repeat_ignores_that_that_exception() {
+    assert!(builtin_word_repeat_flags("I know that that is true.").is_empty());
+}
+
+#[test]
+fn builtin_word_repeat_ignores_numbers() {
+    // The English rule skips tokens that are numeric, so "10 10" is allowed.
+    assert!(builtin_word_repeat_flags("It cost 10 10 dollars.").is_empty());
+}
+
+#[test]
+fn builtin_word_repeat_ignores_em_dash() {
+    // "the—the" is a single token, so it is not a repetition of two words.
+    assert!(builtin_word_repeat_flags("the\u{2014}the").is_empty());
+}
+
+#[test]
+fn builtin_word_repeat_ignores_punctuation_between() {
+    // The comma is a token between the two occurrences of "bye".
+    assert!(builtin_word_repeat_flags("Bye, bye.").is_empty());
+}
+
+#[test]
+fn builtin_word_repeat_ignores_quotes_between() {
+    // Following LanguageTool, "“no” “no”" is not flagged: the closing and
+    // opening quotes are tokens between the two occurrences of "no".
+    assert!(builtin_word_repeat_flags("\u{201c}no\u{201d} \u{201c}no\u{201d}").is_empty());
+}
+
+#[test]
+fn builtin_word_repeat_ignores_three_or_more() {
+    // LanguageTool only reports the first two of a longer run.
+    assert!(builtin_word_repeat_flags("It was was was late.").is_empty());
+    assert!(builtin_word_repeat_flags("I had had had enough.").is_empty());
+}
+
+#[test]
+fn builtin_word_repeat_ignores_spelled_out_letters() {
+    // "b a s i c a l l y" must not be flagged; here the pair "c c" followed by
+    // another letter is suppressed by the spelled-out-letters exception.
+    assert!(builtin_word_repeat_flags("b a c c a").is_empty());
+}
+
+#[test]
+fn builtin_word_repeat_is_wired_into_suggest() {
+    let suggestions = RULES.suggest("We carried it into into the shed.", &*TOKENIZER);
+    let flagged = suggestions
+        .iter()
+        .find(|suggestion| suggestion.source() == "BUILTIN/ENGLISH_WORD_REPEAT_RULE")
+        .expect("repeated word is flagged");
+    assert_eq!(flagged.replacements(), &["into".to_string()]);
+}
