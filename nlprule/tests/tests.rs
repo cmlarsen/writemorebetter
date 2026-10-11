@@ -1424,6 +1424,25 @@ fn builtin_wrong_word_is_wired_into_suggest() {
     assert_eq!(flagged.replacements(), &["prescribed".to_string()]);
 }
 
+#[test]
+fn rule_synthesis_produces_inflected_forms() {
+    // HASNT_IRREGULAR_VERB's suggestion is `<match no="4" postag="VBN"/>`, i.e. it must inflect
+    // the lemma of "bit" ("bite") into its past participle.
+    let suggestions = RULES.suggest("They haven't bit their tongue.", &*TOKENIZER);
+    let flagged = suggestions
+        .iter()
+        .find(|suggestion| suggestion.source() == "TYPOS/HASNT_IRREGULAR_VERB/0")
+        .expect("the irregular verb rule should fire");
+    assert!(
+        flagged
+            .replacements()
+            .iter()
+            .any(|replacement| replacement == "haven't bitten"),
+        "expected a synthesized \"haven't bitten\", got {:?}",
+        flagged.replacements()
+    );
+}
+
 /// Runs the simple-replace builtins over a paragraph and returns the flagged
 /// text and all replacements of every suggestion from `id`.
 fn builtin_simple_replace_flags(text: &str, id: &str) -> Vec<(String, Vec<String>)> {

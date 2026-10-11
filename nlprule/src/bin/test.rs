@@ -13,6 +13,12 @@ struct Opts {
     rules: String,
     #[clap(long, short)]
     ids: Vec<String>,
+    /// Print the sorted IDs of the rules that pass their examples, one per line.
+    #[clap(long)]
+    list_passing: bool,
+    /// Print the sorted IDs of all runnable rules, one per line.
+    #[clap(long)]
+    list_rules: bool,
 }
 
 fn main() {
@@ -25,10 +31,29 @@ fn main() {
 
     println!("Runnable rules: {}", rules.len());
 
+    if opts.list_rules {
+        let mut ids: Vec<String> = rules.iter().map(|r| r.id().to_string()).collect();
+        ids.sort();
+        for id in &ids {
+            println!("RULE {}", id);
+        }
+    }
+
     let mut passes = 0;
+    let mut passing_ids: Vec<String> = Vec::new();
     for rule in rules {
         if opts.ids.is_empty() || opts.ids.contains(&rule.id().to_string()) {
-            passes += rule.test(&tokenizer) as usize;
+            if rule.test(&tokenizer) {
+                passes += 1;
+                passing_ids.push(rule.id().to_string());
+            }
+        }
+    }
+
+    if opts.list_passing {
+        passing_ids.sort();
+        for id in &passing_ids {
+            println!("PASS {}", id);
         }
     }
 

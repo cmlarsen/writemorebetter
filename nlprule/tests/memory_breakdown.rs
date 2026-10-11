@@ -59,6 +59,7 @@ const COMPONENTS: &[&str] = &[
     "tagger",
     "tagger_word_store_fst",
     "tagger_tag_fst",
+    "tagger_synth_fst",
     "tagger_tag_store",
     "tagger_word_buf",
     "tagger_word_offsets",

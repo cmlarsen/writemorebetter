@@ -317,7 +317,8 @@ impl<'a, 't> Iterator for Suggestions<'a, 't> {
             let replacements: Vec<String> = rule
                 .suggesters
                 .iter()
-                .filter_map(|x| x.apply(sentence, &graph, start, end))
+                .filter_map(|x| x.alternatives(sentence, &graph, start, end))
+                .flatten()
                 .collect();
 
             let start = if replacements
