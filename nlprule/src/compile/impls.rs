@@ -599,7 +599,7 @@ impl Tokenizer {
         lang_options: TokenizerLangOptions,
     ) -> Result<Self, Error> {
         let rules = super::parse_structure::read_disambiguation_rules(path);
-        let mut error = None;
+        let mut errors: HashMap<String, usize> = HashMap::new();
 
         let rules: Vec<_> = rules
             .into_iter()
@@ -621,9 +621,8 @@ impl Tokenizer {
 
                     match DisambiguationRule::from_rule_structure(rule_structure, build_info) {
                         Ok(mut rule) => {
-                            if error.is_none()
-                                && (lang_options.ids.is_empty()
-                                    || lang_options.ids.iter().any(|x| x.is_match(&id)))
+                            if (lang_options.ids.is_empty()
+                                || lang_options.ids.iter().any(|x| x.is_match(&id)))
                                 && !lang_options.ignore_ids.iter().any(|x| x.is_match(&id))
                             {
                                 rule.id = id;
@@ -634,29 +633,33 @@ impl Tokenizer {
                             }
                         }
                         Err(x) => {
-                            if error.is_none() {
-                                error = Some(format!("[Rule] {}", x));
-                            }
+                            *errors.entry(format!("[Rule] {}", x)).or_insert(0) += 1;
                             None
                         }
                     }
                 }
                 Err(x) => {
-                    if error.is_none() {
-                        error = Some(format!("[Structure] {}", x));
-                    }
+                    *errors.entry(format!("[Structure] {}", x)).or_insert(0) += 1;
                     None
                 }
             })
             .collect();
 
-        if let Some(x) = error {
+        if !errors.is_empty() {
+            let mut errors: Vec<(String, usize)> = errors.into_iter().collect();
+            errors.sort_by_key(|x| -(x.1 as i32));
+
+            let summary: Vec<String> = errors
+                .iter()
+                .map(|(message, number)| format!("{} (n={})", message, number))
+                .collect();
+
             if lang_options.allow_errors {
-                warn!("Error constructing Disambiguator: {}", x)
+                warn!("Errors constructing Disambiguator: {:#?}", summary);
             } else {
                 return Err(Error::Unexpected(format!(
-                    "Error constructing Disambiguator: {}",
-                    x
+                    "Errors constructing Disambiguator: {:#?}",
+                    summary
                 )));
             }
         }
