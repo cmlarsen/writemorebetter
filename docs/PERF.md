@@ -238,7 +238,8 @@ attempts total. Phase 0 establishes measurement and does not count as an optimiz
 | 5 | [#53](https://github.com/cmlarsen/writemorebetter/pull/53) | Reuse successful first-token match | -4.26% / -4.25% (rerun) | +1.727 / +1.742 MiB | -0.113 / +0.098 MiB | -1.35% / +0.73% (interleaved, loaded) | dropped |
 | 6 | [#54](https://github.com/cmlarsen/writemorebetter/pull/54) | Trim spare capacity from tagger FST buffers | -0.66% | -0.293 MiB | -0.449 MiB | +0.53% / +1.24% (interleaved, loaded) | dropped |
 | 7 | [#55](https://github.com/cmlarsen/writemorebetter/pull/55) | Inline buffers for small match graphs | -0.74% | -2.496 MiB | -0.137 MiB | -0.82% / -2.24% (interleaved, loaded) | kept |
-| 8 | pending | Inline buffers for short speller rows | pending | pending | pending | +0.16% / -1.36% (interleaved, loaded) | pending |
+| 8 | [#56](https://github.com/cmlarsen/writemorebetter/pull/56) | Inline buffers for short speller rows | +3.78% | -2.105 MiB | +0.012 MiB | +0.16% / -1.36% (interleaved, loaded) | dropped |
+| 9 | pending | LZ4-compressed lazy examples | pending | pending | pending | -2.87% / -1.04% (interleaved, loaded) | pending |
 
 
 Phase 0 merge-base measurements (Ubuntu): 6.6 check 5.2510 s, peak 91.4414 MiB,
@@ -396,3 +397,27 @@ All 24 goldens and 38 library tests pass on the corrected branch without #53/#54
 Fresh local Moby medians: 6.6 check 2.3117 → 2.3155 s (+0.16%), peak
 89.00 → 88.00 MiB (-1.00); 5.2 check 1.9610 → 1.9344 s (-1.36%), peak
 72.23 → 70.38 MiB (-1.86). Timing is informational under load; CI decides retention.
+
+CI for attempt 8 passed correctness checks and reduced allocator calls by 27.93%,
+but instructions increased 3.78% (55.169B → 57.255B), exceeding the allowed
++0.5% cost for a memory win. Peak RSS fell 2.105 MiB on 6.6 and rose
+0.012 MiB on 5.2. #56 was dropped.
+
+### Attempt 9 — compressed lazy examples
+
+The retained-main heap profile found 2.66 MiB in serialized example blobs. Compress
+each blob with safe LZ4 blocks; normal checking keeps examples compressed, and
+conformance tools decode them on first access. Empty examples, lazy cloning and
+Unicode markers preserve their behavior. Rules format advances from 9 to 10;
+resource bytes remain separately loaded LGPL data. This branch excludes rejected
+first-token reuse, FST trimming and inline speller rows. CI decides retention.
+
+All 24 goldens and 39 library tests pass. Independently built before/after engines
+produce identical grammar and disambiguation passing-ID lists for both rule sets:
+5,977/6,032 and 4,320/4,335 grammar examples; 1,012/1,015 and 843/843
+disambiguation examples. Clippy has only existing warnings.
+
+Fresh five-pair Moby medians on retained main: 6.6 check 2.8907 → 2.8079 s
+(-2.87%), peak 88.95 → 87.91 MiB (-1.05); 5.2 check 3.3020 →
+3.2677 s (-1.04%), peak 72.19 → 71.70 MiB (-0.48). The machine was
+busy, including conformance runs; wall time is informational.
