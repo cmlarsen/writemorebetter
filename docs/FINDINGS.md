@@ -206,6 +206,30 @@ English first; other languages later as data plus per-language builtins behind a
 7. **Gate every step** on LT's own embedded rule examples (conformance) and on this corpus's recall table
    (`bench/tools/recall.py`).
 
+## Status (2026-10-11, end of the first overnight run)
+
+Measured on `main` with both build dirs CI uses (LT 5.2 from upstream's `en.zip`; LT 6.6 generated from
+the desktop release). Conformance pass rate = rules passing their embedded examples / `<rule>` elements.
+
+| | nlprule 0.6.4 | writemorebetter, LT 5.2 rules | writemorebetter, LT 6.6 rules |
+|---|---|---|---|
+| Grammar pass rate | 3,749 / 4,366 = 85.9% | 4,273 / 4,366 = 97.9% | 5,884 / 6,098 = 96.5% |
+| Disambiguation pass rate | 843 / 855 = 98.6% | 843 / 855 = 98.6% | 1,011 / 1,060 = 95.4% |
+| Private corpus recall (49) | 5 | 41 | **43** (LT 6.9 API: 48) |
+| Private corpus flags, fiction profile | 682 (no profile) | 185 | **178** (LT 6.9 API: 279) |
+| Public corpus recall (60) | 9 | 54 | 55 (LT 6.9 API: 56) |
+| Peak RSS, 150 KB, speller on | 168 MB | 97 MB | 148 MB |
+
+What closed the gap: the speller (M0), inflection synthesis for `<match postag_replace>` (M4C), LT 6.6 rule
+structure (M4D), no-suggestion rules and typed examples (M4F), LT 6.6's contraction tokenization (M4H), rule
+filters (M4G), and the twelve Java builtins (M5).
+
+Still missed on the private corpus: three n-gram confusions (out of scope on-device), a two-word phrase
+repeat ("this is this is"), and two grammar errors.
+
+Memory regressed as the rule count grew: LT 6.6's 5,982 compiled rules load to ~65 MB from a 27 MB file.
+The tokenizer stays at ~40 MB after M2. Shrinking the loaded rules is in progress (M2H).
+
 ## Builtins on fiction (M5)
 
 Ported so far: word repeat, comma/parenthesis whitespace, unpaired brackets and quotes, a/an, uppercase
