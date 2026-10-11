@@ -1,6 +1,9 @@
 target/
+Cargo.lock
 .DS_Store
 __pycache__/
+.vscode
+python-wheels/
 
 # Private corpus (unpublished fiction) and tool outputs derived from it
 bench/corpus/*
@@ -9,7 +12,7 @@ bench/runs/*
 !bench/runs/.gitkeep
 
 # Downloaded or generated LanguageTool-derived data
-/data/
-/storage/
+data/
+storage/
 *.bin
 *.bin.gz
