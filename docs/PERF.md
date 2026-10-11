@@ -242,6 +242,7 @@ attempts total. Phase 0 establishes measurement and does not count as an optimiz
 | 9 | [#57](https://github.com/cmlarsen/writemorebetter/pull/57) | LZ4-compressed lazy examples | -0.17% | -3.410 MiB | -0.606 MiB | -2.87% / -1.04% (interleaved, loaded) | kept |
 | 10 | [#58](https://github.com/cmlarsen/writemorebetter/pull/58) | Reuse chunker beam heaps | -0.46% / -0.41% (rerun) | +1.496 / -0.457 MiB | -0.000 / -0.020 MiB | -0.97% / -2.75% (interleaved, loaded) | dropped |
 | 13 | [#59](https://github.com/cmlarsen/writemorebetter/pull/59) | Compact contiguous NFA for multiword tagging | +1.28% | -8.441 MiB | -2.289 MiB | +1.57% / +0.32% (interleaved, loaded) | kept (coordinator-approved) |
+| 16 | [#65](https://github.com/cmlarsen/writemorebetter/pull/65) | Cache exact regex inputs up to 15 UTF-8 bytes | pending | pending | pending | -3.29% / +0.28% (interleaved, loaded) | pending |
 
 
 Phase 0 merge-base measurements (Ubuntu): 6.6 check 5.2510 s, peak 91.4414 MiB,
@@ -461,3 +462,21 @@ exhausted one cleared. All 24 goldens pass and the output is unchanged. CI measu
 55.083B → 54.831B instructions (-0.46%) with 6.6 peak +1.496 MiB, which disagreed with the
 local -1.11 MiB. The one permitted rerun measured 55.024B → 54.799B (-0.41%) and 6.6 peak
 -0.457 MiB. Neither reaches the keep threshold, so #58 was closed.
+
+### Attempt 16 — longer exact cache inputs
+
+The attempt-1 cache key packs inputs of up to seven UTF-8 bytes and their length into one
+word. The key is now two data words plus the pattern ID, so inputs of up to fifteen bytes
+hit the cache. Keys stay exact (length byte included, collisions are misses), so results
+always equal the backend's. Each slot grows from 24 to 32 bytes (16 KiB per thread at 512
+slots). Added boundary tests cover 15- and 16-byte inputs, curly punctuation, NUL bytes and
+U+2028. All 24 goldens, fmt, clippy and the workspace tests pass.
+
+| Rules | Text | Check before/after (s) | Check Δ | Peak before/after (MiB) | Peak Δ (MiB) |
+|---|---|---|---:|---|---:|
+| 52 | moby150k | 2.0765 / 2.0822 | +0.28% | 69.48 / 69.88 | +0.39 |
+| 52 | story1 | 0.1582 / 0.1607 | +1.60% | 61.67 / 61.86 | +0.19 |
+| 66 | moby150k | 2.5130 / 2.4304 | -3.29% | 82.94 / 83.53 | +0.59 |
+| 66 | story1 | 0.1966 / 0.1881 | -4.35% | 69.73 / 69.88 | +0.14 |
+
+CI decides retention (instruction wins of at least 1% may cost up to 1 MiB peak).
