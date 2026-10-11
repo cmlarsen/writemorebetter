@@ -8,10 +8,13 @@
 #   * a portable Temurin 21 JRE used to run the LanguageTool DictionaryExporter.
 #
 # Usage:
-#   build/fetch_lt.sh [CACHE_DIR]
+#   build/fetch_lt.sh [CACHE_DIR] [LT_VERSION]
 #
-# CACHE_DIR defaults to data/cache. Anything already present in the cache is
-# reused, so re-running the script is cheap.
+# CACHE_DIR defaults to data/cache. LT_VERSION defaults to "stable" (the latest
+# release); pass a concrete version such as "6.6" to pin the download for
+# reproducibility (https://languagetool.org/download/LanguageTool-<version>.zip).
+# Anything already present in the cache is reused, so re-running the script is
+# cheap.
 #
 # On success it prints, on stdout:
 #   LT_VERSION=<LanguageTool-6.6>
@@ -20,6 +23,7 @@
 set -euo pipefail
 
 CACHE_DIR="${1:-data/cache}"
+lt_version_req="${2:-stable}"
 mkdir -p "$CACHE_DIR"
 CACHE_DIR="$(cd "$CACHE_DIR" && pwd)"
 
@@ -43,24 +47,32 @@ case "$uname_m" in
         ;;
 esac
 
-lt_url="https://languagetool.org/download/LanguageTool-stable.zip"
+if [ "$lt_version_req" = "stable" ]; then
+    lt_url="https://languagetool.org/download/LanguageTool-stable.zip"
+    lt_zip_name="LanguageTool-stable.zip"
+    lt_dir_pattern="LanguageTool-*"
+else
+    lt_url="https://languagetool.org/download/LanguageTool-${lt_version_req}.zip"
+    lt_zip_name="LanguageTool-${lt_version_req}.zip"
+    lt_dir_pattern="LanguageTool-${lt_version_req}"
+fi
 jre_url="https://api.adoptium.net/v3/binary/latest/21/ga/${os}/${arch}/jre/hotspot/normal/eclipse"
 
 # --- LanguageTool desktop ----------------------------------------------------
-lt_zip="$CACHE_DIR/LanguageTool-stable.zip"
+lt_zip="$CACHE_DIR/$lt_zip_name"
 if [ ! -f "$lt_zip" ]; then
-    echo "Downloading LanguageTool-stable.zip ..." >&2
+    echo "Downloading $lt_zip_name ..." >&2
     curl -fSL --retry 3 -o "$lt_zip.part" "$lt_url"
     mv "$lt_zip.part" "$lt_zip"
 else
     echo "Reusing $lt_zip" >&2
 fi
 
-lt_dir="$(find "$CACHE_DIR" -maxdepth 1 -type d -name 'LanguageTool-*' | sort | head -n1)"
+lt_dir="$(find "$CACHE_DIR" -maxdepth 1 -type d -name "$lt_dir_pattern" | sort | head -n1)"
 if [ -z "$lt_dir" ]; then
     echo "Unzipping $lt_zip ..." >&2
     unzip -q "$lt_zip" -d "$CACHE_DIR"
-    lt_dir="$(find "$CACHE_DIR" -maxdepth 1 -type d -name 'LanguageTool-*' | sort | head -n1)"
+    lt_dir="$(find "$CACHE_DIR" -maxdepth 1 -type d -name "$lt_dir_pattern" | sort | head -n1)"
 fi
 if [ -z "$lt_dir" ]; then
     echo "error: no LanguageTool-* directory found after unzipping" >&2
