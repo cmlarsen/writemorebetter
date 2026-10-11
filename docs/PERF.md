@@ -244,6 +244,7 @@ attempts total. Phase 0 establishes measurement and does not count as an optimiz
 | 11 | [#61](https://github.com/cmlarsen/writemorebetter/pull/61) | Prefer the longest mandatory literal for absence guards | -1.52% | -0.555 MiB | +0.082 MiB | +2.40% / +1.23% (interleaved, loaded) | kept |
 | 12 | [#60](https://github.com/cmlarsen/writemorebetter/pull/60) | Share lazy compiled regex backends for identical sources | -0.16% | -2.992 MiB | -0.984 MiB | +1.13% / -1.26% (interleaved, loaded) | kept |
 | 13 | [#59](https://github.com/cmlarsen/writemorebetter/pull/59) | Compact contiguous NFA for multiword tagging | +1.28% | -8.441 MiB | -2.289 MiB | +1.57% / +0.32% (interleaved, loaded) | kept (coordinator-approved) |
+| 16 | [#65](https://github.com/cmlarsen/writemorebetter/pull/65) | Cache exact regex inputs up to 15 UTF-8 bytes | -4.01% | +0.414 MiB | -0.066 MiB | -3.29% / +0.28% (interleaved, loaded) | kept |
 
 
 Phase 0 merge-base measurements (Ubuntu): 6.6 check 5.2510 s, peak 91.4414 MiB,
@@ -507,3 +508,23 @@ showed -2.9%), but CI instructions fell 55.058B → 54.262B (-1.45%) on the firs
 55.754B → 54.906B (-1.52%) after rebasing onto #59, with allocator calls -1.40% and 6.6
 peak -0.14% / -0.55 MiB (5.2 +0.15% / +0.08 MiB). #61 was retained as an instruction win
 with no RSS cost.
+
+### Attempt 16 — longer exact cache inputs
+
+The attempt-1 cache key packs inputs of up to seven UTF-8 bytes and their length into one
+word. The key is now two data words plus the pattern ID, so inputs of up to fifteen bytes
+hit the cache. Keys stay exact (length byte included, collisions are misses), so results
+always equal the backend's. Each slot grows from 24 to 32 bytes (16 KiB per thread at 512
+slots). Added boundary tests cover 15- and 16-byte inputs, curly punctuation, NUL bytes and
+U+2028. All 24 goldens, fmt, clippy and the workspace tests pass.
+
+| Rules | Text | Check before/after (s) | Check Δ | Peak before/after (MiB) | Peak Δ (MiB) |
+|---|---|---|---:|---|---:|
+| 52 | moby150k | 2.0765 / 2.0822 | +0.28% | 69.48 / 69.88 | +0.39 |
+| 52 | story1 | 0.1582 / 0.1607 | +1.60% | 61.67 / 61.86 | +0.19 |
+| 66 | moby150k | 2.5130 / 2.4304 | -3.29% | 82.94 / 83.53 | +0.59 |
+| 66 | story1 | 0.1966 / 0.1881 | -4.35% | 69.73 / 69.88 | +0.14 |
+
+CI passed: instructions 54.808B → 52.609B (-4.01%), allocator calls 30.994M → 28.067M
+(-9.44%), 6.6 peak 72.453 → 72.867 MiB (+0.414), 5.2 peak -0.066 MiB; loaded RSS +0.211 MiB.
+#65 was retained as an instruction win within the 1 MiB allowance.

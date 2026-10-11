@@ -7,6 +7,7 @@ use once_cell::sync::{Lazy, OnceCell};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::convert::TryInto;
 use std::hash::{Hash, Hasher};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, Weak};
@@ -63,7 +64,7 @@ const SHORT_CACHE_SLOTS: usize = 512;
 
 #[derive(Clone, Copy, Default)]
 struct CacheEntry {
-    key: (u64, u64),
+    key: (u64, u64, u64),
     value: Option<bool>,
 }
 
@@ -76,12 +77,12 @@ impl Default for ShortCache {
 }
 
 impl ShortCache {
-    fn slot(key: (u64, u64)) -> usize {
-        ((key.0 ^ key.1).wrapping_mul(0x9e37_79b1_85eb_ca87) >> 32) as usize
+    fn slot(key: (u64, u64, u64)) -> usize {
+        ((key.0 ^ key.1 ^ key.2.rotate_left(23)).wrapping_mul(0x9e37_79b1_85eb_ca87) >> 32) as usize
             & (SHORT_CACHE_SLOTS - 1)
     }
 
-    fn get(&self, key: (u64, u64)) -> Option<bool> {
+    fn get(&self, key: (u64, u64, u64)) -> Option<bool> {
         let entry = &self.0[Self::slot(key)];
         if entry.key == key {
             entry.value
@@ -90,7 +91,7 @@ impl ShortCache {
         }
     }
 
-    fn insert(&mut self, key: (u64, u64), value: bool) {
+    fn insert(&mut self, key: (u64, u64, u64), value: bool) {
         self.0[Self::slot(key)] = CacheEntry {
             key,
             value: Some(value),
@@ -181,13 +182,18 @@ impl Regex {
     }
 
     pub fn is_match(&self, text: &str) -> bool {
-        if text.len() > 7 {
+        if text.len() > 15 {
             return self.regex().is_match(text);
         }
-        let mut bytes = [0; 8];
+        let mut bytes = [0; 16];
         bytes[..text.len()].copy_from_slice(text.as_bytes());
-        bytes[7] = text.len() as u8;
-        let key = (self.pattern_id, u64::from_le_bytes(bytes));
+        bytes[15] = text.len() as u8;
+        let (low, high) = bytes.split_at(8);
+        let key = (
+            self.pattern_id,
+            u64::from_le_bytes(low.try_into().unwrap()),
+            u64::from_le_bytes(high.try_into().unwrap()),
+        );
         if let Some(result) = SHORT_CACHE.with(|cache| cache.borrow().get(key)) {
             return result;
         }
@@ -638,10 +644,10 @@ mod short_cache_tests {
     #[test]
     fn collisions_and_empty_slots_are_misses() {
         let mut cache = ShortCache::default();
-        assert_eq!(cache.get((0, 0)), None);
-        let first = (1, 42);
+        assert_eq!(cache.get((0, 0, 0)), None);
+        let first = (1, 42, 0);
         let second = (2..10000)
-            .map(|i| (i, 42))
+            .map(|i| (i, 42, 0))
             .find(|&key| ShortCache::slot(key) == ShortCache::slot(first))
             .unwrap();
         cache.insert(first, true);
@@ -670,8 +676,25 @@ mod short_cache_tests {
     fn cached_results_match_backend_at_utf8_boundaries() {
         let regex = Regex::new("^[“”’—…\u{2028}a-z]+$".into());
         for text in [
-            "", "a", "abcdefg", "abcdefgh", "”", "’", "—", "…", "\u{2028}", "curly”", "a\0",
-            "line\n", "NO",
+            "",
+            "a",
+            "abcdefg",
+            "abcdefgh",
+            "”",
+            "’",
+            "—",
+            "…",
+            "\u{2028}",
+            "curly”",
+            "a\0",
+            "line\n",
+            "NO",
+            "abcdefghijklmno",
+            "abcdefghijklmnop",
+            "abcdefghiNO",
+            "abcdefg\0",
+            "abcdefg\0\0",
+            "curly“”—…",
         ] {
             let expected = regex.regex().is_match(text);
             assert_eq!(regex.is_match(text), expected, "{text:?}");
