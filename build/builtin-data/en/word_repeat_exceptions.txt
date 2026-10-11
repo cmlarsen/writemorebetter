@@ -1,0 +1,108 @@
+# Allowed repetitions for the English word-repeat builtin.
+#
+# Derived from LanguageTool's WordRepeatRule and EnglishWordRepeatRule
+# (https://github.com/languagetool-org/languagetool), licensed LGPL-2.1.
+# See README.md in this directory.
+#
+# A single word means repeating that word is allowed. A multi-word entry means
+# the exact token sequence may contain the repetition.
+#
+# Proper names and place names.
+phi
+li
+xiao
+duran
+wagga
+abdullah
+nwe
+pago
+cao
+#
+# Words whose repetition is generally accepted (interjections, onomatopoeia,
+# reduplicated forms).
+aye
+blah
+mau
+uh
+paw
+cha
+yum
+wop
+woop
+fnarr
+fnar
+ha
+omg
+boo
+tick
+twinkle
+ta
+la
+x
+hi
+ho
+heh
+jay
+walla
+sri
+hey
+hah
+oh
+ouh
+chop
+ring
+beep
+bleep
+yeah
+gout
+quack
+meow
+squawk
+whoa
+si
+honk
+brum
+chi
+santorio
+lapu
+chow
+shh
+yummy
+boom
+bye
+ah
+aah
+bang
+woof
+wink
+yes
+tsk
+hush
+ding
+choo
+miu
+tuk
+yadda
+doo
+sapiens
+tse
+no
+bora
+#
+# Phrases and the part-of-speech-gated exceptions. LanguageTool only allows
+# these in specific grammatical contexts; the exact token sequence is listed
+# here as a close approximation.
+had had
+that that
+her her
+can can
+hip hip hooray
+bam bam bigelow
+wild wild west
+far far away
+so so much
+so so many
+log in in
+logged in in
+sign in in
+signed in in

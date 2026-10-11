@@ -23,6 +23,7 @@ use log::info;
 use self::parse_structure::{BuildInfo, RegexCache};
 use thiserror::Error;
 
+mod builtin;
 mod impls;
 mod parse_structure;
 mod structure;
@@ -100,7 +101,8 @@ pub fn compile(
     rules_dest: impl io::Write,
     tokenizer_dest: impl io::Write,
 ) -> Result<(), Error> {
-    let paths = BuildFilePaths::new(&build_dir);
+    let build_dir = build_dir.as_ref();
+    let paths = BuildFilePaths::new(build_dir);
 
     let lang_code = fs::read_to_string(paths.lang_code_path)?;
 
@@ -198,7 +200,8 @@ pub fn compile(
         &mut build_info,
         chunker,
         multiword_tagger,
-        srx::SRX::from_str(&fs::read_to_string(&paths.srx_path)?)?.language_rules(lang_code),
+        srx::SRX::from_str(&fs::read_to_string(&paths.srx_path)?)?
+            .language_rules(lang_code.clone()),
         tokenizer_lang_options,
     )?;
     tokenizer.to_writer(tokenizer_dest)?;
@@ -221,11 +224,13 @@ pub fn compile(
     };
 
     info!("Creating grammar rules.");
+    let builtins = builtin::for_language(&lang_code, build_dir, &tokenizer)?;
     let rules = Rules::from_xml(
         &paths.grammar_path,
         &mut build_info,
         spell,
         rules_lang_options,
+        builtins,
     );
     rules.to_writer(rules_dest)?;
 
