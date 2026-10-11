@@ -9,8 +9,8 @@
       "~/orca/workspaces/writemorebetter/*/bench/runs/**": "deny"
     },
     "read": {
-      "**/bench/corpus/**": "deny",
-      "**/bench/runs/**": "deny"
+      "*bench/corpus/*": "deny",
+      "*bench/runs/*": "deny"
     }
   }
 }
