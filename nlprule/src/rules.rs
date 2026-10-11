@@ -4,7 +4,7 @@ use crate::types::*;
 use crate::utils::parallelism::MaybeParallelRefIterator;
 use crate::{
     builtin::BuiltinRule, rule::id::Selector, rule::MatchSentence, rule::Rule, spell::Spell,
-    tokenizer::Tokenizer, Error,
+    tokenizer::Tokenizer, BinaryKind, Error, RULES_FORMAT_VERSION,
 };
 use fs_err::File;
 use serde::{Deserialize, Serialize};
@@ -50,6 +50,8 @@ impl Rules {
     ///
     /// # Errors
     /// - If the file can not be opened.
+    /// - If the file is not a writemorebetter rules binary written by a compatible engine version
+    ///   ([Error::Format]).
     /// - If the file content can not be deserialized to a rules set.
     pub fn new<P: AsRef<Path>>(p: P) -> Result<Self, Error> {
         let reader = BufReader::new(File::open(p.as_ref())?);
@@ -57,14 +59,22 @@ impl Rules {
     }
 
     /// Creates a new rules set from a reader.
+    ///
+    /// # Errors
+    /// See [Rules::new].
     pub fn from_reader<R: Read>(reader: R) -> Result<Self, Error> {
+        let mut reader = reader;
+        crate::read_binary_header(&mut reader, BinaryKind::Rules, RULES_FORMAT_VERSION)?;
         let mut rules: Rules = bincode::deserialize_from(reader)?;
         rules.spell.ingest_options();
         Ok(rules)
     }
 
-    /// Serializes this rules set to a writer.
+    /// Serializes this rules set to a writer, prefixing the payload with the self-describing
+    /// header (magic, format version, engine version).
     pub fn to_writer<W: Write>(&self, writer: W) -> Result<(), Error> {
+        let mut writer = writer;
+        crate::write_binary_header(&mut writer, BinaryKind::Rules, RULES_FORMAT_VERSION)?;
         Ok(bincode::serialize_into(writer, &self)?)
     }
 
