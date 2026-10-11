@@ -231,11 +231,22 @@ impl VariantChecker {
         let word = tokens[0].word().text().as_str();
         let mut word_is_correct = self.check_word(word, true);
 
-        if !word_is_correct && self.lang_options.split_hyphens {
+        if !word_is_correct {
             // there exist multiple valid hyphens, see https://jkorpela.fi/dashes.html
-            let hyphens = &['-', '\u{2010}', '\u{2011}'][..];
+            let hyphens = ['-', '\u{2010}', '\u{2011}'];
+            let dashes = ['\u{2012}', '\u{2013}', '\u{2014}', '\u{2015}'];
 
-            if word.contains(hyphens) && word.split(hyphens).all(|x| self.check_word(x, true)) {
+            let separators: Vec<char> = if self.lang_options.split_hyphens {
+                hyphens.iter().chain(dashes.iter()).copied().collect()
+            } else {
+                dashes.to_vec()
+            };
+
+            if word.contains(separators.as_slice())
+                && word
+                    .split(separators.as_slice())
+                    .all(|x| self.check_word(x, true))
+            {
                 word_is_correct = true;
             }
         }

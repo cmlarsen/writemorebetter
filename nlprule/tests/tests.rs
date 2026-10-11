@@ -154,3 +154,43 @@ fn spellchecker_works() -> Result<(), Error> {
 
     Ok(())
 }
+
+fn spelling_errors(text: &str) -> Vec<&str> {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    rules.spell_mut().options_mut().variant = Some(rules.spell().variant("en_US").unwrap());
+
+    rules
+        .suggest(text, &*TOKENIZER)
+        .into_iter()
+        .filter(|x| x.source().starts_with("SPELLCHECK"))
+        .map(|x| &text[x.span().byte().clone()])
+        .collect()
+}
+
+#[test]
+fn spellchecker_accepts_fiction_punctuation() {
+    for text in &[
+        "\u{201c}I didn\u{2019}t know,\u{201d} she said. \u{201c}Weren\u{2019}t you there?\u{201d}",
+        "\u{2018}Doesn\u{2019}t matter,\u{2019} he said.",
+        "He opened the door\u{2014}then stopped. It was quiet\u{2014}too quiet.",
+        "Pages 10\u{2013}12 were missing\u{2013}or torn out.",
+        "She waited\u{2026} and waited.",
+        "She waited.\u{2028}Nothing came.",
+    ] {
+        assert_eq!(spelling_errors(text), Vec::<&str>::new(), "{}", text);
+    }
+}
+
+#[test]
+fn spellchecker_flags_misspellings_next_to_fiction_punctuation() {
+    assert_eq!(
+        spelling_errors(
+            "\u{201c}The recieved letter,\u{201d} she said\u{2026} \u{2018}teh end.\u{2019}"
+        ),
+        vec!["recieved", "teh"]
+    );
+    assert_eq!(
+        spelling_errors("Nothing.\u{2028}Patenice\u{2014}always."),
+        vec!["Patenice\u{2014}always"]
+    );
+}
