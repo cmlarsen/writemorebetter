@@ -134,7 +134,7 @@ jobs:
               --tokenizer-out "storage/$version/en_tokenizer.bin" --rules-out "storage/$version/en_rules.bin"
           done
           cargo build --release --manifest-path bench/tools/wmb-probe/Cargo.toml
-      - name: Measure instructions, peak RSS and allocations against merge base
+      - name: Measure instructions, peak RSS and allocator calls against merge base
         run: |
           echo "Merge base: $BASE_COMMIT" >> "$GITHUB_STEP_SUMMARY"
           python3 bench/tools/perf_ci.py --base storage/base

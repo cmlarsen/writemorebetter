@@ -212,11 +212,13 @@ The Performance workflow checks goldens and compares the PR with its merge base 
 Ubuntu job. Each engine compiles its own data, with the same generated build inputs and
 dependency lockfiles; the current probe code measures both engines. Native check/load
 seconds and RSS use five-run medians; peak RSS is also measured by `/usr/bin/time -v`.
-Callgrind instruction totals and Memcheck allocation totals cover one **whole process**
+Callgrind instruction totals and allocator-call counts cover one **whole process**
 (load plus one fixed Moby-Dick check), LT 6.6 fiction, `NLPRULE_PARALLELISM=off` to avoid
-thread scheduling noise. Wall time never gates. Golden identity and the existing
+thread scheduling noise. Allocator calls sum `malloc`/`calloc`/`realloc` call edges in the
+same profile; there is no extra profiling pass and no allocated-byte estimate. A separate
+Memcheck pass exceeded 14 minutes and was dropped before Phase 0 merged. Wall time never gates. Golden identity and the existing
 conformance/public recall floors remain the automated correctness gates; instruction
-and RSS deltas inform the keep/drop decision. Raw profiler files, allocation logs,
+and RSS deltas inform the keep/drop decision. Raw profiler files, allocator-call counts,
 JSON samples and the summary table are uploaded as the `performance` artifact.
 
 ### Hill-climb ledger
