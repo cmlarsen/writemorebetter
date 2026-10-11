@@ -137,7 +137,8 @@ pub(crate) const RULES_MAGIC: &[u8; 8] = b"WMBRUL01";
 /// their `Part`s.
 /// Version 5: `Composition.start_keys` was added (a literal-token prefilter).
 /// Version 6: identical antipattern compositions share entries in `PartPool`.
-pub const TOKENIZER_FORMAT_VERSION: u32 = 6;
+/// Version 7: `Composition.required_key` extends the literal prefilter.
+pub const TOKENIZER_FORMAT_VERSION: u32 = 7;
 
 /// The on-disk format version of [Rules] binaries.
 ///
@@ -153,7 +154,8 @@ pub const TOKENIZER_FORMAT_VERSION: u32 = 6;
 /// shared `Rules.parts` pool instead of owning their `Part`s.
 /// Version 7: `Composition.start_keys` was added (a literal-token prefilter).
 /// Version 8: identical antipattern compositions share entries in `Rules.parts`.
-pub const RULES_FORMAT_VERSION: u32 = 8;
+/// Version 9: `Composition.required_key` extends the literal prefilter.
+pub const RULES_FORMAT_VERSION: u32 = 9;
 
 /// The longest engine version string accepted in a binary header.
 const MAX_ENGINE_VERSION_LEN: usize = 256;

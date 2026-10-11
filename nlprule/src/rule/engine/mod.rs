@@ -213,19 +213,24 @@ impl Engine {
                 // If the composition's first part is a required literal, only the positions of
                 // tokens with that text can start a match, so jump straight to them (and skip the
                 // rule entirely when there are none).
-                let starts = match engine.composition.start_keys.as_deref() {
-                    None => Starts::All,
-                    Some([key]) => Starts::Positions(sentence.start_positions().get(key)),
-                    Some(keys) => {
-                        let positions = sentence.start_positions();
-                        let mut starts: Vec<u32> = Vec::new();
-                        for key in keys {
-                            starts.extend_from_slice(positions.get(key));
-                        }
-                        starts.sort_unstable();
-                        starts.dedup();
-                        Starts::Multi(starts.into_boxed_slice())
+                let starts = match engine.composition.required_key.as_deref() {
+                    Some(key) if !sentence.start_positions().may_contain(key) => {
+                        Starts::Positions(&[])
                     }
+                    _ => match engine.composition.start_keys.as_deref() {
+                        None => Starts::All,
+                        Some([key]) => Starts::Positions(sentence.start_positions().get(key)),
+                        Some(keys) => {
+                            let positions = sentence.start_positions();
+                            let mut starts: Vec<u32> = Vec::new();
+                            for key in keys {
+                                starts.extend_from_slice(positions.get(key));
+                            }
+                            starts.sort_unstable();
+                            starts.dedup();
+                            Starts::Multi(starts.into_boxed_slice())
+                        }
+                    },
                 };
 
                 InnerMatches::Token(TokenMatches {

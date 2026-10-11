@@ -1116,6 +1116,25 @@ mod composition {
             // indexed by `k` and holds `part index + 1` (see `GraphIndex`).
             let mut id_to_idx: Vec<u32> = vec![0];
 
+            let required_key = if start_keys.is_none() {
+                parts
+                    .iter()
+                    .filter(|part| part.quantifier.min > 0)
+                    .find_map(|part| {
+                        let mut keys = Vec::new();
+                        if part.atom.start_keys(&mut keys)
+                            && keys.len() == 1
+                            && !keys[0].text.is_empty()
+                        {
+                            keys.pop().map(Box::new)
+                        } else {
+                            None
+                        }
+                    })
+            } else {
+                None
+            };
+
             for (i, part) in parts.iter().enumerate() {
                 if part.visible {
                     id_to_idx.push((i + 1) as u32);
@@ -1152,6 +1171,7 @@ mod composition {
                 id_to_idx,
                 can_stop_mask,
                 start_keys,
+                required_key,
             })
         }
     }

@@ -135,6 +135,7 @@ fn empty_engine() -> Engine {
             id_to_idx: Vec::new(),
             can_stop_mask: Vec::new(),
             start_keys: None,
+            required_key: None,
         },
         antipatterns: Vec::new(),
     })
@@ -1123,6 +1124,12 @@ pub fn describe(tokenizer_bin: &Path, rules_bin: &Path) -> Result<Vec<(String, S
     }
     for (key, value) in [
         ("grammar token compositions", stats.compositions),
+        (
+            "grammar rules with later required literal",
+            rules.rules.iter().filter(|rule| {
+                matches!(&rule.engine, Engine::Token(engine) if engine.composition.required_key.is_some())
+            }).count() as u64,
+        ),
         ("grammar composition parts (main)", stats.main_parts),
         (
             "grammar composition parts (antipattern)",
