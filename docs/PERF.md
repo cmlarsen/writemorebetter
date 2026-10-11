@@ -237,7 +237,8 @@ attempts total. Phase 0 establishes measurement and does not count as an optimiz
 | 4 | [#52](https://github.com/cmlarsen/writemorebetter/pull/52) | Later mandatory-literal absence guard | -23.79% | -2.277 MiB | +0.102 MiB | -5.02% / -4.40% (interleaved, loaded) | kept |
 | 5 | [#53](https://github.com/cmlarsen/writemorebetter/pull/53) | Reuse successful first-token match | -4.26% / -4.25% (rerun) | +1.727 / +1.742 MiB | -0.113 / +0.098 MiB | -1.35% / +0.73% (interleaved, loaded) | dropped |
 | 6 | [#54](https://github.com/cmlarsen/writemorebetter/pull/54) | Trim spare capacity from tagger FST buffers | -0.66% | -0.293 MiB | -0.449 MiB | +0.53% / +1.24% (interleaved, loaded) | dropped |
-| 7 | pending | Inline buffers for small match graphs | pending | pending | pending | -0.82% / -2.24% (interleaved, loaded) | pending |
+| 7 | [#55](https://github.com/cmlarsen/writemorebetter/pull/55) | Inline buffers for small match graphs | -0.74% | -2.496 MiB | -0.137 MiB | -0.82% / -2.24% (interleaved, loaded) | kept |
+| 8 | pending | Inline buffers for short speller rows | pending | pending | pending | +0.16% / -1.36% (interleaved, loaded) | pending |
 
 
 Phase 0 merge-base measurements (Ubuntu): 6.6 check 5.2510 s, peak 91.4414 MiB,
@@ -380,3 +381,18 @@ The current profile attributes 62.30% inclusive time to composition matching.
 This attempt is rebuilt on retained main after #53 and #54 were dropped; no first-token
 reuse or FST-capacity change is included. All 24 goldens and 38 library tests pass.
 Fresh local check deltas (6.6 / 5.2): -0.82% / -2.24%. CI decides retention.
+
+CI passed: instructions 55.547B → 55.135B (-0.74%), allocator calls
+38.283M → 31.595M (-17.47%), 6.6 peak 87.754 → 85.258 MiB (-2.496),
+and 5.2 peak -0.137 MiB. Loaded RSS fell 2.582 MiB on 6.6. #55 was retained
+as a memory win, with improved instructions and no 5.2 memory regression.
+
+### Attempt 8 — inline short speller rows
+
+Rows of up to sixteen cells remain inline; larger rows spill to a vector. The byte-based
+distance recurrence, transpose history and prefix cutoff are unchanged. The retained-main
+allocation profile attributes 8.86 million blocks to speller row creation/cloning.
+All 24 goldens and 38 library tests pass on the corrected branch without #53/#54.
+Fresh local Moby medians: 6.6 check 2.3117 → 2.3155 s (+0.16%), peak
+89.00 → 88.00 MiB (-1.00); 5.2 check 1.9610 → 1.9344 s (-1.36%), peak
+72.23 → 70.38 MiB (-1.86). Timing is informational under load; CI decides retention.
