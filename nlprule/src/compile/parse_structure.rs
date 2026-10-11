@@ -901,7 +901,10 @@ impl Rule {
                 Ok((
                     Engine::Token(TokenEngine {
                         composition,
-                        antipatterns,
+                        antipatterns: antipatterns
+                            .into_iter()
+                            .map(|pattern| pool.intern_antipattern(pattern))
+                            .collect(),
                     }),
                     start,
                     end,
@@ -1244,7 +1247,10 @@ impl DisambiguationRule {
 
         let engine = Engine::Token(TokenEngine {
             composition,
-            antipatterns,
+            antipatterns: antipatterns
+                .into_iter()
+                .map(|pattern| pool.intern_antipattern(pattern))
+                .collect(),
         });
 
         let word_datas: Vec<_> = if let Some(wds) = data.disambig.word_datas {

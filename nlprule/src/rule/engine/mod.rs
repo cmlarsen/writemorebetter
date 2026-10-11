@@ -5,12 +5,14 @@ use crate::{
 use serde::{Deserialize, Serialize};
 pub mod composition;
 
-use composition::{Composition, GraphId, Group, MatchGraph, MatchSentence, PartPool};
+use composition::{
+    AntipatternId, Composition, GraphId, Group, MatchGraph, MatchSentence, PartPool,
+};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TokenEngine {
     pub(crate) composition: Composition,
-    pub(crate) antipatterns: Vec<Composition>,
+    pub(crate) antipatterns: Vec<AntipatternId>,
 }
 
 impl TokenEngine {
@@ -26,6 +28,7 @@ impl TokenEngine {
             // TODO: cache / move to outer loop
             for i in 0..sentence.len() {
                 for antipattern in &self.antipatterns {
+                    let antipattern = pool.antipattern(*antipattern);
                     if let Some(anti_graph) = antipattern.apply(pool, sentence, i) {
                         let anti_start = anti_graph.by_index(0).span.char().start;
                         let anti_end = anti_graph
