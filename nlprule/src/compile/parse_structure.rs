@@ -468,9 +468,15 @@ fn parse_match(
                 Engine::Token(engine) => {
                     // `id_to_idx` maps a graph id to `part_index + 1`; the skip
                     // part, if any, is the part right after the referenced one.
-                    let group = *engine.composition.id_to_idx.get(&graph_id).ok_or_else(|| {
-                        Error::Unexpected("match reference is not in the pattern".into())
-                    })?;
+                    let group = engine
+                        .composition
+                        .id_to_idx
+                        .get(graph_id.0)
+                        .copied()
+                        .filter(|&index| index != u32::MAX)
+                        .ok_or_else(|| {
+                            Error::Unexpected("match reference is not in the pattern".into())
+                        })? as usize;
                     let has_skip = engine
                         .composition
                         .parts
@@ -1117,7 +1123,7 @@ impl Rule {
             engine,
             unification,
             filter,
-            examples,
+            examples: crate::rule::Examples::from_vec(examples),
             suggesters,
             message,
             articles,

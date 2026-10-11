@@ -134,7 +134,7 @@ impl<'a, 't> Iterator for EngineMatches<'a, 't> {
                     }
                 }
 
-                MatchGraph::new(groups, inner.id_to_idx)
+                MatchGraph::new_map(groups, inner.id_to_idx)
             }),
         }
     }

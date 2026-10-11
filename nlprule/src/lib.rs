@@ -129,13 +129,22 @@ pub(crate) const RULES_MAGIC: &[u8; 8] = b"WMBRUL01";
 /// new field, a changed field type, a reordered `enum`, or a changed `serde` attribute.
 /// `bincode` has no schema, so without a bump an older or newer engine would deserialize the
 /// payload into shifted fields and silently produce wrong results instead of failing.
-pub const TOKENIZER_FORMAT_VERSION: u32 = 2;
+///
+/// Version 2: the rule-engine matcher representation became compact (`MatcherKind`,
+/// `Box<[WordIdInt]>` text-matcher sets, `Vec<u32>` composition indices, `u32` quantifiers).
+/// Version 3: `TokenizerLangOptions::chunk_number_from_last_token` was added.
+pub const TOKENIZER_FORMAT_VERSION: u32 = 3;
 
 /// The on-disk format version of [Rules] binaries.
 ///
 /// Bump this whenever any type reachable from [Rules] changes its serialized shape. See
 /// [TOKENIZER_FORMAT_VERSION] for why.
-pub const RULES_FORMAT_VERSION: u32 = 4;
+///
+/// Version 3: rule-group unification and grammar-rule parsing changes (M4I).
+/// Version 4: the compact matcher representation above, plus `Rule::examples` stored as a lazily
+/// parsed blob ([`rule::Examples`]).
+/// Version 5: `Matcher::reference_conversion` was added.
+pub const RULES_FORMAT_VERSION: u32 = 5;
 
 /// The longest engine version string accepted in a binary header.
 const MAX_ENGINE_VERSION_LEN: usize = 256;

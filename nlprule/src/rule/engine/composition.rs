@@ -8,9 +8,22 @@ use unicase::UniCase;
 
 type Context<'a, 't> = (&'a MatchSentence<'t>, &'a MatchGraph<'t>);
 
+/// The three ways a [Matcher] compares: a literal string, the text of another pattern group, or a
+/// regular expression.
+///
+/// Kept compact (regex and string boxed, a graph reference is just an id) so [`Atom`] and
+/// `Vec<Part>` stay small — those vectors hold one entry per pattern atom and dominate the loaded
+/// rule memory.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub enum MatcherKind {
+    Text(Box<str>),
+    Graph(GraphId),
+    Regex(Box<Regex>),
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Matcher {
-    pub matcher: either::Either<either::Either<String, GraphId>, Regex>,
+    pub(crate) matcher: MatcherKind,
     pub negate: bool,
     pub case_sensitive: bool,
     pub empty_always_false: bool,
@@ -50,40 +63,38 @@ impl Matcher {
         let case_sensitive = case_sensitive.unwrap_or(self.case_sensitive);
 
         let matches = match &self.matcher {
-            either::Left(string_or_idx) => match string_or_idx {
-                either::Left(string) => {
-                    if case_sensitive {
-                        string.as_str() == input
-                    } else {
-                        UniCase::new(string) == UniCase::new(input)
-                    }
+            MatcherKind::Text(string) => {
+                if case_sensitive {
+                    string.as_ref() == input
+                } else {
+                    UniCase::new(string.as_ref()) == UniCase::new(input)
                 }
-                either::Right(id) => {
-                    let (sentence, graph) =
-                        context.expect("context must be set for context-dependent matcher");
+            }
+            MatcherKind::Graph(id) => {
+                let (sentence, graph) =
+                    context.expect("context must be set for context-dependent matcher");
 
-                    graph
-                        .by_id(*id)
-                        .tokens(sentence)
-                        .next()
-                        .map_or(false, |token| {
-                            let reference = token.word().as_str();
-                            if let Some(conversion) = &self.reference_conversion {
-                                let converted = conversion.convert(reference, reference);
-                                if case_sensitive {
-                                    converted == input
-                                } else {
-                                    UniCase::new(converted.as_str()) == UniCase::new(input)
-                                }
-                            } else if case_sensitive {
-                                reference == input
+                graph
+                    .by_id(*id)
+                    .tokens(sentence)
+                    .next()
+                    .map_or(false, |token| {
+                        let reference = token.word().as_str();
+                        if let Some(conversion) = &self.reference_conversion {
+                            let converted = conversion.convert(reference, reference);
+                            if case_sensitive {
+                                converted == input
                             } else {
-                                UniCase::new(reference) == UniCase::new(input)
+                                UniCase::new(converted.as_str()) == UniCase::new(input)
                             }
-                        })
-                }
-            },
-            either::Right(regex) => regex.is_match(input),
+                        } else if case_sensitive {
+                            reference == input
+                        } else {
+                            UniCase::new(reference) == UniCase::new(input)
+                        }
+                    })
+            }
+            MatcherKind::Regex(regex) => regex.is_match(input),
         };
 
         if self.negate {
@@ -97,7 +108,10 @@ impl Matcher {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub(crate) struct TextMatcher {
     pub(crate) matcher: Matcher,
-    pub(crate) set: Option<DefaultHashSet<WordIdInt>>,
+    /// The word ids matching `matcher`, sorted so membership is a binary search. `None` when the
+    /// matcher depends on the graph or matches too many words. A `HashSet` cost ~8 bytes per id
+    /// plus a per-set table; a sorted slice is 4 bytes per id and one allocation.
+    pub(crate) set: Option<Box<[WordIdInt]>>,
 }
 
 impl TextMatcher {
@@ -107,18 +121,13 @@ impl TextMatcher {
         context: Option<Context>,
         case_sensitive: Option<bool>,
     ) -> bool {
-        if self.set.is_none() {
-            return self
-                .matcher
-                .is_match(word_id.as_str(), context, case_sensitive);
+        if let Some(set) = &self.set {
+            if let Some(id) = word_id.id() {
+                return set.binary_search(&id).is_ok();
+            }
         }
-
-        if let Some(id) = word_id.id() {
-            self.set.as_ref().unwrap().contains(id)
-        } else {
-            self.matcher
-                .is_match(word_id.as_str(), context, case_sensitive)
-        }
+        self.matcher
+            .is_match(word_id.as_str(), context, case_sensitive)
     }
 }
 
@@ -169,8 +178,8 @@ impl WordDataMatcher {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Quantifier {
-    pub min: usize,
-    pub max: usize,
+    pub min: u32,
+    pub max: u32,
 }
 
 #[enum_dispatch]
@@ -418,28 +427,45 @@ impl<'t> MatchSentence<'t> {
     }
 }
 
+/// How a [`MatchGraph`] maps a [`GraphId`] to a group index.
+///
+/// Token compositions used to store this as a `HashMap<GraphId, usize>`, which cost ~30 bytes per
+/// entry; the mapping is a monotone id → index function, so a `Vec<u32>` (with `u32::MAX` for
+/// "absent") is enough. Text engines keep their identity map.
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum GraphIndex<'t> {
+    Slice(&'t [u32]),
+    Map(&'t DefaultHashMap<GraphId, usize>),
+}
+
 #[derive(Debug, Clone)]
 pub struct MatchGraph<'t> {
     groups: Vec<Group>,
-    id_to_idx: &'t DefaultHashMap<GraphId, usize>,
-}
-
-lazy_static! {
-    static ref EMPTY_MAP: DefaultHashMap<GraphId, usize> = DefaultHashMap::default();
+    id_to_idx: GraphIndex<'t>,
 }
 
 impl<'t> Default for MatchGraph<'t> {
     fn default() -> Self {
         MatchGraph {
             groups: Vec::new(),
-            id_to_idx: &(*EMPTY_MAP),
+            id_to_idx: GraphIndex::Slice(&[]),
         }
     }
 }
 
 impl<'t> MatchGraph<'t> {
-    pub fn new(groups: Vec<Group>, id_to_idx: &'t DefaultHashMap<GraphId, usize>) -> Self {
-        MatchGraph { groups, id_to_idx }
+    pub fn new(groups: Vec<Group>, id_to_idx: &'t [u32]) -> Self {
+        MatchGraph {
+            groups,
+            id_to_idx: GraphIndex::Slice(id_to_idx),
+        }
+    }
+
+    pub fn new_map(groups: Vec<Group>, id_to_idx: &'t DefaultHashMap<GraphId, usize>) -> Self {
+        MatchGraph {
+            groups,
+            id_to_idx: GraphIndex::Map(id_to_idx),
+        }
     }
 
     pub fn by_index(&self, index: usize) -> &Group {
@@ -451,16 +477,29 @@ impl<'t> MatchGraph<'t> {
     }
 
     pub fn get_index(&self, id: GraphId) -> usize {
-        *self
-            .id_to_idx
-            .get(&id)
-            .expect("only valid graph indices exist")
+        match self.id_to_idx {
+            GraphIndex::Slice(slice) => {
+                let index = slice[id.0];
+                assert!(index != u32::MAX, "only valid graph indices exist");
+                index as usize
+            }
+            GraphIndex::Map(map) => *map.get(&id).expect("only valid graph indices exist"),
+        }
     }
 
     /// Like [`MatchGraph::get_index`] but returns `None` for an id that is not
     /// part of this graph (filters may reference tokens that did not match).
     pub fn get_index_opt(&self, id: GraphId) -> Option<usize> {
-        self.id_to_idx.get(&id).copied()
+        match self.id_to_idx {
+            GraphIndex::Slice(slice) => slice.get(id.0).and_then(|&index| {
+                if index == u32::MAX {
+                    None
+                } else {
+                    Some(index as usize)
+                }
+            }),
+            GraphIndex::Map(map) => map.get(&id).copied(),
+        }
     }
 
     pub fn groups(&self) -> &[Group] {
@@ -523,7 +562,9 @@ pub struct Part {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Composition {
     pub(crate) parts: Vec<Part>,
-    pub(crate) id_to_idx: DefaultHashMap<GraphId, usize>,
+    /// `GraphId(k) -> group index`, as a `Vec` indexed by `k` (`u32::MAX` = absent). See
+    /// [`GraphIndex`] for why this is not a map.
+    pub(crate) id_to_idx: Vec<u32>,
     pub(crate) can_stop_mask: Vec<bool>,
 }
 
@@ -549,7 +590,7 @@ impl Composition {
         mut cur_atom_idx: usize,
         mut graph: MatchGraph<'t>,
     ) -> Option<MatchGraph<'t>> {
-        let mut cur_count = 0;
+        let mut cur_count = 0u32;
         let is_match = loop {
             if cur_atom_idx >= self.parts.len() {
                 break true;
