@@ -35,7 +35,7 @@ impl Builtin {
         self.check_text(std::slice::from_ref(sentence))
     }
 
-    /// Runs this rule on consecutive sentences of one text. Rules that need context beyond one sentence
+    /// Runs this rule on consecutive sentences of one paragraph. Rules that need context beyond one sentence
     /// (e.g. quotes spanning sentences) see all of them; sentence-level rules check each one separately.
     pub fn check_text(&self, sentences: &[Sentence]) -> Vec<Suggestion> {
         match self {
