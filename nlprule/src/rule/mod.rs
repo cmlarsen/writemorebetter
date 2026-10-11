@@ -444,7 +444,7 @@ impl<'a, 't> Iterator for Suggestions<'a, 't> {
 ///     <example correction="doesn't">He <marker>dosn't</marker> know about it.</example>
 /// </rule>
 /// ```
-/// The `<example>`s of a [Rule], kept as a compact bincode blob and parsed on first use.
+/// The `<example>`s of a [Rule], kept as a compressed bincode blob and parsed on first use.
 ///
 /// Examples are only used by the rule-test binaries; the running engine never reads them. Storing
 /// them as a `Vec<Example>` cost several times their serialized size at load (per-example structs
@@ -463,7 +463,9 @@ impl Examples {
         if examples.is_empty() {
             return Self::default();
         }
-        let blob = bincode::serialize(&examples).expect("examples must serialize");
+        let blob = lz4_flex::block::compress_prepend_size(
+            &bincode::serialize(&examples).expect("examples must serialize"),
+        );
         Self {
             blob,
             cache: once_cell::sync::OnceCell::new(),
@@ -476,7 +478,9 @@ impl Examples {
             if self.blob.is_empty() {
                 Vec::new()
             } else {
-                bincode::deserialize(&self.blob).expect("examples blob must deserialize")
+                let bytes = lz4_flex::block::decompress_size_prepended(&self.blob)
+                    .expect("examples blob must decompress");
+                bincode::deserialize(&bytes).expect("examples blob must deserialize")
             }
         })
     }
@@ -492,6 +496,34 @@ impl Clone for Examples {
             blob: self.blob.clone(),
             cache: once_cell::sync::OnceCell::new(),
         }
+    }
+}
+
+#[cfg(test)]
+mod example_tests {
+    use super::*;
+
+    #[test]
+    fn compressed_examples_roundtrip_and_clone_without_eager_decoding() {
+        let text = "“It's” fine—it isn’t…\u{2028}";
+        let examples = Examples::from_vec(vec![Example {
+            text: text.into(),
+            suggestion: None,
+            kind: ExampleKind::Correct,
+            marker: Some(Span::new(0..text.len(), 0..text.chars().count())),
+        }]);
+        let serialized = bincode::serialize(&examples).unwrap();
+        let decoded: Examples = bincode::deserialize(&serialized).unwrap();
+        assert!(decoded.cache.get().is_none());
+        assert_eq!(decoded.get()[0].text(), text);
+        assert_eq!(decoded.get()[0].kind(), &ExampleKind::Correct);
+        assert_eq!(decoded.get()[0].marker(), examples.get()[0].marker());
+        let cloned = decoded.clone();
+        assert!(cloned.cache.get().is_none());
+        assert_eq!(cloned.get()[0].text(), text);
+        let empty = Examples::from_vec(Vec::new());
+        assert!(empty.is_empty());
+        assert!(empty.get().is_empty());
     }
 }
 
