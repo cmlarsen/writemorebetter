@@ -374,7 +374,7 @@ impl Model {
                 }
             }
 
-            prev = next.clone();
+            std::mem::swap(&mut prev, &mut next);
             next.clear();
         }
 
