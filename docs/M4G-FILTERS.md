@@ -65,6 +65,13 @@ supported and selected by whether `weekDay` is a token reference.
 
 ## Acceptance numbers
 
+These were measured after merging `origin/main` at the point of the final
+commit, i.e. on top of M4F (no-suggestion rules and example types), M4H (LT 6.6
+contraction tokenization) and the curly-apostrophe fix. The "before" column is
+that same base with this milestone's changes reverted (the filter rules are
+blocked). Two build dirs as in `build/README.md`: 5.2 (`data/en`) and 6.6
+(`data/en-lt66`, with its `tokenizer_options.json`).
+
 ### 1. Filter errors before/after
 
 | Rule set | Before ("rules with filter are not implemented") | After |
@@ -79,41 +86,42 @@ skipped (23 rules). All 8 LT 5.2 classes implemented (34 of 34 rules).
 
 | Rule set | Runnable before -> after | Passing before -> after | Pass rate (of `<rule>`) before -> after | Regressions |
 |---|---|---|---|---|
-| LT 6.6 | 5718 -> **5737** | 4998 -> **5014** | 4998/6098 81.96% -> 5014/6098 82.22% | none |
-| LT 5.2 | 4055 -> **4060** | 4052 -> **4057** | 4052/4366 92.81% -> 4057/4366 92.92% | none |
+| LT 6.6 | 5934 -> **5982** | 5784 -> **5884** | 5784/6098 94.85% -> 5884/6098 96.49% | none |
+| LT 5.2 | 4252 -> **4286** | 4187 -> **4273** | 4187/4366 95.90% -> 4273/4366 97.87% | none |
 
 Every rule that passed before still passes (diffed the `PASS` lists). CI floors
-(6.6: 4998 passing / 5718 runnable; 5.2: 4052 / 4055) are still met.
-Disambiguation is unchanged (6.6 979/1015, 5.2 843/843).
+(6.6: 5784 passing / 5934 runnable, disambiguation 1011; 5.2: 4187 / 4252,
+disambiguation 843) are met and raised. Disambiguation is unchanged from the
+base: 6.6 1011/1015, 5.2 843/843.
 
 ### 3. Newly compiled rules
 
-19 LT 6.6 rules and 5 LT 5.2 rules newly compile (the rest of the rules that got
-past the filter stage still fail on the pre-existing "no suggestion" / example
-`type` errors, which belong to another milestone).
+| Rule set | Newly compiled | Newly passing | Newly failing |
+|---|---:|---:|---:|
+| LT 6.6 | 48 | 46 | 2 |
+| LT 5.2 | 34 | 34 | 0 |
 
-- LT 6.6: 16 of 19 pass. Newly passing: `PUNCTUATION/DASH_RULE/{2,5}`,
-  `PUNCTUATION/HYPHEN_TO_EN/{1,2,3}`, `SEMANTICS/DATE_NEW_YEAR/{0..4}`,
-  `SEMANTICS/ORDINAL_NUMBER_SUFFIX/{0..4}`, `TYPOGRAPHY/CURRENCY/0`.
-- LT 6.6 failures (all three are pre-existing tokenizer differences, not filter
-  bugs — the pattern never matches, so the filter is never reached):
-  1. `PUNCTUATION/DASH_RULE/4` — the tokenizer keeps `069—68` as one token, so
-     `<number> <dash> <number>` doesn't match. (The filter-less
-     `TYPOGRAPHY/SPURIOUS_APOSTROPHE` fails the same way.)
-  2. `TYPOGRAPHY/TYPEWRITER_APOSTROPHE/0` — `actress’s` tokenizes as
-     `actress` `’` `s`, so `<token>’.+` doesn't match.
-  3. `TYPOGRAPHY/TYPOGRAPHICAL_APOSTROPHE/0` — same with the straight apostrophe.
-- LT 5.2: 5 of 5 pass (`SEMANTICS/DATE_NEW_YEAR/{0..4}`).
+The newly failing LT 6.6 rules are pre-existing tokenizer differences — the
+pattern never matches, so the filter is never reached:
+
+1. `TYPOGRAPHY/TYPEWRITER_APOSTROPHE/0` — the tokenizer yields `actress` `'s`
+   `role` for `actress’s` (the curly apostrophe is normalised), so the
+   `<token>’.+` pattern does not match.
+2. `PUNCTUATION/DASH_RULE/4` — the tokenizer keeps `069—68` as one token, so
+   `<number> <dash> <number>` does not match.
+
+The other 46 newly compiled rules pass, including all 16 future-date rules, the
+9 date-check rules and the 5 ordinal-suffix rules.
 
 ### 4. Public recall and flags (`bench/tools/public_recall.py`)
 
 | Rule set | Recall (default) | Recall (fiction) | Flags default | Flags fiction |
 |---|---|---|---|---|
-| LT 6.6 | 54/60 (floor 54) | 54/60 | 119 -> 119 | 110 -> 110 |
-| LT 5.2 | 53/60 (floor 53) | 53/60 | 100 -> 100 | 90 -> 90 |
+| LT 6.6 | 55/60 (floor 55) | 55/60 | 96 -> 96 | 87 -> 87 |
+| LT 5.2 | 54/60 (floor 54) | 54/60 | 103 -> 103 | 93 -> 93 |
 
-Recall is unchanged at its floor; the total flags on `bench/public` do not change
-(every newly compiled rule is either January-only or off on this corpus).
+Recall and the total flags on `bench/public` are unchanged from the base
+(every newly compiled rule is January-only or not triggered by the corpus).
 
 ### 5. Gates
 
@@ -122,3 +130,15 @@ Recall is unchanged at its floor; the total flags on `bench/public` do not chang
 - `cargo test --workspace --exclude nlprule-python --all-features --release` —
   passes (includes new unit tests for the calendar math and the ordinal-suffix
   and day-of-month rewrites).
+
+## Integration note
+
+M4F classified an untyped example as incorrect when the rule had no
+`<suggestion>` and the example carried a `<marker>`. LanguageTool classifies by
+`type` or the `correction` attribute only (`PatternRuleHandler.java`, LT 6.6)
+and `PatternRuleTest.testCorrectSentences` asserts a correct example does not
+match regardless of markers. The marker clause misclassified the negative
+examples of the no-suggestion date-filter rules (e.g. the future-date rules'
+`7 October 2010`). Removing it is a one-line change (committed separately) and
+raises conformance by 100 (6.6) / 86 (5.2) rules over the base, with zero
+regressions.

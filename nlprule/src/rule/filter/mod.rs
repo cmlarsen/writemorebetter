@@ -611,7 +611,7 @@ fn accept_date_check_index<'t>(
     // If the weekday matches the date in the current year, suggest the year.
     if let Some(change_year_date) = Date::new(current.year, month, day) {
         if claimed == change_year_date.weekday_java() {
-            let year_pos = year_idx.or(day_idx).unwrap_or(week_day);
+            let year_pos = year_idx.or(date_idx).or(day_idx).unwrap_or(week_day);
             let span = group_span(graph, year_pos)?;
             m.from = span.start();
             m.to = span.end();
