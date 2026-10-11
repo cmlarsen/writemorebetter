@@ -12,7 +12,11 @@ pub use regex_impl::{CaptureMatches, Captures, Match, Matches};
 #[derive(Debug)]
 pub struct Regex {
     regex_str: String,
-    regex: OnceCell<regex_impl::Regex>,
+    // Boxed so the cache slot is one pointer word. `OnceCell` stores its value inline, and a
+    // compiled `fancy_regex::Regex` is large; with ~70k pattern `Regex`es in the English rule set
+    // the inline slot alone cost several MB of the loaded rules. The box costs one allocation per
+    // regex that is actually compiled. Serialization is unchanged: only `regex_str` is written.
+    regex: OnceCell<Box<regex_impl::Regex>>,
 }
 
 impl Clone for Regex {
@@ -69,8 +73,9 @@ impl Regex {
 
     fn regex(&self) -> &regex_impl::Regex {
         self.regex.get_or_init(|| {
-            regex_impl::Regex::new(&self.regex_str)
-                .unwrap_or_else(|_| panic!("regex string should be pre-tested: {}", self.regex_str))
+            Box::new(regex_impl::Regex::new(&self.regex_str).unwrap_or_else(|_| {
+                panic!("regex string should be pre-tested: {}", self.regex_str)
+            }))
         })
     }
 

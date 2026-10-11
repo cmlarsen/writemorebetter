@@ -46,8 +46,7 @@ const spell = mode === "off" ? undefined : mode;
 
 const { Checker } = require(join(here, "pkg", "writemorebetter_wasm.js"));
 
-const tokenizerBytes = readFileSync(join(root, "storage", "en_tokenizer.bin"));
-const rulesBytes = readFileSync(join(root, "storage", "en_rules.bin"));
+const binPath = (name) => join(root, "storage", name);
 
 const inputs = [["story1", join(root, "bench", "public", "story1.txt")]];
 const moby = join(root, "storage", "moby150k.txt");
@@ -67,7 +66,14 @@ const texts = inputs.map(([name, path]) => [name, readFileSync(path, "utf8")]);
 
 console.log(`\n=== speller: ${mode} ===`);
 const tConstruct = process.hrtime.bigint();
-const checker = new Checker(tokenizerBytes, rulesBytes, spell);
+// The two binaries are copied into wasm linear memory by the constructor; the JS Buffers are only
+// needed for the call, so they are read inline and never bound to a live variable. Callers should
+// not keep the bytes around (see memory.mjs).
+const checker = new Checker(
+  readFileSync(binPath("en_tokenizer.bin")),
+  readFileSync(binPath("en_rules.bin")),
+  spell,
+);
 const constructMs = Number(process.hrtime.bigint() - tConstruct) / 1e6;
 console.log(`construction: ${constructMs.toFixed(1)} ms`);
 console.log(`memory after construction: ${mem()}`);
