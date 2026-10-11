@@ -1,7 +1,7 @@
 //! Checks if the input text contains multi-token phrases from a finite list (might contain e. g. city names) and assigns lemmas and part-of-speech tags accordingly.
 
 use crate::types::*;
-use aho_corasick::AhoCorasick;
+use aho_corasick::{AhoCorasick, AhoCorasickBuilder};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
@@ -11,14 +11,18 @@ pub(crate) struct MultiwordTaggerFields {
 
 impl From<MultiwordTaggerFields> for MultiwordTagger {
     fn from(data: MultiwordTaggerFields) -> Self {
+        // `AhoCorasick::new_auto_configured` enables a dense DFA for a pattern list this size
+        // (<= 5000 phrases). The DFA's transition table costs ~15 MB to hold a ~50 KB phrase
+        // list, because every state carries a row over the transition alphabet. The NFA has the
+        // exact same search semantics - `auto_configure` never touches `match_kind`, so both are
+        // `MatchKind::Standard`, which also makes `find_iter` report overlapping matches - but
+        // stores the trie's transitions sparsely. Nothing about the serialized form changes:
+        // `matcher` is `#[serde(skip)]` and is rebuilt here on every load.
+        let matcher = AhoCorasickBuilder::new()
+            .dfa(false)
+            .build(data.multiwords.iter().map(|(word, _)| word.as_str()));
         MultiwordTagger {
-            matcher: AhoCorasick::new_auto_configured(
-                &data
-                    .multiwords
-                    .iter()
-                    .map(|(word, _)| word)
-                    .collect::<Vec<_>>(),
-            ),
+            matcher,
             multiwords: data.multiwords,
         }
     }
