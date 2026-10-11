@@ -51,8 +51,9 @@ rule — none is taken from the corpus.
 
 **Truth set** (`bench/corpus/truth.json`): 49 errors verified by reading each flagged line, in five kinds —
 28 misspellings, 7 accidental repeated words, 10 grammar/wrong-word errors, 3 n-gram confusions, 1 comma
-spacing. A flag counts as a catch when a tool flags that line on an overlapping span with a
-non-whitespace rule. Recall only; precision was judged by reading the flags (below).
+spacing. A second comma-spacing error (a space before a comma) was added after the first overnight run,
+making 50; the results tables below predate it and are scored against 49. A flag counts as a catch when a
+tool flags that line on an overlapping span with a non-whitespace rule. Recall only; precision was judged by reading the flags (below).
 
 **Runs:** LT via the public API (v6.9-SNAPSHOT, en-US; free tier, so no premium rules). Harper via
 `harper-cli lint --format json` (v2.12.0, US dialect, all rules). nlprule 0.6.4 via the published English
@@ -216,7 +217,7 @@ the desktop release), on an idle machine. Conformance pass rate = rules passing 
 |---|---|---|---|
 | Grammar pass rate | 3,749 / 4,366 = 85.9% | 4,320 / 4,366 = 98.9% | 5,977 / 6,098 = 98.0% |
 | Disambiguation pass rate | 843 / 855 = 98.6% | 843 / 855 = 98.6% | 1,012 / 1,060 = 95.5% |
-| Private corpus recall (49) | 5 | 42 | **45** (LT 6.9 API: 48) |
+| Private corpus recall (50) | 5 | 43 | **46** (LT 6.9 API: 49) |
 | Private corpus flags, fiction profile | 682 (no profile) | 186 | **180** (LT 6.9 API: 279) |
 | Public corpus recall (60) | 9 | 54 | 55 (LT 6.9 API: 56) |
 | Peak RSS, 150 KB of Moby-Dick, speller on | 159 MB | 78 MB | 100 MB |
