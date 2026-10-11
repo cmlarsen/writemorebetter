@@ -17,9 +17,9 @@ jobs:
         include:
           - lt: "6.6"
             build_dir: data/en-lt66
-            grammar_passing: 5121
+            grammar_passing: 5784
             grammar_runnable: 5934
-            disambig_passing: 979
+            disambig_passing: 1011
             recall_min: 55
           - lt: "5.2"
             build_dir: data/en
