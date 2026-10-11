@@ -77,6 +77,10 @@ use thiserror::Error;
 #[cfg(feature = "compile")]
 pub mod compile;
 mod filter;
+#[cfg(feature = "memory-probe")]
+#[allow(missing_docs)]
+#[doc(hidden)]
+pub mod memory_probe;
 pub mod rule;
 pub mod rules;
 pub mod spell;
