@@ -131,9 +131,9 @@ fn write_rules_blob(
 fn empty_engine() -> Engine {
     Engine::Token(TokenEngine {
         composition: Composition {
-            parts: Vec::new(),
-            id_to_idx: Vec::new(),
-            can_stop_mask: Vec::new(),
+            parts: Box::default(),
+            id_to_idx: Box::default(),
+            can_stop_mask: Box::default(),
             start_keys: None,
         },
         antipatterns: Vec::new(),
@@ -376,9 +376,9 @@ fn blank_rule(rule: &mut Rule, blank: GrammarBlank, pool: &mut PartPool) {
         }
         GrammarBlank::Parts => {
             if let Engine::Token(token) = &mut rule.engine {
-                token.composition.parts.clear();
+                token.composition.parts = Box::default();
                 for antipattern in token.antipatterns.iter_mut() {
-                    antipattern.parts.clear();
+                    antipattern.parts = Box::default();
                 }
             }
         }
@@ -387,17 +387,17 @@ fn blank_rule(rule: &mut Rule, blank: GrammarBlank, pool: &mut PartPool) {
         }
         GrammarBlank::IdToIdx => {
             if let Engine::Token(token) = &mut rule.engine {
-                token.composition.id_to_idx.clear();
+                token.composition.id_to_idx = Box::default();
                 for antipattern in token.antipatterns.iter_mut() {
-                    antipattern.id_to_idx.clear();
+                    antipattern.id_to_idx = Box::default();
                 }
             }
         }
         GrammarBlank::CanStopMask => {
             if let Engine::Token(token) = &mut rule.engine {
-                token.composition.can_stop_mask.clear();
+                token.composition.can_stop_mask = Box::default();
                 for antipattern in token.antipatterns.iter_mut() {
-                    antipattern.can_stop_mask.clear();
+                    antipattern.can_stop_mask = Box::default();
                 }
             }
         }

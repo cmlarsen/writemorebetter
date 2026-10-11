@@ -1149,7 +1149,7 @@ mod composition {
 
             Ok(Composition {
                 parts: parts.into_iter().map(|part| pool.intern(part)).collect(),
-                id_to_idx,
+                id_to_idx: id_to_idx.into_boxed_slice(),
                 can_stop_mask,
                 start_keys,
             })

@@ -684,11 +684,11 @@ impl PartInterner {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Composition {
     /// Indices into the rule set's [`PartPool`].
-    pub(crate) parts: Vec<PartId>,
-    /// `GraphId(k) -> group index`, as a `Vec` indexed by `k` (`u32::MAX` = absent). See
+    pub(crate) parts: Box<[PartId]>,
+    /// `GraphId(k) -> group index`, indexed by `k` (`u32::MAX` = absent). See
     /// [`GraphIndex`] for why this is not a map.
-    pub(crate) id_to_idx: Vec<u32>,
-    pub(crate) can_stop_mask: Vec<bool>,
+    pub(crate) id_to_idx: Box<[u32]>,
+    pub(crate) can_stop_mask: Box<[bool]>,
     /// Literal token texts such that a match of this composition can only *start* at a token
     /// whose text is one of them. `None` when the first part is not a required literal (a regex,
     /// a POS constraint, an optional token, …). The matcher uses this to skip the whole position
