@@ -240,6 +240,7 @@ attempts total. Phase 0 establishes measurement and does not count as an optimiz
 | 7 | [#55](https://github.com/cmlarsen/writemorebetter/pull/55) | Inline buffers for small match graphs | -0.74% | -2.496 MiB | -0.137 MiB | -0.82% / -2.24% (interleaved, loaded) | kept |
 | 8 | [#56](https://github.com/cmlarsen/writemorebetter/pull/56) | Inline buffers for short speller rows | +3.78% | -2.105 MiB | +0.012 MiB | +0.16% / -1.36% (interleaved, loaded) | dropped |
 | 9 | pending | LZ4-compressed lazy examples | pending | pending | pending | -2.87% / -1.04% (interleaved, loaded) | pending |
+| 11 | [#61](https://github.com/cmlarsen/writemorebetter/pull/61) | Prefer the longest mandatory literal for absence guards | pending | pending | pending | +2.40% / +1.23% (interleaved, loaded) | pending |
 
 
 Phase 0 merge-base measurements (Ubuntu): 6.6 check 5.2510 s, peak 91.4414 MiB,
@@ -421,3 +422,22 @@ Fresh five-pair Moby medians on retained main: 6.6 check 2.8907 → 2.8079 s
 (-2.87%), peak 88.95 → 87.91 MiB (-1.05); 5.2 check 3.3020 →
 3.2677 s (-1.04%), peak 72.19 → 71.70 MiB (-0.48). The machine was
 busy, including conformance runs; wall time is informational.
+
+### Attempt 11 — longest mandatory literal
+
+Attempt 4 compiled the first mandatory positive literal as the absence guard. This
+attempt chooses the longest one instead, so rarer, longer literals reject more sentences.
+Only the compile-time choice changes; no format version moves. All 24 goldens, fmt, clippy
+and the workspace tests pass, and independently built before/after engines produce
+byte-identical grammar and disambiguation passing-ID lists for both rule sets (grammar
+5,977/6,032 and 4,320/4,335; disambiguation 1,012/1,015 and 843/843 passing).
+
+| Rules | Text | Check before/after (s) | Check Δ | Peak before/after (MiB) | Peak Δ (MiB) |
+|---|---|---|---:|---|---:|
+| 52 | moby150k | 1.9780 / 2.0024 | +1.23% | 71.47 / 71.34 | -0.12 |
+| 52 | story1 | 0.1566 / 0.1577 | +0.70% | 63.42 / 63.52 | +0.09 |
+| 66 | moby150k | 2.3818 / 2.4389 | +2.40% | 87.80 / 88.19 | +0.39 |
+| 66 | story1 | 0.1838 / 0.1839 | +0.08% | 74.38 / 74.25 | -0.12 |
+
+The loaded-machine timings do not show a win (an earlier measurement on another revision
+showed -2.9%); CI instructions decide retention.
