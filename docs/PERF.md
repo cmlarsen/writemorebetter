@@ -240,6 +240,7 @@ attempts total. Phase 0 establishes measurement and does not count as an optimiz
 | 7 | [#55](https://github.com/cmlarsen/writemorebetter/pull/55) | Inline buffers for small match graphs | -0.74% | -2.496 MiB | -0.137 MiB | -0.82% / -2.24% (interleaved, loaded) | kept |
 | 8 | [#56](https://github.com/cmlarsen/writemorebetter/pull/56) | Inline buffers for short speller rows | +3.78% | -2.105 MiB | +0.012 MiB | +0.16% / -1.36% (interleaved, loaded) | dropped |
 | 9 | pending | LZ4-compressed lazy examples | pending | pending | pending | -2.87% / -1.04% (interleaved, loaded) | pending |
+| 12 | [#60](https://github.com/cmlarsen/writemorebetter/pull/60) | Share lazy compiled regex backends for identical sources | pending | pending | pending | +1.13% / -1.26% (interleaved, loaded) | pending |
 
 
 Phase 0 merge-base measurements (Ubuntu): 6.6 check 5.2510 s, peak 91.4414 MiB,
@@ -421,3 +422,22 @@ Fresh five-pair Moby medians on retained main: 6.6 check 2.8907 → 2.8079 s
 (-2.87%), peak 88.95 → 87.91 MiB (-1.05); 5.2 check 3.3020 →
 3.2677 s (-1.04%), peak 72.19 → 71.70 MiB (-0.48). The machine was
 busy, including conformance runs; wall time is informational.
+
+### Attempt 12 — shared lazy regex backends
+
+Identical regex sources in one rule set each held their own lazily compiled backend. The
+existing process-wide pattern pool now also holds a weak reference to one shared backend
+cell per pattern, so identical patterns compile once and the backend is freed with its last
+`Regex`; a pattern reloaded afterwards recompiles lazily with the same identity. No new
+static, thread-local or unsafe state: the weak reference lives in the entry the pool already
+had. A lifecycle test covers sharing, release and lazy reload. Serialized fields are
+unchanged. All 24 goldens, fmt, clippy and the workspace tests pass.
+
+| Rules | Text | Check before/after (s) | Check Δ | Peak before/after (MiB) | Peak Δ (MiB) |
+|---|---|---|---:|---|---:|
+| 52 | moby150k | 2.1228 / 2.0960 | -1.26% | 71.53 / 70.80 | -0.73 |
+| 52 | story1 | 0.1526 / 0.1631 | +6.91% | 63.50 / 62.72 | -0.78 |
+| 66 | moby150k | 2.4933 / 2.5215 | +1.13% | 87.69 / 85.67 | -2.02 |
+| 66 | story1 | 0.1830 / 0.1773 | -3.07% | 74.31 / 73.16 | -1.16 |
+
+CI decides retention.
