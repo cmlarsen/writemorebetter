@@ -239,7 +239,7 @@ attempts total. Phase 0 establishes measurement and does not count as an optimiz
 | 6 | [#54](https://github.com/cmlarsen/writemorebetter/pull/54) | Trim spare capacity from tagger FST buffers | -0.66% | -0.293 MiB | -0.449 MiB | +0.53% / +1.24% (interleaved, loaded) | dropped |
 | 7 | [#55](https://github.com/cmlarsen/writemorebetter/pull/55) | Inline buffers for small match graphs | -0.74% | -2.496 MiB | -0.137 MiB | -0.82% / -2.24% (interleaved, loaded) | kept |
 | 8 | [#56](https://github.com/cmlarsen/writemorebetter/pull/56) | Inline buffers for short speller rows | +3.78% | -2.105 MiB | +0.012 MiB | +0.16% / -1.36% (interleaved, loaded) | dropped |
-| 9 | [#57](https://github.com/cmlarsen/writemorebetter/pull/57) | LZ4-compressed lazy examples | pending | pending | pending | -2.87% / -1.04% (interleaved, loaded) | pending |
+| 9 | [#57](https://github.com/cmlarsen/writemorebetter/pull/57) | LZ4-compressed lazy examples | -0.17% | -3.410 MiB | -0.605 MiB | -2.87% / -1.04% (interleaved, loaded) | kept |
 | 10 | pending | Reuse chunker beam heaps | pending | pending | pending | -0.97% / -2.75% (interleaved, loaded) | pending |
 
 
@@ -431,3 +431,8 @@ and iteration order without copying sequences. All 24 goldens and 39 tests pass.
 Fresh local five-pair Moby medians on attempt 9: 6.6 check 2.8127 → 2.7855 s
 (-0.97%), peak 88.06 → 86.95 MiB (-1.11); 5.2 check 2.4984 → 2.4296 s
 (-2.75%), peak 71.53 → 70.97 MiB (-0.56). Timing under load is informational.
+
+Attempt 9 was retained as a memory win: both CI workflows passed, instructions
+fell 0.17% (55.169B → 55.072B), allocator calls were unchanged, 6.6 peak
+fell 3.410 MiB (87.617 → 84.207), and 5.2 peak fell 0.605 MiB. Loaded RSS
+fell 3.582 / 0.684 MiB. #57 merged with a merge commit.
