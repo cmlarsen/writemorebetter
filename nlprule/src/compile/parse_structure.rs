@@ -393,18 +393,11 @@ fn parse_token(
     Ok(parts)
 }
 
-fn parse_match(m: structure::Match, engine: &Engine, info: &mut BuildInfo) -> Result<Match, Error> {
-    if m.postag.is_some()
-        || m.postag_regex.is_some()
-        || m.postag_replace.is_some()
-        || m.text.is_some()
-    {
-        // this would need a fully functional PosReplacer to work
-        return Err(Error::Unimplemented(
-            "postag, postag_regex, postag_replace and text in `match` are not implemented.".into(),
-        ));
-    }
-
+fn parse_match(
+    m: structure::Match,
+    engine: &Engine,
+    _info: &mut BuildInfo,
+) -> Result<Match, Error> {
     if m.include_skipped.is_some() {
         return Err(Error::Unimplemented(
             "include_skipped in `match` is not implemented.".into(),
@@ -421,23 +414,33 @@ fn parse_match(m: structure::Match, engine: &Engine, info: &mut BuildInfo) -> Re
         None
     };
 
-    let pos_replacer = if let Some(postag) = m.postag {
+    let static_lemma = m
+        .text
+        .as_ref()
+        .map(|text| text.text.trim().to_string())
+        .filter(|text| !text.is_empty());
+
+    let postag_regexp = matches!(m.postag_regex.as_deref(), Some("yes"));
+
+    let pos_replacer = if let Some(postag) = &m.postag {
         if postag.contains("+DT") || postag.contains("+INDT") {
             return Err(Error::Unimplemented(
                 "+DT and +INDT determiners are not implemented.".into(),
             ));
         }
 
-        let matcher = match m.postag_regex.as_deref() {
-            Some("yes") => {
-                let regex = Regex::from_java_regex(&postag, true, false)?;
-                Matcher::new_regex(regex, false, true)
-            }
-            None => Matcher::new_string(either::Left(postag), false, false, true),
-            x => panic!("unknown postag_regex value {:?}", x),
+        // LanguageTool's `setLemmaString` treats a static lemma's `postag` as a regexp even when
+        // `postag_regexp` is not set, so a static lemma always uses the regexp synthesis branch.
+        let regex = if postag_regexp || static_lemma.is_some() {
+            Some(Regex::from_java_regex(postag.trim(), true, true)?)
+        } else {
+            None
         };
+
         Some(PosReplacer {
-            matcher: PosMatcher::new(matcher, info),
+            postag: postag.trim().to_string(),
+            regex,
+            postag_replace: m.postag_replace.clone(),
         })
     } else {
         None
@@ -472,6 +475,7 @@ fn parse_match(m: structure::Match, engine: &Engine, info: &mut BuildInfo) -> Re
         },
         pos_replacer,
         regex_replacer,
+        static_lemma,
     })
 }
 
@@ -505,6 +509,7 @@ fn parse_synthesizer_text(text: &str, engine: &Engine) -> Result<Vec<Synthesizer
                 conversion: Conversion::Nop,
                 pos_replacer: None,
                 regex_replacer: None,
+                static_lemma: None,
             }
             .into(),
         ));

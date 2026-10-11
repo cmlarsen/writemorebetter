@@ -13,12 +13,15 @@ struct Opts {
     rules: String,
     #[clap(long, short)]
     ids: Vec<String>,
-    /// Print the id of every rule that passed its examples, one per line.
+    /// Print the sorted IDs of the rules that pass their examples, one per line.
     #[clap(long)]
     list_passing: bool,
-    /// Print the id of every rule that failed its examples, one per line.
+    /// Print the sorted IDs of the rules that fail their examples, one per line.
     #[clap(long)]
     list_failing: bool,
+    /// Print the sorted IDs of all runnable rules, one per line.
+    #[clap(long)]
+    list_rules: bool,
 }
 
 fn main() {
@@ -31,18 +34,38 @@ fn main() {
 
     println!("Runnable rules: {}", rules.len());
 
+    if opts.list_rules {
+        let mut ids: Vec<String> = rules.iter().map(|r| r.id().to_string()).collect();
+        ids.sort();
+        for id in &ids {
+            println!("RULE {}", id);
+        }
+    }
+
     let mut passes = 0;
+    let mut passing_ids: Vec<String> = Vec::new();
+    let mut failing_ids: Vec<String> = Vec::new();
     for rule in rules {
         if opts.ids.is_empty() || opts.ids.contains(&rule.id().to_string()) {
-            let passed = rule.test(&tokenizer);
-            passes += passed as usize;
+            if rule.test(&tokenizer) {
+                passes += 1;
+                passing_ids.push(rule.id().to_string());
+            } else {
+                failing_ids.push(rule.id().to_string());
+            }
+        }
+    }
 
-            if passed && opts.list_passing {
-                println!("{}", rule.id());
-            }
-            if !passed && opts.list_failing {
-                println!("{}", rule.id());
-            }
+    if opts.list_passing {
+        passing_ids.sort();
+        for id in &passing_ids {
+            println!("PASS {}", id);
+        }
+    }
+    if opts.list_failing {
+        failing_ids.sort();
+        for id in &failing_ids {
+            println!("FAIL {}", id);
         }
     }
 

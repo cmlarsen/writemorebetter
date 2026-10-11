@@ -377,6 +377,64 @@ impl Tagger {
             .as_bytes()
             .to_vec();
 
+        // Build the reverse synth FST: lemma bytes + one index byte -> packed (word id, pos id).
+        // Grouping the triples by lemma lets a synthesis lookup for a lemma enumerate every word
+        // form carrying it, and the POS tag lets the caller filter by target tag.
+        let mut synth: Vec<Option<Vec<(WordIdInt, PosIdInt)>>> = vec![None; word_store.len()];
+
+        for (word, inflection, tag) in lines.iter() {
+            let word_id = *word_store.get_by_left(word).unwrap();
+            let lemma_id = *word_store.get_by_left(inflection).unwrap();
+            let pos_id = *tag_store.get_by_left(tag).unwrap();
+
+            match &mut synth[lemma_id.value() as usize] {
+                Some(vec) => vec.push((word_id, pos_id)),
+                None => synth[lemma_id.value() as usize] = Some(vec![(word_id, pos_id)]),
+            }
+        }
+
+        let mut synth_fst_items: Vec<(Vec<u8>, u64)> = Vec::new();
+
+        for (lemma_id, map) in synth.iter().enumerate() {
+            if let Some(map) = map {
+                let lemma = word_store
+                    .get_by_right(&WordIdInt::from_value_unchecked(lemma_id as u32))
+                    .expect("word id exists");
+
+                for (i, (word_id, pos_id)) in map.iter().enumerate() {
+                    assert!(i < 255);
+
+                    let key: Vec<u8> = lemma
+                        .as_bytes()
+                        .iter()
+                        .chain(once(&(i as u8)))
+                        .copied()
+                        .collect();
+                    let pos_bytes = pos_id.value().to_be_bytes();
+                    let word_bytes = word_id.value().to_be_bytes();
+
+                    let value = u64::from_be_bytes([
+                        word_bytes[0],
+                        word_bytes[1],
+                        word_bytes[2],
+                        word_bytes[3],
+                        0,
+                        0,
+                        pos_bytes[0],
+                        pos_bytes[1],
+                    ]);
+                    synth_fst_items.push((key, value));
+                }
+            }
+        }
+
+        synth_fst_items.sort_by(|(a, _), (b, _)| a.cmp(b));
+        let synth_fst = Map::from_iter(synth_fst_items)
+            .unwrap()
+            .into_fst()
+            .as_bytes()
+            .to_vec();
+
         let mut word_store_items: Vec<(String, u64)> = word_store
             .iter()
             .map(|(key, value)| (key.clone(), value.value() as u64))
@@ -390,6 +448,7 @@ impl Tagger {
 
         Ok(TaggerFields {
             tag_fst,
+            synth_fst,
             word_store_fst,
             tag_store,
             lang_options,

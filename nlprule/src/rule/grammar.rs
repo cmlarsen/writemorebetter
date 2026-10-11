@@ -1,4 +1,5 @@
-use super::engine::composition::{GraphId, MatchGraph, MatchSentence, PosMatcher};
+use super::engine::composition::{GraphId, MatchGraph, MatchSentence};
+use crate::tokenizer::tag::Tagger;
 use crate::types::*;
 use crate::utils::{self, regex::Regex};
 use serde::{Deserialize, Serialize};
@@ -61,13 +62,147 @@ impl Example {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PosReplacer {
-    pub(crate) matcher: PosMatcher,
+    /// The raw `postag` attribute (used verbatim for the exact-match branch).
+    pub(crate) postag: String,
+    /// The compiled, anchored POS tag regex. `Some` when `postag_regexp="yes"` or when the match
+    /// carries a static lemma (LanguageTool treats the latter as a regexp match too).
+    pub(crate) regex: Option<Regex>,
+    /// The `postag_replace` regex replacement applied to the matched token's own POS tag.
+    pub(crate) postag_replace: Option<String>,
 }
 
 impl PosReplacer {
-    fn apply(&self, _text: &str, _sentence: &MatchSentence) -> Option<String> {
-        // TODO: needs to be implemented with correct ordering, currently rules which would need this are disabled
-        unimplemented!()
+    /// Computes the target POS tag(s) from the matched token readings, mirroring
+    /// `MatchState.getTargetPosTag`.
+    fn target_pos_tag(&self, readings: &[(&str, &str)]) -> String {
+        let mut target = self.postag.clone();
+        let mut pos_tags: Vec<String> = Vec::new();
+
+        if let Some(regex) = &self.regex {
+            for (_, pos) in readings {
+                if regex.is_match(pos) {
+                    target = (*pos).to_string();
+                    pos_tags.push((*pos).to_string());
+                }
+            }
+
+            if let Some(replace) = &self.postag_replace {
+                if pos_tags.is_empty() {
+                    pos_tags.push(target.clone());
+                }
+                target = pos_tags
+                    .iter()
+                    .map(|pos| regex.replace_all(pos, replace))
+                    .collect::<Vec<_>>()
+                    .join("|");
+            }
+        }
+
+        target
+    }
+
+    /// Computes the target POS tag(s) for a match with a static lemma. Unlike the normal branch
+    /// LanguageTool only applies `postag_replace` to the last matched reading's POS tag.
+    fn static_target_pos_tag(&self, readings: &[(&str, &str)]) -> String {
+        let mut target = self.postag.clone();
+
+        if let Some(regex) = &self.regex {
+            let mut matched = false;
+            for (_, pos) in readings {
+                if regex.is_match(pos) {
+                    target = (*pos).to_string();
+                    matched = true;
+                }
+            }
+
+            if matched {
+                if let Some(replace) = &self.postag_replace {
+                    target = regex.replace_all(&target, replace);
+                }
+            }
+        }
+
+        target
+    }
+
+    /// Synthesizes all word forms of `lemma` whose POS tag matches the `target` tag/regex.
+    fn synthesize_target<'t>(&self, tagger: &'t Tagger, lemma: &str, target: &str) -> Vec<&'t str> {
+        let regex = Regex::new(format!("^(?:{})$", target));
+        if regex.try_compile().is_err() {
+            return Vec::new();
+        }
+        tagger.synthesize(lemma, |pos| regex.is_match(pos))
+    }
+
+    fn apply(
+        &self,
+        sentence: &MatchSentence,
+        graph: &MatchGraph,
+        id: GraphId,
+        static_lemma: Option<&str>,
+        group_text: &str,
+    ) -> Option<Vec<String>> {
+        let tagger = sentence.tagger();
+
+        let readings: Vec<(&str, &str)> = graph
+            .by_id(id)
+            .tokens(sentence)
+            .flat_map(|token| {
+                token
+                    .word()
+                    .tags()
+                    .iter()
+                    .map(|data| (data.lemma().as_str(), data.pos().as_str()))
+            })
+            // LanguageTool skips readings without a part-of-speech tag (the tokenizer's raw
+            // reading); nlprule represents that as an empty POS tag.
+            .filter(|(_, pos)| !pos.is_empty())
+            .collect();
+
+        let mut forms: Vec<String> = Vec::new();
+
+        if let Some(lemma) = static_lemma {
+            // A static lemma (`<match>lemma</match>`) is always synthesized like a POS regex in
+            // LanguageTool, with the target POS taken from the matched token's readings.
+            let target = self.static_target_pos_tag(&readings);
+            forms.extend(
+                self.synthesize_target(tagger, lemma, &target)
+                    .into_iter()
+                    .map(str::to_string),
+            );
+        } else if self.regex.is_some() {
+            let target = self.target_pos_tag(&readings);
+            for (lemma, _) in &readings {
+                forms.extend(
+                    self.synthesize_target(tagger, lemma, &target)
+                        .into_iter()
+                        .map(str::to_string),
+                );
+            }
+        } else {
+            for (lemma, _) in &readings {
+                forms.extend(
+                    tagger
+                        .synthesize(lemma, |pos| pos == self.postag)
+                        .into_iter()
+                        .map(str::to_string),
+                );
+            }
+        }
+
+        forms.sort();
+        forms.dedup();
+
+        if forms.is_empty() {
+            if static_lemma.is_some() || self.regex.is_some() {
+                // LanguageTool emits "(token)" when nothing could be synthesized.
+                forms.push(format!("({})", static_lemma.unwrap_or(group_text)));
+            } else {
+                return None;
+            }
+        }
+
+        Some(forms)
     }
 }
 
@@ -77,29 +212,49 @@ pub struct Match {
     pub(crate) conversion: Conversion,
     pub(crate) pos_replacer: Option<PosReplacer>,
     pub(crate) regex_replacer: Option<(Regex, String)>,
+    /// The static lemma of `<match>lemma</match>`, if present.
+    pub(crate) static_lemma: Option<String>,
 }
 
 impl Match {
-    fn apply(&self, sentence: &MatchSentence, graph: &MatchGraph) -> Option<String> {
-        let text = graph.by_id(self.id).text(sentence);
+    /// The alternative strings this match expands to, mirroring LanguageTool's `toFinalString`.
+    ///
+    /// A match that synthesizes several forms yields several alternatives; each is converted with
+    /// the configured case conversion, matching the point at which LanguageTool converts case.
+    fn forms(&self, sentence: &MatchSentence, graph: &MatchGraph) -> Option<Vec<String>> {
+        let group_text = graph.by_id(self.id).text(sentence);
 
-        // the text this match refers to, used as the sample for `preserve`
-        let sample = text.to_string();
-
-        let mut text = if let Some(replacer) = &self.pos_replacer {
-            replacer.apply(text, sentence)?
+        let forms = if let Some(replacer) = &self.pos_replacer {
+            // LanguageTool's `toFinalString` overwrites the token with the synthesized forms, so
+            // `regexp_match`/`regexp_replace` does not apply here.
+            replacer.apply(
+                sentence,
+                graph,
+                self.id,
+                self.static_lemma.as_deref(),
+                group_text,
+            )?
         } else {
-            text.to_string()
+            let raw = self
+                .static_lemma
+                .clone()
+                .unwrap_or_else(|| group_text.to_string());
+
+            let raw = if let Some((regex, replacement)) = &self.regex_replacer {
+                regex.replace_all(&raw, replacement)
+            } else {
+                raw
+            };
+
+            vec![raw]
         };
 
-        text = if let Some((regex, replacement)) = &self.regex_replacer {
-            regex.replace_all(&text, replacement)
-        } else {
-            text
-        };
-
-        // TODO: maybe return a vector here and propagate accordingly
-        Some(self.conversion.convert(&text, &sample))
+        Some(
+            forms
+                .into_iter()
+                .map(|form| self.conversion.convert(&form, group_text))
+                .collect(),
+        )
     }
 
     fn has_conversion(&self) -> bool {
@@ -121,14 +276,19 @@ pub struct Synthesizer {
 }
 
 impl Synthesizer {
-    pub fn apply(
+    /// The alternative strings this synthesizer can produce.
+    ///
+    /// A part that expands to several forms (inflection synthesis) yields several alternatives, in
+    /// the same way LanguageTool's `toFinalString` + `combineLists` build a Cartesian product over
+    /// the parts of a `<suggestion>`.
+    pub(crate) fn alternatives(
         &self,
         sentence: &MatchSentence,
         graph: &MatchGraph,
         start: GraphId,
         _end: GraphId,
-    ) -> Option<String> {
-        let mut output = Vec::new();
+    ) -> Option<Vec<String>> {
+        let mut output = vec![String::new()];
 
         let starts_with_conversion = match &self.parts[..] {
             [SynthesizerPart::Match(m), ..] => m.has_conversion(),
@@ -136,15 +296,19 @@ impl Synthesizer {
         };
 
         for part in &self.parts {
-            match part {
-                SynthesizerPart::Text(t) => output.push(t.clone()),
-                SynthesizerPart::Match(m) => {
-                    output.push(m.apply(sentence, graph)?);
+            let nexts: Vec<String> = match part {
+                SynthesizerPart::Text(t) => vec![t.clone()],
+                SynthesizerPart::Match(m) => m.forms(sentence, graph)?,
+            };
+
+            let mut combined = Vec::with_capacity(output.len() * nexts.len());
+            for prefix in &output {
+                for next in &nexts {
+                    combined.push(format!("{}{}", prefix, next));
                 }
             }
+            output = combined;
         }
-
-        let suggestion = utils::normalize_whitespace(&output.join(""));
 
         // if the suggestion does not start with a case conversion match, make it title case if:
         // * at sentence start
@@ -165,12 +329,28 @@ impl Synthesizer {
                 })
                 .unwrap_or(false);
 
-        if make_uppercase {
-            Some(utils::apply_to_first(&suggestion, |x| {
-                x.to_uppercase().collect()
-            }))
-        } else {
-            Some(suggestion)
-        }
+        Some(
+            output
+                .into_iter()
+                .map(|suggestion| {
+                    let suggestion = utils::normalize_whitespace(&suggestion);
+                    if make_uppercase {
+                        utils::apply_to_first(&suggestion, |x| x.to_uppercase().collect())
+                    } else {
+                        suggestion
+                    }
+                })
+                .collect(),
+        )
+    }
+
+    pub fn apply(
+        &self,
+        sentence: &MatchSentence,
+        graph: &MatchGraph,
+        start: GraphId,
+        end: GraphId,
+    ) -> Option<String> {
+        Some(self.alternatives(sentence, graph, start, end)?.join("|"))
     }
 }
