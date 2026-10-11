@@ -3,6 +3,7 @@
 use half::bf16;
 use serde::{Deserialize, Serialize};
 use std::hash::{Hash, Hasher};
+use std::ops::Range;
 use std::{cmp::Ordering, collections::BinaryHeap};
 
 use crate::types::{DefaultHashMap, DefaultHasher, IncompleteSentence};
@@ -920,9 +921,66 @@ pub struct Chunker {
     pub(crate) chunk_model: MaxentChunker,
 }
 
+/// The number LanguageTool's `EnglishChunkFilter` assigns to the noun phrase
+/// that starts at `internal_chunks[start]`.
+///
+/// LanguageTool 5.2 marked a phrase plural if *any* of its tokens had a plural
+/// reading. LanguageTool 5.9 added `endOfNounPhraseIsSingular`: a phrase whose
+/// last token is not plural is singular even if it contains one (so
+/// `a pens and paper` is singular). `number_from_last_token` selects the 5.9+
+/// behavior.
+fn noun_phrase_number<F>(
+    internal_chunks: &[(&str, Range<usize>)],
+    has_nns: F,
+    start: usize,
+    number_from_last_token: bool,
+) -> &'static str
+where
+    F: Fn(&Range<usize>) -> bool,
+{
+    let is_end_of_np =
+        |j: usize| j + 1 >= internal_chunks.len() || internal_chunks[j + 1].0 != "I-NP";
+    let chunk_type_plural = |start: usize| {
+        let mut plural = false;
+        for (chunk, char_span) in internal_chunks[start..].iter() {
+            if *chunk != "I-NP" && *chunk != "B-NP" {
+                break;
+            }
+            if has_nns(char_span) {
+                plural = true;
+            }
+        }
+        plural
+    };
+
+    if !chunk_type_plural(start) {
+        return "singular";
+    }
+
+    if number_from_last_token {
+        // The first end of the phrase decides; LanguageTool then checks whether
+        // the phrase ending there is singular.
+        for j in start..internal_chunks.len() {
+            if is_end_of_np(j) {
+                return if chunk_type_plural(j) {
+                    "plural"
+                } else {
+                    "singular"
+                };
+            }
+        }
+    }
+
+    "plural"
+}
+
 impl Chunker {
     /// Populates the `.chunks` field of the passed tokens by predicting with the maximum entropy model.
-    pub fn apply(&self, sentence: &mut IncompleteSentence) {
+    ///
+    /// `number_from_last_token` selects LanguageTool's noun-phrase number rule:
+    /// `false` for its 5.2 behavior, `true` for the 5.9+ behavior (see
+    /// [`noun_phrase_number`]).
+    pub fn apply(&self, sentence: &mut IncompleteSentence, number_from_last_token: bool) {
         let text = sentence.text().replace('’', "\'");
 
         let mut bi_to_ci: DefaultHashMap<usize, usize> = text
@@ -961,6 +1019,20 @@ impl Chunker {
                 (*chunk, char_start..char_end)
             })
             .collect();
+        let has_nns = |char_span: &Range<usize>| {
+            sentence
+                .iter()
+                .find(|token| *token.span().char() == *char_span)
+                .map(|token| {
+                    token
+                        .word()
+                        .tags()
+                        .iter()
+                        .any(|tag| tag.pos().as_str() == "NNS")
+                })
+                .unwrap_or(false)
+        };
+
         let mut chunks = Vec::new();
         let mut number = "singular";
 
@@ -968,29 +1040,12 @@ impl Chunker {
             let chunk = internal_chunks[i].0;
 
             if chunk == "B-NP" {
-                number = "singular";
-
-                for (next_chunk, char_span) in internal_chunks[i..].iter().cloned() {
-                    if next_chunk != "I-NP" && next_chunk != "B-NP" {
-                        break;
-                    }
-
-                    let contains_nns = sentence
-                        .iter()
-                        .find(|token| *token.span().char() == char_span)
-                        .map(|token| {
-                            token
-                                .word()
-                                .tags()
-                                .iter()
-                                .any(|tag| tag.pos().as_str() == "NNS")
-                        })
-                        .unwrap_or(false);
-
-                    if contains_nns {
-                        number = "plural";
-                    }
-                }
+                number = noun_phrase_number(
+                    &internal_chunks,
+                    |char_span| has_nns(char_span),
+                    i,
+                    number_from_last_token,
+                );
             }
 
             let is_noun_end = i + 1 >= internal_chunks.len() || internal_chunks[i + 1].0 != "I-NP";
@@ -1022,5 +1077,48 @@ impl Chunker {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::noun_phrase_number;
+
+    // "a pens and paper" as LanguageTool's chunker tags it: a four-token noun
+    // phrase whose second token ("pens") is plural and whose last ("paper") is
+    // not.
+    fn chunks() -> Vec<(&'static str, std::ops::Range<usize>)> {
+        vec![
+            ("B-NP", 0..1),
+            ("I-NP", 1..2),
+            ("I-NP", 2..3),
+            ("I-NP", 3..4),
+        ]
+    }
+
+    #[test]
+    fn number_uses_any_plural_reading_for_5_2() {
+        let chunks = chunks();
+        // Only "pens" is plural.
+        let has_nns = |span: &std::ops::Range<usize>| span.start == 1;
+        assert_eq!(noun_phrase_number(&chunks, has_nns, 0, false), "plural");
+    }
+
+    #[test]
+    fn number_uses_last_token_for_5_9_and_later() {
+        let chunks = chunks();
+        let has_nns = |span: &std::ops::Range<usize>| span.start == 1;
+        assert_eq!(noun_phrase_number(&chunks, has_nns, 0, true), "singular");
+
+        // If the last token is plural, the phrase stays plural.
+        let last_nns = |span: &std::ops::Range<usize>| span.start == 3;
+        assert_eq!(noun_phrase_number(&chunks, last_nns, 0, true), "plural");
+    }
+
+    #[test]
+    fn number_is_singular_without_any_plural_reading() {
+        let chunks = chunks();
+        assert_eq!(noun_phrase_number(&chunks, |_| false, 0, false), "singular");
+        assert_eq!(noun_phrase_number(&chunks, |_| false, 0, true), "singular");
     }
 }

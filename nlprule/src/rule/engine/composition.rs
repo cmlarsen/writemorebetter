@@ -14,6 +14,12 @@ pub struct Matcher {
     pub negate: bool,
     pub case_sensitive: bool,
     pub empty_always_false: bool,
+    /// For a reference to another pattern token (`<match no="…"/>` inside a
+    /// `<token>`), the case conversion applied to the referenced token's text
+    /// before comparing, mirroring LanguageTool's `case_conversion` attribute.
+    /// `None` for every other matcher.
+    #[serde(default)]
+    pub reference_conversion: Option<crate::rule::grammar::Conversion>,
 }
 
 impl Matcher {
@@ -61,10 +67,18 @@ impl Matcher {
                         .tokens(sentence)
                         .next()
                         .map_or(false, |token| {
-                            if case_sensitive {
-                                token.word().as_str() == input
+                            let reference = token.word().as_str();
+                            if let Some(conversion) = &self.reference_conversion {
+                                let converted = conversion.convert(reference, reference);
+                                if case_sensitive {
+                                    converted == input
+                                } else {
+                                    UniCase::new(converted.as_str()) == UniCase::new(input)
+                                }
+                            } else if case_sensitive {
+                                reference == input
                             } else {
-                                UniCase::new(token.word().as_str()) == UniCase::new(input)
+                                UniCase::new(reference) == UniCase::new(input)
                             }
                         })
                 }

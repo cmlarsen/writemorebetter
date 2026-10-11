@@ -21,7 +21,7 @@ pub enum Conversion {
 }
 
 impl Conversion {
-    fn convert(&self, input: &str, sample: &str) -> String {
+    pub(crate) fn convert(&self, input: &str, sample: &str) -> String {
         match &self {
             Conversion::Nop => input.to_string(),
             Conversion::AllLower => input.to_lowercase(),
@@ -432,6 +432,29 @@ pub enum SynthesizerPart {
     Match(Box<Match>),
 }
 
+/// The first literal character after `parts`, and whether `parts` is the end of
+/// the message, mirroring LanguageTool's `PatternRuleMatcher.concatWithoutExtraSpace`
+/// right-hand side.
+fn next_text_char(parts: &[SynthesizerPart]) -> (Option<char>, bool) {
+    for part in parts {
+        match part {
+            SynthesizerPart::Text(t) => {
+                if let Some(c) = t.chars().next() {
+                    return (Some(c), false);
+                }
+            }
+            // A following match renders as a non-whitespace reference placeholder.
+            SynthesizerPart::Match(_) => return (None, false),
+        }
+    }
+    (None, true)
+}
+
+/// LanguageTool's `WHITESPACE_OR_PUNCT` (`[\s,:;.!?]`).
+fn is_whitespace_or_punct(c: char) -> bool {
+    c.is_whitespace() || matches!(c, ',' | ':' | ';' | '.' | '!' | '?')
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Synthesizer {
     pub(crate) use_titlecase_adjust: bool,
@@ -453,25 +476,61 @@ impl Synthesizer {
         articles: Option<&ArticleData>,
     ) -> Option<Vec<String>> {
         let mut output = vec![String::new()];
+        // Whether the next text part should lose one leading space because the
+        // preceding match expanded to the empty string (see below).
+        let mut skip_leading_space = vec![false];
 
         let starts_with_conversion = match &self.parts[..] {
             [SynthesizerPart::Match(m), ..] => m.has_conversion(),
             _ => false,
         };
 
-        for part in &self.parts {
-            let nexts: Vec<String> = match part {
-                SynthesizerPart::Text(t) => vec![t.clone()],
-                SynthesizerPart::Match(m) => m.forms(sentence, graph, articles)?,
-            };
+        for (idx, part) in self.parts.iter().enumerate() {
+            match part {
+                SynthesizerPart::Text(t) => {
+                    for (i, prefix) in output.iter_mut().enumerate() {
+                        if skip_leading_space[i] {
+                            skip_leading_space[i] = false;
+                            prefix.push_str(t.strip_prefix(' ').unwrap_or(t));
+                        } else {
+                            prefix.push_str(t);
+                        }
+                    }
+                }
+                SynthesizerPart::Match(m) => {
+                    let nexts = m.forms(sentence, graph, articles)?;
 
-            let mut combined = Vec::with_capacity(output.len() * nexts.len());
-            for prefix in &output {
-                for next in &nexts {
-                    combined.push(format!("{}{}", prefix, next));
+                    // LanguageTool's `PatternRuleMatcher.formatMatches`: a
+                    // reference to a token with `min="0"` that did not take part
+                    // in the match expands to "" and the space next to it is
+                    // removed (`concatWithoutExtraSpace`). Only a match that
+                    // expands to exactly the empty string triggers this.
+                    if nexts.len() == 1 && nexts[0].is_empty() {
+                        let (right_char, at_end) = next_text_char(&self.parts[idx + 1..]);
+                        for (i, prefix) in output.iter_mut().enumerate() {
+                            if prefix.ends_with(' ')
+                                && (at_end || right_char.map_or(false, is_whitespace_or_punct))
+                            {
+                                prefix.pop();
+                            } else if prefix.is_empty() && right_char == Some(' ') {
+                                skip_leading_space[i] = true;
+                            }
+                        }
+                        continue;
+                    }
+
+                    let mut combined = Vec::with_capacity(output.len() * nexts.len());
+                    let mut combined_skip = Vec::with_capacity(output.len() * nexts.len());
+                    for (i, prefix) in output.iter().enumerate() {
+                        for next in &nexts {
+                            combined.push(format!("{}{}", prefix, next));
+                            combined_skip.push(skip_leading_space[i]);
+                        }
+                    }
+                    output = combined;
+                    skip_leading_space = combined_skip;
                 }
             }
-            output = combined;
         }
 
         // if the suggestion does not start with a case conversion match, make it title case if:

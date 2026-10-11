@@ -1466,6 +1466,77 @@ fn rule_synthesis_produces_inflected_forms() {
     );
 }
 
+/// With the 5.2 storage binaries the chunker uses LanguageTool 5.2's rule (a
+/// noun phrase is plural if any token has a plural reading). LanguageTool 5.9
+/// changed this to look at the phrase's last token; that behavior is exercised
+/// by the `tokenizer/chunk.rs` unit tests because it is only enabled for build
+/// directories generated from 5.9+.
+#[test]
+fn chunker_5_2_marks_noun_phrase_plural_when_any_token_is() {
+    let text = "But when I write, I like to use a pens and paper.";
+    let tokens: Vec<_> = TOKENIZER
+        .pipe(text)
+        .map(|sentence| sentence.into_iter())
+        .flatten()
+        .collect();
+    let chunks = |word: &str| {
+        tokens
+            .iter()
+            .find(|token| token.word().as_str() == word)
+            .unwrap_or_else(|| panic!("token {:?} not found", word))
+            .chunks()
+            .to_vec()
+    };
+    assert_eq!(chunks("a"), vec!["B-NP-plural".to_string()]);
+    assert_eq!(chunks("paper"), vec!["E-NP-plural".to_string()]);
+}
+
+/// A suggestion that references a token with `min="0"` which did not take part
+/// in the match must not keep the space that separated it from the next token.
+/// 5.2's A_NNS rule suggests `\2 \3`, where token 2 is an optional adjective,
+/// so the old engine produced " teachers"; LanguageTool's own correction for
+/// "an animals" is "animals", not " animals".
+#[test]
+fn suggestion_drops_space_of_absent_optional_token() {
+    let suggestions = RULES.suggest("He is a teachers.", &*TOKENIZER);
+    let flagged = suggestions
+        .iter()
+        .find(|suggestion| suggestion.source().starts_with("GRAMMAR/A_NNS/"))
+        .expect("the agreement error is flagged");
+    assert!(
+        !flagged.replacements().is_empty(),
+        "the rule should offer a correction"
+    );
+    assert!(
+        flagged
+            .replacements()
+            .iter()
+            .all(|r| !r.starts_with(' ') && !r.ends_with(' ')),
+        "no replacement should keep the space of the absent token: {:?}",
+        flagged.replacements()
+    );
+}
+
+/// PHRASE_REPETITION uses `<match case_conversion="startupper" no="1"/>`
+/// inside one of its tokens. That used to make the whole rule fail to compile,
+/// so the rule never fired. Its other antipatterns must keep working, too.
+#[test]
+fn phrase_repetition_flags_repeated_two_word_phrase() {
+    let suggestions = RULES.suggest("She said it, and this is this is the problem.", &*TOKENIZER);
+    let flagged = suggestions
+        .iter()
+        .find(|suggestion| suggestion.source() == "GRAMMAR/PHRASE_REPETITION/0")
+        .expect("the repeated phrase is flagged");
+    assert_eq!(flagged.replacements(), &["this is".to_string()]);
+
+    // The `case_conversion="startupper"` antipattern suppresses "as big as Big
+    // Ben" (where the fourth token is the start-uppercased form of the second).
+    assert!(!RULES
+        .suggest("He needed a bell as big as Big Ben.", &*TOKENIZER)
+        .iter()
+        .any(|suggestion| suggestion.source() == "GRAMMAR/PHRASE_REPETITION/0"));
+}
+
 /// Runs the simple-replace builtins over a paragraph and returns the flagged
 /// text and all replacements of every suggestion from `id`.
 fn builtin_simple_replace_flags(text: &str, id: &str) -> Vec<(String, Vec<String>)> {
