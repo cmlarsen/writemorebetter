@@ -121,63 +121,145 @@ struct ModelFields {
     parameters: Vec<bf16>,
 }
 
+/// One entry of a [Pmap]. `offset` addresses the flat `outcomes`/`parameters` arrays and fits in
+/// `u32` (the largest model has fewer than 700k entries); `length` fits in `u8` because that is
+/// the type the on-disk format already stores it in.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+struct PmapEntry {
+    key: u64,
+    offset: u32,
+    length: u8,
+}
+
+/// A context map stored as a `Vec` sorted by key with binary-search lookup instead of a
+/// `HashMap`. The serialized (on-disk) form is a `Vec<(u64, u8)>` sorted by offset; only this
+/// in-memory form, built at load, is different.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub(crate) struct Pmap {
+    /// Sorted by `key`; keys are unique.
+    entries: Vec<PmapEntry>,
+}
+
+impl Pmap {
+    /// Builds a `Pmap` from `(key, (offset, length))` pairs, asserting the bounds the on-disk
+    /// format already relies on. Used by the compiler, where offsets are assigned as the flat
+    /// arrays are extended.
+    pub(crate) fn from_pairs<I: IntoIterator<Item = (u64, (usize, usize))>>(pairs: I) -> Self {
+        let mut entries: Vec<_> = pairs
+            .into_iter()
+            .map(|(key, (offset, length))| {
+                assert!(length <= u8::MAX as usize);
+                assert!(offset <= u32::MAX as usize);
+                PmapEntry {
+                    key,
+                    offset: offset as u32,
+                    length: length as u8,
+                }
+            })
+            .collect();
+        entries.sort_unstable_by_key(|entry| entry.key);
+        Pmap { entries }
+    }
+
+    /// Builds a `Pmap` from the on-disk `(key, length)` list (in ascending-offset order),
+    /// reproducing `HashMap::insert` semantics: for a repeated key the later (larger-offset)
+    /// entry wins.
+    fn from_disk<I: IntoIterator<Item = (u64, u8)>>(pmap: I) -> Self {
+        let mut offset = 0usize;
+        let mut entries: Vec<_> = pmap
+            .into_iter()
+            .map(|(key, length)| {
+                assert!(
+                    offset <= u32::MAX as usize,
+                    "chunker pmap offset fits in u32"
+                );
+                let entry = PmapEntry {
+                    key,
+                    offset: offset as u32,
+                    length,
+                };
+                offset += length as usize;
+                entry
+            })
+            .collect();
+        // Stable sort keeps ascending offset order within a run of equal keys, so the last entry
+        // of each run is the one `HashMap::insert` would have kept.
+        entries.sort_by_key(|entry| entry.key);
+        let mut deduped: Vec<PmapEntry> = Vec::with_capacity(entries.len());
+        for entry in entries {
+            if deduped.last().map(|last| last.key) == Some(entry.key) {
+                *deduped.last_mut().unwrap() = entry;
+            } else {
+                deduped.push(entry);
+            }
+        }
+        Pmap { entries: deduped }
+    }
+
+    /// Looks up `key` in O(log n).
+    #[inline]
+    fn get(&self, key: u64) -> Option<(u32, u8)> {
+        self.entries
+            .binary_search_by_key(&key, |entry| entry.key)
+            .ok()
+            .map(|idx| {
+                let entry = self.entries[idx];
+                (entry.offset, entry.length)
+            })
+    }
+
+    pub(crate) fn len(&self) -> usize {
+        self.entries.len()
+    }
+
+    /// The `(key, length)` pairs in on-disk order (ascending offset).
+    fn into_sorted_by_offset(self) -> Vec<(u64, u8)> {
+        let mut entries = self.entries;
+        entries.sort_by_key(|entry| entry.offset);
+        entries
+            .into_iter()
+            .map(|entry| (entry.key, entry.length))
+            .collect()
+    }
+}
+
 impl From<Model> for ModelFields {
     fn from(model: Model) -> Self {
-        let mut pmap: Vec<_> = model.pmap.into_iter().collect();
-        pmap.sort_by_key(|(_, (offset, _))| *offset);
-
-        let pmap = pmap
-            .into_iter()
-            .map(|(key, (_, length))| {
-                assert!(length <= u8::MAX as usize);
-                (key, length as u8)
-            })
-            .collect();
-
-        let outcomes = model
-            .outcomes
-            .into_iter()
-            .map(|outcome| {
-                assert!(outcome <= u8::MAX as usize);
-                outcome as u8
-            })
-            .collect();
-        let parameters = model.parameters.into_iter().map(bf16::from_f32).collect();
-
         ModelFields {
             outcome_labels: model.outcome_labels,
-            pmap,
-            outcomes,
-            parameters,
+            pmap: model.pmap.into_sorted_by_offset(),
+            outcomes: model.outcomes,
+            parameters: model.parameters,
         }
     }
 }
 
 impl From<ModelFields> for Model {
     fn from(data: ModelFields) -> Self {
-        let mut pmap = DefaultHashMap::new();
-        let mut offset = 0;
-
-        for (key, length) in data.pmap {
-            pmap.insert(key, (offset, length as usize));
-
-            offset += length as usize;
+        assert!(
+            data.outcome_labels.len() <= u8::MAX as usize + 1,
+            "chunker model has {} outcome labels; outcomes are stored as u8",
+            data.outcome_labels.len()
+        );
+        for outcome in &data.outcomes {
+            assert!(
+                (*outcome as usize) < data.outcome_labels.len(),
+                "chunker outcome {} is out of range for {} labels",
+                outcome,
+                data.outcome_labels.len()
+            );
         }
 
-        let outcomes = data
-            .outcomes
-            .into_iter()
-            .map(|outcome| outcome as usize)
-            .collect();
-        let parameters = data
-            .parameters
-            .into_iter()
-            .map(|parameter| parameter.to_f32())
-            .collect();
+        let ModelFields {
+            outcome_labels,
+            pmap,
+            outcomes,
+            parameters,
+        } = data;
 
         Model {
-            outcome_labels: data.outcome_labels,
-            pmap,
+            outcome_labels,
+            pmap: Pmap::from_disk(pmap),
             outcomes,
             parameters,
         }
@@ -188,9 +270,13 @@ impl From<ModelFields> for Model {
 #[serde(from = "ModelFields", into = "ModelFields")]
 pub(crate) struct Model {
     pub(crate) outcome_labels: Vec<String>,
-    pub(crate) outcomes: Vec<usize>,
-    pub(crate) parameters: Vec<f32>,
-    pub(crate) pmap: DefaultHashMap<u64, (usize, usize)>,
+    /// Outcome indices into `outcome_labels`; the on-disk type is `u8` and the label count is
+    /// asserted to fit it at load.
+    pub(crate) outcomes: Vec<u8>,
+    /// Kept in the on-disk half-precision type and widened to `f32` at use. Widening is exact,
+    /// so this is bit-identical to converting at load.
+    pub(crate) parameters: Vec<bf16>,
+    pub(crate) pmap: Pmap,
 }
 
 impl Model {
@@ -198,12 +284,14 @@ impl Model {
         let mut prior =
             vec![(1. / (self.outcome_labels.len() as f32)).ln(); self.outcome_labels.len()];
 
-        for (offset, length) in context.iter().filter_map(|x| self.pmap.get(&x)) {
-            let outcomes = &self.outcomes[*offset..*offset + length];
-            let parameters = &self.parameters[*offset..*offset + length];
+        for (offset, length) in context.iter().filter_map(|x| self.pmap.get(*x)) {
+            let start = offset as usize;
+            let end = start + length as usize;
+            let outcomes = &self.outcomes[start..end];
+            let parameters = &self.parameters[start..end];
 
             for (idx, param) in outcomes.iter().zip(parameters.iter()) {
-                prior[*idx] += param;
+                prior[*idx as usize] += param.to_f32();
             }
         }
 
@@ -425,10 +513,140 @@ impl MaxentTokenizer {
     }
 }
 
+/// The POS tag dictionary: a word plus the POS tags it is allowed to have. Stored as a `Vec`
+/// sorted by word with binary-search lookup (instead of a `HashMap`), and the tag strings are
+/// interned so a tag that occurs in many entries shares one allocation. The serialized (on-disk)
+/// form is still `HashMap<String, Vec<String>>`; [TagDict] deserializes that wire format directly
+/// into its sorted representation so no `HashMap` is built at load.
+#[derive(Debug, Clone, Default, Serialize)]
+#[serde(into = "DefaultHashMap<String, Vec<String>>")]
+pub(crate) struct TagDict {
+    /// Sorted by word; keys are unique.
+    entries: Vec<(Box<str>, Box<[u16]>)>,
+    /// Interned tag strings, indexed by the `u16` stored in `entries`.
+    tags: Vec<Box<str>>,
+    tag_ids: DefaultHashMap<Box<str>, u16>,
+}
+
+impl<'de> Deserialize<'de> for TagDict {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct TagDictVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for TagDictVisitor {
+            type Value = TagDict;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("a map from words to their allowed POS tags")
+            }
+
+            fn visit_map<A>(self, mut map: A) -> Result<TagDict, A::Error>
+            where
+                A: serde::de::MapAccess<'de>,
+            {
+                let mut raw: Vec<(Box<str>, Vec<Box<str>>)> = Vec::new();
+                while let Some((word, tags)) = map.next_entry::<String, Vec<String>>()? {
+                    raw.push((
+                        word.into_boxed_str(),
+                        tags.into_iter().map(String::into_boxed_str).collect(),
+                    ));
+                }
+                Ok(TagDict::from_raw(raw))
+            }
+        }
+
+        deserializer.deserialize_map(TagDictVisitor)
+    }
+}
+
+impl TagDict {
+    pub(crate) fn len(&self) -> usize {
+        self.entries.len()
+    }
+
+    /// Builds the sorted, interned representation from unsorted `(word, tags)` pairs. The word
+    /// `Box<str>`s are reused; only the distinct tag strings are shared.
+    fn from_raw(mut raw: Vec<(Box<str>, Vec<Box<str>>)>) -> Self {
+        raw.sort_unstable_by(|a, b| a.0.cmp(&b.0));
+
+        let mut tags: Vec<Box<str>> = Vec::new();
+        let mut tag_ids: DefaultHashMap<Box<str>, u16> = DefaultHashMap::new();
+        let mut entries = Vec::with_capacity(raw.len());
+
+        for (word, allowed) in raw {
+            let ids: Vec<u16> = allowed
+                .into_iter()
+                .map(|tag| {
+                    *tag_ids.entry(tag).or_insert_with_key(|tag| {
+                        let id = tags.len() as u16;
+                        tags.push(tag.clone());
+                        id
+                    })
+                })
+                .collect();
+            entries.push((word, ids.into_boxed_slice()));
+        }
+
+        TagDict {
+            entries,
+            tags,
+            tag_ids,
+        }
+    }
+
+    /// The tag ids allowed for `word`, or `None` if the word is not constrained.
+    #[inline]
+    fn get(&self, word: &str) -> Option<&[u16]> {
+        self.entries
+            .binary_search_by(|(w, _)| w.as_ref().cmp(word))
+            .ok()
+            .map(|idx| &*self.entries[idx].1)
+    }
+
+    /// The interned id of `tag`, if it appears in the dictionary.
+    #[inline]
+    fn tag_id(&self, tag: &str) -> Option<u16> {
+        self.tag_ids.get(tag).copied()
+    }
+}
+
+impl From<DefaultHashMap<String, Vec<String>>> for TagDict {
+    fn from(map: DefaultHashMap<String, Vec<String>>) -> Self {
+        TagDict::from_raw(
+            map.into_iter()
+                .map(|(word, tags)| {
+                    (
+                        word.into_boxed_str(),
+                        tags.into_iter().map(String::into_boxed_str).collect(),
+                    )
+                })
+                .collect(),
+        )
+    }
+}
+
+impl From<TagDict> for DefaultHashMap<String, Vec<String>> {
+    fn from(dict: TagDict) -> Self {
+        let TagDict { entries, tags, .. } = dict;
+        entries
+            .into_iter()
+            .map(|(word, ids)| {
+                let allowed = ids
+                    .iter()
+                    .map(|id| tags[*id as usize].to_string())
+                    .collect();
+                (word.into_string(), allowed)
+            })
+            .collect()
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone)]
 pub(crate) struct MaxentPosTagger {
     pub(crate) model: Model,
-    pub(crate) tagdict: DefaultHashMap<String, Vec<String>>,
+    pub(crate) tagdict: TagDict,
 }
 
 impl MaxentPosTagger {
@@ -532,7 +750,10 @@ impl MaxentPosTagger {
 
     fn valid(&self, tokens: &[&str], _outcomes: &[&str], i: usize, outcome: &str) -> bool {
         if let Some(allowed) = self.tagdict.get(tokens[i]) {
-            allowed.contains(&outcome.to_string())
+            match self.tagdict.tag_id(outcome) {
+                Some(id) => allowed.contains(&id),
+                None => false,
+            }
         } else {
             true
         }

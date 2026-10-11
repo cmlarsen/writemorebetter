@@ -4,8 +4,9 @@
 //!
 //! Prints, for every sentence from `tokenizer.pipe(text)` and every token: the token
 //! text, a tab, then every `(lemma, pos)` pair as `lemma/pos` joined by spaces, in the
-//! order returned. Then a line `== RAW`, then for every distinct whitespace-separated
-//! word of the text in sorted order: the word, a tab, then every `lemma/pos` from
+//! order returned, then a second tab and the token's chunks joined by commas, in order.
+//! Then a line `== RAW`, then for every distinct whitespace-separated word of the text in
+//! sorted order: the word, a tab, then every `lemma/pos` from
 //! `tokenizer.tagger().get_tags(word)` in order.
 
 use std::collections::BTreeSet;
@@ -45,7 +46,8 @@ fn main() {
                     data.pos().as_str().to_owned(),
                 )
             }));
-            writeln!(out, "{}\t{}", word.text().as_str(), joined).unwrap();
+            let chunks = token.chunks().join(",");
+            writeln!(out, "{}\t{}\t{}", word.text().as_str(), joined, chunks).unwrap();
         }
     }
 

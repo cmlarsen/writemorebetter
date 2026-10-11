@@ -3,6 +3,8 @@ from pathlib import Path
 from shutil import copyfile
 import os
 import logging
+import re
+import shlex
 from zipfile import ZipFile
 import lxml.etree as ET
 import wordfreq
@@ -22,6 +24,41 @@ def write_freqlist(f, lang_code, top_n=1000):
 def canonicalize(path):
     et = ET.parse(str(path))
     et.write_c14n(open(path, "wb"))
+
+
+def merge_style_rules(out_dir, lt_rule_dir):
+    """Append LanguageTool's style.xml rules to grammar.xml.
+
+    LanguageTool loads a language's pattern rules from both ``grammar.xml`` and
+    ``style.xml`` (see ``Language#getRuleFileNames()``), but nlprule reads a single
+    ``grammar.xml``. Merge the body of ``style.xml`` (its ``<category>`` elements)
+    into ``grammar.xml`` so the build directory contains the full rule set. The root
+    element and the ``<!ENTITY>`` declarations of ``grammar.xml`` are kept; style.xml's
+    own DTD is dropped, so entity references resolve against grammar.xml's declarations.
+    """
+    grammar_path = out_dir / "grammar.xml"
+    style_path = lt_rule_dir / "style.xml"
+    if not grammar_path.exists() or not style_path.exists():
+        return
+
+    grammar = grammar_path.read_text(encoding="utf-8")
+    style = style_path.read_text(encoding="utf-8")
+
+    grammar_open = re.search(r"<rules\b[^>]*>", grammar).end()
+    grammar_close = grammar.rindex("</rules>")
+    style_open = re.search(r"<rules\b[^>]*>", style).end()
+    style_close = style.rindex("</rules>")
+
+    merged = (
+        grammar[:grammar_open]
+        + grammar[grammar_open:grammar_close].rstrip("\n")
+        + "\n\n"
+        + style[style_open:style_close].strip("\n")
+        + "\n\n"
+        + grammar[grammar_close:]
+    )
+    grammar_path.write_text(merged, encoding="utf-8")
+    logging.info(f"Merged {style_path.name} categories into grammar.xml.")
 
 
 def copy_lt_files(out_dir, lt_dir, lang_code):
@@ -55,16 +92,22 @@ def copy_lt_files(out_dir, lt_dir, lang_code):
         with open(dest, "wb") as f:
             f.write(file.read(str(source)))
 
+    # LanguageTool's rules for a language may be split across grammar.xml and style.xml;
+    # nlprule reads a single grammar.xml, so merge them.
+    merge_style_rules(out_dir, lt_rule_dir)
+
     # canonicalize XML
     for xmlfile in ["grammar.xml", "disambiguation.xml"]:
         canonicalize(out_dir / xmlfile)
 
 
-def dump_dict(out_path, lt_dir, tag_dict_path, tag_info_path):
+def dump_dict(out_path, lt_dir, tag_dict_path, tag_info_path, java="java"):
     # dump dictionary, see https://dev.languagetool.org/developing-a-tagger-dictionary
     os.system(
-        f"java -cp {lt_dir / 'languagetool.jar'} org.languagetool.tools.DictionaryExporter "
-        f"-i {tag_dict_path} -info {tag_info_path} -o {out_path}"
+        f"{shlex.quote(str(java))} -cp {shlex.quote(str(lt_dir / 'languagetool.jar'))} "
+        f"org.languagetool.tools.DictionaryExporter "
+        f"-i {shlex.quote(str(tag_dict_path))} -info {shlex.quote(str(tag_info_path))} "
+        f"-o {shlex.quote(str(out_path))}"
     )
 
     # the dumped dictionary is sometimes not in utf-8
@@ -145,6 +188,12 @@ Requirements:
         help="Directory the LanguageTool Desktop version is in. Download instructions: https://dev.languagetool.org/http-server#getting-the-server.",
     )
     parser.add_argument(
+        "--java",
+        default="java",
+        type=str,
+        help="Java binary used to run LanguageTool's DictionaryExporter. Pass a path to a portable JRE if no system Java is installed.",
+    )
+    parser.add_argument(
         "--lang_code",
         type=str,
         help="Language code in ISO_639-1 (two letter) format e. g. 'en'.",
@@ -202,6 +251,7 @@ Only needed if the language requires a chunker (e. g. English).
         args.lt_dir,
         args.tag_dict_path,
         args.tag_info_path,
+        java=args.java,
     )
 
     # spell dictionaries
@@ -223,7 +273,11 @@ Only needed if the language requires a chunker (e. g. English).
         variant_name = dic.stem
 
         dump_dict(
-            args.out_dir / "spell" / f"{variant_name}.dump", args.lt_dir, dic, info,
+            args.out_dir / "spell" / f"{variant_name}.dump",
+            args.lt_dir,
+            dic,
+            info,
+            java=args.java,
         )
         proc_spelling_text(
             [
