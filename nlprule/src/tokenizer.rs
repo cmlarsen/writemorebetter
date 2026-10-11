@@ -299,6 +299,13 @@ impl Tokenizer {
         })
     }
 
+    pub(crate) fn get_token_strs<'t>(&self, text: &'t str) -> Vec<&'t str> {
+        self.get_token_ranges(text)
+            .map(|range| text[range].trim())
+            .filter(|x| !x.is_empty())
+            .collect()
+    }
+
     /// Tokenize the given sentence. This applies chunking and tagging, but does not do disambiguation.
     // NB: this is not public because it could be easily misused by passing a text instead of one sentence.
     pub(crate) fn tokenize<'t>(&'t self, sentence: &'t str) -> Option<IncompleteSentence<'t>> {

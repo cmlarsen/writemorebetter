@@ -3,6 +3,7 @@ use fs_err::File;
 use log::warn;
 use serde::{Deserialize, Serialize};
 use std::{
+    cmp,
     collections::{HashMap, HashSet},
     hash::{Hash, Hasher},
     io::{self, BufRead, BufReader},
@@ -20,6 +21,7 @@ use crate::{
         DisambiguationRule, Rule,
     },
     rules::{Rules, RulesLangOptions},
+    spell::{Spell, SpellInt, SpellLangOptions},
     tokenizer::{
         chunk,
         multiword::{MultiwordTagger, MultiwordTaggerFields},
@@ -31,6 +33,171 @@ use crate::{
 };
 
 use super::{parse_structure::BuildInfo, Error};
+
+impl Spell {
+    fn new(
+        fst: Vec<u8>,
+        multiwords: DefaultHashMap<String, Vec<(Vec<String>, SpellInt)>>,
+        max_freq: usize,
+        map: DefaultHashMap<String, String>,
+        lang_options: SpellLangOptions,
+    ) -> Self {
+        let mut spell = Spell {
+            fst,
+            multiwords,
+            max_freq,
+            map,
+            lang_options,
+            ..Default::default()
+        };
+        spell.ingest_options();
+        spell
+    }
+
+    fn add_line(
+        word: &str,
+        freq: usize,
+        words: &mut DefaultHashMap<String, SpellInt>,
+        multiwords: &mut DefaultHashMap<String, Vec<(Vec<String>, SpellInt)>>,
+        variant_index: usize,
+        // in some LT lists an underline denotes a prefix such that e.g. "hin_reiten" also adds "hingeritten"
+        underline_denotes_prefix: bool,
+        tokenizer: &Tokenizer,
+    ) {
+        let tokens = tokenizer.get_token_strs(word);
+
+        if tokens.len() > 1 {
+            assert!(!(underline_denotes_prefix && word.contains('_'))); // not supported in entries spanning multiple tokens
+
+            let mut int = SpellInt::default();
+            int.add_variant(variant_index);
+
+            // we do not add the frequency for multiwords - they are not used for suggestions, just to check validity
+
+            multiwords
+                .entry(tokens[0].to_owned())
+                .or_insert_with(Vec::new)
+                .push((tokens[1..].iter().map(|x| (*x).to_owned()).collect(), int));
+        } else if word.contains('_') && underline_denotes_prefix {
+            assert!(!word.contains('\\')); // escaped underlines are not supported
+            let mut parts = word.split('_');
+
+            let prefix = parts.next().unwrap();
+            let suffix = parts.next().unwrap();
+
+            // TODO: add the inflected forms of the suffix. Upstream did this with the `PosReplacer`, which is unimplemented on this branch.
+            warn!(
+                "Only adding the base form of prefixed spelling entry \"{}\".",
+                word
+            );
+
+            let value = words.entry(format!("{}{}", prefix, suffix)).or_default();
+            value.add_variant(variant_index);
+            value.update_freq(freq);
+        } else {
+            let value = words.entry((*word).to_owned()).or_default();
+
+            value.update_freq(freq);
+            value.add_variant(variant_index);
+        }
+    }
+
+    pub(in crate::compile) fn from_dumps(
+        spell_dir_path: impl AsRef<Path>,
+        map_path: impl AsRef<Path>,
+        global_word_path: impl AsRef<Path>,
+        lang_options: SpellLangOptions,
+        tokenizer: &Tokenizer,
+    ) -> io::Result<Self> {
+        let mut words: DefaultHashMap<String, SpellInt> = DefaultHashMap::new();
+        let mut multiwords: DefaultHashMap<String, Vec<(Vec<String>, SpellInt)>> =
+            DefaultHashMap::new();
+        let mut max_freq = 0;
+
+        for (i, variant) in lang_options.variants.iter().enumerate() {
+            let spell_path = spell_dir_path
+                .as_ref()
+                .join(variant.as_str())
+                .with_extension("dump");
+
+            let reader = BufReader::new(File::open(&spell_path)?);
+            for line in reader.lines() {
+                match line?
+                    .trim()
+                    .split_whitespace()
+                    .collect::<Vec<_>>()
+                    .as_slice()
+                {
+                    [freq, word] => {
+                        // frequency is denoted as letters from A to Z in LanguageTool where A is the least frequent.
+                        let freq = freq.chars().next().expect("freq must have one char - would not have been yielded by split_whitespace otherwise.") as usize - 'A' as usize;
+
+                        Spell::add_line(
+                            word,
+                            freq,
+                            &mut words,
+                            &mut multiwords,
+                            i,
+                            false,
+                            tokenizer,
+                        );
+                        max_freq = cmp::max(max_freq, freq);
+                    }
+                    _ => continue,
+                }
+            }
+
+            let global_word_reader = BufReader::new(File::open(global_word_path.as_ref())?);
+
+            let extra_word_path = spell_path.with_extension("txt");
+            let reader = BufReader::new(File::open(&extra_word_path)?);
+            for line in reader.lines().chain(global_word_reader.lines()) {
+                let line = line?;
+                let word = line.trim();
+
+                Spell::add_line(word, 0, &mut words, &mut multiwords, i, true, tokenizer);
+            }
+        }
+        let mut words: Vec<_> = words
+            .into_iter()
+            .map(|(key, value)| (key, value.as_u64()))
+            .collect();
+        words.sort_by(|(a, _), (b, _)| a.cmp(b));
+
+        let fst =
+            fst::Map::from_iter(words.into_iter()).expect("words are lexicographically sorted.");
+
+        let mut map = DefaultHashMap::new();
+        let reader = BufReader::new(File::open(map_path.as_ref())?);
+        for line in reader.lines() {
+            let line = line?;
+
+            let mut parts = line.split('=');
+            let wrong = parts
+                .next()
+                .expect("spell map line must have part before =")
+                .to_owned();
+            let right = parts
+                .next()
+                .expect("spell map line must have part after =")
+                .to_owned();
+
+            // map lookup happens on token level, so the key has to be exactly one token
+            assert_eq!(tokenizer.get_token_strs(&wrong).len(), 1);
+
+            map.insert(wrong, right);
+            assert!(parts.next().is_none());
+        }
+
+        Ok(Spell::new(
+            fst.into_fst().to_vec(),
+            multiwords,
+            max_freq,
+            map,
+            lang_options,
+        ))
+    }
+}
 
 impl Tagger {
     fn get_lines<S1: AsRef<Path>, S2: AsRef<Path>>(
@@ -260,6 +427,7 @@ impl Rules {
     pub(in crate::compile) fn from_xml<P: AsRef<Path>>(
         path: P,
         build_info: &mut BuildInfo,
+        spell: Spell,
         options: RulesLangOptions,
     ) -> Self {
         let rules = super::parse_structure::read_rules(path);
@@ -352,7 +520,7 @@ impl Rules {
             );
         }
 
-        Rules { rules }
+        Rules { rules, spell }
     }
 }
 

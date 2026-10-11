@@ -4,6 +4,7 @@
 //! nlprule has the following core abstractions:
 //! - A [Tokenizer][tokenizer::Tokenizer] to split a text into tokens and analyze it by chunking, lemmatizing and part-of-speech tagging. Can also be used independently of the grammatical rules.
 //! - A [Rules][rules::Rules] structure containing a set of grammatical error correction rules.
+//! - A [Spell][spell::Spell] spellchecker, stored with the rules and disabled by default.
 //!
 //! # Examples
 //!
@@ -13,11 +14,13 @@
 //! use nlprule::{Tokenizer, Rules};
 //!
 //! let tokenizer = Tokenizer::new("path/to/en_tokenizer.bin")?;
-//! let rules = Rules::new("path/to/en_rules.bin")?;
+//! let mut rules = Rules::new("path/to/en_rules.bin")?;
+//! // enable spellchecking
+//! rules.spell_mut().options_mut().variant = Some(rules.spell().variant("en_GB")?);
 //!
 //! assert_eq!(
-//!     rules.correct("She was not been here since Monday.", &tokenizer),
-//!     String::from("She was not here since Monday.")
+//!     rules.correct("I belive she was not been here since Monday.", &tokenizer),
+//!     String::from("I believe she was not here since Monday.")
 //! );
 //! # Ok::<(), nlprule::Error>(())
 //! ```
@@ -76,6 +79,7 @@ pub mod compile;
 mod filter;
 pub mod rule;
 pub mod rules;
+pub mod spell;
 pub mod tokenizer;
 pub mod types;
 pub(crate) mod utils;
@@ -93,6 +97,8 @@ pub enum Error {
     Serialization(#[from] bincode::Error),
     #[error(transparent)]
     IdError(#[from] rule::id::Error),
+    #[error("unknown language variant: \"{0}\". known variants are: {1:?}.")]
+    UnknownVariant(String, Vec<String>),
 }
 
 /// Gets the canonical filename for the tokenizer binary for a language code in ISO 639-1 (two-letter) format.

@@ -2,7 +2,9 @@
 
 use crate::types::*;
 use crate::utils::parallelism::MaybeParallelRefIterator;
-use crate::{rule::id::Selector, rule::MatchSentence, rule::Rule, tokenizer::Tokenizer, Error};
+use crate::{
+    rule::id::Selector, rule::MatchSentence, rule::Rule, spell::Spell, tokenizer::Tokenizer, Error,
+};
 use fs_err::File;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -35,9 +37,10 @@ impl Default for RulesLangOptions {
 }
 
 /// A set of grammatical error correction rules.
-#[derive(Serialize, Deserialize, Default)]
+#[derive(Serialize, Deserialize, Default, Clone)]
 pub struct Rules {
     pub(crate) rules: Vec<Rule>,
+    pub(crate) spell: Spell,
 }
 
 impl Rules {
@@ -48,18 +51,29 @@ impl Rules {
     /// - If the file content can not be deserialized to a rules set.
     pub fn new<P: AsRef<Path>>(p: P) -> Result<Self, Error> {
         let reader = BufReader::new(File::open(p.as_ref())?);
-        let rules: Rules = bincode::deserialize_from(reader)?;
-        Ok(rules)
+        Self::from_reader(reader)
     }
 
     /// Creates a new rules set from a reader.
     pub fn from_reader<R: Read>(reader: R) -> Result<Self, Error> {
-        Ok(bincode::deserialize_from(reader)?)
+        let mut rules: Rules = bincode::deserialize_from(reader)?;
+        rules.spell.ingest_options();
+        Ok(rules)
     }
 
     /// Serializes this rules set to a writer.
     pub fn to_writer<W: Write>(&self, writer: W) -> Result<(), Error> {
         Ok(bincode::serialize_into(writer, &self)?)
+    }
+
+    /// Gets the spellchecker associated with this rules set. The spellchecker always exists, even if spellchecking is disabled (default).
+    pub fn spell(&self) -> &Spell {
+        &self.spell
+    }
+
+    /// Mutably gets the spellchecker.
+    pub fn spell_mut(&mut self) -> &mut Spell {
+        &mut self.spell
     }
 
     /// All rules ordered by priority.
@@ -90,6 +104,7 @@ impl Rules {
 
     /// Compute the suggestions for the given sentence by checking all rules.
     pub fn apply(&self, sentence: &Sentence) -> Vec<Suggestion> {
+        let spell_suggestions = self.spell.suggest(sentence);
         let sentence = MatchSentence::new(sentence);
 
         let mut output: Vec<(usize, Suggestion)> = self
@@ -108,6 +123,8 @@ impl Rules {
             })
             .flatten()
             .collect();
+
+        output.extend(spell_suggestions.into_iter().map(|x| (0, x)));
 
         output.sort_by(|(ia, a), (ib, b)| {
             a.span()
@@ -158,19 +175,22 @@ impl Rules {
 }
 
 /// Correct a text by applying suggestions to it.
-/// In the case of multiple possible replacements, always chooses the first one.
+/// - In case of multiple possible replacements, always chooses the first one.
+/// - In case of a suggestion without any replacements, ignores the suggestion.
 pub fn apply_suggestions(text: &str, suggestions: &[Suggestion]) -> String {
     let mut offset: isize = 0;
     let mut chars: Vec<_> = text.chars().collect();
 
     for suggestion in suggestions {
-        let replacement: Vec<_> = suggestion.replacements()[0].chars().collect();
-        chars.splice(
-            (suggestion.span().char().start as isize + offset) as usize
-                ..(suggestion.span().char().end as isize + offset) as usize,
-            replacement.iter().cloned(),
-        );
-        offset = offset + replacement.len() as isize - suggestion.span().char().len() as isize;
+        if let Some(replacement) = suggestion.replacements().get(0) {
+            let replacement: Vec<_> = replacement.chars().collect();
+            chars.splice(
+                (suggestion.span().char().start as isize + offset) as usize
+                    ..(suggestion.span().char().end as isize + offset) as usize,
+                replacement.iter().cloned(),
+            );
+            offset = offset + replacement.len() as isize - suggestion.span().char().len() as isize;
+        }
     }
 
     chars.into_iter().collect()
@@ -222,6 +242,9 @@ where
 {
     fn from_iter<I: IntoIterator<Item = R>>(iter: I) -> Self {
         let rules: Vec<Rule> = iter.into_iter().map(|x| x.into()).collect();
-        Self { rules }
+        Self {
+            rules,
+            spell: Spell::default(),
+        }
     }
 }

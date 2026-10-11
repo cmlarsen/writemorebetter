@@ -50,6 +50,7 @@ pub enum Disambiguation {
     ),
     Unify(Vec<Vec<PosFilter>>, Vec<Option<PosFilter>>, Vec<bool>),
     Nop,
+    IgnoreSpelling,
 }
 
 impl Disambiguation {
@@ -201,6 +202,13 @@ impl Disambiguation {
                 }
             }
             Disambiguation::Nop => {}
+            Disambiguation::IgnoreSpelling => {
+                for group in groups {
+                    for token in group {
+                        *token.ignore_spelling_mut() = true;
+                    }
+                }
+            }
         }
     }
 }

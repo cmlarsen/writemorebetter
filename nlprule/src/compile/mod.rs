@@ -14,6 +14,7 @@ use std::{
 
 use crate::{
     rules::Rules,
+    spell::Spell,
     tokenizer::{chunk::Chunker, multiword::MultiwordTagger, tag::Tagger, Tokenizer},
     types::DefaultHasher,
 };
@@ -38,6 +39,9 @@ struct BuildFilePaths {
     common_words_path: PathBuf,
     regex_cache_path: PathBuf,
     srx_path: PathBuf,
+    spell_dir_path: PathBuf,
+    spell_map_path: PathBuf,
+    spell_extra_path: PathBuf,
 }
 
 impl BuildFilePaths {
@@ -54,6 +58,9 @@ impl BuildFilePaths {
             common_words_path: p.join("common.txt"),
             regex_cache_path: p.join("regex_cache.bin"),
             srx_path: p.join("segment.srx"),
+            spell_dir_path: p.join("spell"),
+            spell_map_path: p.join("spell/map.txt"),
+            spell_extra_path: p.join("spell/spelling.txt"),
         }
     }
 }
@@ -120,6 +127,13 @@ pub fn compile(
     let tagger_lang_options =
         utils::tagger_lang_options(&lang_code).ok_or_else(|| Error::LanguageOptionsDoNotExist {
             lang_code: lang_code.clone(),
+        })?;
+
+    let spellchecker_lang_options =
+        utils::spellchecker_lang_options(&lang_code).ok_or_else(|| {
+            Error::LanguageOptionsDoNotExist {
+                lang_code: lang_code.clone(),
+            }
         })?;
 
     info!("Creating tagger.");
@@ -189,8 +203,30 @@ pub fn compile(
     )?;
     tokenizer.to_writer(tokenizer_dest)?;
 
+    let spell = if paths.spell_dir_path.exists() {
+        info!("Creating spellchecker.");
+        Spell::from_dumps(
+            &paths.spell_dir_path,
+            &paths.spell_map_path,
+            &paths.spell_extra_path,
+            spellchecker_lang_options,
+            &tokenizer,
+        )?
+    } else {
+        info!(
+            "{} does not exist. Not building spellchecker.",
+            paths.spell_dir_path.display()
+        );
+        Spell::default()
+    };
+
     info!("Creating grammar rules.");
-    let rules = Rules::from_xml(&paths.grammar_path, &mut build_info, rules_lang_options);
+    let rules = Rules::from_xml(
+        &paths.grammar_path,
+        &mut build_info,
+        spell,
+        rules_lang_options,
+    );
     rules.to_writer(rules_dest)?;
 
     // we need to write the regex cache after building the rules, otherwise it isn't fully populated

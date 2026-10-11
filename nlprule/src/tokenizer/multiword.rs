@@ -71,6 +71,7 @@ impl MultiwordTagger {
                     data.freeze();
 
                     token.word_mut().push(data);
+                    *token.ignore_spelling_mut() = true;
                 }
             }
         }

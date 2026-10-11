@@ -345,6 +345,7 @@ pub struct IncompleteToken<'t> {
     is_sentence_end: bool,
     has_space_before: bool,
     chunks: Vec<String>,
+    ignore_spelling: bool,
 }
 
 impl<'t> IncompleteToken<'t> {
@@ -361,6 +362,7 @@ impl<'t> IncompleteToken<'t> {
             is_sentence_end,
             has_space_before,
             chunks,
+            ignore_spelling: false,
         }
     }
 
@@ -392,6 +394,7 @@ impl<'t> IncompleteToken<'t> {
             span: self.span,
             has_space_before: self.has_space_before,
             chunks: self.chunks,
+            ignore_spelling: self.ignore_spelling,
         }
     }
 
@@ -435,6 +438,16 @@ impl<'t> IncompleteToken<'t> {
         &mut self.chunks
     }
 
+    /// Whether to ignore spelling for this token.
+    pub fn ignore_spelling(&self) -> bool {
+        self.ignore_spelling
+    }
+
+    #[allow(missing_docs)]
+    pub fn ignore_spelling_mut(&mut self) -> &mut bool {
+        &mut self.ignore_spelling
+    }
+
     /// Shift the span of this token right by the specified amount.
     pub fn rshift(mut self, position: Position) -> Self {
         self.span = self.span.rshift(position);
@@ -451,6 +464,7 @@ pub struct Token<'t> {
     span: Span,
     has_space_before: bool,
     chunks: Vec<String>,
+    ignore_spelling: bool,
 }
 
 lazy_static! {
@@ -468,6 +482,7 @@ lazy_static! {
             span: Span::default(),
             has_space_before: false,
             chunks: Vec::new(),
+            ignore_spelling: true,
         }
     };
 }
@@ -501,6 +516,11 @@ impl<'t> Token<'t> {
     /// Chunks associated with this token.
     pub fn chunks(&self) -> &[String] {
         &self.chunks
+    }
+
+    /// Whether to ignore spelling for this token.
+    pub fn ignore_spelling(&self) -> bool {
+        self.ignore_spelling
     }
 
     pub(crate) fn sent_start() -> &'static Token<'static> {

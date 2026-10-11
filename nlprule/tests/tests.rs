@@ -1,7 +1,7 @@
 use std::convert::TryInto;
 
 use lazy_static::lazy_static;
-use nlprule::{rule::id::Category, types::Position, Rules, Tokenizer};
+use nlprule::{rule::id::Category, types::Position, Error, Rules, Tokenizer};
 use quickcheck_macros::quickcheck;
 
 const TOKENIZER_PATH: &str = "../storage/en_tokenizer.bin";
@@ -140,4 +140,17 @@ fn rules_can_be_disabled_enabled() {
 
     // enabled now
     assert!(!rules.suggest("I can not go", &*TOKENIZER).is_empty());
+}
+
+#[test]
+fn spellchecker_works() -> Result<(), Error> {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    rules.spell_mut().options_mut().variant = Some(rules.spell().variant("en_GB")?);
+
+    assert_eq!(
+        rules.correct("color spellhceking", &*TOKENIZER),
+        "colour spellchecking"
+    );
+
+    Ok(())
 }
