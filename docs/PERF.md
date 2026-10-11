@@ -274,3 +274,8 @@ conformance/public-recall results are pending before keep/drop.
 The coordinator requires explicit approval before merging attempts that introduce global,
 static or thread-local state, unsafe code, or address-keyed caches. Attempt 1 includes a
 drop/reload lifecycle test and uses numeric identities instead of addresses.
+
+The global pattern pool never evicts its strings or IDs: they outlive every `Rules`.
+Its retained memory grows with the distinct patterns ever loaded (usually one or two
+English data sets), even after dropping a rule set. Compiled regexes currently remain
+owned by each `Regex`; the pool retains pattern strings and identities, not those backends.
