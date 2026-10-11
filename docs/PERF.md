@@ -6,7 +6,8 @@ what they report. Every change is behind a measurement; identities are byte-for-
 ## Headline
 
 `bench/tools/wmb-probe`, `PROFILE=fiction SPELL=en_US`, first 150,000 bytes of Moby-Dick
-(`data/moby150k.txt`), release builds. Median of 7 check times; peak RSS from
+(`data/moby150k.txt`), release builds. Check time is the median of 5 runs before and 7 runs
+after (and every per-step number below is a median of 5); peak RSS from
 `/usr/bin/time -l`.
 
 | | check, before | check, after | peak RSS, before | peak RSS, after |
@@ -56,7 +57,7 @@ Self time:
 | 0.9% | `fst::raw::node::Node::new` |
 | 0.7% | `sip::Hasher::write` |
 
-Inclusive time:
+Inclusive time (`start`/`main` omitted):
 
 | incl | function |
 |---|---|
@@ -66,14 +67,18 @@ Inclusive time:
 | 70.2% | `Rules::apply_paragraph` |
 | 68.6% | `Rules::apply_with` (grammar rules + speller + builtins) |
 | 63.7% | `Atom::is_match` |
+| 63.3% | `Flatten<…>` in `apply_with` |
+| 63.3% | `Vec<(usize, Suggestion)>` collect |
 | 61.0% | `Rule::Suggestions::next` |
 | 43.8% | `Matcher::is_match` |
 | 28.2% | `onig::Regex::is_match` (all regex atoms) |
+| 28.1% | `onig::Regex::match_with_options` |
+| 24.1% | `onig_match_with_param` |
+| 21.4% | `match_at` |
 | 18.0% | `Tokenizer::disambiguate_up_to_id` |
-| 9.1% | `Tokenizer::tokenize` (tagging + chunking) |
-| 8.1% | `Chunker::apply` |
-| 5.2% | `Spell::suggest` |
-| 1.5% | `Builtin::check_text` |
+
+Other phase functions for the split: `Tokenizer::tokenize` (tagging + chunking) 9.1%,
+`Chunker::apply` 8.1%, `Spell::suggest` 5.2%, `Builtin::check_text` 1.5%.
 
 Phase split (inclusive share of the sequential run):
 
