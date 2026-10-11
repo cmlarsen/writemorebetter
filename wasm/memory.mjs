@@ -70,7 +70,6 @@ WebAssembly.Instance = function (...args) {
 };
 
 console.log(`\n=== speller: ${mode} (fresh process) ===`);
-console.log(`(a) before module`);
 
 const { Checker } = require(join(here, "pkg", "writemorebetter_wasm.js"));
 WebAssembly.Instance = RealInstance;
