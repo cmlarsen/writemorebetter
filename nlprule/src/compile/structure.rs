@@ -185,6 +185,9 @@ pub struct Group {
     pub id: String,
     pub name: String,
     pub default: Option<String>,
+    pub tags: Option<String>,
+    pub min_prev_matches: Option<String>,
+    pub distance_tokens: Option<String>,
     pub n: usize,
 }
 
@@ -242,6 +245,10 @@ pub struct Match {
     #[serde(rename = "postag_regexp")]
     pub postag_regex: Option<String>,
     pub postag_replace: Option<String>,
+    /// `setpos="yes"` would write the matched POS back onto the token. It only
+    /// occurs together with `postag` in the English rules, which is already
+    /// rejected as unimplemented, so it is parsed and otherwise ignored.
+    pub setpos: Option<String>,
     pub text: Option<XmlString>,
     pub include_skipped: Option<String>,
     pub case_conversion: Option<String>,
@@ -260,7 +267,9 @@ pub enum SuggestionPart {
 #[serde(deny_unknown_fields)]
 pub struct Suggestion {
     pub suppress_misspelled: Option<String>,
-    #[serde(rename = "$value")]
+    /// An empty `<suggestion/>` is valid in LanguageTool and means "delete the
+    /// match", so the parts list may be absent.
+    #[serde(rename = "$value", default)]
     pub parts: Vec<SuggestionPart>,
 }
 
@@ -283,7 +292,9 @@ pub struct Message {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ExampleMarker {
-    pub text: XmlString,
+    /// LanguageTool allows an empty `<marker></marker>` in examples to mark a
+    /// zero-width span (usually a deletion); the text is then absent.
+    pub text: Option<XmlString>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -336,6 +347,17 @@ pub enum TokenPart {
 #[serde(deny_unknown_fields)]
 pub struct Sub {
     pub no: String,
+    /// `<match .../>` inside a `<token>` can carry the full attribute set of a
+    /// match reference (see LanguageTool's `pattern.xsd`). Only `no` is
+    /// implemented; the rest need the synthesis / case machinery and are
+    /// rejected explicitly in `parse_token`.
+    pub postag: Option<String>,
+    pub postag_regexp: Option<String>,
+    pub postag_replace: Option<String>,
+    pub case_conversion: Option<String>,
+    pub regexp_match: Option<String>,
+    pub regexp_replace: Option<String>,
+    pub include_skipped: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -453,6 +475,12 @@ pub struct PatternMarker {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PhraseRef {
+    pub idref: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "lowercase")]
 #[serde(deny_unknown_fields)]
 pub enum PatternPart {
@@ -461,12 +489,24 @@ pub enum PatternPart {
     Or(TokenVector),
     And(TokenVector),
     Feature(Feature),
+    /// LanguageTool allows `<example>` elements inside `<antipattern>` as
+    /// documentation (rules.xsd: "this element should appear at the end").
+    /// They do not take part in matching, so the value is parsed and ignored.
+    #[allow(dead_code)]
+    Example(Example),
+    /// A reference to a `<phrase id="…">` defined in a `<phrases>` block.
+    /// nlprule does not expand phrases, so this is rejected explicitly.
+    Phraseref(PhraseRef),
 }
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Pattern {
     pub case_sensitive: Option<String>,
+    /// `raw_pos="yes"` makes the token's POS tags refer to the tagger output
+    /// *before* disambiguation. Matching on the raw tags would need the
+    /// pre-disambiguation readings at runtime, so it is rejected explicitly.
+    pub raw_pos: Option<String>,
     #[serde(rename = "$value")]
     pub parts: Vec<PatternPart>,
 }
@@ -476,6 +516,11 @@ pub struct Pattern {
 pub struct Regex {
     pub text: XmlString,
     pub case_sensitive: Option<String>,
+    /// `type="exact"` keeps the regexp as written; the default `smart` replaces
+    /// literal spaces outside character classes with a whitespace matcher (see
+    /// `replace_spaces_in_regex`).
+    #[serde(rename = "type")]
+    pub kind: Option<String>,
     pub mark: Option<String>,
 }
 
@@ -497,6 +542,20 @@ pub struct Rule {
     pub short: Option<XmlText>,
     pub url: Option<XmlText>,
     pub default: Option<String>,
+    /// ITS 2.0 localization quality issue type (`type="grammar"`, …). A label
+    /// for consumers; it has no effect on matching or suggestions, so it is
+    /// parsed and ignored.
+    #[serde(rename = "type")]
+    #[allow(dead_code)]
+    pub kind: Option<String>,
+    /// `tags="picky"` marks the rule as opt-in (LanguageTool's Level.PICKY).
+    /// The value may be a space separated list.
+    pub tags: Option<String>,
+    /// LanguageTool's repetition experiment: fire only after `min_prev_matches`
+    /// earlier matches within `distance_tokens` tokens. Requires cross-match
+    /// state, so it is rejected explicitly.
+    pub min_prev_matches: Option<String>,
+    pub distance_tokens: Option<String>,
     pub filter: Option<Filter>,
     #[serde(rename = "__unused_unifications")]
     pub unifications: Option<Vec<Unification>>,
@@ -512,6 +571,15 @@ pub struct RuleGroup {
     pub name: String,
     pub short: Option<XmlText>,
     pub url: Option<XmlText>,
+    /// See [`Rule::kind`] — parsed and ignored.
+    #[serde(rename = "type")]
+    #[allow(dead_code)]
+    pub kind: Option<String>,
+    /// See [`Rule::tags`].
+    pub tags: Option<String>,
+    /// See [`Rule::min_prev_matches`].
+    pub min_prev_matches: Option<String>,
+    pub distance_tokens: Option<String>,
     #[serde(rename = "rule")]
     pub rules: Vec<Rule>,
 }
@@ -641,7 +709,7 @@ pub enum DisambiguationRuleContainer {
 }
 
 macro_rules! flatten_group {
-    ($rulegroup:expr, $category:expr) => {{
+    ($rulegroup:expr, $category:expr, $tags:expr, $min_prev_matches:expr, $distance_tokens:expr) => {{
         let group_antipatterns = if let Some(antipatterns) = $rulegroup.antipatterns {
             antipatterns
         } else {
@@ -651,6 +719,9 @@ macro_rules! flatten_group {
         let group = Group {
             id: $rulegroup.id,
             default: $rulegroup.default,
+            tags: $tags,
+            min_prev_matches: $min_prev_matches,
+            distance_tokens: $distance_tokens,
             name: $rulegroup.name,
             n: 0,
         };
@@ -702,10 +773,21 @@ pub fn read_rules<P: AsRef<std::path::Path>>(
                     RuleContainer::Rule(rule) => {
                         vec![Ok((rule, None, category))]
                     }
-                    RuleContainer::RuleGroup(rule_group) => flatten_group!(rule_group, category)
+                    RuleContainer::RuleGroup(rule_group) => {
+                        let tags = rule_group.tags.clone();
+                        let min_prev_matches = rule_group.min_prev_matches.clone();
+                        let distance_tokens = rule_group.distance_tokens.clone();
+                        flatten_group!(
+                            rule_group,
+                            category,
+                            tags,
+                            min_prev_matches,
+                            distance_tokens
+                        )
                         .into_iter()
                         .map(Ok)
-                        .collect(),
+                        .collect()
+                    }
                     RuleContainer::Unification(unification) => {
                         unifications.push(unification);
 
@@ -760,7 +842,7 @@ pub fn read_disambiguation_rules<P: AsRef<std::path::Path>>(
                         vec![Ok((rule, None, category))]
                     }
                     DisambiguationRuleContainer::RuleGroup(rule_group) => {
-                        flatten_group!(rule_group, category)
+                        flatten_group!(rule_group, category, None, None, None)
                             .into_iter()
                             .map(Ok)
                             .collect()
