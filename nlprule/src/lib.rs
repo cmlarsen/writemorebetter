@@ -82,6 +82,7 @@ mod filter;
 #[allow(missing_docs)]
 #[doc(hidden)]
 pub mod memory_probe;
+pub mod profile;
 pub mod rule;
 pub mod rules;
 pub mod spell;
