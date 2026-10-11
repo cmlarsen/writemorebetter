@@ -406,15 +406,55 @@ fn parse_match(
     engine: &Engine,
     _info: &mut BuildInfo,
 ) -> Result<Match, Error> {
-    if m.include_skipped.is_some() {
-        return Err(Error::Unimplemented(
-            "include_skipped in `match` is not implemented.".into(),
-        ));
-    }
-
     let id =
         m.no.parse::<usize>()
             .expect("no must be parsable as usize.");
+    let graph_id = engine.to_graph_id(id)?;
+
+    // `<match include_skipped="...">` includes the tokens skipped by the
+    // referenced token's `skip` attribute. In the compiled pattern those tokens
+    // form an invisible part directly after the referenced element, so remember
+    // its graph index; without a `skip` attribute the attribute has no effect.
+    let include_skipped = match m.include_skipped.as_deref() {
+        None => None,
+        Some(value) => {
+            let range = match value {
+                "all" => IncludeRange::All,
+                "following" => IncludeRange::Following,
+                other => {
+                    return Err(Error::Unimplemented(format!(
+                        "include_skipped value '{}' is not supported.",
+                        other
+                    )))
+                }
+            };
+
+            match engine {
+                Engine::Token(engine) => {
+                    // `id_to_idx` maps a graph id to `part_index + 1`; the skip
+                    // part, if any, is the part right after the referenced one.
+                    let group = *engine.composition.id_to_idx.get(&graph_id).ok_or_else(|| {
+                        Error::Unexpected("match reference is not in the pattern".into())
+                    })?;
+                    let has_skip = engine
+                        .composition
+                        .parts
+                        .get(group)
+                        .map_or(false, |part| !part.visible);
+
+                    has_skip.then_some(IncludeSkipped {
+                        range,
+                        group: group + 1,
+                    })
+                }
+                Engine::Text(..) => {
+                    return Err(Error::Unimplemented(
+                        "include_skipped in `match` is not implemented for regexp rules.".into(),
+                    ))
+                }
+            }
+        }
+    };
 
     let case_conversion = if let Some(conversion) = &m.case_conversion {
         Some(conversion.as_str())
@@ -493,7 +533,7 @@ fn parse_match(
     };
 
     Ok(Match {
-        id: engine.to_graph_id(id)?,
+        id: graph_id,
         conversion: match case_conversion {
             Some("alllower") => Conversion::AllLower,
             Some("startlower") => Conversion::StartLower,
@@ -514,6 +554,7 @@ fn parse_match(
         pos_replacer,
         regex_replacer,
         static_lemma,
+        include_skipped,
     })
 }
 
@@ -553,6 +594,7 @@ fn parse_synthesizer_text(text: &str, engine: &Engine) -> Result<Vec<Synthesizer
                 pos_replacer: None,
                 regex_replacer: None,
                 static_lemma: None,
+                include_skipped: None,
             }
             .into(),
         ));

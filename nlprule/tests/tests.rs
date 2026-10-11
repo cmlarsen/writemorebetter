@@ -1695,3 +1695,22 @@ fn grammar_indefinite_determiner_picks_an_from_a_lemma() {
         replacements
     );
 }
+
+#[test]
+fn grammar_include_skipped_adds_the_skipped_tokens() {
+    // WRITE_IN_MY_OWN_PAGE's `<match no="2" include_skipped="all">` covers the
+    // token ("that") and the token skipped by the pattern's `skip="1"`
+    // ("piece"), so the suggestion is "Write that piece on my own page".
+    let replacements: Vec<String> = RULES
+        .suggest("Write that piece in my own page.", &*TOKENIZER)
+        .iter()
+        .flat_map(|suggestion| suggestion.replacements().iter().cloned())
+        .collect();
+    assert!(
+        replacements
+            .iter()
+            .any(|replacement| replacement == "Write that piece on my own page"),
+        "{:?}",
+        replacements
+    );
+}

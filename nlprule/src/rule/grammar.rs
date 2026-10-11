@@ -288,6 +288,24 @@ impl PosReplacer {
     }
 }
 
+/// How LanguageTool's `<match include_skipped="...">` extends the match with the
+/// tokens skipped by the `skip` attribute of the referenced pattern token.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum IncludeRange {
+    /// `all`: the matched tokens followed by the skipped tokens.
+    All,
+    /// `following`: only the skipped tokens that follow the matched token.
+    Following,
+}
+
+/// A resolved `include_skipped`: which range to take and the graph index of the
+/// skip group that follows the referenced element.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+pub(crate) struct IncludeSkipped {
+    pub(crate) range: IncludeRange,
+    pub(crate) group: usize,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Match {
     pub(crate) id: GraphId,
@@ -296,6 +314,8 @@ pub struct Match {
     pub(crate) regex_replacer: Option<(Regex, String)>,
     /// The static lemma of `<match>lemma</match>`, if present.
     pub(crate) static_lemma: Option<String>,
+    /// The `include_skipped` attribute, resolved to the following skip group.
+    pub(crate) include_skipped: Option<IncludeSkipped>,
 }
 
 impl Match {
@@ -314,19 +334,49 @@ impl Match {
         let forms = if let Some(replacer) = &self.pos_replacer {
             // LanguageTool's `toFinalString` overwrites the token with the synthesized forms, so
             // `regexp_match`/`regexp_replace` does not apply here.
-            replacer.apply(
+            let mut forms = replacer.apply(
                 sentence,
                 graph,
                 self.id,
                 self.static_lemma.as_deref(),
                 group_text,
                 articles,
-            )?
+            )?;
+
+            // `include_skipped` appends the skipped tokens to every synthesized
+            // form (or replaces them with just the skipped tokens for
+            // "following"), matching `MatchState.toFinalString`.
+            if let Some(include) = self.include_skipped {
+                let skipped = self.skipped_text(sentence, graph);
+                forms = match include.range {
+                    IncludeRange::All => forms
+                        .into_iter()
+                        .map(|form| format!("{}{}", form, skipped))
+                        .collect(),
+                    IncludeRange::Following => vec![skipped.trim_start().to_string()],
+                };
+            }
+
+            forms
         } else {
             let raw = self
                 .static_lemma
                 .clone()
                 .unwrap_or_else(|| group_text.to_string());
+
+            // Without a synthesis, the match text is extended over the skipped
+            // tokens directly.
+            let raw = match self.include_skipped {
+                None => raw,
+                Some(include) => match include.range {
+                    IncludeRange::All => {
+                        format!("{}{}", raw, self.skipped_text(sentence, graph))
+                    }
+                    IncludeRange::Following => {
+                        self.skipped_text(sentence, graph).trim_start().to_string()
+                    }
+                },
+            };
 
             let raw = if let Some((regex, replacement)) = &self.regex_replacer {
                 regex.replace_all(&raw, replacement)
@@ -343,6 +393,24 @@ impl Match {
                 .map(|form| self.conversion.convert(&form, group_text))
                 .collect(),
         )
+    }
+
+    /// The tokens skipped by the referenced element, including the whitespace
+    /// before the first one (LanguageTool's `skippedTokens`).
+    fn skipped_text<'a>(&self, sentence: &'a MatchSentence, graph: &MatchGraph) -> &'a str {
+        match self.include_skipped {
+            None => "",
+            Some(include) => {
+                let group = graph.by_id(self.id);
+                let skipped = graph.by_index(include.group);
+
+                if skipped.span.end() <= group.span.end() {
+                    return "";
+                }
+
+                sentence.slice(Span::from_positions(group.span.end(), skipped.span.end()))
+            }
+        }
     }
 
     fn has_conversion(&self) -> bool {
