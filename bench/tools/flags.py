@@ -23,14 +23,18 @@ def lt(runs: Path, name: str):
         yield x["line"], x["rule"], x["text"], x["repl"][:2]
 
 
-def nlprule(runs: Path, name: str):
-    for raw in (runs / f"nlp-{name}.log").read_text().splitlines():
+def nlprule(runs: Path, name: str, prefix: str = "nlp"):
+    for raw in (runs / f"{prefix}-{name}.log").read_text().splitlines():
         p = raw.split(" | ")
         if len(p) < 4 or not p[0].isdigit():
             continue
         m = re.match(r"(\".*?\"|'.*?') -> (\[.*\])", p[2])
         text = (m.group(1) if m else p[2]).strip('"')
         yield int(p[0]), p[1].split("/")[1], text, (m.group(2) if m else "")
+
+
+def writemorebetter(runs: Path, name: str):
+    return nlprule(runs, name, "wmb")
 
 
 def fork(runs: Path, name: str):
@@ -45,6 +49,7 @@ TOOLS = {
     "LT 6.9 (API)": ("lt", lt),
     "nlprule fork": ("fork", fork),
     "nlprule 0.6.4": ("nlp", nlprule),
+    "writemorebetter": ("wmb", writemorebetter),
     "Harper": ("harper", harper),
 }
 

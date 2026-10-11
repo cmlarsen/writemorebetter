@@ -68,6 +68,7 @@ with an English build dir generated from the LanguageTool 6.6 distribution by th
 | nlprule fork (LT 6.6) | 27 | 2 | 8 | 0 | 1 | **38** |
 | Harper 2.12 | 26 | 6 | 1 | 0 | 1 | **34** |
 | nlprule 0.6.4 (LT 5.2) | 0 | 0 | 5 | 0 | 0 | **5** |
+| writemorebetter M0 (LT 5.2 + speller, en_US) | 28 | 0 | 5 | 0 | 0 | **33** |
 
 Kinds of grammar errors only LT-family tools caught, with the LT rule that fired (illustrative sentences):
 
@@ -110,6 +111,13 @@ Total flags across the corpus, before any rule tuning: LT 279, Harper 569, nlpru
 | nlprule 0.6.4 | 0.1 s | 0.63 s | 2.45 s | 159 MB | 11.6 MB tokenizer + 7.6 MB rules |
 | Harper CLI 2.12 | 0.5 s | 1.37 s | 3.8 s | 400 MB | in binary (58 MB executable) |
 | nlprule fork | 0.2 s | 4.84 s | — | 218 MB idle, 350 MB peak | 10.3 MB tokenizer + 38 MB rules |
+| writemorebetter M0, speller off | 0.1 s | 0.66 s | 2.73 s | 157 MB | 11.6 MB tokenizer + 9.1 MB rules |
+| writemorebetter M0, en_US speller | 0.2 s | 0.71 s | 3.19 s | 171 MB | same |
+
+The writemorebetter M0 rows (measured 2026-10-11) are upstream nlprule `main` plus the merged spellcheck PR,
+compiled from upstream's LT 5.2 build dir. Turning the speller on costs 47 ms and ~14 MB, because selecting a
+variant copies the speller FST's words into a hash set; the M2 fix for the tagger applies here too. The speller
+added 126 flags across the corpus: the 28 verified misspellings, the rest mostly names and coined words.
 
 The fork's English compile took 4.5 minutes and 815 MB. Its 5× larger rules binary comes from expanding
 `<phrases>` by cloning rules. The Harper number is the CLI; its WASM build was not measured.

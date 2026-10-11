@@ -1,0 +1,10 @@
+writemorebetter
+Copyright (c) 2026 Caleb Larsen
+
+This project includes code from nlprule (https://github.com/bminixhofer/nlprule),
+Copyright (c) 2020-2021 Benjamin Minixhofer, licensed under MIT OR Apache-2.0.
+
+Rules, dictionaries, and other data compiled from LanguageTool resources
+(https://github.com/languagetool-org/languagetool) are licensed under LGPL-2.1;
+see binaries/LICENSE. writemorebetter is not affiliated with LanguageTool or
+LanguageTooler GmbH.
