@@ -43,6 +43,8 @@ struct BuildFilePaths {
     spell_dir_path: PathBuf,
     spell_map_path: PathBuf,
     spell_extra_path: PathBuf,
+    /// Optional per-build-directory tokenizer overrides.
+    tokenizer_options_path: PathBuf,
 }
 
 impl BuildFilePaths {
@@ -62,8 +64,18 @@ impl BuildFilePaths {
             spell_dir_path: p.join("spell"),
             spell_map_path: p.join("spell/map.txt"),
             spell_extra_path: p.join("spell/spelling.txt"),
+            tokenizer_options_path: p.join("tokenizer_options.json"),
         }
     }
+}
+
+/// A subset of [TokenizerLangOptions] that a build directory can override.
+/// The file is optional; when it is absent the embedded language options (and
+/// so the 5.2 tokenizer behavior) are used unchanged.
+#[derive(serde::Deserialize, Default)]
+struct TokenizerOptionsOverride {
+    #[serde(default)]
+    split_contractions: Option<bool>,
 }
 
 #[derive(Error, Debug)]
@@ -115,11 +127,27 @@ pub fn compile(
         .map(|x| x.to_string())
         .collect();
 
-    let tokenizer_lang_options = utils::tokenizer_lang_options(&lang_code).ok_or_else(|| {
-        Error::LanguageOptionsDoNotExist {
-            lang_code: lang_code.clone(),
+    let mut tokenizer_lang_options =
+        utils::tokenizer_lang_options(&lang_code).ok_or_else(|| {
+            Error::LanguageOptionsDoNotExist {
+                lang_code: lang_code.clone(),
+            }
+        })?;
+
+    // A build directory may carry `tokenizer_options.json` to select a
+    // language version's tokenizer behavior; without it the defaults (the
+    // published 5.2 behavior) apply.
+    if paths.tokenizer_options_path.exists() {
+        let options: TokenizerOptionsOverride =
+            serde_json::from_str(&fs::read_to_string(&paths.tokenizer_options_path)?)?;
+        if let Some(split_contractions) = options.split_contractions {
+            tokenizer_lang_options.split_contractions = split_contractions;
         }
-    })?;
+        info!(
+            "Read tokenizer options from {}.",
+            paths.tokenizer_options_path.display()
+        );
+    }
 
     let rules_lang_options =
         utils::rules_lang_options(&lang_code).ok_or_else(|| Error::LanguageOptionsDoNotExist {

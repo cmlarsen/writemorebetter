@@ -130,6 +130,40 @@ def dump_dict(out_path, lt_dir, tag_dict_path, tag_info_path, java="java"):
         f.write(dump_bytes.decode(result["encoding"] or "utf-8"))
 
 
+def lt_version(lt_dir):
+    """Parse the LanguageTool version from the release directory name.
+
+    ``build/fetch_lt.sh`` unpacks the release into a directory named
+    ``LanguageTool-<version>`` (e.g. ``LanguageTool-6.6``). Returns a tuple of
+    ints like ``(6, 6)`` or ``None`` if it cannot be determined.
+    """
+    match = re.search(r"LanguageTool-(\d+(?:\.\d+)*)", lt_dir.name)
+    if match is None:
+        return None
+    return tuple(int(part) for part in match.group(1).split("."))
+
+
+def write_tokenizer_options(out_dir, lt_dir, lang_code):
+    """Select the tokenizer behavior of the LanguageTool version being built.
+
+    LanguageTool 6.6 rewrote its English word tokenizer: contractions are split
+    into a stem and an apostrophe-initial clitic (``do`` + ``n't``) instead of
+    a stem with the apostrophe on its own (``don`` + ``'`` + ``t``). nlprule
+    defaults to the 5.2 behavior; ``tokenizer_options.json`` switches the 6.6+
+    behavior on. Only English currently has a version-specific tokenizer.
+    """
+    version = lt_version(lt_dir)
+    if lang_code != "en" or version is None or version < (6, 6):
+        return
+    (out_dir / "tokenizer_options.json").write_text(
+        '{\n    "split_contractions": true\n}\n'
+    )
+    logging.info(
+        "LanguageTool %s: enabling 6.6+ contraction tokenization.",
+        ".".join(str(part) for part in version),
+    )
+
+
 def proc_spelling_text(in_paths, out_path, lang_code):
     with open(out_path, "w") as f:
         for in_path in in_paths:
@@ -328,5 +362,6 @@ Only needed if the language requires a chunker (e. g. English).
         )
 
     open(args.out_dir / "lang_code.txt", "w").write(args.lang_code)
+    write_tokenizer_options(args.out_dir, args.lt_dir, args.lang_code)
 
     print("Success!")

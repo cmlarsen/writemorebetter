@@ -688,6 +688,27 @@ impl Tagger {
     pub fn get_tags<'a>(&'a self, word: &'a str) -> TagIter<'a> {
         self.get_tags_with_options(word, None, None)
     }
+
+    /// Tags a word whose text was normalized internally, e.g. a curly
+    /// apostrophe replaced by a straight one for a recognized contraction.
+    /// The tokenizer has to store the normalized text as an owned string, so
+    /// unlike [get_tags_with_options] the returned data borrows only the
+    /// tagger and not `word`.
+    pub(crate) fn tags_for_normalized<'a>(
+        &'a self,
+        word: &str,
+        add_lower: bool,
+    ) -> Vec<WordData<'a>> {
+        self.get_strict_tags(
+            word,
+            if add_lower {
+                AddLower::Always
+            } else {
+                AddLower::IfEmpty
+            },
+        )
+        .collect()
+    }
 }
 
 #[cfg(test)]
