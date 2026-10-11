@@ -988,7 +988,7 @@ impl Rule {
             engine,
             unification,
             filter,
-            examples,
+            examples: crate::rule::Examples::from_vec(examples),
             suggesters,
             message: Synthesizer {
                 parts: message_parts,

@@ -3,15 +3,35 @@
 //! Adapts the approach from https://github.com/trishume/syntect/pull/270 with feature flags for the
 //! different backends.
 
-use once_cell::sync::OnceCell;
+use once_cell::sync::{Lazy, OnceCell};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::collections::HashSet;
 use std::hash::{Hash, Hasher};
+use std::sync::{Arc, Mutex};
 
 pub use regex_impl::{CaptureMatches, Captures, Match, Matches};
 
+/// Deduplicates pattern strings across every lazily-cached [Regex] in the process.
+///
+/// Most rule patterns repeat (76% of the English grammar-rule pattern bytes are duplicates of an
+/// earlier pattern), and every `Regex` would otherwise own its own copy. Interning stores each
+/// distinct pattern once as an `Arc<str>` and hands out cheap clones. The pool is bounded by the
+/// number of distinct patterns and is intentionally process-wide.
+static PATTERN_POOL: Lazy<Mutex<HashSet<Arc<str>>>> = Lazy::new(|| Mutex::new(HashSet::new()));
+
+fn intern_pattern(pattern: String) -> Arc<str> {
+    let mut pool = PATTERN_POOL.lock().unwrap_or_else(|error| error.into_inner());
+    if let Some(existing) = pool.get(pattern.as_str()) {
+        return existing.clone();
+    }
+    let interned: Arc<str> = Arc::from(pattern);
+    pool.insert(interned.clone());
+    interned
+}
+
 #[derive(Debug)]
 pub struct Regex {
-    regex_str: String,
+    regex_str: Arc<str>,
     // Boxed so the cache slot is one pointer word. `OnceCell` stores its value inline, and a
     // compiled `fancy_regex::Regex` is large; with ~70k pattern `Regex`es in the English rule set
     // the inline slot alone cost several MB of the loaded rules. The box costs one allocation per
@@ -60,7 +80,7 @@ impl Regex {
     /// return a result.
     pub fn new(regex_str: String) -> Self {
         Self {
-            regex_str,
+            regex_str: intern_pattern(regex_str),
             regex: OnceCell::new(),
         }
     }
@@ -69,6 +89,13 @@ impl Regex {
     #[allow(dead_code)] // used only in compile module
     pub fn try_compile(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
         regex_impl::Regex::new(&self.regex_str).map(|_| ())
+    }
+
+    /// The pattern source. Used by the memory probe to count duplicated patterns.
+    #[cfg(feature = "memory-probe")]
+    #[allow(dead_code)]
+    pub(crate) fn as_str(&self) -> &str {
+        &self.regex_str
     }
 
     fn regex(&self) -> &regex_impl::Regex {

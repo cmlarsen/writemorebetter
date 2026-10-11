@@ -16,10 +16,14 @@ use half::bf16;
 use serde::{de::DeserializeOwned, Serialize};
 
 use crate::rule::disambiguation::Disambiguation;
-use crate::rule::engine::composition::Composition;
+use crate::rule::engine::composition::{
+    Atom, Composition, GraphId, Matcher, MatcherKind, Part, Quantifier, TextMatcher, WordDataMatcher,
+};
 use crate::rule::engine::{Engine, TokenEngine};
+use crate::rule::grammar::{Synthesizer, SynthesizerPart};
 use crate::rule::{DisambiguationRule, Rule};
 use crate::spell::Spell;
+use crate::utils::regex::Regex;
 use crate::tokenizer::chunk::{
     Chunker, MaxentChunker, MaxentPosTagger, MaxentTokenizer, Pmap, TagDict,
 };
@@ -127,7 +131,7 @@ fn empty_engine() -> Engine {
     Engine::Token(TokenEngine {
         composition: Composition {
             parts: Vec::new(),
-            id_to_idx: DefaultHashMap::new(),
+            id_to_idx: Vec::new(),
             can_stop_mask: Vec::new(),
         },
         antipatterns: Vec::new(),
@@ -222,21 +226,255 @@ fn blanked_disambiguation_rules(
 }
 
 /// Which field of a grammar rule to blank.
+///
+/// Each variant removes exactly one serialized part of [Rule] (or of its
+/// [Engine]) so the probe can measure that part's serialized size and loaded
+/// cost. See `tests/memory_breakdown.rs` for the reporting side.
 #[derive(Clone, Copy)]
-enum GrammarBlank {
+pub enum GrammarBlank {
+    Id,
     Examples,
+    Message,
     Suggesters,
+    SuggesterParts,
     Engine,
+    Unification,
+    Filter,
+    /// `url`, `short`, `name`, `category_name`, `category_type`.
+    Strings,
+    // --- inside the engine ---
+    /// `TokenEngine.antipatterns` (whole compositions).
+    Antipatterns,
+    /// `Composition.parts` (atoms + quantifiers + flags), main and antipattern.
+    Parts,
+    /// `Composition.id_to_idx` maps.
+    IdToIdx,
+    /// `Composition.can_stop_mask` vectors.
+    CanStopMask,
+    /// The `Box<Regex>` of a text engine.
+    TextRegex,
+    /// The `id_to_idx` map of a text engine.
+    TextIdToIdx,
+    /// Every `Part.atom` replaced by `FalseAtom` (the atom payload alone).
+    Atoms,
+    /// Every `Quantifier` zeroed (the quantifier payload alone).
+    Quantifiers,
+    /// Every regex pattern string reachable from the engine and synthesizers.
+    Regexes,
+    /// Every literal `Matcher` string / graph id.
+    MatcherStrings,
+    /// Every `TextMatcher.set` (the word-id sets).
+    Sets,
 }
+
+fn empty_synthesizer() -> Synthesizer {
+    Synthesizer {
+        use_titlecase_adjust: false,
+        parts: Vec::new(),
+    }
+}
+
+/// Which part of an [Atom] tree a recursive walk should blank.
+#[derive(Clone, Copy)]
+enum AtomBlank {
+    Regexes,
+    MatcherStrings,
+    Sets,
+}
+
+fn blank_matcher(matcher: &mut Matcher, blank: AtomBlank) {
+    match blank {
+        AtomBlank::Regexes => {
+            if let MatcherKind::Regex(regex) = &mut matcher.matcher {
+                **regex = Regex::new(String::new());
+            }
+        }
+        AtomBlank::MatcherStrings => match &mut matcher.matcher {
+            MatcherKind::Text(string) => *string = "".into(),
+            MatcherKind::Graph(id) => *id = GraphId(0),
+            MatcherKind::Regex(_) => {}
+        },
+        AtomBlank::Sets => {}
+    }
+}
+
+fn blank_text_matcher(matcher: &mut TextMatcher, blank: AtomBlank) {
+    blank_matcher(&mut matcher.matcher, blank);
+    if matches!(blank, AtomBlank::Sets) {
+        matcher.set = None;
+    }
+}
+
+fn walk_atom(atom: &mut Atom, blank: AtomBlank) {
+    match atom {
+        Atom::ChunkAtom(chunk) => blank_matcher(&mut chunk.matcher, blank),
+        Atom::TextAtom(text) => blank_text_matcher(&mut text.matcher, blank),
+        Atom::WordDataAtom(data) => {
+            if let Some(inflect) = data.matcher.inflect_matcher.as_mut() {
+                blank_text_matcher(inflect, blank);
+            }
+        }
+        Atom::AndAtom(and) => and.atoms.iter_mut().for_each(|x| walk_atom(x, blank)),
+        Atom::OrAtom(or) => or.atoms.iter_mut().for_each(|x| walk_atom(x, blank)),
+        Atom::NotAtom(not) => walk_atom(&mut not.atom, blank),
+        Atom::OffsetAtom(offset) => walk_atom(&mut offset.atom, blank),
+        _ => {}
+    }
+}
+
+/// Runs `f` over every part of every composition of a token engine.
+fn for_each_engine_part(engine: &mut Engine, mut f: impl FnMut(&mut Part)) {
+    if let Engine::Token(token) = engine {
+        for part in token.composition.parts.iter_mut() {
+            f(part);
+        }
+        for antipattern in token.antipatterns.iter_mut() {
+            for part in antipattern.parts.iter_mut() {
+                f(part);
+            }
+        }
+    }
+}
+
+fn blank_synth_regexes(synthesizer: &mut Synthesizer) {
+    for part in synthesizer.parts.iter_mut() {
+        if let SynthesizerPart::Match(match_) = part {
+            if let Some(replacer) = match_.pos_replacer.as_mut() {
+                if let Some(regex) = replacer.regex.as_mut() {
+                    *regex = Regex::new(String::new());
+                }
+            }
+            if let Some((regex, _)) = match_.regex_replacer.as_mut() {
+                *regex = Regex::new(String::new());
+            }
+        }
+    }
+}
+
+fn blank_rule(rule: &mut Rule, blank: GrammarBlank) {
+    match blank {
+        GrammarBlank::Id => rule.id = Default::default(),
+        GrammarBlank::Examples => rule.examples = Default::default(),
+        GrammarBlank::Message => rule.message = empty_synthesizer(),
+        GrammarBlank::Suggesters => rule.suggesters.clear(),
+        GrammarBlank::SuggesterParts => {
+            for suggester in rule.suggesters.iter_mut() {
+                suggester.parts.clear();
+            }
+        }
+        GrammarBlank::Engine => rule.engine = empty_engine(),
+        GrammarBlank::Unification => rule.unification = None,
+        GrammarBlank::Filter => rule.filter = None,
+        GrammarBlank::Strings => {
+            rule.url = None;
+            rule.short = None;
+            rule.name.clear();
+            rule.category_name.clear();
+            rule.category_type = None;
+        }
+        GrammarBlank::Antipatterns => {
+            if let Engine::Token(token) = &mut rule.engine {
+                token.antipatterns.clear();
+            }
+        }
+        GrammarBlank::Parts => {
+            if let Engine::Token(token) = &mut rule.engine {
+                token.composition.parts.clear();
+                for antipattern in token.antipatterns.iter_mut() {
+                    antipattern.parts.clear();
+                }
+            }
+        }
+        GrammarBlank::IdToIdx => {
+            if let Engine::Token(token) = &mut rule.engine {
+                token.composition.id_to_idx.clear();
+                for antipattern in token.antipatterns.iter_mut() {
+                    antipattern.id_to_idx.clear();
+                }
+            }
+        }
+        GrammarBlank::CanStopMask => {
+            if let Engine::Token(token) = &mut rule.engine {
+                token.composition.can_stop_mask.clear();
+                for antipattern in token.antipatterns.iter_mut() {
+                    antipattern.can_stop_mask.clear();
+                }
+            }
+        }
+        GrammarBlank::TextRegex => {
+            if let Engine::Text(regex, _) = &mut rule.engine {
+                **regex = Regex::new(String::new());
+            }
+        }
+        GrammarBlank::TextIdToIdx => {
+            if let Engine::Text(_, id_to_idx) = &mut rule.engine {
+                id_to_idx.clear();
+            }
+        }
+        GrammarBlank::Atoms => {
+            for_each_engine_part(&mut rule.engine, |part| {
+                part.atom = Atom::FalseAtom(Default::default());
+            });
+        }
+        GrammarBlank::Quantifiers => {
+            for_each_engine_part(&mut rule.engine, |part| {
+                part.quantifier = Quantifier { min: 0, max: 0 };
+            });
+        }
+        GrammarBlank::Regexes => {
+            if let Engine::Text(regex, _) = &mut rule.engine {
+                **regex = Regex::new(String::new());
+            }
+            for_each_engine_part(&mut rule.engine, |part| {
+                walk_atom(&mut part.atom, AtomBlank::Regexes);
+            });
+            for suggester in rule.suggesters.iter_mut() {
+                blank_synth_regexes(suggester);
+            }
+            blank_synth_regexes(&mut rule.message);
+        }
+        GrammarBlank::MatcherStrings => {
+            for_each_engine_part(&mut rule.engine, |part| {
+                walk_atom(&mut part.atom, AtomBlank::MatcherStrings);
+            });
+        }
+        GrammarBlank::Sets => {
+            for_each_engine_part(&mut rule.engine, |part| {
+                walk_atom(&mut part.atom, AtomBlank::Sets);
+            });
+        }
+    }
+}
+
+/// The blanked variants used by [extract_rules] to attribute the grammar-rule
+/// load to individual fields. The name is the component name in the probe.
+pub const GRAMMAR_FIELD_BLANKS: &[(&str, GrammarBlank)] = &[
+    ("rules_no_gr_id", GrammarBlank::Id),
+    ("rules_no_gr_examples", GrammarBlank::Examples),
+    ("rules_no_gr_message", GrammarBlank::Message),
+    ("rules_no_gr_suggesters", GrammarBlank::Suggesters),
+    ("rules_no_gr_suggester_parts", GrammarBlank::SuggesterParts),
+    ("rules_no_gr_engine", GrammarBlank::Engine),
+    ("rules_no_gr_unification", GrammarBlank::Unification),
+    ("rules_no_gr_filter", GrammarBlank::Filter),
+    ("rules_no_gr_strings", GrammarBlank::Strings),
+    ("rules_no_gr_antipatterns", GrammarBlank::Antipatterns),
+    ("rules_no_gr_parts", GrammarBlank::Parts),
+    ("rules_no_gr_id_to_idx", GrammarBlank::IdToIdx),
+    ("rules_no_gr_can_stop_mask", GrammarBlank::CanStopMask),
+    ("rules_no_gr_text_regex", GrammarBlank::TextRegex),
+    ("rules_no_gr_text_id_to_idx", GrammarBlank::TextIdToIdx),
+    ("rules_no_gr_atoms", GrammarBlank::Atoms),
+    ("rules_no_gr_quantifiers", GrammarBlank::Quantifiers),
+    ("rules_no_gr_regexes", GrammarBlank::Regexes),
+    ("rules_no_gr_matcher_strings", GrammarBlank::MatcherStrings),
+    ("rules_no_gr_sets", GrammarBlank::Sets),
+];
 
 fn blanked_grammar_rules(rules: &[Rule], blank: GrammarBlank) -> Vec<Rule> {
     let mut out = rules.to_vec();
     for rule in out.iter_mut() {
-        match blank {
-            GrammarBlank::Examples => rule.examples.clear(),
-            GrammarBlank::Suggesters => rule.suggesters.clear(),
-            GrammarBlank::Engine => rule.engine = empty_engine(),
-        }
+        blank_rule(rule, blank);
     }
     out
 }
@@ -459,6 +697,17 @@ pub fn extract_rules(rules_bin: &Path, out_dir: &Path) -> Result<Vec<Extracted>,
             &mut out,
         )?;
     }
+
+    // The same blanked variants, but inside the full `Rules` so their loaded cost can be
+    // attributed in context (`rules_full` minus the variant).
+    for (name, blank) in GRAMMAR_FIELD_BLANKS {
+        let mut variant = rules.clone();
+        for rule in variant.rules.iter_mut() {
+            blank_rule(rule, *blank);
+        }
+        write_rules_blob(out_dir, name, &variant, &mut out)?;
+    }
+
     write_blob(out_dir, "spell", &rules.spell, &mut out)?;
     // Same bytes as `spell`; the test enables the en_US variant after loading.
     write_blob(out_dir, "spell_en_us", &rules.spell, &mut out)?;
@@ -527,6 +776,7 @@ pub fn load(name: &str, path: &Path) -> Result<Held, String> {
         "sentencizer" => Held::new(load_typed::<srx::Rules>(path)?),
         "rules_full" => Held::new(load_rules(path)?),
         "rules_no_grammar" | "rules_no_spell" => Held::new(load_rules(path)?),
+        name if name.starts_with("rules_no_gr_") => Held::new(load_rules(path)?),
         "grammar_rules" | "grammar_no_examples" | "grammar_no_suggesters" | "grammar_no_engine" => {
             Held::new(load_typed::<Vec<Rule>>(path)?)
         }
@@ -545,6 +795,133 @@ pub fn spell_set_variant(held: &mut Held, variant: &str) -> Result<(), String> {
     let variant = spell.variant(variant).map_err(|e| e.to_string())?;
     spell.options_mut().variant = Some(variant);
     Ok(())
+}
+
+/// Structural counts over the grammar rules, printed by [describe].
+#[derive(Default)]
+struct GrammarStats {
+    compositions: u64,
+    main_parts: u64,
+    antipattern_parts: u64,
+    antipatterns: u64,
+    id_to_idx: u64,
+    chunk: u64,
+    text: u64,
+    word: u64,
+    space: u64,
+    and: u64,
+    or: u64,
+    not: u64,
+    offset: u64,
+    true_atom: u64,
+    false_atom: u64,
+    regexes: u64,
+    matcher_strings: u64,
+    sets: u64,
+    set_entries: u64,
+    examples: u64,
+    main_bytes: u64,
+    main_unique_bytes: u64,
+    anti_bytes: u64,
+    anti_unique_bytes: u64,
+    regex_total: u64,
+    regex_unique: u64,
+    matcher_total: u64,
+    matcher_unique: u64,
+    regex_seen: std::collections::HashSet<String>,
+    matcher_seen: std::collections::HashSet<String>,
+}
+
+impl GrammarStats {
+    fn count_matcher(&mut self, matcher: &Matcher) {
+        match &matcher.matcher {
+            MatcherKind::Text(string) => {
+                self.matcher_strings += 1;
+                self.matcher_total += string.len() as u64;
+                if self.matcher_seen.insert(string.to_string()) {
+                    self.matcher_unique += string.len() as u64;
+                }
+            }
+            MatcherKind::Graph(_) => {}
+            MatcherKind::Regex(regex) => {
+                self.regexes += 1;
+                self.count_regex(regex);
+            }
+        }
+    }
+
+    fn count_regex(&mut self, regex: &Regex) {
+        let string = regex.as_str();
+        self.regex_total += string.len() as u64;
+        if self.regex_seen.insert(string.to_string()) {
+            self.regex_unique += string.len() as u64;
+        }
+    }
+
+    fn count_text_matcher(&mut self, matcher: &TextMatcher) {
+        self.count_matcher(&matcher.matcher);
+        if let Some(set) = &matcher.set {
+            self.sets += 1;
+            self.set_entries += set.len() as u64;
+        }
+    }
+
+    fn count_synth(&mut self, synthesizer: &Synthesizer) {
+        for part in &synthesizer.parts {
+            if let SynthesizerPart::Match(match_) = part {
+                if let Some(regex) = match_.pos_replacer.as_ref().and_then(|x| x.regex.as_ref()) {
+                    self.regexes += 1;
+                    self.count_regex(regex);
+                }
+                if let Some((regex, _)) = match_.regex_replacer.as_ref() {
+                    self.regexes += 1;
+                    self.count_regex(regex);
+                }
+            }
+        }
+    }
+
+    fn count_atom(&mut self, atom: &Atom) {
+        match atom {
+            Atom::ChunkAtom(chunk) => {
+                self.chunk += 1;
+                self.count_matcher(&chunk.matcher);
+            }
+            Atom::SpaceBeforeAtom(_) => self.space += 1,
+            Atom::TextAtom(text) => {
+                self.text += 1;
+                self.count_text_matcher(&text.matcher);
+            }
+            Atom::WordDataAtom(data) => {
+                self.word += 1;
+                if let Some(inflect) = data.matcher.inflect_matcher.as_ref() {
+                    self.count_text_matcher(inflect);
+                }
+            }
+            Atom::TrueAtom(_) => self.true_atom += 1,
+            Atom::FalseAtom(_) => self.false_atom += 1,
+            Atom::AndAtom(and) => {
+                self.and += 1;
+                for atom in &and.atoms {
+                    self.count_atom(atom);
+                }
+            }
+            Atom::OrAtom(or) => {
+                self.or += 1;
+                for atom in &or.atoms {
+                    self.count_atom(atom);
+                }
+            }
+            Atom::NotAtom(not) => {
+                self.not += 1;
+                self.count_atom(&not.atom);
+            }
+            Atom::OffsetAtom(offset) => {
+                self.offset += 1;
+                self.count_atom(&offset.atom);
+            }
+        }
+    }
 }
 
 /// Structural facts (counts, on-disk vs loaded element sizes) that explain the measurements.
@@ -608,6 +985,111 @@ pub fn describe(tokenizer_bin: &Path, rules_bin: &Path) -> Result<Vec<(String, S
     }
 
     facts.push(("grammar rules".into(), rules.rules.len().to_string()));
+
+    // Structure of the grammar-rule engines: how many parts/atoms/regexes/sets there are, so a
+    // loaded cost can be divided by a count instead of guessed.
+    let mut stats = GrammarStats::default();
+    // Do identical compositions repeat across rules (e.g. a rulegroup's shared antipattern cloned
+    // into every rule)? A byte hash of each composition answers whether interning would pay off.
+    let mut seen_compositions: std::collections::HashSet<u64> = std::collections::HashSet::new();
+    let hash_composition = |composition: &Composition, seen: &mut std::collections::HashSet<u64>| {
+        use std::hash::{Hash, Hasher};
+        let bytes = bincode::serialize(composition).expect("composition serializes");
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        bytes.hash(&mut hasher);
+        let unique = seen.insert(hasher.finish());
+        (bytes.len() as u64, unique)
+    };
+    for rule in &rules.rules {
+        match &rule.engine {
+            Engine::Token(engine) => {
+                stats.compositions += 1;
+                stats.main_parts += engine.composition.parts.len() as u64;
+                stats.id_to_idx += engine.composition.id_to_idx.len() as u64;
+                for part in &engine.composition.parts {
+                    stats.count_atom(&part.atom);
+                }
+                let (bytes, unique) = hash_composition(&engine.composition, &mut seen_compositions);
+                stats.main_bytes += bytes;
+                if unique {
+                    stats.main_unique_bytes += bytes;
+                }
+                stats.antipatterns += engine.antipatterns.len() as u64;
+                for antipattern in &engine.antipatterns {
+                    stats.compositions += 1;
+                    stats.antipattern_parts += antipattern.parts.len() as u64;
+                    stats.id_to_idx += antipattern.id_to_idx.len() as u64;
+                    for part in &antipattern.parts {
+                        stats.count_atom(&part.atom);
+                    }
+                    let (bytes, unique) = hash_composition(antipattern, &mut seen_compositions);
+                    stats.anti_bytes += bytes;
+                    if unique {
+                        stats.anti_unique_bytes += bytes;
+                    }
+                }
+            }
+            Engine::Text(_, _) => {}
+        }
+        stats.examples += rule.examples.get().len() as u64;
+        for suggester in &rule.suggesters {
+            stats.count_synth(suggester);
+        }
+        stats.count_synth(&rule.message);
+    }
+    for (key, value) in [
+        ("grammar token compositions", stats.compositions),
+        ("grammar composition parts (main)", stats.main_parts),
+        ("grammar composition parts (antipattern)", stats.antipattern_parts),
+        ("grammar antipattern compositions", stats.antipatterns),
+        ("grammar id_to_idx entries", stats.id_to_idx),
+        ("grammar atom ChunkAtom", stats.chunk),
+        ("grammar atom TextAtom", stats.text),
+        ("grammar atom WordDataAtom", stats.word),
+        ("grammar atom SpaceBeforeAtom", stats.space),
+        ("grammar atom And/Or/Not/Offset", stats.and + stats.or + stats.not + stats.offset),
+        ("grammar atom True/False", stats.true_atom + stats.false_atom),
+        ("grammar regexes (atoms+suggesters)", stats.regexes),
+        ("grammar matcher strings", stats.matcher_strings),
+        ("grammar text-matcher sets", stats.sets),
+        ("grammar text-matcher set entries", stats.set_entries),
+        ("grammar examples", stats.examples),
+    ] {
+        facts.push((key.into(), value.to_string()));
+    }
+    facts.push((
+        "grammar main composition bytes (total/unique)".into(),
+        format!("{}/{}", stats.main_bytes, stats.main_unique_bytes),
+    ));
+    facts.push((
+        "grammar antipattern bytes (total/unique)".into(),
+        format!("{}/{}", stats.anti_bytes, stats.anti_unique_bytes),
+    ));
+    facts.push((
+        "grammar regex string bytes (total/unique)".into(),
+        format!("{}/{}", stats.regex_total, stats.regex_unique),
+    ));
+    facts.push((
+        "grammar matcher string bytes (total/unique)".into(),
+        format!("{}/{}", stats.matcher_total, stats.matcher_unique),
+    ));
+    for (key, value) in [
+        ("size_of Rule", std::mem::size_of::<Rule>()),
+        ("size_of Engine", std::mem::size_of::<Engine>()),
+        ("size_of Composition", std::mem::size_of::<Composition>()),
+        ("size_of Part", std::mem::size_of::<Part>()),
+        ("size_of Atom", std::mem::size_of::<Atom>()),
+        ("size_of TextMatcher", std::mem::size_of::<TextMatcher>()),
+        ("size_of Matcher", std::mem::size_of::<Matcher>()),
+        ("size_of WordDataMatcher", std::mem::size_of::<WordDataMatcher>()),
+        (
+            "size_of Example",
+            std::mem::size_of::<crate::rule::grammar::Example>(),
+        ),
+        ("size_of Index", std::mem::size_of::<crate::rule::id::Index>()),
+    ] {
+        facts.push((key.into(), value.to_string()));
+    }
     facts.push(("spell.fst bytes".into(), rules.spell.fst.len().to_string()));
     facts.push((
         "spell.variants".into(),
