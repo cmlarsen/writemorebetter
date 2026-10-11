@@ -770,7 +770,6 @@ impl Atom {
     }
 }
 
-
 impl Composition {
     fn next_can_match(
         &self,

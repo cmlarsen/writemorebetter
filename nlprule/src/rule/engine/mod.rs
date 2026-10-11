@@ -100,7 +100,6 @@ impl Starts<'_> {
     }
 }
 
-
 struct TextMatches<'a, 't> {
     byte_idx_to_char_idx: DefaultHashMap<usize, usize>,
     id_to_idx: &'a DefaultHashMap<GraphId, usize>,
