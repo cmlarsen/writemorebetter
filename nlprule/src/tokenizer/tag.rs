@@ -182,6 +182,8 @@ impl Default for TaggerLangOptions {
 #[derive(Serialize, Deserialize)]
 pub(crate) struct TaggerFields {
     pub(crate) tag_fst: Vec<u8>,
+    /// Reverse index for synthesis: lemma bytes + one index byte -> packed (word id, pos id).
+    pub(crate) synth_fst: Vec<u8>,
     pub(crate) word_store_fst: Vec<u8>,
     pub(crate) tag_store: BiMap<String, PosIdInt>,
     pub(crate) lang_options: TaggerLangOptions,
@@ -194,10 +196,12 @@ pub(crate) struct TaggerFields {
 impl From<Tagger> for TaggerFields {
     fn from(tagger: Tagger) -> Self {
         let tag_fst = tagger.tag_fst.into_fst().as_bytes().to_vec();
+        let synth_fst = tagger.synth_fst.into_fst().as_bytes().to_vec();
         let word_store_fst = tagger.word_store_fst.into_fst().as_bytes().to_vec();
 
         TaggerFields {
             tag_fst,
+            synth_fst,
             word_store_fst,
             tag_store: tagger.tag_store,
             lang_options: tagger.lang_options,
@@ -210,6 +214,7 @@ impl From<TaggerFields> for Tagger {
     fn from(data: TaggerFields) -> Self {
         let word_store_fst = Map::new(data.word_store_fst).unwrap();
         let tag_fst = Map::new(data.tag_fst).unwrap();
+        let synth_fst = Map::new(data.synth_fst).unwrap();
 
         // Build a compact word-id -> word index: every word concatenated into a single buffer
         // plus the start offset of each word (and a trailing sentinel with the buffer length).
@@ -247,6 +252,7 @@ impl From<TaggerFields> for Tagger {
         Tagger {
             word_store_fst,
             tag_fst,
+            synth_fst,
             tag_store: data.tag_store,
             lang_options: data.lang_options,
             word_buf,
@@ -382,11 +388,16 @@ impl<'a> ExactSizeIterator for TagIter<'a> {
 ///
 /// The tag FST associates a Word ID with *multiple* pairs of `(lemma_id, pos_id)` where the
 /// ID for the lemma is a regular 32-bit Word ID; keys are the word bytes followed by one index byte.
+///
+/// The synth FST is the reverse index used for inflection synthesis: keys are the lemma bytes
+/// followed by one index byte and values are packed `(word_id, pos_id)` pairs. It answers "given a
+/// lemma, which words carry it and with which POS tags".
 #[derive(Default, Serialize, Deserialize, Clone)]
 #[serde(from = "TaggerFields", into = "TaggerFields")]
 pub struct Tagger {
     pub(crate) word_store_fst: Map<Vec<u8>>,
     pub(crate) tag_fst: Map<Vec<u8>>,
+    pub(crate) synth_fst: Map<Vec<u8>>,
     pub(crate) tag_store: BiMap<String, PosIdInt>,
     pub(crate) lang_options: TaggerLangOptions,
     /// All words concatenated in id order.
@@ -439,6 +450,64 @@ impl Tagger {
             tagger: &self,
             tags: tags.into_iter(),
         }
+    }
+
+    /// Looks up all `(word, pos)` pairs that have the given lemma in the synth FST.
+    ///
+    /// Keys are the lemma bytes followed by exactly one index byte. As with the tag FST the index
+    /// bytes of a lemma are contiguous `0..n`, so querying per index until the first miss yields
+    /// exactly the same pairs a prefix range scan would, without walking the subtree of longer
+    /// lemmas.
+    fn get_synth_raw<'a>(&'a self, lemma: &str) -> Vec<(&'a str, &'a str)> {
+        let lemma_bytes = lemma.as_bytes();
+        let mut key = Vec::with_capacity(lemma_bytes.len() + 1);
+        key.extend_from_slice(lemma_bytes);
+        key.push(0);
+
+        let mut out = Vec::new();
+        let mut index: u8 = 0;
+        loop {
+            *key.last_mut().unwrap() = index;
+            match self.synth_fst.get(&key) {
+                Some(value) => {
+                    let value_bytes = value.to_be_bytes();
+                    let word_id = WordIdInt(u32::from_be_bytes([
+                        value_bytes[0],
+                        value_bytes[1],
+                        value_bytes[2],
+                        value_bytes[3],
+                    ]));
+                    let pos_id = PosIdInt(u16::from_be_bytes([value_bytes[6], value_bytes[7]]));
+                    out.push((self.str_for_word_id(&word_id), self.str_for_pos_id(&pos_id)));
+                }
+                None => break,
+            }
+            if index == 254 {
+                break;
+            }
+            index += 1;
+        }
+        out
+    }
+
+    /// Synthesizes the word forms of `lemma` whose part-of-speech tag is accepted by `pos_match`.
+    ///
+    /// This is the reverse of [Tagger::get_tags]: given a lemma and a target POS tag (or POS tag
+    /// regex), it returns the word forms in the dictionary carrying that lemma and a matching tag.
+    /// The result is de-duplicated and sorted, mirroring LanguageTool's `TreeSet`-based synthesis.
+    pub(crate) fn synthesize<F>(&self, lemma: &str, mut pos_match: F) -> Vec<&str>
+    where
+        F: FnMut(&str) -> bool,
+    {
+        let mut out: Vec<&str> = self
+            .get_synth_raw(lemma)
+            .into_iter()
+            .filter_map(|(word, pos)| if pos_match(pos) { Some(word) } else { None })
+            .collect();
+
+        out.sort_unstable();
+        out.dedup();
+        out
     }
 
     #[allow(dead_code)] // used in compile module
@@ -618,5 +687,90 @@ impl Tagger {
     /// * `word`: The word to lookup data for.
     pub fn get_tags<'a>(&'a self, word: &'a str) -> TagIter<'a> {
         self.get_tags_with_options(word, None, None)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn pack_value(word_id: u32, pos_id: u16) -> u64 {
+        let word = word_id.to_be_bytes();
+        let pos = pos_id.to_be_bytes();
+        u64::from_be_bytes([word[0], word[1], word[2], word[3], 0, 0, pos[0], pos[1]])
+    }
+
+    /// Builds a tagger with just enough data to exercise [Tagger::synthesize].
+    fn synthesize_tagger() -> Tagger {
+        // word ids: 0 "", 1 child, 2 children, 3 go, 4 gone, 5 run
+        let words = ["", "child", "children", "go", "gone", "run"];
+        let word_store_items: Vec<(Vec<u8>, u64)> = words
+            .iter()
+            .enumerate()
+            .map(|(i, word)| (word.as_bytes().to_vec(), i as u64))
+            .collect();
+        let word_store_fst = Map::from_iter(word_store_items)
+            .unwrap()
+            .into_fst()
+            .as_bytes()
+            .to_vec();
+
+        // tag ids: 0 "", 1 UNKNOWN, 2 SENT_START, 3 SENT_END, 4 NNS, 5 VBN, 6 VB
+        let mut tag_store = BiMap::new();
+        for (i, tag) in ["", "UNKNOWN", "SENT_START", "SENT_END", "NNS", "VBN", "VB"]
+            .iter()
+            .enumerate()
+        {
+            tag_store.insert(tag.to_string(), PosIdInt::from_value_unchecked(i as u16));
+        }
+
+        let mut synth_items: Vec<(Vec<u8>, u64)> = vec![
+            (b"child\x00".to_vec(), pack_value(2, 4)), // children / NNS
+            (b"go\x00".to_vec(), pack_value(4, 5)),    // gone / VBN
+            (b"run\x00".to_vec(), pack_value(5, 6)),   // run / VB
+            (b"run\x01".to_vec(), pack_value(5, 4)),   // run / NNS (same word, second tag)
+        ];
+        synth_items.sort_by(|(a, _), (b, _)| a.cmp(b));
+        let synth_fst = Map::from_iter(synth_items)
+            .unwrap()
+            .into_fst()
+            .as_bytes()
+            .to_vec();
+
+        let tag_fst = Map::from_iter(Vec::<(Vec<u8>, u64)>::new())
+            .unwrap()
+            .into_fst()
+            .as_bytes()
+            .to_vec();
+
+        TaggerFields {
+            tag_fst,
+            synth_fst,
+            word_store_fst,
+            tag_store,
+            lang_options: TaggerLangOptions::default(),
+            anchors: Vec::new(),
+        }
+        .into()
+    }
+
+    #[test]
+    fn synthesize_returns_inflected_forms() {
+        let tagger = synthesize_tagger();
+
+        assert_eq!(tagger.synthesize("go", |pos| pos == "VBN"), vec!["gone"]);
+        assert_eq!(
+            tagger.synthesize("child", |pos| pos == "NNS"),
+            vec!["children"]
+        );
+        // a regex-like predicate over the tag selects every matching form; duplicate words
+        // (one per matching tag) are de-duplicated
+        assert_eq!(
+            tagger.synthesize("run", |pos| pos == "VB" || pos == "NNS"),
+            vec!["run"]
+        );
+        // unknown lemmas and non-matching tags yield nothing
+        assert!(tagger.synthesize("walked", |_| true).is_empty());
+        assert!(tagger.synthesize("child", |pos| pos == "VBN").is_empty());
     }
 }

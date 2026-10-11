@@ -1,7 +1,7 @@
 use std::convert::TryInto;
 
 use lazy_static::lazy_static;
-use nlprule::{rule::id::Category, types::Position, Error, Rules, Tokenizer};
+use nlprule::{profile::Profile, rule::id::Category, types::Position, Error, Rules, Tokenizer};
 use quickcheck_macros::quickcheck;
 
 const TOKENIZER_PATH: &str = "../storage/en_tokenizer.bin";
@@ -140,6 +140,68 @@ fn rules_can_be_disabled_enabled() {
 
     // enabled now
     assert!(!rules.suggest("I can not go", &*TOKENIZER).is_empty());
+}
+
+/// The fiction profile is only useful if every selector in it names a rule that exists in
+/// the compiled English rule set. A selector that matches nothing is almost always a typo,
+/// or a rule that was renamed upstream, so it is a hard failure here.
+#[test]
+fn fiction_profile_selectors_all_match() {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    let unmatched = rules.apply_profile(&Profile::fiction());
+    assert!(
+        unmatched.is_empty(),
+        "fiction profile has selectors that match no rules: {:?}",
+        unmatched
+    );
+}
+
+/// The default profile disables nothing, and applying an empty profile is a no-op.
+#[test]
+fn default_profile_disables_nothing() {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    let before = rules.rules().iter().filter(|r| r.enabled()).count();
+    assert!(rules
+        .apply_profile(&Profile::by_name("default").unwrap())
+        .is_empty());
+    let after = rules.rules().iter().filter(|r| r.enabled()).count();
+    assert_eq!(before, after);
+}
+
+/// Selectors that name nothing are reported, for both XML selectors and builtins, so a
+/// typo in a profile is visible rather than silently ignored.
+#[test]
+fn apply_profile_reports_unmatched_selectors() {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    let profile = Profile::new(
+        "test",
+        vec![
+            "NO_SUCH_CATEGORY".to_owned(),
+            "BUILTIN/NO_SUCH_BUILTIN".to_owned(),
+        ],
+    );
+    let mut unmatched = rules.apply_profile(&profile);
+    unmatched.sort();
+    assert_eq!(unmatched, ["BUILTIN/NO_SUCH_BUILTIN", "NO_SUCH_CATEGORY"]);
+}
+
+/// The `BUILTIN/` selector path disables a builtin rule by its id.
+#[test]
+fn apply_profile_disables_builtin_by_id() {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    let enabled = |rules: &Rules| {
+        rules
+            .builtins()
+            .iter()
+            .find(|rule| rule.id() == "UPPERCASE_SENTENCE_START")
+            .unwrap()
+            .enabled()
+    };
+    assert!(enabled(&rules));
+
+    let profile = Profile::new("test", vec!["BUILTIN/UPPERCASE_SENTENCE_START".to_owned()]);
+    assert!(rules.apply_profile(&profile).is_empty());
+    assert!(!enabled(&rules));
 }
 
 #[test]
@@ -1360,6 +1422,25 @@ fn builtin_wrong_word_is_wired_into_suggest() {
         .find(|suggestion| suggestion.source() == "BUILTIN/ENGLISH_WRONG_WORD_IN_CONTEXT")
         .expect("the confused word is flagged");
     assert_eq!(flagged.replacements(), &["prescribed".to_string()]);
+}
+
+#[test]
+fn rule_synthesis_produces_inflected_forms() {
+    // HASNT_IRREGULAR_VERB's suggestion is `<match no="4" postag="VBN"/>`, i.e. it must inflect
+    // the lemma of "bit" ("bite") into its past participle.
+    let suggestions = RULES.suggest("They haven't bit their tongue.", &*TOKENIZER);
+    let flagged = suggestions
+        .iter()
+        .find(|suggestion| suggestion.source() == "TYPOS/HASNT_IRREGULAR_VERB/0")
+        .expect("the irregular verb rule should fire");
+    assert!(
+        flagged
+            .replacements()
+            .iter()
+            .any(|replacement| replacement == "haven't bitten"),
+        "expected a synthesized \"haven't bitten\", got {:?}",
+        flagged.replacements()
+    );
 }
 
 /// Runs the simple-replace builtins over a paragraph and returns the flagged
