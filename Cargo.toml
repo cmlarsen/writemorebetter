@@ -3,7 +3,8 @@ members = [
     "nlprule",
     "build",
     "python",
-    "srx"
+    "srx",
+    "wasm"
 ]
 exclude = [
     "bench/tools/probe",

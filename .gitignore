@@ -16,3 +16,6 @@ data/
 storage/
 *.bin
 *.bin.gz
+
+# wasm-bindgen / wasm-opt output
+wasm/pkg/
