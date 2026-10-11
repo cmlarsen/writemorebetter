@@ -209,26 +209,29 @@ English first; other languages later as data plus per-language builtins behind a
 ## Status (2026-10-11, end of the first overnight run)
 
 Measured on `main` with both build dirs CI uses (LT 5.2 from upstream's `en.zip`; LT 6.6 generated from
-the desktop release). Conformance pass rate = rules passing their embedded examples / `<rule>` elements.
+the desktop release), on an idle machine. Conformance pass rate = rules passing their embedded examples /
+`<rule>` elements.
 
 | | nlprule 0.6.4 | writemorebetter, LT 5.2 rules | writemorebetter, LT 6.6 rules |
 |---|---|---|---|
-| Grammar pass rate | 3,749 / 4,366 = 85.9% | 4,273 / 4,366 = 97.9% | 5,884 / 6,098 = 96.5% |
-| Disambiguation pass rate | 843 / 855 = 98.6% | 843 / 855 = 98.6% | 1,011 / 1,060 = 95.4% |
-| Private corpus recall (49) | 5 | 41 | **43** (LT 6.9 API: 48) |
-| Private corpus flags, fiction profile | 682 (no profile) | 185 | **178** (LT 6.9 API: 279) |
+| Grammar pass rate | 3,749 / 4,366 = 85.9% | 4,320 / 4,366 = 98.9% | 5,977 / 6,098 = 98.0% |
+| Disambiguation pass rate | 843 / 855 = 98.6% | 843 / 855 = 98.6% | 1,012 / 1,060 = 95.5% |
+| Private corpus recall (49) | 5 | 42 | **45** (LT 6.9 API: 48) |
+| Private corpus flags, fiction profile | 682 (no profile) | 186 | **180** (LT 6.9 API: 279) |
 | Public corpus recall (60) | 9 | 54 | 55 (LT 6.9 API: 56) |
-| Peak RSS, 150 KB, speller on | 168 MB | 97 MB | 148 MB |
+| Peak RSS, 150 KB of Moby-Dick, speller on | 168 MB | 76 MB | 96 MB |
+| Check time, same text | 2.72 s | 3.0 s | 3.7 s |
+| Data on disk (tokenizer + rules) | 11.6 + 7.6 MB | 14.6 + 7.9 MB | 11.9 + 12.6 MB |
 
-What closed the gap: the speller (M0), inflection synthesis for `<match postag_replace>` (M4C), LT 6.6 rule
-structure (M4D), no-suggestion rules and typed examples (M4F), LT 6.6's contraction tokenization (M4H), rule
-filters (M4G), and the twelve Java builtins (M5).
+On the private drafts, LT 6.6 rules miss only the three n-gram confusions (out of scope on-device) and one
+grammar error. What closed the gap: the speller (M0); inflection synthesis for `<match postag_replace>`
+(M4C); LT 6.6 rule structure (M4D); no-suggestion rules and typed examples (M4F); LT 6.6's contraction
+tokenization (M4H); rule filters (M4G); determiners, `include_skipped`, two-digit backreferences (M4I);
+chunker and suggestion fixes (M4J); the twelve Java builtins (M5).
 
-Still missed on the private corpus: three n-gram confusions (out of scope on-device), a two-word phrase
-repeat ("this is this is"), and two grammar errors.
-
-Memory regressed as the rule count grew: LT 6.6's 5,982 compiled rules load to ~65 MB from a 27 MB file.
-The tokenizer stays at ~40 MB after M2. Shrinking the loaded rules is in progress (M2H).
+Memory: M2 removed load-time inflation from the tagger, chunker, multiword tagger, sentencizer and
+speller, and later interned rule-engine parts (139,841 instances, 15,195 distinct). Check time is 10–36%
+slower than 0.6.4 because there are more rules.
 
 ## Builtins on fiction (M5)
 
