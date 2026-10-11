@@ -1120,17 +1120,19 @@ mod composition {
                 parts
                     .iter()
                     .filter(|part| part.quantifier.min > 0)
-                    .find_map(|part| {
+                    .filter_map(|part| {
                         let mut keys = Vec::new();
                         if part.atom.start_keys(&mut keys)
                             && keys.len() == 1
                             && !keys[0].text.is_empty()
                         {
-                            keys.pop().map(Box::new)
+                            keys.pop()
                         } else {
                             None
                         }
                     })
+                    .max_by_key(|key| key.text.len())
+                    .map(Box::new)
             } else {
                 None
             };
