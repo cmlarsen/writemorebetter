@@ -240,10 +240,10 @@ attempts total. Phase 0 establishes measurement and does not count as an optimiz
 | 7 | [#55](https://github.com/cmlarsen/writemorebetter/pull/55) | Inline buffers for small match graphs | -0.74% | -2.496 MiB | -0.137 MiB | -0.82% / -2.24% (interleaved, loaded) | kept |
 | 8 | [#56](https://github.com/cmlarsen/writemorebetter/pull/56) | Inline buffers for short speller rows | +3.78% | -2.105 MiB | +0.012 MiB | +0.16% / -1.36% (interleaved, loaded) | dropped |
 | 9 | [#57](https://github.com/cmlarsen/writemorebetter/pull/57) | LZ4-compressed lazy examples | -0.17% | -3.410 MiB | -0.606 MiB | -2.87% / -1.04% (interleaved, loaded) | kept |
-| 10 | [#58](https://github.com/cmlarsen/writemorebetter/pull/58) | Reuse chunker beam heaps | pending | pending | pending | -0.97% / -2.75% (interleaved, loaded) | pending |
+| 10 | [#58](https://github.com/cmlarsen/writemorebetter/pull/58) | Reuse chunker beam heaps | -0.46% / -0.41% (rerun) | +1.496 / -0.457 MiB | -0.000 / -0.020 MiB | -0.97% / -2.75% (interleaved, loaded) | dropped |
 | 11 | [#61](https://github.com/cmlarsen/writemorebetter/pull/61) | Prefer the longest mandatory literal for absence guards | -1.52% | -0.555 MiB | +0.082 MiB | +2.40% / +1.23% (interleaved, loaded) | kept |
 | 12 | [#60](https://github.com/cmlarsen/writemorebetter/pull/60) | Share lazy compiled regex backends for identical sources | -0.16% | -2.992 MiB | -0.984 MiB | +1.13% / -1.26% (interleaved, loaded) | kept |
-| 13 | [#59](https://github.com/cmlarsen/writemorebetter/pull/59) | Compact contiguous NFA for multiword tagging | pending | pending | pending | +1.57% / +0.32% (interleaved, loaded) | pending |
+| 13 | [#59](https://github.com/cmlarsen/writemorebetter/pull/59) | Compact contiguous NFA for multiword tagging | +1.28% | -8.441 MiB | -2.289 MiB | +1.57% / +0.32% (interleaved, loaded) | kept (coordinator-approved) |
 
 
 Phase 0 merge-base measurements (Ubuntu): 6.6 check 5.2510 s, peak 91.4414 MiB,
@@ -449,7 +449,20 @@ Local interleaved pairs under load (five per case, timing informational):
 | 66 | moby150k | 2.3816 / 2.4190 | +1.57% | 88.08 / 83.20 | -4.88 |
 | 66 | story1 | 0.1825 / 0.1881 | +3.08% | 74.55 / 69.70 | -4.84 |
 
-CI decides retention.
+CI for attempt 13 passed: 6.6 peak 84.371 → 75.930 MiB (-8.441), loaded RSS
+61.914 → 53.598 MiB (-8.316), 5.2 peak 68.481 → 66.191 MiB (-2.289). Instructions rose
+55.047B → 55.752B (+1.28%) and allocator calls fell 0.23%. The instruction cost exceeds the
++0.5% allowance for a memory win, so the coordinator decided: a 10% peak-RSS cut is worth
++1.28% instructions. #59 was retained with that approval.
+
+### Attempt 10 — reuse chunker beam heaps (dropped)
+
+The chunker cloned a sequence for every beam entry at every token step (198 MB of
+allocation traffic in the retained-main profile); the heaps are now swapped and the
+exhausted one cleared. All 24 goldens pass and the output is unchanged. CI measured
+55.083B → 54.831B instructions (-0.46%) with 6.6 peak +1.496 MiB, which disagreed with the
+local -1.11 MiB. The one permitted rerun measured 55.024B → 54.799B (-0.41%) and 6.6 peak
+-0.457 MiB. Neither reaches the keep threshold, so #58 was closed.
 
 ### Attempt 12 — shared lazy regex backends
 
