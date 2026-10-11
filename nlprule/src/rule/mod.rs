@@ -463,7 +463,9 @@ impl Examples {
         if examples.is_empty() {
             return Self::default();
         }
-        let blob = bincode::serialize(&examples).expect("examples must serialize");
+        let blob = lz4_flex::block::compress_prepend_size(
+            &bincode::serialize(&examples).expect("examples must serialize"),
+        );
         Self {
             blob,
             cache: once_cell::sync::OnceCell::new(),
@@ -476,7 +478,9 @@ impl Examples {
             if self.blob.is_empty() {
                 Vec::new()
             } else {
-                bincode::deserialize(&self.blob).expect("examples blob must deserialize")
+                let bytes = lz4_flex::block::decompress_size_prepended(&self.blob)
+                    .expect("examples blob must decompress");
+                bincode::deserialize(&bytes).expect("examples blob must deserialize")
             }
         })
     }

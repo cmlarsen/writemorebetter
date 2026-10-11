@@ -155,7 +155,7 @@ pub const TOKENIZER_FORMAT_VERSION: u32 = 7;
 /// Version 7: `Composition.start_keys` was added (a literal-token prefilter).
 /// Version 8: identical antipattern compositions share entries in `Rules.parts`.
 /// Version 9: `Composition.required_key` extends the literal prefilter.
-pub const RULES_FORMAT_VERSION: u32 = 9;
+pub const RULES_FORMAT_VERSION: u32 = 10;
 
 /// The longest engine version string accepted in a binary header.
 const MAX_ENGINE_VERSION_LEN: usize = 256;
