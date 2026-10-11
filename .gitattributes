@@ -1,0 +1,1 @@
+bench/public/moby150k.txt -text whitespace=cr-at-eol

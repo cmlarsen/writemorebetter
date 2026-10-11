@@ -4,5 +4,7 @@ version = "0.1.0"
 edition = "2021"
 [dependencies]
 nlprule = { path = "../../../nlprule" }
+libc = "0.2"
+serde_json = "1"
 [profile.release]
 debug = false

@@ -186,3 +186,46 @@ cargo run --release --all-features --bin compile -- \
 cargo build --release --manifest-path bench/tools/wmb-probe/Cargo.toml
 PROFILE=fiction SPELL=en_US bench/tools/wmb-probe/target/release/wmb-probe storage/66 data/moby150k.txt
 ```
+
+## M8 reproducible harness
+
+`bench/tools/perf.sh` builds the release probe and checks the six public texts with both
+rule sets, `PROFILE=fiction SPELL=en_US`, five independent processes each. It writes raw
+samples and medians to `storage/perf.json`, a table to `storage/perf.md`, and prints the
+table. Use `--skip-build` after rebuilding explicitly; `--rules 66 --texts moby150k`
+selects a subset. Compile version-matched binaries into `storage/52` and `storage/66`
+using the commands above after every engine change.
+
+`bench/tools/golden.sh --check` checks 24 committed suggestion files: six texts, both
+rule sets, both default and fiction profiles. Only suggestion lines are captured; timing
+and memory diagnostics are excluded. Golden regeneration (`--write`) is reserved for an
+explicitly approved output change after the Phase 0 review.
+
+`bench/public/moby150k.txt` is the supplied first 150,000 bytes of the Project Gutenberg
+Moby-Dick edition with its header and start marker removed (149,091 bytes, original CRLF
+line endings retained). There is no footer in this truncated excerpt. This differs from
+the header-bearing input in the earlier headline measurements; use the new baseline
+for relative comparisons, and repeat the original input locally when judging parity
+against the original 2.16/2.63 seconds and 78/100 MB targets. No private texts are used.
+
+The Performance workflow checks goldens and compares the PR with its merge base in one
+Ubuntu job. Each engine compiles its own data, with the same generated build inputs and
+dependency lockfiles; the current probe code measures both engines. Native check/load
+seconds and RSS use five-run medians; peak RSS is also measured by `/usr/bin/time -v`.
+Callgrind instruction totals and Memcheck allocation totals cover one **whole process**
+(load plus one fixed Moby-Dick check), LT 6.6 fiction, `NLPRULE_PARALLELISM=off` to avoid
+thread scheduling noise. Wall time never gates. Golden identity and the existing
+conformance/public recall floors remain the automated correctness gates; instruction
+and RSS deltas inform the keep/drop decision. Raw profiler files, allocation logs,
+JSON samples and the summary table are uploaded as the `performance` artifact.
+
+### Hill-climb ledger
+
+Negative deltas mean improvement. Peak RSS columns use MiB (1,048,576 bytes); historical
+MB labels above were the probe's rounded MiB. Each optimization is one PR; dropped
+attempts remain recorded. Stop after five consecutive dropped/sub-1% attempts or 25
+attempts total. Phase 0 establishes measurement and does not count as an optimization.
+
+| Attempt | PR | Change | Instructions Δ (6.6) | Peak RSS Δ (6.6) | Peak RSS Δ (5.2) | Local check time Δ (6.6 / 5.2) | Kept/dropped |
+|---|---|---|---:|---:|---:|---|---|
+| 0 | pending | Public golden output and reproducible local/CI harness | pending | pending | pending | baseline | review pending |

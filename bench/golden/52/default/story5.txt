@@ -1,0 +1,29 @@
+2 | SPELLCHECK/SINGLE | "Pell" -> ["well", "fell", "cell", "tell", "sell", "bell", "Bell", "hell", "Peel", "Tell"] | Possibly misspelled word.
+4 | SPELLCHECK/SINGLE | "Ashgrove" -> [] | Possibly misspelled word.
+5 | SPELLCHECK/SINGLE | "enviroment" -> ["environment", "environments"] | Possibly misspelled word.
+6 | SPELLCHECK/SINGLE | "Pell" -> ["well", "fell", "cell", "tell", "sell", "bell", "Bell", "hell", "Peel", "Tell"] | Possibly misspelled word.
+11 | SPELLCHECK/SINGLE | "Pell" -> ["well", "fell", "cell", "tell", "sell", "bell", "Bell", "hell", "Peel", "Tell"] | Possibly misspelled word.
+13 | PUNCTUATION/MISSING_COMMA_AFTER_INTRODUCTORY_PHRASE/0 | "course I" -> ["course, I"] | The comma is probably missing here: course, I.
+17 | GRAMMAR/DID_BASEFORM/1 | "fell" -> [] | The verb 'fell' is both the base form of a verb and the past tense of a different verb. Make sure that 'fell' is correct.
+22 | SPELLCHECK/SINGLE | "diffrent" -> ["different", "diffract", "diffident"] | Possibly misspelled word.
+28 | SPELLCHECK/SINGLE | "foriegn" -> ["foreign", "forego", "Noriega"] | Possibly misspelled word.
+28 | SPELLCHECK/SINGLE | "Iman" -> ["Iran", "Ivan", "Oman", "Iraq", "Ian", "Imran", "Omar", "omen", "imam", "Amman"] | Possibly misspelled word.
+35 | SPELLCHECK/SINGLE | "gratefull" -> ["grateful", "gratefully", "graceful", "gracefully"] | Possibly misspelled word.
+36 | SPELLCHECK/SINGLE | "hieght" -> ["height", "high", "right", "light", "fight", "might", "night", "eight", "sight", "tight"] | Possibly misspelled word.
+37 | SPELLCHECK/SINGLE | "Pell" -> ["well", "fell", "cell", "tell", "sell", "bell", "Bell", "hell", "Peel", "Tell"] | Possibly misspelled word.
+39 | SPELLCHECK/SINGLE | "independant" -> ["independent", "independents"] | Possibly misspelled word.
+41 | SPELLCHECK/SINGLE | "Iman" -> ["Iran", "Ivan", "Oman", "Iraq", "Ian", "Imran", "Omar", "omen", "imam", "Amman"] | Possibly misspelled word.
+42 | TYPOS/A_WAS/0 | "was" -> ["way"] | Did you mean way?
+42 | SPELLCHECK/SINGLE | "Pell" -> ["well", "fell", "cell", "tell", "sell", "bell", "Bell", "hell", "Peel", "Tell"] | Possibly misspelled word.
+44 | SPELLCHECK/SINGLE | "Iman" -> ["Iran", "Ivan", "Oman", "Iraq", "Ian", "Imran", "Omar", "omen", "imam", "Amman"] | Possibly misspelled word.
+45 | SPELLCHECK/SINGLE | "Iman" -> ["Iran", "Ivan", "Oman", "Iraq", "Ian", "Imran", "Omar", "omen", "imam", "Amman"] | Possibly misspelled word.
+47 | PUNCTUATION/COMMA_COMPOUND_SENTENCE/0 | "long and" -> ["long, and"] | Use a comma before 'and' if it connects two independent clauses (unless they are closely connected and short).
+49 | SPELLCHECK/SINGLE | "Iman" -> ["Iran", "Ivan", "Oman", "Iraq", "Ian", "Imran", "Omar", "omen", "imam", "Amman"] | Possibly misspelled word.
+50 | PUNCTUATION/NO_COMMA_BEFORE_INDIRECT_QUESTION/0 | ", which" -> [" which"] | If which starts an indirect question, you do not need to put a comma before it.
+51 | SPELLCHECK/SINGLE | "Pell" -> ["well", "fell", "cell", "tell", "sell", "bell", "Bell", "hell", "Peel", "Tell"] | Possibly misspelled word.
+52 | SPELLCHECK/SINGLE | "Pell" -> ["well", "fell", "cell", "tell", "sell", "bell", "Bell", "hell", "Peel", "Tell"] | Possibly misspelled word.
+67 | SPELLCHECK/SINGLE | "Iman" -> ["Iran", "Ivan", "Oman", "Iraq", "Ian", "Imran", "Omar", "omen", "imam", "Amman"] | Possibly misspelled word.
+78 | BUILTIN/ENGLISH_WORD_REPEAT_RULE | "She she" -> ["She"] | Possible typo: you repeated a word.
+80 | SPELLCHECK/SINGLE | "Iman" -> ["Iran", "Ivan", "Oman", "Iraq", "Ian", "Imran", "Omar", "omen", "imam", "Amman"] | Possibly misspelled word.
+80 | GRAMMAR/ADVERB_WORD_ORDER/8 | "write sometimes" -> ["sometimes write"] | The adverb 'sometimes' is usually put before the verb 'write'.
+85 | PUNCTUATION/COMMA_COMPOUND_SENTENCE/0 | "changes and" -> ["changes, and"] | Use a comma before 'and' if it connects two independent clauses (unless they are closely connected and short).

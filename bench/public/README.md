@@ -69,3 +69,9 @@ python3 bench/public/validate.py
 
 It asserts every `truth.json` span occurs on its stated line, prints per-file word and U+2028 counts,
 checks the per-kind totals against the expected 30/8/14/4/4, and rejects any straight `"` or `'`.
+
+`moby150k.txt` is a public-domain Moby-Dick excerpt used only for performance and
+suggestion identity checks (not the planted-error recall score). It contains 149,091
+bytes from the supplied Project Gutenberg excerpt after removing the Gutenberg header
+and start marker, with original CRLF line endings retained; no footer occurs in this
+truncated input. See `docs/PERF.md` for the fixed measurement method.
