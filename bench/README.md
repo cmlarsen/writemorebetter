@@ -17,6 +17,7 @@ Each tool writes to `runs/` (git-ignored) as `<tool>-<name>.<ext>`:
 | LanguageTool (public API) | `python3 tools/lt_api.py corpus/draft1.txt runs/lt-draft1.json` | `lt-*.json` |
 | Harper | `harper-cli lint --format json --quiet corpus/draft1.txt > runs/harper-draft1.json` | `harper-*.json` |
 | nlprule 0.6.4 | `SHOW=1 tools/probe/target/release/probe <bins-dir> corpus/draft1.txt > runs/nlp-draft1.log` | `nlp-*.log` |
+| writemorebetter | `SHOW=1 tools/wmb-probe/target/release/wmb-probe ../storage corpus/draft1.txt > runs/wmb-draft1.log` | `wmb-*.log` |
 | nlprule fork | `python3 tools/fork_driver.py <check_server> <en_tokenizer.bin> <en_rules.bin> corpus/draft1.txt runs/fork-draft1.json` | `fork-*.json` |
 
 `lt_api.py` sends text to api.languagetool.org — only use it on text that may leave the machine.
@@ -25,6 +26,11 @@ Each tool writes to `runs/` (git-ignored) as `<tool>-<name>.<ext>`:
 - **nlprule 0.6.4 probe:** `cargo build --release` in `tools/probe`. The English binaries come from
   `gh release download 0.6.4 -R bminixhofer/nlprule -p 'en_*'`; gunzip them into `<bins-dir>`. The probe also
   prints load time and RSS.
+- **writemorebetter probe:** `cargo build --release` in `tools/wmb-probe`; it builds this repo's engine. The
+  binaries come from `cargo run --release --all-features --bin compile -- --build-dir data/en --tokenizer-out
+  storage/en_tokenizer.bin --rules-out storage/en_rules.bin`, run from the repo root with upstream's build dir
+  (https://f000.backblazeb2.com/file/nlprule/en.zip) unzipped into `data/`. The speller uses `en_US`; set
+  `SPELL=en_GB` to change the variant or `SPELL=` to turn it off.
 - **nlprule fork:** clone `alexvinasdev/nlprule`, run `cargo build --release -p nlprule --features
   "compile,bin,zh,ja"` (it fails without `zh,ja`), and generate an English build dir with its
   `build/make_build_dirs.py --lt_dir <LanguageTool-6.6> --out_root data --langs en` (needs Java 11+, `lxml`,

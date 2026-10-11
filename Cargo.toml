@@ -4,6 +4,10 @@ members = [
     "build",
     "python"
 ]
+exclude = [
+    "bench/tools/probe",
+    "bench/tools/wmb-probe",
+]
 
 # nlprule is really slow without optimizations (esp. compiling binaries)
 [profile.dev]

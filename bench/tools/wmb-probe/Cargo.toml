@@ -1,0 +1,8 @@
+[package]
+name = "wmb-probe"
+version = "0.1.0"
+edition = "2021"
+[dependencies]
+nlprule = { path = "../../../nlprule" }
+[profile.release]
+debug = false
