@@ -133,7 +133,9 @@ pub(crate) const RULES_MAGIC: &[u8; 8] = b"WMBRUL01";
 /// Version 2: the rule-engine matcher representation became compact (`MatcherKind`,
 /// `Box<[WordIdInt]>` text-matcher sets, `Vec<u32>` composition indices, `u32` quantifiers).
 /// Version 3: `TokenizerLangOptions::chunk_number_from_last_token` was added.
-pub const TOKENIZER_FORMAT_VERSION: u32 = 3;
+/// Version 4: compositions store `PartId` indices into a shared `PartPool` instead of owning
+/// their `Part`s.
+pub const TOKENIZER_FORMAT_VERSION: u32 = 4;
 
 /// The on-disk format version of [Rules] binaries.
 ///
@@ -144,7 +146,10 @@ pub const TOKENIZER_FORMAT_VERSION: u32 = 3;
 /// Version 4: the compact matcher representation above, plus `Rule::examples` stored as a lazily
 /// parsed blob ([`rule::Examples`]).
 /// Version 5: `Matcher::reference_conversion` was added.
-pub const RULES_FORMAT_VERSION: u32 = 5;
+/// Version 6: the `+DT`/`+INDT` article word lists moved from every rule to one copy on `Rules`
+/// (`Rule::articles` became `Rule::uses_articles`), and compositions store `PartId` indices into a
+/// shared `Rules.parts` pool instead of owning their `Part`s.
+pub const RULES_FORMAT_VERSION: u32 = 6;
 
 /// The longest engine version string accepted in a binary header.
 const MAX_ENGINE_VERSION_LEN: usize = 256;

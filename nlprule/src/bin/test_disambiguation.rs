@@ -41,7 +41,7 @@ fn main() {
     let mut passing_ids: Vec<String> = Vec::new();
 
     for rule in rules {
-        if rule.test(&tokenizer) {
+        if tokenizer.test_rule(rule, &tokenizer) {
             passes += 1;
             passing_ids.push(rule.id().to_string());
         } else if opts.stop_at_error {

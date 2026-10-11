@@ -559,9 +559,83 @@ pub struct Part {
     pub unify: Option<bool>,
 }
 
+/// Index of a [`Part`] in a rule set's shared [`PartPool`].
+///
+/// [`Composition::parts`] stores these instead of owned [`Part`]s: most compositions (especially
+/// the per-rulegroup antipatterns cloned into every rule of a group) repeat the same token
+/// matchers, so the distinct parts are stored once and referenced by a `u32` index. This turns a
+/// 96 B inline `Part` into a 4 B reference.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct PartId(pub u32);
+
+/// The distinct [`Part`]s of a rule set, addressed by [`PartId`]. See [`PartId`] for why this
+/// exists.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct PartPool {
+    parts: Vec<Part>,
+}
+
+impl PartPool {
+    pub(crate) fn from_parts(parts: Vec<Part>) -> Self {
+        PartPool { parts }
+    }
+
+    pub fn get(&self, id: PartId) -> &Part {
+        &self.parts[id.0 as usize]
+    }
+
+    pub fn len(&self) -> usize {
+        self.parts.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.parts.is_empty()
+    }
+
+    /// All parts, for the memory probe.
+    pub(crate) fn parts_mut(&mut self) -> &mut [Part] {
+        &mut self.parts
+    }
+
+    pub(crate) fn parts(&self) -> &[Part] {
+        &self.parts
+    }
+}
+
+/// Deduplicates [`Part`]s while a rule set is compiled, keyed by their serialized bytes so only
+/// truly identical parts (including any baked-in `GraphId`) share.
+#[derive(Default)]
+pub(crate) struct PartInterner {
+    seen: std::collections::HashMap<Vec<u8>, PartId>,
+    parts: Vec<Part>,
+}
+
+impl PartInterner {
+    pub(crate) fn intern(&mut self, part: Part) -> PartId {
+        let key = bincode::serialize(&part).expect("part serializes");
+        if let Some(id) = self.seen.get(&key) {
+            return *id;
+        }
+        let id = PartId(self.parts.len() as u32);
+        self.parts.push(part);
+        self.seen.insert(key, id);
+        id
+    }
+
+    pub(crate) fn get(&self, id: PartId) -> &Part {
+        &self.parts[id.0 as usize]
+    }
+
+    pub(crate) fn into_pool(self) -> PartPool {
+        PartPool::from_parts(self.parts)
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Composition {
-    pub(crate) parts: Vec<Part>,
+    /// Indices into the rule set's [`PartPool`].
+    pub(crate) parts: Vec<PartId>,
     /// `GraphId(k) -> group index`, as a `Vec` indexed by `k` (`u32::MAX` = absent). See
     /// [`GraphIndex`] for why this is not a map.
     pub(crate) id_to_idx: Vec<u32>,
@@ -569,10 +643,16 @@ pub struct Composition {
 }
 
 impl Composition {
-    fn next_can_match(&self, context: Context, position: usize, index: usize) -> bool {
+    fn next_can_match(
+        &self,
+        pool: &PartPool,
+        context: Context,
+        position: usize,
+        index: usize,
+    ) -> bool {
         let next_required_pos = match self.parts[index + 1..]
             .iter()
-            .position(|x| x.quantifier.min > 0)
+            .position(|x| pool.get(*x).quantifier.min > 0)
         {
             Some(pos) => index + 1 + pos + 1,
             None => self.parts.len(),
@@ -580,11 +660,12 @@ impl Composition {
 
         self.parts[index + 1..next_required_pos]
             .iter()
-            .any(|x| x.atom.is_match(context, position))
+            .any(|x| pool.get(*x).atom.is_match(context, position))
     }
 
     fn apply_recursive<'t>(
         &'t self,
+        pool: &'t PartPool,
         sentence: &'t MatchSentence,
         mut position: usize,
         mut cur_atom_idx: usize,
@@ -596,7 +677,7 @@ impl Composition {
                 break true;
             }
 
-            let part = &self.parts[cur_atom_idx];
+            let part = pool.get(self.parts[cur_atom_idx]);
 
             if cur_count >= part.quantifier.max {
                 cur_atom_idx += 1;
@@ -612,15 +693,21 @@ impl Composition {
             }
 
             if cur_count >= part.quantifier.min && cur_atom_idx + 1 < self.parts.len() {
-                if !part.greedy && self.next_can_match((sentence, &graph), position, cur_atom_idx) {
+                if !part.greedy
+                    && self.next_can_match(pool, (sentence, &graph), position, cur_atom_idx)
+                {
                     cur_atom_idx += 1;
                     cur_count = 0;
                     continue;
                 }
                 if part.greedy {
-                    if let Some(graph) =
-                        self.apply_recursive(sentence, position, cur_atom_idx + 1, graph.clone())
-                    {
+                    if let Some(graph) = self.apply_recursive(
+                        pool,
+                        sentence,
+                        position,
+                        cur_atom_idx + 1,
+                        graph.clone(),
+                    ) {
                         return Some(graph);
                     }
                 }
@@ -646,7 +733,9 @@ impl Composition {
 
         // edge case if the last atom is quantified and the minimum has been exceeded
         // TODO to avoid further such undetected edge cases: revisit the entire composition logic
-        if cur_atom_idx < self.parts.len() && cur_count >= self.parts[cur_atom_idx].quantifier.min {
+        if cur_atom_idx < self.parts.len()
+            && cur_count >= pool.get(self.parts[cur_atom_idx]).quantifier.min
+        {
             cur_atom_idx += 1;
         }
 
@@ -660,6 +749,7 @@ impl Composition {
 
     pub fn apply<'t>(
         &'t self,
+        pool: &'t PartPool,
         sentence: &'t MatchSentence,
         start: usize,
     ) -> Option<MatchGraph<'t>> {
@@ -671,11 +761,8 @@ impl Composition {
             static ref DEFAULT_GRAPH: MatchGraph<'static> = MatchGraph::default();
         };
 
-        if self.parts[0].quantifier.min > 0
-            && !self.parts[0]
-                .atom
-                .is_match((sentence, &DEFAULT_GRAPH), start)
-        {
+        let first = pool.get(self.parts[0]);
+        if first.quantifier.min > 0 && !first.atom.is_match((sentence, &DEFAULT_GRAPH), start) {
             return None;
         }
 
@@ -686,6 +773,6 @@ impl Composition {
             &self.id_to_idx,
         );
 
-        self.apply_recursive(sentence, position, 0, graph)
+        self.apply_recursive(pool, sentence, position, 0, graph)
     }
 }

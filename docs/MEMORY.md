@@ -324,3 +324,107 @@ under 35 MB needs a different representation, not more field shrinking: either b
 matchers into a per-`Rules` interned table addressed by `u32` so the inline `Matcher`/`TextMatcher`
 and the 5.6 MB of duplicated pattern bytes disappear (worth ~10 MB). Both are larger, riskier
 changes than the ones above and were left out of this pass.
+
+---
+
+# M2I: interning the grammar-rule engine
+
+Measured 2026-10-11 on the same Apple Silicon MacBook, `--all-features` (both regex backends) for
+the `rules_full` numbers and `PROFILE=fiction SPELL=en_US` with `data/moby150k.txt` for the peaks.
+"Before" is the merged base `1552d2c` (origin/main after the M4J merge); the two steps are the
+`perf(rules)` commits on top.
+
+## What changed
+
+Two independent reductions, each measured on its own:
+
+1. **One copy of the article word lists.** Every rule using LanguageTool's `+DT`/`+INDT`
+   determiner synthesis carried its own `ArticleData` (two `HashSet<String>` of ~5k words). 35 rules
+   did, so the loaded set held 35 identical copies. `Rule::articles: Option<ArticleData>` became
+   `Rule::uses_articles: bool` and the lists live once on `Rules`.
+2. **A shared part pool.** Most compositions — above all the per-rulegroup antipatterns cloned into
+   every rule of a group — repeat the same token matchers. Every distinct `Part` is now stored once
+   in a per-rule-set `PartPool` and referenced by a `u32` `PartId`; `Composition.parts` is a
+   `Vec<PartId>` (4 B) instead of a `Vec<Part>` (96 B). Compositions keep their own `id_to_idx` and
+   `can_stop_mask`, and the pool is keyed by a part's serialized bytes, so only byte-identical parts
+   (including any baked-in `GraphId`) share. `PartInterner` deduplicates while compiling; the
+   `Tokenizer` has the same pool for its disambiguation rules. `RULES_FORMAT_VERSION` → 6,
+   `TOKENIZER_FORMAT_VERSION` → 4 (the M4J merge already used 3/5).
+
+`Rules::from_iter` was dropped: a `Rule`'s engine can no longer be built outside the compiler
+without a pool, and nothing in the tree used it.
+
+## Before / after, per step
+
+`rules_full` is the memory-probe load; peak is `wmb-probe PROFILE=fiction SPELL=en_US` on
+`moby150k`.
+
+| binary | rules_full base | after step 1 | after step 2 | peak base | after step 1 | after step 2 |
+|---|---:|---:|---:|---:|---:|---:|
+| LT 6.6 | 58.3 MB | 46.8 MB | **27.4 MB** | 129 MB | 117 MB | **92 MB** |
+| LT 5.2 | 36.5 MB | 25.4 MB | **18.5 MB** | 94 MB | 83 MB | **72 MB** |
+
+Targets were 6.6 `rules_full` < 35 MB and peak < 110 MB; both are met, with ~7 MB of headroom on
+the memory probe and ~18 MB on the peak. The 5.2 numbers move the same way.
+
+Serialized binaries (6.6): `en_rules.bin` 25.72 → 23.61 (step 1) → 12.57 MB (step 2);
+`en_tokenizer.bin` 12.24 → 11.93 MB. (5.2): `en_rules.bin` 13.35 → 7.90 MB.
+
+Load and check time (6.6): rules load 60.5 → 21.6 ms, check 3.77 → 3.81 s. (5.2): rules load 34.1 →
+15.2 ms, check 3.02 → 3.13 s. No regression above 10% on an idle rerun (the check times are within
+run-to-run noise); the rules load is faster because far fewer parts are deserialized.
+
+## Part 1: the per-field breakdown
+
+In-context = `rules_full` minus the field blanked, LT 6.6 (top) and LT 5.2 (bottom), after both
+steps. New rows: `part pool (unique parts)` is the shared `Rules.parts`; `composition parts` is now
+just the `PartId` references.
+
+| field | 6.6 serialized MB | 6.6 in-context MB | 5.2 serialized MB | 5.2 in-context MB |
+|---|---:|---:|---:|---:|
+| engine (whole) | 2.36 | 5.53 | 0.87 | 2.08 |
+| examples | 2.79 | 3.14 | 1.85 | 2.12 |
+| message synthesizer | 0.57 | 1.98 | 0.44 | 1.55 |
+| suggesters | 0.33 | 1.95 | 0.22 | 1.36 |
+| strings (name/url/cat) | 0.43 | 0.34 | 0.30 | 0.36 |
+| articles (rule set) | 0.06 | ~0 | 0.06 | 0.36 |
+| id (rule index) | 0.13 | 0.34 | 0.10 | 0.12 |
+| filter | 0.02 | 0.16 | 0.02 | 0.23 |
+| — antipatterns | 2.12 | 5.19 | 0.68 | 1.70 |
+| — composition parts | 0.56 | 0.84 | 0.22 | 0.42 |
+| — part pool (unique parts) | 3.48 | 6.14 | 1.50 | 3.27 |
+| — composition id_to_idx | 0.72 | 1.02 | 0.27 | 0.34 |
+| — composition can_stop_mask | 0.14 | 0.69 | 0.05 | 0.23 |
+| — part atoms | 3.25 | 4.67 | 1.35 | 2.37 |
+| — all regex strings | 2.00 | 2.38 | 0.76 | 1.33 |
+| — matcher strings | 0.04 | 0.17 | 0.03 | 0.05 |
+| — text-matcher sets | 0.38 | 0.42 | 0.23 | 0.20 |
+
+The nested rows overlap (the engine rows include the sub-rows) and the `in-context` column carries
+~±0.5 MB of RSS noise; treat them as attribution, not a partition. The two facts they establish:
+the engine is now the part pool plus its `PartId` references, and the article row is gone as a
+per-rule cost.
+
+Structural counts for LT 6.6: 44,426 token compositions, 139,841 part instances but only **15,195
+distinct parts** (14,781 distinct atoms) — a 9.2× dedup. LT 5.2: 53,855 instances, 9,482 distinct
+parts (9,278 atoms). `size_of::<Part>()` is still 96 B and `PartId` is 4 B.
+
+## Identity and conformance
+
+`SHOW=1 PROFILE=default SPELL=en_US` over `bench/public/story1..5` and Moby-Dick's first 150 KB is
+byte-identical to the merged base before/after, all 12 files, 5.2 and 6.6. `test --list-passing` is
+byte-identical for both versions (6.6 5,977/6,032 grammar, 5.2 4,320/4,335); the disambiguation
+pass counts are unchanged (6.6 1,012/1,015, 5.2 843/843; only the log timestamps differ). Public
+recall meets the floors (6.6 55/60, 5.2 54/60). `cargo fmt --check`, clippy, and
+`cargo test --workspace --exclude nlprule-python --all-features --release` pass.
+
+## What is left
+
+The 6.6 rules are 27.4 MB: ~11.7 MB of engine (part pool + `PartId` references + per-composition
+`id_to_idx`/`can_stop_mask`), ~3.1 MB of examples (still a lazily parsed bincode blob), ~2 MB of
+message synthesizers, ~2 MB of suggesters, and the rest metadata. The remaining engine cost is the
+15,195 unique parts' own heap (the interned regex strings 2.4 MB, the boxed `Regex` structs, the
+text-matcher sets and `PosMatcher` masks) plus the per-composition `id_to_idx` vectors (0.8 MB) —
+the inline duplication is gone. Further cuts would need to shrink the unique atom payloads
+themselves (e.g. a shared regex/set arena addressed by `u32`) or drop `id_to_idx` where it is the
+identity map; neither is needed for the current targets.

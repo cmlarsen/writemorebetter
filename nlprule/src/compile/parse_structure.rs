@@ -440,6 +440,7 @@ fn parse_match(
     m: structure::Match,
     engine: &Engine,
     _info: &mut BuildInfo,
+    pool: &PartInterner,
 ) -> Result<Match, Error> {
     let id =
         m.no.parse::<usize>()
@@ -481,7 +482,7 @@ fn parse_match(
                         .composition
                         .parts
                         .get(group)
-                        .map_or(false, |part| !part.visible);
+                        .map_or(false, |id| !pool.get(*id).visible);
 
                     has_skip.then_some(IncludeSkipped {
                         range,
@@ -652,6 +653,7 @@ fn parse_suggestion(
     data: structure::Suggestion,
     engine: &Engine,
     info: &mut BuildInfo,
+    pool: &PartInterner,
 ) -> Result<Synthesizer, Error> {
     let mut parts = Vec::new();
     for part in data.parts {
@@ -660,7 +662,9 @@ fn parse_suggestion(
                 parts.extend(parse_synthesizer_text(text.as_str(), engine)?);
             }
             structure::SuggestionPart::Match(m) => {
-                parts.push(SynthesizerPart::Match(parse_match(m, engine, info)?.into()));
+                parts.push(SynthesizerPart::Match(
+                    parse_match(m, engine, info, pool)?.into(),
+                ));
             }
         }
     }
@@ -738,6 +742,7 @@ fn parse_tokens(
 fn parse_pattern(
     pattern: structure::Pattern,
     info: &mut BuildInfo,
+    pool: &mut PartInterner,
 ) -> Result<(Composition, usize, usize), Error> {
     if pattern.raw_pos.as_deref() == Some("yes") {
         // `raw_pos` matches POS tags on the tagger output before disambiguation.
@@ -809,7 +814,7 @@ fn parse_pattern(
     let start = start.unwrap_or(1) as usize;
     let end = end.unwrap_or_else(|| get_last_id(&composition_parts)) as usize - 1;
 
-    let composition = Composition::new(composition_parts)?;
+    let composition = Composition::new(composition_parts, pool)?;
 
     Ok((composition, start, end))
 }
@@ -862,6 +867,7 @@ impl Rule {
     pub(crate) fn from_rule_structure(
         data: structure::Rule,
         info: &mut BuildInfo,
+        pool: &mut PartInterner,
     ) -> Result<Rule, Error> {
         let is_regex_rule = data.regex.is_some();
 
@@ -873,11 +879,11 @@ impl Rule {
                 "either `pattern` or `regexp` must be supplied.".into(),
             )),
             (Some(pattern), None) => {
-                let (composition, start, end) = parse_pattern(pattern.clone(), info)?;
+                let (composition, start, end) = parse_pattern(pattern.clone(), info, pool)?;
                 let antipatterns = if let Some(antipatterns) = data.antipatterns {
                     antipatterns
                         .into_iter()
-                        .map(|pattern| parse_pattern(pattern, info).map(|x| x.0))
+                        .map(|pattern| parse_pattern(pattern, info, pool).map(|x| x.0))
                         .collect::<Result<Vec<_>, Error>>()?
                 } else {
                     Vec::new()
@@ -885,7 +891,7 @@ impl Rule {
 
                 if antipatterns
                     .iter()
-                    .any(|pattern| pattern.parts.iter().any(|x| x.unify.is_some()))
+                    .any(|pattern| pattern.parts.iter().any(|id| pool.get(*id).unify.is_some()))
                 {
                     return Err(Error::Unimplemented(
                         "`unify` in antipattern is not supported.".into(),
@@ -938,7 +944,7 @@ impl Rule {
                 .unwrap()
                 .parts
                 .iter()
-                .map(|part| part.unify)
+                .map(|id| pool.get(*id).unify)
                 .collect();
             Some((unify_filters, unify_mask))
         } else {
@@ -962,9 +968,9 @@ impl Rule {
         for part in data.message.parts {
             match part {
                 structure::MessagePart::Suggestion(suggestion) => {
-                    let suggester = parse_suggestion(suggestion.clone(), &engine, info)?;
+                    let suggester = parse_suggestion(suggestion.clone(), &engine, info, pool)?;
                     // simpler to just parse a second time than cloning the result
-                    message_parts.extend(parse_suggestion(suggestion, &engine, info)?.parts);
+                    message_parts.extend(parse_suggestion(suggestion, &engine, info, pool)?.parts);
                     suggesters.push(suggester);
                 }
                 structure::MessagePart::Text(text) => {
@@ -972,7 +978,7 @@ impl Rule {
                 }
                 structure::MessagePart::Match(m) => {
                     message_parts.push(SynthesizerPart::Match(
-                        parse_match(m, &engine, info)?.into(),
+                        parse_match(m, &engine, info, pool)?.into(),
                     ));
                 }
             }
@@ -980,7 +986,7 @@ impl Rule {
 
         if let Some(suggestions) = data.suggestions {
             for suggestion in suggestions {
-                suggesters.push(parse_suggestion(suggestion, &engine, info)?);
+                suggesters.push(parse_suggestion(suggestion, &engine, info, pool)?);
             }
         }
 
@@ -1106,16 +1112,12 @@ impl Rule {
         };
 
         // LanguageTool's `+DT`/`+INDT` synthesis chooses the article from the
-        // build directory's word lists; load them only for rules that use them.
-        let articles = if message.uses_determiner()
+        // build directory's word lists; record only whether this rule needs them.
+        // The lists are stored once per `Rules` (see `Rules::from_xml`).
+        let uses_articles = message.uses_determiner()
             || suggesters
                 .iter()
-                .any(|suggester| suggester.uses_determiner())
-        {
-            Some(super::builtin::article_data(info.build_dir()))
-        } else {
-            None
-        };
+                .any(|suggester| suggester.uses_determiner());
 
         Ok(Rule {
             start: engine.to_graph_id(start)?,
@@ -1126,7 +1128,7 @@ impl Rule {
             examples: crate::rule::Examples::from_vec(examples),
             suggesters,
             message,
-            articles,
+            uses_articles,
             url: data.url.map(|x| x.to_string()),
             short: data.short.map(|x| x.to_string()),
             // fields below need information from rule group / category, so are set later
@@ -1210,17 +1212,22 @@ impl DisambiguationRule {
     pub(crate) fn from_rule_structure(
         data: structure::DisambiguationRule,
         info: &mut BuildInfo,
+        pool: &mut PartInterner,
     ) -> Result<DisambiguationRule, Error> {
         // might need the pattern later so clone it here
-        let (composition, start, end) = parse_pattern(data.pattern.clone(), info)?;
+        let (composition, start, end) = parse_pattern(data.pattern.clone(), info, pool)?;
 
         let unify_filters = parse_features(&data.pattern, &data.unifications, info);
-        let unify_mask: Vec<_> = composition.parts.iter().map(|part| part.unify).collect();
+        let unify_mask: Vec<_> = composition
+            .parts
+            .iter()
+            .map(|id| pool.get(*id).unify)
+            .collect();
 
         let antipatterns = if let Some(antipatterns) = data.antipatterns {
             antipatterns
                 .into_iter()
-                .map(|pattern| parse_pattern(pattern, info).map(|x| x.0))
+                .map(|pattern| parse_pattern(pattern, info, pool).map(|x| x.0))
                 .collect::<Result<Vec<_>, Error>>()?
         } else {
             Vec::new()
@@ -1228,7 +1235,7 @@ impl DisambiguationRule {
 
         if antipatterns
             .iter()
-            .any(|pattern| pattern.parts.iter().any(|x| x.unify.is_some()))
+            .any(|pattern| pattern.parts.iter().any(|id| pool.get(*id).unify.is_some()))
         {
             return Err(Error::Unimplemented(
                 "`unify` in antipattern is not supported.".into(),

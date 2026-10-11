@@ -47,7 +47,7 @@ fn main() {
     let mut failing_ids: Vec<String> = Vec::new();
     for rule in rules {
         if opts.ids.is_empty() || opts.ids.contains(&rule.id().to_string()) {
-            if rule.test(&tokenizer) {
+            if rules_container.test_rule(rule, &tokenizer) {
                 passes += 1;
                 passing_ids.push(rule.id().to_string());
             } else {
