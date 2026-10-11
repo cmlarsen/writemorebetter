@@ -4,6 +4,10 @@ Copyright (c) 2026 Caleb Larsen
 This project includes code from nlprule (https://github.com/bminixhofer/nlprule),
 Copyright (c) 2020-2021 Benjamin Minixhofer, licensed under MIT OR Apache-2.0.
 
+srx/ is vendored from the srx crate 0.1.4 (https://github.com/bminixhofer/srx),
+Copyright (c) Benjamin Minixhofer, licensed under MIT OR Apache-2.0, with
+modifications.
+
 Rules, dictionaries, and other data compiled from LanguageTool resources
 (https://github.com/languagetool-org/languagetool) are licensed under LGPL-2.1;
 see binaries/LICENSE. writemorebetter is not affiliated with LanguageTool or
