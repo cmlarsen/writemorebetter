@@ -1,0 +1,15 @@
+# Top level domains that may directly follow a full stop without a space.
+#
+# Taken from the LanguageTool rule COMMA_PARENTHESIS_WHITESPACE
+# (languagetool-core/src/main/java/org/languagetool/rules/CommaWhitespaceRule.java),
+# which treats any of these as a domain so that "foo.org" and "the .Net
+# framework" are not flagged as a missing space. LanguageTool additionally
+# accepts any two-letter sequence as a domain; that rule is in the engine
+# because it is a shape, not a list.
+com
+org
+net
+int
+edu
+gov
+mil

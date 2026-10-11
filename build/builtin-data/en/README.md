@@ -18,6 +18,11 @@ cp -r build/builtin-data/en/. data/en/builtin/
 
 ## Files
 
+- `comma_parenthesis_whitespace_domains.txt` — top level domains that the
+  English comma/parenthesis-whitespace rule accepts directly after a full stop
+  (e.g. `foo.org`), taken from LanguageTool's `CommaWhitespaceRule`. The rule
+  also accepts any two-letter sequence and file-name suffixes such as `.exe`;
+  those are shapes and stay in the engine source.
 - `word_repeat_exceptions.txt` — repetitions that the English word-repeat rule
   should not flag, taken from LanguageTool's `WordRepeatRule` and
   `EnglishWordRepeatRule`. A single word allows that word to be repeated; a

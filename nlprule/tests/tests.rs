@@ -328,3 +328,220 @@ fn builtin_word_repeat_span_covers_case_folded_second_word() {
         vec![("STRASSE straße".to_string(), "STRASSE".to_string())]
     );
 }
+
+/// Runs the English comma/parenthesis-whitespace builtin over a paragraph and
+/// returns the flagged text and all replacements of every suggestion.
+fn comma_flags(text: &str) -> Vec<(String, Vec<String>)> {
+    let sentences: Vec<_> = TOKENIZER.pipe(text).collect();
+    let chars: Vec<char> = text.chars().collect();
+
+    RULES
+        .builtins()
+        .iter()
+        .flat_map(|rule| rule.builtin().check_text(&sentences))
+        .filter(|suggestion| suggestion.source() == "BUILTIN/COMMA_PARENTHESIS_WHITESPACE")
+        .map(|suggestion| {
+            (
+                chars[suggestion.span().char().clone()].iter().collect(),
+                suggestion.replacements().to_vec(),
+            )
+        })
+        .collect()
+}
+
+#[test]
+fn builtin_comma_flags_whitespace_before_comma() {
+    assert_eq!(
+        comma_flags("She said , and left."),
+        vec![(" ,".to_string(), vec![",".to_string()])]
+    );
+}
+
+#[test]
+fn builtin_comma_flags_missing_space_after_comma() {
+    assert_eq!(
+        comma_flags("It began to snow,and then stopped."),
+        vec![(",and".to_string(), vec![", and".to_string()])]
+    );
+}
+
+#[test]
+fn builtin_comma_flags_whitespace_after_opening_parenthesis() {
+    assert_eq!(
+        comma_flags("We waited ( for hours."),
+        vec![("( ".to_string(), vec!["(".to_string()])]
+    );
+}
+
+#[test]
+fn builtin_comma_flags_whitespace_before_closing_parenthesis() {
+    assert_eq!(
+        comma_flags("We waited ) for hours."),
+        vec![(" )".to_string(), vec![")".to_string()])]
+    );
+}
+
+#[test]
+fn builtin_comma_flags_whitespace_before_full_stop() {
+    assert_eq!(
+        comma_flags("It ended ."),
+        vec![(" .".to_string(), vec![".".to_string()])]
+    );
+}
+
+#[test]
+fn builtin_comma_flags_all_planted_public_errors() {
+    // The four punctuation errors planted in the public corpus.
+    assert_eq!(
+        comma_flags("said , and"),
+        vec![(" ,".to_string(), vec![",".to_string()])]
+    );
+    assert_eq!(
+        comma_flags("snow,and"),
+        vec![(",and".to_string(), vec![", and".to_string()])]
+    );
+    assert_eq!(
+        comma_flags("rose , then"),
+        vec![(" ,".to_string(), vec![",".to_string()])]
+    );
+    assert_eq!(
+        comma_flags("the door,and"),
+        vec![(",and".to_string(), vec![", and".to_string()])]
+    );
+}
+
+#[test]
+fn builtin_comma_flags_whitespace_on_both_sides_of_quote() {
+    assert_eq!(
+        comma_flags("You \" fixed\" it."),
+        vec![(
+            " \" ".to_string(),
+            vec!["\" ".to_string(), " \"".to_string()]
+        )]
+    );
+}
+
+#[test]
+fn builtin_comma_replacements_differ_from_flagged_text() {
+    // A previous port flagged ordinary commas with a replacement identical to
+    // the flagged text, so every suggestion must offer an actual change.
+    for text in &[
+        "She said , and left.",
+        "It began to snow,and then stopped.",
+        "rose , then",
+        "the door,and",
+        "We waited ( for hours.",
+        "We waited ) for hours.",
+        "It ended .",
+        "It was quiet\u{2028},and then.",
+        "You \" fixed\" it.",
+    ] {
+        let flags = comma_flags(text);
+        for (flagged, replacements) in flags {
+            assert!(
+                replacements
+                    .iter()
+                    .any(|replacement| replacement != &flagged),
+                "no change suggested for {:?} in {:?}",
+                flagged,
+                text
+            );
+        }
+    }
+}
+
+#[test]
+fn builtin_comma_ignores_ordinary_comma() {
+    assert!(comma_flags("It was late, and she left.").is_empty());
+}
+
+#[test]
+fn builtin_comma_ignores_curly_quote_dialogue() {
+    assert!(comma_flags("\u{201c}Wait,\u{201d} she said, and left.").is_empty());
+}
+
+#[test]
+fn builtin_comma_ignores_fiction_prose() {
+    for text in &[
+        "\u{201c}I didn\u{2019}t know,\u{201d} she said. \u{201c}Weren\u{2019}t you there?\u{201d}",
+        "\u{2018}Doesn\u{2019}t matter,\u{2019} he said.",
+        "He opened the door\u{2014}then stopped. It was quiet\u{2014}too quiet.",
+        "It wasn\u{2019}t Marta\u{2019}s coat, and it wasn\u{2019}t her hat.",
+        "She waited\u{2026} and waited.",
+        "It cost 1,000 dollars, or 3.5 pounds.",
+        "Visit foo.org, or read the .Net docs.",
+        "Run ./validate.sh, then stop.",
+        "He waited (patiently) for her.",
+        "She waited.\u{2028}Nothing came.",
+        "The sign read \u{201c}no entry\u{201d}, and she obeyed.",
+    ] {
+        assert!(
+            comma_flags(text).is_empty(),
+            "unexpected flags for {:?}: {:?}",
+            text,
+            comma_flags(text)
+        );
+    }
+}
+
+#[test]
+fn builtin_comma_ignores_punctuation_after_comma() {
+    // An em dash, asterisk or closing parenthesis after a comma is not a word;
+    // these occur throughout Moby-Dick. LanguageTool flags them, but the rule
+    // is about whitespace between words, so they are left alone here.
+    for text in &[
+        "The sea,\u{2014}though calm\u{2014}was dark.",
+        "and,* the rest",
+        "the, (aside) and more",
+    ] {
+        assert!(comma_flags(text).is_empty(), "{:?}", text);
+    }
+}
+
+#[test]
+fn builtin_comma_handles_line_separator() {
+    assert_eq!(
+        comma_flags("It was quiet\u{2028},and then."),
+        vec![
+            ("\u{2028},".to_string(), vec![", ".to_string()]),
+            (",and".to_string(), vec![", and".to_string()]),
+        ]
+    );
+    assert!(comma_flags("\u{201c}Wait,\u{201d}\u{2028}she said.").is_empty());
+}
+
+#[test]
+fn builtin_comma_ignores_numbers_ellipsis_and_abbreviations() {
+    for text in &[
+        "The town had 1,000 people.",
+        "It grew 3.5 inches.",
+        "This is 1,5.",
+        "This is $1,000,000.",
+        "He paused... and left.",
+        ".Net and .MP3 are file names.",
+        "I live in .Los Angeles",
+    ] {
+        let flags = comma_flags(text);
+        // ".Los Angeles" is a genuine error in LanguageTool's test suite.
+        if text == &"I live in .Los Angeles" {
+            assert_eq!(flags.len(), 1, "{:?}", text);
+        } else {
+            assert!(
+                flags.is_empty(),
+                "unexpected flags for {:?}: {:?}",
+                text,
+                flags
+            );
+        }
+    }
+}
+
+#[test]
+fn builtin_comma_is_wired_into_suggest() {
+    let suggestions = RULES.suggest("She said , and left.", &*TOKENIZER);
+    let flagged = suggestions
+        .iter()
+        .find(|suggestion| suggestion.source() == "BUILTIN/COMMA_PARENTHESIS_WHITESPACE")
+        .expect("whitespace before comma is flagged");
+    assert_eq!(flagged.replacements(), &[",".to_string()]);
+}

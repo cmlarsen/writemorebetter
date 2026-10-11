@@ -17,6 +17,8 @@ pub mod en;
 /// language-specific state.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Builtin {
+    /// Flags whitespace around commas, full stops, parentheses and quotes.
+    CommaParenthesisWhitespace(en::CommaParenthesisWhitespace),
     /// Flags a word that is immediately repeated, e.g. `"the the"`.
     WordRepeat(en::WordRepeat),
 }
@@ -26,6 +28,7 @@ impl Builtin {
     /// `"ENGLISH_WORD_REPEAT_RULE"`.
     pub fn id(&self) -> &str {
         match self {
+            Builtin::CommaParenthesisWhitespace(rule) => rule.id(),
             Builtin::WordRepeat(rule) => rule.id(),
         }
     }
@@ -39,6 +42,7 @@ impl Builtin {
     /// (e.g. quotes spanning sentences) see all of them; sentence-level rules check each one separately.
     pub fn check_text(&self, sentences: &[Sentence]) -> Vec<Suggestion> {
         match self {
+            Builtin::CommaParenthesisWhitespace(rule) => rule.check_sentences(sentences),
             Builtin::WordRepeat(rule) => sentences.iter().flat_map(|x| rule.check(x)).collect(),
         }
     }
