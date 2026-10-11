@@ -211,7 +211,10 @@ impl From<Tagger> for TaggerFields {
 }
 
 impl From<TaggerFields> for Tagger {
-    fn from(data: TaggerFields) -> Self {
+    fn from(mut data: TaggerFields) -> Self {
+        data.tag_fst.shrink_to_fit();
+        data.synth_fst.shrink_to_fit();
+        data.word_store_fst.shrink_to_fit();
         let word_store_fst = Map::new(data.word_store_fst).unwrap();
         let tag_fst = Map::new(data.tag_fst).unwrap();
         let synth_fst = Map::new(data.synth_fst).unwrap();
