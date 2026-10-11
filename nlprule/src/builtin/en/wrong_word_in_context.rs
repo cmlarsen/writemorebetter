@@ -15,7 +15,7 @@ use crate::utils::regex::Regex;
 use serde::{Deserialize, Serialize};
 
 /// The identifier of the LanguageTool rule this builtin reimplements.
-const ID: &str = "EN_WRONG_WORD_IN_CONTEXT";
+const ID: &str = "ENGLISH_WRONG_WORD_IN_CONTEXT";
 
 /// One row of the confusion table: a pair of confusable words with the
 /// fragment that has to be replaced, the contexts in which each word occurs

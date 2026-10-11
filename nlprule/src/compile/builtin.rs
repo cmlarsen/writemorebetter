@@ -25,19 +25,27 @@ pub(crate) fn for_language(
 ) -> Result<Vec<BuiltinRule>, Error> {
     match lang_code.trim() {
         "en" => Ok(vec![
+            BuiltinRule::new(Builtin::WordRepeat(word_repeat(build_dir, tokenizer))),
+            BuiltinRule::new(Builtin::UppercaseSentenceStart(uppercase_sentence_start(
+                build_dir,
+            ))),
             BuiltinRule::new(Builtin::UnpairedBrackets(UnpairedBrackets::new())),
             BuiltinRule::new(Builtin::UnpairedQuotes(UnpairedQuotes::new())),
             BuiltinRule::new(Builtin::CommaParenthesisWhitespace(
                 comma_parenthesis_whitespace(build_dir),
             )),
             BuiltinRule::new(Builtin::AVsAn(a_vs_an(build_dir))),
-            BuiltinRule::new(Builtin::WordRepeat(word_repeat(build_dir, tokenizer))),
             BuiltinRule::new(Builtin::WrongWordInContext(wrong_word_in_context(
                 build_dir,
             ))),
+            BuiltinRule::new(Builtin::WordCoherency(word_coherency(build_dir))),
         ]),
         _ => Ok(Vec::new()),
     }
+}
+
+fn uppercase_sentence_start(build_dir: &Path) -> UppercaseSentenceStart {
+    UppercaseSentenceStart::new(read_list(build_dir, "uppercase_sentence_start_exceptions"))
 }
 
 fn comma_parenthesis_whitespace(build_dir: &Path) -> CommaParenthesisWhitespace {
@@ -87,6 +95,30 @@ fn word_repeat(build_dir: &Path, tokenizer: &Tokenizer) -> WordRepeat {
         .collect();
 
     WordRepeat::new(exceptions)
+}
+
+/// Reads the `other;spelling` pairs of words that admit two spellings.
+fn word_coherency(build_dir: &Path) -> WordCoherency {
+    let pairs = read_list(build_dir, "word_coherency")
+        .into_iter()
+        .filter_map(|line| {
+            // A trailing semicolon is allowed, as it is by the corresponding
+            // LanguageTool loader; anything else with the wrong number of
+            // fields is skipped.
+            let mut parts: Vec<&str> = line.split(';').collect();
+            while parts.last() == Some(&"") {
+                parts.pop();
+            }
+            if parts.len() == 2 {
+                Some((parts[0].to_owned(), parts[1].to_owned()))
+            } else {
+                warn!("Ignoring malformed word coherency line: {}", line);
+                None
+            }
+        })
+        .collect();
+
+    WordCoherency::new(pairs)
 }
 
 /// Reads a builtin data list from `<build_dir>/builtin/<name>.txt`. One entry

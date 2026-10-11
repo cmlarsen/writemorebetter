@@ -44,3 +44,10 @@ cp -r build/builtin-data/en/. data/en/builtin/
   the four patterns are Java regular expressions, translated to Rust `regex`
   syntax when the rules binary is compiled. Lines whose patterns cannot be
   translated are skipped and reported with their line number.
+- `word_coherency.txt` — pairs of admitted spellings of the same word (e.g.
+  `adviser;advisor`, `analyse;analyze`), one pair per line. Taken from
+  LanguageTool's `WordCoherencyRule` data. The English word-coherency builtin
+  flags the second spelling when a text mixes both spellings of a pair.
+- `uppercase_sentence_start_exceptions.txt` — tokens that may start a sentence
+  in lowercase without being an error, taken from the exceptions of the
+  corresponding capitalization rule. One token per line.

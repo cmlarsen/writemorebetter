@@ -25,10 +25,14 @@ pub enum Builtin {
     WordRepeat(en::WordRepeat),
     /// Flags a word that is easily confused with another one, based on context.
     WrongWordInContext(en::WrongWordInContext),
+    /// Flags a sentence that does not start with an uppercase letter.
+    UppercaseSentenceStart(en::UppercaseSentenceStart),
     /// Flags brackets that are never closed within a paragraph.
     UnpairedBrackets(en::UnpairedBrackets),
     /// Flags quotation marks that are never paired within a paragraph.
     UnpairedQuotes(en::UnpairedQuotes),
+    /// Flags a word whose spelling variant was already used earlier in the text.
+    WordCoherency(en::WordCoherency),
 }
 
 impl Builtin {
@@ -40,8 +44,10 @@ impl Builtin {
             Builtin::AVsAn(rule) => rule.id(),
             Builtin::WordRepeat(rule) => rule.id(),
             Builtin::WrongWordInContext(rule) => rule.id(),
+            Builtin::UppercaseSentenceStart(rule) => rule.id(),
             Builtin::UnpairedBrackets(rule) => rule.id(),
             Builtin::UnpairedQuotes(rule) => rule.id(),
+            Builtin::WordCoherency(rule) => rule.id(),
         }
     }
 
@@ -58,8 +64,10 @@ impl Builtin {
             Builtin::AVsAn(rule) => sentences.iter().flat_map(|x| rule.check(x)).collect(),
             Builtin::WordRepeat(rule) => sentences.iter().flat_map(|x| rule.check(x)).collect(),
             Builtin::WrongWordInContext(rule) => rule.check_sentences(sentences),
+            Builtin::UppercaseSentenceStart(rule) => rule.check(sentences),
             Builtin::UnpairedBrackets(rule) => rule.check(sentences),
             Builtin::UnpairedQuotes(rule) => rule.check(sentences),
+            Builtin::WordCoherency(rule) => rule.check_text(sentences),
         }
     }
 }

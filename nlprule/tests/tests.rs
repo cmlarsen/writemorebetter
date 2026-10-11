@@ -679,6 +679,495 @@ fn builtin_comma_is_wired_into_suggest() {
     assert_eq!(flagged.replacements(), &[",".to_string()]);
 }
 
+/// Runs the English word-coherency builtin through the full suggestion
+/// pipeline and returns the flagged text and the first replacement of every
+/// suggestion.
+fn builtin_word_coherency_flags(text: &str) -> Vec<(String, String)> {
+    let chars: Vec<char> = text.chars().collect();
+
+    RULES
+        .suggest(text, &*TOKENIZER)
+        .into_iter()
+        .filter(|suggestion| suggestion.source() == "BUILTIN/EN_WORD_COHERENCY")
+        .map(|suggestion| {
+            (
+                chars[suggestion.span().char().clone()].iter().collect(),
+                suggestion.replacements()[0].clone(),
+            )
+        })
+        .collect()
+}
+
+#[test]
+fn builtin_word_coherency_flags_second_spelling() {
+    // The example from the rule this builtin reimplements.
+    assert_eq!(
+        builtin_word_coherency_flags("He likes archaeology. Really? She likes archeology, too."),
+        vec![("archeology".to_string(), "archaeology".to_string())]
+    );
+}
+
+#[test]
+fn builtin_word_coherency_flags_adviser_after_advisor() {
+    assert_eq!(
+        builtin_word_coherency_flags("She was an adviser. Later the advisor arrived."),
+        vec![("advisor".to_string(), "adviser".to_string())]
+    );
+}
+
+#[test]
+fn builtin_word_coherency_flags_each_occurrence_of_the_second_spelling() {
+    assert_eq!(
+        builtin_word_coherency_flags(
+            "The advisor left. Then the adviser returned. Another adviser waved."
+        ),
+        vec![
+            ("adviser".to_string(), "advisor".to_string()),
+            ("adviser".to_string(), "advisor".to_string()),
+        ],
+    );
+}
+
+#[test]
+fn builtin_word_coherency_replaces_only_the_stem() {
+    // The plural keeps its ending: only the stem changes.
+    assert_eq!(
+        builtin_word_coherency_flags("The advisor arrived. Then two advisers came."),
+        vec![("advisers".to_string(), "advisors".to_string())]
+    );
+}
+
+#[test]
+fn builtin_word_coherency_capitalizes_the_replacement() {
+    assert_eq!(
+        builtin_word_coherency_flags("The advisors met. Then the Adviser left."),
+        vec![("Adviser".to_string(), "Advisor".to_string())]
+    );
+}
+
+#[test]
+fn builtin_word_coherency_flags_inside_curly_quotes() {
+    assert_eq!(
+        builtin_word_coherency_flags(
+            "\u{201c}advisor,\u{201d} she said, and later \u{201c}adviser.\u{201d}"
+        ),
+        vec![("adviser".to_string(), "advisor".to_string())]
+    );
+}
+
+#[test]
+fn builtin_word_coherency_flags_after_curly_apostrophe() {
+    assert_eq!(
+        builtin_word_coherency_flags("Marta\u{2019}s advisor and Marta\u{2019}s adviser."),
+        vec![("adviser".to_string(), "advisor".to_string())]
+    );
+}
+
+#[test]
+fn builtin_word_coherency_flags_across_em_dash() {
+    // The em dash joins neighbouring words into one token, which must not stop
+    // the other variant from being recognised.
+    assert_eq!(
+        builtin_word_coherency_flags(
+            "The advisor waited\u{2014}impatiently\u{2014}for the adviser."
+        ),
+        vec![("adviser".to_string(), "advisor".to_string())]
+    );
+}
+
+#[test]
+fn builtin_word_coherency_flags_across_u2028() {
+    // U+2028 is whitespace inside a paragraph, so both sentences share state.
+    assert_eq!(
+        builtin_word_coherency_flags("The advisor waited.\u{2028}Then the adviser came."),
+        vec![("adviser".to_string(), "advisor".to_string())]
+    );
+}
+
+#[test]
+fn builtin_word_coherency_flags_across_sentences() {
+    assert_eq!(
+        builtin_word_coherency_flags("The advisor waited. Then the adviser came."),
+        vec![("adviser".to_string(), "advisor".to_string())]
+    );
+}
+
+#[test]
+fn builtin_word_coherency_ignores_a_single_spelling() {
+    assert!(builtin_word_coherency_flags("The advisor advised the advisors.").is_empty());
+}
+
+#[test]
+fn builtin_word_coherency_ignores_variants_across_paragraphs() {
+    // Documented limitation: the engine checks one paragraph at a time, so
+    // variants used in different paragraphs are not compared.
+    assert!(builtin_word_coherency_flags("The advisor left.\n\nThe adviser arrived.").is_empty());
+}
+
+#[test]
+fn builtin_word_coherency_ignores_fiction_prose() {
+    for text in &[
+        "\u{201c}I didn\u{2019}t know,\u{201d} she said. \u{201c}Weren\u{2019}t you there?\u{201d}",
+        "\u{2018}Doesn\u{2019}t matter,\u{2019} he said.",
+        "He opened the door\u{2014}then stopped. It was quiet\u{2014}too quiet.",
+        "It wasn\u{2019}t Marta\u{2019}s coat, and it wasn\u{2019}t her hat.",
+        "She waited\u{2026} and waited.",
+        "She waited.\u{2028}Nothing came.",
+        "The sign read \u{201c}no entry\u{201d}, and she obeyed.",
+        "The adviser nodded. She was a good adviser, the best adviser in town.",
+    ] {
+        assert!(
+            builtin_word_coherency_flags(text).is_empty(),
+            "unexpected flags for {:?}: {:?}",
+            text,
+            builtin_word_coherency_flags(text)
+        );
+    }
+}
+
+#[test]
+fn builtin_word_coherency_is_wired_into_suggest() {
+    let suggestions = RULES.suggest(
+        "She was an adviser. Later the advisor arrived.",
+        &*TOKENIZER,
+    );
+    let flagged = suggestions
+        .iter()
+        .find(|suggestion| suggestion.source() == "BUILTIN/EN_WORD_COHERENCY")
+        .expect("the mixed spelling is flagged");
+    assert_eq!(flagged.replacements(), &["adviser".to_string()]);
+}
+/// Runs the English unpaired-bracket and unpaired-quote builtins on one
+/// paragraph and returns the rule id and flagged character of every suggestion.
+fn builtin_unpaired_flags(text: &str) -> Vec<(String, String)> {
+    let sentences: Vec<_> = TOKENIZER.pipe(text).collect();
+    let chars: Vec<char> = text.chars().collect();
+
+    RULES
+        .builtins()
+        .iter()
+        .flat_map(|rule| rule.builtin().check_text(&sentences))
+        .filter(|suggestion| {
+            suggestion.source() == "BUILTIN/EN_UNPAIRED_BRACKETS"
+                || suggestion.source() == "BUILTIN/EN_UNPAIRED_QUOTES"
+        })
+        .map(|suggestion| {
+            (
+                suggestion.source().to_owned(),
+                chars[suggestion.span().char().clone()].iter().collect(),
+            )
+        })
+        .collect()
+}
+
+fn bracket_flag(sym: &str) -> (String, String) {
+    ("BUILTIN/EN_UNPAIRED_BRACKETS".to_string(), sym.to_string())
+}
+
+fn quote_flag(sym: &str) -> (String, String) {
+    ("BUILTIN/EN_UNPAIRED_QUOTES".to_string(), sym.to_string())
+}
+
+#[test]
+fn builtin_unpaired_brackets_flags_unclosed_open() {
+    assert_eq!(
+        builtin_unpaired_flags("He lived in a (large house."),
+        vec![bracket_flag("(")]
+    );
+}
+
+#[test]
+fn builtin_unpaired_brackets_flags_stray_close() {
+    assert_eq!(
+        builtin_unpaired_flags("The list was ] empty."),
+        vec![bracket_flag("]")]
+    );
+}
+
+#[test]
+fn builtin_unpaired_brackets_ignores_balanced() {
+    assert!(builtin_unpaired_flags("The list ( a, b ) and [ c ] and { d } is done.").is_empty());
+}
+
+#[test]
+fn builtin_unpaired_brackets_ignores_list_markers() {
+    assert!(builtin_unpaired_flags("a) first item. b) second item.").is_empty());
+}
+
+#[test]
+fn builtin_unpaired_brackets_ignores_smileys() {
+    assert!(builtin_unpaired_flags("That is funny :) and this is sad :(").is_empty());
+}
+
+#[test]
+fn builtin_unpaired_brackets_pair_across_sentences() {
+    assert!(builtin_unpaired_flags("He came in (the door was open. He sat down).").is_empty());
+}
+
+#[test]
+fn builtin_unpaired_quotes_ignores_balanced_dialogue() {
+    assert!(builtin_unpaired_flags(
+        "\u{201c}Hello,\u{201d} she said. \u{201c}Goodbye,\u{201d} he said."
+    )
+    .is_empty());
+}
+
+#[test]
+fn builtin_unpaired_quotes_ignores_curly_apostrophes() {
+    // don’t, Marta’s, the Joneses’, ’90s and rock ’n’ roll are apostrophes.
+    assert!(builtin_unpaired_flags(
+        "\u{201c}I don\u{2019}t know Marta\u{2019}s name,\u{201d} she said. \
+         The Joneses\u{2019} house. In the \u{2019}90s, rock \u{2019}n\u{2019} roll."
+    )
+    .is_empty());
+}
+
+#[test]
+fn builtin_unpaired_quotes_ignores_nested_single_quotes() {
+    // The single quotes pair inside the enclosing double quote.
+    assert!(builtin_unpaired_flags(
+        "\u{201c}Everyone is \u{2018}reasonable\u{2019}, and the water keeps rising.\u{201d}"
+    )
+    .is_empty());
+}
+
+#[test]
+fn builtin_unpaired_quotes_pair_across_sentences() {
+    assert!(
+        builtin_unpaired_flags("\u{201c}I went home. Then I slept,\u{201d} she said.").is_empty()
+    );
+}
+
+#[test]
+fn builtin_unpaired_quotes_ignores_unclosed_opening() {
+    // An opening mark still open at the end of the paragraph may continue in
+    // the next paragraph, so it is left alone (conservative choice).
+    assert!(builtin_unpaired_flags("\u{201c}I went home. Then I slept.").is_empty());
+}
+
+#[test]
+fn builtin_unpaired_quotes_flags_stray_closing_double() {
+    assert_eq!(
+        builtin_unpaired_flags("\u{201c}Hello,\u{201d} she said.\u{201d}"),
+        vec![quote_flag("\u{201d}")]
+    );
+}
+
+#[test]
+fn builtin_unpaired_quotes_flags_stray_closing_single() {
+    assert_eq!(
+        builtin_unpaired_flags("\u{2018}Hello,\u{2019} she said.\u{2019}"),
+        vec![quote_flag("\u{2019}")]
+    );
+}
+
+#[test]
+fn builtin_unpaired_ignores_fiction_punctuation() {
+    assert!(builtin_unpaired_flags(
+        "The door\u{2014}then the room\u{2026} \u{201c}Done,\u{201d} he said.\u{2028}\
+         \u{201c}Really?\u{201d} she asked. He (finally) left [ and ] and { stayed }."
+    )
+    .is_empty());
+}
+
+#[test]
+fn builtin_unpaired_pairs_across_u2028() {
+    assert!(builtin_unpaired_flags("He said (hello\u{2028}world).").is_empty());
+    assert!(builtin_unpaired_flags("\u{201c}one\u{2028}two\u{201d}").is_empty());
+}
+
+#[test]
+fn builtin_unpaired_is_wired_into_suggest() {
+    let suggestions = RULES.suggest("He lived in a (large house.", &*TOKENIZER);
+    let flagged = suggestions
+        .iter()
+        .find(|suggestion| suggestion.source() == "BUILTIN/EN_UNPAIRED_BRACKETS")
+        .expect("unclosed bracket is flagged");
+    assert!(flagged.replacements().is_empty());
+}
+
+#[test]
+fn builtin_unpaired_brackets_sees_symbols_merged_into_words() {
+    // The tokenizer produces "[eBook", "_quietly_." and "_)" etc. as single
+    // tokens; the rule still sees the bracket characters inside them.
+    assert!(builtin_unpaired_flags("See [eBook #2701] here.").is_empty());
+    assert!(builtin_unpaired_flags("He left (_quietly_.) and came back.").is_empty());
+}
+
+#[test]
+fn builtin_unpaired_quotes_sees_mark_merged_into_word() {
+    // "_x“" and "y”_z" are single tokens; the marks still pair.
+    assert!(builtin_unpaired_flags("The marks _x\u{201c} and y\u{201d}_z balance.").is_empty());
+}
+
+#[test]
+fn builtin_unpaired_brackets_flags_unclosed_open_after_word() {
+    assert_eq!(
+        builtin_unpaired_flags("He left (quietly and came back."),
+        vec![bracket_flag("(")]
+    );
+}
+
+/// Runs the uppercase-sentence-start builtin over the paragraphs of `text` and
+/// returns the flagged text and the first replacement of every suggestion.
+fn builtin_uppercase_sentence_start_flags(text: &str) -> Vec<(String, String)> {
+    let chars: Vec<char> = text.chars().collect();
+    let mut flags = Vec::new();
+    let mut paragraph: Vec<nlprule::types::Sentence<'_>> = Vec::new();
+
+    for sentence in TOKENIZER.pipe(text) {
+        let ends_paragraph = sentence.text().contains('\n');
+        paragraph.push(sentence);
+
+        if ends_paragraph {
+            flags.extend(uppercase_sentence_start_flags(&paragraph, &chars));
+            paragraph.clear();
+        }
+    }
+    flags.extend(uppercase_sentence_start_flags(&paragraph, &chars));
+    flags
+}
+
+fn uppercase_sentence_start_flags(
+    paragraph: &[nlprule::types::Sentence<'_>],
+    chars: &[char],
+) -> Vec<(String, String)> {
+    RULES
+        .builtins()
+        .iter()
+        .flat_map(|rule| rule.builtin().check_text(paragraph))
+        .filter(|suggestion| suggestion.source() == "BUILTIN/UPPERCASE_SENTENCE_START")
+        .map(|suggestion| {
+            (
+                chars[suggestion.span().char().clone()].iter().collect(),
+                suggestion.replacements()[0].clone(),
+            )
+        })
+        .collect()
+}
+
+#[test]
+fn builtin_uppercase_sentence_start_flags_simple() {
+    assert_eq!(
+        builtin_uppercase_sentence_start_flags("this is wrong. Also fine."),
+        vec![("this".to_string(), "This".to_string())]
+    );
+}
+
+#[test]
+fn builtin_uppercase_sentence_start_flags_curly_apostrophe() {
+    assert_eq!(
+        builtin_uppercase_sentence_start_flags("don\u{2019}t go there."),
+        vec![("don".to_string(), "Don".to_string())]
+    );
+}
+
+#[test]
+fn builtin_uppercase_sentence_start_flags_across_u2028() {
+    // U+2028 is whitespace inside a paragraph, so the second sentence is still
+    // checked against the first one.
+    assert_eq!(
+        builtin_uppercase_sentence_start_flags("Good.\u{2028}bad start here."),
+        vec![("bad".to_string(), "Bad".to_string())]
+    );
+}
+
+#[test]
+fn builtin_uppercase_sentence_start_ignores_dialogue_tag_after_comma() {
+    // "she" follows a closing quote after a comma inside the quote and does not
+    // start a new sentence.
+    assert!(builtin_uppercase_sentence_start_flags(
+        "\u{201c}I don\u{2019}t know,\u{201d} she said."
+    )
+    .is_empty());
+}
+
+#[test]
+fn builtin_uppercase_sentence_start_ignores_dialogue_tag_after_question() {
+    assert!(builtin_uppercase_sentence_start_flags("\u{201c}Where?\u{201d} he asked.").is_empty());
+}
+
+#[test]
+fn builtin_uppercase_sentence_start_ignores_dialogue_tag_after_exclamation() {
+    assert!(
+        builtin_uppercase_sentence_start_flags("\u{201c}Stop!\u{201d} she shouted.").is_empty()
+    );
+}
+
+#[test]
+fn builtin_uppercase_sentence_start_ignores_ellipsis_continuation() {
+    // The sentence splitter treats the ellipsis as a boundary, but "maybe"
+    // continues the sentence.
+    assert!(builtin_uppercase_sentence_start_flags(
+        "\u{201c}I thought\u{2026} maybe not.\u{201d} She shrugged."
+    )
+    .is_empty());
+    assert!(builtin_uppercase_sentence_start_flags("She waited\u{2026} and waited.").is_empty());
+}
+
+#[test]
+fn builtin_uppercase_sentence_start_ignores_em_dash() {
+    // The em dash joins words into a single token, so "then" is not a sentence
+    // start.
+    assert!(
+        builtin_uppercase_sentence_start_flags("He opened the door\u{2014}then stopped.")
+            .is_empty()
+    );
+}
+
+#[test]
+fn builtin_uppercase_sentence_start_ignores_number_start() {
+    assert!(
+        builtin_uppercase_sentence_start_flags("42 apples were on the table. 3.14 is pi.")
+            .is_empty()
+    );
+}
+
+#[test]
+fn builtin_uppercase_sentence_start_ignores_quoted_capital() {
+    assert!(builtin_uppercase_sentence_start_flags("\u{201c}Hello,\u{201d} she said.").is_empty());
+}
+
+#[test]
+fn builtin_uppercase_sentence_start_ignores_camel_case() {
+    // "iPhone" and "eBay" start lowercase but are not errors.
+    assert!(builtin_uppercase_sentence_start_flags("iPhone sales rose. eBay is fine.").is_empty());
+}
+
+#[test]
+fn builtin_uppercase_sentence_start_ignores_exceptions() {
+    assert!(builtin_uppercase_sentence_start_flags("pH matters here. x86 is old.").is_empty());
+}
+
+#[test]
+fn builtin_uppercase_sentence_start_ignores_correct_fiction_prose() {
+    for text in &[
+        "\u{201c}I didn\u{2019}t know,\u{201d} she said. \u{201c}Weren\u{2019}t you there?\u{201d}",
+        "\u{2018}Doesn\u{2019}t matter,\u{2019} he said.",
+        "He opened the door\u{2014}then stopped. It was quiet\u{2014}too quiet.",
+        "Pages 10\u{2013}12 were missing\u{2013}or torn out.",
+        "She waited\u{2026} and waited.",
+        "Marta\u{2019}s letter arrived. She read it slowly.",
+        "She waited.\u{2028}Nothing came.",
+        "The lighthouse blinked\u{2026} then went dark.",
+    ] {
+        assert!(
+            builtin_uppercase_sentence_start_flags(text).is_empty(),
+            "{}",
+            text
+        );
+    }
+}
+
+#[test]
+fn builtin_uppercase_sentence_start_is_wired_into_suggest() {
+    let suggestions = RULES.suggest("tomorrow we sail.", &*TOKENIZER);
+    let flagged = suggestions
+        .iter()
+        .find(|suggestion| suggestion.source() == "BUILTIN/UPPERCASE_SENTENCE_START")
+        .expect("lowercase sentence start is flagged");
+    assert_eq!(flagged.replacements(), &["Tomorrow".to_string()]);
+}
 /// Runs the English wrong-word-in-context builtin through the full suggestion
 /// pipeline and returns the flagged text and the first replacement of every
 /// suggestion.
@@ -688,7 +1177,7 @@ fn builtin_wrong_word_flags(text: &str) -> Vec<(String, String)> {
     RULES
         .suggest(text, &*TOKENIZER)
         .into_iter()
-        .filter(|suggestion| suggestion.source() == "BUILTIN/EN_WRONG_WORD_IN_CONTEXT")
+        .filter(|suggestion| suggestion.source() == "BUILTIN/ENGLISH_WRONG_WORD_IN_CONTEXT")
         .map(|suggestion| {
             (
                 chars[suggestion.span().char().clone()].iter().collect(),
@@ -868,178 +1357,7 @@ fn builtin_wrong_word_is_wired_into_suggest() {
     );
     let flagged = suggestions
         .iter()
-        .find(|suggestion| suggestion.source() == "BUILTIN/EN_WRONG_WORD_IN_CONTEXT")
+        .find(|suggestion| suggestion.source() == "BUILTIN/ENGLISH_WRONG_WORD_IN_CONTEXT")
         .expect("the confused word is flagged");
     assert_eq!(flagged.replacements(), &["prescribed".to_string()]);
-}
-
-/// Runs the English unpaired-bracket and unpaired-quote builtins on one
-/// paragraph and returns the rule id and flagged character of every suggestion.
-fn builtin_unpaired_flags(text: &str) -> Vec<(String, String)> {
-    let sentences: Vec<_> = TOKENIZER.pipe(text).collect();
-    let chars: Vec<char> = text.chars().collect();
-
-    RULES
-        .builtins()
-        .iter()
-        .flat_map(|rule| rule.builtin().check_text(&sentences))
-        .filter(|suggestion| {
-            suggestion.source() == "BUILTIN/EN_UNPAIRED_BRACKETS"
-                || suggestion.source() == "BUILTIN/EN_UNPAIRED_QUOTES"
-        })
-        .map(|suggestion| {
-            (
-                suggestion.source().to_owned(),
-                chars[suggestion.span().char().clone()].iter().collect(),
-            )
-        })
-        .collect()
-}
-
-fn bracket_flag(sym: &str) -> (String, String) {
-    ("BUILTIN/EN_UNPAIRED_BRACKETS".to_string(), sym.to_string())
-}
-
-fn quote_flag(sym: &str) -> (String, String) {
-    ("BUILTIN/EN_UNPAIRED_QUOTES".to_string(), sym.to_string())
-}
-
-#[test]
-fn builtin_unpaired_brackets_flags_unclosed_open() {
-    assert_eq!(
-        builtin_unpaired_flags("He lived in a (large house."),
-        vec![bracket_flag("(")]
-    );
-}
-
-#[test]
-fn builtin_unpaired_brackets_flags_stray_close() {
-    assert_eq!(
-        builtin_unpaired_flags("The list was ] empty."),
-        vec![bracket_flag("]")]
-    );
-}
-
-#[test]
-fn builtin_unpaired_brackets_ignores_balanced() {
-    assert!(builtin_unpaired_flags("The list ( a, b ) and [ c ] and { d } is done.").is_empty());
-}
-
-#[test]
-fn builtin_unpaired_brackets_ignores_list_markers() {
-    assert!(builtin_unpaired_flags("a) first item. b) second item.").is_empty());
-}
-
-#[test]
-fn builtin_unpaired_brackets_ignores_smileys() {
-    assert!(builtin_unpaired_flags("That is funny :) and this is sad :(").is_empty());
-}
-
-#[test]
-fn builtin_unpaired_brackets_pair_across_sentences() {
-    assert!(builtin_unpaired_flags("He came in (the door was open. He sat down).").is_empty());
-}
-
-#[test]
-fn builtin_unpaired_quotes_ignores_balanced_dialogue() {
-    assert!(builtin_unpaired_flags(
-        "\u{201c}Hello,\u{201d} she said. \u{201c}Goodbye,\u{201d} he said."
-    )
-    .is_empty());
-}
-
-#[test]
-fn builtin_unpaired_quotes_ignores_curly_apostrophes() {
-    // don’t, Marta’s, the Joneses’, ’90s and rock ’n’ roll are apostrophes.
-    assert!(builtin_unpaired_flags(
-        "\u{201c}I don\u{2019}t know Marta\u{2019}s name,\u{201d} she said. \
-         The Joneses\u{2019} house. In the \u{2019}90s, rock \u{2019}n\u{2019} roll."
-    )
-    .is_empty());
-}
-
-#[test]
-fn builtin_unpaired_quotes_ignores_nested_single_quotes() {
-    // The single quotes pair inside the enclosing double quote.
-    assert!(builtin_unpaired_flags(
-        "\u{201c}Everyone is \u{2018}reasonable\u{2019}, and the water keeps rising.\u{201d}"
-    )
-    .is_empty());
-}
-
-#[test]
-fn builtin_unpaired_quotes_pair_across_sentences() {
-    assert!(
-        builtin_unpaired_flags("\u{201c}I went home. Then I slept,\u{201d} she said.").is_empty()
-    );
-}
-
-#[test]
-fn builtin_unpaired_quotes_ignores_unclosed_opening() {
-    // An opening mark still open at the end of the paragraph may continue in
-    // the next paragraph, so it is left alone (conservative choice).
-    assert!(builtin_unpaired_flags("\u{201c}I went home. Then I slept.").is_empty());
-}
-
-#[test]
-fn builtin_unpaired_quotes_flags_stray_closing_double() {
-    assert_eq!(
-        builtin_unpaired_flags("\u{201c}Hello,\u{201d} she said.\u{201d}"),
-        vec![quote_flag("\u{201d}")]
-    );
-}
-
-#[test]
-fn builtin_unpaired_quotes_flags_stray_closing_single() {
-    assert_eq!(
-        builtin_unpaired_flags("\u{2018}Hello,\u{2019} she said.\u{2019}"),
-        vec![quote_flag("\u{2019}")]
-    );
-}
-
-#[test]
-fn builtin_unpaired_ignores_fiction_punctuation() {
-    assert!(builtin_unpaired_flags(
-        "The door\u{2014}then the room\u{2026} \u{201c}Done,\u{201d} he said.\u{2028}\
-         \u{201c}Really?\u{201d} she asked. He (finally) left [ and ] and { stayed }."
-    )
-    .is_empty());
-}
-
-#[test]
-fn builtin_unpaired_pairs_across_u2028() {
-    assert!(builtin_unpaired_flags("He said (hello\u{2028}world).").is_empty());
-    assert!(builtin_unpaired_flags("\u{201c}one\u{2028}two\u{201d}").is_empty());
-}
-
-#[test]
-fn builtin_unpaired_is_wired_into_suggest() {
-    let suggestions = RULES.suggest("He lived in a (large house.", &*TOKENIZER);
-    let flagged = suggestions
-        .iter()
-        .find(|suggestion| suggestion.source() == "BUILTIN/EN_UNPAIRED_BRACKETS")
-        .expect("unclosed bracket is flagged");
-    assert!(flagged.replacements().is_empty());
-}
-
-#[test]
-fn builtin_unpaired_brackets_sees_symbols_merged_into_words() {
-    // The tokenizer produces "[eBook", "_quietly_." and "_)" etc. as single
-    // tokens; the rule still sees the bracket characters inside them.
-    assert!(builtin_unpaired_flags("See [eBook #2701] here.").is_empty());
-    assert!(builtin_unpaired_flags("He left (_quietly_.) and came back.").is_empty());
-}
-
-#[test]
-fn builtin_unpaired_quotes_sees_mark_merged_into_word() {
-    // "_x“" and "y”_z" are single tokens; the marks still pair.
-    assert!(builtin_unpaired_flags("The marks _x\u{201c} and y\u{201d}_z balance.").is_empty());
-}
-
-#[test]
-fn builtin_unpaired_brackets_flags_unclosed_open_after_word() {
-    assert_eq!(
-        builtin_unpaired_flags("He left (quietly and came back."),
-        vec![bracket_flag("(")]
-    );
 }

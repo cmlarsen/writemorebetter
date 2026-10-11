@@ -230,32 +230,38 @@ impl DisambiguationRule {
                     sentence_before == sentence_after
                 }
                 disambiguation::DisambiguationExample::Changed(change) => {
-                    let _before = sentence_before
+                    let before = sentence_before
                         .iter()
-                        .find(|x| *x.span().char() == change.char_span)
-                        .unwrap();
-
+                        .find(|x| *x.span().char() == change.char_span);
                     let after = sentence_after
                         .iter()
-                        .find(|x| *x.span().char() == change.char_span)
-                        .unwrap();
+                        .find(|x| *x.span().char() == change.char_span);
 
-                    let unordered_tags = after
-                        .word()
-                        .tags()
-                        .iter()
-                        .map(|x| x.to_owned_word_data())
-                        .collect::<HashSet<owned::WordData>>();
-                    // need references to compare
-                    let unordered_tags: HashSet<_> = unordered_tags.iter().collect();
-                    let unordered_tags_change = change
-                        .after
-                        .tags
-                        .iter()
-                        .collect::<HashSet<&owned::WordData>>();
+                    // The tokenizer may split the example text differently from
+                    // the marker the rule author used (e.g. "ain't" becomes
+                    // "ain" + "'" + "t" instead of "ai" + "n't"). LT still runs
+                    // the example, so report it as a failure instead of
+                    // panicking on the missing token.
+                    if let (Some(_before), Some(after)) = (before, after) {
+                        let unordered_tags = after
+                            .word()
+                            .tags()
+                            .iter()
+                            .map(|x| x.to_owned_word_data())
+                            .collect::<HashSet<owned::WordData>>();
+                        // need references to compare
+                        let unordered_tags: HashSet<_> = unordered_tags.iter().collect();
+                        let unordered_tags_change = change
+                            .after
+                            .tags
+                            .iter()
+                            .collect::<HashSet<&owned::WordData>>();
 
-                    after.word().as_str() == change.after.text.as_ref_id().as_str()
-                        && unordered_tags == unordered_tags_change
+                        after.word().as_str() == change.after.text.as_ref_id().as_str()
+                            && unordered_tags == unordered_tags_change
+                    } else {
+                        false
+                    }
                 }
             };
 
