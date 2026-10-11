@@ -219,3 +219,108 @@ sentencizer are small data files that build large in-memory structures at load (
 dense DFA and 85 compiled regexes, respectively). The rules' 23–30 MB is almost entirely the
 grammar-rule engines; the ~7 MB swing between `--all-features` and the default onig build is the
 inline `OnceCell` slot in every lazily-cached `Regex` growing to hold a `fancy_regex::Regex`.
+
+---
+
+# M2H: cutting the grammar-rule memory
+
+Measured 2026-10-11 on the same Apple Silicon MacBook, `--all-features` (both regex backends) and
+`PROFILE=fiction SPELL=en_US` for the peaks. This section supersedes the rule numbers above for the
+current tree; the tokenizer numbers above still hold.
+
+## What changed
+
+The loaded rules were dominated by the per-rule matcher engine, not the metadata. The changes
+(`perf(rules)` commits) shrink the engine without changing matching:
+
+- `Matcher.matcher` was `Either<Either<String, GraphId>, Regex>` (48 B); it is now a compact
+  `MatcherKind { Text(Box<str>), Graph(GraphId), Regex(Box<Regex>) }` (32 B). `Atom` 128 → 80 B and
+  `Part` 152 → 96 B, so the ~139k pattern atoms in the LT 6.6 rules each cost 56 B less inline.
+- `TextMatcher.set` was `HashSet<WordIdInt>` (48 B inline + a table per set); it is a sorted
+  `Box<[WordIdInt]>` with binary-search membership (16 B + one slice). 276k ids in 30k sets.
+- `Composition.id_to_idx` was a `HashMap<GraphId, usize>` (~30 B/entry, one table per composition);
+  it is a `Vec<u32>` (`u32::MAX` = absent). 179k entries in 44k compositions.
+- `Quantifier` is `u32` rather than `usize`.
+- `Regex` pattern strings are interned in a process-wide pool: 76% of the 5.56 MB of pattern bytes
+  are duplicates, so interning cuts the pattern heap to the 1.33 MB of distinct patterns.
+- `Rule::examples` (22k examples) is kept as a lazily parsed bincode blob; the running engine never
+  materializes the `Example` structs, and the rule-test binaries parse it on demand.
+- `RULES_FORMAT_VERSION` → 4, `TOKENIZER_FORMAT_VERSION` → 2 (the engine types are shared by the
+  tokenizer's disambiguation rules).
+
+## Before / after
+
+"Before" is `origin/main` at the merge base (`11b63ae`, after the M4I merge); the pre-merge
+`352799c` numbers are shown too because the field breakdown below was first measured there.
+
+| binary | rules_full before (11b63ae) | rules_full after | peak before | peak after |
+|---|---:|---:|---:|---:|
+| LT 6.6 | 81.5 MB | **58.2 MB** | 160.7 MB | **135.1 MB** |
+| LT 5.2 | 47.4 MB | **37.1 MB** | 109.5 MB | **96.3 MB** |
+
+| binary | rules_full (352799c) | rules_full after | peak (352799c) | peak after |
+|---|---:|---:|---:|---:|
+| LT 6.6 | 68.2 MB | **58.2 MB** | 144.1 MB | **135.1 MB** |
+| LT 5.2 | 34.7 MB | **37.1 MB*** | 97.1 MB | **96.3 MB** |
+
+\* the 5.2 rules_full grew slightly because the merged tree compiles ~48 more rules than `352799c`
+(4,334 vs 4,286); against its own base (`11b63ae`, 47.4 MB) it drops 10.3 MB.
+
+Load time for the rules grew a little (6.6 47.5 → 63.9 ms, 5.2 26.2 → 35.9 ms) from interning the
+pattern strings; check time is unchanged within noise (6.6 3.95 → 4.57 s, 5.2 3.27 → 3.41 s on a
+loaded machine). Memory is the point; the timings are reported for completeness.
+
+## Part 1: the per-field breakdown
+
+The memory probe now blanks one serialized part of `Rule`/`Engine` at a time inside the full
+`Rules` (`rules_no_gr_*`) and reports `in-context = rules_full − blanked`, plus the serialized size
+of the blanked part. LT 6.6, in-context MB:
+
+| field | serialized (before) | in-context (before) | serialized (after) | in-context (after) |
+|---|---:|---:|---:|---:|
+| engine (whole) | 20.39 | 49.77 | 16.89 | 30.23 |
+| examples | 2.71 | 6.59 | 2.78 | 2.70 |
+| message synthesizer | 0.56 | 1.67 | 0.57 | 1.44 |
+| suggesters | 0.32 | 1.80 | 0.33 | 1.42 |
+| strings (name/url/cat) | 0.42 | 0.45 | 0.43 | 0.34 |
+| id (rule index) | 0.13 | 0.16 | 0.13 | 0.17 |
+| unification / filter | 0.02 | ~0 | 0.02 | ~0 |
+| — antipatterns | 15.58 | 39.36 | 12.60 | 23.14 |
+| — composition parts | 16.45 | 39.72 | 15.09 | 25.17 |
+| — composition id_to_idx | 2.86 | 5.30 | 0.72 | 1.02 |
+| — composition can_stop_mask | 0.14 | 0.66 | 0.14 | 0.52 |
+| — part atoms | 13.25 | 17.69 | 12.99 | 11.98 |
+| — all regex strings | 5.58 | 6.20 | 5.59 | 2.17 |
+| — matcher strings | 0.33 | 1.14 | 0.33 | 1.25 |
+| — text-matcher sets | 1.35 | 2.62 | 1.35 | 1.30 |
+
+The "before" column is `352799c` (the same probe); the nested rows overlap, and the ~±1 MB
+residual is RSS noise, so treat them as attribution, not a partition. The two facts the table
+establishes: (1) the antipattern compositions are ~80% of the engine, and (2) most of their cost is
+the inline `Vec<Part>` and its atom heap, which is why the struct shrinks above pay off.
+
+Structural counts for the LT 6.6 rules (printed by `memory_probe::describe`): 6,031 rules, 44,196
+token compositions, 139,133 parts (117,194 of them antipattern), 179,020 `id_to_idx` entries,
+40,419 regexes, 30,116 text-matcher sets holding 276,524 ids, 22,474 examples. `size_of::<Part>()`
+152 → 96 B, `Atom` 128 → 80, `TextMatcher` 96 → 48, `Matcher` 48 → 32.
+
+## Identity and conformance
+
+`SHOW=1 PROFILE=default SPELL=en_US` output over `bench/public/story1..5` and Moby-Dick's first
+150 KB is byte-identical before/after (all 12 files, 5.2 and 6.6). `test --list-passing` and
+`test_disambiguation` are unchanged and match the CI floors exactly: 6.6 5,959/6,031 grammar and
+1,011 disambiguation, 5.2 4,319/4,334 and 843. Public recall meets the floors (6.6 55/60, 5.2
+54/60). `cargo fmt --check`, clippy, and `cargo test --workspace --exclude nlprule-python
+--all-features --release` pass.
+
+## Not reached, and what is left
+
+The target was 6.6 `rules_full` < 35 MB and peak < 100 MB; the result is 58.2 MB / 135.1 MB. The
+remaining 6.6 engine (~30 MB in-context) is now mostly the antipattern `Vec<Part>` (139k parts at
+96 B ≈ 13 MB inline) and the atom heap (~12 MB: the interned regex strings 2.2, matcher strings
+1.3, text-matcher sets 1.3, and the rest the boxed `Regex` structs and `PosMatcher` masks). Getting
+under 35 MB needs a different representation, not more field shrinking: either boxing every large
+`Atom` payload so `Part` is one word (worth ~4–5 MB after allocator overhead), or flattening the
+matchers into a per-`Rules` interned table addressed by `u32` so the inline `Matcher`/`TextMatcher`
+and the 5.6 MB of duplicated pattern bytes disappear (worth ~10 MB). Both are larger, riskier
+changes than the ones above and were left out of this pass.
