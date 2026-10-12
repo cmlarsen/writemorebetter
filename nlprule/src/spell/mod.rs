@@ -3,7 +3,7 @@ use fst::{IntoStreamer, Map, Streamer};
 use serde::{Deserialize, Serialize};
 use std::{
     cmp::Ordering,
-    collections::{BinaryHeap, HashSet},
+    collections::{BTreeSet, BinaryHeap, HashSet},
     ops::{Deref, DerefMut},
 };
 use unicode_categories::UnicodeCategories;
@@ -193,6 +193,175 @@ impl Variant {
     }
 }
 
+/// The user dictionary: words a caller adds at runtime so the speller accepts them (character
+/// names, invented places, coinages). Kept on [`Spell`] but never serialized into a rules
+/// binary; the caller owns persistence and re-adds the words after loading.
+///
+/// Entries are canonicalized by trimming, collapsing interior whitespace, and mapping curly
+/// apostrophes to straight ones, so listing is stable and matching is apostrophe-insensitive.
+#[derive(Debug, Clone, Default)]
+pub(crate) struct UserWords {
+    entries: BTreeSet<String>,
+}
+
+impl UserWords {
+    /// Canonicalizes one entry. `None` for an entry with no content.
+    fn canonicalize(word: &str) -> Option<String> {
+        let collapsed = word.split_whitespace().collect::<Vec<_>>().join(" ");
+        if collapsed.is_empty() {
+            None
+        } else {
+            Some(collapsed.replace('\u{2019}', "'"))
+        }
+    }
+
+    fn insert(&mut self, word: &str) -> bool {
+        Self::canonicalize(word).is_some_and(|word| self.entries.insert(word))
+    }
+
+    fn remove(&mut self, word: &str) -> bool {
+        Self::canonicalize(word).is_some_and(|word| self.entries.remove(&word))
+    }
+}
+
+/// Splits a user entry the way the tokenizer splits an unknown word: on whitespace and the
+/// splitting characters (which include both apostrophes), keeping every non-whitespace
+/// separator because each becomes its own token, e.g. `"Zar'khan"` -> `["Zar", "'", "khan"]`
+/// and `"St. Petersburg"` -> `["St", ".", "Petersburg"]`.
+fn token_pieces(entry: &str) -> Vec<String> {
+    let split_chars = crate::utils::splitting_chars();
+    let mut pieces = Vec::new();
+    let mut last = 0;
+
+    for (index, matched) in
+        entry.match_indices(|c: char| c.is_whitespace() || split_chars.contains(c))
+    {
+        if last != index {
+            pieces.push(entry[last..index].to_owned());
+        }
+        if !matched.chars().all(|c| c.is_whitespace()) {
+            pieces.push(matched.to_owned());
+        }
+        last = index + matched.len();
+    }
+
+    if last < entry.len() {
+        pieces.push(entry[last..].to_owned());
+    }
+
+    pieces
+}
+
+/// Expands a token-piece list into variants where each apostrophe token is straight or curly, so
+/// that an entry added with a straight apostrophe also accepts the curly spelling. The expansion
+/// is capped so an entry with many apostrophes cannot blow up.
+fn continuation_variants(pieces: &[String]) -> Vec<Vec<String>> {
+    let mut variants: Vec<Vec<String>> = vec![Vec::new()];
+
+    for piece in pieces {
+        if piece == "'" && variants.len() < 4 {
+            let mut expanded = Vec::with_capacity(variants.len() * 2);
+            for variant in &variants {
+                let mut straight = variant.clone();
+                straight.push("'".to_owned());
+                expanded.push(straight);
+
+                let mut curly = variant.clone();
+                curly.push("\u{2019}".to_owned());
+                expanded.push(curly);
+            }
+            variants = expanded;
+        } else {
+            for variant in &mut variants {
+                variant.push(piece.clone());
+            }
+        }
+    }
+
+    variants
+}
+
+/// One variant's view of the user dictionary: the accepted single-token forms, the
+/// continuations of multi-token entries, and an FST of single-token entries so they can also
+/// be suggested. Rebuilt whenever the user dictionary or the selected variant changes.
+#[derive(Debug, Clone, Default)]
+pub(crate) struct UserMatcher {
+    /// Canonical forms a token may equal, including the sentence-initial capitalized form of a
+    /// lowercase entry and possessive forms.
+    accepted: HashSet<String>,
+    /// Continuations of a multi-token entry, keyed by its first token (same shape as
+    /// [`Spell::multiwords`]).
+    multiwords: DefaultHashMap<String, Vec<Vec<String>>>,
+    /// Serialized `fst::Map` over single-token entries, empty when there are none.
+    suggestion_fst: Vec<u8>,
+}
+
+impl UserMatcher {
+    fn new(user: &UserWords, max_freq: usize, variant_index: usize) -> Self {
+        let mut accepted = HashSet::new();
+        let mut multiwords: DefaultHashMap<String, Vec<Vec<String>>> = DefaultHashMap::new();
+        let mut suggestion_terms: Vec<(String, u64)> = Vec::new();
+
+        let mut freq = SpellInt::default();
+        freq.update_freq(max_freq.clamp(1, 254));
+        freq.add_variant(variant_index);
+        let freq = freq.as_u64();
+
+        for entry in &user.entries {
+            // A lowercase entry also accepts its sentence-initial capitalized form; a
+            // capitalized entry deliberately does not make the lowercase form valid.
+            let mut forms = vec![entry.clone()];
+            if entry.chars().next().is_some_and(char::is_lowercase) {
+                forms.push(apply_to_first(entry, |c| c.to_uppercase().collect()));
+            }
+
+            for form in forms {
+                accepted.insert(form.clone());
+                accepted.insert(format!("{form}'s"));
+                if form.ends_with(['s', 'z', 'x']) {
+                    accepted.insert(format!("{form}'"));
+                }
+
+                let pieces = token_pieces(&form);
+                if pieces.len() > 1 {
+                    for variant in continuation_variants(&pieces) {
+                        multiwords
+                            .entry(variant[0].clone())
+                            .or_default()
+                            .push(variant[1..].to_vec());
+                    }
+                } else {
+                    suggestion_terms.push((form, freq));
+                }
+            }
+        }
+
+        suggestion_terms.sort();
+        suggestion_terms.dedup();
+        let suggestion_fst = if suggestion_terms.is_empty() {
+            Vec::new()
+        } else {
+            fst::Map::from_iter(suggestion_terms)
+                .expect("suggestion terms are sorted")
+                .into_fst()
+                .to_vec()
+        };
+
+        UserMatcher {
+            accepted,
+            multiwords,
+            suggestion_fst,
+        }
+    }
+
+    /// Whether a token is accepted by the user dictionary. Curly apostrophes match the
+    /// canonical straight form.
+    fn accepts(&self, word: &str) -> bool {
+        self.accepted.contains(word)
+            || (word.contains('\u{2019}') && self.accepted.contains(&word.replace('\u{2019}', "'")))
+    }
+}
+
 /// Spellchecker logic for one variant. Does the actual work.
 ///
 /// Holds no copy of the valid words: lookups go against the shared speller FST (passed in by the caller)
@@ -206,6 +375,7 @@ pub(crate) struct VariantChecker {
     map: DefaultHashMap<String, String>,
     lang_options: SpellLangOptions,
     options: SpellOptions,
+    user: UserMatcher,
 }
 
 impl VariantChecker {
@@ -217,6 +387,7 @@ impl VariantChecker {
             || fst
                 .get(word)
                 .map_or(false, |v| SpellInt(v).contains_variant(self.variant_index))
+            || self.user.accepts(word)
             || word
                 .chars()
                 .all(|x| x.is_symbol() || x.is_punctuation() || x.is_numeric())
@@ -261,20 +432,32 @@ impl VariantChecker {
 
         correct_mask[0] = word_is_correct;
 
-        if let Some(continuations) = self.multiwords.get(word) {
-            if let Some(matching_cont) = continuations.iter().find(|cont| {
+        if let Some(matching_cont) = self
+            .matching_continuation(self.multiwords.get(word), tokens)
+            .or_else(|| self.matching_continuation(self.user.multiwords.get(word), tokens))
+        {
+            correct_mask[..1 + matching_cont.len()]
+                .iter_mut()
+                .for_each(|x| *x = true);
+        }
+    }
+
+    /// Finds a continuation of `continuations` that matches the tokens after the first one.
+    fn matching_continuation<'m>(
+        &self,
+        continuations: Option<&'m Vec<Vec<String>>>,
+        tokens: &[Token],
+    ) -> Option<&'m Vec<String>> {
+        continuations.and_then(|continuations| {
+            continuations.iter().find(|cont| {
                 // important: an empty continuation matches! so single words can also validly be part of `multiwords`
                 (tokens.len() - 1) >= cont.len()
                     && cont
                         .iter()
                         .enumerate()
                         .all(|(i, x)| tokens[i + 1].word().text().as_str() == x)
-            }) {
-                correct_mask[..1 + matching_cont.len()]
-                    .iter_mut()
-                    .for_each(|x| *x = true);
-            }
-        }
+            })
+        })
     }
 
     fn search(&self, fst: &Map<&[u8]>, word: &str) -> Vec<String> {
@@ -285,8 +468,30 @@ impl VariantChecker {
         let query = levenshtein::Levenshtein::new(word, self.options.max_distance, 2);
 
         let mut out = BinaryHeap::with_capacity(self.options.top_n);
+        self.push_candidates(&mut out, fst, &query);
 
-        let mut stream = fst.search_with_state(query).into_stream();
+        if !self.user.suggestion_fst.is_empty() {
+            let user_map = Map::new(self.user.suggestion_fst.as_slice())
+                .expect("serialized user suggestion fst must be valid.");
+            self.push_candidates(&mut out, &user_map, &query);
+        }
+
+        let mut seen = HashSet::new();
+        out.into_sorted_vec()
+            .into_iter()
+            .map(|x| x.term)
+            .filter(|term| seen.insert(term.clone()))
+            .collect()
+    }
+
+    /// Pushes the candidates of one speller FST into `out`, capping it at `top_n`.
+    fn push_candidates(
+        &self,
+        out: &mut BinaryHeap<Candidate>,
+        fst: &Map<&[u8]>,
+        query: &levenshtein::Levenshtein,
+    ) {
+        let mut stream = fst.search_with_state(query.clone()).into_stream();
         while let Some((k, v, s)) = stream.next() {
             let id = SpellInt(v);
 
@@ -309,9 +514,6 @@ impl VariantChecker {
                 out.pop();
             }
         }
-
-        // `into_iter_sorted` is unstable - see https://github.com/rust-lang/rust/issues/59278
-        out.into_sorted_vec().into_iter().map(|x| x.term).collect()
     }
 }
 
@@ -331,6 +533,9 @@ pub struct Spell {
     /// The structure containing the actual spellchecking logic. Computed based on the selected variant.
     #[serde(skip)]
     pub(crate) variant_checker: Option<VariantChecker>,
+    /// The runtime user dictionary. Never serialized: the caller persists it and re-adds it.
+    #[serde(skip)]
+    pub(crate) user: UserWords,
 }
 
 impl Spell {
@@ -395,6 +600,7 @@ impl Spell {
                 max_freq: self.max_freq,
                 options: self.options.clone(),
                 lang_options: self.lang_options.clone(),
+                user: UserMatcher::default(),
             },
         };
 
@@ -448,7 +654,82 @@ impl Spell {
         }
 
         checker.multiwords = multiwords;
+        checker.user = UserMatcher::new(&self.user, self.max_freq, variant_index);
         self.variant_checker = Some(checker);
+    }
+
+    /// Rebuilds only the user-dictionary view of the variant checker, leaving the (much more
+    /// expensive) multiword filtering alone. Used when the user dictionary changes.
+    fn rebuild_user(&mut self) {
+        if let Some(checker) = self.variant_checker.as_mut() {
+            checker.user = UserMatcher::new(&self.user, self.max_freq, checker.variant_index);
+        }
+    }
+
+    /// Adds words to the user dictionary and returns how many were new. An entry is matched the
+    /// way the speller tokenizes: a single word, a whitespace-separated phrase (`"Port Royal"`),
+    /// or a word with an internal apostrophe. Matching is case-sensitive except that a lowercase
+    /// entry also accepts its sentence-initial capitalized form; a capitalized entry does not
+    /// make the lowercase form valid. Entries also accept a possessive (`'s` after a straight or
+    /// curly apostrophe) and curly/straight apostrophes interchangeably. Changes apply to the
+    /// next [`Spell::suggest`] call; no binary recompilation is needed.
+    pub fn add_words<I, S>(&mut self, words: I) -> usize
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<str>,
+    {
+        let added = words
+            .into_iter()
+            .filter(|word| self.user.insert(word.as_ref()))
+            .count();
+        if added > 0 {
+            self.rebuild_user();
+        }
+        added
+    }
+
+    /// Removes words from the user dictionary and returns how many were present.
+    pub fn remove_words<I, S>(&mut self, words: I) -> usize
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<str>,
+    {
+        let removed = words
+            .into_iter()
+            .filter(|word| self.user.remove(word.as_ref()))
+            .count();
+        if removed > 0 {
+            self.rebuild_user();
+        }
+        removed
+    }
+
+    /// Replaces the whole user dictionary and returns the number of entries now set.
+    pub fn set_words<I, S>(&mut self, words: I) -> usize
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<str>,
+    {
+        self.user.entries.clear();
+        let set = words
+            .into_iter()
+            .filter(|word| self.user.insert(word.as_ref()))
+            .count();
+        self.rebuild_user();
+        set
+    }
+
+    /// Removes every word from the user dictionary.
+    pub fn clear_words(&mut self) {
+        if !self.user.entries.is_empty() {
+            self.user.entries.clear();
+            self.rebuild_user();
+        }
+    }
+
+    /// Lists the user dictionary, canonicalized and sorted.
+    pub fn words(&self) -> Vec<String> {
+        self.user.entries.iter().cloned().collect()
     }
 
     /// Runs the spellchecking algorithm on all tokens and returns suggestions.
@@ -485,5 +766,45 @@ impl Spell {
         }
 
         suggestions
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn canonicalize_trims_collapses_and_straightens() {
+        assert_eq!(UserWords::canonicalize("  Zoë  "), Some("Zoë".into()));
+        assert_eq!(
+            UserWords::canonicalize("Port   Royal\tBay"),
+            Some("Port Royal Bay".into())
+        );
+        assert_eq!(
+            UserWords::canonicalize("O\u{2019}Brien"),
+            Some("O'Brien".into())
+        );
+        assert_eq!(UserWords::canonicalize("   "), None);
+        assert_eq!(UserWords::canonicalize(""), None);
+    }
+
+    #[test]
+    fn token_pieces_mirrors_tokenization() {
+        assert_eq!(token_pieces("Xylophonix"), vec!["Xylophonix"]);
+        assert_eq!(token_pieces("Xyzzy Plugh"), vec!["Xyzzy", "Plugh"]);
+        assert_eq!(token_pieces("Zar'khan"), vec!["Zar", "'", "khan"]);
+        assert_eq!(
+            token_pieces("St. Petersburg"),
+            vec!["St", ".", "Petersburg"]
+        );
+        assert_eq!(token_pieces("Krell-Tarn"), vec!["Krell-Tarn"]);
+    }
+
+    #[test]
+    fn continuation_variants_expand_apostrophes() {
+        let pieces = token_pieces("Zar'khan");
+        let variants = continuation_variants(&pieces);
+        assert!(variants.contains(&vec!["Zar".to_string(), "'".into(), "khan".into()]));
+        assert!(variants.contains(&vec!["Zar".to_string(), "\u{2019}".into(), "khan".into()]));
     }
 }

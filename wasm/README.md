@@ -26,6 +26,31 @@ const suggestions = JSON.parse(checker.check("She was not been here since Monday
 disable nothing; `"fiction"` applies the fiction profile (see `docs/PROFILE.md`) and any other
 name is an error.
 
+### User dictionary
+
+Add words the app knows (character names, invented places, coinages) so the speller stops
+flagging them. The caller owns persistence: the words are not written into any binary, and
+`Checker` does not store them anywhere else. Changes apply to the next `check`.
+
+```js
+checker.addWords(["Xylophonix", "Port Royal", "Ngũgĩ"]); // -> number newly added
+checker.removeWords(["Xylophonix"]);                     // -> number removed
+checker.setWords(["Zoë", "Ngũgĩ"]);                      // -> number now set
+JSON.parse(checker.words());                             // -> ["Ngũgĩ", "Zoë"]
+```
+
+Matching rules (see `Spell::add_words` in `nlprule/src/spell/mod.rs`):
+
+- Matching is case-sensitive, except that a lowercase entry also accepts its sentence-initial
+  capitalized form. An added capitalized name does **not** make the lowercase form valid.
+- Every entry accepts a possessive (`Xylophonix's` / `Xylophonix’s`), and curly and straight
+  apostrophes match each other.
+- An entry may be a whitespace-separated phrase (`"Port Royal"`) or contain an internal
+  apostrophe (`"Zar'khan"`).
+- Single-word entries are also spelling-suggestion candidates, so a near miss can suggest them.
+
+Run `node wasm/test.mjs` after building `wasm/pkg` to exercise the API.
+
 The two byte buffers are consumed by the constructor: wasm-bindgen copies them into wasm linear
 memory, and the module does not need the JS copies afterwards. **Do not keep `tokenizerBytes` /
 `rulesBytes` alive** — read them, construct once, and drop them. The copies were ~21 MB of the
