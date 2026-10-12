@@ -99,4 +99,36 @@ impl Checker {
         serde_json::to_string(&items)
             .map_err(|err| JsValue::from_str(&format!("failed to serialize suggestions: {err}")))
     }
+
+    /// Adds words to the user dictionary and returns how many were new.
+    ///
+    /// Use it for character names, invented places and coinages so the speller stops flagging
+    /// them. Entries may be single words, whitespace-separated phrases (`"Port Royal"`), or words
+    /// with an internal apostrophe; curly and straight apostrophes match each other. Matching is
+    /// case-sensitive except that a lowercase entry also accepts its sentence-initial capitalized
+    /// form (an added capitalized name does not make the lowercase form valid), and every entry
+    /// accepts a possessive. Changes apply to the next `check`.
+    #[wasm_bindgen(js_name = addWords)]
+    pub fn add_words(&mut self, words: Vec<String>) -> usize {
+        self.rules.add_words(words)
+    }
+
+    /// Removes words from the user dictionary and returns how many were present.
+    #[wasm_bindgen(js_name = removeWords)]
+    pub fn remove_words(&mut self, words: Vec<String>) -> usize {
+        self.rules.remove_words(words)
+    }
+
+    /// Replaces the whole user dictionary and returns the number of entries now set.
+    #[wasm_bindgen(js_name = setWords)]
+    pub fn set_words(&mut self, words: Vec<String>) -> usize {
+        self.rules.set_words(words)
+    }
+
+    /// Lists the user dictionary as a JSON array of strings, canonicalized and sorted.
+    #[wasm_bindgen(js_name = words)]
+    pub fn words(&self) -> Result<String, JsValue> {
+        serde_json::to_string(&self.rules.words())
+            .map_err(|err| JsValue::from_str(&format!("failed to serialize words: {err}")))
+    }
 }
