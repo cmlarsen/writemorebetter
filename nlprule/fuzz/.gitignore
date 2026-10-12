@@ -1,0 +1,6 @@
+target/
+artifacts/
+corpus/work_short/
+corpus/work_long/
+Cargo.lock
+stress_crash.txt

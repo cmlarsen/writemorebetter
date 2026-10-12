@@ -1,0 +1,116 @@
+name: Fuzz
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "nlprule/src/**"
+      - "nlprule/tests/**"
+      - "nlprule/fuzz/**"
+      - ".github/workflows/fuzz.yml"
+  pull_request:
+    paths:
+      - "nlprule/src/**"
+      - "nlprule/tests/**"
+      - "nlprule/fuzz/**"
+      - ".github/workflows/fuzz.yml"
+
+# Deterministic crash replay on stable Rust. A seeded generator produces a few
+# thousand boundary-heavy inputs and the committed crash corpus is replayed
+# through the same `suggest` + `apply_suggestions` path the app uses. The whole
+# job is under two minutes. Long-running coverage fuzzing is documented in
+# docs/FUZZ.md (`cargo fuzz`) and not run per-PR.
+jobs:
+  stress:
+    name: Deterministic stress replay
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      # --- LanguageTool 6.6 build dir (same generation as ci.yml) ---------------
+      - name: Cache LanguageTool download and portable JRE
+        uses: actions/cache@v4
+        with:
+          path: data/cache
+          key: lt-download-${{ runner.os }}-6.6
+
+      - name: Cache generated build dir
+        id: build-dir
+        uses: actions/cache@v4
+        with:
+          path: data/en-lt66
+          key: build-dir-${{ runner.os }}-6.6-${{ hashFiles('build/make_build_dir.py', 'build/requirements.txt', 'build/chunker.py', 'build/builtin-data/en/**') }}
+
+      - name: Fetch LanguageTool 6.6 and portable JRE
+        run: |
+          mkdir -p data storage
+          eval "$(build/fetch_lt.sh data/cache 6.6)"
+          echo "LT_DIR=$LT_DIR" >> "$GITHUB_ENV"
+          echo "JAVA_BIN=$JAVA_BIN" >> "$GITHUB_ENV"
+
+      - name: Set up Python
+        if: steps.build-dir.outputs.cache-hit != 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+
+      - name: Install build-dir generator dependencies
+        if: steps.build-dir.outputs.cache-hit != 'true'
+        run: |
+          python3 -m venv data/venv
+          data/venv/bin/pip install -r build/requirements.txt
+
+      - name: Extract LanguageTool 6.6 tagger and speller dictionaries
+        if: steps.build-dir.outputs.cache-hit != 'true'
+        run: |
+          unzip -o "$LT_DIR/libs/english-pos-dict.jar" \
+              'org/languagetool/resource/en/english.dict' \
+              'org/languagetool/resource/en/english.info' \
+              'org/languagetool/resource/en/hunspell/*.dict' \
+              'org/languagetool/resource/en/hunspell/*.info' \
+              -d "$LT_DIR"
+
+      - name: Generate LanguageTool 6.6 build dir
+        if: steps.build-dir.outputs.cache-hit != 'true'
+        run: |
+          data/venv/bin/python build/make_build_dir.py \
+              --lt_dir "$LT_DIR" \
+              --lang_code en \
+              --tag_dict_path "$LT_DIR/org/languagetool/resource/en/english.dict" \
+              --tag_info_path "$LT_DIR/org/languagetool/resource/en/english.info" \
+              --spell_map_path "$LT_DIR/org/languagetool/rules/en/contractions.txt" \
+              --java "$JAVA_BIN" \
+              --out_dir data/en-lt66
+
+      - name: Reuse chunker model and builtin data from the published build dir
+        if: steps.build-dir.outputs.cache-hit != 'true'
+        run: |
+          curl -sSL -o data/en.zip https://f000.backblazeb2.com/file/nlprule/en.zip
+          unzip -q data/en.zip -d data
+          cp data/en/chunker.json data/en-lt66/chunker.json
+          mkdir -p data/en-lt66/builtin
+          cp -r build/builtin-data/en/. data/en-lt66/builtin/
+
+      - name: Compile English 6.6 binaries
+        env:
+          RUST_LOG: INFO
+        run: |
+          mkdir -p storage/66
+          cargo run --release --all-features --bin compile -- \
+              --build-dir data/en-lt66 \
+              --tokenizer-out storage/66/en_tokenizer.bin \
+              --rules-out storage/66/en_rules.bin
+
+      - name: Build the stress harness
+        run: cargo build --release --manifest-path nlprule/fuzz/Cargo.toml --bin stress
+
+      - name: Run deterministic stress and replay the crash corpus
+        working-directory: nlprule/fuzz
+        env:
+          WMB_FUZZ_DIR: ${{ github.workspace }}/storage/66
+        run: ./target/release/stress --iterations 3000

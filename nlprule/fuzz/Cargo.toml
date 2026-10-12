@@ -1,0 +1,36 @@
+[package]
+name = "wmb-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+nlprule = { path = "..", default-features = false }
+
+[features]
+# The regex backend the engine is compiled with. `onig` is the native default;
+# `fancy` is what the WASM build uses. Build the harness with
+# `--no-default-features --features fancy` to fuzz that path.
+default = ["onig"]
+onig = ["nlprule/regex-onig"]
+fancy = ["nlprule/regex-fancy"]
+
+[[bin]]
+name = "suggest"
+path = "fuzz_targets/suggest.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "stress"
+path = "src/bin/stress.rs"
+test = false
+doc = false
+bench = false
+
+[workspace]
