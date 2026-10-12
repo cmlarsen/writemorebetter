@@ -166,7 +166,9 @@ fn run_child() {
     let bytes: u64 = std::env::var("M2B_BYTES").unwrap().parse().unwrap();
 
     let before = rss_mb();
+    let started = std::time::Instant::now();
     let mut held = memory_probe::load(&name, Path::new(&file)).expect("component must load");
+    let load_ms = started.elapsed().as_secs_f64() * 1e3;
     let mid = rss_mb();
     let mut after = mid;
     if name == "spell_en_us" {
@@ -177,8 +179,8 @@ fn run_child() {
 
     // `before`-`after` is the total load growth; `mid`-`after` is the en_US selection growth.
     println!(
-        "{} name={} bytes={} before={:.3} mid={:.3} after={:.3}",
-        MARKER, name, bytes, before, mid, after
+        "{} name={} bytes={} before={:.3} mid={:.3} after={:.3} load_ms={:.3}",
+        MARKER, name, bytes, before, mid, after, load_ms
     );
 }
 
@@ -188,6 +190,8 @@ struct Measurement {
     growths: Vec<f64>,
     /// Growth up to `mid` (`mid - before`); differs from `growths` only for `spell_en_us`.
     mid_growths: Vec<f64>,
+    /// Wall time of the deserialization alone, in milliseconds, one value per repetition.
+    load_ms: Vec<f64>,
 }
 
 impl Measurement {
@@ -212,6 +216,7 @@ fn measure(name: &str, bytes: u64, path: &Path) -> Measurement {
     let exe = std::env::current_exe().expect("current test binary");
     let mut growths = Vec::new();
     let mut mid_growths = Vec::new();
+    let mut load_ms = Vec::new();
     for _ in 0..REPETITIONS {
         let output = Command::new(&exe)
             .args(["--ignored", "--nocapture"])
@@ -240,11 +245,13 @@ fn measure(name: &str, bytes: u64, path: &Path) -> Measurement {
         };
         growths.push(field("after") - field("before"));
         mid_growths.push(field("mid") - field("before"));
+        load_ms.push(field("load_ms"));
     }
     Measurement {
         bytes,
         growths,
         mid_growths,
+        load_ms,
     }
 }
 
@@ -294,22 +301,23 @@ fn run_parent() {
 
     println!();
     println!(
-        "| component | serialized bytes | RSS growth MB (median of {}) | min | max | spread |",
+        "| component | serialized bytes | RSS growth MB (median of {}) | min | max | spread | load ms (median) |",
         REPETITIONS
     );
-    println!("|---|---:|---:|---:|---:|---:|");
+    println!("|---|---:|---:|---:|---:|---:|---:|");
     for name in COMPONENTS {
         let m = &measurements[*name];
         let min = m.growths.iter().cloned().fold(f64::INFINITY, f64::min);
         let max = m.growths.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
         println!(
-            "| {} | {} | {:.2} | {:.2} | {:.2} | {:.0}% |",
+            "| {} | {} | {:.2} | {:.2} | {:.2} | {:.0}% | {:.1} |",
             name,
             m.bytes,
             Measurement::median(&m.growths),
             min,
             max,
-            Measurement::spread_pct(&m.growths)
+            Measurement::spread_pct(&m.growths),
+            Measurement::median(&m.load_ms)
         );
     }
 

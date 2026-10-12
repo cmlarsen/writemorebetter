@@ -1,0 +1,16 @@
+[package]
+name = "wmb-profile"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+dhat-heap = ["dhat"]
+
+[dependencies]
+nlprule = { path = "../../../nlprule" }
+dhat = { version = "0.3", optional = true }
+
+[profile.release]
+debug = 1
+
+[workspace]
