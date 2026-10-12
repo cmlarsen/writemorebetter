@@ -38,6 +38,7 @@ jobs:
         env:
           VERSION: ${{ inputs.version }}
           DRY_RUN: ${{ inputs.dry_run }}
+          REF: ${{ github.ref }}
         run: |
           set -euo pipefail
           version="${VERSION}"
@@ -47,6 +48,14 @@ jobs:
             false | False | FALSE) dry_run=false ;;
             *) dry_run=true ;;
           esac
+
+          # A real release tags the commit it built, so that commit has to be main's
+          # tip: refuse to publish from any other ref. A dry run is read-only and may
+          # come from a branch, which is how a release is rehearsed before it merges.
+          if [ "$dry_run" = "false" ] && [ "$REF" != "refs/heads/main" ]; then
+            echo "error: a release must be dispatched from refs/heads/main (got $REF)" >&2
+            exit 1
+          fi
 
           if ! printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
             echo "error: version '$version' is not a plain X.Y.Z tag" >&2
@@ -185,7 +194,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: main
+          # The commit the run was dispatched from, pinned at dispatch (main's tip, since
+          # only a main run publishes), so the tag lands on exactly the tree that was built.
+          ref: ${{ github.sha }}
           fetch-depth: 0
 
       - name: Download the data
@@ -212,9 +223,16 @@ jobs:
           url="https://github.com/${REPOSITORY}/releases/download/${version}/WriteMoreBetterFFI.xcframework.zip"
           printf '{\n  "url": "%s",\n  "checksum": "%s"\n}\n' "$url" "$CHECKSUM" > release.json
 
-          # Release notes are CHANGELOG.md's section for this version, verbatim.
-          awk -v v="$version" '
-            $0 == "# " v { found = 1; next }
+          # Release notes are CHANGELOG.md's section for this version, verbatim. The
+          # heading may carry a date or a title after the version, e.g.
+          # "# 0.7.0 (2026-10-12)".
+          awk -v version="$version" '
+            BEGIN {
+              heading = version
+              gsub(/\./, "\\.", heading)
+              pattern = "^# " heading "([[:space:]]|$)"
+            }
+            $0 ~ pattern { found = 1; next }
             found && /^# / { exit }
             found { print }
           ' CHANGELOG.md > notes.md
@@ -230,8 +248,11 @@ jobs:
           git config user.email "release-bot@users.noreply.github.com"
           git add release.json
           git commit -m "release: release.json for $version"
-          git tag "$version"
+          # Push the commit before creating the tag: if main moved while the artifacts
+          # were being built this push is rejected (non-fast-forward) and nothing is
+          # tagged or released.
           git push origin HEAD:main
+          git tag "$version"
           git push origin "refs/tags/$version"
 
           gh release create "$version" release-assets/*.zip release-assets/SHA256SUMS \
