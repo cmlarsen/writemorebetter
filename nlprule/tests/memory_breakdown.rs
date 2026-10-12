@@ -4,7 +4,7 @@
 //!
 //! ```sh
 //! RUST_LOG=WARN cargo run --release --all-features --bin compile -- \
-//!     --build-dir data/en --tokenizer-out storage/en_tokenizer.bin --rules-out storage/en_rules.bin
+//!     --build-dir data/en-lt66 --tokenizer-out storage/en_tokenizer.bin --rules-out storage/en_rules.bin
 //! cargo test --release --all-features --test memory_breakdown -- --ignored --nocapture
 //! ```
 //!
