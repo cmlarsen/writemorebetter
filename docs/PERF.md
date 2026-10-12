@@ -247,6 +247,7 @@ attempts total. Phase 0 establishes measurement and does not count as an optimiz
 | 15 | [#63](https://github.com/cmlarsen/writemorebetter/pull/63) | Raise boolean-regex cache to 2048 slots per thread | -1.40% (-1.29% before #65) | -0.148 MiB (+0.391 before #65) | +0.223 MiB | +0.93% / -1.31% (interleaved, loaded) | kept |
 | 16 | [#65](https://github.com/cmlarsen/writemorebetter/pull/65) | Cache exact regex inputs up to 15 UTF-8 bytes | -4.01% | +0.414 MiB | -0.066 MiB | -3.29% / +0.28% (interleaved, loaded) | kept |
 | 17 | [#66](https://github.com/cmlarsen/writemorebetter/pull/66) | Sentence batch 32 on `wasm32` (128 native); `Rules::set_batch_size` | -0.10% (batch 32 native) / none (shipped native default) | -2.688 MiB (batch 32 native) / none (shipped native default) | -1.484 MiB (batch 32 native) | +7.92% / +3.31% (batch 32, interleaved, loaded) | kept as target-specific (coordinator-directed) |
+| 19 | [#68](https://github.com/cmlarsen/writemorebetter/pull/68) | Reuse the token-text index across disambiguation iterations | -1.62% (-1.55% before #63/#65) | +0.064 MiB (+0.844 before #63/#65) | -0.027 MiB | -6.10% / -8.34% (interleaved, loaded) | kept |
 
 
 Phase 0 merge-base measurements (Ubuntu): 6.6 check 5.2510 s, peak 91.4414 MiB,
@@ -552,6 +553,32 @@ peak +0.391 MiB, 5.2 peak +0.168 MiB. After #65 merged, the rebased branch measu
 +0.223 MiB, loaded RSS -0.27 MiB on 6.6. #63 was retained as an instruction win with no RSS
 cost; with 32-byte slots from #65 the cache is now 64 KiB per thread.
 
+### Attempt 19 — reuse the token-text index across disambiguation
+
+`disambiguate_up_to_id` re-runs the disambiguation rule list after each rule that changes the
+sentence, and every pass built a fresh `MatchSentence`, and with it a fresh token-text index
+(`StartPositions`). Disambiguation only edits tag lists (`Word` exposes no text mutator) and
+never adds, removes or reorders tokens, so the index is carried from one pass to the next.
+Independently built before/after engines produce byte-identical grammar and disambiguation
+passing-ID lists for both rule sets (grammar 5,977/6,032 and 4,320/4,335; disambiguation
+1,012/1,015 and 843/843). All 24 goldens, fmt, clippy and the workspace tests pass.
+
+| Rules | Text | Check before/after (s) | Check Δ | Peak before/after (MiB) | Peak Δ (MiB) |
+|---|---|---|---:|---|---:|
+| 52 | moby150k | 2.0502 / 1.8792 | -8.34% | 69.00 / 68.98 | -0.02 |
+| 52 | story1 | 0.1613 / 0.1479 | -8.32% | 61.53 / 61.12 | -0.41 |
+| 66 | moby150k | 2.4492 / 2.2999 | -6.10% | 80.73 / 80.62 | -0.11 |
+| 66 | story1 | 0.2056 / 0.2413 | +17.34% | 68.38 / 68.08 | -0.30 |
+
+The 6.6 story1 pair is a load outlier; the other cases and an earlier revision (six texts,
+-6.3% to -13.5%) agree.
+
+CI passed. On the original base: instructions 54.796B → 53.946B (-1.55%), allocator calls
+-4.49%, 6.6 peak +0.844 MiB, 5.2 peak -0.027 MiB. Rebased onto #63/#65: 51.905B → 51.062B
+(-1.62%), allocator calls -5.11%, 6.6 peak 72.852 → 72.898 MiB (+0.064), 5.2 peak -0.031 MiB,
+loaded RSS flat. The local wall-time win (-6% to -8%) is larger than the instruction count
+suggests because the index rebuild also allocates; #68 was retained as an instruction win.
+
 ### Attempt 17 — smaller sentence batches, wasm32 only by default
 
 `PARALLEL_BATCH` bounds how many tokenized sentences are held while their rule checks run in
@@ -571,7 +598,9 @@ browser) and 128 on native targets, where the cost is not worth 2.7 MiB. `Rules:
 that batch sizes 0, 1, 2, 3 and 128 produce identical suggestions on text with curly quotes, em
 dashes, ellipses and U+2028. All 24 goldens, fmt, clippy, the workspace tests and the
 `wasm32-unknown-unknown` builds of `nlprule` and `writemorebetter-wasm` pass. Native CI numbers
-for the shipped default are unchanged from main by construction; the wasm32 effect was not
+for the shipped default (batch 128) measured against main: instructions 51.899B → 51.944B
+(+0.09%), allocator calls unchanged, 6.6 peak +0.066 MiB, 5.2 peak +0.098 MiB, i.e. no change,
+as intended; the wasm32 effect was not
 measured separately (the memory saving is expected to match the native transient-batch saving,
 but that is an inference).
 
