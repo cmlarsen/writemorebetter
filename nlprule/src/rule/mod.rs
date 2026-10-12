@@ -354,7 +354,11 @@ impl<'a, 't> Iterator for Suggestions<'a, 't> {
                     .position(|x| std::ptr::eq(x, first_token))
                     .unwrap_or(0);
 
-                if idx > 0 {
+                // The token before the match contributes the end of the whitespace
+                // that separates it. A zero-width token (SENT_START / SENT_END) has
+                // the default span and no text before the match, so it must not be
+                // used: that would put the suggestion start at position zero.
+                if idx > 0 && !sentence.index(idx - 1).span().is_empty() {
                     sentence.index(idx - 1).span().end()
                 } else {
                     start_group.span.start()
