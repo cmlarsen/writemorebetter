@@ -313,7 +313,6 @@
 537 | SPELLCHECK/SINGLE | "—_N" -> [] | Possibly misspelled word.
 537 | SPELLCHECK/SINGLE | "Primer_" -> ["primer", "primers", "primero", "trimer", "trimers", "Grimer"] | Possibly misspelled word.
 541 | SPELLCHECK/SINGLE | "—_Captain" -> [] | Possibly misspelled word.
-544 | BUILTIN/UPPERCASE_SENTENCE_START | "and" -> ["And"] | This sentence does not start with an uppercase letter.
 546 | SPELLCHECK/SINGLE | "—_Ulloa" -> [] | Possibly misspelled word.
 546 | SPELLCHECK/SINGLE | "America_" -> ["American", "America", "Americas", "Americans", "Americana", "Americano"] | Possibly misspelled word.
 551 | SPELLCHECK/SINGLE | "Tho" -> ["who", "the", "Thor", "Thom", "Tao", "Theo", "she", "show", "thou", "whom"] | Possibly misspelled word.
@@ -437,7 +436,6 @@
 806 | SPELLCHECK/SINGLE | "Trucks_" -> ["trucks"] | Possibly misspelled word.
 811 | SPELLCHECK/SINGLE | "—_Darwin" -> [] | Possibly misspelled word.
 811 | SPELLCHECK/SINGLE | "Naturalist_" -> ["naturalist", "naturalists"] | Possibly misspelled word.
-816 | BUILTIN/EN_UNPAIRED_QUOTES | "’" -> [] | Unpaired quotation mark ': is a matching ' missing?
 816 | SPELLCHECK/SINGLE | "—_Wharton" -> [] | Possibly misspelled word.
 816 | SPELLCHECK/SINGLE | "Killer_" -> ["killer", "Miller", "killers", "Keller", "filler", "miller", "tiller", "millers", "fillers", "tillers"] | Possibly misspelled word.
 819 | SPELLCHECK/SINGLE | "harpooneer" -> ["harpooner", "harpooned", "harpooners"] | Possibly misspelled word.
@@ -485,7 +483,6 @@
 1085 | BUILTIN/UPPERCASE_SENTENCE_START | "blocks" -> ["Blocks"] | This sentence does not start with an uppercase letter.
 1086 | GRAMMAR/THERE_MISSING_VERB/2 | "there" -> ["there is"] | A verb may be missing.
 1092 | BUILTIN/UPPERCASE_SENTENCE_START | "thought" -> ["Thought"] | This sentence does not start with an uppercase letter.
-1104 | BUILTIN/EN_UNPAIRED_QUOTES | "’" -> [] | Unpaired quotation mark ': is a matching ' missing?
 1112 | SPELLCHECK/SINGLE | "connexion" -> ["connection", "connexional"] | Possibly misspelled word.
 1128 | SPELLCHECK/SINGLE | "maketh" -> ["make", "market", "makes", "makeup", "markets", "maker", "math", "makers", "Gareth", "daleth"] | Possibly misspelled word.
 1128 | SPELLCHECK/SINGLE | "marvellous" -> ["marvelous"] | Possibly misspelled word.
@@ -546,7 +543,6 @@
 1369 | SPELLCHECK/SINGLE | "harpooneer" -> ["harpooner", "harpooned", "harpooners"] | Possibly misspelled word.
 1370 | SPELLCHECK/SINGLE | "bedwards" -> ["bedward", "rewards", "seawards", "headwards", "leewards", "redwares", "bewares", "beeyards"] | Possibly misspelled word.
 1373 | SPELLCHECK/SINGLE | "harpooneer" -> ["harpooner", "harpooned", "harpooners"] | Possibly misspelled word.
-1374 | BUILTIN/EN_UNPAIRED_QUOTES | "”" -> [] | Unpaired quotation mark ”: is a matching “ missing?
 1378 | SPELLCHECK/SINGLE | "Skrimshander" -> [] | Possibly misspelled word.
 1386 | REDUNDANCY/GATHER_UP/0 | "gathering up" -> ["gathering"] | This phrase is redundant. Consider using gathering.
 1397 | SPELLCHECK/SINGLE | "draught" -> ["drought", "fraught", "brought", "wrought", "droughts"] | Possibly misspelled word.
@@ -793,7 +789,6 @@
 2230 | SPELLCHECK/SINGLE | "Mapple" -> ["Marple", "dapple", "sample", "maple", "Male", "Mantle", "rappel", "dappled", "Mable", "papule"] | Possibly misspelled word.
 2231 | BUILTIN/UPPERCASE_SENTENCE_START | "side" -> ["Side"] | This sentence does not start with an uppercase letter.
 2232 | BUILTIN/UPPERCASE_SENTENCE_START | "midships" -> ["Midships"] | This sentence does not start with an uppercase letter.
-2275 | BUILTIN/EN_UNPAIRED_QUOTES | "’" -> [] | Unpaired quotation mark ': is a matching ' missing?
 2279 | SPELLCHECK/SINGLE | "sealine" -> ["sealing", "saline", "decline", "selling", "dealing", "seating", "stealing", "healing", "realize", "scaling"] | Possibly misspelled word.
 2279 | BUILTIN/UPPERCASE_SENTENCE_START | "what" -> ["What"] | This sentence does not start with an uppercase letter.
 2282 | SPELLCHECK/SINGLE | "kelpy" -> ["kelp", "help", "kelps", "keep", "kept", "key", "delay", "helps", "reply", "rely"] | Possibly misspelled word.
@@ -804,25 +799,16 @@
 2317 | BUILTIN/UPPERCASE_SENTENCE_START | "no" -> ["No"] | This sentence does not start with an uppercase letter.
 2328 | SPELLCHECK/SINGLE | "belike" -> ["belie", "belief", "believe", "beelike", "beside", "bedlike", "bike", "Belize", "feline", "Felipe"] | Possibly misspelled word.
 2342 | BUILTIN/UPPERCASE_SENTENCE_START | "how" -> ["How"] | This sentence does not start with an uppercase letter.
-2345 | BUILTIN/EN_UNPAIRED_QUOTES | "’" -> [] | Unpaired quotation mark ': is a matching ' missing?
-2348 | BUILTIN/EN_UNPAIRED_QUOTES | "’" -> [] | Unpaired quotation mark ': is a matching ' missing?
-2350 | BUILTIN/EN_UNPAIRED_QUOTES | "’" -> [] | Unpaired quotation mark ': is a matching ' missing?
 2362 | GRAMMAR/HE_VERB_AGR/0 | "judge" -> ["judges", "judged"] | The pronoun 'he' is usually used with a third-person or a past tense verb.
-2368 | BUILTIN/EN_UNPAIRED_QUOTES | "’" -> [] | Unpaired quotation mark ': is a matching ' missing?
 2369 | SPELLCHECK/SINGLE | "lookest" -> ["loosest", "longest", "looked", "looks", "lowest", "poorest", "lookout", "coolest", "loudest", "locket"] | Possibly misspelled word.
-2369 | BUILTIN/EN_UNPAIRED_QUOTES | "’" -> [] | Unpaired quotation mark ': is a matching ' missing?
 2390 | SPELLCHECK/SINGLE | "appals" -> ["appeals", "appears", "appall", "appalls", "appeal", "apply", "papal", "apples", "apple", "annals"] | Possibly misspelled word.
 2391 | BUILTIN/UPPERCASE_SENTENCE_START | "so" -> ["So"] | This sentence does not start with an uppercase letter.
-2392 | BUILTIN/EN_UNPAIRED_QUOTES | "’" -> [] | Unpaired quotation mark ': is a matching ' missing?
-2393 | BUILTIN/EN_UNPAIRED_QUOTES | "’" -> [] | Unpaired quotation mark ': is a matching ' missing?
 2402 | SPELLCHECK/SINGLE | "wrestlings" -> ["wrestling", "wresting", "crestings", "westlins"] | Possibly misspelled word.
 2408 | BUILTIN/UPPERCASE_SENTENCE_START | "the" -> ["The"] | This sentence does not start with an uppercase letter.
 2413 | REDUNDANCY/RIGHT_OVER/0 | "right over" -> ["over"] | This phrase is redundant. Consider using over.
 2415 | GRAMMAR/PRP_JJ/1 | "he the far" -> ["he is the far", "he was the far"] | A verb may be missing after "he". Please verify.
 2420 | BUILTIN/UPPERCASE_SENTENCE_START | "arise" -> ["Arise"] | This sentence does not start with an uppercase letter.
 2438 | SPELLCHECK/SINGLE | "comest" -> ["comes", "comet", "comets", "come", "cost", "coast", "contest", "comedy", "moment", "homes"] | Possibly misspelled word.
-2445 | BUILTIN/EN_UNPAIRED_QUOTES | "’" -> [] | Unpaired quotation mark ': is a matching ' missing?
-2446 | BUILTIN/EN_UNPAIRED_QUOTES | "’" -> [] | Unpaired quotation mark ': is a matching ' missing?
 2447 | SPELLCHECK/SINGLE | "mightest" -> ["lightest", "tightest", "mightiest", "highest", "rightest", "rightist", "mights", "minutest", "nighest", "high-test"] | Possibly misspelled word.
 2447 | SPELLCHECK/SINGLE | "_then" -> ["other", "Athens", "Ethan", "ether", "Athena", "Ethel", "Steen", "Uther", "Stheno", "ethene"] | Possibly misspelled word.
 2452 | SPELLCHECK/SINGLE | "_his_" -> ["this", "whist", "whisk", "whish", "phish", "phis", "chis"] | Possibly misspelled word.
@@ -831,10 +817,7 @@
 2499 | SPELLCHECK/SINGLE | "_me_" -> ["omen", "Ames", "Mme", "Amen", "amen", "pmed", "smew", "Amex", "dmed", "Amer"] | Possibly misspelled word.
 2500 | SPELLCHECK/SINGLE | "_me_" -> ["omen", "Ames", "Mme", "Amen", "amen", "pmed", "smew", "Amex", "dmed", "Amer"] | Possibly misspelled word.
 2507 | SPELLCHECK/SINGLE | "slantings" -> ["plantings", "slanting", "slatings", "slangings", "planting", "standings", "slayings", "slating", "spankings", "platings"] | Possibly misspelled word.
-2508 | BUILTIN/EN_UNPAIRED_QUOTES | "’" -> [] | Unpaired quotation mark ': is a matching ' missing?
-2509 | BUILTIN/EN_UNPAIRED_QUOTES | "’" -> [] | Unpaired quotation mark ': is a matching ' missing?
 2513 | SPELLCHECK/SINGLE | "engulphed" -> ["engulfed"] | Possibly misspelled word.
-2516 | BUILTIN/EN_UNPAIRED_QUOTES | "’" -> [] | Unpaired quotation mark ': is a matching ' missing?
 2526 | SPELLCHECK/SINGLE | "appal" -> ["appeal", "papal", "appear", "appall", "apply", "appeals", "apple", "apical", "axial", "apparel"] | Possibly misspelled word.
 2534 | BUILTIN/UPPERCASE_SENTENCE_START | "shipmates" -> ["Shipmates"] | This sentence does not start with an uppercase letter.
 2534 | BUILTIN/UPPERCASE_SENTENCE_START | "on" -> ["On"] | This sentence does not start with an uppercase letter.
