@@ -443,7 +443,7 @@ impl Model {
                 }
             }
 
-            prev = next.clone();
+            std::mem::swap(&mut prev, &mut next);
             next.clear();
         }
 
@@ -970,15 +970,12 @@ impl MaxentChunker {
     }
 
     fn chunk(&self, input: &[(&str, &str)]) -> Sequence {
-        let static_features: Vec<[u64; 19]> = (0..input.len())
-            .map(|i| Self::static_context(input, i))
-            .collect();
         // The word/tag features are position-invariant, so resolve their pmap entries once
-        // instead of binary-searching them for every beam entry.
-        let resolved: Vec<Vec<(u32, u8)>> = static_features
-            .iter()
-            .map(|features| {
-                features
+        // instead of binary-searching them for every beam entry. The feature hashes themselves
+        // are only needed to resolve the entries, so they never leave the stack.
+        let resolved: Vec<Vec<(u32, u8)>> = (0..input.len())
+            .map(|i| {
+                Self::static_context(input, i)
                     .iter()
                     .filter_map(|key| self.model.pmap.get(*key))
                     .collect()

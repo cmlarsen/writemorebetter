@@ -696,7 +696,7 @@ establishes measurement and does not count as an optimization.
 | Attempt | PR | Change | Instructions Δ (6.6) | Peak RSS Δ (6.6) | Peak RSS Δ (5.2) | Chunkbench Δ (6.6 / 5.2) | Kept/dropped |
 |---|---|---|---|---|---|---|---|
 | 0 | [#88](https://github.com/cmlarsen/writemorebetter/pull/88) | Isolated chunker harness + chunk golden | +0.10% (no engine change) | −0.68% (−0.50 MiB) | +0.05% | baseline 10,380 / 9,955 ns/token | Phase 0 |
-| 1 | [#89](https://github.com/cmlarsen/writemorebetter/pull/89) | Allocation-free context hashing + precomputed/resolved static features | pending | pending | pending | −16% / −17% ns/token, −35% / −36% alloc calls | pending |
+| 1 | [#89](https://github.com/cmlarsen/writemorebetter/pull/89) | Allocation-free context hashing, precomputed/resolved static features, beam-heap reuse | pending | pending | pending | −20% / −19% ns/token, −50% alloc calls | pending |
 
 ### Attempt 1 — allocation-free context hashing and precomputed static features
 
@@ -711,14 +711,20 @@ The chunk model's 19 word/tag features do not depend on the predicted outcomes. 
 computed once per position (`static_context`) and their `pmap` entries resolved once
 (`Model::eval_with_resolved`), instead of re-hashing and binary-searching them for every beam
 entry. The 22 outcome-dependent features (`pred_context`) are looked up as before. `beam_search`
-takes the eval step as a closure so the POS tagger keeps the plain `Model::eval`.
+takes the eval step as a closure so the POS tagger keeps the plain `Model::eval`, and it swaps
+its two beam heaps instead of deep-cloning the live sequences each token.
 
 Chunkbench, interleaved before/after on the same machine, median of a few runs:
 
 | Rules | ns/token before → after | alloc calls before → after | requested MiB before → after |
 |---|---:|---:|---:|
-| 5.2 | 10,475 → 8,690 (−17.0%) | 4,414,520 → 2,826,228 (−36.0%) | 457.0 → 401.4 |
-| 6.6 | 10,506 → 8,805 (−16.2%) | 4,620,885 → 3,017,970 (−34.7%) | 657.1 → 574.3 |
+| 5.2 | 9,293 → 7,529 (−19.0%) | 4,414,520 → 2,185,002 (−50.5%) | 457.0 → 258.4 |
+| 6.6 | 9,822 → 7,865 (−19.9%) | 4,620,885 → 2,302,949 (−50.2%) | 657.1 → 345.7 |
+
+The beam search also stopped deep-cloning every live `Sequence` at each token step (`prev =
+next.clone()`); the two heaps are swapped and the exhausted one cleared, which removes the
+151 + 38 MiB of `Sequence::clone` traffic the M8 profile recorded (this is M8 attempt 10's change,
+rebased and measured with the context changes above).
 
 Chunk golden (12 files) is byte-identical; the 24 suggestion goldens, workspace tests, clippy, fmt
 and the wasm build pass. CI decides retention.
