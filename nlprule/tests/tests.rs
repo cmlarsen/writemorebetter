@@ -291,6 +291,160 @@ fn spellchecker_flags_misspellings_next_to_fiction_punctuation() {
     );
 }
 
+/// Spelling-only flags after adding `words` to a fresh rule set's user dictionary.
+fn spelling_errors_with_words(words: &[&str], text: &str) -> Vec<String> {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    rules.spell_mut().options_mut().variant = Some(rules.spell().variant("en_US").unwrap());
+    rules.add_words(words.iter().copied());
+
+    rules
+        .suggest(text, &*TOKENIZER)
+        .into_iter()
+        .filter(|x| x.source().starts_with("SPELLCHECK"))
+        .map(|x| text[x.span().byte().clone()].to_string())
+        .collect()
+}
+
+#[test]
+fn user_dictionary_suppresses_added_word() {
+    assert_eq!(
+        spelling_errors("The Xylophonix arrived."),
+        vec!["Xylophonix"]
+    );
+    assert!(spelling_errors_with_words(&["Xylophonix"], "The Xylophonix arrived.").is_empty());
+}
+
+#[test]
+fn user_dictionary_case_handling() {
+    // A lowercase entry also accepts its sentence-initial capitalized form.
+    assert!(spelling_errors_with_words(&["xylophonix"], "xylophonix arrived.").is_empty());
+    assert!(spelling_errors_with_words(&["xylophonix"], "Xylophonix arrived.").is_empty());
+    // A capitalized entry does not make the lowercase form valid.
+    assert_eq!(
+        spelling_errors_with_words(&["Xylophonix"], "the xylophonix"),
+        vec!["xylophonix"]
+    );
+    // Nor does it accept an all-caps form.
+    assert_eq!(
+        spelling_errors_with_words(&["Xylophonix"], "the XYLOPHONIX"),
+        vec!["XYLOPHONIX"]
+    );
+}
+
+#[test]
+fn user_dictionary_possessives_and_apostrophes() {
+    for text in [
+        "The Xylophonix's wand glowed.",
+        "The Xylophonix\u{2019}s wand glowed.",
+        "James' coat. James\u{2019} coat.",
+    ] {
+        assert!(
+            spelling_errors_with_words(&["Xylophonix", "James"], text).is_empty(),
+            "{}",
+            text
+        );
+    }
+
+    // Curly and straight internal apostrophes match each other.
+    for text in [
+        "Zar'khan spoke.",
+        "Zar\u{2019}khan spoke.",
+        "Nothing.\u{2028}Zar\u{2019}khan spoke.",
+    ] {
+        assert!(
+            spelling_errors_with_words(&["Zar'khan"], text).is_empty(),
+            "{}",
+            text
+        );
+    }
+}
+
+#[test]
+fn user_dictionary_accented_and_em_dash_names() {
+    for text in [
+        "Zo\u{00eb} and Ng\u{0169}g\u{0129} met.",
+        "Zo\u{00eb} met Ng\u{0169}g\u{0129} at the harbor.",
+        "Ng\u{0169}g\u{0129}'s book. Ng\u{0169}g\u{0129}\u{2019}s book.",
+        "Xylophonix\u{2014}then he left.",
+        "Krell-Tarn nodded. Marie-Claire nodded.",
+    ] {
+        assert!(
+            spelling_errors_with_words(
+                &[
+                    "Zo\u{00eb}",
+                    "Ng\u{0169}g\u{0129}",
+                    "Xylophonix",
+                    "Krell-Tarn",
+                    "Marie-Claire"
+                ],
+                text
+            )
+            .is_empty(),
+            "{}",
+            text
+        );
+    }
+}
+
+#[test]
+fn user_dictionary_multiword_entry() {
+    assert_eq!(
+        spelling_errors("They reached Xyzzy Plugh at dusk."),
+        vec!["Xyzzy", "Plugh"]
+    );
+    assert!(
+        spelling_errors_with_words(&["Xyzzy Plugh"], "They reached Xyzzy Plugh at dusk.")
+            .is_empty()
+    );
+    // The entry does not leak into unrelated words.
+    assert_eq!(
+        spelling_errors_with_words(&["Xyzzy Plugh"], "The Xyzzy alone."),
+        vec!["Xyzzy"]
+    );
+}
+
+#[test]
+fn user_dictionary_words_are_suggestion_candidates() {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    rules.spell_mut().options_mut().variant = Some(rules.spell().variant("en_US").unwrap());
+    rules.set_words(["Xylophonix"]);
+
+    let suggestions = rules.suggest("the Xylophoni arrived", &*TOKENIZER);
+    let spell = suggestions
+        .iter()
+        .find(|s| s.source().starts_with("SPELLCHECK"))
+        .expect("the typo is flagged");
+    assert!(
+        spell.replacements().iter().any(|x| x == "Xylophonix"),
+        "{:?}",
+        spell.replacements()
+    );
+}
+
+#[test]
+fn user_dictionary_remove_set_and_list() {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    rules.spell_mut().options_mut().variant = Some(rules.spell().variant("en_US").unwrap());
+
+    assert_eq!(rules.add_words(["Xylophonix", "O\u{2019}Brien", "  "]), 2);
+    assert_eq!(rules.words(), vec!["O'Brien", "Xylophonix"]);
+    assert_eq!(rules.add_words(["Xylophonix"]), 0);
+
+    assert_eq!(rules.remove_words(["Xylophonix", "Absent"]), 1);
+    assert_eq!(rules.words(), vec!["O'Brien"]);
+
+    assert_eq!(rules.set_words(["Zo\u{00eb}", "Ng\u{0169}g\u{0129}"]), 2);
+    assert_eq!(rules.words(), vec!["Ng\u{0169}g\u{0129}", "Zo\u{00eb}"]);
+    rules.clear_words();
+    assert!(rules.words().is_empty());
+}
+
+#[test]
+fn user_dictionary_does_not_change_output_without_words() {
+    let text = "The Xylophonix arrived\u{2014}befuddled. Zo\u{00eb} waved.";
+    assert_eq!(spelling_errors(text), spelling_errors_with_words(&[], text));
+}
+
 /// Runs the English word-repeat builtin directly on a single sentence and
 /// returns the flagged text and the first replacement of every suggestion.
 fn builtin_word_repeat_flags(text: &str) -> Vec<(String, String)> {

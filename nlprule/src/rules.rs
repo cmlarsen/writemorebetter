@@ -114,6 +114,45 @@ impl Rules {
         &mut self.spell
     }
 
+    /// Adds words to the spellchecker's user dictionary (character names, invented places,
+    /// coinages) and returns how many were new. See [`Spell::add_words`] for the matching rules.
+    /// Changes apply to the next [`Rules::suggest`] call and are not written into any binary.
+    pub fn add_words<I, S>(&mut self, words: I) -> usize
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<str>,
+    {
+        self.spell.add_words(words)
+    }
+
+    /// Removes words from the user dictionary and returns how many were present.
+    pub fn remove_words<I, S>(&mut self, words: I) -> usize
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<str>,
+    {
+        self.spell.remove_words(words)
+    }
+
+    /// Replaces the whole user dictionary and returns the number of entries now set.
+    pub fn set_words<I, S>(&mut self, words: I) -> usize
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<str>,
+    {
+        self.spell.set_words(words)
+    }
+
+    /// Removes every word from the user dictionary.
+    pub fn clear_words(&mut self) {
+        self.spell.clear_words()
+    }
+
+    /// Lists the user dictionary, canonicalized and sorted.
+    pub fn words(&self) -> Vec<String> {
+        self.spell.words()
+    }
+
     /// All rules ordered by priority.
     pub fn rules(&self) -> &[Rule] {
         &self.rules
