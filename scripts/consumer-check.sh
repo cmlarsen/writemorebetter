@@ -35,7 +35,7 @@ while [ $# -gt 0 ]; do
         --data-dir) data_dir=$2; shift 2 ;;
         --work-dir) work_dir=$2; shift 2 ;;
         --port) port=$2; shift 2 ;;
-        -h | --help) sed -n '2,22p' "$0"; exit 0 ;;
+        -h | --help) sed -n '2,23p' "$0"; exit 0 ;;
         *)
             echo "error: unknown argument '$1'" >&2
             exit 1
@@ -90,6 +90,12 @@ pkg="$work_dir/pkg"
 mkdir -p "$pkg"
 git -C "$root" archive --format=tar HEAD | tar -x -C "$pkg"
 rm -rf "$pkg/dist"
+# The check only means something if Package.swift cannot take the local, path-based
+# binary target instead of the release.json URL.
+if [ -e "$pkg/dist/WriteMoreBetterFFI.xcframework" ]; then
+    echo "error: dist/WriteMoreBetterFFI.xcframework exists in the copy; release.json would not be used" >&2
+    exit 1
+fi
 cat > "$pkg/release.json" <<EOF
 {
   "url": "https://127.0.0.1:$port/WriteMoreBetterFFI.xcframework.zip",
@@ -187,5 +193,37 @@ guard let hit = suggestions.first(where: { $0.replacements.contains("has not bee
 print("consumer check OK: \(hit.source) at \(hit.nsRange), \(suggestions.count) suggestions")
 SWIFT
 
-echo "==> resolving and running the consumer package"
-swift run --package-path "$consumer" wmb-consumer "$data_dir"
+echo "==> resolving and building the consumer package"
+swift build --package-path "$consumer"
+binary="$(swift build --package-path "$consumer" --show-bin-path)/wmb-consumer"
+if [ ! -x "$binary" ]; then
+    echo "error: the consumer executable was not built at $binary" >&2
+    exit 1
+fi
+
+# Run the product on its own rather than through `swift run`. Some macOS runners
+# SIGKILL a just-linked executable on its first launch (an ad-hoc signature carrying
+# get-task-allow); re-signing without entitlements and retrying once clears it, and a
+# second failure is reported with the signature and the system log.
+run_consumer() {
+    "$binary" "$data_dir"
+}
+
+echo "==> running the consumer app"
+attempt=0
+until run_consumer; do
+    status=$?
+    attempt=$((attempt + 1))
+    echo "consumer app exited with status $status (attempt $attempt)" >&2
+    if [ "$attempt" -ge 2 ]; then
+        echo "==> signature" >&2
+        codesign -dvvv "$binary" >&2 2>&1 || true
+        echo "==> recent system log for the launch" >&2
+        sudo log show --last 3m --style compact \
+            --predicate 'process == "wmb-consumer" OR eventMessage CONTAINS "wmb-consumer"' \
+            2>/dev/null | tail -30 >&2 || true
+        exit "$status"
+    fi
+    codesign --force --sign - "$binary" || true
+    sleep 2
+done
