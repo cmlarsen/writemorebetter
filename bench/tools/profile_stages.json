@@ -1,0 +1,110 @@
+[
+ {
+  "label": "load: Tokenizer::new",
+  "regex": "Tokenizer>::new::"
+ },
+ {
+  "label": "load: Rules::new",
+  "regex": "Rules>::new::"
+ },
+ {
+  "label": "load: apply_profile",
+  "regex": "Rules>::apply_profile"
+ },
+ {
+  "label": "check: Rules::suggest (everything below)",
+  "regex": "Rules>::suggest$"
+ },
+ {
+  "label": "  sentence split (srx split_ranges)",
+  "regex": "srx::Rules>::split_ranges"
+ },
+ {
+  "label": "  tokenize (tag lookups + chunk + multiword)",
+  "regex": "Tokenizer>::tokenize"
+ },
+ {
+  "label": "    chunker",
+  "regex": "Chunker>::apply"
+ },
+ {
+  "label": "    multiword tagger",
+  "regex": "MultiwordTagger>::apply"
+ },
+ {
+  "label": "    tagger lookups",
+  "regex": "Tagger>::(get_tags_with_options|tags_for_normalized|get_strict_tags)"
+ },
+ {
+  "label": "  disambiguation (all rules)",
+  "regex": "Tokenizer>::disambiguate_up_to_id"
+ },
+ {
+  "label": "    matching (DisambiguationRule::apply)",
+  "regex": "DisambiguationRule>::apply"
+ },
+ {
+  "label": "    applying changes",
+  "regex": "DisambiguationRule>::change"
+ },
+ {
+  "label": "  builtin rules (Builtin::check_text)",
+  "regex": "Builtin>::check_text"
+ },
+ {
+  "label": "  per-sentence checks (apply_with_impl)",
+  "regex": "Rules>::apply_with_impl"
+ },
+ {
+  "label": "    speller (Spell::suggest)",
+  "regex": "Spell>::suggest"
+ },
+ {
+  "label": "    grammar: StartPositions prefilter",
+  "regex": "StartPositions",
+  "root": "Rules>::apply_with_impl",
+  "kinds": [
+   "samply"
+  ]
+ },
+ {
+  "label": "    grammar: Composition::apply (all matching)",
+  "regex": "Composition>::apply$",
+  "root": "Rules>::apply_with_impl",
+  "kinds": [
+   "samply"
+  ]
+ },
+ {
+  "label": "    grammar: regex atoms (Regex::is_match etc.)",
+  "regex": "utils::regex::Regex>::",
+  "root": "Rules>::apply_with_impl",
+  "kinds": [
+   "samply"
+  ]
+ },
+ {
+  "label": "    grammar: regex first-use compile",
+  "regex": "regex_impl_onig::Regex>::new|regex_impl_regex::Regex>::new",
+  "root": "Rules>::apply_with_impl",
+  "kinds": [
+   "samply"
+  ]
+ },
+ {
+  "label": "    grammar: word-data (POS/lemma) matching",
+  "regex": "WordDataMatcher>::is_match",
+  "root": "Rules>::apply_with_impl",
+  "kinds": [
+   "samply"
+  ]
+ },
+ {
+  "label": "    grammar: suggestion building",
+  "regex": "Synthesizer|match_apostrophes|Suggestion>::new",
+  "root": "Rules>::apply_with_impl",
+  "kinds": [
+   "samply"
+  ]
+ }
+]

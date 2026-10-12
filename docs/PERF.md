@@ -244,9 +244,11 @@ attempts total. Phase 0 establishes measurement and does not count as an optimiz
 | 11 | [#61](https://github.com/cmlarsen/writemorebetter/pull/61) | Prefer the longest mandatory literal for absence guards | -1.52% | -0.555 MiB | +0.082 MiB | +2.40% / +1.23% (interleaved, loaded) | kept |
 | 12 | [#60](https://github.com/cmlarsen/writemorebetter/pull/60) | Share lazy compiled regex backends for identical sources | -0.16% | -2.992 MiB | -0.984 MiB | +1.13% / -1.26% (interleaved, loaded) | kept |
 | 13 | [#59](https://github.com/cmlarsen/writemorebetter/pull/59) | Compact contiguous NFA for multiword tagging | +1.28% | -8.441 MiB | -2.289 MiB | +1.57% / +0.32% (interleaved, loaded) | kept (coordinator-approved) |
+| 14 | [#62](https://github.com/cmlarsen/writemorebetter/pull/62) | Move owned token words instead of cloning tag vectors | -0.24% | -0.082 MiB | -0.019 MiB | +0.50% / +1.42% (interleaved, loaded) | dropped |
 | 15 | [#63](https://github.com/cmlarsen/writemorebetter/pull/63) | Raise boolean-regex cache to 2048 slots per thread | -1.40% (-1.29% before #65) | -0.148 MiB (+0.391 before #65) | +0.223 MiB | +0.93% / -1.31% (interleaved, loaded) | kept |
 | 16 | [#65](https://github.com/cmlarsen/writemorebetter/pull/65) | Cache exact regex inputs up to 15 UTF-8 bytes | -4.01% | +0.414 MiB | -0.066 MiB | -3.29% / +0.28% (interleaved, loaded) | kept |
 | 17 | [#66](https://github.com/cmlarsen/writemorebetter/pull/66) | Sentence batch 32 on `wasm32` (128 native); `Rules::set_batch_size` | -0.10% (batch 32 native) / none (shipped native default) | -2.688 MiB (batch 32 native) / none (shipped native default) | -1.484 MiB (batch 32 native) | +7.92% / +3.31% (batch 32, interleaved, loaded) | kept as target-specific (coordinator-directed) |
+| 18 | [#67](https://github.com/cmlarsen/writemorebetter/pull/67) | Share immutable speller rows | +0.62% | -0.691 MiB | -0.113 MiB | -4.79% / -0.21% (interleaved, loaded) | dropped |
 | 19 | [#68](https://github.com/cmlarsen/writemorebetter/pull/68) | Reuse the token-text index across disambiguation iterations | -1.62% (-1.55% before #63/#65) | +0.064 MiB (+0.844 before #63/#65) | -0.027 MiB | -6.10% / -8.34% (interleaved, loaded) | kept |
 
 
@@ -610,3 +612,32 @@ but that is an inference).
 | 52 | story1 | 0.1620 / 0.1727 | +6.60% | 61.84 / 60.88 | -0.97 |
 | 66 | moby150k | 2.4955 / 2.6931 | +7.92% | 83.05 / 81.42 | -1.62 |
 | 66 | story1 | 0.1911 / 0.1955 | +2.29% | 69.84 / 68.89 | -0.95 |
+
+### Attempt 14 — move owned token words (dropped)
+
+`IncompleteToken::into_token` cloned the whole word, tag vector included, before appending the
+special tags; it now moves the word it owns. Behavior unchanged; all 24 goldens, fmt, clippy and
+the workspace tests passed. CI measured instructions 55.048B → 54.913B (-0.24%), allocator calls
+-1.52%, 6.6 peak -0.082 MiB and 5.2 peak -0.019 MiB. That is below both keep thresholds, so #62
+was closed. Local five-pair medians under load were +0.50% / +1.42% check time and -0.27 /
+-0.45 MiB peak (6.6 / 5.2 moby150k).
+
+### Attempt 18 — share immutable speller rows (dropped)
+
+Levenshtein automaton states held their distance rows (and the row two steps up) as cloned
+`Vec<usize>`; they became `Arc<[usize]>` with the next row computed in one pass. All 24 goldens,
+fmt, clippy and the workspace tests passed, with a new test comparing search results and
+distances across transposes, prefix limits and curly-quote/em-dash/ellipsis/U+2028 words. CI
+measured allocator calls -12.83% but instructions 54.836B → 55.176B (+0.62%), 6.6 peak -0.691
+MiB and 5.2 peak -0.113 MiB. The instruction cost exceeds +0.5% and the memory win is under
+1 MiB, so #67 was closed. Local five-pair medians under load: 6.6 check -4.79%, peak -0.89 MiB;
+5.2 check -0.21%, peak -0.64 MiB.
+
+### Result of the queue
+
+Nineteen attempts: twelve kept (#49, #51, #52, #55, #57, #59, #60, #61, #63, #65, #66, #68) and
+seven dropped (#50, #53, #54, #56, #58, #62, #67); the longest run of consecutive drops was two.
+Against the Phase 0 baseline, final main measures 51.068B instructions (-36.8%), 6.6 peak 73.371
+MiB (-18.07) and 5.2 peak 65.457 MiB (-5.04) on the CI perf job (different runners; CI peak
+varies by about 2 MiB between runs). The stage-by-stage profile of that state is in
+[PROFILE-BREAKDOWN.md](PROFILE-BREAKDOWN.md).

@@ -31,16 +31,6 @@ fn rss_mib() -> f64 {
     }
 }
 
-fn peak_rss_mib() -> f64 {
-    let mut usage = std::mem::MaybeUninit::<libc::rusage>::uninit();
-    // SAFETY: getrusage fully initializes the struct when it returns 0.
-    let maxrss = unsafe {
-        assert_eq!(libc::getrusage(libc::RUSAGE_SELF, usage.as_mut_ptr()), 0);
-        usage.assume_init().ru_maxrss as f64
-    };
-    maxrss / if cfg!(target_os = "macos") { 1048576.0 } else { 1024.0 }
-}
-
 struct Phases(Vec<(String, f64, f64)>);
 
 impl Phases {
@@ -48,8 +38,11 @@ impl Phases {
         let before = rss_mib();
         let start = Instant::now();
         let value = f();
-        self.0
-            .push((name.to_string(), start.elapsed().as_secs_f64() * 1e3, rss_mib() - before));
+        self.0.push((
+            name.to_string(),
+            start.elapsed().as_secs_f64() * 1e3,
+            rss_mib() - before,
+        ));
         value
     }
 }
@@ -82,14 +75,14 @@ fn print_phases(phases: &Phases) {
 
 fn main() {
     let mut args = std::env::args().skip(1);
-    let mode = args.next().expect("mode: phases | stages | heap");
+    let mode = args.next().expect("mode: phases | stages | heap | load");
     let dir = args.next().expect("storage dir");
     let text_path = args.next();
     let profile_name = std::env::var("PROFILE").unwrap_or_else(|_| "fiction".into());
     let spell = std::env::var("SPELL").unwrap_or_else(|_| "en_US".into());
 
     #[cfg(feature = "dhat-heap")]
-    let _profiler = if mode == "heap" {
+    let _profiler = if mode == "heap" || mode == "load" {
         Some(
             dhat::Profiler::builder()
                 .file_name(std::env::var("DHAT_OUT").unwrap_or_else(|_| "dhat-heap.json".into()))
@@ -104,12 +97,17 @@ fn main() {
     let (tokenizer, rules) = load(&dir, &profile_name, &spell, &mut phases);
     println!("LOADED_RSS\t{:.2}", rss_mib());
     #[cfg(feature = "dhat-heap")]
-    if mode == "heap" {
+    if mode == "heap" || mode == "load" {
         let stats = dhat::HeapStats::get();
         println!("HEAP_AFTER_LOAD\t{}\t{}", stats.curr_bytes, stats.max_bytes);
     }
     match mode.as_str() {
         "phases" => print_phases(&phases),
+        "load" => {
+            print_phases(&phases);
+            std::mem::forget(tokenizer);
+            std::mem::forget(rules);
+        }
         "stages" => {
             print_phases(&phases);
             let text = std::fs::read_to_string(text_path.expect("text path")).unwrap();
@@ -139,7 +137,6 @@ fn main() {
             println!("STAGE\tdisambiguation\t{disambiguate_ms:.1}");
             println!("STAGE\tsuggest total (includes the three above)\t{suggest_ms:.1}");
             println!("COUNTS\t{n_sentences}\t{tokens}\t{}", suggestions.len());
-            println!("PEAK_RSS\t{:.2}", peak_rss_mib());
         }
         "heap" => {
             print_phases(&phases);
@@ -154,7 +151,6 @@ fn main() {
                 );
             }
             println!("COUNTS\t{}", suggestions.len());
-            println!("PEAK_RSS\t{:.2}", peak_rss_mib());
         }
         other => panic!("unknown mode {other}"),
     }
