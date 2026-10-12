@@ -1315,6 +1315,47 @@ fn builtin_unpaired_quotes_flags_stray_closing_single() {
 }
 
 #[test]
+fn builtin_unpaired_quotes_ignores_straight_pairs() {
+    assert!(builtin_unpaired_flags("\"Hello,\" she said. \"Goodbye,\" he said.").is_empty());
+}
+
+#[test]
+fn builtin_unpaired_quotes_ignores_contraction_apostrophe() {
+    // The apostrophe inside the 6.6-split negation contraction is a word part,
+    // not a quotation mark.
+    assert!(builtin_unpaired_flags("\u{201c}I don\u{2019}t know,\u{201d} she said.").is_empty());
+}
+
+#[test]
+fn builtin_unpaired_quotes_span_points_into_the_original_text() {
+    // The tokenizer normalizes both curly marks to `'`, so the reported span
+    // must still address the original characters.
+    let text = "\u{2018}Hello,\u{2019} she said.\u{2019}";
+    let suggestions = RULES.suggest(text, &*TOKENIZER);
+    let flagged: Vec<_> = suggestions
+        .iter()
+        .filter(|suggestion| suggestion.source() == "BUILTIN/EN_UNPAIRED_QUOTES")
+        .collect();
+    assert_eq!(flagged.len(), 1, "{:?}", suggestions);
+    let flagged = flagged[0];
+    assert_eq!(&text[flagged.span().byte().clone()], "\u{2019}");
+    let chars: Vec<char> = text.chars().collect();
+    assert_eq!(
+        chars[flagged.span().char().clone()]
+            .iter()
+            .collect::<String>(),
+        "\u{2019}"
+    );
+}
+
+#[test]
+fn builtin_unpaired_quotes_ignores_paragraph_continuation() {
+    // A closing mark opening a paragraph may continue the previous paragraph's
+    // quotation, so on its own it is not reported.
+    assert!(builtin_unpaired_flags("\u{201d} she said.").is_empty());
+}
+
+#[test]
 fn builtin_unpaired_ignores_fiction_punctuation() {
     assert!(builtin_unpaired_flags(
         "The door\u{2014}then the room\u{2026} \u{201c}Done,\u{201d} he said.\u{2028}\
