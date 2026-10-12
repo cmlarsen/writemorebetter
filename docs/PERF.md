@@ -177,27 +177,26 @@ Public recall: 6.6 55/60, 5.2 54/60 (floors 55 / 54). Unchanged.
 ## Reproduce
 
 ```sh
-# both build dirs, like .github/workflows/ci.yml (LT 5.2 = published en.zip, 6.6 = generated)
-cargo run --release --all-features --bin compile -- \
-    --build-dir data/en      --tokenizer-out storage/52/en_tokenizer.bin --rules-out storage/52/en_rules.bin
-cargo run --release --all-features --bin compile -- \
-    --build-dir data/en-lt66 --tokenizer-out storage/66/en_tokenizer.bin --rules-out storage/66/en_rules.bin
+# Build the pinned LT 6.6 data (binaries land in dist/data; see scripts/build-data.sh).
+scripts/build-data.sh
 
+# The probe takes a directory holding en_tokenizer.bin and en_rules.bin.
+mkdir -p storage/66 && cp dist/data/en_*.bin storage/66/
 cargo build --release --manifest-path bench/tools/wmb-probe/Cargo.toml
 PROFILE=fiction SPELL=en_US bench/tools/wmb-probe/target/release/wmb-probe storage/66 data/moby150k.txt
 ```
 
 ## M8 reproducible harness
 
-`bench/tools/perf.sh` builds the release probe and checks the six public texts with both
-rule sets, `PROFILE=fiction SPELL=en_US`, five independent processes each. It writes raw
+`bench/tools/perf.sh` builds the release probe and checks the six public texts with the
+LT 6.6 rule set, `PROFILE=fiction SPELL=en_US`, five independent processes each. It writes raw
 samples and medians to `storage/perf.json`, a table to `storage/perf.md`, and prints the
 table. Use `--skip-build` after rebuilding explicitly; `--rules 66 --texts moby150k`
-selects a subset. Compile version-matched binaries into `storage/52` and `storage/66`
-using the commands above after every engine change.
+selects a subset. Compile version-matched binaries into `storage/66`
+using the command above after every engine change.
 
-`bench/tools/golden.sh --check` checks 24 committed suggestion files: six texts, both
-rule sets, both default and fiction profiles. Only suggestion lines are captured; timing
+`bench/tools/golden.sh --check` checks 12 committed suggestion files: six texts,
+LT 6.6, both default and fiction profiles. Only suggestion lines are captured; timing
 and memory diagnostics are excluded. Golden regeneration (`--write`) is reserved for an
 explicitly approved output change after the Phase 0 review.
 

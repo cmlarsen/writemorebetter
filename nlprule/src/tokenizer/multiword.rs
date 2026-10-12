@@ -39,8 +39,8 @@ impl MultiwordTagger {
     pub fn apply<'t>(&'t self, sentence: &mut IncompleteSentence<'t>) {
         let tagger = sentence.tagger();
 
-        let mut start_indices = DefaultHashMap::new();
-        let mut end_indices = DefaultHashMap::new();
+        let mut start_indices = DefaultHashMap::default();
+        let mut end_indices = DefaultHashMap::default();
         let mut byte_index = 0;
 
         let joined = sentence

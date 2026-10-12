@@ -8,8 +8,9 @@ writemorebetter will build on [nlprule](https://github.com/bminixhofer/nlprule),
 It aims to bring that work up to current LanguageTool rules, add the speller and LanguageTool's Java-coded rules,
 cut memory to something a browser tab or phone can carry, and tune a default profile for fiction.
 
-**Status:** early. The engine is upstream nlprule (`main`, LT 5.2 rules) with its unmerged spellcheck branch
-merged in. Start with [`docs/FINDINGS.md`](docs/FINDINGS.md) for the evaluation behind this project and the plan.
+**Status:** early. The engine is upstream nlprule (`main`) with its unmerged spellcheck branch merged in,
+running the LanguageTool 6.6 English rules and shipping them as separately loaded LGPL data. Start with
+[`docs/FINDINGS.md`](docs/FINDINGS.md) for the evaluation behind this project and the plan.
 
 ## Repository layout
 

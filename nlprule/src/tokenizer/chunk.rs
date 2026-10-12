@@ -636,7 +636,7 @@ impl TagDict {
         raw.sort_unstable_by(|a, b| a.0.cmp(&b.0));
 
         let mut tags: Vec<Box<str>> = Vec::new();
-        let mut tag_ids: DefaultHashMap<Box<str>, u16> = DefaultHashMap::new();
+        let mut tag_ids: DefaultHashMap<Box<str>, u16> = DefaultHashMap::default();
         let mut entries = Vec::with_capacity(raw.len());
 
         for (word, allowed) in raw {

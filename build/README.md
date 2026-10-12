@@ -136,9 +136,10 @@ cp -r build/builtin-data/en/. data/en-lt66/builtin/
 ```
 
 To build and test the binaries from the new directory, use the same commands as above with
-`--build-dir data/en-lt66` instead of `--build-dir data/en`. CI does exactly this: it generates
-the 6.6 directory on the runner (cached across runs) and gates conformance and public recall for
-both 6.6 and the published 5.2 `en.zip`.
+`--build-dir data/en-lt66` instead of `--build-dir data/en`. `scripts/build-data.sh` wraps
+steps 1–5 and the compile; CI and the release workflow both call it, so they use identical,
+pinned inputs and gate conformance and public recall for LT 6.6. LanguageTool 5.2 is no
+longer built.
 
 #### German
 

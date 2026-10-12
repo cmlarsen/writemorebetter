@@ -11,7 +11,7 @@ from perf import ROOT, PROBE, TEXTS, run
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--before', type=Path, required=True,
-                        help='snapshot containing wmb-probe and 52/66 data directories')
+                        help='snapshot containing wmb-probe and the 66 data directory')
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--texts', nargs='+', choices=TEXTS, default=TEXTS)
     args = parser.parse_args()
@@ -19,7 +19,7 @@ def main():
     before = args.before.resolve()
     rows = []
     load_start = os.getloadavg()
-    for rules in ['52', '66']:
+    for rules in ['66']:
         for name in args.texts:
             text = ROOT / 'bench/public' / f'{name}.txt'
             pairs = []

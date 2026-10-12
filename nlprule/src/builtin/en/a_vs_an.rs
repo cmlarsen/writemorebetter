@@ -7,9 +7,7 @@
 //! This mirrors the behavior of the corresponding LanguageTool rule, including
 //! the treatment of quotes, hyphens and abbreviations.
 
-use std::collections::HashSet;
-
-use crate::types::{Sentence, Span, Suggestion, Token};
+use crate::types::{DefaultHashSet, Sentence, Span, Suggestion, Token};
 use serde::{Deserialize, Serialize};
 
 /// The identifier of the LanguageTool rule this builtin reimplements.
@@ -50,13 +48,16 @@ pub(crate) enum Article {
 pub(crate) struct ArticleData {
     /// Words (stored lowercased unless they came from a `*`-prefixed,
     /// case-sensitive line) that take "a".
-    requires_a: HashSet<String>,
+    requires_a: DefaultHashSet<String>,
     /// Words that take "an", with the same case normalization as `requires_a`.
-    requires_an: HashSet<String>,
+    requires_an: DefaultHashSet<String>,
 }
 
 impl ArticleData {
-    pub(crate) fn new(requires_a: HashSet<String>, requires_an: HashSet<String>) -> Self {
+    pub(crate) fn new(
+        requires_a: DefaultHashSet<String>,
+        requires_an: DefaultHashSet<String>,
+    ) -> Self {
         ArticleData {
             requires_a,
             requires_an,
@@ -106,13 +107,16 @@ impl ArticleData {
 pub struct AVsAn {
     /// Words (stored lowercased unless they came from a `*`-prefixed,
     /// case-sensitive line) that take "a".
-    requires_a: HashSet<String>,
+    requires_a: DefaultHashSet<String>,
     /// Words that take "an", with the same case normalization as `requires_a`.
-    requires_an: HashSet<String>,
+    requires_an: DefaultHashSet<String>,
 }
 
 impl AVsAn {
-    pub(crate) fn new(requires_a: HashSet<String>, requires_an: HashSet<String>) -> Self {
+    pub(crate) fn new(
+        requires_a: DefaultHashSet<String>,
+        requires_an: DefaultHashSet<String>,
+    ) -> Self {
         AVsAn {
             requires_a,
             requires_an,
@@ -236,7 +240,11 @@ impl AVsAn {
 
 /// Classifies `word` by the word lists and the spelling heuristic, mirroring
 /// LanguageTool's `AvsAnRule.getCorrectDeterminerFor`. `word` must be non-empty.
-fn classify(requires_a: &HashSet<String>, requires_an: &HashSet<String>, word: &str) -> Determiner {
+fn classify(
+    requires_a: &DefaultHashSet<String>,
+    requires_an: &DefaultHashSet<String>,
+    word: &str,
+) -> Determiner {
     let lower = word.to_lowercase();
     let mut determiner = Determiner::Unknown;
 

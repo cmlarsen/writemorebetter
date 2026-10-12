@@ -4,7 +4,6 @@
 //! `<build_dir>/builtin/<name>.txt` and serialized into the rules binary, which
 //! keeps that LGPL data out of the engine source.
 
-use std::collections::HashSet;
 use std::path::Path;
 
 use fs_err as fs;
@@ -13,6 +12,7 @@ use log::{info, warn};
 use crate::{
     builtin::{en::*, Builtin, BuiltinRule},
     tokenizer::Tokenizer,
+    types::DefaultHashSet,
     utils::regex::Regex,
 };
 
@@ -93,7 +93,7 @@ fn comma_parenthesis_whitespace(build_dir: &Path) -> CommaParenthesisWhitespace 
 
 /// Reads and normalizes the two article word lists. Entries from a
 /// `*`-prefixed line are kept case-sensitively; all other entries are lowercased.
-fn a_and_an_words(build_dir: &Path) -> (HashSet<String>, HashSet<String>) {
+fn a_and_an_words(build_dir: &Path) -> (DefaultHashSet<String>, DefaultHashSet<String>) {
     let normalize = |lines: Vec<String>| {
         lines
             .into_iter()

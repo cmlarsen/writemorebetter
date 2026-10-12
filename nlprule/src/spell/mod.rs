@@ -132,7 +132,7 @@ pub struct SpellOptions {
     /// The maximum number of correction candidates to return.
     pub top_n: usize,
     /// A set of words to ignore. Can also contain phrases delimited by a space.
-    pub whitelist: HashSet<String>,
+    pub whitelist: DefaultHashSet<String>,
 }
 
 /// A guard around the [SpellOptions]. Makes sure the spellchecker is updated once this is dropped.
@@ -176,7 +176,7 @@ impl Default for SpellOptions {
             prefix_length: 2,
             freq_weight: 2.,
             top_n: 10,
-            whitelist: HashSet::new(),
+            whitelist: DefaultHashSet::default(),
         }
     }
 }
@@ -299,7 +299,7 @@ pub(crate) struct UserMatcher {
 impl UserMatcher {
     fn new(user: &UserWords, max_freq: usize, variant_index: usize) -> Self {
         let mut accepted = HashSet::new();
-        let mut multiwords: DefaultHashMap<String, Vec<Vec<String>>> = DefaultHashMap::new();
+        let mut multiwords: DefaultHashMap<String, Vec<Vec<String>>> = DefaultHashMap::default();
         let mut suggestion_terms: Vec<(String, u64)> = Vec::new();
 
         let mut freq = SpellInt::default();
@@ -603,7 +603,7 @@ impl Spell {
             _ => VariantChecker {
                 variant,
                 variant_index,
-                multiwords: DefaultHashMap::new(),
+                multiwords: DefaultHashMap::default(),
                 map: self.map.clone(),
                 max_freq: self.max_freq,
                 options: self.options.clone(),

@@ -1,3 +1,23 @@
+# 0.7.0
+
+First writemorebetter release. Ships the LanguageTool 6.6 English rules only; the
+LanguageTool 5.2 rule set is no longer built.
+
+## Changes
+
+- Compile and ship the LanguageTool 6.6 English rules and data (version 0.7.0,
+  continuing past nlprule's inherited 0.6.4).
+- Build the data binaries reproducibly from pinned inputs with
+  `scripts/build-data.sh`; CI and the release workflow call the same script, and the
+  output is byte-identical across runs.
+- Package the LGPL-2.1 data with its license and provenance (`binaries/`), loaded as
+  separate files so users can replace it.
+
+## Internal improvements
+
+- Maps and sets that are serialized into the data binaries use a fixed hasher, so the
+  compiled binaries are byte-reproducible and can be shipped with checksums.
+
 # 0.6.4
 
 ## Internal improvements

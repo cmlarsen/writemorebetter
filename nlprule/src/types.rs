@@ -9,12 +9,18 @@ use serde::{Deserialize, Serialize};
 use std::{
     cmp::Ordering,
     collections::{hash_map, HashMap, HashSet},
+    hash::BuildHasherDefault,
     ops::{Add, AddAssign, Range, Sub},
 };
 
-pub(crate) type DefaultHashMap<K, V> = HashMap<K, V>;
-pub(crate) type DefaultHashSet<T> = HashSet<T>;
+// The hasher is fixed instead of randomly seeded so that these collections
+// serialize in the same order on every run; the compiled data binaries are
+// shipped with SHA256SUMS and must be byte-reproducible.
 pub(crate) type DefaultHasher = hash_map::DefaultHasher;
+pub(crate) type DefaultHashMap<K, V> = HashMap<K, V, BuildHasherDefault<DefaultHasher>>;
+pub(crate) type DefaultHashSet<T> = HashSet<T, BuildHasherDefault<DefaultHasher>>;
+pub(crate) type DefaultBiMap<L, R> =
+    bimap::BiHashMap<L, R, BuildHasherDefault<DefaultHasher>, BuildHasherDefault<DefaultHasher>>;
 
 /// Owned versions of the types for use in longer-living structures not bound to the `'t` lifetime e.g. rule tests.
 pub mod owned {

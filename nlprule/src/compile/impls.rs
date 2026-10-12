@@ -113,9 +113,9 @@ impl Spell {
         lang_options: SpellLangOptions,
         tokenizer: &Tokenizer,
     ) -> io::Result<Self> {
-        let mut words: DefaultHashMap<String, SpellInt> = DefaultHashMap::new();
+        let mut words: DefaultHashMap<String, SpellInt> = DefaultHashMap::default();
         let mut multiwords: DefaultHashMap<String, Vec<(Vec<String>, SpellInt)>> =
-            DefaultHashMap::new();
+            DefaultHashMap::default();
         let mut max_freq = 0;
 
         for (i, variant) in lang_options.variants.iter().enumerate() {
@@ -171,7 +171,7 @@ impl Spell {
         let fst =
             fst::Map::from_iter(words.into_iter()).expect("words are lexicographically sorted.");
 
-        let mut map = DefaultHashMap::new();
+        let mut map = DefaultHashMap::default();
         let reader = BufReader::new(File::open(map_path.as_ref())?);
         for line in reader.lines() {
             let line = line?;
@@ -310,7 +310,7 @@ impl Tagger {
             .enumerate()
             .map(|(i, x)| (x.to_string(), WordIdInt::from_value_unchecked(i as u32)))
             .collect();
-        let tag_store: BiMap<_, _> = tag_store
+        let tag_store: DefaultBiMap<_, _> = tag_store
             .iter()
             .enumerate()
             .map(|(i, x)| (x.to_string(), PosIdInt::from_value_unchecked(i as u16)))
@@ -1262,6 +1262,7 @@ pub(in crate::compile) mod rule_filters {
         Adverb, ApostropheType, ArgValue, DateCheck, DateCheckKind, DateRange, FutureDate,
         NewYearDate, RegexAntiPattern, RuleFilter, UnderlineSpaces, WordFrom, YmdDateCheck,
     };
+    use crate::types::DefaultHashMap;
     use crate::utils::regex::Regex;
 
     /// Splits LanguageTool's `args` attribute (`key:value` pairs, whitespace
@@ -1307,7 +1308,7 @@ pub(in crate::compile) mod rule_filters {
 
     /// Reads the LanguageTool adverb -> adjective table used by `AdverbFilter`
     /// (LGPL data, loaded from the build directory like the builtin lists).
-    fn adverb_table(build_dir: &Path) -> HashMap<String, String> {
+    fn adverb_table(build_dir: &Path) -> DefaultHashMap<String, String> {
         let path = build_dir.join("builtin").join("adverb_adjective.txt");
         match fs_err::read_to_string(&path) {
             Ok(content) => content
@@ -1326,7 +1327,7 @@ pub(in crate::compile) mod rule_filters {
                     "Builtin data file {} does not exist. AdverbFilter will use an empty table.",
                     path.display()
                 );
-                HashMap::new()
+                DefaultHashMap::default()
             }
         }
     }

@@ -9,6 +9,7 @@ Copyright (c) Benjamin Minixhofer, licensed under MIT OR Apache-2.0, with
 modifications.
 
 Rules, dictionaries, and other data compiled from LanguageTool resources
-(https://github.com/languagetool-org/languagetool) are licensed under LGPL-2.1;
-see binaries/LICENSE. writemorebetter is not affiliated with LanguageTool or
-LanguageTooler GmbH.
+(https://github.com/languagetool-org/languagetool, release 6.6) are licensed
+under LGPL-2.1; see binaries/LICENSE-LGPL-2.1.txt. The OpenNLP chunker model is
+taken from nlprule's published English data. writemorebetter is not affiliated
+with LanguageTool or LanguageTooler GmbH.

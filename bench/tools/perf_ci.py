@@ -35,7 +35,7 @@ def allocation_calls(profile):
 def measure(label, probe, storage, output):
     rows = {}
     text = ROOT / 'bench/public/moby150k.txt'
-    for rules in ['52', '66']:
+    for rules in ['66']:
         samples = []
         for i in range(5):
             time_log = output / f'{label}-{rules}-{i}.time'
@@ -75,7 +75,7 @@ def main():
     }
     lines = ['## Performance against merge base', '', result['method'], '',
              '| Rules | Metric | Base | PR | Delta |', '|---|---|---:|---:|---:|']
-    for rules in ['52', '66']:
+    for rules in ['66']:
         for metric in ['check_seconds', 'peak_rss_mib', 'loaded_rss_mib', 'load_seconds',
                        'instructions', 'allocator_calls']:
             if metric not in result['base'][rules]:

@@ -19,82 +19,22 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
-      # --- LanguageTool 6.6 build dir ---------------------------------------------
-      # Same generator and cache keys as the 6.6 job in ci.yml; that job runs on Ubuntu,
-      # so this is a second copy of the same generated directory on the macOS runner.
-      - name: Cache LanguageTool download and portable JRE
+      - uses: actions/setup-python@v5
+        with:
+          # build/requirements.txt pins old packages (lxml 4.6.3); 3.9 is the newest
+          # interpreter with wheels for them.
+          python-version: '3.9'
+
+      # The data is built by the same pinned script as CI and the release workflow.
+      # Only the downloads, the portable JRE and the build venv are cached.
+      - name: Cache LanguageTool download, portable JRE and build venv
         uses: actions/cache@v4
         with:
           path: data/cache
-          key: lt-download-${{ runner.os }}-6.6
+          key: lt-data-${{ runner.os }}-${{ hashFiles('build/requirements.txt') }}
 
-      - name: Cache generated build dir
-        id: build-dir
-        uses: actions/cache@v4
-        with:
-          path: data/en-lt66
-          key: build-dir-${{ runner.os }}-6.6-${{ hashFiles('build/make_build_dir.py', 'build/requirements.txt', 'build/chunker.py', 'build/builtin-data/en/**') }}
-
-      - name: Fetch LanguageTool 6.6 and portable JRE
-        if: steps.build-dir.outputs.cache-hit != 'true'
-        run: |
-          mkdir -p data storage
-          eval "$(build/fetch_lt.sh data/cache 6.6)"
-          echo "LT_DIR=$LT_DIR" >> "$GITHUB_ENV"
-          echo "JAVA_BIN=$JAVA_BIN" >> "$GITHUB_ENV"
-
-      - name: Set up Python
-        if: steps.build-dir.outputs.cache-hit != 'true'
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.9'
-
-      - name: Install build-dir generator dependencies
-        if: steps.build-dir.outputs.cache-hit != 'true'
-        run: |
-          python3 -m venv data/venv
-          data/venv/bin/pip install -r build/requirements.txt
-
-      - name: Extract LanguageTool 6.6 tagger and speller dictionaries
-        if: steps.build-dir.outputs.cache-hit != 'true'
-        run: |
-          unzip -o "$LT_DIR/libs/english-pos-dict.jar" \
-              'org/languagetool/resource/en/english.dict' \
-              'org/languagetool/resource/en/english.info' \
-              'org/languagetool/resource/en/hunspell/*.dict' \
-              'org/languagetool/resource/en/hunspell/*.info' \
-              -d "$LT_DIR"
-
-      - name: Generate LanguageTool 6.6 build dir
-        if: steps.build-dir.outputs.cache-hit != 'true'
-        run: |
-          data/venv/bin/python build/make_build_dir.py \
-              --lt_dir "$LT_DIR" \
-              --lang_code en \
-              --tag_dict_path "$LT_DIR/org/languagetool/resource/en/english.dict" \
-              --tag_info_path "$LT_DIR/org/languagetool/resource/en/english.info" \
-              --spell_map_path "$LT_DIR/org/languagetool/rules/en/contractions.txt" \
-              --java "$JAVA_BIN" \
-              --out_dir data/en-lt66
-
-      - name: Reuse chunker model and builtin data from the published build dir
-        if: steps.build-dir.outputs.cache-hit != 'true'
-        run: |
-          curl -sSL -o data/en.zip https://f000.backblazeb2.com/file/nlprule/en.zip
-          unzip -q data/en.zip -d data
-          cp data/en/chunker.json data/en-lt66/chunker.json
-          mkdir -p data/en-lt66/builtin
-          cp -r build/builtin-data/en/. data/en-lt66/builtin/
-
-      - name: Compile English binaries
-        env:
-          RUST_LOG: INFO
-        run: |
-          mkdir -p storage/66
-          cargo run --release --all-features --bin compile -- \
-              --build-dir data/en-lt66 \
-              --tokenizer-out storage/66/en_tokenizer.bin \
-              --rules-out storage/66/en_rules.bin
+      - name: Build data (pinned LanguageTool 6.6)
+        run: scripts/build-data.sh --out-dir storage/66
 
       - name: Build the XCFramework and regenerate the Swift bindings
         run: ./scripts/build-xcframework.sh

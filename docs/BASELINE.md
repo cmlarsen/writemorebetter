@@ -2,6 +2,7 @@
 
 The numbers later milestones are measured against. Recorded 2026-10-11 on an Apple M5 Pro, rustc 1.97.1,
 release builds. Update this file only when a milestone deliberately moves the baseline (and say which).
+As of release 0.7.0 the LT 5.2 rule set is no longer built; the 5.2 columns below are kept as history.
 
 ## Current (after M4F)
 

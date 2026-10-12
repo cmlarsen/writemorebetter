@@ -1,8 +1,6 @@
 //! Flags a word whose spelling variant differs from one used earlier in the text.
 
-use std::collections::HashMap;
-
-use crate::types::{Sentence, Suggestion, Token};
+use crate::types::{DefaultHashMap, Sentence, Suggestion, Token};
 use serde::{Deserialize, Serialize};
 
 /// The identifier of the LanguageTool rule this builtin reimplements.
@@ -28,13 +26,13 @@ const ID: &str = "EN_WORD_COHERENCY";
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WordCoherency {
     /// Maps each admitted spelling to the other spellings of the same word.
-    variants: HashMap<String, Vec<String>>,
+    variants: DefaultHashMap<String, Vec<String>>,
 }
 
 impl WordCoherency {
     /// Creates a new rule from the `other;spelling` pairs of the data file.
     pub(crate) fn new(pairs: Vec<(String, String)>) -> Self {
-        let mut variants: HashMap<String, Vec<String>> = HashMap::new();
+        let mut variants: DefaultHashMap<String, Vec<String>> = DefaultHashMap::default();
         for (first, second) in pairs {
             add_variant(&mut variants, &first, &second);
             add_variant(&mut variants, &second, &first);
@@ -55,7 +53,7 @@ impl WordCoherency {
         }
 
         // Other spelling that should not appear -> the spelling already seen.
-        let mut should_not_appear: HashMap<String, String> = HashMap::new();
+        let mut should_not_appear: DefaultHashMap<String, String> = DefaultHashMap::default();
         let mut suggestions = Vec::new();
 
         for sentence in sentences {
@@ -97,7 +95,7 @@ impl WordCoherency {
 }
 
 /// Adds `other` to the set of spellings of `word` if it is not there yet.
-fn add_variant(variants: &mut HashMap<String, Vec<String>>, word: &str, other: &str) {
+fn add_variant(variants: &mut DefaultHashMap<String, Vec<String>>, word: &str, other: &str) {
     let entry = variants.entry(word.to_owned()).or_default();
     if !entry.iter().any(|existing| existing == other) {
         entry.push(other.to_owned());
