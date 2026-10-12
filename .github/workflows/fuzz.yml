@@ -100,6 +100,7 @@ jobs:
         env:
           RUST_LOG: INFO
         run: |
+          mkdir -p storage/66
           cargo run --release --all-features --bin compile -- \
               --build-dir data/en-lt66 \
               --tokenizer-out storage/66/en_tokenizer.bin \
