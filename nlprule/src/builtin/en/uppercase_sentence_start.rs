@@ -35,12 +35,40 @@ impl UppercaseSentenceStart {
 
     /// Checks the sentences of one paragraph and returns the resulting suggestions.
     pub fn check(&self, sentences: &[Sentence]) -> Vec<Suggestion> {
+        self.check_with_previous(sentences, None)
+    }
+
+    /// Checks the sentences of one paragraph, using the last sentence of the
+    /// preceding paragraph as context. The corresponding LanguageTool rule is
+    /// text-level, so the first sentence of a paragraph is only checked against
+    /// the sentence before it; without that context a paragraph after a line
+    /// that is not a real sentence end (`Hello;\n\nworld.`) would be flagged.
+    /// Only the sentences of the paragraph itself are reported.
+    pub fn check_with_previous(
+        &self,
+        sentences: &[Sentence],
+        previous: Option<&Sentence>,
+    ) -> Vec<Suggestion> {
         // A paragraph that consists of a single word is not useful to complain
         // about; the missing capitalization may just be a typo.
-        if sentences.len() == 1 && sentences[0].tokens().len() == 1 {
+        if sentences.is_empty() || (sentences.len() == 1 && sentences[0].tokens().len() == 1) {
             return Vec::new();
         }
 
+        let suppress_before = previous.map(|_| sentences[0].span().char().start);
+        let mut context: Vec<&Sentence> = Vec::with_capacity(sentences.len() + 1);
+        if let Some(previous) = previous {
+            context.push(previous);
+        }
+        context.extend(sentences.iter());
+
+        self.run(&context, suppress_before)
+    }
+
+    /// The rule loop. `suppress_before` is the char position at which the
+    /// reportable paragraph starts; suggestions before it come from the context
+    /// sentence and are dropped.
+    fn run(&self, sentences: &[&Sentence], suppress_before: Option<usize>) -> Vec<Suggestion> {
         let mut suggestions = Vec::new();
         // The last token of the previous sentence, with a trailing quote or
         // whitespace removed.
@@ -108,6 +136,8 @@ impl UppercaseSentenceStart {
                     && !only_lowercase_start(check_token)
                     && !self.exceptions.iter().any(|x| x == check_token)
                     && !is_camel_case(check_token)
+                    && suppress_before
+                        .is_none_or(|before| tokens[check_pos].span().char().start >= before)
                 {
                     suggestions.push(Suggestion::new(
                         format!("BUILTIN/{}", ID),
