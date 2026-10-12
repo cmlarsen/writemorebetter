@@ -445,6 +445,21 @@ fn user_dictionary_does_not_change_output_without_words() {
     assert_eq!(spelling_errors(text), spelling_errors_with_words(&[], text));
 }
 
+#[test]
+fn spellchecker_does_not_search_very_long_tokens() {
+    // A pasted run with no word break must not let the finite-state search dominate the
+    // check. The Levenshtein search is skipped for tokens longer than a word, so this
+    // completes quickly even though the token is still flagged.
+    let text = "a".repeat(100_000);
+    let start = std::time::Instant::now();
+    assert_eq!(spelling_errors(&text), vec![text.as_str()]);
+    assert!(
+        start.elapsed() < std::time::Duration::from_secs(10),
+        "checking a 100k-char token took {:?}",
+        start.elapsed()
+    );
+}
+
 /// Runs the English word-repeat builtin directly on a single sentence and
 /// returns the flagged text and the first replacement of every suggestion.
 fn builtin_word_repeat_flags(text: &str) -> Vec<(String, String)> {

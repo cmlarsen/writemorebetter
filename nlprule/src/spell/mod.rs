@@ -465,6 +465,14 @@ impl VariantChecker {
             return vec![candidate.to_owned()];
         }
 
+        // The finite-state search cost grows sharply with the query length; a pasted
+        // run of characters with no word break (a token far longer than any word) is
+        // not worth correcting, so skip the search rather than let it dominate a check.
+        const MAX_SEARCH_LEN: usize = 64;
+        if word.chars().count() > MAX_SEARCH_LEN {
+            return Vec::new();
+        }
+
         let query = levenshtein::Levenshtein::new(word, self.options.max_distance, 2);
 
         let mut out = BinaryHeap::with_capacity(self.options.top_n);
