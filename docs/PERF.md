@@ -696,7 +696,8 @@ establishes measurement and does not count as an optimization.
 | Attempt | PR | Change | Instructions Δ (6.6) | Peak RSS Δ (6.6) | Peak RSS Δ (5.2) | Chunkbench Δ (6.6 / 5.2) | Kept/dropped |
 |---|---|---|---|---|---|---|---|
 | 0 | [#88](https://github.com/cmlarsen/writemorebetter/pull/88) | Isolated chunker harness + chunk golden | +0.10% (no engine change) | −0.68% (−0.50 MiB) | +0.05% | baseline 10,380 / 9,955 ns/token | Phase 0 |
-| 1 | [#89](https://github.com/cmlarsen/writemorebetter/pull/89) | Allocation-free context hashing, precomputed/resolved static features, beam-heap reuse | −1.73% | −0.51% (−0.375 MiB) | +0.06% | −20% / −19% ns/token, −50% alloc calls | pending |
+| 1 | [#89](https://github.com/cmlarsen/writemorebetter/pull/89) | Allocation-free context hashing, precomputed/resolved static features, beam-heap reuse | −1.73% | −0.51% (−0.375 MiB) | +0.06% | −20% / −19% ns/token, −50% alloc calls | kept |
+| 2 | (this PR) | Incremental beam log-probability; linear-time chunker tokenizer scan and single-pass argmax | pending | pending | pending | −8% / −5% ns/token on top of attempt 1 | pending |
 
 ### Attempt 1 — allocation-free context hashing and precomputed static features
 
@@ -733,4 +734,25 @@ CI (whole-process Callgrind, LT 6.6): instructions 51.038B → 50.157B (−1.73%
 −6.81%, 6.6 peak RSS 73.285 → 72.910 MiB (−0.375), 5.2 peak RSS +0.06%; native check medians fell
 7.7% (6.6) and 11.3% (5.2) on the shared runner. Clears the keep rule (≥1% instructions, no RSS
 cost).
+
+### Attempt 2 — incremental beam log-probability and a linear chunker tokenizer
+
+`Sequence::new` recomputed `log_prob` by folding `ln` over the sequence's whole probability history
+on every beam extension, so a sentence of n tokens paid O(n²) `ln` calls. `Sequence::extended`
+appends one `(pred, p)` and sets `log_prob = seq.log_prob + p.ln()`, which is the same
+left-associative sum in the same order, so the ranking is bit-identical but each extension is O(1).
+The chunker's own tokenizer also located each pretoken's start with a linear scan (O(n²) over the
+sentence) and built a `Vec<char>` and two scratch vectors for every token even on the
+all-alphanumeric fast path; it now binary-searches `char_indices`, builds the char vector only on
+the slow path, and picks the best label with a single pass.
+
+Chunkbench, interleaved against attempt 1, median of a few runs:
+
+| Rules | ns/token before → after | alloc calls before → after | requested MiB before → after |
+|---|---:|---:|---:|
+| 5.2 | 7,399 → 7,005 (−5.3%) | 2,185,002 → 2,083,627 (−4.6%) | 258.4 → 254.6 |
+| 6.6 | 7,847 → 7,188 (−8.4%) | 2,302,949 → 2,200,790 (−4.4%) | 345.7 → 340.7 |
+
+Chunk golden (12 files) is byte-identical; the 24 suggestion goldens, workspace tests, clippy, fmt
+and the wasm build pass. CI decides retention.
 

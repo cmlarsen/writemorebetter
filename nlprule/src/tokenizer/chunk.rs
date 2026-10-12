@@ -57,23 +57,29 @@ impl<'a> Default for Sequence<'a> {
 }
 
 impl<'a> Sequence<'a> {
-    fn new(outcomes: Vec<&'a str>, probs: Vec<f32>) -> Self {
-        let log_prob = probs.iter().fold(0., |a, b| a + b.ln());
+    /// Extends `seq` with one `(pred, p)` step. `log_prob` is `seq.log_prob + p.ln()`, which is
+    /// bit-identical to the left-associative fold `Sequence::new` performs over the extended
+    /// `probs` (addition in the same order), so the beam ranking is unchanged — but it is O(1)
+    /// instead of O(length) per extension.
+    fn extended(seq: &Sequence<'a>, pred: &'a str, p: f32) -> Self {
+        let mut outcomes = Vec::with_capacity(seq.outcomes.len() + 1);
+        outcomes.extend_from_slice(&seq.outcomes);
+        outcomes.push(pred);
+
+        let mut probs = Vec::with_capacity(seq.probs.len() + 1);
+        probs.extend_from_slice(&seq.probs);
+        probs.push(p);
+
         Sequence {
             outcomes,
             probs,
-            log_prob,
+            log_prob: seq.log_prob + p.ln(),
         }
     }
 
     #[inline]
     fn outcomes(&self) -> &[&'a str] {
         &self.outcomes
-    }
-
-    #[inline]
-    pub fn probs(&self) -> &[f32] {
-        &self.probs
     }
 }
 
@@ -419,10 +425,7 @@ impl Model {
 
                 for (_, p, pred) in top_n {
                     if valid_fn(tokens, &seq.outcomes(), i, pred) {
-                        let next_outcomes: Vec<_> = [seq.outcomes(), &[pred]].concat();
-                        let next_probs: Vec<_> = [seq.probs(), &[p]].concat();
-
-                        next.push(Sequence::new(next_outcomes, next_probs));
+                        next.push(Sequence::extended(seq, pred, p));
                     }
                 }
 
@@ -431,13 +434,7 @@ impl Model {
                     for (j, p) in scores.iter().enumerate() {
                         let pred = self.outcome_labels[j].as_str();
                         if valid_fn(tokens, &seq.outcomes(), i, pred) {
-                            let mut next_outcomes: Vec<_> = seq.outcomes().to_vec();
-                            next_outcomes.push(pred);
-
-                            let mut next_probs: Vec<_> = seq.probs().to_vec();
-                            next_probs.push(*p);
-
-                            next.push(Sequence::new(next_outcomes, next_probs));
+                            next.push(Sequence::extended(seq, pred, *p));
                         }
                     }
                 }
@@ -542,26 +539,27 @@ impl MaxentTokenizer {
 
         for pre_token in text.split_whitespace() {
             let byte_offset = pre_token.as_ptr() as usize - text.as_ptr() as usize;
+            // `char_indices` is sorted by byte offset; the pretoken starts on a char boundary
+            // that is one of its entries.
             let char_start = char_indices
-                .iter()
-                .position(|(i, _)| *i == byte_offset)
-                .unwrap();
-            let byte_start = char_indices[char_start].0;
+                .binary_search_by_key(&byte_offset, |(i, _)| *i)
+                .expect("pretoken starts on a char boundary");
 
             let token_char_indices =
                 &char_indices[char_start..char_start + pre_token.chars().count()];
-            let token_chars: Vec<_> = token_char_indices.iter().map(|(_, c)| c).cloned().collect();
 
             if (token_char_indices.len() < 2)
                 || pre_token.chars().all(|x| x.is_ascii_alphanumeric())
             {
                 tokens.push(pre_token);
             } else {
+                let byte_start = token_char_indices[0].0;
+                let token_chars: Vec<_> = token_char_indices.iter().map(|(_, c)| *c).collect();
                 let mut start = byte_start;
 
                 for i in 1..token_char_indices.len() {
                     let context = Self::context(&token_chars, i);
-                    let (_, _, best) = self.model.get_top_n(&self.model.eval(&context), 1, 0.5)[0];
+                    let best = self.best_label(&context);
 
                     if best == "T" {
                         tokens.push(&text[start..token_char_indices[i].0]);
@@ -574,6 +572,19 @@ impl MaxentTokenizer {
         }
 
         tokens
+    }
+
+    /// The most probable outcome label for `context`, the same label `get_top_n(…, 1, 0.5)[0]`
+    /// returns (ties go to the lowest index). Avoids the two scratch vectors `get_top_n` builds.
+    fn best_label(&self, context: &[u64]) -> &str {
+        let scores = self.model.eval(context);
+        let mut best = 0usize;
+        for (j, p) in scores.iter().enumerate() {
+            if *p > scores[best] {
+                best = j;
+            }
+        }
+        self.model.outcome_labels[best].as_str()
     }
 }
 
