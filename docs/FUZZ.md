@@ -129,18 +129,30 @@ A shorter, ruleset-independent reproduction is `"I " * n`, which the regression 
 `repeated_token_run_does_not_scan_quadratically` uses: `n = 1000` went 1.5 s → 0.16 s
 and `n = 2000` went 21.0 s → 0.6 s (identical on LT 5.2 and 6.6).
 
-### The residual tokenizer quadratic (reported, not fixed)
+### The residual superlinear cost on long sentences (reported, not fixed)
 
 The `nt` rows above are still slow because a sentence with no terminator costs more in
-the **tokenizer** than in the rules. Tokenizer-only times (no rules), sequential:
-nt 500/1 000/2 000/5 000 words = 0.042 / 0.116 / 0.347 / 2.07 s, while the same 5 000
-tokens *with* sentence breaks take 0.20 s. `disambiguate_up_to_id` clones the sentence
-and rebuilds a `MatchSentence` on every iteration, and the number of iterations grows
-with sentence length, giving roughly O(tokens²) for a single long sentence. This is why
-nt 1 000 words cannot reach 100 ms: tokenization alone is already ~116 ms. Fixing it
-means restructuring the disambiguation loop (no output change expected) or capping
-tokens per sentence; it is tracked as a separate change, and the rule-matching table
-above is the effect of this one.
+the **tokenizer** than in the rules. Tagging is linear; the two superlinear stages after
+it are rule-based **disambiguation** and the **chunker**. Stage times at
+1 000 / 2 000 / 5 000 tokens, one sentence, sequential (`prepared_sentences` =
+sentencizing + tagging only):
+
+| stage | 1 000 | 2 000 | 5 000 |
+|---|---|---|---|
+| tagging (`prepared_sentences`) | 0.002 s | 0.003 s | 0.008 s |
+| chunker (`chunk_apply`) | 0.020 s | 0.063 s | 0.380 s |
+| disambiguation (`disambiguate`) | 0.047 s | 0.147 s | 0.745 s |
+
+Disambiguation is dominated by a few rules re-applied across iterations, most of all
+`DISAMBIGUATION/VBN_VBD/0` (0.0033 s → 0.025 s → 0.13 s), and the time is inside the
+rule's match iteration, not group-token lookups. The per-iteration clone/`into_sentence`
+(≈0.046 s of the 0.75 s at 5 000 tokens) and making `Group::tokens` span-local (0.745 s
+→ 0.697 s) were both measured and ruled out. The full pipeline at 5 000 tokens is
+1.63 s, of which ~0.5 s is outside tagging/chunking/disambiguation (multiword tagging
+and materialising the `Sentence`). This is why nt 1 000 words cannot reach 100 ms.
+
+It is tracked in
+[#101 engine: disambiguation and chunker are superlinear on a single long sentence](https://github.com/cmlarsen/writemorebetter/issues/101).
 
 The speller blowup (`"a" * 100_000`, 121 s → 0.08 s) is fixed with a length cap in
 `VariantChecker::search` (`nlprule/src/spell/mod.rs`).
