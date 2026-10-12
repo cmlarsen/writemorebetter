@@ -128,6 +128,23 @@ added 126 flags across the corpus: the 28 verified misspellings, the rest mostly
 The fork's English compile took 4.5 minutes and 815 MB. Its 5× larger rules binary comes from expanding
 `<phrases>` by cloning rules. The Harper number is the CLI; its WASM build was not measured.
 
+### Compared with a local LanguageTool server (2026-10-12)
+
+Measured on an Apple Silicon Mac against a local LanguageTool **6.5** server (desktop release, HTTP on
+localhost, warm, default settings), with writemorebetter on the LanguageTool 6.6 rules, release build,
+fiction profile. The server is 6.5 rather than 6.6, and these measurements predate the builtin and
+segmentation fixes in #96–#100.
+
+| Input | writemorebetter | LanguageTool 6.5 server |
+|---|---|---|
+| Full Moby-Dick (212,796 words, one document) | 18.5 s, 93 MiB peak RSS | 45–52 s, ~700 MiB RSS |
+| Short single documents (1,400–2,200 words) | 0.24–0.28 s | 0.18–0.49 s |
+
+The server needs at least a 512 MB heap; 256 MB runs out of memory. On the full novel writemorebetter
+is about 2.5× faster at about a seventh of the memory. On short documents the two are about the same
+speed, and writemorebetter needs no server or JVM: our load time is ~0.1 s, whereas LanguageTool
+server startup is seconds.
+
 ## nlprule's memory, explained
 
 The English tokenizer binary stores the tagger as two FSTs (compact because they share prefixes and
