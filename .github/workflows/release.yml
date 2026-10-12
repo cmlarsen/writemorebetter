@@ -1,0 +1,87 @@
+name: Release
+
+# Tags are plain `X.Y.Z` (no `v`), matching the existing tag style SwiftPM needs.
+on:
+  push:
+    tags:
+      - '[0-9]+.[0-9]+.[0-9]+'
+  # Dry run: build the data and upload it as a workflow artifact, but publish nothing.
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-data:
+    name: Build data
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: . -> target
+
+      - uses: actions/setup-python@v5
+        with:
+          # build/requirements.txt pins old packages (lxml 4.6.3); 3.9 is the newest
+          # interpreter with wheels for them.
+          python-version: '3.9'
+
+      - name: Cache LanguageTool download, portable JRE and build venv
+        uses: actions/cache@v4
+        with:
+          path: data/cache
+          key: lt-data-${{ runner.os }}-${{ hashFiles('build/requirements.txt') }}
+
+      - name: Build data (pinned LanguageTool 6.6)
+        run: scripts/build-data.sh
+
+      - name: Determine version
+        id: version
+        run: |
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            version="${GITHUB_REF_NAME}"
+          else
+            # Dry run on a branch: use the workspace crate version.
+            version="$(sed -n 's/^version = "\(.*\)"/\1/p' nlprule/Cargo.toml | head -n1)"
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Package data
+        run: |
+          cd dist/data
+          zip -r "$GITHUB_WORKSPACE/writemorebetter-data-${{ steps.version.outputs.version }}.zip" \
+            en_tokenizer.bin en_rules.bin SHA256SUMS README.md LICENSE-LGPL-2.1.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: writemorebetter-data-${{ steps.version.outputs.version }}
+          path: writemorebetter-data-*.zip
+          if-no-files-found: error
+
+  # The Swift lane will add an XCFramework job alongside `build-data`; the release
+  # job then attaches both artifacts to the release.
+  release:
+    name: Publish release
+    needs: build-data
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: writemorebetter-data-${{ needs.build-data.outputs.version }}
+          path: dist
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/writemorebetter-data-*.zip \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "writemorebetter $GITHUB_REF_NAME" \
+            --generate-notes
