@@ -37,6 +37,9 @@ fi
 CRATE="writemorebetter-swift"
 LIB_NAME="libwritemorebetter_swift.a"
 FFI_NAME="WriteMoreBetterFFI"
+# The library inside each slice keeps the `lib` prefix: SwiftPM derives a `-l<name>` link flag from
+# the file name and rejects anything that does not start with `lib` ("unexpected binary framework").
+FFI_LIB="lib${FFI_NAME}.a"
 OUT="dist"
 GENERATED="${OUT}/generated"
 BINDINGS_OUT="swift/Sources/WriteMoreBetter/Generated"
@@ -61,19 +64,19 @@ build_slice aarch64-apple-darwin
 build_slice x86_64-apple-darwin
 mkdir -p "${OUT}/tmp/macos"
 lipo -create "$(slice_lib aarch64-apple-darwin)" "$(slice_lib x86_64-apple-darwin)" \
-    -output "${OUT}/tmp/macos/${FFI_NAME}.a"
+    -output "${OUT}/tmp/macos/${FFI_LIB}"
 
 echo "==> building iOS device slice (aarch64-apple-ios)"
 build_slice aarch64-apple-ios
 mkdir -p "${OUT}/tmp/ios"
-cp "$(slice_lib aarch64-apple-ios)" "${OUT}/tmp/ios/${FFI_NAME}.a"
+cp "$(slice_lib aarch64-apple-ios)" "${OUT}/tmp/ios/${FFI_LIB}"
 
 echo "==> building iOS simulator slices (aarch64-apple-ios-sim, x86_64-apple-ios)"
 build_slice aarch64-apple-ios-sim
 build_slice x86_64-apple-ios
 mkdir -p "${OUT}/tmp/ios-simulator"
 lipo -create "$(slice_lib aarch64-apple-ios-sim)" "$(slice_lib x86_64-apple-ios)" \
-    -output "${OUT}/tmp/ios-simulator/${FFI_NAME}.a"
+    -output "${OUT}/tmp/ios-simulator/${FFI_LIB}"
 
 echo "==> generating Swift bindings and modulemap"
 # No --xcframework: that makes uniffi emit `framework module WriteMoreBetterFFI`, which clang
@@ -89,13 +92,13 @@ echo "==> assembling ${OUT}/${FFI_NAME}.xcframework"
 # Bindgen has already read the metadata symbols out of the macOS slice, so the shipped archives can
 # lose their debug info: 26 MB per slice becomes 11 MB. `strip` warns once per object that is
 # already free of debug info; the noise is not worth reading.
-strip -S "${OUT}/tmp/macos/${FFI_NAME}.a" 2>/dev/null
-strip -S "${OUT}/tmp/ios/${FFI_NAME}.a" 2>/dev/null
-strip -S "${OUT}/tmp/ios-simulator/${FFI_NAME}.a" 2>/dev/null
+strip -S "${OUT}/tmp/macos/${FFI_LIB}" 2>/dev/null
+strip -S "${OUT}/tmp/ios/${FFI_LIB}" 2>/dev/null
+strip -S "${OUT}/tmp/ios-simulator/${FFI_LIB}" 2>/dev/null
 xcodebuild -create-xcframework \
-    -library "${OUT}/tmp/macos/${FFI_NAME}.a" -headers "$GENERATED" \
-    -library "${OUT}/tmp/ios/${FFI_NAME}.a" -headers "$GENERATED" \
-    -library "${OUT}/tmp/ios-simulator/${FFI_NAME}.a" -headers "$GENERATED" \
+    -library "${OUT}/tmp/macos/${FFI_LIB}" -headers "$GENERATED" \
+    -library "${OUT}/tmp/ios/${FFI_LIB}" -headers "$GENERATED" \
+    -library "${OUT}/tmp/ios-simulator/${FFI_LIB}" -headers "$GENERATED" \
     -output "${OUT}/${FFI_NAME}.xcframework"
 rm -rf "${OUT}/tmp"
 
