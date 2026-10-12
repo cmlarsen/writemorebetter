@@ -244,6 +244,7 @@ attempts total. Phase 0 establishes measurement and does not count as an optimiz
 | 11 | [#61](https://github.com/cmlarsen/writemorebetter/pull/61) | Prefer the longest mandatory literal for absence guards | -1.52% | -0.555 MiB | +0.082 MiB | +2.40% / +1.23% (interleaved, loaded) | kept |
 | 12 | [#60](https://github.com/cmlarsen/writemorebetter/pull/60) | Share lazy compiled regex backends for identical sources | -0.16% | -2.992 MiB | -0.984 MiB | +1.13% / -1.26% (interleaved, loaded) | kept |
 | 13 | [#59](https://github.com/cmlarsen/writemorebetter/pull/59) | Compact contiguous NFA for multiword tagging | +1.28% | -8.441 MiB | -2.289 MiB | +1.57% / +0.32% (interleaved, loaded) | kept (coordinator-approved) |
+| 15 | [#63](https://github.com/cmlarsen/writemorebetter/pull/63) | Raise boolean-regex cache to 2048 slots per thread | -1.40% (-1.29% before #65) | -0.148 MiB (+0.391 before #65) | +0.223 MiB | +0.93% / -1.31% (interleaved, loaded) | kept |
 | 16 | [#65](https://github.com/cmlarsen/writemorebetter/pull/65) | Cache exact regex inputs up to 15 UTF-8 bytes | -4.01% | +0.414 MiB | -0.066 MiB | -3.29% / +0.28% (interleaved, loaded) | kept |
 
 
@@ -528,3 +529,24 @@ U+2028. All 24 goldens, fmt, clippy and the workspace tests pass.
 CI passed: instructions 54.808B → 52.609B (-4.01%), allocator calls 30.994M → 28.067M
 (-9.44%), 6.6 peak 72.453 → 72.867 MiB (+0.414), 5.2 peak -0.066 MiB; loaded RSS +0.211 MiB.
 #65 was retained as an instruction win within the 1 MiB allowance.
+
+### Attempt 15 — larger bounded boolean-regex cache
+
+The attempt-1 cache holds 512 exact-key slots per thread. This attempt quadruples it to
+2048 (48 KiB per thread on native 64-bit) to raise the hit rate on repeated short inputs.
+Keys, input limit and miss behavior are unchanged; no new global state. All 24 goldens, fmt,
+clippy and the workspace tests pass. The cost is per-thread memory, which multiplies by
+the rayon thread count (about 0.8 MiB locally on 15 threads).
+
+| Rules | Text | Check before/after (s) | Check Δ | Peak before/after (MiB) | Peak Δ (MiB) |
+|---|---|---|---:|---|---:|
+| 52 | moby150k | 2.0029 / 1.9766 | -1.31% | 71.45 / 72.38 | +0.92 |
+| 52 | story1 | 0.1571 / 0.1537 | -2.18% | 63.50 / 64.34 | +0.84 |
+| 66 | moby150k | 2.4809 / 2.5041 | +0.93% | 87.91 / 88.70 | +0.80 |
+| 66 | story1 | 0.1935 / 0.1962 | +1.40% | 74.36 / 75.14 | +0.78 |
+
+CI passed on the original base: instructions 54.807B → 54.098B (-1.29%), allocator calls -2.44%, 6.6
+peak +0.391 MiB, 5.2 peak +0.168 MiB. After #65 merged, the rebased branch measured 52.637B →
+51.902B (-1.40%), allocator calls -3.05%, 6.6 peak 72.711 → 72.563 MiB (-0.148), 5.2 peak
++0.223 MiB, loaded RSS -0.27 MiB on 6.6. #63 was retained as an instruction win with no RSS
+cost; with 32-byte slots from #65 the cache is now 64 KiB per thread.
