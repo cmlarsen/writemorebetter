@@ -45,6 +45,15 @@ fn can_tokenize_anything(text: String) -> bool {
 }
 
 #[test]
+fn sentencizer_breaks_at_a_blank_line() {
+    // LanguageTool segments text with the SRX rules of its default line-break
+    // mode, where a blank line ends a paragraph (and its last sentence).
+    let count = |text: &str| TOKENIZER.pipe(text).count();
+    assert_eq!(count("First. Second.\n\nThird. Fourth."), 4);
+    assert_eq!(count("A.\n\nB."), 2);
+}
+
+#[test]
 fn batch_size_does_not_change_suggestions() {
     let text = "I can due his homework.\n\n“She dont know”—he said… \u{2028}It’s fine. A apple fell.\n\nThey was late.";
     let mut rules = Rules::new(RULES_PATH).unwrap();
@@ -576,7 +585,6 @@ fn builtin_word_repeat_flags_curly_quotes() {
 }
 
 #[test]
-#[ignore = "LT 6.6 regression, see #96"]
 fn builtin_word_repeat_flags_curly_apostrophe() {
     assert_eq!(
         builtin_word_repeat_flags("I don\u{2019}t don\u{2019}t know."),
@@ -585,6 +593,41 @@ fn builtin_word_repeat_flags_curly_apostrophe() {
             "don\u{2019}t".to_string()
         )]
     );
+}
+
+#[test]
+fn builtin_word_repeat_flags_straight_split_contraction() {
+    assert_eq!(
+        builtin_word_repeat_flags("I don't don't know."),
+        vec![("don't don't".to_string(), "don't".to_string())]
+    );
+}
+
+#[test]
+fn builtin_word_repeat_flags_split_clitic() {
+    // The `’s` clitic is a token of its own under 6.6 tokenization.
+    assert_eq!(
+        builtin_word_repeat_flags("It\u{2019}s it\u{2019}s fine."),
+        vec![(
+            "It\u{2019}s it\u{2019}s".to_string(),
+            "It\u{2019}s".to_string()
+        )]
+    );
+}
+
+#[test]
+fn builtin_word_repeat_ignores_words_that_only_look_split() {
+    // A space before the clitic makes `do` and `n't` two words, so `do` is not
+    // immediately repeated.
+    assert!(builtin_word_repeat_flags("I do n't do n't know.").is_empty());
+    // A sentence boundary separates `do` from the next `Don\u{2019}t`.
+    assert!(builtin_word_repeat_flags("I do. Don\u{2019}t go.").is_empty());
+}
+
+#[test]
+fn builtin_word_repeat_ignores_contraction_after_verb() {
+    // The negation clitic is one token under 6.6, but `do do n't` stays allowed.
+    assert!(builtin_word_repeat_flags("I do do n't know.").is_empty());
 }
 
 #[test]
@@ -1140,7 +1183,6 @@ fn builtin_word_coherency_ignores_a_single_spelling() {
 }
 
 #[test]
-#[ignore = "LT 6.6 regression, see #96"]
 fn builtin_word_coherency_ignores_variants_across_paragraphs() {
     // Documented limitation: the engine checks one paragraph at a time, so
     // variants used in different paragraphs are not compared.
@@ -1297,12 +1339,52 @@ fn builtin_unpaired_quotes_flags_stray_closing_double() {
 }
 
 #[test]
-#[ignore = "LT 6.6 regression, see #96"]
 fn builtin_unpaired_quotes_flags_stray_closing_single() {
     assert_eq!(
         builtin_unpaired_flags("\u{2018}Hello,\u{2019} she said.\u{2019}"),
         vec![quote_flag("\u{2019}")]
     );
+}
+
+#[test]
+fn builtin_unpaired_quotes_ignores_straight_pairs() {
+    assert!(builtin_unpaired_flags("\"Hello,\" she said. \"Goodbye,\" he said.").is_empty());
+}
+
+#[test]
+fn builtin_unpaired_quotes_ignores_contraction_apostrophe() {
+    // The apostrophe inside the 6.6-split negation contraction is a word part,
+    // not a quotation mark.
+    assert!(builtin_unpaired_flags("\u{201c}I don\u{2019}t know,\u{201d} she said.").is_empty());
+}
+
+#[test]
+fn builtin_unpaired_quotes_span_points_into_the_original_text() {
+    // The tokenizer normalizes both curly marks to `'`, so the reported span
+    // must still address the original characters.
+    let text = "\u{2018}Hello,\u{2019} she said.\u{2019}";
+    let suggestions = RULES.suggest(text, &*TOKENIZER);
+    let flagged: Vec<_> = suggestions
+        .iter()
+        .filter(|suggestion| suggestion.source() == "BUILTIN/EN_UNPAIRED_QUOTES")
+        .collect();
+    assert_eq!(flagged.len(), 1, "{:?}", suggestions);
+    let flagged = flagged[0];
+    assert_eq!(&text[flagged.span().byte().clone()], "\u{2019}");
+    let chars: Vec<char> = text.chars().collect();
+    assert_eq!(
+        chars[flagged.span().char().clone()]
+            .iter()
+            .collect::<String>(),
+        "\u{2019}"
+    );
+}
+
+#[test]
+fn builtin_unpaired_quotes_ignores_paragraph_continuation() {
+    // A closing mark opening a paragraph may continue the previous paragraph's
+    // quotation, so on its own it is not reported.
+    assert!(builtin_unpaired_flags("\u{201d} she said.").is_empty());
 }
 
 #[test]

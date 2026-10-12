@@ -63,13 +63,24 @@ impl Builtin {
     /// Runs this rule on consecutive sentences of one paragraph. Rules that need context beyond one sentence
     /// (e.g. quotes spanning sentences) see all of them; sentence-level rules check each one separately.
     pub fn check_text(&self, sentences: &[Sentence]) -> Vec<Suggestion> {
+        self.check_text_with_previous(sentences, None)
+    }
+
+    /// Like [`Builtin::check_text`], but for a paragraph that follows `previous`,
+    /// the last sentence of the preceding paragraph. Only rules that are
+    /// text-level in LanguageTool (and therefore look across paragraphs) use it.
+    pub fn check_text_with_previous(
+        &self,
+        sentences: &[Sentence],
+        previous: Option<&Sentence>,
+    ) -> Vec<Suggestion> {
         match self {
             Builtin::CommaParenthesisWhitespace(rule) => rule.check_sentences(sentences),
             Builtin::AVsAn(rule) => sentences.iter().flat_map(|x| rule.check(x)).collect(),
             Builtin::WordRepeat(rule) => sentences.iter().flat_map(|x| rule.check(x)).collect(),
             Builtin::SimpleReplace(rule) => sentences.iter().flat_map(|x| rule.check(x)).collect(),
             Builtin::WrongWordInContext(rule) => rule.check_sentences(sentences),
-            Builtin::UppercaseSentenceStart(rule) => rule.check(sentences),
+            Builtin::UppercaseSentenceStart(rule) => rule.check_with_previous(sentences, previous),
             Builtin::UnpairedBrackets(rule) => rule.check(sentences),
             Builtin::UnpairedQuotes(rule) => rule.check(sentences),
             Builtin::WordCoherency(rule) => rule.check_text(sentences),

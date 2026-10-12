@@ -51,7 +51,7 @@ impl WordRepeat {
     /// Checks a sentence for repeated words and returns the resulting suggestions.
     pub fn check(&self, sentence: &Sentence) -> Vec<Suggestion> {
         let tokens = sentence.tokens();
-        let units = word_units(tokens);
+        let units = word_units(sentence);
         let mut suggestions = Vec::new();
 
         for i in 1..units.len() {
@@ -124,14 +124,18 @@ impl WordRepeat {
     }
 }
 
-/// Splits the tokens into words and merges tokens that belong to one word,
-/// e.g. the three tokens `"don"`, `"’"`, `"t"` become the single word `"don’t"`.
-fn word_units(tokens: &[Token]) -> Vec<WordUnit> {
+/// Splits the tokens into words and merges the tokens that belong to one word.
+/// The tokenizer splits a contraction at its apostrophe, and since LanguageTool
+/// 6.6 emits either the stem and the apostrophe-initial clitic (`do` + `n't`,
+/// `it` + `'s`) or, as before, three tokens (`don` + `'` + `t`); both shapes are
+/// merged back into the written word here.
+fn word_units(sentence: &Sentence) -> Vec<WordUnit> {
+    let tokens = sentence.tokens();
     let mut units = Vec::new();
     let mut i = 0;
 
     while i < tokens.len() {
-        let text = tokens[i].word().text().as_str();
+        let text = original_text(sentence, &tokens[i]);
         if !is_word(text) {
             i += 1;
             continue;
@@ -140,27 +144,51 @@ fn word_units(tokens: &[Token]) -> Vec<WordUnit> {
         let mut merged = text.to_owned();
         let mut end = i + 1;
 
-        while end + 1 < tokens.len()
-            && is_apostrophe(tokens[end].word().text().as_str())
-            && !tokens[end].has_space_before()
-            && is_word(tokens[end + 1].word().text().as_str())
-            && !tokens[end + 1].has_space_before()
-        {
-            merged.push_str(tokens[end].word().text().as_str());
-            merged.push_str(tokens[end + 1].word().text().as_str());
-            end += 2;
+        while end < tokens.len() && !tokens[end].has_space_before() {
+            let next = original_text(sentence, &tokens[end]);
+
+            // `don` + `'` + `t`: an apostrophe token followed by a word.
+            if end + 1 < tokens.len()
+                && is_apostrophe(next)
+                && !tokens[end + 1].has_space_before()
+                && is_word(original_text(sentence, &tokens[end + 1]))
+            {
+                merged.push_str(next);
+                merged.push_str(original_text(sentence, &tokens[end + 1]));
+                end += 2;
+                continue;
+            }
+
+            // `do` + `n't` and `it` + `'s`: the clitic carries the apostrophe.
+            if is_contraction_clitic(next) {
+                merged.push_str(next);
+                end += 1;
+                continue;
+            }
+
+            break;
         }
 
         units.push(WordUnit {
             start: i,
             end,
-            lower: merged.to_lowercase(),
+            lower: merged.replace('\u{2019}', "'").to_lowercase(),
             text: merged,
         });
         i = end;
     }
 
     units
+}
+
+/// The original text of `token`, i.e. the characters as they were written. The
+/// token's word text may be a normalized contraction (a curly apostrophe is
+/// straightened) and its byte length then no longer matches the span, so the
+/// span is used to recover the input.
+fn original_text<'t>(sentence: &Sentence<'t>, token: &Token<'t>) -> &'t str {
+    let start = token.span().byte().start - sentence.span().byte().start;
+    let end = token.span().byte().end - sentence.span().byte().start;
+    &sentence.text()[start..end]
 }
 
 /// A token counts as a word if it contains at least one alphabetic character.
@@ -175,6 +203,26 @@ fn is_apostrophe(token: &str) -> bool {
         && token
             .chars()
             .all(|c| matches!(c, '\'' | '\u{2019}' | '\u{2018}' | '\u{00b4}' | '`'))
+}
+
+/// Whether `token` is the second half of a contraction split by the tokenizer:
+/// the apostrophe-initial clitic of `"it’s"`, `"we’re"`, `"I’ve"`, `"he’ll"`,
+/// `"they’d"` or `"I’m"`, or the negation clitic of `"don't"` and `"won't"`,
+/// which keeps its leading `n`.
+fn is_contraction_clitic(token: &str) -> bool {
+    let lower = token.to_lowercase();
+    if let Some(rest) = lower
+        .strip_prefix('\'')
+        .or_else(|| lower.strip_prefix('\u{2019}'))
+    {
+        return matches!(rest, "s" | "re" | "ll" | "ve" | "d" | "m");
+    }
+
+    let mut chars = lower.chars();
+    matches!(
+        (chars.next(), chars.next(), chars.next(), chars.next()),
+        (Some('n'), Some('\'' | '\u{2019}'), Some('t'), None)
+    )
 }
 
 /// Whether the word at `i` is part of a run of three or more identical words.
@@ -227,20 +275,39 @@ fn repeated_wait(units: &[WordUnit], i: usize) -> bool {
 }
 
 /// `"do do n't"`, `"did did n't"` and `"does does n't"` are allowed: the second
-/// verb starts a negated contraction. The tokenizer splits `"n't"` into three
-/// tokens, so the contraction is detected from the following tokens.
+/// verb starts a negated contraction. LanguageTool 6.6 tokenizes the clitic as a
+/// single `n't` token; earlier tokenizers emitted `n`, `'` and `t` separately.
 fn contraction_after_verb(tokens: &[Token], units: &[WordUnit], i: usize) -> bool {
     if !matches!(units[i].lower.as_str(), "do" | "did" | "does") {
         return false;
     }
 
     let j = units[i].end;
+    if j >= tokens.len() {
+        return false;
+    }
+
+    let clitic = tokens[j].word().text().as_str();
+    if is_negation_clitic(clitic) {
+        return true;
+    }
+
     j + 2 < tokens.len()
-        && tokens[j].word().text().as_str().eq_ignore_ascii_case("n")
+        && clitic.eq_ignore_ascii_case("n")
         && is_apostrophe(tokens[j + 1].word().text().as_str())
         && tokens[j + 2]
             .word()
             .text()
             .as_str()
             .eq_ignore_ascii_case("t")
+}
+
+/// Whether `token` is the negation clitic, i.e. `n't` or `n’t`.
+fn is_negation_clitic(token: &str) -> bool {
+    let mut chars = token.chars();
+    matches!(
+        (chars.next(), chars.next(), chars.next(), chars.next()),
+        (Some(n), Some('\'' | '\u{2019}'), Some(t), None)
+            if n.eq_ignore_ascii_case(&'n') && t.eq_ignore_ascii_case(&'t')
+    )
 }

@@ -40,14 +40,21 @@ struct Piece<'s> {
 
 /// Flattens all characters of a paragraph into one list so that a character's
 /// neighbours can be inspected even across a token or sentence boundary. The
-/// per-character byte/char offsets are derived from the token's span plus the
-/// character's offset within the token text, so no slice is ever taken at a byte
-/// that is not a character boundary.
+/// characters are taken from the original sentence text at the token's span
+/// rather than from the token's word text, because the tokenizer normalizes an
+/// apostrophe inside a recognized contraction to a straight `'`; the quote rules
+/// must judge the character that was actually typed. The per-character byte/char
+/// offsets are derived from the token's span plus the character's offset within
+/// the token text, so no slice is ever taken at a byte that is not a character
+/// boundary.
 fn flatten<'s>(sentences: &'s [Sentence<'_>]) -> Vec<Piece<'s>> {
     let mut pieces = Vec::new();
     for (sentence, s) in sentences.iter().enumerate() {
+        let sentence_text = s.text();
+        let sentence_start = s.span().byte().start;
         for token in s.tokens() {
-            let text = token.word().text().as_str();
+            let text = &sentence_text[token.span().byte().start - sentence_start
+                ..token.span().byte().end - sentence_start];
             let start = token.span().start();
             let mut char_offset = 0;
             for (byte_offset, ch) in text.char_indices() {

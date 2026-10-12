@@ -233,8 +233,12 @@ pub fn compile(
         &mut build_info,
         chunker,
         multiword_tagger,
+        // LanguageTool segments with the SRX rules of its default line-break
+        // mode, where only a blank line ends a paragraph (the `_two` language
+        // code). The plain language code selects no blank-line rule, so
+        // sentences would run across paragraphs.
         srx::SRX::from_str(&fs::read_to_string(&paths.srx_path)?)?
-            .language_rules(lang_code.clone()),
+            .language_rules(format!("{lang_code}_two")),
         tokenizer_lang_options,
     )?;
     tokenizer.to_writer(tokenizer_dest)?;
