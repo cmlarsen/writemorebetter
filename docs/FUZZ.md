@@ -101,24 +101,49 @@ invariant, and the fix belongs at the source.
 The harness is also used to find slow inputs. `stress --timings corpus/suggest`
 prints every input under 10 KB that takes over 1 s, plus the slowest inputs overall.
 
-Findings from the 0.7.0 lane (`PROFILE=fiction SPELL=en_US`, LT 6.6, release):
+### The rule-matching quadratic (fixed)
 
-| Input | Size | Before | Cause |
-|---|---|---|---|
-| `"a" * 100_000` | 100 KB | 121 s | speller Levenshtein search on one enormous token |
-| `"a" * 100_000` (after fix) | 100 KB | 0.08 s | — |
-| `"no sentence break here " * 5000` | 115 KB | 828 s | one sentence with ~23k tokens; rule matching scales ~O(tokens²) |
-| `"“" * 2000` | 6 KB | 22 s | `TYPOGRAPHY/GERMAN_QUOTES` starts with `[„“]` and has an unbounded `skip="-1"` atom |
-| `"“" * 1000` | 3 KB | 1.7 s | same |
-| `"(" * 2000` | 4 KB | 0.8 s | long token run through the rule engine |
+A rule that matches at *every* position of a long token run made
+`MatchGraph::fill_empty` walk the whole sentence once per group per match. The walk is
+O(sentence) and runs once per match, so a run of `n` matching tokens cost O(n²). The
+fix reads "empty" from a group's span (already set by the matcher) instead of
+re-deriving it with `Group::tokens`, so `fill_empty` no longer touches the sentence.
+It has nothing to do with `skip="-1"`: `skip="-1"` is already capped at
+`max_matches() = 20` (`compile/parse_structure.rs`), and lowering that cap to 4 left
+the timings unchanged.
 
-The speller blowup is fixed with a length cap in `VariantChecker::search`
-(`nlprule/src/spell/mod.rs`). The rule-matching blowup on very long *sentences* is a
-property of LT-style matching: a sentence with no terminator (or a long run of tokens
-that every rule's first atom matches) makes each rule's unbounded skip scan the whole
-sentence, so any fix has to be a sentence-length policy (splitting over-long
-sentences before rule application), which changes which spans rules can match. It is
-reported here rather than fixed in this lane.
+End-to-end `check` times (`PROFILE=fiction SPELL=en_US`, LT 6.6, release, min of 5;
+median in parentheses). `nt` is public prose run together with no sentence terminator;
+`oq` is `"“" * n`:
+
+| Input | Before | After |
+|---|---|---|
+| nt 500 words | 0.082 s (0.092) | 0.088 s (0.101) |
+| nt 1 000 words | 0.340 s (0.385) | 0.297 s (0.363) |
+| nt 2 000 words | 1.881 s (2.058) | 1.183 s (1.253) |
+| nt 5 000 words | 13.30 s (16.60) | 5.68 s (7.04) |
+| oq 1 000 quotes | 1.193 s (1.209) | 0.294 s (0.298) |
+| oq 2 000 quotes | 15.19 s (15.41) | 1.159 s (1.290) |
+
+A shorter, ruleset-independent reproduction is `"I " * n`, which the regression test
+`repeated_token_run_does_not_scan_quadratically` uses: `n = 1000` went 1.5 s → 0.16 s
+and `n = 2000` went 21.0 s → 0.6 s (identical on LT 5.2 and 6.6).
+
+### The residual tokenizer quadratic (reported, not fixed)
+
+The `nt` rows above are still slow because a sentence with no terminator costs more in
+the **tokenizer** than in the rules. Tokenizer-only times (no rules), sequential:
+nt 500/1 000/2 000/5 000 words = 0.042 / 0.116 / 0.347 / 2.07 s, while the same 5 000
+tokens *with* sentence breaks take 0.20 s. `disambiguate_up_to_id` clones the sentence
+and rebuilds a `MatchSentence` on every iteration, and the number of iterations grows
+with sentence length, giving roughly O(tokens²) for a single long sentence. This is why
+nt 1 000 words cannot reach 100 ms: tokenization alone is already ~116 ms. Fixing it
+means restructuring the disambiguation loop (no output change expected) or capping
+tokens per sentence; it is tracked as a separate change, and the rule-matching table
+above is the effect of this one.
+
+The speller blowup (`"a" * 100_000`, 121 s → 0.08 s) is fixed with a length cap in
+`VariantChecker::search` (`nlprule/src/spell/mod.rs`).
 
 ## Seed corpus
 
