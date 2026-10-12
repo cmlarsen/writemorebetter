@@ -6,6 +6,12 @@ These word lists are derived from LanguageTool
 directory before compiling and end up serialized inside `en_rules.bin`, so they
 never enter the MIT/Apache-2.0 engine sources.
 
+Provenance: LanguageTool 6.6, source tag
+<https://github.com/languagetool-org/languagetool/tree/v6.6>, release download
+<https://languagetool.org/download/LanguageTool-6.6.zip>. Every `*.txt` file in
+this directory is LanguageTool-derived (LGPL-2.1); the origin of each is listed
+under [Files](#files). `README.md` itself is writemorebetter documentation.
+
 ## Usage
 
 The compiler reads these lists from `<build_dir>/builtin/<name>.txt`. Copy the
