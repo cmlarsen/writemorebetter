@@ -95,6 +95,50 @@ final class CheckerTests: XCTestCase {
         }
     }
 
+    func testDictionaryEditsWhileChecking() throws {
+        let checker = try Checker(
+            tokenizerPath: Self.dataPath("en_tokenizer.bin"),
+            rulesPath: Self.dataPath("en_rules.bin"),
+            spellVariant: "en_US"
+        )
+        let text = "Zxqvarn and the the dog barked."
+        XCTAssertFalse(checker.check(text: text).isEmpty, "the spellchecker should flag Zxqvarn")
+
+        XCTAssertEqual(checker.addWords(words: ["Zxqvarn"]), 1)
+        XCTAssertEqual(checker.addWords(words: ["Zxqvarn"]), 0)
+        XCTAssertEqual(checker.words(), ["Zxqvarn"])
+        XCTAssertFalse(
+            checker.check(text: "Zxqvarn").contains { $0.source.contains("SPELL") },
+            "an added word should stop being flagged: \(checker.check(text: "Zxqvarn"))"
+        )
+
+        let group = DispatchGroup()
+        let rounds = 12
+        for _ in 0..<4 {
+            DispatchQueue.global().async(group: group) {
+                for _ in 0..<rounds {
+                    _ = checker.check(text: text)
+                    _ = checker.words()
+                }
+            }
+        }
+        for round in 0..<rounds {
+            if round.isMultiple(of: 2) {
+                _ = checker.removeWords(words: ["Zxqvarn"])
+            } else {
+                _ = checker.addWords(words: ["Zxqvarn"])
+            }
+        }
+        group.wait()
+
+        XCTAssertEqual(checker.setWords(words: ["Zxqvarn", "Port Royal"]), 2)
+        XCTAssertEqual(checker.words(), ["Port Royal", "Zxqvarn"])
+
+        checker.clearWords()
+        XCTAssertTrue(checker.words().isEmpty)
+        XCTAssertFalse(checker.check(text: "Zxqvarn").isEmpty)
+    }
+
     func testUnknownProfileThrows() throws {
         let tokenizer = try Self.dataPath("en_tokenizer.bin")
         let rules = try Self.dataPath("en_rules.bin")

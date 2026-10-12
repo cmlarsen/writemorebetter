@@ -9,7 +9,7 @@
 //! per app, kept by a single owner and queried from a background queue.
 
 use std::io::Cursor;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 use nlprule::{Rules, Tokenizer};
 
@@ -63,16 +63,34 @@ pub struct Suggestion {
 /// The checker is thread-safe (`Send + Sync`), but loading it deserializes two multi-megabyte
 /// binaries, so load it once — typically at app startup, off the main thread — and share the one
 /// instance. Calls to [`Checker::check`] are also safe to make off the main thread.
+///
+/// The rule set sits behind a read/write lock so that the user-dictionary methods below can mutate
+/// it while other threads check text: `check` takes the read lock, a dictionary edit takes the
+/// write lock, and both are visible to the next `check`.
 #[derive(uniffi::Object)]
 pub struct Checker {
     tokenizer: Tokenizer,
-    rules: Rules,
+    rules: RwLock<Rules>,
 }
 
 const _: fn() = || {
     fn assert_send_sync<T: Send + Sync>() {}
     assert_send_sync::<Checker>();
 };
+
+impl Checker {
+    fn read_rules(&self) -> RwLockReadGuard<'_, Rules> {
+        self.rules
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    fn write_rules(&self) -> RwLockWriteGuard<'_, Rules> {
+        self.rules
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+}
 
 #[uniffi::export]
 impl Checker {
@@ -128,13 +146,16 @@ impl Checker {
             rules.spell_mut().options_mut().variant = Some(variant);
         }
 
-        Ok(Arc::new(Checker { tokenizer, rules }))
+        Ok(Arc::new(Checker {
+            tokenizer,
+            rules: RwLock::new(rules),
+        }))
     }
 
     /// Checks `text` and returns every flagged span. See [`Suggestion`] for the offset units.
     pub fn check(&self, text: String) -> Vec<Suggestion> {
         let utf16 = Utf16Offsets::new(&text);
-        self.rules
+        self.read_rules()
             .suggest(&text, &self.tokenizer)
             .iter()
             .map(|suggestion| {
@@ -148,6 +169,39 @@ impl Checker {
                 }
             })
             .collect()
+    }
+
+    /// Adds words to the user dictionary and returns how many were new.
+    ///
+    /// Use it for character names, invented places and coinages so the speller stops flagging
+    /// them. Entries may be single words, whitespace-separated phrases (`"Port Royal"`), or words
+    /// with an internal apostrophe; curly and straight apostrophes match each other. Matching is
+    /// case-sensitive except that a lowercase entry also accepts its sentence-initial capitalized
+    /// form (an added capitalized name does not make the lowercase form valid), and every entry
+    /// accepts a possessive. The caller owns persistence: nothing is written into a binary, and
+    /// changes apply to the next `check`.
+    pub fn add_words(&self, words: Vec<String>) -> u32 {
+        self.write_rules().add_words(words) as u32
+    }
+
+    /// Removes words from the user dictionary and returns how many were present.
+    pub fn remove_words(&self, words: Vec<String>) -> u32 {
+        self.write_rules().remove_words(words) as u32
+    }
+
+    /// Replaces the whole user dictionary and returns the number of entries now set.
+    pub fn set_words(&self, words: Vec<String>) -> u32 {
+        self.write_rules().set_words(words) as u32
+    }
+
+    /// Removes every word from the user dictionary.
+    pub fn clear_words(&self) {
+        self.write_rules().clear_words();
+    }
+
+    /// Lists the user dictionary, canonicalized and sorted.
+    pub fn words(&self) -> Vec<String> {
+        self.read_rules().words()
     }
 }
 

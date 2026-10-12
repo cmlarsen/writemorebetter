@@ -533,13 +533,50 @@ fileprivate struct FfiConverterString: FfiConverter {
  * The checker is thread-safe (`Send + Sync`), but loading it deserializes two multi-megabyte
  * binaries, so load it once — typically at app startup, off the main thread — and share the one
  * instance. Calls to [`Checker::check`] are also safe to make off the main thread.
+ *
+ * The rule set sits behind a read/write lock so that the user-dictionary methods below can mutate
+ * it while other threads check text: `check` takes the read lock, a dictionary edit takes the
+ * write lock, and both are visible to the next `check`.
  */
 public protocol CheckerProtocol: AnyObject, Sendable {
+    
+    /**
+     * Adds words to the user dictionary and returns how many were new.
+     *
+     * Use it for character names, invented places and coinages so the speller stops flagging
+     * them. Entries may be single words, whitespace-separated phrases (`"Port Royal"`), or words
+     * with an internal apostrophe; curly and straight apostrophes match each other. Matching is
+     * case-sensitive except that a lowercase entry also accepts its sentence-initial capitalized
+     * form (an added capitalized name does not make the lowercase form valid), and every entry
+     * accepts a possessive. The caller owns persistence: nothing is written into a binary, and
+     * changes apply to the next `check`.
+     */
+    func addWords(words: [String])  -> UInt32
     
     /**
      * Checks `text` and returns every flagged span. See [`Suggestion`] for the offset units.
      */
     func check(text: String)  -> [Suggestion]
+    
+    /**
+     * Removes every word from the user dictionary.
+     */
+    func clearWords() 
+    
+    /**
+     * Removes words from the user dictionary and returns how many were present.
+     */
+    func removeWords(words: [String])  -> UInt32
+    
+    /**
+     * Replaces the whole user dictionary and returns the number of entries now set.
+     */
+    func setWords(words: [String])  -> UInt32
+    
+    /**
+     * Lists the user dictionary, canonicalized and sorted.
+     */
+    func words()  -> [String]
     
 }
 /**
@@ -548,6 +585,10 @@ public protocol CheckerProtocol: AnyObject, Sendable {
  * The checker is thread-safe (`Send + Sync`), but loading it deserializes two multi-megabyte
  * binaries, so load it once — typically at app startup, off the main thread — and share the one
  * instance. Calls to [`Checker::check`] are also safe to make off the main thread.
+ *
+ * The rule set sits behind a read/write lock so that the user-dictionary methods below can mutate
+ * it while other threads check text: `check` takes the read lock, a dictionary edit takes the
+ * write lock, and both are visible to the next `check`.
  */
 open class Checker: CheckerProtocol, @unchecked Sendable {
     fileprivate let handle: UInt64
@@ -623,6 +664,27 @@ public convenience init(tokenizerPath: String, rulesPath: String, spellVariant: 
 
     
     /**
+     * Adds words to the user dictionary and returns how many were new.
+     *
+     * Use it for character names, invented places and coinages so the speller stops flagging
+     * them. Entries may be single words, whitespace-separated phrases (`"Port Royal"`), or words
+     * with an internal apostrophe; curly and straight apostrophes match each other. Matching is
+     * case-sensitive except that a lowercase entry also accepts its sentence-initial capitalized
+     * form (an added capitalized name does not make the lowercase form valid), and every entry
+     * accepts a possessive. The caller owns persistence: nothing is written into a binary, and
+     * changes apply to the next `check`.
+     */
+open func addWords(words: [String]) -> UInt32  {
+    return try!  FfiConverterUInt32.lift(try! rustCall() {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_method_checker_add_words(
+            self.uniffiCloneHandle(),
+        FfiConverterSequenceString.lower(words),uniffiCallStatus
+    )
+})
+}
+    
+    /**
      * Checks `text` and returns every flagged span. See [`Suggestion`] for the offset units.
      */
 open func check(text: String) -> [Suggestion]  {
@@ -631,6 +693,55 @@ open func check(text: String) -> [Suggestion]  {
     uniffi_writemorebetter_swift_fn_method_checker_check(
             self.uniffiCloneHandle(),
         FfiConverterString.lower(text),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * Removes every word from the user dictionary.
+     */
+open func clearWords()  {try! rustCall() {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_method_checker_clear_words(
+            self.uniffiCloneHandle(),uniffiCallStatus
+    )
+}
+}
+    
+    /**
+     * Removes words from the user dictionary and returns how many were present.
+     */
+open func removeWords(words: [String]) -> UInt32  {
+    return try!  FfiConverterUInt32.lift(try! rustCall() {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_method_checker_remove_words(
+            self.uniffiCloneHandle(),
+        FfiConverterSequenceString.lower(words),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * Replaces the whole user dictionary and returns the number of entries now set.
+     */
+open func setWords(words: [String]) -> UInt32  {
+    return try!  FfiConverterUInt32.lift(try! rustCall() {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_method_checker_set_words(
+            self.uniffiCloneHandle(),
+        FfiConverterSequenceString.lower(words),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * Lists the user dictionary, canonicalized and sorted.
+     */
+open func words() -> [String]  {
+    return try!  FfiConverterSequenceString.lift(try! rustCall() {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_method_checker_words(
+            self.uniffiCloneHandle(),uniffiCallStatus
     )
 })
 }
@@ -1021,7 +1132,22 @@ private let initializationResult: InitializationResult = {
     if bindings_contract_version != scaffolding_contract_version {
         return InitializationResult.contractVersionMismatch
     }
+    if (uniffi_writemorebetter_swift_checksum_method_checker_add_words() != 62584) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_writemorebetter_swift_checksum_method_checker_check() != 47217) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_writemorebetter_swift_checksum_method_checker_clear_words() != 32061) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_writemorebetter_swift_checksum_method_checker_remove_words() != 27495) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_writemorebetter_swift_checksum_method_checker_set_words() != 45047) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_writemorebetter_swift_checksum_method_checker_words() != 61704) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_constructor_checker_new() != 1239) {

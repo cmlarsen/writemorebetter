@@ -33,6 +33,25 @@ Failures throw `CheckError`: `TokenizerFile`/`RulesFile` (read from disk), `Toke
 `UnknownProfile`, `UnknownSpellVariant`. Nothing panics across the boundary; a Rust panic surfaces as a Swift
 error.
 
+## User dictionary
+
+Add the words the app knows — character names, invented places, coinages — so the speller stops flagging them.
+The caller owns persistence: nothing is written into a binary. The rule set sits behind a read/write lock, so
+these calls can run while other threads are checking.
+
+```swift
+checker.addWords(words: ["Xylophonix", "Port Royal", "Ngũgĩ"])  // -> number newly added
+checker.removeWords(words: ["Xylophonix"])                     // -> number removed
+checker.setWords(words: ["Zoë", "Ngũgĩ"])                      // -> number now set
+checker.clearWords()
+checker.words()                                               // -> ["Ngũgĩ", "Zoë"]
+```
+
+Matching is case-sensitive except that a lowercase entry also accepts its sentence-initial capitalized form
+(an added capitalized name does not make the lowercase form valid). Every entry accepts a possessive, curly and
+straight apostrophes match each other, and an entry may be a whitespace-separated phrase or contain an internal
+apostrophe.
+
 ## Building the XCFramework
 
 ```sh
@@ -73,7 +92,8 @@ before `scripts/build-xcframework.sh` ran keeps the `release.json` branch until 
 `swift/Tests/WriteMoreBetterTests` loads the LT 6.6 binaries from `storage/66/` (the repository's
 per-rule-set storage convention; override with `WMB_DATA_DIR`), checks a sentence with a known error,
 asserts UTF-16 offsets on text that mixes an emoji, curly quotes, an em dash, a combining mark and
-U+2028, and calls `check` concurrently from eight threads. Run them with:
+U+2028, edits the user dictionary from one thread while four others check and list it, and calls
+`check` concurrently from eight threads. Run them with:
 
 ```sh
 cargo run --release --all-features --bin compile -- \
