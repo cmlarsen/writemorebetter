@@ -20,3 +20,17 @@
 # change here.
 [target.wasm32-unknown-unknown]
 rustflags = ["-C", "opt-level=s"]
+
+# nlprule's default regex backend is oniguruma, C code compiled by cc-rs. cc-rs takes the
+# deployment target from `xcrun --show-sdk-version` when the *_DEPLOYMENT_TARGET variables are
+# unset, which is the SDK version (far newer than the platform minimum the Swift package
+# declares). These CFLAGS_<target> variables are appended after cc-rs's own flags, so they pin the
+# C objects to Package.swift's minimum platforms. Setting MACOSX_DEPLOYMENT_TARGET or
+# IPHONEOS_DEPLOYMENT_TARGET instead also changes how rustc links, which breaks the proc-macro
+# dylibs on Xcode 27 (dyld: "mis-aligned LINKEDIT string pool").
+[env]
+CFLAGS_aarch64_apple_darwin = "-mmacosx-version-min=13.0"
+CFLAGS_x86_64_apple_darwin = "-mmacosx-version-min=13.0"
+CFLAGS_aarch64_apple_ios = "-miphoneos-version-min=16.0"
+CFLAGS_x86_64_apple_ios = "-miphoneos-version-min=16.0"
+CFLAGS_aarch64_apple_ios_sim = "-mios-simulator-version-min=16.0"

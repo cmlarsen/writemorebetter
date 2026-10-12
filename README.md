@@ -16,6 +16,8 @@ merged in. Start with [`docs/FINDINGS.md`](docs/FINDINGS.md) for the evaluation 
 - `docs/FINDINGS.md` — evaluation of LanguageTool, Harper, nlprule, and a recent nlprule fork, with the plan.
 - `nlprule/` — the engine crate (tokenizer, tagger, disambiguation, rules, speller), imported from nlprule with its
   history. `build/` makes build directories and fetches binaries; `python/` holds upstream's Python bindings.
+- `swift/` — UniFFI bindings and the Swift package (`Package.swift`, `scripts/build-xcframework.sh`); see
+  [`swift/README.md`](swift/README.md).
 - `docs/NLPRULE.md` — upstream nlprule's README.
 - `bench/` — the comparison harness: run each checker over a corpus and score recall against verified errors.
   See [`bench/README.md`](bench/README.md).

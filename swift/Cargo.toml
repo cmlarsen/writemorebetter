@@ -1,0 +1,25 @@
+[package]
+name = "writemorebetter-swift"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "Swift bindings for writemorebetter: English grammar and spelling checking without a JVM."
+publish = false
+
+[lib]
+crate-type = ["staticlib", "lib"]
+
+[dependencies]
+nlprule = { path = "../nlprule" }
+thiserror = "1"
+uniffi = "0.32.2"
+
+[features]
+# Builds the `uniffi-bindgen` bin that scripts/build-xcframework.sh uses to emit the
+# Swift sources and the XCFramework modulemap. Never needed to build or use the library.
+cli = ["uniffi/cli"]
+
+[[bin]]
+name = "uniffi-bindgen"
+path = "src/bin/uniffi-bindgen.rs"
+required-features = ["cli"]
