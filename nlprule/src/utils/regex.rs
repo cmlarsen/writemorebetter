@@ -60,7 +60,7 @@ fn intern_pattern(pattern: String) -> (Arc<str>, u64, Arc<BackendCell>) {
     (interned, id, backend)
 }
 
-const SHORT_CACHE_SLOTS: usize = 512;
+const SHORT_CACHE_SLOTS: usize = 2048;
 
 #[derive(Clone, Copy, Default)]
 struct CacheEntry {
