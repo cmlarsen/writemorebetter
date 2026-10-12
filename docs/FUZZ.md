@@ -58,6 +58,17 @@ keeps slow-but-not-crashing inputs from stopping the run. `WMB_FUZZ_DIR` default
 `../../storage/66`, i.e. the repo root's `storage/66` when cargo-fuzz runs from
 `nlprule/fuzz`.
 
+The engine is compiled with the `onig` backend by default. The WASM build uses
+`regex-fancy`, whose backtracking behaviour differs; fuzz it too with
+
+```sh
+cargo +nightly fuzz run --no-default-features --features fancy suggest -- \
+    -max_len=4096 -timeout=30 -max_total_time=3600
+```
+
+The deterministic `stress` binary takes the same features
+(`cargo build --release --bin stress --no-default-features --features fancy`).
+
 ## Triaging a crash
 
 ```sh
