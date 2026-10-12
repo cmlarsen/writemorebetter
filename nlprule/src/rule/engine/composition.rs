@@ -557,45 +557,44 @@ impl<'t> MatchGraph<'t> {
         &self.groups[..]
     }
 
-    pub fn fill_empty(&mut self, sentence: &MatchSentence) {
+    /// Gives a position to the groups that matched no token. A group that matched
+    /// already carries its span from the matcher, so "empty" is read from the span
+    /// rather than by walking the sentence once per group per match. That walk is
+    /// O(sentence) and, called once per match, is quadratic for a rule that matches
+    /// at every position of a long run of tokens.
+    pub fn fill_empty(&mut self, _sentence: &MatchSentence) {
+        let empty: Vec<bool> = self.groups.iter().map(|x| x.span.is_empty()).collect();
+
         let mut start = self
             .groups
             .iter()
-            .find_map(|x| x.tokens(&sentence).next().map(|token| token.span().start()))
+            .zip(empty.iter())
+            .find(|(_, empty)| !**empty)
+            .map(|(group, _)| group.span.start())
             .expect("graph must contain at least one token");
 
         let mut end = self
             .groups
             .iter()
             .rev()
-            .find_map(|x| {
-                x.tokens(&sentence)
-                    .next_back()
-                    .map(|token| token.span().end())
-            })
+            .zip(empty.iter().rev())
+            .find(|(_, empty)| !**empty)
+            .map(|(group, _)| group.span.end())
             .expect("graph must contain at least one token");
 
-        let group_tokens: Vec<_> = self
-            .groups
-            .iter()
-            .map(|x| x.tokens(&sentence).collect::<Vec<_>>())
-            .collect::<Vec<_>>();
-
-        for (group, tokens) in self.groups.iter_mut().zip(group_tokens.iter()) {
-            if !tokens.is_empty() {
-                group.span.set_start(tokens[0].span().start());
-                group.span.set_end(tokens[tokens.len() - 1].span().end());
-                start = tokens[tokens.len() - 1].span().end();
-            } else {
+        for (group, empty) in self.groups.iter_mut().zip(empty.iter()) {
+            if *empty {
                 group.span.set_end(start);
+            } else {
+                start = group.span.end();
             }
         }
 
-        for (group, tokens) in self.groups.iter_mut().zip(group_tokens.iter()).rev() {
-            if !tokens.is_empty() {
-                end = tokens[0].span().start();
-            } else {
+        for (group, empty) in self.groups.iter_mut().zip(empty.iter()).rev() {
+            if *empty {
                 group.span.set_start(end);
+            } else {
+                end = group.span.start();
             }
         }
     }
