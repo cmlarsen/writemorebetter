@@ -1,0 +1,28 @@
+[package]
+name = "wmb-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+nlprule = { path = ".." }
+
+[[bin]]
+name = "suggest"
+path = "fuzz_targets/suggest.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "stress"
+path = "src/bin/stress.rs"
+test = false
+doc = false
+bench = false
+
+[workspace]
