@@ -2,6 +2,7 @@
 
 use half::bf16;
 use serde::{Deserialize, Serialize};
+use smallvec::SmallVec;
 use std::hash::{Hash, Hasher};
 use std::ops::Range;
 use std::{cmp::Ordering, collections::BinaryHeap};
@@ -373,19 +374,25 @@ impl Model {
         prior
     }
 
-    fn get_top_n(&self, probs: &[f32], n: usize, threshold: f32) -> Vec<(usize, f32, &str)> {
-        let mut probs: Vec<_> = probs
-            .iter()
-            .enumerate()
-            .filter(|(_, x)| **x >= threshold) // this is slightly different than LT behaviour but deemed okay as long as all tests pass
-            .collect();
-        probs.sort_by(|a, b| b.1.partial_cmp(a.1).unwrap());
-
-        probs
-            .into_iter()
-            .map(|(i, p)| (i, *p, self.outcome_labels[i].as_str()))
-            .take(n)
-            .collect::<Vec<_>>()
+    /// The `n` outcomes with probability at least `threshold`, best first as `(outcome index,
+    /// probability)`. Ties keep the lower outcome index, matching the stable descending sort the
+    /// previous implementation used; the result fits `n <= 7` entries inline.
+    fn get_top_n(&self, probs: &[f32], n: usize, threshold: f32) -> SmallVec<[(usize, f32); 8]> {
+        let mut best: SmallVec<[(usize, f32); 8]> = SmallVec::new();
+        for (i, p) in probs.iter().enumerate() {
+            if *p < threshold {
+                continue;
+            }
+            let pos = best
+                .iter()
+                .position(|(j, q)| *p > *q || (*p == *q && *j > i))
+                .unwrap_or(best.len());
+            if pos < n {
+                best.insert(pos, (i, *p));
+                best.truncate(n);
+            }
+        }
+        best
     }
 
     fn beam_search<
@@ -421,9 +428,10 @@ impl Model {
                     cache.insert(hash, eval_fn(&context, i));
                 }
                 let scores = cache.get(&hash).unwrap();
-                let top_n = self.get_top_n(&scores, size, 1e-1);
+                let top_n = self.get_top_n(scores, size, 1e-1);
 
-                for (_, p, pred) in top_n {
+                for (idx, p) in top_n {
+                    let pred = self.outcome_labels[idx].as_str();
                     if valid_fn(tokens, &seq.outcomes(), i, pred) {
                         next.push(Sequence::extended(seq, pred, p));
                     }

@@ -697,7 +697,8 @@ establishes measurement and does not count as an optimization.
 |---|---|---|---|---|---|---|---|
 | 0 | [#88](https://github.com/cmlarsen/writemorebetter/pull/88) | Isolated chunker harness + chunk golden | +0.10% (no engine change) | −0.68% (−0.50 MiB) | +0.05% | baseline 10,380 / 9,955 ns/token | Phase 0 |
 | 1 | [#89](https://github.com/cmlarsen/writemorebetter/pull/89) | Allocation-free context hashing, precomputed/resolved static features, beam-heap reuse | −1.73% | −0.51% (−0.375 MiB) | +0.06% | −20% / −19% ns/token, −50% alloc calls | kept |
-| 2 | (this PR) | Incremental beam log-probability; linear-time chunker tokenizer scan and single-pass argmax | pending | pending | pending | −8% / −5% ns/token on top of attempt 1 | pending |
+| 2 | [#90](https://github.com/cmlarsen/writemorebetter/pull/90) | Incremental beam log-probability; linear chunker tokenizer scan and single-pass argmax | −0.40% | −0.05% | +0.13% | −8% / −5% ns/token, −4.5% alloc calls | closed, folded into attempt 3 |
+| 3 | (this PR) | Inline top-n beam selection (no per-call scratch vectors) | pending | pending | pending | −3% / −3% ns/token, −24% alloc calls | pending |
 
 ### Attempt 1 — allocation-free context hashing and precomputed static features
 
@@ -753,6 +754,27 @@ Chunkbench, interleaved against attempt 1, median of a few runs:
 | 5.2 | 7,399 → 7,005 (−5.3%) | 2,185,002 → 2,083,627 (−4.6%) | 258.4 → 254.6 |
 | 6.6 | 7,847 → 7,188 (−8.4%) | 2,302,949 → 2,200,790 (−4.4%) | 345.7 → 340.7 |
 
-Chunk golden (12 files) is byte-identical; the 24 suggestion goldens, workspace tests, clippy, fmt
-and the wasm build pass. CI decides retention.
+CI (LT 6.6, vs main): instructions 50.153B → 49.952B (−0.40%), allocator calls −0.32%, 6.6 peak
+RSS −0.05%, 5.2 peak RSS +0.13%. Below the keep rule, but real (noise ≈0.13%); the coordinator
+folded it into attempt 3 (#91) instead of merging it alone.
+
+### Attempt 3 — inline top-n beam selection
+
+`Model::get_top_n` built two `Vec`s and a full stable sort of the `&(usize, f32)` references on
+every `(sequence, position)` step. It now keeps the at-most-`n` best `(outcome index, probability)`
+pairs inside a `SmallVec<[(usize, f32); 8]>` with an insertion that preserves the same order
+(probability descending, lower outcome index first), so the selected outcomes are identical but
+nothing is allocated. Bundled with attempt 2's commits per the coordinator's instruction.
+
+Chunkbench, interleaved against attempt 2, median of a few runs:
+
+| Rules | ns/token before → after | alloc calls before → after | requested MiB before → after |
+|---|---:|---:|---:|
+| 5.2 | 6,943 → 6,724 (−3.2%) | 2,083,627 → 1,599,573 (−23.2%) | 254.6 → 231.2 |
+| 6.6 | 7,136 → 6,928 (−2.9%) | 2,200,790 → 1,658,458 (−24.6%) | 340.7 → 314.3 |
+
+Whole M9 series so far (chunkbench, LT 6.6, median): Phase 0 10,380 → attempt 1 7,865 →
++attempt 2 7,188 → +attempt 3 6,928 ns/token (−33%), allocation calls 4,620,885 → 1,658,458
+(−64%). Chunk golden (12 files) is byte-identical; the 24 suggestion goldens, workspace tests,
+clippy, fmt and the wasm build pass. CI decides retention.
 
