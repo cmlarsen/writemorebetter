@@ -244,7 +244,7 @@ attempts total. Phase 0 establishes measurement and does not count as an optimiz
 | 11 | [#61](https://github.com/cmlarsen/writemorebetter/pull/61) | Prefer the longest mandatory literal for absence guards | -1.52% | -0.555 MiB | +0.082 MiB | +2.40% / +1.23% (interleaved, loaded) | kept |
 | 12 | [#60](https://github.com/cmlarsen/writemorebetter/pull/60) | Share lazy compiled regex backends for identical sources | -0.16% | -2.992 MiB | -0.984 MiB | +1.13% / -1.26% (interleaved, loaded) | kept |
 | 13 | [#59](https://github.com/cmlarsen/writemorebetter/pull/59) | Compact contiguous NFA for multiword tagging | +1.28% | -8.441 MiB | -2.289 MiB | +1.57% / +0.32% (interleaved, loaded) | kept (coordinator-approved) |
-| 15 | [#63](https://github.com/cmlarsen/writemorebetter/pull/63) | Raise boolean-regex cache to 2048 slots per thread | pending | pending | pending | +0.93% / -1.31% (interleaved, loaded) | pending |
+| 15 | [#63](https://github.com/cmlarsen/writemorebetter/pull/63) | Raise boolean-regex cache to 2048 slots per thread | -1.40% (-1.29% before #65) | -0.148 MiB (+0.391 before #65) | +0.223 MiB | +0.93% / -1.31% (interleaved, loaded) | kept |
 | 16 | [#65](https://github.com/cmlarsen/writemorebetter/pull/65) | Cache exact regex inputs up to 15 UTF-8 bytes | -4.01% | +0.414 MiB | -0.066 MiB | -3.29% / +0.28% (interleaved, loaded) | kept |
 
 
@@ -545,4 +545,8 @@ the rayon thread count (about 0.8 MiB locally on 15 threads).
 | 66 | moby150k | 2.4809 / 2.5041 | +0.93% | 87.91 / 88.70 | +0.80 |
 | 66 | story1 | 0.1935 / 0.1962 | +1.40% | 74.36 / 75.14 | +0.78 |
 
-CI decides retention (instruction wins of at least 1% may cost up to 1 MiB peak).
+CI passed on the original base: instructions 54.807B → 54.098B (-1.29%), allocator calls -2.44%, 6.6
+peak +0.391 MiB, 5.2 peak +0.168 MiB. After #65 merged, the rebased branch measured 52.637B →
+51.902B (-1.40%), allocator calls -3.05%, 6.6 peak 72.711 → 72.563 MiB (-0.148), 5.2 peak
++0.223 MiB, loaded RSS -0.27 MiB on 6.6. #63 was retained as an instruction win with no RSS
+cost; with 32-byte slots from #65 the cache is now 64 KiB per thread.
