@@ -660,7 +660,7 @@ Milestone M9 targets the chunker (`nlprule/src/tokenizer/chunk.rs`, entry point
 29% of allocation volume. 1,175 grammar rules and 142 disambiguation rules read its chunk tags,
 so every change must keep chunk output and suggestion output byte-identical.
 
-## Phase 0 — isolated chunker harness (this PR)
+## Phase 0 — isolated chunker harness ([#88](https://github.com/cmlarsen/writemorebetter/pull/88))
 
 `bench/tools/wmb-chunkbench` loads an English tokenizer, runs the pipeline up to (but not
 including) chunking on a fixed text set **once**, then times only the chunker over the prepared
@@ -695,5 +695,42 @@ establishes measurement and does not count as an optimization.
 
 | Attempt | PR | Change | Instructions Δ (6.6) | Peak RSS Δ (6.6) | Peak RSS Δ (5.2) | Chunkbench Δ (6.6 / 5.2) | Kept/dropped |
 |---|---|---|---|---|---|---|---|
-| 0 | (this PR) | Isolated chunker harness + chunk golden | — | — | — | baseline 10,380 / 9,955 ns/token | Phase 0 |
+| 0 | [#88](https://github.com/cmlarsen/writemorebetter/pull/88) | Isolated chunker harness + chunk golden | +0.10% (no engine change) | −0.68% (−0.50 MiB) | +0.05% | baseline 10,380 / 9,955 ns/token | Phase 0 |
+| 1 | [#89](https://github.com/cmlarsen/writemorebetter/pull/89) | Allocation-free context hashing, precomputed/resolved static features, beam-heap reuse | −1.73% | −0.51% (−0.375 MiB) | +0.06% | −20% / −19% ns/token, −50% alloc calls | pending |
+
+### Attempt 1 — allocation-free context hashing and precomputed static features
+
+`MaxentChunker::context` used to `format!` every feature string (`w0=…`, `p_1=…`) and hash it with
+SipHash, and `MaxentTokenizer`/`MaxentPosTagger` collected prefix/suffix substrings into `String`s
+before hashing them. A new `hash_parts`/`hash_parts_and_chars` hashes the byte pieces directly, so
+the joined strings are never built. `hash_str(s) == hash_parts(&[s])` and
+`hash_slice(parts) == hash_parts(parts)` exactly (SipHash over the concatenation plus the `0xff`
+terminator), so every feature hash is unchanged.
+
+The chunk model's 19 word/tag features do not depend on the predicted outcomes. They are now
+computed once per position (`static_context`) and their `pmap` entries resolved once
+(`Model::eval_with_resolved`), instead of re-hashing and binary-searching them for every beam
+entry. The 22 outcome-dependent features (`pred_context`) are looked up as before. `beam_search`
+takes the eval step as a closure so the POS tagger keeps the plain `Model::eval`, and it swaps
+its two beam heaps instead of deep-cloning the live sequences each token.
+
+Chunkbench, interleaved before/after on the same machine, median of a few runs:
+
+| Rules | ns/token before → after | alloc calls before → after | requested MiB before → after |
+|---|---:|---:|---:|
+| 5.2 | 9,293 → 7,529 (−19.0%) | 4,414,520 → 2,185,002 (−50.5%) | 457.0 → 258.4 |
+| 6.6 | 9,822 → 7,865 (−19.9%) | 4,620,885 → 2,302,949 (−50.2%) | 657.1 → 345.7 |
+
+The beam search also stopped deep-cloning every live `Sequence` at each token step (`prev =
+next.clone()`); the two heaps are swapped and the exhausted one cleared, which removes the
+151 + 38 MiB of `Sequence::clone` traffic the M8 profile recorded (this is M8 attempt 10's change,
+rebased and measured with the context changes above).
+
+Chunk golden (12 files) is byte-identical; the 24 suggestion goldens, workspace tests, clippy, fmt
+and the wasm build pass. CI decides retention.
+
+CI (whole-process Callgrind, LT 6.6): instructions 51.038B → 50.157B (−1.73%), allocator calls
+−6.81%, 6.6 peak RSS 73.285 → 72.910 MiB (−0.375), 5.2 peak RSS +0.06%; native check medians fell
+7.7% (6.6) and 11.3% (5.2) on the shared runner. Clears the keep rule (≥1% instructions, no RSS
+cost).
 
