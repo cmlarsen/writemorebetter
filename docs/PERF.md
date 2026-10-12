@@ -696,7 +696,9 @@ establishes measurement and does not count as an optimization.
 | Attempt | PR | Change | Instructions Δ (6.6) | Peak RSS Δ (6.6) | Peak RSS Δ (5.2) | Chunkbench Δ (6.6 / 5.2) | Kept/dropped |
 |---|---|---|---|---|---|---|---|
 | 0 | [#88](https://github.com/cmlarsen/writemorebetter/pull/88) | Isolated chunker harness + chunk golden | +0.10% (no engine change) | −0.68% (−0.50 MiB) | +0.05% | baseline 10,380 / 9,955 ns/token | Phase 0 |
-| 1 | [#89](https://github.com/cmlarsen/writemorebetter/pull/89) | Allocation-free context hashing, precomputed/resolved static features, beam-heap reuse | −1.73% | −0.51% (−0.375 MiB) | +0.06% | −20% / −19% ns/token, −50% alloc calls | pending |
+| 1 | [#89](https://github.com/cmlarsen/writemorebetter/pull/89) | Allocation-free context hashing, precomputed/resolved static features, beam-heap reuse | −1.73% | −0.51% (−0.375 MiB) | +0.06% | −20% / −19% ns/token, −50% alloc calls | kept |
+| 2 | [#90](https://github.com/cmlarsen/writemorebetter/pull/90) | Incremental beam log-probability; linear chunker tokenizer scan and single-pass argmax | −0.40% | −0.05% | +0.13% | −8% / −5% ns/token, −4.5% alloc calls | closed, folded into attempt 3 |
+| 3 | [#91](https://github.com/cmlarsen/writemorebetter/pull/91) | #90's commits + inline top-n beam selection (no per-call scratch vectors) | −0.36% | −0.41% | −0.02% | −12% / −9% ns/token vs attempt 1, −28% alloc calls | dropped |
 
 ### Attempt 1 — allocation-free context hashing and precomputed static features
 
@@ -733,4 +735,85 @@ CI (whole-process Callgrind, LT 6.6): instructions 51.038B → 50.157B (−1.73%
 −6.81%, 6.6 peak RSS 73.285 → 72.910 MiB (−0.375), 5.2 peak RSS +0.06%; native check medians fell
 7.7% (6.6) and 11.3% (5.2) on the shared runner. Clears the keep rule (≥1% instructions, no RSS
 cost).
+
+### Attempt 2 — incremental beam log-probability and a linear chunker tokenizer ([#90](https://github.com/cmlarsen/writemorebetter/pull/90), dropped)
+
+`Sequence::new` recomputed `log_prob` by folding `ln` over the sequence's whole probability history
+on every beam extension, so an n-token sentence paid O(n²) `ln` calls. `Sequence::extended`
+appends one `(pred, p)` and sets `log_prob = seq.log_prob + p.ln()`, which is the same
+left-associative sum in the same order, so the ranking is bit-identical but each extension is O(1).
+The chunker's own tokenizer also located each pretoken's start with a linear scan (O(n²) over the
+sentence) and built a `Vec<char>` and two `get_top_n` scratch vectors for every token even on the
+all-alphanumeric fast path; it now binary-searches `char_indices`, builds the char vector only on
+the slow path, and picks the best label with a single pass.
+
+Chunkbench, interleaved against attempt 1, median of a few runs: 5.2 7,399 → 7,005 ns/token
+(−5.3%), alloc calls 2,185,002 → 2,083,627; 6.6 7,847 → 7,188 ns/token (−8.4%), alloc calls
+2,302,949 → 2,200,790. Chunk golden byte-identical; 24 suggestion goldens, tests, clippy, fmt and
+wasm pass. CI (LT 6.6, vs main): instructions 50.153B → 49.952B (−0.40%), allocator calls −0.32%,
+6.6 peak RSS −0.05%, 5.2 peak RSS +0.13%. Below the keep rule but real (noise ≈0.13%), so the
+coordinator folded it into attempt 3 instead of merging it alone.
+
+### Attempt 3 — inline top-n beam selection ([#91](https://github.com/cmlarsen/writemorebetter/pull/91), dropped)
+
+`Model::get_top_n` built two `Vec`s and a full stable sort of the `&(usize, f32)` references on
+every `(sequence, position)` step. It now keeps the at-most-`n` best `(outcome index, probability)`
+pairs inside a `SmallVec<[(usize, f32); 8]>` with an insertion preserving the same order
+(probability descending, lower outcome index first), so the selected outcomes are identical but
+nothing is allocated. Bundled with attempt 2's commits.
+
+Chunkbench, interleaved against attempt 2, median: 5.2 6,943 → 6,724 ns/token (−3.2%), alloc calls
+2,083,627 → 1,599,573 (−23.2%); 6.6 7,136 → 6,928 ns/token (−2.9%), alloc calls 2,200,790 →
+1,658,458 (−24.6%). Whole M9 series on LT 6.6: 10,380 → 6,928 ns/token (−33%) and 4,620,885 →
+1,658,458 allocator calls (−64%). CI (LT 6.6, vs main): instructions 50.091B → 49.912B (−0.36%),
+allocator calls −2.12%, 6.6 peak RSS −0.41%, 5.2 peak RSS −0.02%. Below the keep rule; #91 was
+closed. Allocation volume fell far more than instructions, which is why the last two attempts did
+not clear the gate.
+
+### Direction 2 — measurement (not built)
+
+The plan was to skip `Chunker::apply` on sentences where no enabled rule that reads chunk tags can
+match, deciding per sentence with the existing literal prefilter (`Composition::required_key` /
+`start_keys` via `StartPositions`). Detection walked every grammar and disambiguation composition,
+including nested `And`/`Or`/`Not` atoms and antipattern compositions, for a `ChunkAtom` (both
+`chunk` and `chunk_re` compile to one); text-regex engines and filters never read chunks. The
+decision had to be made before disambiguation, because disambiguation runs first and 142 rules read
+chunks.
+
+Measured on `moby150k` + `story1..5` with the fiction profile, using the same prefilter the matcher
+uses:
+
+| Rules | moby150k skippable | all six texts |
+|---|---:|---:|
+| LT 6.6 | 0 / 963 (0.0%) | 0 / 1,601 (0.0%) |
+| LT 5.2 | 0 / 1,468 (0.0%) | 0 / 2,106 (0.0%) |
+
+The gate never fires because enabled chunk-reading rules without a literal prefilter can match any
+sentence (LT 6.6, fiction):
+
+| | main pattern reads chunks | of those no prefilter | reads chunks only via an antipattern | of those no prefilter |
+|---|---:|---:|---:|---:|
+| grammar | 750 | 169 | 537 | 143 |
+| disambiguation | 86 | 26 | 56 | 23 |
+
+Their main patterns are POS/regex-only, so `required_key`/`start_keys` are `None`. An upper bound
+that ignores the unfiltered rules entirely — i.e. the best case for adding a perfect prefilter to
+them — is only 5.3% of `moby150k` sentences on LT 6.6 (17.0% on LT 5.2) and 0–1.7% on the stories,
+so direction 2 cannot reach 30% and is not worth building. The coordinator agreed and the detection
+code was not committed.
+
+### Chunker share after attempt 1 (fresh profile, main at `9234c1a`)
+
+`NLPRULE_PARALLELISM=off`, `PROFILE=fiction`, `SPELL=en_US`, `moby150k`, LT 6.6:
+
+| | M8 breakdown (`5b6845c`) | after attempt 1 |
+|---|---:|---:|
+| chunker, sampling time | 12.47–12.59% | **10.58%** |
+| chunker, Callgrind instructions | 8.14% | **7.07%** |
+
+The sampling run has 12,405 samples; the Callgrind total is 50.172B instructions. The remaining
+chunker instruction cost is dominated by the model evaluation (pmap lookups and softmax) rather
+than the allocations that the dropped attempts reduced; the harness records the allocation volume
+separately (attempt 1 alone cut chunker allocation calls by 50%).
+
 
