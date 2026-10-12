@@ -100,6 +100,34 @@ pub(crate) mod hash {
         hasher.finish()
     }
 
+    /// Hashes the byte concatenation of `parts` exactly like [`hash_slice`] hashes the same
+    /// strings and like [`hash_str`] hashes their join, without allocating the joined string.
+    /// `hash_str(s) == hash_parts(&[s])` and `hash_slice(parts) == hash_parts(parts)`.
+    pub fn hash_parts(parts: &[&str]) -> u64 {
+        let mut hasher = DefaultHasher::new();
+        for part in parts.iter() {
+            hasher.write(part.as_bytes());
+        }
+        hasher.write_u8(0xff);
+        hasher.finish()
+    }
+
+    /// Like [`hash_parts`] but appends the UTF-8 bytes of `chars` before the terminator, so
+    /// `hash_slice(&[a, b, &chars.iter().collect::<String>()]) ==
+    /// hash_parts_and_chars(&[a, b], chars)` without building the string.
+    pub fn hash_parts_and_chars(parts: &[&str], chars: &[char]) -> u64 {
+        let mut hasher = DefaultHasher::new();
+        for part in parts.iter() {
+            hasher.write(part.as_bytes());
+        }
+        let mut buf = [0u8; 4];
+        for c in chars.iter() {
+            hasher.write(c.encode_utf8(&mut buf).as_bytes());
+        }
+        hasher.write_u8(0xff);
+        hasher.finish()
+    }
+
     #[cfg(test)]
     mod tests {
         use super::*;
@@ -110,6 +138,29 @@ pub(crate) mod hash {
             let string = "abcdefg";
 
             assert_eq!(hash_slice(arr), hash_str(string));
+        }
+
+        #[test]
+        fn parts_hash_matches_string_hash() {
+            assert_eq!(hash_parts(&["w0=", "hello"]), hash_str("w0=hello"));
+            assert_eq!(hash_parts(&["a", "b", "c"]), hash_slice(&["a", "b", "c"]));
+            assert_eq!(hash_parts(&[""]), hash_str(""));
+        }
+
+        #[test]
+        fn chars_hash_matches_collected_string_hash() {
+            let chars: Vec<char> = "héllo—!".chars().collect();
+            for i in 0..=chars.len() {
+                let collected: String = chars[..i].iter().collect();
+                assert_eq!(
+                    hash_parts_and_chars(&["p="], &chars[..i]),
+                    hash_slice(&["p=", &collected])
+                );
+            }
+            assert_eq!(
+                hash_parts_and_chars(&["p21="], &[chars[0], chars[1]]),
+                hash_slice(&["p21=", &chars[0].to_string(), &chars[1].to_string()])
+            );
         }
     }
 }
@@ -281,19 +332,35 @@ pub(crate) struct Model {
 }
 
 impl Model {
+    /// Adds one pmap entry's parameters to `prior`.
+    #[inline]
+    fn add_entry(&self, prior: &mut [f32], offset: u32, length: u8) {
+        let start = offset as usize;
+        let end = start + length as usize;
+        let outcomes = &self.outcomes[start..end];
+        let parameters = &self.parameters[start..end];
+
+        for (idx, param) in outcomes.iter().zip(parameters.iter()) {
+            prior[*idx as usize] += param.to_f32();
+        }
+    }
+
     fn eval(&self, context: &[u64]) -> Vec<f32> {
+        self.eval_with_resolved(&[], context)
+    }
+
+    /// Like [`Model::eval`], but the entries of `resolved` (already-looked-up `(offset, length)`
+    /// pairs) are applied without a binary search. The keys in `context` are still looked up.
+    fn eval_with_resolved(&self, resolved: &[(u32, u8)], context: &[u64]) -> Vec<f32> {
         let mut prior =
             vec![(1. / (self.outcome_labels.len() as f32)).ln(); self.outcome_labels.len()];
 
-        for (offset, length) in context.iter().filter_map(|x| self.pmap.get(*x)) {
-            let start = offset as usize;
-            let end = start + length as usize;
-            let outcomes = &self.outcomes[start..end];
-            let parameters = &self.parameters[start..end];
+        for &(offset, length) in resolved {
+            self.add_entry(&mut prior, offset, length);
+        }
 
-            for (idx, param) in outcomes.iter().zip(parameters.iter()) {
-                prior[*idx as usize] += param.to_f32();
-            }
+        for (offset, length) in context.iter().filter_map(|x| self.pmap.get(*x)) {
+            self.add_entry(&mut prior, offset, length);
         }
 
         softmax(&mut prior);
@@ -320,6 +387,7 @@ impl Model {
         C: Fn(&[S], &[&str], usize) -> Vec<u64>,
         H: Fn(&[&str], usize) -> u64,
         V: Fn(&[S], &[&str], usize, &str) -> bool,
+        E: Fn(&[u64], usize) -> Vec<f32>,
     >(
         &self,
         tokens: &[S],
@@ -327,6 +395,7 @@ impl Model {
         hash_fn: H,
         valid_fn: V,
         size: usize,
+        eval_fn: E,
     ) -> Vec<Sequence> {
         let mut prev: BinaryHeap<Sequence> = BinaryHeap::new();
         let mut next: BinaryHeap<Sequence> = BinaryHeap::new();
@@ -343,7 +412,7 @@ impl Model {
                 let hash = hash_fn(seq.outcomes(), i);
                 if cache.get(&hash).is_none() {
                     let context = context_fn(tokens, seq.outcomes(), i);
-                    cache.insert(hash, self.eval(&context));
+                    cache.insert(hash, eval_fn(&context, i));
                 }
                 let scores = cache.get(&hash).unwrap();
                 let top_n = self.get_top_n(&scores, size, 1e-1);
@@ -397,7 +466,7 @@ impl MaxentTokenizer {
             };
         }
 
-        context.push(hash::hash_slice(&[&key, "=", &String::from(c)]));
+        context.push(hash::hash_parts_and_chars(&[key, "="], &[c]));
 
         if c.is_alphabetic() {
             add!("_alpha");
@@ -422,29 +491,24 @@ impl MaxentTokenizer {
     fn context(chars: &[char], i: usize) -> Vec<u64> {
         let mut context = Vec::new();
 
-        let prefix: String = chars[..i].iter().collect();
-        let suffix: String = chars[i..].iter().collect();
-
-        context.push(hash::hash_slice(&["p=", &prefix]));
-        context.push(hash::hash_slice(&["s=", &suffix]));
+        context.push(hash::hash_parts_and_chars(&["p="], &chars[..i]));
+        context.push(hash::hash_parts_and_chars(&["s="], &chars[i..]));
 
         if i > 0 {
             Self::add_char_context("p1", chars[i - 1], &mut context);
             if i > 1 {
                 Self::add_char_context("p2", chars[i - 2], &mut context);
-                context.push(hash::hash_slice(&[
-                    "p21=",
-                    &String::from(chars[i - 2]),
-                    &String::from(chars[i - 1]),
-                ]));
+                context.push(hash::hash_parts_and_chars(
+                    &["p21="],
+                    &[chars[i - 2], chars[i - 1]],
+                ));
             } else {
                 context.push(hash::hash_str("p2=bok"));
             }
-            context.push(hash::hash_slice(&[
-                "p1f1=",
-                &String::from(chars[i - 1]),
-                &String::from(chars[i]),
-            ]));
+            context.push(hash::hash_parts_and_chars(
+                &["p1f1="],
+                &[chars[i - 1], chars[i]],
+            ));
         } else {
             context.push(hash::hash_str("b1=bok"));
         }
@@ -452,11 +516,10 @@ impl MaxentTokenizer {
         Self::add_char_context("f1", chars[i], &mut context);
         if i + 1 < chars.len() {
             Self::add_char_context("f2", chars[i + 1], &mut context);
-            context.push(hash::hash_slice(&[
-                "f12=",
-                &String::from(chars[i]),
-                &String::from(chars[i + 1]),
-            ]));
+            context.push(hash::hash_parts_and_chars(
+                &["f12="],
+                &[chars[i], chars[i + 1]],
+            ));
         } else {
             context.push(hash::hash_str("f2=bok"));
         }
@@ -656,21 +719,15 @@ impl MaxentPosTagger {
         let mut output = Vec::new();
 
         for i in 0..4 {
-            output.push(hash::hash_slice(&[
-                "suf=",
-                &chars[std::cmp::max((chars.len() as isize) - 1 - i, 0) as usize..]
-                    .iter()
-                    .collect::<String>(),
-            ]));
+            let start = std::cmp::max((chars.len() as isize) - 1 - i, 0) as usize;
+            output.push(hash::hash_parts_and_chars(&["suf="], &chars[start..]));
         }
 
         for i in 0..4 {
-            output.push(hash::hash_slice(&[
-                "pre=",
-                &chars[..std::cmp::min(i + 1, chars.len())]
-                    .iter()
-                    .collect::<String>(),
-            ]));
+            output.push(hash::hash_parts_and_chars(
+                &["pre="],
+                &chars[..std::cmp::min(i + 1, chars.len())],
+            ));
         }
 
         output
@@ -768,6 +825,7 @@ impl MaxentPosTagger {
                 Self::hash,
                 |a, b, c, d| self.valid(a, b, c, d),
                 3,
+                |context, _i| self.model.eval(context),
             )
             .remove(0)
     }
@@ -805,108 +863,136 @@ impl MaxentChunker {
         s.finish()
     }
 
-    fn context(input: &[(&str, &str)], preds: &[&str], i: usize) -> Vec<u64> {
-        let (tokens, tags): (Vec<&str>, Vec<&str>) = input.iter().cloned().unzip();
+    /// The 19 word and tag features (5 word unigrams + 2 word bigrams + 5 tag unigrams + 4 tag
+    /// bigrams + 3 tag trigrams) for position `i`. They do not depend on the predicted outcomes,
+    /// so they are computed once per position instead of once per beam entry. Each feature is the
+    /// concatenation of a fixed prefix and a value (bos/eos are values), hashed like `format!` +
+    /// `hash_str`/`hash_slice` would, without allocating the joined strings.
+    fn static_context(input: &[(&str, &str)], i: usize) -> [u64; 19] {
+        let n = input.len();
+        let tok = |j: usize| input[j].0;
+        let tag = |j: usize| input[j].1;
 
-        let (w_2, t_2, p_2) = if i < 2 {
-            ("w_2=bos".into(), "t_2=bos".into(), "p_2=bos".into())
-        } else {
-            (
-                format!("w_2={}", tokens[i - 2]),
-                format!("t_2={}", tags[i - 2]),
-                format!("p_2{}", preds[i - 2]),
-            )
-        };
+        let (wm2p, wm2v) = ("w_2=", if i < 2 { "bos" } else { tok(i - 2) });
+        let (wm1p, wm1v) = ("w_1=", if i < 1 { "bos" } else { tok(i - 1) });
+        let (w0p, w0v) = ("w0=", tok(i));
+        let (wp1p, wp1v) = ("w1=", if i + 1 >= n { "eos" } else { tok(i + 1) });
+        let (wp2p, wp2v) = ("w2=", if i + 2 >= n { "eos" } else { tok(i + 2) });
 
-        let (w_1, t_1, p_1) = if i < 1 {
-            ("w_1=bos".into(), "t_1=bos".into(), "p_1=bos".into())
-        } else {
-            (
-                format!("w_1={}", tokens[i - 1]),
-                format!("t_1={}", tags[i - 1]),
-                format!("p_1={}", preds[i - 1]),
-            )
-        };
+        let (tm2p, tm2v) = ("t_2=", if i < 2 { "bos" } else { tag(i - 2) });
+        let (tm1p, tm1v) = ("t_1=", if i < 1 { "bos" } else { tag(i - 1) });
+        let (t0p, t0v) = ("t0=", tag(i));
+        let (tp1p, tp1v) = ("t1=", if i + 1 >= n { "eos" } else { tag(i + 1) });
+        let (tp2p, tp2v) = ("t2=", if i + 2 >= n { "eos" } else { tag(i + 2) });
 
-        let w0 = format!("w0={}", tokens[i]);
-        let t0 = format!("t0={}", tags[i]);
+        let h = |parts: &[&str]| hash::hash_parts(parts);
 
-        let (w1, t1) = if i + 1 >= tokens.len() {
-            ("w1=eos".into(), "t1=eos".into())
-        } else {
-            (
-                format!("w1={}", tokens[i + 1]),
-                format!("t1={}", tags[i + 1]),
-            )
-        };
+        [
+            // word features
+            h(&[wm2p, wm2v]),
+            h(&[wm1p, wm1v]),
+            h(&[w0p, w0v]),
+            h(&[wp1p, wp1v]),
+            h(&[wp2p, wp2v]),
+            h(&[wm1p, wm1v, w0p, w0v]),
+            h(&[w0p, w0v, wp1p, wp1v]),
+            // tag features
+            h(&[tm2p, tm2v]),
+            h(&[tm1p, tm1v]),
+            h(&[t0p, t0v]),
+            h(&[tp1p, tp1v]),
+            h(&[tp2p, tp2v]),
+            h(&[tm2p, tm2v, tm1p, tm1v]),
+            h(&[tm1p, tm1v, t0p, t0v]),
+            h(&[t0p, t0v, tp1p, tp1v]),
+            h(&[tp1p, tp1v, tp2p, tp2v]),
+            h(&[tm2p, tm2v, tm1p, tm1v, t0p, t0v]),
+            h(&[tm1p, tm1v, t0p, t0v, tp1p, tp1v]),
+            h(&[t0p, t0v, tp1p, tp1v, tp2p, tp2v]),
+        ]
+    }
 
-        let (w2, t2) = if i + 2 >= tokens.len() {
-            ("w2=eos".into(), "t2=eos".into())
-        } else {
-            (
-                format!("w2={}", tokens[i + 2]),
-                format!("t2={}", tags[i + 2]),
-            )
-        };
+    /// The 22 features that involve a predicted outcome (3 pred, 12 pred+tag, 7 pred+word).
+    /// The 19 word/tag features are [`static_context`](Self::static_context); the model resolves
+    /// them (and this context) through [`Model::eval_with_resolved`].
+    fn pred_context(input: &[(&str, &str)], preds: &[&str], i: usize) -> Vec<u64> {
+        let n = input.len();
+        let tok = |j: usize| input[j].0;
+        let tag = |j: usize| input[j].1;
 
-        return vec![
-            // add word features
-            hash::hash_str(&w_2),
-            hash::hash_str(&w_1),
-            hash::hash_str(&w0),
-            hash::hash_str(&w1),
-            hash::hash_str(&w2),
-            hash::hash_slice(&[&w_1, &w0]),
-            hash::hash_slice(&[&w0, &w1]),
-            // add tag features
-            hash::hash_str(&t_2),
-            hash::hash_str(&t_1),
-            hash::hash_str(&t0),
-            hash::hash_str(&t1),
-            hash::hash_str(&t2),
-            hash::hash_slice(&[&t_2, &t_1]),
-            hash::hash_slice(&[&t_1, &t0]),
-            hash::hash_slice(&[&t0, &t1]),
-            hash::hash_slice(&[&t1, &t2]),
-            hash::hash_slice(&[&t_2, &t_1, &t0]),
-            hash::hash_slice(&[&t_1, &t0, &t1]),
-            hash::hash_slice(&[&t0, &t1, &t2]),
-            // add pred tags
-            hash::hash_str(&p_2),
-            hash::hash_str(&p_1),
-            hash::hash_slice(&[&p_2, &p_1]),
-            // add pred and tag
-            hash::hash_slice(&[&p_1, &t_2]),
-            hash::hash_slice(&[&p_1, &t_1]),
-            hash::hash_slice(&[&p_1, &t0]),
-            hash::hash_slice(&[&p_1, &t1]),
-            hash::hash_slice(&[&p_1, &t2]),
-            hash::hash_slice(&[&p_1, &t_2, &t_1]),
-            hash::hash_slice(&[&p_1, &t_1, &t0]),
-            hash::hash_slice(&[&p_1, &t0, &t1]),
-            hash::hash_slice(&[&p_1, &t1, &t2]),
-            hash::hash_slice(&[&p_1, &t_2, &t_1, &t0]),
-            hash::hash_slice(&[&p_1, &t_1, &t0, &t1]),
-            hash::hash_slice(&[&p_1, &t0, &t1, &t2]),
-            // add pred and word
-            hash::hash_slice(&[&p_1, &w_2]),
-            hash::hash_slice(&[&p_1, &w_1]),
-            hash::hash_slice(&[&p_1, &w0]),
-            hash::hash_slice(&[&p_1, &w1]),
-            hash::hash_slice(&[&p_1, &w2]),
-            hash::hash_slice(&[&p_1, &w_1, &w0]),
-            hash::hash_slice(&[&p_1, &w0, &w1]),
-        ];
+        let (wm2p, wm2v) = ("w_2=", if i < 2 { "bos" } else { tok(i - 2) });
+        let (wm1p, wm1v) = ("w_1=", if i < 1 { "bos" } else { tok(i - 1) });
+        let (w0p, w0v) = ("w0=", tok(i));
+        let (wp1p, wp1v) = ("w1=", if i + 1 >= n { "eos" } else { tok(i + 1) });
+        let (wp2p, wp2v) = ("w2=", if i + 2 >= n { "eos" } else { tok(i + 2) });
+
+        let (tm2p, tm2v) = ("t_2=", if i < 2 { "bos" } else { tag(i - 2) });
+        let (tm1p, tm1v) = ("t_1=", if i < 1 { "bos" } else { tag(i - 1) });
+        let (t0p, t0v) = ("t0=", tag(i));
+        let (tp1p, tp1v) = ("t1=", if i + 1 >= n { "eos" } else { tag(i + 1) });
+        let (tp2p, tp2v) = ("t2=", if i + 2 >= n { "eos" } else { tag(i + 2) });
+
+        // `p_2` has no `=` before a real prediction, but does before `bos` (LanguageTool quirk).
+        let (pm2p, pm2v) = ("p_2", if i < 2 { "=bos" } else { preds[i - 2] });
+        let (pm1p, pm1v) = ("p_1=", if i < 1 { "bos" } else { preds[i - 1] });
+
+        let h = |parts: &[&str]| hash::hash_parts(parts);
+
+        let mut context = Vec::with_capacity(22);
+        context.extend([
+            // pred tags
+            h(&[pm2p, pm2v]),
+            h(&[pm1p, pm1v]),
+            h(&[pm2p, pm2v, pm1p, pm1v]),
+            // pred and tag
+            h(&[pm1p, pm1v, tm2p, tm2v]),
+            h(&[pm1p, pm1v, tm1p, tm1v]),
+            h(&[pm1p, pm1v, t0p, t0v]),
+            h(&[pm1p, pm1v, tp1p, tp1v]),
+            h(&[pm1p, pm1v, tp2p, tp2v]),
+            h(&[pm1p, pm1v, tm2p, tm2v, tm1p, tm1v]),
+            h(&[pm1p, pm1v, tm1p, tm1v, t0p, t0v]),
+            h(&[pm1p, pm1v, t0p, t0v, tp1p, tp1v]),
+            h(&[pm1p, pm1v, tp1p, tp1v, tp2p, tp2v]),
+            h(&[pm1p, pm1v, tm2p, tm2v, tm1p, tm1v, t0p, t0v]),
+            h(&[pm1p, pm1v, tm1p, tm1v, t0p, t0v, tp1p, tp1v]),
+            h(&[pm1p, pm1v, t0p, t0v, tp1p, tp1v, tp2p, tp2v]),
+            // pred and word
+            h(&[pm1p, pm1v, wm2p, wm2v]),
+            h(&[pm1p, pm1v, wm1p, wm1v]),
+            h(&[pm1p, pm1v, w0p, w0v]),
+            h(&[pm1p, pm1v, wp1p, wp1v]),
+            h(&[pm1p, pm1v, wp2p, wp2v]),
+            h(&[pm1p, pm1v, wm1p, wm1v, w0p, w0v]),
+            h(&[pm1p, pm1v, w0p, w0v, wp1p, wp1v]),
+        ]);
+        context
     }
 
     fn chunk(&self, input: &[(&str, &str)]) -> Sequence {
+        let static_features: Vec<[u64; 19]> = (0..input.len())
+            .map(|i| Self::static_context(input, i))
+            .collect();
+        // The word/tag features are position-invariant, so resolve their pmap entries once
+        // instead of binary-searching them for every beam entry.
+        let resolved: Vec<Vec<(u32, u8)>> = static_features
+            .iter()
+            .map(|features| {
+                features
+                    .iter()
+                    .filter_map(|key| self.model.pmap.get(*key))
+                    .collect()
+            })
+            .collect();
+        let eval = |context: &[u64], i: usize| self.model.eval_with_resolved(&resolved[i], context);
         self.model
             .beam_search(
                 input,
-                Self::context,
+                Self::pred_context,
                 Self::hash,
                 |a, b, c, d| self.valid(a, b, c, d),
                 7,
+                eval,
             )
             .remove(0)
     }

@@ -660,7 +660,7 @@ Milestone M9 targets the chunker (`nlprule/src/tokenizer/chunk.rs`, entry point
 29% of allocation volume. 1,175 grammar rules and 142 disambiguation rules read its chunk tags,
 so every change must keep chunk output and suggestion output byte-identical.
 
-## Phase 0 — isolated chunker harness (this PR)
+## Phase 0 — isolated chunker harness ([#88](https://github.com/cmlarsen/writemorebetter/pull/88))
 
 `bench/tools/wmb-chunkbench` loads an English tokenizer, runs the pipeline up to (but not
 including) chunking on a fixed text set **once**, then times only the chunker over the prepared
@@ -695,5 +695,31 @@ establishes measurement and does not count as an optimization.
 
 | Attempt | PR | Change | Instructions Δ (6.6) | Peak RSS Δ (6.6) | Peak RSS Δ (5.2) | Chunkbench Δ (6.6 / 5.2) | Kept/dropped |
 |---|---|---|---|---|---|---|---|
-| 0 | (this PR) | Isolated chunker harness + chunk golden | — | — | — | baseline 10,380 / 9,955 ns/token | Phase 0 |
+| 0 | [#88](https://github.com/cmlarsen/writemorebetter/pull/88) | Isolated chunker harness + chunk golden | +0.10% (no engine change) | −0.68% (−0.50 MiB) | +0.05% | baseline 10,380 / 9,955 ns/token | Phase 0 |
+| 1 | [#89](https://github.com/cmlarsen/writemorebetter/pull/89) | Allocation-free context hashing + precomputed/resolved static features | pending | pending | pending | −16% / −17% ns/token, −35% / −36% alloc calls | pending |
+
+### Attempt 1 — allocation-free context hashing and precomputed static features
+
+`MaxentChunker::context` used to `format!` every feature string (`w0=…`, `p_1=…`) and hash it with
+SipHash, and `MaxentTokenizer`/`MaxentPosTagger` collected prefix/suffix substrings into `String`s
+before hashing them. A new `hash_parts`/`hash_parts_and_chars` hashes the byte pieces directly, so
+the joined strings are never built. `hash_str(s) == hash_parts(&[s])` and
+`hash_slice(parts) == hash_parts(parts)` exactly (SipHash over the concatenation plus the `0xff`
+terminator), so every feature hash is unchanged.
+
+The chunk model's 19 word/tag features do not depend on the predicted outcomes. They are now
+computed once per position (`static_context`) and their `pmap` entries resolved once
+(`Model::eval_with_resolved`), instead of re-hashing and binary-searching them for every beam
+entry. The 22 outcome-dependent features (`pred_context`) are looked up as before. `beam_search`
+takes the eval step as a closure so the POS tagger keeps the plain `Model::eval`.
+
+Chunkbench, interleaved before/after on the same machine, median of a few runs:
+
+| Rules | ns/token before → after | alloc calls before → after | requested MiB before → after |
+|---|---:|---:|---:|
+| 5.2 | 10,475 → 8,690 (−17.0%) | 4,414,520 → 2,826,228 (−36.0%) | 457.0 → 401.4 |
+| 6.6 | 10,506 → 8,805 (−16.2%) | 4,620,885 → 3,017,970 (−34.7%) | 657.1 → 574.3 |
+
+Chunk golden (12 files) is byte-identical; the 24 suggestion goldens, workspace tests, clippy, fmt
+and the wasm build pass. CI decides retention.
 
