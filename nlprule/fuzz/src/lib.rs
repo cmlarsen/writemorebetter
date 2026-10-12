@@ -100,8 +100,114 @@ fn random_string(rng: &mut Rng, max_chars: usize) -> String {
     out
 }
 
-/// Deterministic generated inputs: mostly short, with a slice of paragraph-sized inputs
-/// bounded by `max_chars`.
+/// Words and fragments that actually steer rules and builtins, so the generator
+/// produces text a rule can act on rather than only noise.
+const WORDS: &[&str] = &[
+    "the",
+    "a",
+    "an",
+    "and",
+    "but",
+    "is",
+    "was",
+    "were",
+    "be",
+    "been",
+    "I",
+    "you",
+    "he",
+    "she",
+    "it",
+    "they",
+    "we",
+    "not",
+    "don't",
+    "can't",
+    "won't",
+    "isn't",
+    "didn't",
+    "hello",
+    "world",
+    "sentence",
+    "break",
+    "here",
+    "said",
+    "quietly",
+    "door",
+    "then",
+    "window",
+    "matter",
+    "bazaar",
+    "bizarre",
+    "prescribe",
+    "proscribe",
+    "heroin",
+    "heroine",
+    "alot",
+    "definately",
+    "recieve",
+    "seperate",
+    "apple",
+    "hour",
+    "university",
+    "MBA",
+    "one-way",
+    "e.g.",
+    "i.e.",
+    "etc.",
+    "Dr.",
+    "12\"",
+    "don’t",
+    "it’s",
+    "she’s",
+    "Marta’s",
+    "’90s",
+    "wait",
+    "may",
+    "May",
+    "will",
+    "Will",
+    "(((",
+    ")))",
+    "“",
+    "”",
+    "…",
+    "—",
+    "\u{2028}",
+    "\u{200d}",
+    "\u{0301}",
+    "\u{0000}",
+];
+
+fn word_string(rng: &mut Rng, max_chars: usize) -> String {
+    let words = 1 + (rng.next_u64() as usize) % 24;
+    let mut out = String::new();
+    for i in 0..words {
+        if i > 0 && rng.next_u64() % 4 != 0 {
+            out.push(' ');
+        }
+        out.push_str(rng.pick(WORDS));
+        if out.len() > max_chars {
+            break;
+        }
+    }
+    out.truncate(char_boundary_at_or_before(&out, max_chars));
+    out
+}
+
+fn char_boundary_at_or_before(s: &str, max_bytes: usize) -> usize {
+    if s.len() <= max_bytes {
+        return s.len();
+    }
+    let mut end = max_bytes;
+    while end > 0 && !s.is_char_boundary(end) {
+        end -= 1;
+    }
+    end
+}
+
+/// Deterministic generated inputs: a mix of word sequences that steer rules and
+/// random boundary-heavy noise, bounded by `max_chars`.
 pub fn generated_with(seed: u64, count: usize, max_chars: usize) -> Vec<String> {
     let mut rng = Rng::new(seed);
     let mut out = Vec::with_capacity(count);
@@ -111,7 +217,11 @@ pub fn generated_with(seed: u64, count: usize, max_chars: usize) -> Vec<String> 
             1..=7 => (max_chars / 3).max(16),
             _ => max_chars,
         };
-        out.push(random_string(&mut rng, max));
+        if i % 3 == 0 {
+            out.push(word_string(&mut rng, max));
+        } else {
+            out.push(random_string(&mut rng, max));
+        }
     }
     out
 }
