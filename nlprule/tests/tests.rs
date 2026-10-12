@@ -1,7 +1,10 @@
-use std::convert::TryInto;
+use std::convert::{TryFrom, TryInto};
 
 use lazy_static::lazy_static;
-use nlprule::{profile::Profile, rule::id::Category, types::Position, Error, Rules, Tokenizer};
+use nlprule::{
+    profile::Profile, rule::id::Category, rule::id::Selector, types::Position, Error, Rules,
+    Tokenizer,
+};
 use quickcheck_macros::quickcheck;
 
 const TOKENIZER_PATH: &str = "../storage/en_tokenizer.bin";
@@ -485,6 +488,31 @@ fn suggestions_at_a_second_sentence_start_apply_cleanly() {
         );
     }
     let _ = nlprule::rules::apply_suggestions(text, &suggestions);
+}
+
+#[test]
+fn suggestion_span_with_a_sentence_start_group() {
+    // `ANOTHER_WORDS` starts with a `SENT_START` group. Its suggestion is the marked
+    // "Another words"; leading whitespace must not move the span, and the zero-width
+    // SENT_START group must not be reported as a matched token.
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    // A second rule matches the same text; disable it so the SENT_START rule is reported.
+    rules
+        .select_mut(&Selector::try_from("CONFUSED_WORDS/CONFUSION_OF_ANOTHER_IN_OTHER").unwrap())
+        .for_each(|rule| rule.disable());
+
+    for text in [
+        "Another words, he left.",
+        "  Another words, he left.",
+        "\n\tAnother words, he left.",
+    ] {
+        let suggestions = rules.suggest(text, &*TOKENIZER);
+        let suggestion = suggestions
+            .iter()
+            .find(|suggestion| suggestion.source().contains("ANOTHER_WORDS"))
+            .unwrap_or_else(|| panic!("no ANOTHER_WORDS suggestion for {:?}", text));
+        assert_eq!(&text[suggestion.span().byte().clone()], "Another words");
+    }
 }
 
 #[test]
