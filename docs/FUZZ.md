@@ -82,6 +82,20 @@ Then add a regression test in `nlprule/tests/tests.rs` that feeds the input to
 call in `catch_unwind`: a panic is a bug in a UTF-8 boundary, an index or an
 invariant, and the fix belongs at the source.
 
+## Crashes found and fixed
+
+1. **Suggestion span starts at zero at a later sentence's first token.** For an input
+   like `"jW\u{2029},<d"` the `TYPOS/NON_STANDARD_WORD` rule matched `,<d` in the
+   second sentence but reported a span starting at position 0. `Rules::apply_suggestions`
+   subtracts earlier replacements' length from the position as an `isize` and casts it
+   to `usize`, so the negative start wrapped and the slice index panicked. Root cause:
+   `Suggestions::next` extends a span leftwards to the end of the preceding token for a
+   replacement that starts with a no-space character; when that preceding token is the
+   zero-width `SENT_START`, its default end (0) was used. Fixed in
+   `nlprule/src/rule/mod.rs`; regression test
+   `suggestions_at_a_second_sentence_start_apply_cleanly`; the minimized input is in
+   `nlprule/fuzz/corpus/crashes/`.
+
 ## Pathological slowness
 
 The harness is also used to find slow inputs. `stress --timings corpus/suggest`
