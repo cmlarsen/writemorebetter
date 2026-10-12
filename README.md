@@ -12,13 +12,17 @@ numbers, each from its source doc:
 
 | Metric | Measured |
 |---|---|
-| Grammar conformance (LanguageTool's own embedded examples) | 5,977 / 6,098 = 98.0% — [`docs/FINDINGS.md`](docs/FINDINGS.md) |
-| Disambiguation conformance | 1,012 / 1,060 = 95.5% — [`docs/FINDINGS.md`](docs/FINDINGS.md) |
+| Grammar conformance (rules passing LanguageTool's embedded examples, of all 6,098 `<rule>` elements) | 5,977 / 6,098 = 98.0% — [`docs/FINDINGS.md`](docs/FINDINGS.md) |
+| Disambiguation conformance (rules passing their examples, of all 1,060 `<rule>` elements) | 1,012 / 1,060 = 95.5% — [`docs/FINDINGS.md`](docs/FINDINGS.md) |
 | Public stand-in corpus recall | 55 / 60 — [`docs/FINDINGS.md`](docs/FINDINGS.md) |
 | Private fiction corpus recall | 46 / 50 — [`docs/FINDINGS.md`](docs/FINDINGS.md) |
 | Peak RSS, 150 KB of Moby-Dick, speller on | 100 MB — [`docs/FINDINGS.md`](docs/FINDINGS.md) |
 | vs. a local LanguageTool server | ~2.5× faster on a full novel at about a seventh of the memory; comparable on short documents — [`docs/FINDINGS.md`](docs/FINDINGS.md) |
 | Swift load / check | ~0.1 s load; ~110 ms per 1,000 words — [`swift/README.md`](swift/README.md) |
+
+Conformance counts every `<rule>` element in LanguageTool's English XML, including rules that do not
+compile; the CI gate counts only the rules the compiler can run, so it prints 5,977 / 6,032 for
+grammar.
 
 The engine is fast, low-resource and offline: no Java, no network, no server. See
 [`docs/FINDINGS.md`](docs/FINDINGS.md) for the evaluation behind the project and
@@ -48,9 +52,9 @@ let checker = try Checker(
     profile: "fiction"       // the default
 )
 
-// A check is not free (~110 ms per 1,000 words), so call it off the main thread. The engine
-// treats each call's text as one paragraph (paragraph-scoped builtins do not see across blank
-// lines), so pass a paragraph at a time.
+// A check is not free (~110 ms per 1,000 words), so call it off the main thread. Pass one
+// paragraph per call: editors like NSTextView separate paragraphs with a single newline, and a
+// heading or a line without terminal punctuation would otherwise run into the next line.
 for suggestion in checker.check(text: paragraph) {
     // start/end are UTF-16 offsets; suggestion.nsRange is ready for NSRange APIs.
     textStorage.addAttribute(.underlineStyle, value: 1, range: suggestion.nsRange)
@@ -97,13 +101,13 @@ nlprule = { git = "https://github.com/cmlarsen/writemorebetter", tag = "0.7.0" }
 ```
 
 ```rust
-use nlprule::{Rules, Tokenizer};
 use nlprule::profile::Profile;
+use nlprule::{Rules, Tokenizer};
 
-let tokenizer = Tokenizer::new("en_tokenizer.bin")?;
-let mut rules = Rules::new("en_rules.bin")?;
+let tokenizer = Tokenizer::new("storage/66/en_tokenizer.bin")?;
+let mut rules = Rules::new("storage/66/en_rules.bin")?;
 rules.apply_profile(&Profile::by_name("fiction").unwrap());
-if let Some(variant) = rules.spell().variant("en_US") {
+if let Ok(variant) = rules.spell().variant("en_US") {
     rules.spell_mut().options_mut().variant = Some(variant);
 }
 
@@ -112,6 +116,7 @@ for suggestion in rules.suggest(paragraph, &tokenizer) {
 }
 ```
 
+That snippet is [`nlprule/examples/check.rs`](nlprule/examples/check.rs), which CI builds.
 `rules.add_words([...])`, `remove_words`, `set_words`, `clear_words` and `words()` manage the user
 dictionary. `Rules::suggest` is parallel by default (rayon); set `NLPRULE_PARALLELISM=off` for one
 thread.
@@ -123,9 +128,9 @@ The checker needs two compiled data files, `en_tokenizer.bin` and `en_rules.bin`
 The zip also carries `SHA256SUMS`, the LGPL-2.1 license text and a provenance README.
 
 The data is compiled from LanguageTool 6.6 resources and is **LGPL-2.1**. Under LGPL §6 an app must
-let the user replace it, so load the two files as **separate files** at runtime (e.g. from a resource
-directory the user can write to) — never link them into the application, and never inline them into
-engine source. The engine code is MIT/Apache-2.0, at your option. The data zip is the only LGPL part.
+let the user replace it, so ship the two files as **separate files** (for example app bundle
+resources) loaded at runtime — never link them into the application, and never inline them into engine
+source. The engine code is MIT/Apache-2.0, at your option. The data zip is the only LGPL part.
 
 Rebuild the data reproducibly from pinned inputs with [`scripts/build-data.sh`](scripts/build-data.sh);
 CI and the release workflow both call it. See [`binaries/README.md`](binaries/README.md).
