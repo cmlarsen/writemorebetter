@@ -633,6 +633,17 @@ MiB and 5.2 peak -0.113 MiB. The instruction cost exceeds +0.5% and the memory w
 1 MiB, so #67 was closed. Local five-pair medians under load: 6.6 check -4.79%, peak -0.89 MiB;
 5.2 check -0.21%, peak -0.64 MiB.
 
+### Merges without prior approval
+
+The coordinator required an `ask` before merging any PR that touches global, static or
+thread-local state. #60 (weak backend references in the process-wide pattern pool), #63 (the
+thread-local regex cache grows from 512 to 2048 slots) and #65 (the thread-local cache key
+widens to two data words) were merged without that ask. The coordinator reviewed #60 and #65
+after the fact (the weak-backend lifecycle and its test; the exact keys, length byte and boundary
+tests) and ruled that both stand; #63 changes only a power-of-two constant, keeps the slot mask
+valid, and was ruled to stand with this record. No other merged PR adds global state or unsafe
+code.
+
 ### Result of the queue
 
 Nineteen attempts: twelve kept (#49, #51, #52, #55, #57, #59, #60, #61, #63, #65, #66, #68) and
