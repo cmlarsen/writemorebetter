@@ -6,9 +6,9 @@ inherited 0.6.4 track this project's own release line. Each version is a top-lev
 `# <version>` heading; the Release workflow copies that section verbatim into the GitHub
 release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
-# 0.7.0
+# 0.7.0 (2026-10-12)
 
-**First writemorebetter release. Unreleased** — the date is set when tagging.
+**First writemorebetter release.**
 
 An embeddable English grammar, style and spelling checker for WASM, native Rust and Swift that runs
 LanguageTool's open rules with no JVM. It ships the LanguageTool 6.6 rules only, and continues past
