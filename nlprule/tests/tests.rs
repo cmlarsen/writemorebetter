@@ -585,7 +585,6 @@ fn builtin_word_repeat_flags_curly_quotes() {
 }
 
 #[test]
-#[ignore = "LT 6.6 regression, see #96"]
 fn builtin_word_repeat_flags_curly_apostrophe() {
     assert_eq!(
         builtin_word_repeat_flags("I don\u{2019}t don\u{2019}t know."),
@@ -1184,7 +1183,6 @@ fn builtin_word_coherency_ignores_a_single_spelling() {
 }
 
 #[test]
-#[ignore = "LT 6.6 regression, see #96"]
 fn builtin_word_coherency_ignores_variants_across_paragraphs() {
     // Documented limitation: the engine checks one paragraph at a time, so
     // variants used in different paragraphs are not compared.
@@ -1341,7 +1339,6 @@ fn builtin_unpaired_quotes_flags_stray_closing_double() {
 }
 
 #[test]
-#[ignore = "LT 6.6 regression, see #96"]
 fn builtin_unpaired_quotes_flags_stray_closing_single() {
     assert_eq!(
         builtin_unpaired_flags("\u{2018}Hello,\u{2019} she said.\u{2019}"),
