@@ -1078,6 +1078,27 @@ impl Chunker {
             }
         }
     }
+
+    /// Runs the chunker's internal tokenizer, POS tagger and chunk model on `text` and returns
+    /// `(tokens, pos_tags, chunks)` as owned strings. For the benchmark harness's golden dump only.
+    #[cfg(feature = "bench-harness")]
+    #[doc(hidden)]
+    pub fn predict_internal(&self, text: &str) -> (Vec<String>, Vec<String>, Vec<String>) {
+        let internal_tokens = self.token_model.tokenize(text);
+        let tags = self.pos_model.tag(&internal_tokens);
+        let chunks = self.chunk_model.chunk(
+            &internal_tokens
+                .iter()
+                .cloned()
+                .zip(tags.outcomes().iter().cloned())
+                .collect::<Vec<_>>(),
+        );
+        (
+            internal_tokens.iter().map(|s| (*s).to_string()).collect(),
+            tags.outcomes().iter().map(|s| (*s).to_string()).collect(),
+            chunks.outcomes().iter().map(|s| (*s).to_string()).collect(),
+        )
+    }
 }
 
 #[cfg(test)]

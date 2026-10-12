@@ -1,0 +1,12 @@
+[package]
+name = "wmb-chunkbench"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+nlprule = { path = "../../../nlprule", features = ["bench-harness"] }
+
+[profile.release]
+debug = false
+
+[workspace]

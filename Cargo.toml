@@ -9,6 +9,7 @@ members = [
 exclude = [
     "bench/tools/probe",
     "bench/tools/wmb-probe",
+    "bench/tools/wmb-chunkbench",
 ]
 
 # nlprule is really slow without optimizations (esp. compiling binaries)
