@@ -213,6 +213,9 @@ Measured on `main` with both build dirs CI uses (LT 5.2 from upstream's `en.zip`
 the desktop release), on an idle machine. Conformance pass rate = rules passing their embedded examples /
 `<rule>` elements.
 
+As of release 0.7.0, LanguageTool 5.2 is no longer built: CI and the release workflow build the LT 6.6
+data only (`scripts/build-data.sh`). The LT 5.2 columns below are kept as history.
+
 | | nlprule 0.6.4 | writemorebetter, LT 5.2 rules | writemorebetter, LT 6.6 rules |
 |---|---|---|---|
 | Grammar pass rate | 3,749 / 4,366 = 85.9% | 4,320 / 4,366 = 98.9% | 5,977 / 6,098 = 98.0% |

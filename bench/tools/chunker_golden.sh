@@ -24,7 +24,7 @@ done
 
 cargo build --release --manifest-path "$root/bench/tools/wmb-chunkbench/Cargo.toml" >/dev/null
 
-for rules in 52 66; do
+for rules in 66; do
     "$bin" "$root/storage/$rules" --golden="$mode" --label="$rules" \
         --out="$root/bench/golden/chunker" "${texts[@]}"
 done

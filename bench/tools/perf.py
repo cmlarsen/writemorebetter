@@ -45,7 +45,7 @@ def table(rows):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--golden', choices=['check', 'write'])
-    parser.add_argument('--rules', nargs='+', choices=['52', '66'], default=['52', '66'])
+    parser.add_argument('--rules', nargs='+', choices=['66'], default=['66'])
     parser.add_argument('--texts', nargs='+', choices=TEXTS, default=TEXTS)
     parser.add_argument('--storage', type=Path, default=ROOT / 'storage')
     parser.add_argument('--probe', type=Path, default=PROBE)

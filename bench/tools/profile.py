@@ -51,7 +51,7 @@ def median_table(runs, tag, value_columns):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('mode', choices=['phases', 'stages'])
-    parser.add_argument('--rules', choices=['52', '66'], required=True)
+    parser.add_argument('--rules', choices=['66'], required=True)
     parser.add_argument('--runs', type=int, default=7)
     parser.add_argument('--no-build', action='store_true')
     args = parser.parse_args()
