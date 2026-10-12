@@ -13,6 +13,7 @@ bench/runs/*
 
 # Downloaded or generated LanguageTool-derived data
 data/
+dist/
 storage/
 *.bin
 *.bin.gz
