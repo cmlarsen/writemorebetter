@@ -597,6 +597,41 @@ fn builtin_word_repeat_flags_curly_apostrophe() {
 }
 
 #[test]
+fn builtin_word_repeat_flags_straight_split_contraction() {
+    assert_eq!(
+        builtin_word_repeat_flags("I don't don't know."),
+        vec![("don't don't".to_string(), "don't".to_string())]
+    );
+}
+
+#[test]
+fn builtin_word_repeat_flags_split_clitic() {
+    // The `’s` clitic is a token of its own under 6.6 tokenization.
+    assert_eq!(
+        builtin_word_repeat_flags("It\u{2019}s it\u{2019}s fine."),
+        vec![(
+            "It\u{2019}s it\u{2019}s".to_string(),
+            "It\u{2019}s".to_string()
+        )]
+    );
+}
+
+#[test]
+fn builtin_word_repeat_ignores_words_that_only_look_split() {
+    // A space before the clitic makes `do` and `n't` two words, so `do` is not
+    // immediately repeated.
+    assert!(builtin_word_repeat_flags("I do n't do n't know.").is_empty());
+    // A sentence boundary separates `do` from the next `Don\u{2019}t`.
+    assert!(builtin_word_repeat_flags("I do. Don\u{2019}t go.").is_empty());
+}
+
+#[test]
+fn builtin_word_repeat_ignores_contraction_after_verb() {
+    // The negation clitic is one token under 6.6, but `do do n't` stays allowed.
+    assert!(builtin_word_repeat_flags("I do do n't know.").is_empty());
+}
+
+#[test]
 fn builtin_word_repeat_flags_before_ellipsis() {
     assert_eq!(
         builtin_word_repeat_flags("It was was late\u{2026}"),
