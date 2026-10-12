@@ -696,6 +696,7 @@ impl Rules {
             builtins,
             articles,
             parts: pool.into_pool(),
+            batch_size: None,
         }
     }
 }

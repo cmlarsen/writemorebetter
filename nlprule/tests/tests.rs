@@ -42,6 +42,17 @@ fn can_tokenize_anything(text: String) -> bool {
 }
 
 #[test]
+fn batch_size_does_not_change_suggestions() {
+    let text = "I can due his homework.\n\n“She dont know”—he said… \u{2028}It’s fine. A apple fell.\n\nThey was late.";
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    let expected = format!("{:?}", rules.suggest(text, &*TOKENIZER));
+    for size in [0, 1, 2, 3, 128] {
+        rules.set_batch_size(size);
+        assert_eq!(format!("{:?}", rules.suggest(text, &*TOKENIZER)), expected);
+    }
+}
+
+#[test]
 fn suggest_indices_are_relative_to_input_text() {
     let mut rules = Rules::new(RULES_PATH).unwrap();
     // A newly compiled rule without a suggestion (GRAMMAR/PRP_MD_NN/4) also
