@@ -246,7 +246,7 @@ attempts total. Phase 0 establishes measurement and does not count as an optimiz
 | 13 | [#59](https://github.com/cmlarsen/writemorebetter/pull/59) | Compact contiguous NFA for multiword tagging | +1.28% | -8.441 MiB | -2.289 MiB | +1.57% / +0.32% (interleaved, loaded) | kept (coordinator-approved) |
 | 15 | [#63](https://github.com/cmlarsen/writemorebetter/pull/63) | Raise boolean-regex cache to 2048 slots per thread | -1.40% (-1.29% before #65) | -0.148 MiB (+0.391 before #65) | +0.223 MiB | +0.93% / -1.31% (interleaved, loaded) | kept |
 | 16 | [#65](https://github.com/cmlarsen/writemorebetter/pull/65) | Cache exact regex inputs up to 15 UTF-8 bytes | -4.01% | +0.414 MiB | -0.066 MiB | -3.29% / +0.28% (interleaved, loaded) | kept |
-| 19 | [#68](https://github.com/cmlarsen/writemorebetter/pull/68) | Reuse the token-text index across disambiguation iterations | pending | pending | pending | -6.10% / -8.34% (interleaved, loaded) | pending |
+| 19 | [#68](https://github.com/cmlarsen/writemorebetter/pull/68) | Reuse the token-text index across disambiguation iterations | -1.62% (-1.55% before #63/#65) | +0.064 MiB (+0.844 before #63/#65) | -0.027 MiB | -6.10% / -8.34% (interleaved, loaded) | kept |
 
 
 Phase 0 merge-base measurements (Ubuntu): 6.6 check 5.2510 s, peak 91.4414 MiB,
@@ -570,4 +570,10 @@ passing-ID lists for both rule sets (grammar 5,977/6,032 and 4,320/4,335; disamb
 | 66 | story1 | 0.2056 / 0.2413 | +17.34% | 68.38 / 68.08 | -0.30 |
 
 The 6.6 story1 pair is a load outlier; the other cases and an earlier revision (six texts,
--6.3% to -13.5%) agree. CI decides retention.
+-6.3% to -13.5%) agree.
+
+CI passed. On the original base: instructions 54.796B → 53.946B (-1.55%), allocator calls
+-4.49%, 6.6 peak +0.844 MiB, 5.2 peak -0.027 MiB. Rebased onto #63/#65: 51.905B → 51.062B
+(-1.62%), allocator calls -5.11%, 6.6 peak 72.852 → 72.898 MiB (+0.064), 5.2 peak -0.031 MiB,
+loaded RSS flat. The local wall-time win (-6% to -8%) is larger than the instruction count
+suggests because the index rebuild also allocates; #68 was retained as an instruction win.
