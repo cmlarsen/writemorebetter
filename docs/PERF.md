@@ -652,3 +652,48 @@ Against the Phase 0 baseline, final main measures 51.068B instructions (-36.8%),
 MiB (-18.07) and 5.2 peak 65.457 MiB (-5.04) on the CI perf job (different runners; CI peak
 varies by about 2 MiB between runs). The stage-by-stage profile of that state is in
 [PROFILE-BREAKDOWN.md](PROFILE-BREAKDOWN.md).
+
+# M9 chunker (2026-10-12)
+
+Milestone M9 targets the chunker (`nlprule/src/tokenizer/chunk.rs`, entry point
+`Chunker::apply`): 12.5% of check time, 8.1% of instructions, 7.9 MiB of loaded heap (17%) and
+29% of allocation volume. 1,175 grammar rules and 142 disambiguation rules read its chunk tags,
+so every change must keep chunk output and suggestion output byte-identical.
+
+## Phase 0 — isolated chunker harness (this PR)
+
+`bench/tools/wmb-chunkbench` loads an English tokenizer, runs the pipeline up to (but not
+including) chunking on a fixed text set **once**, then times only the chunker over the prepared
+sentences N times. It uses a counting global allocator for allocation calls/bytes and reports the
+tokenizer's live heap after load. nlprule exposes the pre-chunk stages behind the off-by-default
+`bench-harness` feature (`Tokenizer::prepared_sentences`, `Tokenizer::chunk_apply`,
+`Chunker::predict_internal`); none of it is in the default public API.
+
+`bench/tools/chunker_golden.sh --check` compares, byte-for-byte in about two seconds, every
+token's chunk tags plus the chunk model's internal tokens/POS/chunk labels for
+`story1..5` + `moby150k` and both rule sets (`bench/golden/chunker/{52,66}/`). `--golden=verify`
+checks that the harness path (`prepared_sentences` + `chunk_apply`) produces exactly the chunk
+tags of the real `Tokenizer::pipe` pipeline.
+
+Baseline (this machine, macOS/arm64, release, median of 10 runs over
+`moby150k` + `story1..5`, `--runs=10`):
+
+| Rules | sentences | tokens | ms/run | ns/token | alloc calls/run | requested MiB/run | loaded live heap |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| 5.2 | 2,106 | 42,510 | 423.2 | 9,955 | 4,414,520 | 457.0 | 27.5 MiB |
+| 6.6 | 1,601 | 42,151 | 437.5 | 10,380 | 4,620,885 | 657.1 | 24.8 MiB |
+
+The outer gate for every M9 PR is the full 24-file `golden.sh --check`, `cargo test`, clippy, fmt,
+the wasm build, and — for direction 2 — byte-identical `--list-passing` ID lists for grammar and
+disambiguation on both rule sets.
+
+### Hill-climb ledger (M9)
+
+Negative deltas mean improvement. The keep rule is unchanged: CI instructions improve ≥1% with
+peak RSS cost ≤1 MiB, or peak RSS improves >1 MiB with instruction cost ≤+0.5%. Phase 0
+establishes measurement and does not count as an optimization.
+
+| Attempt | PR | Change | Instructions Δ (6.6) | Peak RSS Δ (6.6) | Peak RSS Δ (5.2) | Chunkbench Δ (6.6 / 5.2) | Kept/dropped |
+|---|---|---|---|---|---|---|---|
+| 0 | (this PR) | Isolated chunker harness + chunk golden | — | — | — | baseline 10,380 / 9,955 ns/token | Phase 0 |
+

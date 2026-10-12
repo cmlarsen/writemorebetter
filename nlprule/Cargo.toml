@@ -81,6 +81,11 @@ regex-all-test = ["regex-onig", "regex-fancy"]
 # off by default and never needed to build or use the library.
 memory-probe = []
 
+# exposes the tokenizer pipeline stages before chunking so the standalone chunker
+# benchmark harness (bench/tools/wmb-chunkbench) can time the chunker in isolation.
+# off by default and never needed to build or use the library.
+bench-harness = []
+
 # needed for the bin test targets and to compile nlprule binaries, you'll usually not need these
 bin = ["clap", "env_logger"]
 compile = [

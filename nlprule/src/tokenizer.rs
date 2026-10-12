@@ -588,6 +588,27 @@ impl Tokenizer {
     /// Tokenize the given sentence. This applies chunking and tagging, but does not do disambiguation.
     // NB: this is not public because it could be easily misused by passing a text instead of one sentence.
     pub(crate) fn tokenize<'t>(&'t self, sentence: &'t str) -> Option<IncompleteSentence<'t>> {
+        let mut sentence = self.tokenize_no_chunk(sentence)?;
+
+        if let Some(chunker) = &self.chunker {
+            chunker.apply(
+                &mut sentence,
+                self.lang_options.chunk_number_from_last_token,
+            );
+        }
+
+        if let Some(multiword_tagger) = &self.multiword_tagger {
+            multiword_tagger.apply(&mut sentence);
+        }
+
+        Some(sentence)
+    }
+
+    /// Tokenize and tag the given sentence, stopping before chunking and multiword tagging.
+    pub(crate) fn tokenize_no_chunk<'t>(
+        &'t self,
+        sentence: &'t str,
+    ) -> Option<IncompleteSentence<'t>> {
         if sentence.trim().is_empty() {
             return None;
         }
@@ -646,20 +667,7 @@ impl Tokenizer {
         let last_idx = tokens.len() - 1;
         *tokens[last_idx].is_sentence_end_mut() = true;
 
-        let mut sentence = IncompleteSentence::new(tokens, sentence, &self.tagger);
-
-        if let Some(chunker) = &self.chunker {
-            chunker.apply(
-                &mut sentence,
-                self.lang_options.chunk_number_from_last_token,
-            );
-        }
-
-        if let Some(multiword_tagger) = &self.multiword_tagger {
-            multiword_tagger.apply(&mut sentence);
-        }
-
-        Some(sentence)
+        Some(IncompleteSentence::new(tokens, sentence, &self.tagger))
     }
 
     /// Splits the text into sentences and tokenizes each sentence.
@@ -678,6 +686,38 @@ impl Tokenizer {
         SentenceIter {
             inner: self.sentencize(text),
             tokenizer: &self,
+        }
+    }
+}
+
+/// Internal pipeline stages exposed for the standalone chunker benchmark harness only.
+#[cfg(feature = "bench-harness")]
+#[doc(hidden)]
+impl Tokenizer {
+    /// Splits `text` into sentences and tag-tokenizes each one, stopping before chunking and
+    /// multiword tagging. The sentence-merge behavior matches [`Tokenizer::sentencize`].
+    pub fn prepared_sentences<'t>(&'t self, text: &'t str) -> Vec<IncompleteSentence<'t>> {
+        let splits = self.sentencizer.split_ranges(text);
+        let mut out = Vec::new();
+        let mut index = 0;
+        while index < splits.len() {
+            let mut range = splits[index].clone();
+            index += 1;
+            while text[range.clone()].trim().is_empty() && index < splits.len() {
+                range.end = splits[index].end;
+                index += 1;
+            }
+            if let Some(sentence) = self.tokenize_no_chunk(&text[range]) {
+                out.push(sentence);
+            }
+        }
+        out
+    }
+
+    /// Applies the chunker to `sentence` using this tokenizer's own noun-phrase-number option.
+    pub fn chunk_apply(&self, sentence: &mut IncompleteSentence) {
+        if let Some(chunker) = &self.chunker {
+            chunker.apply(sentence, self.lang_options.chunk_number_from_last_token);
         }
     }
 }
