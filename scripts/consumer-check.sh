@@ -201,10 +201,10 @@ if [ ! -x "$binary" ]; then
     exit 1
 fi
 
-# Run the product on its own rather than through `swift run`. Some macOS runners
-# SIGKILL a just-linked executable on its first launch (an ad-hoc signature carrying
-# get-task-allow); re-signing without entitlements and retrying once clears it, and a
-# second failure is reported with the signature and the system log.
+# Build and run the product directly rather than through `swift run`: on the macOS
+# runner the `swift run` process was SIGKILLed right after it finished linking (exit
+# 137), while the linked product runs. The one-shot re-sign and retry stays as a guard
+# for a runner killing the first launch of a just-linked executable.
 run_consumer() {
     "$binary" "$data_dir"
 }
