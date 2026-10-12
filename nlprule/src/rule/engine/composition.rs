@@ -387,7 +387,7 @@ pub struct MatchSentence<'t> {
     sentence: &'t Sentence<'t>,
     sent_start: &'t Token<'t>,
     /// Token positions by token text, built on first use (see [`MatchSentence::start_positions`]).
-    start_positions: OnceLock<StartPositions>,
+    pub(crate) start_positions: OnceLock<StartPositions>,
 }
 
 /// Token positions in a sentence, keyed by token text (and its lowercase form), used to jump

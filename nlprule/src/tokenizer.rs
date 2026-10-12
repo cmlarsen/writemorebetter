@@ -397,10 +397,12 @@ impl Tokenizer {
             self.rules.iter().position(|x| x.id == *id).unwrap()
         });
         let mut i = 0;
+        let mut start_positions = Default::default();
 
         while i < n {
             let complete_sentence = sentence.clone().into_sentence();
-            let match_sentence = MatchSentence::new(&complete_sentence);
+            let mut match_sentence = MatchSentence::new(&complete_sentence);
+            match_sentence.start_positions = start_positions;
 
             let result = self.rules[i..n]
                 .maybe_par_iter()
@@ -415,6 +417,8 @@ impl Tokenizer {
                 })
                 .find_first(|_| true);
 
+            // Disambiguation changes tags and spelling flags, never token texts or positions.
+            start_positions = match_sentence.start_positions;
             if let Some((index, changes)) = result {
                 self.rules[index].change(&mut sentence, changes);
                 i = index + 1;
