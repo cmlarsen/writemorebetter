@@ -487,6 +487,27 @@ fn suggestions_at_a_second_sentence_start_apply_cleanly() {
     let _ = nlprule::rules::apply_suggestions(text, &suggestions);
 }
 
+#[test]
+fn repeated_token_run_does_not_scan_quadratically() {
+    // A run of a token that rules match at every position used to make
+    // `MatchGraph::fill_empty` walk the sentence once per group per match, which is
+    // quadratic in the run length. This run took ~21s before the fix and ~0.6s after
+    // with the app's profile and speller; the bound is generous so the test stays
+    // reliable on slow machines.
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    let _ = rules.apply_profile(&Profile::fiction());
+    rules.spell_mut().options_mut().variant = Some(rules.spell().variant("en_US").unwrap());
+
+    let text = "I ".repeat(2000);
+    let start = std::time::Instant::now();
+    let _ = rules.suggest(&text, &*TOKENIZER);
+    assert!(
+        start.elapsed() < std::time::Duration::from_secs(15),
+        "checking a 2000-token run took {:?}",
+        start.elapsed()
+    );
+}
+
 /// Runs the English word-repeat builtin directly on a single sentence and
 /// returns the flagged text and the first replacement of every suggestion.
 fn builtin_word_repeat_flags(text: &str) -> Vec<(String, String)> {
