@@ -22,12 +22,16 @@ checker loads them from disk, so an app ships them as resources.
 
 ## Before you start
 
-1. `CHANGELOG.md` must have a `# <version>` section — the release notes are copied from
-   it verbatim, and the run fails if the section is missing.
+1. Put the release date in `CHANGELOG.md`'s `# <version>` section (for example
+   `# 0.7.0 (2026-10-12)`) and merge it to `main` **before** dispatching. The release notes
+   are that section verbatim, and the run fails if the version's section is missing.
 2. Every workspace crate that ships together — `nlprule`, `build`, `swift`
    (`writemorebetter-swift`) and `wasm` — must already be at `<version>` on `main`.
    (`srx` and `python` are versioned independently.) The run fails on a mismatch.
 3. The tag `<version>` must not exist yet. The run fails if it does.
+4. Dispatch from `main`. A real release refuses to run from any other ref, because the tag
+   is placed on the exact commit that was built; a dry run may come from a branch (see
+   below).
 
 ## Run it
 
@@ -46,7 +50,9 @@ It **never** commits, tags or publishes. Check, in the run log:
 - the **Consumer check** job, which resolves the package through `release.json` and runs a
   tiny app that loads the data and calls `check`.
 
-Then cut the real release by dispatching again with `dry_run=false`:
+A dry run may be dispatched from a branch (`--ref <branch>`) to rehearse before the workflow
+merges; only a real release refuses to run from anything but `main`. Then cut the real
+release by dispatching again with `dry_run=false` from `main`:
 
 ```sh
 gh workflow run release.yml --repo cmlarsen/writemorebetter --ref main \
@@ -57,12 +63,15 @@ gh workflow run release.yml --repo cmlarsen/writemorebetter --ref main \
 
 The `publish` job, only when `dry_run` is false:
 
-1. writes `release.json` with the release asset URL
+1. checks out `github.sha` — the commit the run was dispatched from (main's tip),
+2. writes `release.json` with the release asset URL
    (`…/releases/download/<version>/WriteMoreBetterFFI.xcframework.zip`) and the SwiftPM
    checksum (`swift package compute-checksum` of the zip),
-2. commits it to `main` as `writemorebetter release bot <release-bot@users.noreply.github.com>`,
-3. tags that commit `<version>` and pushes the branch and the tag,
-4. creates the GitHub release on the tag with both zips, `SHA256SUMS` and the changelog
+3. commits it as `writemorebetter release bot <release-bot@users.noreply.github.com>`,
+4. pushes that commit to `main` — if `main` moved while the artifacts were being built the
+   push is rejected (non-fast-forward) and nothing is tagged or released,
+5. tags the commit `<version>` and pushes the tag,
+6. creates the GitHub release on the tag with both zips, `SHA256SUMS` and the changelog
    section as the notes.
 
 So a release is exactly one commit on `main` that flips `release.json` to the new asset,
