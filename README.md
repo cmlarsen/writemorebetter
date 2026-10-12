@@ -177,7 +177,8 @@ pass rate (its embedded rule examples) and public-corpus recall, runs the Swift 
 compares each PR's speed and memory against its merge base on the Performance workflow.
 
 `bench/corpus/` holds private, unpublished fiction; it is git-ignored and absent from clones. Use
-`bench/public/` for anything that must be public.
+`bench/public/` for anything that must be public. Releases are cut from `main` with the Release
+workflow; see [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## License
 

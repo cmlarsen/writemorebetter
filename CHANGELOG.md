@@ -2,13 +2,17 @@
 
 All notable changes to this project are documented in this file. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions after the
-inherited 0.6.4 track this project's own release line.
+inherited 0.6.4 track this project's own release line. Each version is a top-level
+`# <version>` heading; the Release workflow copies that section verbatim into the GitHub
+release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
-## 0.7.0 — first writemorebetter release - Unreleased
+# 0.7.0
 
-The first writemorebetter release: an embeddable English grammar, style and spelling checker for
-WASM, native Rust and Swift that runs LanguageTool's open rules with no JVM. It ships the
-LanguageTool 6.6 rules only, and continues past nlprule's inherited 0.6.4.
+**First writemorebetter release. Unreleased** — the date is set when tagging.
+
+An embeddable English grammar, style and spelling checker for WASM, native Rust and Swift that runs
+LanguageTool's open rules with no JVM. It ships the LanguageTool 6.6 rules only, and continues past
+nlprule's inherited 0.6.4.
 
 ### Added
 
@@ -43,6 +47,9 @@ LanguageTool 6.6 rules only, and continues past nlprule's inherited 0.6.4.
 - **A reproducible data build** from pinned inputs, `scripts/build-data.sh`, used by CI and the
   release workflow alike ([#97](https://github.com/cmlarsen/writemorebetter/pull/97)), plus a
   self-describing binary-format header ([#37](https://github.com/cmlarsen/writemorebetter/pull/37)).
+- **A documented release flow** (`docs/RELEASING.md`): one dispatched Release workflow builds the
+  LGPL data and the Swift XCFramework, verifies a consumer against `release.json`, then commits,
+  tags and publishes ([#105](https://github.com/cmlarsen/writemorebetter/pull/105)).
 
 ### Changed
 
