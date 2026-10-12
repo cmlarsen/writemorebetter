@@ -696,7 +696,7 @@ establishes measurement and does not count as an optimization.
 | Attempt | PR | Change | Instructions Δ (6.6) | Peak RSS Δ (6.6) | Peak RSS Δ (5.2) | Chunkbench Δ (6.6 / 5.2) | Kept/dropped |
 |---|---|---|---|---|---|---|---|
 | 0 | [#88](https://github.com/cmlarsen/writemorebetter/pull/88) | Isolated chunker harness + chunk golden | +0.10% (no engine change) | −0.68% (−0.50 MiB) | +0.05% | baseline 10,380 / 9,955 ns/token | Phase 0 |
-| 1 | [#89](https://github.com/cmlarsen/writemorebetter/pull/89) | Allocation-free context hashing, precomputed/resolved static features, beam-heap reuse | pending | pending | pending | −20% / −19% ns/token, −50% alloc calls | pending |
+| 1 | [#89](https://github.com/cmlarsen/writemorebetter/pull/89) | Allocation-free context hashing, precomputed/resolved static features, beam-heap reuse | −1.73% | −0.51% (−0.375 MiB) | +0.06% | −20% / −19% ns/token, −50% alloc calls | pending |
 
 ### Attempt 1 — allocation-free context hashing and precomputed static features
 
@@ -728,4 +728,9 @@ rebased and measured with the context changes above).
 
 Chunk golden (12 files) is byte-identical; the 24 suggestion goldens, workspace tests, clippy, fmt
 and the wasm build pass. CI decides retention.
+
+CI (whole-process Callgrind, LT 6.6): instructions 51.038B → 50.157B (−1.73%), allocator calls
+−6.81%, 6.6 peak RSS 73.285 → 72.910 MiB (−0.375), 5.2 peak RSS +0.06%; native check medians fell
+7.7% (6.6) and 11.3% (5.2) on the shared runner. Clears the keep rule (≥1% instructions, no RSS
+cost).
 
