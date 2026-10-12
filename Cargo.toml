@@ -4,6 +4,7 @@ members = [
     "build",
     "python",
     "srx",
+    "swift",
     "wasm"
 ]
 exclude = [

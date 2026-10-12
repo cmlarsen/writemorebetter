@@ -19,3 +19,7 @@ storage/
 
 # wasm-bindgen / wasm-opt output
 wasm/pkg/
+
+# Swift package build products and the locally built XCFramework
+.build/
+dist/

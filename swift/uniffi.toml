@@ -1,0 +1,5 @@
+# Names the Swift module `WriteMoreBetter` and, by uniffi's default suffix rule, the
+# lower-level C module `WriteMoreBetterFFI` that the generated Swift imports and that
+# scripts/build-xcframework.sh lays out as dist/WriteMoreBetterFFI.xcframework.
+[bindings.swift]
+module_name = "WriteMoreBetter"
