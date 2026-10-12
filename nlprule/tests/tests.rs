@@ -45,6 +45,15 @@ fn can_tokenize_anything(text: String) -> bool {
 }
 
 #[test]
+fn sentencizer_breaks_at_a_blank_line() {
+    // LanguageTool segments text with the SRX rules of its default line-break
+    // mode, where a blank line ends a paragraph (and its last sentence).
+    let count = |text: &str| TOKENIZER.pipe(text).count();
+    assert_eq!(count("First. Second.\n\nThird. Fourth."), 4);
+    assert_eq!(count("A.\n\nB."), 2);
+}
+
+#[test]
 fn batch_size_does_not_change_suggestions() {
     let text = "I can due his homework.\n\n“She dont know”—he said… \u{2028}It’s fine. A apple fell.\n\nThey was late.";
     let mut rules = Rules::new(RULES_PATH).unwrap();
