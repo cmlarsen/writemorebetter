@@ -17,12 +17,10 @@
 
 pub(crate) mod date;
 
-use std::collections::HashMap;
-
 use serde::{Deserialize, Serialize};
 
 use crate::rule::engine::composition::{GraphId, MatchGraph, MatchSentence};
-use crate::types::{Position, Span};
+use crate::types::{DefaultHashMap, Position, Span};
 use crate::utils::regex::Regex;
 
 pub(crate) use date::Date;
@@ -364,7 +362,7 @@ impl DateRange {
 /// from the build directory.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub(crate) struct Adverb {
-    pub adverb_to_adjective: HashMap<String, String>,
+    pub adverb_to_adjective: DefaultHashMap<String, String>,
     pub adverb: ArgValue,
     pub noun: ArgValue,
 }

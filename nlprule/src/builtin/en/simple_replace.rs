@@ -13,9 +13,7 @@
 //! `build/builtin-data/en/simple_replace_*.txt` at compile time; only the
 //! matching logic lives in this MIT/Apache-2.0 source file.
 
-use std::collections::HashMap;
-
-use crate::types::{Sentence, Span, Suggestion, Token};
+use crate::types::{DefaultHashMap, Sentence, Span, Suggestion, Token};
 use serde::{Deserialize, Serialize};
 
 /// The maximum number of whitespace-separated words a phrase table entry may
@@ -59,15 +57,15 @@ pub struct SimpleReplace {
     /// The parsed table lines.
     entries: Vec<Entry>,
     /// Single-token lookup (`MatchMode::Single`), keyed by the wrong form.
-    single: HashMap<String, usize>,
+    single: DefaultHashMap<String, usize>,
     /// Phrase lookup for wrong forms without a space (lowercased key).
-    no_space: HashMap<String, usize>,
+    no_space: DefaultHashMap<String, usize>,
     /// Phrase lookup for wrong forms that contain a space (lowercased key).
-    space: HashMap<String, usize>,
+    space: DefaultHashMap<String, usize>,
     /// For phrases, the first word -> the longest phrase with that first word.
-    start_space: HashMap<String, usize>,
+    start_space: DefaultHashMap<String, usize>,
     /// For single words, the first character -> the longest key with it.
-    start_no_space: HashMap<char, usize>,
+    start_no_space: DefaultHashMap<char, usize>,
 }
 
 impl SimpleReplace {
@@ -92,11 +90,11 @@ impl SimpleReplace {
             mode,
             case_sensitive,
             entries,
-            single: HashMap::new(),
-            no_space: HashMap::new(),
-            space: HashMap::new(),
-            start_space: HashMap::new(),
-            start_no_space: HashMap::new(),
+            single: DefaultHashMap::default(),
+            no_space: DefaultHashMap::default(),
+            space: DefaultHashMap::default(),
+            start_space: DefaultHashMap::default(),
+            start_no_space: DefaultHashMap::default(),
         };
         rule.build_index();
         rule

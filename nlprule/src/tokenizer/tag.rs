@@ -1,7 +1,6 @@
 //! A dictionary-based tagger.
 
 use crate::types::*;
-use bimap::BiMap;
 use fst::{Map, Streamer};
 use log::error;
 use serde::{Deserialize, Serialize};
@@ -185,7 +184,7 @@ pub(crate) struct TaggerFields {
     /// Reverse index for synthesis: lemma bytes + one index byte -> packed (word id, pos id).
     pub(crate) synth_fst: Vec<u8>,
     pub(crate) word_store_fst: Vec<u8>,
-    pub(crate) tag_store: BiMap<String, PosIdInt>,
+    pub(crate) tag_store: DefaultBiMap<String, PosIdInt>,
     pub(crate) lang_options: TaggerLangOptions,
     /// Kept for serialized-format compatibility. The FSTs are queried directly at load, so the
     /// anchors (used by the old parallel inflation code) are no longer read.
@@ -398,7 +397,7 @@ pub struct Tagger {
     pub(crate) word_store_fst: Map<Vec<u8>>,
     pub(crate) tag_fst: Map<Vec<u8>>,
     pub(crate) synth_fst: Map<Vec<u8>>,
-    pub(crate) tag_store: BiMap<String, PosIdInt>,
+    pub(crate) tag_store: DefaultBiMap<String, PosIdInt>,
     pub(crate) lang_options: TaggerLangOptions,
     /// All words concatenated in id order.
     pub(crate) word_buf: String,
@@ -544,7 +543,7 @@ impl Tagger {
     }
 
     #[allow(dead_code)] // used by compile module
-    pub(crate) fn tag_store(&self) -> &BiMap<String, PosIdInt> {
+    pub(crate) fn tag_store(&self) -> &DefaultBiMap<String, PosIdInt> {
         &self.tag_store
     }
 
@@ -737,7 +736,7 @@ mod tests {
             .to_vec();
 
         // tag ids: 0 "", 1 UNKNOWN, 2 SENT_START, 3 SENT_END, 4 NNS, 5 VBN, 6 VB
-        let mut tag_store = BiMap::new();
+        let mut tag_store = DefaultBiMap::default();
         for (i, tag) in ["", "UNKNOWN", "SENT_START", "SENT_END", "NNS", "VBN", "VB"]
             .iter()
             .enumerate()
