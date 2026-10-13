@@ -272,16 +272,8 @@ impl Rules {
         let speller = self.spell.speller();
         let sentence = MatchSentence::new(sentence);
 
-        let rules = match self.mother_tongue {
-            Some(_) => &self.rules[..],
-            None => {
-                &self.rules[..self
-                    .rules
-                    .partition_point(|rule| rule.mother_tongue.is_none())]
-            }
-        };
-
-        let mut output: Vec<(usize, Suggestion)> = rules
+        let mut output: Vec<(usize, Suggestion)> = self
+            .rules
             .maybe_par_iter_cond(parallel)
             .enumerate()
             .filter(|(_, rule)| self.is_active(rule))

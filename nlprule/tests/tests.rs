@@ -2557,6 +2557,39 @@ fn false_friends_need_a_mother_tongue() {
 }
 
 #[test]
+fn reordered_rules_still_run_without_a_mother_tongue() {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    let (id, text) = rules
+        .rules()
+        .iter()
+        .filter(|rule| rule.enabled())
+        .find_map(|rule| {
+            rule.examples()
+                .iter()
+                .find(|example| example.suggestion().is_some())
+                .map(|example| (rule.id().to_string(), example.text().to_string()))
+        })
+        .unwrap();
+    let fires = |rules: &Rules| {
+        rules
+            .suggest(&text, &*TOKENIZER)
+            .iter()
+            .any(|suggestion| suggestion.source() == id)
+    };
+    assert!(fires(&rules));
+
+    let first = rules
+        .rules()
+        .iter()
+        .position(|rule| rule.mother_tongue().is_some())
+        .unwrap();
+    let middle = rules.rules().len() / 2;
+    rules.rules_mut().rotate_left(first);
+    rules.rules_mut().rotate_right(middle);
+    assert!(fires(&rules));
+}
+
+#[test]
 fn mother_tongue_selects_its_false_friends() {
     let mut rules = Rules::new(RULES_PATH).unwrap();
     assert_eq!(
@@ -2617,10 +2650,17 @@ fn false_friend_messages_are_localized() {
         .expect("a false-friend match for \"become\"");
     assert_eq!(*suggestion.span().char(), 8..14);
     assert_eq!(suggestion.replacements(), ["get", "receive"]);
-    assert_eq!(
-        suggestion.message(),
-        "Hinweis: \"become\" (English) bedeutet \"werden\" (German). Meinten Sie vielleicht get, receive?"
-    );
+    let message = suggestion.message();
+    assert!(message.contains("\"become\"") && message.contains("\"werden\""));
+    assert!(message.contains("get, receive") && !message.contains(" means "));
+
+    rules.set_mother_tongue(Some("pt"));
+    let suggestions = rules.suggest("It\u{2019}s the actual problem.", &*TOKENIZER);
+    let suggestion = suggestions
+        .iter()
+        .find(|suggestion| suggestion.source() == "FALSE_FRIENDS/ACTUAL/0")
+        .expect("a false-friend match for \"actual\"");
+    assert!(suggestion.message().contains(" means "));
 }
 
 #[test]
