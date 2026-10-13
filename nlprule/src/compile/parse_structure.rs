@@ -23,9 +23,32 @@ fn max_matches() -> usize {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub(crate) struct RegexCache {
+    #[serde(serialize_with = "serialize_cache")]
     cache: DefaultHashMap<u64, Option<DefaultHashSet<WordIdInt>>>,
     // this is compared with the hash of the word store of the tagger
     word_hash: u64,
+}
+
+fn serialize_cache<S>(
+    cache: &DefaultHashMap<u64, Option<DefaultHashSet<WordIdInt>>>,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    let mut entries: Vec<(u64, Option<Vec<WordIdInt>>)> = cache
+        .iter()
+        .map(|(key, set)| {
+            let set = set.as_ref().map(|set| {
+                let mut ids: Vec<WordIdInt> = set.iter().copied().collect();
+                ids.sort_unstable();
+                ids
+            });
+            (*key, set)
+        })
+        .collect();
+    entries.sort_unstable_by_key(|(key, _)| *key);
+    serializer.collect_map(entries)
 }
 
 impl RegexCache {
@@ -739,6 +762,14 @@ fn parse_tokens(
     Ok(out)
 }
 
+fn require_last_token_match(parts: &mut [Part]) {
+    if let Some(last) = parts.iter_mut().rev().find(|part| part.visible) {
+        if last.quantifier.min == 0 {
+            last.quantifier.min = 1;
+        }
+    }
+}
+
 fn parse_pattern(
     pattern: structure::Pattern,
     info: &mut BuildInfo,
@@ -810,6 +841,8 @@ fn parse_pattern(
             }
         }
     }
+
+    require_last_token_match(&mut composition_parts);
 
     let start = start.unwrap_or(1) as usize;
     let end = end.unwrap_or_else(|| get_last_id(&composition_parts)) as usize - 1;
@@ -1606,5 +1639,78 @@ mod tests {
         let engine = text_engine(1);
         let parts = parse_synthesizer_text("plain text", &engine).unwrap();
         assert_eq!(describe(&parts), vec!["plain text"]);
+    }
+
+    fn part(min: usize, max: usize, visible: bool) -> Part {
+        Part {
+            atom: Atom::TrueAtom(TrueAtom {}),
+            quantifier: Quantifier::new(min, max),
+            greedy: visible,
+            visible,
+            unify: None,
+        }
+    }
+
+    fn mins(parts: &[Part]) -> Vec<u32> {
+        parts.iter().map(|part| part.quantifier.min).collect()
+    }
+
+    #[test]
+    fn trailing_optional_token_must_match() {
+        let mut parts = vec![part(1, 1, true), part(0, 1, true), part(0, 1, true)];
+        require_last_token_match(&mut parts);
+        assert_eq!(mins(&parts), vec![1, 0, 1]);
+    }
+
+    #[test]
+    fn trailing_skip_does_not_count_as_the_last_token() {
+        let mut parts = vec![part(1, 1, true), part(0, 3, true), part(0, 2, false)];
+        require_last_token_match(&mut parts);
+        assert_eq!(mins(&parts), vec![1, 1, 0]);
+    }
+
+    #[test]
+    fn required_last_token_is_unchanged() {
+        let mut parts = vec![part(0, 1, true), part(2, 5, true)];
+        require_last_token_match(&mut parts);
+        assert_eq!(mins(&parts), vec![0, 2]);
+    }
+
+    fn compiled_mins(xml: &str) -> Vec<u32> {
+        let pattern: structure::Pattern = serde_xml_rs::from_str(xml).unwrap();
+        let mut info = BuildInfo::new(
+            Arc::new(Tagger::default()),
+            RegexCache::new(0),
+            PathBuf::new(),
+        );
+        let mut pool = PartInterner::default();
+        let (composition, _, _) = parse_pattern(pattern, &mut info, &mut pool).unwrap();
+        composition
+            .parts
+            .iter()
+            .map(|id| pool.get(*id).quantifier.min)
+            .collect()
+    }
+
+    #[test]
+    fn parsed_pattern_requires_its_trailing_optional_token() {
+        assert_eq!(
+            compiled_mins(
+                r#"<pattern><token><text text="“He’s"/></token><token min="0"><text text="—…"/></token></pattern>"#
+            ),
+            vec![1, 1]
+        );
+        assert_eq!(
+            compiled_mins(
+                "<pattern><marker><token><text text=\"it’s\"/></token></marker><token min=\"0\" max=\"-1\"><text text=\"\u{2028}\"/></token></pattern>"
+            ),
+            vec![1, 1]
+        );
+        assert_eq!(
+            compiled_mins(
+                r#"<pattern><token min="0"><text text="zqa"/></token><token><text text="zqb"/></token></pattern>"#
+            ),
+            vec![0, 1]
+        );
     }
 }

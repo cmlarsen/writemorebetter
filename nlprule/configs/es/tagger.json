@@ -1,6 +1,7 @@
 {
     "use_compound_split_heuristic": false,
     "always_add_lower_tags": true,
+    "title_case_all_uppercase": false,
     "extra_tags": [
         "_PUNCT",
         "_PUNCT_CONT",

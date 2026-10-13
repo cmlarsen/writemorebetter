@@ -1905,6 +1905,62 @@ fn builtin_wrong_word_is_wired_into_suggest() {
     assert_eq!(flagged.replacements(), &["prescribed".to_string()]);
 }
 
+fn tags_of(text: &str, word: &str) -> Vec<(String, String)> {
+    TOKENIZER
+        .pipe(text)
+        .flat_map(|sentence| sentence.into_iter())
+        .filter(|token| token.word().text().as_str() == word)
+        .flat_map(|token| {
+            token
+                .word()
+                .tags()
+                .iter()
+                .map(|data| {
+                    (
+                        data.lemma().as_str().to_string(),
+                        data.pos().as_str().to_string(),
+                    )
+                })
+                .collect::<Vec<_>>()
+        })
+        .collect()
+}
+
+#[test]
+fn all_uppercase_proper_noun_is_tagged_in_title_case() {
+    for text in [
+        "I visited SCHWARZWALD yesterday.",
+        "“We drove to SCHWARZWALD — again…”\u{2028}He shrugged.",
+        "‘SCHWARZWALD’ isn’t far, she’d said.",
+    ] {
+        assert!(
+            tags_of(text, "SCHWARZWALD").contains(&("Schwarzwald".to_string(), "NNP".to_string())),
+            "{:?}: {:?}",
+            text,
+            tags_of(text, "SCHWARZWALD")
+        );
+    }
+
+    assert!(!tags_of("“HELLO,” he said.", "HELLO")
+        .iter()
+        .any(|(lemma, _)| lemma == "Hello"));
+}
+
+#[test]
+fn all_uppercase_im_between_proper_nouns_is_flagged() {
+    let text = "THE FAMILY MOVED TO KÖNIGSFELD IM SCHWARZWALD, BADEN-WÜRTTEMBERG, WHERE HE’D STAY…";
+    let sources: Vec<String> = RULES
+        .suggest(text, &*TOKENIZER)
+        .iter()
+        .map(|suggestion| suggestion.source().to_string())
+        .collect();
+    assert!(
+        sources.iter().any(|source| source == "TYPOS/IM_I_M/0"),
+        "{:?}",
+        sources
+    );
+}
+
 #[test]
 fn rule_synthesis_produces_inflected_forms() {
     // HASNT_IRREGULAR_VERB's suggestion is `<match no="4" postag="VBN"/>`, i.e. it must inflect

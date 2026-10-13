@@ -8,19 +8,37 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
 # Unreleased
 
+### Fixed
+
+- **All-caps proper nouns were tagged as unknown words.** The English tagger now looks up an
+  all-uppercase word in title case when neither its own form nor its lowercase form is in the
+  dictionary, as LanguageTool 6.6 does, so `SCHWARZWALD` is tagged `Schwarzwald/NNP` and
+  `TYPOS/IM_I_M/0` passes ([#111](https://github.com/cmlarsen/writemorebetter/issues/111)).
+
 ### Changed
 
+- **The data binaries no longer depend on the build machine's architecture.** Every hashed
+  collection in the tokenizer and rules binaries (the tagger's tag store, the spellchecker's maps
+  and whitelist, the chunker's tag dictionary, builtin word lists and replacement tables, filter
+  tables and text-engine group maps) is now written in sorted key order instead of hash-table
+  iteration order, which differs between x86_64 and aarch64, and the chunker model's parameter
+  arrays are laid out in sorted context order. Checking output is unchanged.
+  `TOKENIZER_FORMAT_VERSION` is now 8 and `RULES_FORMAT_VERSION` 11, so binaries built by earlier
+  versions must be rebuilt
+  ([#103](https://github.com/cmlarsen/writemorebetter/issues/103)).
+- The tokenizer binary format version is now 9 (`TaggerLangOptions` gained
+  `title_case_all_uppercase`), so tokenizer binaries must be rebuilt with this engine.
 - **Em dashes, en dashes and every other non-word character are now tokens of their own**, as in
   LanguageTool 6.6. The English tokenizer used to split on a short fixed list, so `Wait—no` or
   `{{cite` stayed one token; it now uses the word-character class of LanguageTool 6.6's English
   word tokenizer, which `build/make_build_dir.py` reads from the release and writes to
   `tokenizer_options.json` as `word_chars`. In fiction, a misspelling beside an em dash is now
   flagged on its own (`Patenice`, not `Patenice—always`), and rules such as a/an and
-  simple-replace fire on words next to dashes. Nine more rules pass their LanguageTool examples
-  (5986/6032), including `TYPOS/NON_STANDARD_WORD/0`, `TYPOS/WORD_CONTAINS_UNDERSCORE/0`,
+  simple-replace fire on words next to dashes. Nine more rules pass their LanguageTool examples,
+  including `TYPOS/NON_STANDARD_WORD/0`, `TYPOS/WORD_CONTAINS_UNDERSCORE/0`,
   `TYPOS/LIGATURES/0` and `PUNCTUATION/DASH_RULE/4`. The spellchecker no longer flags a token
   made only of marks or format characters (a lone right-to-left mark, say), which can now stand
-  alone. Tokenizer binaries move to format version 8
+  alone. Tokenizer binaries move to format version 10 and rules binaries to 12
   ([#112](https://github.com/cmlarsen/writemorebetter/issues/112)).
 
 # 0.7.1 (2026-10-12)

@@ -132,6 +132,7 @@ pub struct SpellOptions {
     /// The maximum number of correction candidates to return.
     pub top_n: usize,
     /// A set of words to ignore. Can also contain phrases delimited by a space.
+    #[serde(serialize_with = "crate::types::sorted::set")]
     pub whitelist: DefaultHashSet<String>,
 }
 
@@ -537,10 +538,12 @@ pub struct Spell {
     /// An FST mapping valid words (always single tokens!) to a [SpellInt].
     pub(crate) fst: Vec<u8>,
     /// Known *multiwords* i. e. phrases. Can also validly contain single words if they should not be part of the FST (e.g. words in the whitelist).
+    #[serde(serialize_with = "crate::types::sorted::map")]
     pub(crate) multiwords: DefaultHashMap<String, Vec<(Vec<String>, SpellInt)>>,
     ///  The maximum occured word frequency. Used to normalize.
     pub(crate) max_freq: usize,
     /// A map of `wrong->right`. `wrong` must always be exactly one token.
+    #[serde(serialize_with = "crate::types::sorted::map")]
     pub(crate) map: DefaultHashMap<String, String>,
     pub(crate) lang_options: SpellLangOptions,
     pub(crate) options: SpellOptions,

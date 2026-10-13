@@ -13,14 +13,61 @@ use std::{
     ops::{Add, AddAssign, Range, Sub},
 };
 
-// The hasher is fixed instead of randomly seeded so that these collections
-// serialize in the same order on every run; the compiled data binaries are
-// shipped with SHA256SUMS and must be byte-reproducible.
+// The hasher is fixed instead of randomly seeded. Serialized bytes do not depend
+// on it: these collections are written through `sorted`, which is what keeps the
+// compiled data binaries (shipped with SHA256SUMS) byte-reproducible.
 pub(crate) type DefaultHasher = hash_map::DefaultHasher;
 pub(crate) type DefaultHashMap<K, V> = HashMap<K, V, BuildHasherDefault<DefaultHasher>>;
 pub(crate) type DefaultHashSet<T> = HashSet<T, BuildHasherDefault<DefaultHasher>>;
 pub(crate) type DefaultBiMap<L, R> =
     bimap::BiHashMap<L, R, BuildHasherDefault<DefaultHasher>, BuildHasherDefault<DefaultHasher>>;
+
+pub(crate) mod sorted {
+    use serde::{Serialize, Serializer};
+    use std::{
+        collections::{HashMap, HashSet},
+        hash::BuildHasher,
+    };
+
+    pub(crate) fn set<T, H, S>(set: &HashSet<T, H>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        T: Ord + Serialize,
+        H: BuildHasher,
+        S: Serializer,
+    {
+        let mut items: Vec<&T> = set.iter().collect();
+        items.sort_unstable();
+        serializer.collect_seq(items)
+    }
+
+    pub(crate) fn map<K, V, H, S>(map: &HashMap<K, V, H>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        K: Ord + Serialize,
+        V: Serialize,
+        H: BuildHasher,
+        S: Serializer,
+    {
+        let mut entries: Vec<(&K, &V)> = map.iter().collect();
+        entries.sort_unstable_by(|a, b| a.0.cmp(b.0));
+        serializer.collect_map(entries)
+    }
+
+    pub(crate) fn bimap<L, R, LS, RS, S>(
+        map: &bimap::BiHashMap<L, R, LS, RS>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error>
+    where
+        L: Ord + std::hash::Hash + Serialize,
+        R: std::hash::Hash + Eq + Serialize,
+        LS: BuildHasher,
+        RS: BuildHasher,
+        S: Serializer,
+    {
+        let mut entries: Vec<(&L, &R)> = map.iter().collect();
+        entries.sort_unstable_by(|a, b| a.0.cmp(b.0));
+        serializer.collect_map(entries)
+    }
+}
 
 /// Owned versions of the types for use in longer-living structures not bound to the `'t` lifetime e.g. rule tests.
 pub mod owned {
@@ -771,6 +818,7 @@ impl Suggestion {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::{BTreeMap, BTreeSet};
 
     fn suggestion(replacements: &[&str]) -> Suggestion {
         Suggestion::new(
@@ -779,6 +827,74 @@ mod tests {
             Span::default(),
             replacements.iter().map(|x| x.to_string()).collect(),
         )
+    }
+
+    #[derive(Serialize, Deserialize, PartialEq, Debug)]
+    struct Hashed {
+        #[serde(serialize_with = "sorted::set")]
+        set: DefaultHashSet<String>,
+        #[serde(serialize_with = "sorted::map")]
+        map: DefaultHashMap<String, usize>,
+        #[serde(serialize_with = "sorted::bimap")]
+        bimap: DefaultBiMap<String, u16>,
+    }
+
+    fn hashed(keys: &[String], capacity: usize) -> Hashed {
+        let mut hashed = Hashed {
+            set: DefaultHashSet::with_capacity_and_hasher(capacity, Default::default()),
+            map: DefaultHashMap::with_capacity_and_hasher(capacity, Default::default()),
+            bimap: DefaultBiMap::with_capacity_and_hashers(
+                capacity,
+                Default::default(),
+                Default::default(),
+            ),
+        };
+        for key in keys {
+            let value = key[1..].parse::<u16>().unwrap();
+            hashed.set.insert(key.clone());
+            hashed.map.insert(key.clone(), value as usize);
+            hashed.bimap.insert(key.clone(), value);
+        }
+        hashed
+    }
+
+    #[test]
+    fn hashed_collections_serialize_independently_of_layout() {
+        let keys: Vec<String> = (0..500).map(|i| format!("w{}", i)).collect();
+        let reversed: Vec<String> = keys.iter().rev().cloned().collect();
+
+        let a = hashed(&keys, 0);
+        let b = hashed(&reversed, 4096);
+
+        assert_ne!(
+            a.map.keys().collect::<Vec<_>>(),
+            b.map.keys().collect::<Vec<_>>()
+        );
+        assert_ne!(
+            a.set.iter().collect::<Vec<_>>(),
+            b.set.iter().collect::<Vec<_>>()
+        );
+        assert_ne!(
+            a.bimap.left_values().collect::<Vec<_>>(),
+            b.bimap.left_values().collect::<Vec<_>>()
+        );
+
+        let a_bytes = bincode::serialize(&a).unwrap();
+        let b_bytes = bincode::serialize(&b).unwrap();
+        assert_eq!(a_bytes, b_bytes);
+
+        let canonical: (
+            BTreeSet<&String>,
+            BTreeMap<&String, &usize>,
+            BTreeMap<&String, &u16>,
+        ) = (
+            a.set.iter().collect(),
+            a.map.iter().collect(),
+            a.bimap.iter().collect(),
+        );
+        assert_eq!(a_bytes, bincode::serialize(&canonical).unwrap());
+
+        assert_eq!(bincode::deserialize::<Hashed>(&a_bytes).unwrap(), a);
     }
 
     #[test]

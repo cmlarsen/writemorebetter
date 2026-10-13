@@ -160,6 +160,9 @@ pub(crate) struct TaggerLangOptions {
     pub use_compound_split_heuristic: bool,
     /// Whether to always add tags for a lowercase version of the word when assigning part-of-speech tags.
     pub always_add_lower_tags: bool,
+    /// Whether to look up an all-uppercase word in title case (e.g. `FRANCE` as `France`) if no
+    /// tags are found for it otherwise.
+    pub title_case_all_uppercase: bool,
     /// Used part-of-speech tags which are not in the tagger dictionary.
     pub extra_tags: Vec<String>,
     /// Whether to retain the last tag if disambiguation leads to an empty tag.
@@ -172,6 +175,7 @@ impl Default for TaggerLangOptions {
         TaggerLangOptions {
             use_compound_split_heuristic: false,
             always_add_lower_tags: false,
+            title_case_all_uppercase: false,
             extra_tags: Vec::new(),
             retain_last: false,
         }
@@ -184,6 +188,7 @@ pub(crate) struct TaggerFields {
     /// Reverse index for synthesis: lemma bytes + one index byte -> packed (word id, pos id).
     pub(crate) synth_fst: Vec<u8>,
     pub(crate) word_store_fst: Vec<u8>,
+    #[serde(serialize_with = "crate::types::sorted::bimap")]
     pub(crate) tag_store: DefaultBiMap<String, PosIdInt>,
     pub(crate) lang_options: TaggerLangOptions,
     /// Kept for serialized-format compatibility. The FSTs are queried directly at load, so the
@@ -518,6 +523,7 @@ impl Tagger {
     /// - Adds tags for the lower variant of the word (if `add_lower` is `AddLower::Always`).
     /// - Adds tags for the lower variant of the word if no [WordData] is found otherwise.
     /// (if `add_lower` is `AddLower::IfEmpty`).
+    /// - Adds tags for the title-case variant of an all-uppercase word if nothing else matched.
     fn get_strict_tags(&self, word: &str, add_lower: AddLower) -> StrictTagIter {
         let tag_iter = self.get_raw(&word);
         let lower_tag_iter = if (matches!(add_lower, AddLower::Always)
@@ -534,6 +540,23 @@ impl Tagger {
             }
         } else {
             None
+        };
+
+        let lower_tag_iter = if self.lang_options.title_case_all_uppercase
+            && tag_iter.len() == 0
+            && lower_tag_iter.as_ref().is_none_or(|iter| iter.len() == 0)
+            && crate::utils::is_uppercase(word)
+        {
+            let title =
+                crate::utils::apply_to_first(&word.to_lowercase(), |c| c.to_uppercase().collect());
+
+            if title != word {
+                Some(self.get_raw(&title))
+            } else {
+                lower_tag_iter
+            }
+        } else {
+            lower_tag_iter
         };
 
         StrictTagIter {
@@ -772,6 +795,130 @@ mod tests {
             anchors: Vec::new(),
         }
         .into()
+    }
+
+    fn case_tagger(title_case_all_uppercase: bool) -> Tagger {
+        let words = ["", "D’artagnan", "Hello", "Schwarzwald", "hello", "École"];
+        let mut word_store_items: Vec<(Vec<u8>, u64)> = words
+            .iter()
+            .enumerate()
+            .map(|(i, word)| (word.as_bytes().to_vec(), i as u64))
+            .collect();
+        word_store_items.sort_by(|(a, _), (b, _)| a.cmp(b));
+        let word_store_fst = Map::from_iter(word_store_items)
+            .unwrap()
+            .into_fst()
+            .as_bytes()
+            .to_vec();
+
+        let mut tag_store = DefaultBiMap::default();
+        for (i, tag) in ["", "UNKNOWN", "SENT_START", "SENT_END", "NNP", "UH"]
+            .iter()
+            .enumerate()
+        {
+            tag_store.insert(tag.to_string(), PosIdInt::from_value_unchecked(i as u16));
+        }
+
+        let mut tag_items: Vec<(Vec<u8>, u64)> = words
+            .iter()
+            .enumerate()
+            .skip(1)
+            .map(|(i, word)| {
+                let mut key = word.as_bytes().to_vec();
+                key.push(0);
+                let pos = if *word == "hello" { 5 } else { 4 };
+                (key, pack_value(i as u32, pos))
+            })
+            .collect();
+        tag_items.sort_by(|(a, _), (b, _)| a.cmp(b));
+        let tag_fst = Map::from_iter(tag_items)
+            .unwrap()
+            .into_fst()
+            .as_bytes()
+            .to_vec();
+
+        let synth_fst = Map::from_iter(Vec::<(Vec<u8>, u64)>::new())
+            .unwrap()
+            .into_fst()
+            .as_bytes()
+            .to_vec();
+
+        TaggerFields {
+            tag_fst,
+            synth_fst,
+            word_store_fst,
+            tag_store,
+            lang_options: TaggerLangOptions {
+                always_add_lower_tags: true,
+                title_case_all_uppercase,
+                ..TaggerLangOptions::default()
+            },
+            anchors: Vec::new(),
+        }
+        .into()
+    }
+
+    fn tags(tagger: &Tagger, word: &str) -> Vec<(String, String)> {
+        tagger
+            .get_tags(word)
+            .map(|data| {
+                (
+                    data.lemma().as_str().to_string(),
+                    data.pos().as_str().to_string(),
+                )
+            })
+            .collect()
+    }
+
+    fn pairs(items: &[(&str, &str)]) -> Vec<(String, String)> {
+        items
+            .iter()
+            .map(|(lemma, pos)| (lemma.to_string(), pos.to_string()))
+            .collect()
+    }
+
+    #[test]
+    fn all_uppercase_word_is_looked_up_in_title_case() {
+        let tagger = case_tagger(true);
+
+        assert_eq!(
+            tags(&tagger, "SCHWARZWALD"),
+            pairs(&[("Schwarzwald", "NNP")])
+        );
+        assert_eq!(tags(&tagger, "ÉCOLE"), pairs(&[("École", "NNP")]));
+        assert_eq!(tags(&tagger, "D’ARTAGNAN"), pairs(&[("D’artagnan", "NNP")]));
+        assert_eq!(
+            tags(&tagger, "Schwarzwald"),
+            pairs(&[("Schwarzwald", "NNP")])
+        );
+    }
+
+    #[test]
+    fn title_case_lookup_only_runs_when_nothing_else_matched() {
+        let tagger = case_tagger(true);
+
+        assert_eq!(tags(&tagger, "HELLO"), pairs(&[("hello", "UH")]));
+        assert!(tags(&tagger, "SCHWARZWALDS").is_empty());
+        assert!(tags(&tagger, "SchwarzWALD").is_empty());
+        assert!(tags(&tagger, "schwarzwald").is_empty());
+    }
+
+    #[test]
+    fn title_case_lookup_is_off_unless_the_language_enables_it() {
+        let tagger = case_tagger(false);
+
+        assert!(tags(&tagger, "SCHWARZWALD").is_empty());
+        assert!(tags(&tagger, "D’ARTAGNAN").is_empty());
+        assert_eq!(tags(&tagger, "HELLO"), pairs(&[("hello", "UH")]));
+    }
+
+    #[test]
+    fn title_case_lookup_handles_punctuation_tokens() {
+        let tagger = case_tagger(true);
+
+        for token in ["\u{2028}", "—", "…", "“", "”", "’", "‘", "123", ""] {
+            assert!(tags(&tagger, token).is_empty(), "{:?}", token);
+        }
     }
 
     #[test]

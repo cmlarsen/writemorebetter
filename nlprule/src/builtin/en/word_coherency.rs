@@ -26,6 +26,7 @@ const ID: &str = "EN_WORD_COHERENCY";
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WordCoherency {
     /// Maps each admitted spelling to the other spellings of the same word.
+    #[serde(serialize_with = "crate::types::sorted::map")]
     variants: DefaultHashMap<String, Vec<String>>,
 }
 

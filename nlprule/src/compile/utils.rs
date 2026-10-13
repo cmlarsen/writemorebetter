@@ -73,9 +73,10 @@ mod regex {
 
     use lazy_static::lazy_static;
     use regex_syntax::ast::{
-        print::Printer, Ast, Class, ClassAscii, ClassAsciiKind, ClassBracketed, ClassPerlKind,
-        ClassSet, ClassSetItem, ClassSetUnion, ErrorKind, Flag, FlagsItemKind, Literal,
-        LiteralKind, Position, Span,
+        print::Printer, Alternation, Assertion, AssertionKind, Ast, CaptureName, Class, ClassAscii,
+        ClassAsciiKind, ClassBracketed, ClassPerlKind, ClassSet, ClassSetItem, ClassSetUnion,
+        Concat, ErrorKind, Flag, Flags, FlagsItemKind, Group, GroupKind, Literal, LiteralKind,
+        Position, Repetition, RepetitionKind, RepetitionOp, RepetitionRange, Span,
     };
     use regex_syntax::hir::{self, HirKind};
 
@@ -247,19 +248,41 @@ mod regex {
             Ast::Group(group) => {
                 let mut group = group.clone();
                 group.ast = fix_ast(&group.ast, case_sensitive)?.0.into();
-                Ast::Group(group)
+                expand_lookbehind(&group)?.unwrap_or(Ast::Group(group))
             }
             Ast::Repetition(repetition) => {
                 let mut repetition = repetition.clone();
                 repetition.ast = fix_ast(&repetition.ast, case_sensitive)?.0.into();
-                // disallow nested quantifiers because of inconsistent behavior
-                if matches!(*repetition.ast, Ast::Repetition(_)) {
-                    return Err(Error::Unexpected(
-                        "nested quantifiers in regex are not allowed.".into(),
-                    ));
+                match (&repetition.op.kind, &*repetition.ast) {
+                    (
+                        RepetitionKind::ZeroOrOne
+                        | RepetitionKind::ZeroOrMore
+                        | RepetitionKind::Range(RepetitionRange::Exactly(0))
+                        | RepetitionKind::Range(RepetitionRange::AtLeast(0))
+                        | RepetitionKind::Range(RepetitionRange::Bounded(0, _)),
+                        Ast::Assertion(_),
+                    ) => Ast::Empty(zero_span()),
+                    (_, Ast::Assertion(_)) => (*repetition.ast).clone(),
+                    (RepetitionKind::Range(_), Ast::Repetition(_)) => (*repetition.ast).clone(),
+                    (RepetitionKind::OneOrMore, Ast::Repetition(_)) if repetition.greedy => {
+                        Ast::Group(Group {
+                            span: zero_span(),
+                            kind: GroupKind::CaptureName(CaptureName {
+                                span: zero_span(),
+                                name: ATOMIC_PLACEHOLDER.into(),
+                                index: 0,
+                            }),
+                            ast: repetition.ast,
+                        })
+                    }
+                    // disallow nested quantifiers because of inconsistent behavior
+                    (_, Ast::Repetition(_)) => {
+                        return Err(Error::Unexpected(
+                            "nested quantifiers in regex are not allowed.".into(),
+                        ))
+                    }
+                    _ => Ast::Repetition(repetition),
                 }
-
-                Ast::Repetition(repetition)
             }
             Ast::Literal(literal) if !case_sensitive => {
                 if let Some(union) = literal_to_union(literal) {
@@ -290,6 +313,7 @@ mod regex {
                             FlagsItemKind::Flag(Flag::CaseInsensitive)
                             // we completely ignore the unicode flag, might not be sound
                                 | FlagsItemKind::Flag(Flag::Unicode)
+                                | FlagsItemKind::Flag(Flag::SwapGreed)
                         )
                     })
                     .collect();
@@ -312,6 +336,278 @@ mod regex {
             Ast::Dot(_) | Ast::Assertion(_) | Ast::Empty(_) => root.clone(),
         };
         Ok((ast, case_sensitive))
+    }
+
+    const ATOMIC_PLACEHOLDER: &str = "__ATOMIC";
+    const NEGATIVE_LOOKBEHIND_PREFIX: &str = "__NEGATIVE_LOOKBEHIND_";
+    const POSITIVE_LOOKBEHIND_PREFIX: &str = "__POSITIVE_LOOKBEHIND_";
+    const MAX_LOOKBEHIND_VARIANTS: usize = 256;
+
+    fn lookaround_name(group: &Group) -> Option<&str> {
+        match &group.kind {
+            GroupKind::CaptureName(name)
+                if name.name.starts_with("__NEGATIVE_") || name.name.starts_with("__POSITIVE_") =>
+            {
+                Some(&name.name)
+            }
+            _ => None,
+        }
+    }
+
+    fn fixed_len(ast: &Ast) -> Option<usize> {
+        match ast {
+            Ast::Empty(_) | Ast::Flags(_) | Ast::Assertion(_) => Some(0),
+            Ast::Literal(_) | Ast::Dot(_) | Ast::Class(_) => Some(1),
+            Ast::Group(group) if lookaround_name(group).is_some() => Some(0),
+            Ast::Group(group) => fixed_len(&group.ast),
+            Ast::Concat(concat) => concat.asts.iter().map(fixed_len).sum(),
+            Ast::Alternation(alternation) => {
+                let mut lens = alternation.asts.iter().map(fixed_len);
+                let first = lens.next()??;
+                lens.all(|len| len == Some(first)).then_some(first)
+            }
+            Ast::Repetition(repetition) => {
+                let inner = fixed_len(&repetition.ast)?;
+                match &repetition.op.kind {
+                    RepetitionKind::Range(RepetitionRange::Exactly(n)) => Some(inner * *n as usize),
+                    _ if inner == 0 => Some(0),
+                    _ => None,
+                }
+            }
+        }
+    }
+
+    fn strip_captures(ast: &Ast, captures: &mut Vec<GroupKind>) -> Ast {
+        match ast {
+            Ast::Group(group) if lookaround_name(group).is_none() => {
+                let mut group = group.clone();
+                if !matches!(group.kind, GroupKind::NonCapturing(_)) {
+                    captures.push(group.kind.clone());
+                    group.kind = GroupKind::NonCapturing(Flags {
+                        span: zero_span(),
+                        items: Vec::new(),
+                    });
+                }
+                group.ast = strip_captures(&group.ast, captures).into();
+                Ast::Group(group)
+            }
+            Ast::Concat(concat) => {
+                let mut concat = concat.clone();
+                concat.asts = concat
+                    .asts
+                    .iter()
+                    .map(|x| strip_captures(x, captures))
+                    .collect();
+                Ast::Concat(concat)
+            }
+            Ast::Alternation(alternation) => {
+                let mut alternation = alternation.clone();
+                alternation.asts = alternation
+                    .asts
+                    .iter()
+                    .map(|x| strip_captures(x, captures))
+                    .collect();
+                Ast::Alternation(alternation)
+            }
+            Ast::Repetition(repetition) => {
+                let mut repetition = repetition.clone();
+                repetition.ast = strip_captures(&repetition.ast, captures).into();
+                Ast::Repetition(repetition)
+            }
+            _ => ast.clone(),
+        }
+    }
+
+    fn concat(asts: Vec<Ast>) -> Ast {
+        Ast::Concat(Concat {
+            span: zero_span(),
+            asts,
+        })
+    }
+
+    fn alternation(asts: Vec<Ast>) -> Ast {
+        Ast::Alternation(Alternation {
+            span: zero_span(),
+            asts,
+        })
+    }
+
+    fn non_capturing(ast: Ast) -> Ast {
+        Ast::Group(Group {
+            span: zero_span(),
+            kind: GroupKind::NonCapturing(Flags {
+                span: zero_span(),
+                items: Vec::new(),
+            }),
+            ast: Box::new(ast),
+        })
+    }
+
+    fn product(left: Vec<Ast>, right: &[Ast]) -> Option<Vec<Ast>> {
+        if left.len() * right.len() > MAX_LOOKBEHIND_VARIANTS {
+            return None;
+        }
+
+        Some(
+            left.iter()
+                .flat_map(|l| {
+                    right
+                        .iter()
+                        .map(move |r| concat(vec![l.clone(), r.clone()]))
+                })
+                .collect(),
+        )
+    }
+
+    fn fixed_variants(ast: &Ast) -> Option<Vec<Ast>> {
+        if fixed_len(ast).is_some() {
+            return Some(vec![ast.clone()]);
+        }
+
+        match ast {
+            Ast::Group(group) => Some(
+                fixed_variants(&group.ast)?
+                    .into_iter()
+                    .map(|variant| {
+                        let mut group = group.clone();
+                        group.ast = Box::new(variant);
+                        Ast::Group(group)
+                    })
+                    .collect(),
+            ),
+            Ast::Concat(concat) => concat
+                .asts
+                .iter()
+                .try_fold(vec![Ast::Empty(zero_span())], |acc, x| {
+                    product(acc, &fixed_variants(x)?)
+                }),
+            Ast::Alternation(alternation) => {
+                let mut out = Vec::new();
+                for x in &alternation.asts {
+                    out.extend(fixed_variants(x)?);
+                    if out.len() > MAX_LOOKBEHIND_VARIANTS {
+                        return None;
+                    }
+                }
+                Some(out)
+            }
+            Ast::Repetition(repetition) => {
+                let (min, max) = match &repetition.op.kind {
+                    RepetitionKind::ZeroOrOne => (0, 1),
+                    RepetitionKind::Range(RepetitionRange::Exactly(n)) => (*n, *n),
+                    RepetitionKind::Range(RepetitionRange::Bounded(m, n)) => (*m, *n),
+                    RepetitionKind::ZeroOrMore
+                    | RepetitionKind::OneOrMore
+                    | RepetitionKind::Range(RepetitionRange::AtLeast(_)) => return None,
+                };
+                let inner = fixed_variants(&repetition.ast)?;
+                let mut out = Vec::new();
+                let mut current = vec![Ast::Empty(zero_span())];
+                for count in 0..=max {
+                    if count >= min {
+                        out.extend(current.iter().cloned());
+                    }
+                    if count < max {
+                        current = product(current, &inner)?;
+                    }
+                    if out.len() > MAX_LOOKBEHIND_VARIANTS {
+                        return None;
+                    }
+                }
+                Some(out)
+            }
+            _ => None,
+        }
+    }
+
+    fn expand_lookbehind(group: &Group) -> Result<Option<Ast>, Error> {
+        let name = match lookaround_name(group) {
+            Some(name) => name,
+            None => return Ok(None),
+        };
+        let negative = if name.starts_with(NEGATIVE_LOOKBEHIND_PREFIX) {
+            true
+        } else if name.starts_with(POSITIVE_LOOKBEHIND_PREFIX) {
+            false
+        } else {
+            return Ok(None);
+        };
+
+        if fixed_len(&group.ast).is_some() {
+            return Ok(None);
+        }
+
+        let mut captures = Vec::new();
+        let body = strip_captures(&group.ast, &mut captures);
+
+        if !negative && !captures.is_empty() {
+            return Err(Error::Unexpected(
+                "variable-length positive lookbehind with capture groups is not supported.".into(),
+            ));
+        }
+
+        let variants = fixed_variants(&body).ok_or_else(|| {
+            Error::Unexpected("lookbehind of unbounded length is not supported.".into())
+        })?;
+
+        let mut by_len: Vec<(usize, Vec<Ast>)> = Vec::new();
+        for variant in variants {
+            let len = fixed_len(&variant).expect("variants have a fixed length");
+            match by_len.iter_mut().find(|(l, _)| *l == len) {
+                Some((_, asts)) => asts.push(variant),
+                None => by_len.push((len, vec![variant])),
+            }
+        }
+
+        let lookbehinds: Vec<Ast> = by_len
+            .into_iter()
+            .map(|(_, asts)| {
+                let mut lookbehind = group.clone();
+                lookbehind.ast = Box::new(if asts.len() == 1 {
+                    asts.into_iter().next().unwrap()
+                } else {
+                    alternation(asts)
+                });
+                Ast::Group(lookbehind)
+            })
+            .collect();
+
+        let mut out = if negative {
+            lookbehinds
+        } else {
+            vec![non_capturing(alternation(lookbehinds))]
+        };
+
+        if !captures.is_empty() {
+            let mut never = vec![
+                Ast::Assertion(Assertion {
+                    span: zero_span(),
+                    kind: AssertionKind::WordBoundary,
+                }),
+                Ast::Assertion(Assertion {
+                    span: zero_span(),
+                    kind: AssertionKind::NotWordBoundary,
+                }),
+            ];
+            never.extend(captures.into_iter().map(|kind| {
+                Ast::Group(Group {
+                    span: zero_span(),
+                    kind,
+                    ast: Box::new(Ast::Empty(zero_span())),
+                })
+            }));
+            out.push(Ast::Repetition(Repetition {
+                span: zero_span(),
+                op: RepetitionOp {
+                    span: zero_span(),
+                    kind: RepetitionKind::ZeroOrOne,
+                },
+                greedy: true,
+                ast: Box::new(non_capturing(concat(never))),
+            }));
+        }
+
+        Ok(Some(non_capturing(concat(out))))
     }
 
     lazy_static! {
@@ -420,6 +716,8 @@ mod regex {
         let mut printer = Printer::new();
         let mut out = String::new();
         printer.print(&ast, &mut out).unwrap();
+
+        out = out.replace(&format!("(?P<{}>", ATOMIC_PLACEHOLDER), "(?>");
 
         // undo the placeholder named group replacement for lookaround
         for (original, placeholder) in LOOKAROUND_MAP.iter() {
@@ -537,7 +835,128 @@ mod regex {
 
         #[test]
         fn nested_quantifiers() {
-            assert!(from_java_regex(r"[0-9,.]*{1,}", false, false).is_err())
+            assert!(from_java_regex(r"[0-9,.]{2}*", false, false).is_err())
+        }
+
+        fn compiled(java: &str) -> crate::utils::regex::Regex {
+            let regex =
+                crate::utils::regex::Regex::new(from_java_regex(java, true, false).unwrap());
+            regex.try_compile().unwrap();
+            regex
+        }
+
+        fn matches(regex: &crate::utils::regex::Regex, text: &str) -> Vec<String> {
+            regex
+                .find_iter(text)
+                .map(|m| m.as_str().to_owned())
+                .collect()
+        }
+
+        #[test]
+        fn quantified_assertion() {
+            assert_eq!(from_java_regex(r"PRP$?", true, true).unwrap(), r"^(?:PRP)$");
+            assert_eq!(from_java_regex(r"a\b{0,2}", true, false).unwrap(), r"a");
+            assert_eq!(from_java_regex(r"a\b+", true, false).unwrap(), r"a\b");
+
+            let regex = compiled(r"^(?:PRP$?)$");
+            assert!(regex.is_match("PRP"));
+            assert!(!regex.is_match("PRP$"));
+        }
+
+        #[test]
+        fn interval_after_quantifier_is_ignored() {
+            assert_eq!(
+                from_java_regex(r"[0-9,.]*{1,30}", true, false).unwrap(),
+                r"[0-9,.]*"
+            );
+            assert_eq!(from_java_regex(r"a{2}{3}", true, false).unwrap(), r"a{2}");
+        }
+
+        #[test]
+        fn possessive_quantifier_becomes_atomic_group() {
+            assert_eq!(from_java_regex(r"a*+b", true, false).unwrap(), r"(?>a*)b");
+            assert_eq!(
+                from_java_regex(r"a{1,3}+a", true, false).unwrap(),
+                r"(?>a{1,3})a"
+            );
+
+            let regex = compiled(r"\d++5");
+            assert!(!regex.is_match("12345"));
+            assert_eq!(matches(&compiled(r"\d{1,2}+5"), "12345"), vec!["345"]);
+        }
+
+        #[test]
+        fn unicode_character_class_flag_removed() {
+            assert_eq!(from_java_regex(r"(?U)a+b", true, false).unwrap(), r"a+b");
+            assert_eq!(matches(&compiled(r"(?U)a+?"), "aaa"), vec!["a", "a", "a"]);
+        }
+
+        #[test]
+        fn variable_length_negative_lookbehind() {
+            assert_eq!(
+                from_java_regex(r"(?<!a-?)b", true, false).unwrap(),
+                r"(?:(?<!a)(?<!a-))b"
+            );
+
+            let regex = compiled(r"(?<![a-c]\d{0,2})x");
+            assert_eq!(matches(&regex, "a1x b12x 9x c123x x"), vec!["x", "x", "x"]);
+        }
+
+        #[test]
+        fn variable_length_positive_lookbehind() {
+            assert_eq!(
+                from_java_regex(r"(?<=a|bc)d", true, false).unwrap(),
+                r"(?:(?:(?<=a)|(?<=bc)))d"
+            );
+
+            let regex = compiled(r"(?<=a|bc)d");
+            assert_eq!(matches(&regex, "ad bd bcd d"), vec!["d", "d"]);
+        }
+
+        #[test]
+        fn lookbehind_expansion_keeps_group_numbers() {
+            let regex = compiled(r"(?<!(x|y(z)))(\d)(\w)");
+            assert_eq!(regex.captures_len(), 5);
+
+            let captures = regex.captures("yz1a 2b").unwrap();
+            assert!(captures.get(1).is_none());
+            assert!(captures.get(2).is_none());
+            assert_eq!(captures.get(3).unwrap().as_str(), "2");
+            assert_eq!(captures.get(4).unwrap().as_str(), "b");
+        }
+
+        #[test]
+        fn lookbehind_expansion_is_case_insensitive() {
+            let regex = crate::utils::regex::Regex::new(
+                from_java_regex(r"(?<!a-?)b", false, false).unwrap(),
+            );
+            assert_eq!(regex.find_iter("A-b cB").count(), 1);
+        }
+
+        #[test]
+        fn unbounded_lookbehind_is_an_error() {
+            assert!(from_java_regex(r"(?<!a+)b", true, false).is_err());
+            assert!(from_java_regex(r"(?<=(a|bc))d", true, false).is_err());
+        }
+
+        #[test]
+        fn fixed_length_lookbehind_unchanged() {
+            assert_eq!(
+                from_java_regex(r"(?<!ab|cd)e", true, false).unwrap(),
+                r"(?<!ab|cd)e"
+            );
+        }
+
+        #[test]
+        fn lookbehind_expansion_utf8() {
+            let regex = compiled("(?<![“’—…\u{2028}] ?)x");
+            assert_eq!(
+                matches(&regex, "“x ’ x —x … x \u{2028}x \u{2028} x ax"),
+                vec!["x"]
+            );
+
+            let regex = compiled(r"(?<=[”‘]|—…)x");
+            assert_eq!(matches(&regex, "”x ‘x —…x …x —x"), vec!["x", "x", "x"]);
         }
 
         #[test]
