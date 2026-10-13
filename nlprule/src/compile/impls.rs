@@ -642,9 +642,11 @@ impl Rules {
 
                     match Rule::from_rule_structure(rule_structure, build_info, &mut pool) {
                         Ok(mut rule) => {
-                            if (options.ids.is_empty()
-                                || options.ids.iter().any(|x| x.is_match(&id)))
-                                && !options.ignore_ids.iter().any(|x| x.is_match(&id))
+                            if options.ignore_ids.iter().any(|x| x.is_match(&id)) {
+                                warn!("Skipping rule {}: it is listed in `ignore_ids`.", id);
+                                None
+                            } else if options.ids.is_empty()
+                                || options.ids.iter().any(|x| x.is_match(&id))
                             {
                                 rule.id = id;
                                 rule.name = name;
