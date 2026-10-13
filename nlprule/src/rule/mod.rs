@@ -178,8 +178,17 @@ impl DisambiguationRule {
         log::info!("applying {}", self.id);
 
         for spans in changes.0 {
+            let (start, end) = spans
+                .iter()
+                .flatten()
+                .fold((usize::MAX, 0), |(start, end), span| {
+                    (start.min(span.char().start), end.max(span.char().end))
+                });
             let mut groups = Vec::new();
-            let mut refs = sentence.iter_mut().collect::<Vec<_>>();
+            let mut refs = sentence
+                .iter_mut()
+                .filter(|x| x.span().char().start >= start && x.span().char().end <= end)
+                .collect::<Vec<_>>();
 
             for group_spans in spans {
                 let mut group = Vec::new();
@@ -333,6 +342,10 @@ impl<'a, 't> Iterator for Suggestions<'a, 't> {
                 .filter_map(|x| x.alternatives(sentence, &graph, start, end, articles))
                 .flatten()
                 .collect();
+
+            if rule.suppress_misspelled && replacements.is_empty() {
+                return None;
+            }
 
             // A rule without a <suggestion> still reports a match, with its
             // message and no replacement (LanguageTool's behaviour). Such a rule
@@ -580,6 +593,9 @@ pub struct Rule {
     pub(crate) examples: Examples,
     pub(crate) suggesters: Vec<grammar::Synthesizer>,
     pub(crate) message: grammar::Synthesizer,
+    /// LanguageTool's `<message suppress_misspelled="yes">`: a match whose suggestions were all
+    /// suppressed is not reported.
+    pub(crate) suppress_misspelled: bool,
     pub(crate) start: GraphId,
     pub(crate) end: GraphId,
     pub(crate) url: Option<String>,

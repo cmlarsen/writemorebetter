@@ -10,8 +10,8 @@ use unicase::UniCase;
 
 type Context<'a, 't> = (&'a MatchSentence<'t>, &'a MatchGraph<'t>);
 
-/// The three ways a [Matcher] compares: a literal string, the text of another pattern group, or a
-/// regular expression.
+/// The ways a [Matcher] compares: a literal string, the text of another pattern group, the word
+/// forms synthesized from another pattern group, or a regular expression.
 ///
 /// Kept compact (regex and string boxed, a graph reference is just an id) so [`Atom`] and
 /// `Vec<Part>` stay small — those vectors hold one entry per pattern atom and dominate the loaded
@@ -21,6 +21,7 @@ pub enum MatcherKind {
     Text(Box<str>),
     Graph(GraphId),
     Regex(Box<Regex>),
+    Synthesis(Box<crate::rule::grammar::Match>, bool),
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -95,6 +96,32 @@ impl Matcher {
                             UniCase::new(reference) == UniCase::new(input)
                         }
                     })
+            }
+            MatcherKind::Synthesis(reference, is_regex) => {
+                let (sentence, graph) =
+                    context.expect("context must be set for context-dependent matcher");
+                let joined = reference
+                    .forms(sentence, graph, None)
+                    .map_or_else(String::new, |forms| forms.join("|"));
+
+                if joined.is_empty() {
+                    return true;
+                }
+
+                if *is_regex {
+                    Regex::is_match_uncached(
+                        &format!(
+                            "{}^(?:{})$",
+                            if case_sensitive { "" } else { "(?i)" },
+                            joined
+                        ),
+                        input,
+                    )
+                } else if case_sensitive {
+                    joined == input
+                } else {
+                    UniCase::new(joined.as_str()) == UniCase::new(input)
+                }
             }
             MatcherKind::Regex(regex) => regex.is_match(input),
         };
@@ -404,7 +431,9 @@ pub(crate) struct StartPositions {
 impl StartPositions {
     pub(crate) fn may_contain(&self, key: &StartKey) -> bool {
         // Lowercasing is not full Unicode case folding, so absence is conclusive only for ASCII.
-        (!key.case_sensitive && (self.has_non_ascii || !key.text.is_ascii()))
+        (!key.case_sensitive
+            && (self.has_non_ascii || !key.text.is_ascii())
+            && key.text.chars().any(char::is_alphabetic))
             || !self.get(key).is_empty()
     }
 
@@ -970,6 +999,13 @@ mod prefilter_tests {
             assert!(positions.may_contain(&key));
             key.case_sensitive = true;
             assert!(!positions.may_contain(&key));
+            for text in ["\"", "--", "\u{2019}"] {
+                let key = StartKey {
+                    text: text.into(),
+                    case_sensitive: false,
+                };
+                assert!(!positions.may_contain(&key));
+            }
         }
     }
 }

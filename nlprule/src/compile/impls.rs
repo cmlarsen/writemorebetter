@@ -1034,19 +1034,31 @@ mod composition {
         }
 
         pub(in crate::compile) fn graph_id(&self) -> Option<GraphId> {
-            if let MatcherKind::Graph(id) = &self.matcher {
-                Some(*id)
-            } else {
-                None
+            match &self.matcher {
+                MatcherKind::Graph(id) => Some(*id),
+                MatcherKind::Synthesis(reference, _) => Some(reference.id),
+                _ => None,
             }
         }
 
         pub(in crate::compile) fn mut_graph_id(&mut self) -> Option<&mut GraphId> {
-            if let MatcherKind::Graph(id) = &mut self.matcher {
-                Some(id)
-            } else {
-                None
+            match &mut self.matcher {
+                MatcherKind::Graph(id) => Some(id),
+                MatcherKind::Synthesis(reference, _) => Some(&mut reference.id),
+                _ => None,
             }
+        }
+
+        pub(in crate::compile) fn with_synthesis(
+            mut self,
+            mut reference: crate::rule::grammar::Match,
+            is_regex: bool,
+        ) -> Self {
+            if let Some(id) = self.graph_id() {
+                reference.id = id;
+                self.matcher = MatcherKind::Synthesis(Box::new(reference), is_regex);
+            }
+            self
         }
     }
 
@@ -1135,9 +1147,11 @@ mod composition {
             // indexed by `k` and holds `part index + 1` (see `GraphIndex`).
             let mut id_to_idx: Vec<u32> = vec![0];
 
-            let required_key = if start_keys.is_none() {
+            let required_key = {
+                let skip_first = usize::from(start_keys.is_some());
                 parts
                     .iter()
+                    .skip(skip_first)
                     .filter(|part| part.quantifier.min > 0)
                     .filter_map(|part| {
                         let mut keys = Vec::new();
@@ -1152,8 +1166,6 @@ mod composition {
                     })
                     .max_by_key(|key| key.text.len())
                     .map(Box::new)
-            } else {
-                None
             };
 
             for (i, part) in parts.iter().enumerate() {

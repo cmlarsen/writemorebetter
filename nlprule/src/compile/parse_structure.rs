@@ -108,6 +108,7 @@ fn parse_match_attribs(
     case_sensitive: bool,
     text_match_idx: Option<usize>,
     reference_conversion: Option<Conversion>,
+    reference_synthesis: Option<Match>,
     info: &mut BuildInfo,
 ) -> Result<Atom, Error> {
     let mut atoms: Vec<Atom> = Vec::new();
@@ -154,7 +155,15 @@ fn parse_match_attribs(
     let mut pos_matcher = None;
 
     if text.is_some() || text_match_idx.is_some() {
-        let matcher = if is_regex {
+        let matcher = if let (Some(id), Some(reference)) = (text_match_idx, reference_synthesis) {
+            Matcher::new_string(
+                either::Right(GraphId(id)),
+                negate,
+                case_sensitive,
+                inflected,
+            )
+            .with_synthesis(reference, is_regex)
+        } else if is_regex {
             if let Some(text) = text {
                 let regex = Regex::from_java_regex(text.trim(), true, case_sensitive);
                 Matcher::new_regex(regex?, negate, inflected)
@@ -294,6 +303,7 @@ fn get_exceptions(
                     case_sensitive,
                     None,
                     None,
+                    None,
                     info,
                 ) {
                     Ok(atom) => atom,
@@ -350,18 +360,15 @@ fn parse_token(
         }) {
             None => None,
             Some(sub) => {
-                // `<token><match no="…" postag="…"/></token>` performs
-                // inflection synthesis, which is not implemented. `no` and
-                // `case_conversion` (a plain reference match) are.
-                if sub.postag.is_some()
-                    || sub.postag_regexp.is_some()
-                    || sub.postag_replace.is_some()
-                    || sub.regexp_match.is_some()
+                // `<token><match no="…" regexp_match="…"/></token>` and
+                // `include_skipped` are not implemented. `no`,
+                // `case_conversion` and the `postag` synthesis are.
+                if sub.regexp_match.is_some()
                     || sub.regexp_replace.is_some()
                     || sub.include_skipped.is_some()
                 {
                     return Err(Error::Unimplemented(
-                        "attributes on <match> inside a <token> (synthesis) are not implemented."
+                        "regexp_match/include_skipped on <match> inside a <token> are not implemented."
                             .into(),
                     ));
                 }
@@ -381,15 +388,32 @@ fn parse_token(
                     }
                 };
 
-                Some((sub.no.parse::<usize>()? + 1, conversion))
+                let synthesis = match &sub.postag {
+                    None => None,
+                    Some(postag) => Some(Match {
+                        id: GraphId(0),
+                        conversion: conversion.clone().unwrap_or(Conversion::Nop),
+                        pos_replacer: Some(parse_pos_replacer(
+                            postag,
+                            matches!(sub.postag_regexp.as_deref(), Some("yes")),
+                            sub.postag_replace.clone(),
+                            false,
+                        )?),
+                        regex_replacer: None,
+                        static_lemma: None,
+                        include_skipped: None,
+                    }),
+                };
+
+                Some((sub.no.parse::<usize>()? + 1, conversion, synthesis))
             }
         }
     } else {
         None
     };
-    let (text_match_idx, reference_conversion) = match text_match {
-        Some((idx, conversion)) => (Some(idx), conversion),
-        None => (None, None),
+    let (text_match_idx, reference_conversion, reference_synthesis) = match text_match {
+        Some((idx, conversion, synthesis)) => (Some(idx), conversion, synthesis),
+        None => (None, None, None),
     };
 
     let min = token
@@ -425,6 +449,7 @@ fn parse_token(
         case_sensitive,
         text_match_idx,
         reference_conversion,
+        reference_synthesis,
         info,
     )?;
     atom = AndAtom::and(vec![
@@ -442,7 +467,7 @@ fn parse_token(
 
     if let Some(to_skip) = token.skip.clone() {
         let to_skip = if to_skip == "-1" {
-            max_matches()
+            u32::MAX as usize
         } else {
             to_skip.parse().expect("can't parse skip as usize or -1")
         };
@@ -457,6 +482,63 @@ fn parse_token(
     }
 
     Ok(parts)
+}
+
+fn parse_pos_replacer(
+    postag: &str,
+    postag_regexp: bool,
+    postag_replace: Option<String>,
+    has_static_lemma: bool,
+) -> Result<PosReplacer, Error> {
+    let postag = postag.trim();
+
+    // LanguageTool's English synthesizer extends synthesis with two special
+    // postags: `+INDT` adds "a"/"an" and `+DT` adds "a"/"an" or "the". In the
+    // regexp form the tag ends with `\+INDT`/`\+DT` (a `\`-escaped `+` in the
+    // XML); the suffix is removed before synthesizing the base tag.
+    let (determiner, base_postag) = if postag == "+INDT" {
+        (Some(Determiner::Indefinite), None)
+    } else if postag == "+DT" {
+        (Some(Determiner::Definite), None)
+    } else if postag_regexp && postag.ends_with("\\+INDT") {
+        (
+            Some(Determiner::Indefinite),
+            Some(postag[..postag.len() - "\\+INDT".len()].trim()),
+        )
+    } else if postag_regexp && postag.ends_with("\\+DT") {
+        (
+            Some(Determiner::Definite),
+            Some(postag[..postag.len() - "\\+DT".len()].trim()),
+        )
+    } else if postag.contains("+DT") || postag.contains("+INDT") {
+        return Err(Error::Unimplemented(format!(
+            "the determiner postag '{}' is not supported here.",
+            postag
+        )));
+    } else {
+        (None, None)
+    };
+
+    // A determiner with an exact postag formats the matched token itself; a
+    // regexp determiner synthesizes the stripped base tag.
+    let synthesis_postag = base_postag.unwrap_or(postag);
+
+    // LanguageTool's `setLemmaString` treats a static lemma's `postag` as a regexp even when
+    // `postag_regexp` is not set, so a static lemma always uses the regexp synthesis branch.
+    let regex = if determiner.is_some() && base_postag.is_none() {
+        None
+    } else if postag_regexp || has_static_lemma {
+        Some(Regex::from_java_regex(synthesis_postag, true, true)?)
+    } else {
+        None
+    };
+
+    Ok(PosReplacer {
+        postag: synthesis_postag.to_string(),
+        regex,
+        postag_replace,
+        determiner,
+    })
 }
 
 fn parse_match(
@@ -535,58 +617,14 @@ fn parse_match(
 
     let postag_regexp = matches!(m.postag_regex.as_deref(), Some("yes"));
 
-    let pos_replacer = if let Some(postag) = &m.postag {
-        let postag = postag.trim();
-
-        // LanguageTool's English synthesizer extends synthesis with two special
-        // postags: `+INDT` adds "a"/"an" and `+DT` adds "a"/"an" or "the". In the
-        // regexp form the tag ends with `\+INDT`/`\+DT` (a `\`-escaped `+` in the
-        // XML); the suffix is removed before synthesizing the base tag.
-        let (determiner, base_postag) = if postag == "+INDT" {
-            (Some(Determiner::Indefinite), None)
-        } else if postag == "+DT" {
-            (Some(Determiner::Definite), None)
-        } else if postag_regexp && postag.ends_with("\\+INDT") {
-            (
-                Some(Determiner::Indefinite),
-                Some(postag[..postag.len() - "\\+INDT".len()].trim()),
-            )
-        } else if postag_regexp && postag.ends_with("\\+DT") {
-            (
-                Some(Determiner::Definite),
-                Some(postag[..postag.len() - "\\+DT".len()].trim()),
-            )
-        } else if postag.contains("+DT") || postag.contains("+INDT") {
-            return Err(Error::Unimplemented(format!(
-                "the determiner postag '{}' is not supported here.",
-                postag
-            )));
-        } else {
-            (None, None)
-        };
-
-        // A determiner with an exact postag formats the matched token itself; a
-        // regexp determiner synthesizes the stripped base tag.
-        let synthesis_postag = base_postag.unwrap_or(postag);
-
-        // LanguageTool's `setLemmaString` treats a static lemma's `postag` as a regexp even when
-        // `postag_regexp` is not set, so a static lemma always uses the regexp synthesis branch.
-        let regex = if determiner.is_some() && base_postag.is_none() {
-            None
-        } else if postag_regexp || static_lemma.is_some() {
-            Some(Regex::from_java_regex(synthesis_postag, true, true)?)
-        } else {
-            None
-        };
-
-        Some(PosReplacer {
-            postag: synthesis_postag.to_string(),
-            regex,
-            postag_replace: m.postag_replace.clone(),
-            determiner,
-        })
-    } else {
-        None
+    let pos_replacer = match m.postag.as_deref() {
+        Some(postag) => Some(parse_pos_replacer(
+            postag,
+            postag_regexp,
+            m.postag_replace.clone(),
+            static_lemma.is_some(),
+        )?),
+        None => None,
     };
 
     let regex_replacer = match (m.regexp_match, m.regexp_replace) {
@@ -675,9 +713,12 @@ fn parse_synthesizer_text(text: &str, engine: &Engine) -> Result<Vec<Synthesizer
 fn parse_suggestion(
     data: structure::Suggestion,
     engine: &Engine,
+    rule_suppress_misspelled: bool,
     info: &mut BuildInfo,
     pool: &PartInterner,
 ) -> Result<Synthesizer, Error> {
+    let suppress_misspelled =
+        rule_suppress_misspelled || data.suppress_misspelled.as_deref() == Some("yes");
     let mut parts = Vec::new();
     for part in data.parts {
         match part {
@@ -696,6 +737,7 @@ fn parse_suggestion(
         parts,
         // use titlecase adjustment (i. e. make replacement title case if match is title case) if token rule
         use_titlecase_adjust: matches!(engine, Engine::Token(_)),
+        suppress_misspelled,
     })
 }
 
@@ -705,23 +747,27 @@ fn get_last_id(parts: &[Part]) -> isize {
 
 fn parse_parallel_tokens(
     tokens: &[structure::Token],
+    combine: fn(Vec<Atom>) -> Atom,
     case_sensitive: bool,
     info: &mut BuildInfo,
-) -> Result<Vec<Atom>, Error> {
-    tokens
-        .iter()
-        .map(|x| {
-            let mut parsed = parse_token(x, case_sensitive, info)?;
+) -> Result<Vec<Part>, Error> {
+    let mut parts = parse_token(&tokens[0], case_sensitive, info)?;
+    let mut atoms = vec![std::mem::replace(&mut parts[0].atom, (TrueAtom {}).into())];
 
-            if parsed.len() != 1 || parsed[0].quantifier.min != 1 || parsed[0].quantifier.max != 1 {
-                return Err(Error::Unimplemented(
-                    "control flow in parallel tokens is not implemented.".into(),
-                ));
-            }
+    for token in &tokens[1..] {
+        let mut parsed = parse_token(token, case_sensitive, info)?;
 
-            Ok(parsed.remove(0).atom)
-        })
-        .collect()
+        if parsed.len() != 1 || parsed[0].quantifier.min != 1 || parsed[0].quantifier.max != 1 {
+            return Err(Error::Unimplemented(
+                "control flow on a non-first parallel token is not implemented.".into(),
+            ));
+        }
+
+        atoms.push(parsed.remove(0).atom);
+    }
+
+    parts[0].atom = combine(atoms);
+    Ok(parts)
 }
 
 fn parse_tokens(
@@ -735,25 +781,10 @@ fn parse_tokens(
         out.extend(match token_combination {
             structure::TokenCombination::Token(token) => parse_token(token, case_sensitive, info)?,
             structure::TokenCombination::And(tokens) => {
-                let atom =
-                    AndAtom::and(parse_parallel_tokens(&tokens.tokens, case_sensitive, info)?);
-                vec![Part {
-                    atom,
-                    quantifier: Quantifier::new(1, 1),
-                    greedy: true,
-                    visible: true,
-                    unify: tokens.tokens[0].unify.as_ref().map(|x| x == "yes"),
-                }]
+                parse_parallel_tokens(&tokens.tokens, AndAtom::and, case_sensitive, info)?
             }
             structure::TokenCombination::Or(tokens) => {
-                let atom = OrAtom::or(parse_parallel_tokens(&tokens.tokens, case_sensitive, info)?);
-                vec![Part {
-                    atom,
-                    quantifier: Quantifier::new(1, 1),
-                    greedy: true,
-                    visible: true,
-                    unify: tokens.tokens[0].unify.as_ref().map(|x| x == "yes"),
-                }]
+                parse_parallel_tokens(&tokens.tokens, OrAtom::or, case_sensitive, info)?
             }
             structure::TokenCombination::Feature(_) => Vec::new(),
         });
@@ -770,15 +801,76 @@ fn require_last_token_match(parts: &mut [Part]) {
     }
 }
 
+fn token_uses_readings(token: &structure::Token) -> bool {
+    token.postag.is_some()
+        || token.inflected.as_deref() == Some("yes")
+        || token.chunk.is_some()
+        || token.chunk_re.is_some()
+        || token.unify.is_some()
+        || token.parts.iter().flatten().any(|part| match part {
+            structure::TokenPart::Exception(exception) => {
+                exception.postag.is_some()
+                    || exception.inflected.as_deref() == Some("yes")
+                    || exception.chunk.is_some()
+                    || exception.chunk_re.is_some()
+            }
+            structure::TokenPart::Sub(sub) => sub.postag.is_some(),
+            structure::TokenPart::Text(_) => false,
+        })
+}
+
+fn pattern_uses_readings(pattern: &structure::Pattern) -> bool {
+    pattern.parts.iter().any(|part| match part {
+        structure::PatternPart::Token(token) => token_uses_readings(token),
+        structure::PatternPart::Marker(marker) => {
+            marker.tokens.iter().any(|combination| match combination {
+                structure::TokenCombination::Token(token) => token_uses_readings(token),
+                structure::TokenCombination::Or(tokens)
+                | structure::TokenCombination::And(tokens) => {
+                    tokens.tokens.iter().any(token_uses_readings)
+                }
+                structure::TokenCombination::Feature(_) => true,
+            })
+        }
+        structure::PatternPart::Or(tokens) | structure::PatternPart::And(tokens) => {
+            tokens.tokens.iter().any(token_uses_readings)
+        }
+        structure::PatternPart::Feature(_) => true,
+        structure::PatternPart::Example(_) | structure::PatternPart::Phraseref(_) => false,
+    })
+}
+
+fn rule_reads_readings_outside_pattern(rule: &structure::Rule) -> bool {
+    let synthesizes = |m: &structure::Match| m.postag.is_some();
+    let suggestion_synthesizes = |suggestion: &structure::Suggestion| {
+        suggestion.parts.iter().any(|part| match part {
+            structure::SuggestionPart::Match(m) => synthesizes(m),
+            structure::SuggestionPart::Text(_) => false,
+        })
+    };
+
+    rule.filter.is_some()
+        || rule.message.parts.iter().any(|part| match part {
+            structure::MessagePart::Suggestion(suggestion) => suggestion_synthesizes(suggestion),
+            structure::MessagePart::Match(m) => synthesizes(m),
+            structure::MessagePart::Text(_) => false,
+        })
+        || rule
+            .suggestions
+            .iter()
+            .flatten()
+            .any(suggestion_synthesizes)
+}
+
 fn parse_pattern(
     pattern: structure::Pattern,
     info: &mut BuildInfo,
     pool: &mut PartInterner,
 ) -> Result<(Composition, usize, usize), Error> {
-    if pattern.raw_pos.as_deref() == Some("yes") {
+    if pattern.raw_pos.as_deref() == Some("yes") && pattern_uses_readings(&pattern) {
         // `raw_pos` matches POS tags on the tagger output before disambiguation.
-        // nlprule only keeps the disambiguated readings at runtime, so this
-        // would silently change matching if ignored.
+        // nlprule only keeps the disambiguated readings at runtime, so a
+        // pattern reading them would silently change matching if this were ignored.
         return Err(Error::Unimplemented(
             "raw_pos on <pattern> (matching pre-disambiguation POS tags) is not implemented."
                 .into(),
@@ -806,29 +898,18 @@ fn parse_pattern(
 
                 end = Some(get_last_id(&composition_parts));
             }
-            structure::PatternPart::And(tokens) => {
-                let atom =
-                    AndAtom::and(parse_parallel_tokens(&tokens.tokens, case_sensitive, info)?);
-
-                composition_parts.push(Part {
-                    atom,
-                    quantifier: Quantifier::new(1, 1),
-                    greedy: true,
-                    visible: true,
-                    unify: tokens.tokens[0].unify.as_ref().map(|x| x == "yes"),
-                });
-            }
-            structure::PatternPart::Or(tokens) => {
-                let atom = OrAtom::or(parse_parallel_tokens(&tokens.tokens, case_sensitive, info)?);
-
-                composition_parts.push(Part {
-                    atom,
-                    quantifier: Quantifier::new(1, 1),
-                    greedy: true,
-                    visible: true,
-                    unify: tokens.tokens[0].unify.as_ref().map(|x| x == "yes"),
-                });
-            }
+            structure::PatternPart::And(tokens) => composition_parts.extend(parse_parallel_tokens(
+                &tokens.tokens,
+                AndAtom::and,
+                case_sensitive,
+                info,
+            )?),
+            structure::PatternPart::Or(tokens) => composition_parts.extend(parse_parallel_tokens(
+                &tokens.tokens,
+                OrAtom::or,
+                case_sensitive,
+                info,
+            )?),
             structure::PatternPart::Feature(_) => {}
             // documentation-only `<example>` inside `<antipattern>`
             structure::PatternPart::Example(_) => {}
@@ -903,6 +984,18 @@ impl Rule {
         pool: &mut PartInterner,
     ) -> Result<Rule, Error> {
         let is_regex_rule = data.regex.is_some();
+
+        if data
+            .pattern
+            .as_ref()
+            .is_some_and(|pattern| pattern.raw_pos.as_deref() == Some("yes"))
+            && rule_reads_readings_outside_pattern(&data)
+        {
+            return Err(Error::Unimplemented(
+                "raw_pos with a filter or a synthesizing <match> in the message is not implemented."
+                    .into(),
+            ));
+        }
 
         let (engine, start, end) = match (&data.pattern, data.regex) {
             (Some(_), Some(_)) => Err(Error::Unexpected(
@@ -1000,13 +1093,23 @@ impl Rule {
 
         let mut message_parts = Vec::new();
         let mut suggesters = Vec::new();
+        let suppress_misspelled = data.message.suppress_misspelled.as_deref() == Some("yes");
 
         for part in data.message.parts {
             match part {
                 structure::MessagePart::Suggestion(suggestion) => {
-                    let suggester = parse_suggestion(suggestion.clone(), &engine, info, pool)?;
+                    let suggester = parse_suggestion(
+                        suggestion.clone(),
+                        &engine,
+                        suppress_misspelled,
+                        info,
+                        pool,
+                    )?;
                     // simpler to just parse a second time than cloning the result
-                    message_parts.extend(parse_suggestion(suggestion, &engine, info, pool)?.parts);
+                    message_parts.extend(
+                        parse_suggestion(suggestion, &engine, suppress_misspelled, info, pool)?
+                            .parts,
+                    );
                     suggesters.push(suggester);
                 }
                 structure::MessagePart::Text(text) => {
@@ -1022,7 +1125,13 @@ impl Rule {
 
         if let Some(suggestions) = data.suggestions {
             for suggestion in suggestions {
-                suggesters.push(parse_suggestion(suggestion, &engine, info, pool)?);
+                suggesters.push(parse_suggestion(
+                    suggestion,
+                    &engine,
+                    suppress_misspelled,
+                    info,
+                    pool,
+                )?);
             }
         }
 
@@ -1145,6 +1254,7 @@ impl Rule {
         let message = Synthesizer {
             parts: message_parts,
             use_titlecase_adjust: true,
+            suppress_misspelled: false,
         };
 
         // LanguageTool's `+DT`/`+INDT` synthesis chooses the article from the
@@ -1164,6 +1274,7 @@ impl Rule {
             examples: crate::rule::Examples::from_vec(examples),
             suggesters,
             message,
+            suppress_misspelled,
             uses_articles,
             url: data.url.map(|x| x.to_string()),
             short: data.short.map(|x| x.to_string()),
@@ -1676,7 +1787,7 @@ mod tests {
         assert_eq!(mins(&parts), vec![0, 2]);
     }
 
-    fn compiled_mins(xml: &str) -> Vec<u32> {
+    fn try_compiled_mins(xml: &str) -> Result<Vec<u32>, Error> {
         let pattern: structure::Pattern = serde_xml_rs::from_str(xml).unwrap();
         let mut info = BuildInfo::new(
             Arc::new(Tagger::default()),
@@ -1684,12 +1795,96 @@ mod tests {
             PathBuf::new(),
         );
         let mut pool = PartInterner::default();
-        let (composition, _, _) = parse_pattern(pattern, &mut info, &mut pool).unwrap();
-        composition
+        let (composition, _, _) = parse_pattern(pattern, &mut info, &mut pool)?;
+        Ok(composition
             .parts
             .iter()
             .map(|id| pool.get(*id).quantifier.min)
-            .collect()
+            .collect())
+    }
+
+    fn compiled_mins(xml: &str) -> Vec<u32> {
+        try_compiled_mins(xml).unwrap()
+    }
+
+    fn is_unimplemented(result: Result<Vec<u32>, Error>) -> bool {
+        matches!(result, Err(Error::Unimplemented(_)))
+    }
+
+    #[test]
+    fn or_group_takes_its_first_tokens_quantifier() {
+        assert_eq!(
+            compiled_mins(
+                r#"<pattern><token><text text="“Please"/></token><or><token min="0"><text text="multiple"/></token><token><text text="—"/></token></or><token><text text="by…"/></token></pattern>"#
+            ),
+            vec![1, 0, 1]
+        );
+        assert_eq!(
+            compiled_mins(
+                "<pattern><and><token skip=\"2\"><text text=\"it’s\"/></token><token><text text=\"it’s\"/></token></and><token><text text=\"\u{2028}\"/></token></pattern>"
+            ),
+            vec![1, 0, 1]
+        );
+    }
+
+    #[test]
+    fn quantifier_on_a_later_parallel_token_is_rejected() {
+        assert!(is_unimplemented(try_compiled_mins(
+            r#"<pattern><token><text text="“Well"/></token><or><token><text text="it’s"/></token><token min="0"><text text="—"/></token></or></pattern>"#
+        )));
+    }
+
+    fn rule(xml: &str) -> structure::Rule {
+        serde_xml_rs::from_str(&xml.replace(
+            "</rule>",
+            r#"<example><text text="“Maybe "/><marker><text text="I’Ve"/></marker><text text=" seen it…”"/></example></rule>"#,
+        ))
+        .unwrap()
+    }
+
+    #[test]
+    fn raw_pos_rule_rejects_synthesis_and_filters_outside_the_pattern() {
+        let pattern = r#"<pattern raw_pos="yes"><token><text text="“I"/></token><token spacebefore="no"><text text="’"/></token><token><text text="Ve…"/></token></pattern>"#;
+
+        assert!(!rule_reads_readings_outside_pattern(&rule(&format!(
+            r#"<rule>{}<message><text text="Use "/><suggestion><match no="3" case_conversion="alllower"/></suggestion><text text="—check it."/></message></rule>"#,
+            pattern
+        ))));
+
+        for tail in [
+            r#"<message><text text="Use "/><suggestion><match no="3" postag="VBP"/></suggestion><text text="—check it."/></message>"#,
+            r#"<message><text text="Is "/><match no="1" postag="PRP"/><text text=" right…"/></message>"#,
+            r#"<message><text text="Check it."/></message><suggestion><match no="3" postag="VBP"/></suggestion>"#,
+            r#"<message><text text="Check it."/></message><filter class="org.languagetool.rules.en.AdverbFilter" args="adverb:1"/>"#,
+        ] {
+            assert!(
+                rule_reads_readings_outside_pattern(&rule(&format!(
+                    "<rule>{}{}</rule>",
+                    pattern, tail
+                ))),
+                "{}",
+                tail
+            );
+        }
+    }
+
+    #[test]
+    fn raw_pos_compiles_only_patterns_that_ignore_readings() {
+        assert!(try_compiled_mins(
+            r#"<pattern raw_pos="yes"><token><text text="“I"/></token><token spacebefore="no"><text text="’"/></token><token><text text="Ve…"/></token></pattern>"#
+        )
+        .is_ok());
+
+        for xml in [
+            r#"<pattern raw_pos="yes"><token postag="VB"><text text="—"/></token></pattern>"#,
+            r#"<pattern raw_pos="yes"><token inflected="yes"><text text="it’s"/></token></pattern>"#,
+            r#"<pattern raw_pos="yes"><token chunk_re="B-NP"><text text="…"/></token></pattern>"#,
+            r#"<pattern raw_pos="yes"><token><text text="“I"/><exception postag="PRP"/></token></pattern>"#,
+            r#"<pattern raw_pos="yes"><or><token><text text="’"/></token><token postag="POS"><text text="'"/></token></or></pattern>"#,
+            "<pattern raw_pos=\"yes\"><marker><token chunk=\"I-VP\"><text text=\"\u{2028}\"/></token></marker></pattern>",
+        ] {
+            assert!(is_unimplemented(try_compiled_mins(xml)), "{}", xml);
+        }
     }
 
     #[test]
