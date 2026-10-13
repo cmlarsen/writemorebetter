@@ -739,6 +739,14 @@ fn parse_tokens(
     Ok(out)
 }
 
+fn require_last_token_match(parts: &mut [Part]) {
+    if let Some(last) = parts.iter_mut().rev().find(|part| part.visible) {
+        if last.quantifier.min == 0 {
+            last.quantifier.min = 1;
+        }
+    }
+}
+
 fn parse_pattern(
     pattern: structure::Pattern,
     info: &mut BuildInfo,
@@ -810,6 +818,8 @@ fn parse_pattern(
             }
         }
     }
+
+    require_last_token_match(&mut composition_parts);
 
     let start = start.unwrap_or(1) as usize;
     let end = end.unwrap_or_else(|| get_last_id(&composition_parts)) as usize - 1;
@@ -1606,5 +1616,40 @@ mod tests {
         let engine = text_engine(1);
         let parts = parse_synthesizer_text("plain text", &engine).unwrap();
         assert_eq!(describe(&parts), vec!["plain text"]);
+    }
+
+    fn part(min: usize, max: usize, visible: bool) -> Part {
+        Part {
+            atom: Atom::TrueAtom(TrueAtom {}),
+            quantifier: Quantifier::new(min, max),
+            greedy: visible,
+            visible,
+            unify: None,
+        }
+    }
+
+    fn mins(parts: &[Part]) -> Vec<u32> {
+        parts.iter().map(|part| part.quantifier.min).collect()
+    }
+
+    #[test]
+    fn trailing_optional_token_must_match() {
+        let mut parts = vec![part(1, 1, true), part(0, 1, true), part(0, 1, true)];
+        require_last_token_match(&mut parts);
+        assert_eq!(mins(&parts), vec![1, 0, 1]);
+    }
+
+    #[test]
+    fn trailing_skip_does_not_count_as_the_last_token() {
+        let mut parts = vec![part(1, 1, true), part(0, 3, true), part(0, 2, false)];
+        require_last_token_match(&mut parts);
+        assert_eq!(mins(&parts), vec![1, 1, 0]);
+    }
+
+    #[test]
+    fn required_last_token_is_unchanged() {
+        let mut parts = vec![part(0, 1, true), part(2, 5, true)];
+        require_last_token_match(&mut parts);
+        assert_eq!(mins(&parts), vec![0, 2]);
     }
 }
