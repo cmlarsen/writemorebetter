@@ -2407,6 +2407,18 @@ fn long_unterminated_sentence_checks_in_near_linear_time() {
 }
 
 #[test]
+fn unbounded_skip_antipatterns_stay_fast_on_a_run_of_opening_quotes() {
+    let text = "\u{201c}".repeat(2000);
+    let start = std::time::Instant::now();
+    let _ = RULES.suggest(&text, &*TOKENIZER);
+    assert!(
+        start.elapsed() < std::time::Duration::from_secs(12),
+        "checking 2,000 opening quotes took {:?}",
+        start.elapsed()
+    );
+}
+
+#[test]
 fn long_unterminated_sentence_is_tagged_the_same_at_every_repeat() {
     let snippet = "“She didn’t know…,” he said — and then…nothing, the old man’s dog ran \u{2028}to the bank and ";
     let copies = 120;
