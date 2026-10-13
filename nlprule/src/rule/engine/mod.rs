@@ -64,7 +64,10 @@ impl TokenEngine {
 pub enum Engine {
     Token(TokenEngine),
     // regex with the `fancy_regex` backend is large on the stack
-    Text(Box<Regex>, DefaultHashMap<GraphId, usize>),
+    Text(
+        Box<Regex>,
+        #[serde(serialize_with = "crate::types::sorted::map")] DefaultHashMap<GraphId, usize>,
+    ),
 }
 
 struct TokenMatches<'a, 't> {

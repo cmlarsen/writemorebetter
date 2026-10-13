@@ -812,7 +812,10 @@ impl From<ModelData> for chunk::Model {
         let mut outcomes: Vec<u8> = Vec::new();
         let mut parameters: Vec<bf16> = Vec::new();
 
-        let pmap = data.pmap.into_iter().map(|(key, value)| {
+        let mut contexts: Vec<_> = data.pmap.into_iter().collect();
+        contexts.sort_unstable_by(|a, b| a.0.cmp(&b.0));
+
+        let pmap = contexts.into_iter().map(|(key, value)| {
             assert_eq!(value.outcomes.len(), value.parameters.len());
 
             let offset = outcomes.len();
@@ -1452,5 +1455,53 @@ pub(in crate::compile) mod rule_filters {
                 )))
             }
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn model_data(keys: &[String], capacity: usize) -> ModelData {
+        let mut pmap = DefaultHashMap::with_capacity_and_hasher(capacity, Default::default());
+        for key in keys {
+            let length = key.chars().count() % 3 + 1;
+            pmap.insert(
+                key.clone(),
+                ContextData {
+                    parameters: (0..length).map(|j| (key.len() + j) as f32).collect(),
+                    outcomes: (0..length).map(|j| (j + key.len()) % 4).collect(),
+                },
+            );
+        }
+        ModelData {
+            outcome_labels: vec!["B-NP".into(), "I-NP".into(), "B-VP".into(), "O".into()],
+            pmap,
+        }
+    }
+
+    #[test]
+    fn chunk_model_serializes_independently_of_pmap_layout() {
+        let mut keys: Vec<String> = (0..500).map(|i| format!("w={}", i)).collect();
+        keys.extend(
+            ["\u{201C}", "\u{2019}s", "\u{2014}", "\u{2026}", "\u{2028}"]
+                .iter()
+                .map(|x| format!("w={}", x)),
+        );
+        let reversed: Vec<String> = keys.iter().rev().cloned().collect();
+
+        let a = model_data(&keys, 0);
+        let b = model_data(&reversed, 4096);
+        assert_ne!(
+            a.pmap.keys().collect::<Vec<_>>(),
+            b.pmap.keys().collect::<Vec<_>>()
+        );
+
+        let a = chunk::Model::from(a);
+        let b = chunk::Model::from(b);
+        assert_eq!(
+            bincode::serialize(&a).unwrap(),
+            bincode::serialize(&b).unwrap()
+        );
     }
 }

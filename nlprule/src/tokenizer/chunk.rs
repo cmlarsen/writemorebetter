@@ -582,8 +582,7 @@ impl MaxentTokenizer {
 /// interned so a tag that occurs in many entries shares one allocation. The serialized (on-disk)
 /// form is still `HashMap<String, Vec<String>>`; [TagDict] deserializes that wire format directly
 /// into its sorted representation so no `HashMap` is built at load.
-#[derive(Debug, Clone, Default, Serialize)]
-#[serde(into = "DefaultHashMap<String, Vec<String>>")]
+#[derive(Debug, Clone, Default)]
 pub(crate) struct TagDict {
     /// Sorted by word; keys are unique.
     entries: Vec<(Box<str>, Box<[u16]>)>,
@@ -691,19 +690,15 @@ impl From<DefaultHashMap<String, Vec<String>>> for TagDict {
     }
 }
 
-impl From<TagDict> for DefaultHashMap<String, Vec<String>> {
-    fn from(dict: TagDict) -> Self {
-        let TagDict { entries, tags, .. } = dict;
-        entries
-            .into_iter()
-            .map(|(word, ids)| {
-                let allowed = ids
-                    .iter()
-                    .map(|id| tags[*id as usize].to_string())
-                    .collect();
-                (word.into_string(), allowed)
-            })
-            .collect()
+impl Serialize for TagDict {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.collect_map(self.entries.iter().map(|(word, ids)| {
+            let allowed: Vec<&str> = ids.iter().map(|id| &*self.tags[*id as usize]).collect();
+            (&**word, allowed)
+        }))
     }
 }
 

@@ -362,6 +362,7 @@ impl DateRange {
 /// from the build directory.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub(crate) struct Adverb {
+    #[serde(serialize_with = "crate::types::sorted::map")]
     pub adverb_to_adjective: DefaultHashMap<String, String>,
     pub adverb: ArgValue,
     pub noun: ArgValue,
