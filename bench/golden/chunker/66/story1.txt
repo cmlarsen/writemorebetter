@@ -107,7 +107,9 @@
 31	34	B-NP-singular,E-NP-singular	you
 35	40	B-VP	learn
 41	42	B-NP-singular	a
-43	52	I-NP-singular	scar—by
+43	47		scar
+47	50		—
+50	52		by
 53	61	E-NP-singular	pressing
 62	64	B-PP	on
 65	67	B-NP-singular,E-NP-singular	it
@@ -1349,7 +1351,9 @@
 58	61	B-NP-singular	the
 62	70	E-NP-singular	crossing
 71	75	B-VP	took
-76	83	B-NP-singular	40–50
+76	78		40
+78	81		–
+81	83		50
 84	91	I-NP-singular	minutes
 92	95	I-NP-singular	and
 96	102	E-NP-singular	nobody
@@ -1903,7 +1907,9 @@
 61	64	E-NP-singular	way
 65	67	B-NP-singular,E-NP-singular	he
 68	74	B-ADVP	always
-75	92	B-NP-singular	sounded—patient
+75	82		sounded
+82	85		—
+85	92		patient
 92	93	I-NP-singular	,
 94	104	I-NP-singular	reasonable
 104	105	I-NP-singular	,
@@ -4823,7 +4829,9 @@
 0	3	B-NP-singular	The
 4	10	E-NP-singular	island
 11	14	B-VP	had
-15	22	B-NP-plural	10–12
+15	17		10
+17	20		–
+20	22		12
 23	32	I-NP-plural	full-time
 33	41	E-NP-plural	families
 42	46	B-VP	left
