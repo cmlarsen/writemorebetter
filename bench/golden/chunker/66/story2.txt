@@ -851,7 +851,9 @@
 8	11	B-NP-singular	the
 12	19	E-NP-singular	trouble
 20	24	B-PP	with
-25	37	B-NP-singular	floods—the
+25	31		floods
+31	34		—
+34	37		the
 38	42	E-NP-singular	fear
 43	45	B-VP	is
 46	56	B-ADJP	neccessary

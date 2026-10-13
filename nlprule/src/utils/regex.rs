@@ -202,6 +202,10 @@ impl Regex {
         result
     }
 
+    pub(crate) fn is_match_uncached(regex_str: &str, text: &str) -> bool {
+        regex_impl::Regex::new(regex_str).is_ok_and(|regex| regex.is_match(text))
+    }
+
     pub fn captures_iter<'r, 't>(&'r self, text: &'t str) -> regex_impl::CaptureMatches<'r, 't> {
         self.regex().captures_iter(text)
     }

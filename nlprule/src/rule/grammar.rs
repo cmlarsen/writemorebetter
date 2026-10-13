@@ -349,7 +349,7 @@ impl Match {
     ///
     /// A match that synthesizes several forms yields several alternatives; each is converted with
     /// the configured case conversion, matching the point at which LanguageTool converts case.
-    fn forms(
+    pub(crate) fn forms(
         &self,
         sentence: &MatchSentence,
         graph: &MatchGraph,

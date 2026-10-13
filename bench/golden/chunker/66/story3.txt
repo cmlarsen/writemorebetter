@@ -4349,7 +4349,9 @@
 13	17	I-VP	been
 18	23	B-ADJP	empty
 24	27	B-PP	for
-28	35	B-NP-plural	12–15
+28	30		12
+30	33		–
+33	35		15
 36	41	E-NP-plural	years
 41	42	O	,
 43	46	O	and
