@@ -2,6 +2,7 @@
 use fst::{IntoStreamer, Map, Streamer};
 use serde::{Deserialize, Serialize};
 use std::{
+    borrow::Cow,
     cmp::Ordering,
     collections::{BTreeSet, BinaryHeap, HashSet},
     ops::{Deref, DerefMut},
@@ -415,6 +416,21 @@ impl VariantChecker {
     ///     If they are `false`, they need to be checked separately.  
     fn check(&self, fst: &Map<&[u8]>, tokens: &[Token], correct_mask: &mut [bool]) {
         let word = tokens[0].word().text().as_str();
+        correct_mask[0] = self.check_separated(fst, word);
+
+        if let Some(matching_cont) = self
+            .matching_continuation(self.multiwords.get(word), tokens)
+            .or_else(|| self.matching_continuation(self.user.multiwords.get(word), tokens))
+        {
+            correct_mask[..1 + matching_cont.len()]
+                .iter_mut()
+                .for_each(|x| *x = true);
+        }
+    }
+
+    /// Checks one word like [`VariantChecker::check_word`], also accepting a word whose
+    /// hyphen- or dash-separated parts are all correct.
+    fn check_separated(&self, fst: &Map<&[u8]>, word: &str) -> bool {
         let mut word_is_correct = self.check_word(fst, word, true);
 
         if !word_is_correct {
@@ -437,16 +453,18 @@ impl VariantChecker {
             }
         }
 
-        correct_mask[0] = word_is_correct;
+        word_is_correct
+    }
 
-        if let Some(matching_cont) = self
-            .matching_continuation(self.multiwords.get(word), tokens)
-            .or_else(|| self.matching_continuation(self.user.multiwords.get(word), tokens))
-        {
-            correct_mask[..1 + matching_cont.len()]
-                .iter_mut()
-                .for_each(|x| *x = true);
-        }
+    /// Whether `word`, standing alone, is correct: a known or user word, a word whose
+    /// separated parts are all correct, or a phrase list entry with no continuation.
+    fn is_correct(&self, fst: &Map<&[u8]>, word: &str) -> bool {
+        let standalone = |continuations: Option<&Vec<Vec<String>>>| {
+            continuations.is_some_and(|conts| conts.iter().any(Vec::is_empty))
+        };
+        self.check_separated(fst, word)
+            || standalone(self.multiwords.get(word))
+            || standalone(self.user.multiwords.get(word))
     }
 
     /// Finds a continuation of `continuations` that matches the tokens after the first one.
@@ -759,6 +777,16 @@ impl Spell {
         self.user.entries.iter().cloned().collect()
     }
 
+    /// A read-only view of the speller for single-word queries, or `None` when no variant is
+    /// selected (spellchecking is disabled).
+    pub fn speller(&self) -> Option<Speller<'_>> {
+        let checker = self.variant_checker.as_ref()?;
+        Some(Speller {
+            checker,
+            fst: Map::new(self.fst.as_slice()).expect("serialized fst must be valid."),
+        })
+    }
+
     /// Runs the spellchecking algorithm on all tokens and returns suggestions.
     pub fn suggest(&self, sentence: &Sentence) -> Vec<Suggestion> {
         let tokens = sentence.tokens();
@@ -793,6 +821,49 @@ impl Spell {
         }
 
         suggestions
+    }
+}
+
+/// Read-only single-word queries against a [Spell] for its selected variant, obtained by
+/// [Spell::speller]. Rule filters use it to ask the speller while a rule is matching.
+#[derive(Debug)]
+pub struct Speller<'a> {
+    checker: &'a VariantChecker,
+    fst: Map<&'a [u8]>,
+}
+
+impl<'a> Speller<'a> {
+    /// Gets the selected variant.
+    pub fn variant(&self) -> &Variant {
+        &self.checker.variant
+    }
+
+    /// Whether `word` is spelled correctly on its own, by the same checks the spellchecker
+    /// applies to a single token (including the user dictionary). Surrounding whitespace is
+    /// ignored and a curly apostrophe counts as a straight one, as the tokenizer normalizes it.
+    pub fn is_correct(&self, word: &str) -> bool {
+        self.checker.is_correct(&self.fst, &Self::normalize(word))
+    }
+
+    /// At most `n` candidate spellings for `word`, best first, with straight apostrophes. The
+    /// search does not check `word` first, so a correct word may be among its own candidates.
+    pub fn suggest(&self, word: &str, n: usize) -> Vec<String> {
+        let word = Self::normalize(word);
+        if word.is_empty() {
+            return Vec::new();
+        }
+        let mut suggestions = self.checker.search(&self.fst, &word);
+        suggestions.truncate(n);
+        suggestions
+    }
+
+    fn normalize(word: &str) -> Cow<'_, str> {
+        let word = word.trim();
+        if word.contains('\u{2019}') {
+            Cow::Owned(word.replace('\u{2019}', "'"))
+        } else {
+            Cow::Borrowed(word)
+        }
     }
 }
 

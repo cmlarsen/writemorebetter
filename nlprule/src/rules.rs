@@ -226,6 +226,7 @@ impl Rules {
         parallel: bool,
     ) -> Vec<Suggestion> {
         let spell_suggestions = self.spell.suggest(sentence);
+        let speller = self.spell.speller();
         let sentence = MatchSentence::new(sentence);
 
         let mut output: Vec<(usize, Suggestion)> = self
@@ -236,7 +237,12 @@ impl Rules {
             .map(|(i, rule)| {
                 let mut output = Vec::new();
 
-                for suggestion in rule.apply(&self.parts, &sentence, self.articles.as_ref()) {
+                for suggestion in rule.apply(
+                    &self.parts,
+                    &sentence,
+                    self.articles.as_ref(),
+                    speller.as_ref(),
+                ) {
                     output.push((i, suggestion));
                 }
 
@@ -368,9 +374,15 @@ impl Rules {
     }
 
     /// Tests one rule's examples against `tokenizer`, supplying this set's shared article word
-    /// lists and part pool (the `+DT`/`+INDT` determiner synthesis needs the former).
+    /// lists and part pool (the `+DT`/`+INDT` determiner synthesis needs the former) and its
+    /// speller for the selected variant (the speller-backed rule filters need it).
     pub fn test_rule(&self, rule: &Rule, tokenizer: &Tokenizer) -> bool {
-        rule.test(tokenizer, &self.parts, self.articles.as_ref())
+        rule.test(
+            tokenizer,
+            &self.parts,
+            self.articles.as_ref(),
+            self.spell.speller().as_ref(),
+        )
     }
 }
 

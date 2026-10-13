@@ -8,6 +8,15 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
 # Unreleased
 
+### Added
+
+- **Rule filters can query the speller while a rule matches.** `Spell::speller()` returns a
+  read-only `Speller` for the selected variant with `is_correct(word)` and `suggest(word, n)`,
+  and the grammar-rule filters receive it alongside the rule match, ready for the speller-backed
+  filter ports ([#70](https://github.com/cmlarsen/writemorebetter/issues/70)). A curly
+  apostrophe counts as a straight one and surrounding whitespace (including U+2028) is ignored.
+  Checking output is unchanged.
+
 ### Fixed
 
 - **All-caps proper nouns were tagged as unknown words.** The English tagger now looks up an

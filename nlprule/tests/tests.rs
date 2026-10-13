@@ -2300,3 +2300,40 @@ fn grammar_include_skipped_adds_the_skipped_tokens() {
         replacements
     );
 }
+
+#[test]
+fn speller_needs_a_variant() {
+    assert!(RULES.spell().speller().is_none());
+}
+
+#[test]
+fn speller_answers_single_word_queries_in_fiction_text() {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    rules.spell_mut().options_mut().variant = Some(rules.spell().variant("en_US").unwrap());
+    rules.add_words(["Zar\u{2019}khan", "Xylophonix"]);
+    let speller = rules.spell().speller().unwrap();
+    assert_eq!(speller.variant().as_str(), "en_US");
+
+    let text = "\u{201c}I didn\u{2019}t know,\u{201d} she said\u{2026} \u{2018}Patenice\u{2014}always.\u{2019}\u{2028}Teh end, O\u{2019}Brien.";
+    let misspelled: Vec<String> = token_texts(text)
+        .into_iter()
+        .filter(|word| !speller.is_correct(word))
+        .collect();
+    assert_eq!(misspelled, vec!["Patenice", "Teh"]);
+
+    assert!(speller.is_correct("O\u{2019}Brien"));
+    assert!(speller.is_correct("Zar\u{2019}khan"));
+    assert!(speller.is_correct("Zar'khan"));
+    assert!(speller.is_correct("\u{2028}"));
+    assert!(speller.is_correct("well-known\u{2028}"));
+    assert!(!speller.is_correct("Patenice\u{2028}"));
+
+    assert!(speller.suggest("\u{2028}", 5).is_empty());
+    assert_eq!(speller.suggest("teh", 1), vec!["the"]);
+    assert!(speller
+        .suggest("O\u{2019}Brein", 5)
+        .contains(&"O'Brien".to_string()));
+    assert!(speller
+        .suggest("Xylophoni", 5)
+        .contains(&"Xylophonix".to_string()));
+}
