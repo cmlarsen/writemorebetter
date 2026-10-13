@@ -14,6 +14,12 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   all-uppercase word in title case when neither its own form nor its lowercase form is in the
   dictionary, as LanguageTool 6.6 does, so `SCHWARZWALD` is tagged `Schwarzwald/NNP` and
   `TYPOS/IM_I_M/0` passes ([#111](https://github.com/cmlarsen/writemorebetter/issues/111)).
+- **Edge cases in the rule compiler and tagger.** A quantifier on an optional regex assertion
+  (`x$?+y`, `x$?{2}y`) now compiles to `xy` as Java matches it, instead of re-binding the
+  quantifier to the previous atom; a bounded lookbehind with more than 256 variants now reports
+  that cap instead of "unbounded length"; and the all-caps title-case lookup no longer runs for
+  compound-split parts that disable lowercase lookup. No shipped rule or config hits these, so
+  checking output is unchanged ([#117](https://github.com/cmlarsen/writemorebetter/issues/117)).
 
 ### Changed
 

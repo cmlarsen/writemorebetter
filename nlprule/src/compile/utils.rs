@@ -263,6 +263,7 @@ mod regex {
                         Ast::Assertion(_),
                     ) => Ast::Empty(zero_span()),
                     (_, Ast::Assertion(_)) => (*repetition.ast).clone(),
+                    (_, Ast::Empty(_)) => Ast::Empty(zero_span()),
                     (RepetitionKind::Range(_), Ast::Repetition(_)) => (*repetition.ast).clone(),
                     (RepetitionKind::OneOrMore, Ast::Repetition(_)) if repetition.greedy => {
                         Ast::Group(Group {
@@ -520,6 +521,25 @@ mod regex {
         }
     }
 
+    fn max_len_is_bounded(ast: &Ast) -> bool {
+        if fixed_len(ast).is_some() {
+            return true;
+        }
+
+        match ast {
+            Ast::Group(group) => max_len_is_bounded(&group.ast),
+            Ast::Concat(concat) => concat.asts.iter().all(max_len_is_bounded),
+            Ast::Alternation(alternation) => alternation.asts.iter().all(max_len_is_bounded),
+            Ast::Repetition(repetition) => match &repetition.op.kind {
+                RepetitionKind::ZeroOrMore
+                | RepetitionKind::OneOrMore
+                | RepetitionKind::Range(RepetitionRange::AtLeast(_)) => false,
+                _ => max_len_is_bounded(&repetition.ast),
+            },
+            _ => true,
+        }
+    }
+
     fn expand_lookbehind(group: &Group) -> Result<Option<Ast>, Error> {
         let name = match lookaround_name(group) {
             Some(name) => name,
@@ -547,7 +567,14 @@ mod regex {
         }
 
         let variants = fixed_variants(&body).ok_or_else(|| {
-            Error::Unexpected("lookbehind of unbounded length is not supported.".into())
+            Error::Unexpected(if max_len_is_bounded(&body) {
+                format!(
+                    "lookbehind with more than {} variants is not supported.",
+                    MAX_LOOKBEHIND_VARIANTS
+                )
+            } else {
+                "lookbehind of unbounded length is not supported.".into()
+            })
         })?;
 
         let mut by_len: Vec<(usize, Vec<Ast>)> = Vec::new();
@@ -937,6 +964,41 @@ mod regex {
         fn unbounded_lookbehind_is_an_error() {
             assert!(from_java_regex(r"(?<!a+)b", true, false).is_err());
             assert!(from_java_regex(r"(?<=(a|bc))d", true, false).is_err());
+        }
+
+        #[test]
+        fn lookbehind_over_variant_cap_reports_the_cap() {
+            let err = from_java_regex(r"(?<!a?b?c?d?e?f?g?h?i?)x", true, false).unwrap_err();
+            assert!(
+                err.to_string().contains("more than 256 variants"),
+                "{}",
+                err
+            );
+
+            let err = from_java_regex(r"(?<!a?“?—?…?’?\u2028?g?h?i?)x", true, false).unwrap_err();
+            assert!(
+                err.to_string().contains("more than 256 variants"),
+                "{}",
+                err
+            );
+
+            let err = from_java_regex(r"(?<!a?b+)x", true, false).unwrap_err();
+            assert!(err.to_string().contains("unbounded length"), "{}", err);
+        }
+
+        #[test]
+        fn quantified_optional_assertion_is_empty() {
+            assert_eq!(from_java_regex(r"x$?+y", true, false).unwrap(), r"xy");
+            assert_eq!(from_java_regex(r"x$?{2}y", true, false).unwrap(), r"xy");
+            assert_eq!(from_java_regex(r"x\b?*y", true, false).unwrap(), r"xy");
+
+            assert_eq!(matches(&compiled(r"x$?+y"), "xxy xy y"), vec!["xy", "xy"]);
+            assert_eq!(matches(&compiled(r"x$?{2}y"), "xxy"), vec!["xy"]);
+            assert_eq!(matches(&compiled("“$?+—"), "““— “—"), vec!["“—", "“—"]);
+            assert_eq!(
+                matches(&compiled("…$?{2}\u{2028}"), "……\u{2028}"),
+                vec!["…\u{2028}"]
+            );
         }
 
         #[test]
