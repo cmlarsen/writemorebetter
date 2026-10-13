@@ -6,6 +6,17 @@ inherited 0.6.4 track this project's own release line. Each version is a top-lev
 `# <version>` heading; the Release workflow copies that section verbatim into the GitHub
 release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
+# 0.7.1 (2026-10-12)
+
+### Fixed
+
+- **The Swift package failed to resolve from GitHub.** `Package.swift` read the released
+  XCFramework URL and checksum from a sibling `release.json`, which SwiftPM cannot see when
+  it compiles a remote dependency's manifest, so every consumer hit a `fatalError` at
+  manifest load. The two values are now literals in `Package.swift`, rewritten by the
+  release workflow, and the consumer check resolves the package as a git dependency
+  ([#107](https://github.com/cmlarsen/writemorebetter/pull/107)).
+
 # 0.7.0 (2026-10-12)
 
 **First writemorebetter release.**
