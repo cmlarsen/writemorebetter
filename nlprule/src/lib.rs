@@ -166,7 +166,8 @@ pub const TOKENIZER_FORMAT_VERSION: u32 = 10;
 /// replacement tables, filter tables, text-engine group maps) are written in sorted key order, as
 /// in tokenizer version 8.
 /// Version 12: `SpellLangOptions::word_chars` was added.
-pub const RULES_FORMAT_VERSION: u32 = 12;
+/// Version 13: `Rule::suppress_misspelled` and `Synthesizer::suppress_misspelled` were added.
+pub const RULES_FORMAT_VERSION: u32 = 13;
 
 /// The longest engine version string accepted in a binary header.
 const MAX_ENGINE_VERSION_LEN: usize = 256;

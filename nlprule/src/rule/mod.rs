@@ -343,6 +343,10 @@ impl<'a, 't> Iterator for Suggestions<'a, 't> {
                 .flatten()
                 .collect();
 
+            if rule.suppress_misspelled && replacements.is_empty() {
+                return None;
+            }
+
             // A rule without a <suggestion> still reports a match, with its
             // message and no replacement (LanguageTool's behaviour). Such a rule
             // never has replacements, so mark it here to emit the match below.
@@ -589,6 +593,9 @@ pub struct Rule {
     pub(crate) examples: Examples,
     pub(crate) suggesters: Vec<grammar::Synthesizer>,
     pub(crate) message: grammar::Synthesizer,
+    /// LanguageTool's `<message suppress_misspelled="yes">`: a match whose suggestions were all
+    /// suppressed is not reported.
+    pub(crate) suppress_misspelled: bool,
     pub(crate) start: GraphId,
     pub(crate) end: GraphId,
     pub(crate) url: Option<String>,

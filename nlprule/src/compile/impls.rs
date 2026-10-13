@@ -1122,9 +1122,11 @@ mod composition {
             // indexed by `k` and holds `part index + 1` (see `GraphIndex`).
             let mut id_to_idx: Vec<u32> = vec![0];
 
-            let required_key = if start_keys.is_none() {
+            let required_key = {
+                let skip_first = usize::from(start_keys.is_some());
                 parts
                     .iter()
+                    .skip(skip_first)
                     .filter(|part| part.quantifier.min > 0)
                     .filter_map(|part| {
                         let mut keys = Vec::new();
@@ -1139,8 +1141,6 @@ mod composition {
                     })
                     .max_by_key(|key| key.text.len())
                     .map(Box::new)
-            } else {
-                None
             };
 
             for (i, part) in parts.iter().enumerate() {
