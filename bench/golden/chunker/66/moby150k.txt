@@ -11786,7 +11786,7 @@
 8	13		Stern
 14	17	B-NP-singular,E-NP-singular	all
 17	18	O	!
-18	21	O	'
+18	21	O	’
 22	31	B-VP	exclaimed
 32	35	B-NP-singular	the
 36	40	E-NP-singular	mate
@@ -11830,7 +11830,7 @@
 215	219	B-NP-plural	your
 223	228	E-NP-plural	lives
 228	229	O	!
-229	232		'
+229	232		’
 232	235		”
 ## sentence
 @	—_	NN	B-NP
@@ -19063,7 +19063,7 @@
 80	83		The
 84	88	E-NP-singular	Trap
 88	89	O	!
-89	92	O	'
+89	92	O	’
 ## sentence
 @	Moving	VBG	B-VP
 @	on	IN	B-ADVP
@@ -47423,7 +47423,7 @@
 269	271	B-PRT	up
 273	278	B-NP-singular,E-NP-singular	Jonah
 278	279	O	.
-279	282		'
+279	282		’
 282	285		”
 ## sentence
 @	“Shipmates	NNS	B-NP
@@ -49288,7 +49288,7 @@
 9	13	B-VP	's
 14	19	B-NP-singular,E-NP-singular	there
 19	20	O	?
-20	23	O	'
+20	23	O	’
 24	29	B-VP	cries
 30	33	B-NP-singular	the
 34	41	E-NP-singular	Captain
@@ -49311,7 +49311,7 @@
 117	121	B-VP	's
 122	127	B-NP-singular,E-NP-singular	there
 127	128	O	?
-128	131	O	'
+128	131	O	’
 ## sentence
 @	Oh	UH	B-INTJ
 @	!	.	O
@@ -49399,7 +49399,7 @@
 63	64	O	,
 65	68	B-NP-singular,E-NP-singular	sir
 68	69	O	?
-69	72	O	'
+69	72	O	’
 ## sentence
 @	Thus	RB	B-ADVP
 @	far	RB	I-ADVP
@@ -49505,7 +49505,7 @@
 26	32	I-NP-singular	coming
 33	37	E-NP-singular	tide
 37	38	O	,
-38	41	O	'
+38	41	O	’
 42	44	B-PP	at
 45	49	B-NP-singular	last
 50	52	E-NP-singular	he
@@ -49542,7 +49542,7 @@
 12	13	I-NP-singular	,
 14	17	E-NP-singular	sir
 17	18	O	?
-18	21		'
+18	21		’
 21	24		—
 24	27		‘
 27	31		Soon
@@ -49556,7 +49556,7 @@
 68	69	B-NP-singular	a
 71	80	E-NP-singular	passenger
 80	81	O	.
-81	84	O	'
+81	84	O	’
 ## sentence
 @	Ha	NNP	B-NP
 @	!	.	O
@@ -49632,7 +49632,7 @@
 15	19	B-PP	with
 20	22	B-NP-singular,E-NP-singular	ye
 22	23	O	,
-23	26		'
+23	26		’
 26	29		—
 29	31		he
 32	36	B-VP	says
@@ -49653,7 +49653,7 @@
 89	92	I-VP	pay
 93	96	B-ADVP	now
 96	97	O	.
-97	100	O	'
+97	100	O	’
 ## sentence
 @	For	IN	B-SBAR
 @	it	PRP	B-NP
@@ -50116,7 +50116,7 @@
 26	27	O	,
 28	31	B-NP-singular,E-NP-singular	Sir
 31	32	O	,
-32	35	O	'
+32	35	O	’
 36	40	B-VP	says
 41	46	B-NP-singular,E-NP-singular	Jonah
 47	50	B-ADVP	now
@@ -50130,7 +50130,7 @@
 78	82	B-VP	need
 83	88		sleep
 88	89		.
-89	92	O	'
+89	92	O	’
 ## sentence
 @	‘Thou	PRP	B-NP
 @	lookest	VBP	B-VP
@@ -50154,7 +50154,7 @@
 16	20	B-PP	like
 21	23	B-NP-singular,E-NP-singular	it
 23	24	O	,
-24	27	O	'
+24	27	O	’
 28	32	B-VP	says
 33	36	B-NP-singular	the
 37	44	E-NP-singular	Captain
@@ -50165,7 +50165,7 @@
 60	63	B-NP-singular	thy
 64	68	E-NP-singular	room
 68	69	O	.
-69	72	O	'
+69	72	O	’
 ## sentence
 @	Jonah	NNP	B-NP
 @	enters	VBZ	B-VP
@@ -50754,7 +50754,7 @@
 23	25	B-PP	in
 27	29	B-NP-singular,E-NP-singular	me
 29	30	O	!
-30	33	O	'
+30	33	O	’
 34	36	B-NP-singular,E-NP-singular	he
 37	43	B-VP	groans
 43	44	O	,
@@ -50777,7 +50777,7 @@
 116	118	B-PP	in
 119	130	B-NP-singular,E-NP-singular	crookedness
 130	131	O	!
-131	134	O	'
+131	134	O	’
 ## sentence
 @	“Like	IN	B-PP
 @	one	CD	B-NP
@@ -51525,7 +51525,7 @@
 @	'	''	O
 0	5	B-VP	arise
 5	6	O	!
-6	9	O	'
+6	9	O	’
 ## sentence
 @	Startled	VBN	B-VP
 @	from	IN	B-PP
@@ -52181,7 +52181,7 @@
 11	12	B-NP-singular	a
 13	19	E-NP-singular	Hebrew
 19	20	O	,
-20	23	O	'
+20	23	O	’
 24	26	B-NP-singular,E-NP-singular	he
 27	32		cries
 32	35		—
@@ -52207,7 +52207,7 @@
 114	117	I-NP-singular	dry
 118	122	E-NP-singular	land
 122	123	O	!
-123	126	O	'
+123	126	O	’
 ## sentence
 @	Fear	NN	B-NP
 @	him	PRP	B-NP
@@ -53886,7 +53886,7 @@
 160	163	B-NP-plural	the
 164	168	E-NP-plural	seas
 168	169	O	,
-169	172	O	'
+169	172	O	’
 173	178	B-ADVP	where
 179	182	B-NP-plural	the
 183	190	I-NP-plural	eddying
@@ -53908,7 +53908,7 @@
 273	276	B-NP-singular	his
 277	281	E-NP-singular	head
 281	282	O	,
-282	285	O	'
+282	285	O	’
 287	290	O	and
 291	294	B-NP-singular	all
 295	298	I-NP-singular	the
@@ -54138,7 +54138,7 @@
 224	227	I-NP-singular	dry
 228	232	E-NP-singular	land
 232	233	O	;
-233	236	B-NP-singular,E-NP-singular	'
+233	236	B-NP-singular,E-NP-singular	’
 238	242	B-ADVP	when
 243	246	B-NP-singular	the
 247	251	E-NP-singular	word
