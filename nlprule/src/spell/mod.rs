@@ -166,6 +166,8 @@ pub(crate) struct SpellLangOptions {
     /// Variants of the language (e.g. "en_US", "en_GB") to consider for spellchecking.
     pub variants: Vec<Variant>,
     pub split_hyphens: bool,
+    #[serde(default)]
+    pub word_chars: Vec<(char, char)>,
 }
 
 impl Default for SpellOptions {
@@ -224,18 +226,17 @@ impl UserWords {
     }
 }
 
-/// Splits a user entry the way the tokenizer splits an unknown word: on whitespace and the
-/// splitting characters (which include both apostrophes), keeping every non-whitespace
-/// separator because each becomes its own token, e.g. `"Zar'khan"` -> `["Zar", "'", "khan"]`
-/// and `"St. Petersburg"` -> `["St", ".", "Petersburg"]`.
-fn token_pieces(entry: &str) -> Vec<String> {
-    let split_chars = crate::utils::splitting_chars();
+/// Splits a user entry the way the tokenizer splits an unknown word: on whitespace, the
+/// characters the tokenizer splits on, and both apostrophes, keeping every
+/// non-whitespace separator because each becomes its own token, e.g. `"Zar'khan"` ->
+/// `["Zar", "'", "khan"]` and `"St. Petersburg"` -> `["St", ".", "Petersburg"]`.
+fn token_pieces(entry: &str, word_chars: &[(char, char)]) -> Vec<String> {
     let mut pieces = Vec::new();
     let mut last = 0;
 
-    for (index, matched) in
-        entry.match_indices(|c: char| c.is_whitespace() || split_chars.contains(c))
-    {
+    for (index, matched) in entry.match_indices(|c: char| {
+        crate::tokenizer::is_split_char(word_chars, c) || crate::tokenizer::is_apostrophe(c)
+    }) {
         if last != index {
             pieces.push(entry[last..index].to_owned());
         }
@@ -297,7 +298,12 @@ pub(crate) struct UserMatcher {
 }
 
 impl UserMatcher {
-    fn new(user: &UserWords, max_freq: usize, variant_index: usize) -> Self {
+    fn new(
+        user: &UserWords,
+        max_freq: usize,
+        variant_index: usize,
+        word_chars: &[(char, char)],
+    ) -> Self {
         let mut accepted = HashSet::new();
         let mut multiwords: DefaultHashMap<String, Vec<Vec<String>>> = DefaultHashMap::default();
         let mut suggestion_terms: Vec<(String, u64)> = Vec::new();
@@ -322,7 +328,7 @@ impl UserMatcher {
                     accepted.insert(format!("{form}'"));
                 }
 
-                let pieces = token_pieces(&form);
+                let pieces = token_pieces(&form, word_chars);
                 if pieces.len() > 1 {
                     for variant in continuation_variants(&pieces) {
                         multiwords
@@ -662,7 +668,12 @@ impl Spell {
         }
 
         checker.multiwords = multiwords;
-        checker.user = UserMatcher::new(&self.user, self.max_freq, variant_index);
+        checker.user = UserMatcher::new(
+            &self.user,
+            self.max_freq,
+            variant_index,
+            &self.lang_options.word_chars,
+        );
         self.variant_checker = Some(checker);
     }
 
@@ -670,7 +681,12 @@ impl Spell {
     /// expensive) multiword filtering alone. Used when the user dictionary changes.
     fn rebuild_user(&mut self) {
         if let Some(checker) = self.variant_checker.as_mut() {
-            checker.user = UserMatcher::new(&self.user, self.max_freq, checker.variant_index);
+            checker.user = UserMatcher::new(
+                &self.user,
+                self.max_freq,
+                checker.variant_index,
+                &self.lang_options.word_chars,
+            );
         }
     }
 
@@ -798,19 +814,47 @@ mod tests {
 
     #[test]
     fn token_pieces_mirrors_tokenization() {
-        assert_eq!(token_pieces("Xylophonix"), vec!["Xylophonix"]);
-        assert_eq!(token_pieces("Xyzzy Plugh"), vec!["Xyzzy", "Plugh"]);
-        assert_eq!(token_pieces("Zar'khan"), vec!["Zar", "'", "khan"]);
+        assert_eq!(token_pieces("Xylophonix", &[]), vec!["Xylophonix"]);
+        assert_eq!(token_pieces("Xyzzy Plugh", &[]), vec!["Xyzzy", "Plugh"]);
+        assert_eq!(token_pieces("Zar'khan", &[]), vec!["Zar", "'", "khan"]);
         assert_eq!(
-            token_pieces("St. Petersburg"),
+            token_pieces("St. Petersburg", &[]),
             vec!["St", ".", "Petersburg"]
         );
-        assert_eq!(token_pieces("Krell-Tarn"), vec!["Krell-Tarn"]);
+        assert_eq!(token_pieces("Krell-Tarn", &[]), vec!["Krell-Tarn"]);
+    }
+
+    #[test]
+    fn token_pieces_mirrors_word_char_tokenization() {
+        let word_chars = [
+            ('-', '-'),
+            ('0', '9'),
+            ('A', 'Z'),
+            ('a', 'z'),
+            ('\u{2019}', '\u{2019}'),
+        ];
+        assert_eq!(
+            token_pieces("Ka\u{b7}lel", &word_chars),
+            vec!["Ka", "\u{b7}", "lel"]
+        );
+        assert_eq!(
+            token_pieces("Zorvath\u{2014}Quill", &word_chars),
+            vec!["Zorvath", "\u{2014}", "Quill"]
+        );
+        assert_eq!(
+            token_pieces("Zar\u{2019}khan", &word_chars),
+            vec!["Zar", "\u{2019}", "khan"]
+        );
+        assert_eq!(
+            token_pieces("Vel\u{2026}Dor\u{2028}Ash", &word_chars),
+            vec!["Vel", "\u{2026}", "Dor", "Ash"]
+        );
+        assert_eq!(token_pieces("Krell-Tarn", &word_chars), vec!["Krell-Tarn"]);
     }
 
     #[test]
     fn continuation_variants_expand_apostrophes() {
-        let pieces = token_pieces("Zar'khan");
+        let pieces = token_pieces("Zar'khan", &[]);
         let variants = continuation_variants(&pieces);
         assert!(variants.contains(&vec!["Zar".to_string(), "'".into(), "khan".into()]));
         assert!(variants.contains(&vec!["Zar".to_string(), "\u{2019}".into(), "khan".into()]));

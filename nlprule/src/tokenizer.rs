@@ -55,7 +55,7 @@ where
 /// Whether a character is one of the apostrophes LanguageTool treats as part
 /// of a contraction: the ASCII apostrophe and the right single quotation mark.
 #[inline]
-fn is_apostrophe(c: char) -> bool {
+pub(crate) fn is_apostrophe(c: char) -> bool {
     c == '\'' || c == '\u{2019}'
 }
 
@@ -72,6 +72,15 @@ fn in_ranges(ranges: &[(char, char)], c: char) -> bool {
             }
         })
         .is_ok()
+}
+
+pub(crate) fn is_split_char(word_chars: &[(char, char)], c: char) -> bool {
+    c.is_whitespace()
+        || if word_chars.is_empty() {
+            crate::utils::splitting_chars().contains(c)
+        } else {
+            !in_ranges(word_chars, c)
+        }
 }
 
 /// Whether `c` is a variation selector (U+FE00..U+FE0F), which LanguageTool
@@ -473,14 +482,7 @@ impl Tokenizer {
         let mut tokens: Vec<(&'t str, Option<String>)> = Vec::new();
 
         let word_chars = &self.lang_options.word_chars;
-        let split_char = |c: char| {
-            c.is_whitespace()
-                || if word_chars.is_empty() {
-                    crate::utils::splitting_chars().contains(c)
-                } else {
-                    !in_ranges(word_chars, c)
-                }
-        };
+        let split_char = |c: char| is_split_char(word_chars, c);
         let split_text = |text: &'t str| {
             let mut tokens = Vec::new();
             if self.lang_options.split_contractions {
@@ -541,9 +543,12 @@ impl Tokenizer {
                 .expect("Each token str is a slice of the text str.");
 
             if !word_chars.is_empty() && token.chars().count() == 1 {
-                if let Some((previous, None)) = ranges.last_mut() {
+                if let Some((previous, previous_normalized)) = ranges.last_mut() {
                     if previous.end == byte_start && token.chars().all(is_variation_selector) {
                         previous.end = byte_start + token.len();
+                        if let Some(previous_normalized) = previous_normalized {
+                            previous_normalized.push_str(token);
+                        }
                         continue;
                     }
                 }

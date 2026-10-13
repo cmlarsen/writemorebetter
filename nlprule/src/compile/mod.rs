@@ -170,7 +170,7 @@ pub fn compile(
             lang_code: lang_code.clone(),
         })?;
 
-    let spellchecker_lang_options =
+    let mut spellchecker_lang_options =
         utils::spellchecker_lang_options(&lang_code).ok_or_else(|| {
             Error::LanguageOptionsDoNotExist {
                 lang_code: lang_code.clone(),
@@ -248,6 +248,7 @@ pub fn compile(
         tokenizer_lang_options,
     )?;
     tokenizer.to_writer(tokenizer_dest)?;
+    spellchecker_lang_options.word_chars = tokenizer.lang_options().word_chars.clone();
 
     let spell = if paths.spell_dir_path.exists() {
         info!("Creating spellchecker.");

@@ -106,6 +106,21 @@ fn tokenizer_attaches_variation_selectors() {
     );
 }
 
+#[test]
+fn tokenizer_attaches_variation_selectors_to_normalized_clitics() {
+    for text in [
+        "He said isn\u{2019}t\u{fe0f} so.",
+        "He said isn't\u{fe0f} so.",
+    ] {
+        assert_eq!(
+            token_texts(text),
+            vec!["He", "said", "is", "n't\u{fe0f}", "so", "."],
+            "{}",
+            text
+        );
+    }
+}
+
 #[quickcheck]
 fn can_tokenize_anything(text: String) -> bool {
     let _: Vec<_> = TOKENIZER.pipe(&text).collect();
@@ -477,6 +492,29 @@ fn user_dictionary_accented_and_em_dash_names() {
 }
 
 #[test]
+fn user_dictionary_entries_with_split_characters() {
+    let words = [
+        "Ka\u{b7}lel",
+        "Zorvath\u{2014}Quill",
+        "Vel\u{2019}dara\u{2014}Quinn",
+    ];
+    assert!(!spelling_errors("Ka\u{b7}lel smiled at Zorvath\u{2014}Quill.").is_empty());
+
+    for text in [
+        "Ka\u{b7}lel smiled at Zorvath\u{2014}Quill.",
+        "\u{201c}Ka\u{b7}lel\u{2026}\u{201d} Zorvath\u{2014}Quill\u{2019}s voice trailed off.",
+        "Vel\u{2019}dara\u{2014}Quinn left. Vel'dara\u{2014}Quinn returned.",
+        "Nothing.\u{2028}Ka\u{b7}lel and Vel\u{2019}dara\u{2014}Quinn waited.",
+    ] {
+        assert!(
+            spelling_errors_with_words(&words, text).is_empty(),
+            "{}",
+            text
+        );
+    }
+}
+
+#[test]
 fn user_dictionary_multiword_entry() {
     assert_eq!(
         spelling_errors("They reached Xyzzy Plugh at dusk."),
@@ -743,7 +781,7 @@ fn builtin_word_repeat_ignores_numbers() {
 
 #[test]
 fn builtin_word_repeat_ignores_em_dash() {
-    // "the—the" is a single token, so it is not a repetition of two words.
+    // The em dash is a token between the two occurrences of "the".
     assert!(builtin_word_repeat_flags("the\u{2014}the").is_empty());
 }
 
@@ -1228,8 +1266,8 @@ fn builtin_word_coherency_flags_after_curly_apostrophe() {
 
 #[test]
 fn builtin_word_coherency_flags_across_em_dash() {
-    // The em dash joins neighbouring words into one token, which must not stop
-    // the other variant from being recognised.
+    // The em dash is a token of its own, which must not stop the other variant
+    // from being recognised.
     assert_eq!(
         builtin_word_coherency_flags(
             "The advisor waited\u{2014}impatiently\u{2014}for the adviser."
@@ -1491,16 +1529,16 @@ fn builtin_unpaired_is_wired_into_suggest() {
 }
 
 #[test]
-fn builtin_unpaired_brackets_sees_symbols_merged_into_words() {
-    // The tokenizer produces "[eBook", "_quietly_." and "_)" etc. as single
-    // tokens; the rule still sees the bracket characters inside them.
+fn builtin_unpaired_brackets_pairs_brackets_against_words() {
+    // The rule pairs brackets that sit directly against words, underscores and
+    // full stops.
     assert!(builtin_unpaired_flags("See [eBook #2701] here.").is_empty());
     assert!(builtin_unpaired_flags("He left (_quietly_.) and came back.").is_empty());
 }
 
 #[test]
-fn builtin_unpaired_quotes_sees_mark_merged_into_word() {
-    // "_x“" and "y”_z" are single tokens; the marks still pair.
+fn builtin_unpaired_quotes_pairs_marks_between_underscores() {
+    // The underscores and curly quotes are tokens of their own; the marks still pair.
     assert!(builtin_unpaired_flags("The marks _x\u{201c} and y\u{201d}_z balance.").is_empty());
 }
 
@@ -1614,8 +1652,7 @@ fn builtin_uppercase_sentence_start_ignores_ellipsis_continuation() {
 
 #[test]
 fn builtin_uppercase_sentence_start_ignores_em_dash() {
-    // The em dash joins words into a single token, so "then" is not a sentence
-    // start.
+    // The em dash does not end a sentence, so "then" is not a sentence start.
     assert!(
         builtin_uppercase_sentence_start_flags("He opened the door\u{2014}then stopped.")
             .is_empty()
@@ -1786,8 +1823,7 @@ fn builtin_wrong_word_flags_after_curly_apostrophe() {
 
 #[test]
 fn builtin_wrong_word_flags_around_em_dashes() {
-    // The em dashes join "door—then" into a single token; the flagged word is
-    // still its own token.
+    // The em dash is a token of its own and does not hide the flagged word.
     assert_eq!(
         builtin_wrong_word_flags(
             "She opened the door\u{2014}then the gorilla charged the \
