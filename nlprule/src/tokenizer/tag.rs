@@ -523,7 +523,8 @@ impl Tagger {
     /// - Adds tags for the lower variant of the word (if `add_lower` is `AddLower::Always`).
     /// - Adds tags for the lower variant of the word if no [WordData] is found otherwise.
     /// (if `add_lower` is `AddLower::IfEmpty`).
-    /// - Adds tags for the title-case variant of an all-uppercase word if nothing else matched.
+    /// - Adds tags for the title-case variant of an all-uppercase word if nothing else matched
+    ///   (unless `add_lower` is `AddLower::Never`).
     fn get_strict_tags(&self, word: &str, add_lower: AddLower) -> StrictTagIter {
         let tag_iter = self.get_raw(&word);
         let lower_tag_iter = if (matches!(add_lower, AddLower::Always)
@@ -543,6 +544,7 @@ impl Tagger {
         };
 
         let lower_tag_iter = if self.lang_options.title_case_all_uppercase
+            && !matches!(add_lower, AddLower::Never)
             && tag_iter.len() == 0
             && lower_tag_iter.as_ref().is_none_or(|iter| iter.len() == 0)
             && crate::utils::is_uppercase(word)
@@ -910,6 +912,40 @@ mod tests {
         assert!(tags(&tagger, "SCHWARZWALD").is_empty());
         assert!(tags(&tagger, "D’ARTAGNAN").is_empty());
         assert_eq!(tags(&tagger, "HELLO"), pairs(&[("hello", "UH")]));
+    }
+
+    #[test]
+    fn title_case_lookup_respects_add_lower_never() {
+        let tagger = case_tagger(true);
+        let strict = |word: &str, add_lower: AddLower| {
+            tagger
+                .get_strict_tags(word, add_lower)
+                .map(|data| data.pos().as_str().to_string())
+                .collect::<Vec<_>>()
+        };
+
+        assert!(strict("SCHWARZWALD", AddLower::Never).is_empty());
+        assert!(strict("D’ARTAGNAN", AddLower::Never).is_empty());
+        assert_eq!(strict("SCHWARZWALD", AddLower::IfEmpty), vec!["NNP"]);
+        assert_eq!(strict("ÉCOLE", AddLower::Always), vec!["NNP"]);
+    }
+
+    #[test]
+    fn compound_split_skips_title_case_lookup_without_add_lower() {
+        let tagger = case_tagger(true);
+        let compound = |word: &str, add_lower: bool| {
+            tagger
+                .get_tags_with_options(word, Some(add_lower), Some(true))
+                .map(|data| data.pos().as_str().to_string())
+                .collect::<Vec<_>>()
+        };
+
+        assert!(compound("XXSCHWARZWALD", false).is_empty());
+        assert!(compound("“—SCHWARZWALD", false).is_empty());
+        assert!(compound("…\u{2028}D’ARTAGNAN", false).is_empty());
+        assert_eq!(compound("XXSCHWARZWALD", true), vec!["NNP"]);
+        assert_eq!(compound("“—SCHWARZWALD", true), vec!["NNP"]);
+        assert_eq!(compound("…\u{2028}D’ARTAGNAN", true), vec!["NNP"]);
     }
 
     #[test]
