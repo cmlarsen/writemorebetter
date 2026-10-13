@@ -763,7 +763,6 @@
 2143 | SPELLCHECK/SINGLE | "harpooneer" -> ["harpooner", "harpooned", "harpooners"] | Possibly misspelled word.
 2145 | SPELLCHECK/SINGLE | "Mapple" -> ["Marple", "dapple", "sample", "maple", "Male", "Mantle", "rappel", "dappled", "Mable", "papule"] | Possibly misspelled word.
 2151 | SPELLCHECK/SINGLE | "Mapple" -> ["Marple", "dapple", "sample", "maple", "Male", "Mantle", "rappel", "dappled", "Mable", "papule"] | Possibly misspelled word.
-2154 | COLLOCATIONS/COLLOCATION_ERRORS_BOKOMARU/174 | "come in" -> ["come to", "come into"] | The words "come in" and "come to" have different meanings. "Come in his office" means "have an orgasm in his office". "Come to" or "Come into" means "enter".
 2161 | GRAMMAR/A_NNS/4 | "a\r\nregular stairs" -> ["a regular stair", "regular stairs"] | The plural noun "stairs" cannot be used with the article "a".
 2164 | SPELLCHECK/SINGLE | "Mapple" -> ["Marple", "dapple", "sample", "maple", "Male", "Mantle", "rappel", "dappled", "Mable", "papule"] | Possibly misspelled word.
 2165 | GRAMMAR/A_NNS/2 | "a stairs" -> ["a stair", "stairs"] | The plural noun "stairs" cannot be used with the article "a". Did you mean a stair or stairs?
