@@ -810,7 +810,10 @@ impl From<ModelData> for chunk::Model {
         let mut outcomes: Vec<u8> = Vec::new();
         let mut parameters: Vec<bf16> = Vec::new();
 
-        let pmap = data.pmap.into_iter().map(|(key, value)| {
+        let mut contexts: Vec<_> = data.pmap.into_iter().collect();
+        contexts.sort_unstable_by(|a, b| a.0.cmp(&b.0));
+
+        let pmap = contexts.into_iter().map(|(key, value)| {
             assert_eq!(value.outcomes.len(), value.parameters.len());
 
             let offset = outcomes.len();
