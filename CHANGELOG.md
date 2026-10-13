@@ -8,6 +8,15 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
 # Unreleased
 
+### Added
+
+- **Rule filters can query the speller while a rule matches.** `Spell::speller()` returns a
+  read-only `Speller` for the selected variant with `is_correct(word)` and `suggest(word, n)`,
+  and the grammar-rule filters receive it alongside the rule match, ready for the speller-backed
+  filter ports ([#70](https://github.com/cmlarsen/writemorebetter/issues/70)). A curly
+  apostrophe counts as a straight one and surrounding whitespace (including U+2028) is ignored.
+  Checking output is unchanged.
+
 ### Fixed
 
 - **Contractions, apostrophes and hyphens are handled as in LanguageTool 6.6.** Hyphens at either
@@ -30,6 +39,14 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   all-uppercase word in title case when neither its own form nor its lowercase form is in the
   dictionary, as LanguageTool 6.6 does, so `SCHWARZWALD` is tagged `Schwarzwald/NNP` and
   `TYPOS/IM_I_M/0` passes ([#111](https://github.com/cmlarsen/writemorebetter/issues/111)).
+- **A very long sentence was checked in quadratic time.** Three spots did O(sentence) work per
+  match or per word: a rule with antipatterns re-ran every antipattern over the whole sentence for
+  each candidate match, a disambiguation change re-scanned (and hashed) every token of the sentence
+  for each match, and the chunker's beam search copied each hypothesis's full history at every
+  word. Antipattern spans are now computed once per rule and sentence, a change only looks at the
+  tokens inside its match, and the beam search keeps shared back-pointers. A 5,000-word sentence
+  with no terminator now checks in ~0.8 s instead of ~6.6 s; output is unchanged
+  ([#101](https://github.com/cmlarsen/writemorebetter/issues/101)).
 - **Edge cases in the rule compiler and tagger.** A possessive or counted optional regex assertion
   (`x$?+y`, `x$?{2}y`) now compiles to `xy` as Java matches it, instead of re-binding the
   quantifier to the previous atom; a bounded lookbehind with more than 256 variants now reports
@@ -62,11 +79,6 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   made only of marks or format characters (a lone right-to-left mark, say), which can now stand
   alone. Tokenizer binaries move to format version 10 and rules binaries to 12
   ([#112](https://github.com/cmlarsen/writemorebetter/issues/112)).
-- **A rule's antipatterns are matched once per sentence instead of once per candidate match.**
-  A long sentence with many candidate matches no longer rescans every antipattern for each one,
-  which was cubic in sentence length for rules whose antipatterns use `skip="-1"`: 2,000 `“` in
-  a row took 57 s to check once `skip="-1"` was uncapped, and now take 0.4 s (1.5–2 s before
-  this release). Checking output is unchanged.
 
 # 0.7.1 (2026-10-12)
 

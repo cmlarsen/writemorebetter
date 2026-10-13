@@ -16,13 +16,13 @@ rule set and 34 in LT 5.2. The filters now live in `nlprule/src/rule/filter/`
 | 3 | `org.languagetool.rules.en.DateCheckFilter` | 9 | Vetoes a date whose weekday is wrong; 6.6 also suggests the corrected weekday and day of month. | implemented (both 6.6 and 5.2 semantics) |
 | 4 | `org.languagetool.rules.UnderlineSpacesFilter` | 6 | Extends the highlighted range over whitespace before/after the marker. | implemented |
 | 5 | `org.languagetool.rules.en.OrdinalSuffixFilter` | 5 | Fixes the ordinal suffix of the first suggestion ("11nd" -> "11th"). | implemented |
-| 6 | `…rules.en.EnglishSuppressMisspelledSuggestionsFilter` | 4 | Drops suggestions that are themselves misspelled (and the match if none remain). | skipped — needs the speller at match time |
-| 7 | `org.languagetool.rules.en.FindSuggestionsFilter` | 4 | Generates spelling suggestions for a token and filters them by a target POS tag. | skipped — needs the speller suggestion model |
+| 6 | `…rules.en.EnglishSuppressMisspelledSuggestionsFilter` | 4 | Drops suggestions that are themselves misspelled (and the match if none remain). | skipped — needs the speller at match time (not ported yet, #71) |
+| 7 | `org.languagetool.rules.en.FindSuggestionsFilter` | 4 | Generates spelling suggestions for a token and filters them by a target POS tag. | skipped — needs the speller at match time (not ported yet, #71) |
 | 8 | `org.languagetool.rules.en.NewYearDateFilter` | 4 | Accepts a match in January for a date whose year is one behind, rewriting `{realYear}`. | implemented |
 | 9 | `org.languagetool.rules.DateRangeChecker` | 2 | Keeps the match only when `x >= y` (a reversed day range). | implemented |
 | 10 | `org.languagetool.rules.patterns.RegexAntiPatternFilter` | 2 | Vetoes a `<regexp>`-rule match overlapped by one of the `antipatterns` regexes. | implemented |
 | 11 | `org.languagetool.rules.patterns.ApostropheTypeFilter` | 2 | Keeps the match only if the chosen word does/doesn't carry a typographic apostrophe. | implemented |
-| 12 | `org.languagetool.rules.en.EnglishNumberInWordFilter` | 1 | Suggests the number word / de-numbered form and its spelling suggestions. | skipped — needs the speller suggestion model |
+| 12 | `org.languagetool.rules.en.EnglishNumberInWordFilter` | 1 | Suggests the number word / de-numbered form and its spelling suggestions. | skipped — needs the speller at match time (not ported yet, #71) |
 | 13 | `org.languagetool.rules.en.AdverbFilter` | 1 | Rewrites a suggested adverb into an adjective from a fixed table. | implemented (LGPL table loaded from the build dir) |
 | 14 | `org.languagetool.rules.en.YMDNewYearDateFilter` | 1 | `NewYearDateFilter` for a single `yyyy-mm-dd` token (`{realDate}`). | implemented |
 

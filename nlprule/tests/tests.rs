@@ -2379,3 +2379,137 @@ fn grammar_include_skipped_adds_the_skipped_tokens() {
         replacements
     );
 }
+
+#[test]
+fn long_unterminated_sentence_checks_in_near_linear_time() {
+    // A sentence with no terminator used to be checked in quadratic time: every candidate match
+    // re-ran the rule's antipatterns over the whole sentence, every disambiguation change scanned
+    // every token, and the chunker's beam search copied each hypothesis's history at every word.
+    // This ~3,600-word sentence took ~36s before the fix and ~1s after with the app's profile and
+    // speller; the bound is generous so the test stays reliable on slow machines.
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    let _ = rules.apply_profile(&Profile::fiction());
+    rules.spell_mut().options_mut().variant = Some(rules.spell().variant("en_US").unwrap());
+
+    let snippet =
+        "“We’re not going—not yet…” she said, and the dog’s bark\u{2028}echoed across the \
+                   old man’s field while they waited ";
+    let text = snippet.repeat(200);
+    assert_eq!(TOKENIZER.pipe(&text).count(), 1);
+
+    let start = std::time::Instant::now();
+    let _ = rules.suggest(&text, &*TOKENIZER);
+    assert!(
+        start.elapsed() < std::time::Duration::from_secs(12),
+        "checking a 200-copy unterminated sentence took {:?}",
+        start.elapsed()
+    );
+}
+
+#[test]
+fn long_unterminated_sentence_is_tagged_the_same_at_every_repeat() {
+    let snippet = "“She didn’t know…,” he said — and then…nothing, the old man’s dog ran \u{2028}to the bank and ";
+    let copies = 120;
+    let text = snippet.repeat(copies);
+    let sentences: Vec<_> = TOKENIZER.pipe(&text).collect();
+    assert_eq!(sentences.len(), 1);
+
+    let tokens: Vec<_> = sentences[0].iter().collect();
+    assert_eq!(tokens.len() % copies, 0);
+    let per_copy = tokens.len() / copies;
+    let copy = |i: usize| {
+        tokens[i * per_copy..(i + 1) * per_copy]
+            .iter()
+            .map(|token| {
+                (
+                    token.word().text().as_str().to_string(),
+                    format!("{:?}", token.word().tags()),
+                    token.chunks().to_vec(),
+                )
+            })
+            .collect::<Vec<_>>()
+    };
+
+    let expected = copy(copies / 4);
+    for i in copies / 4..copies * 3 / 4 {
+        assert_eq!(copy(i), expected, "copy {}", i);
+    }
+}
+
+#[test]
+fn speller_needs_a_variant() {
+    assert!(RULES.spell().speller().is_none());
+}
+
+#[test]
+fn speller_answers_single_word_queries_in_fiction_text() {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    rules.spell_mut().options_mut().variant = Some(rules.spell().variant("en_US").unwrap());
+    rules.add_words(["Zar\u{2019}khan", "Xylophonix"]);
+    let speller = rules.spell().speller().unwrap();
+    assert_eq!(speller.variant().as_str(), "en_US");
+
+    let text = "\u{201c}I didn\u{2019}t know,\u{201d} she said\u{2026} \u{2018}Patenice\u{2014}always.\u{2019}\u{2028}Teh end, O\u{2019}Brien.";
+    let misspelled: Vec<String> = token_texts(text)
+        .into_iter()
+        .filter(|word| !speller.is_correct(word))
+        .collect();
+    assert_eq!(misspelled, vec!["Patenice", "Teh"]);
+
+    assert!(speller.is_correct("O\u{2019}Brien"));
+    assert!(speller.is_correct("Zar\u{2019}khan"));
+    assert!(speller.is_correct("Zar'khan"));
+    assert!(speller.is_correct("\u{2028}"));
+    assert!(speller.is_correct("well-known\u{2028}"));
+    assert!(!speller.is_correct("Patenice\u{2028}"));
+
+    assert!(speller.suggest("\u{2028}", 5).is_empty());
+    assert_eq!(speller.suggest("teh", 1), vec!["the"]);
+    assert!(speller
+        .suggest("O\u{2019}Brein", 5)
+        .contains(&"O'Brien".to_string()));
+    assert!(speller
+        .suggest("Xylophoni", 5)
+        .contains(&"Xylophonix".to_string()));
+    assert_eq!(speller.suggest("teh", 3).len(), 3);
+    assert!(speller.suggest("teh", 0).is_empty());
+}
+
+#[test]
+fn speller_accepts_single_word_whitelist_entries() {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    let en_us = rules.spell().variant("en_US").unwrap();
+    {
+        let mut options = rules.spell_mut().options_mut();
+        options.variant = Some(en_us);
+        options.whitelist.insert("Quillfeather".into());
+        options.whitelist.insert("Vharn Keep".into());
+    }
+    let speller = rules.spell().speller().unwrap();
+
+    assert!(speller.is_correct("Quillfeather"));
+    assert!(speller.is_correct("Quillfeather\u{2028}"));
+    assert!(!speller.is_correct("Vharn"));
+}
+
+#[test]
+fn speller_checks_tokens_not_contractions() {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    rules.spell_mut().options_mut().variant = Some(rules.spell().variant("en_US").unwrap());
+    let speller = rules.spell().speller().unwrap();
+
+    let text = "\u{201c}I didn\u{2019}t\u{2026} I won\u{2019}t,\u{201d} she said\u{2014}O\u{2019}Brien\u{2019}s.\u{2028}";
+    for sentence in TOKENIZER.pipe(text) {
+        assert!(rules.spell().suggest(&sentence).is_empty());
+        for token in sentence.tokens() {
+            let word = token.word().text().as_str();
+            assert!(
+                token.ignore_spelling() || speller.is_correct(word),
+                "{:?}",
+                word
+            );
+        }
+    }
+    assert!(!speller.is_correct("didn\u{2019}t"));
+    assert!(speller.is_correct("did") && speller.is_correct("n\u{2019}t"));
+}
