@@ -14,7 +14,8 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   collection in the tokenizer and rules binaries (the tagger's tag store, the spellchecker's maps
   and whitelist, the chunker's tag dictionary, builtin word lists and replacement tables, filter
   tables and text-engine group maps) is now written in sorted key order instead of hash-table
-  iteration order, which differs between x86_64 and aarch64. Checking output is unchanged.
+  iteration order, which differs between x86_64 and aarch64, and the chunker model's parameter
+  arrays are laid out in sorted context order. Checking output is unchanged.
   `TOKENIZER_FORMAT_VERSION` is now 8 and `RULES_FORMAT_VERSION` 11, so binaries built by earlier
   versions must be rebuilt
   ([#103](https://github.com/cmlarsen/writemorebetter/issues/103)).

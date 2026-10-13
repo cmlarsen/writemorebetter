@@ -139,8 +139,9 @@ pub(crate) const RULES_MAGIC: &[u8; 8] = b"WMBRUL01";
 /// Version 6: identical antipattern compositions share entries in `PartPool`.
 /// Version 7: `Composition.required_key` extends the literal prefilter.
 /// Version 8: hashed collections (the tagger's tag store, the chunker's tag dictionary and
-/// text-engine group maps) are written in sorted key order, so the binary no longer depends on
-/// the architecture's hash-table layout.
+/// text-engine group maps) are written in sorted key order, and the chunker model's parameter
+/// arrays are laid out in sorted context order, so the binary no longer depends on the
+/// architecture's hash-table layout.
 pub const TOKENIZER_FORMAT_VERSION: u32 = 8;
 
 /// The on-disk format version of [Rules] binaries.

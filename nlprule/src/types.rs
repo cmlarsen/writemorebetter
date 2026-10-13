@@ -13,9 +13,9 @@ use std::{
     ops::{Add, AddAssign, Range, Sub},
 };
 
-// The hasher is fixed instead of randomly seeded so that these collections
-// serialize in the same order on every run; the compiled data binaries are
-// shipped with SHA256SUMS and must be byte-reproducible.
+// The hasher is fixed instead of randomly seeded. Serialized bytes do not depend
+// on it: these collections are written through `sorted`, which is what keeps the
+// compiled data binaries (shipped with SHA256SUMS) byte-reproducible.
 pub(crate) type DefaultHasher = hash_map::DefaultHasher;
 pub(crate) type DefaultHashMap<K, V> = HashMap<K, V, BuildHasherDefault<DefaultHasher>>;
 pub(crate) type DefaultHashSet<T> = HashSet<T, BuildHasherDefault<DefaultHasher>>;
