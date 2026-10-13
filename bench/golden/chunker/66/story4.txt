@@ -1392,7 +1392,9 @@
 30	31	O	,
 32	35	B-NP-singular,E-NP-singular	who
 36	41	B-VP	lived
-42	47	B-NP-plural	2–3
+42	43		2
+43	46		–
+46	47		3
 48	53	E-NP-plural	hours
 54	56	B-PP	up
 57	60	B-NP-singular	the
