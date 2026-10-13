@@ -5,13 +5,10 @@
 // target: the XCFramework that the same script writes to dist/.
 //
 // Local development (a checkout you just ran the script in) uses the path-based binary target.
-// A released tag has no dist/ — it is git-ignored — so the target uses the url and checksum
-// literals below, which the release workflow rewrites before it tags. They have to be literals
-// inside this file rather than a sibling: SwiftPM compiles a remote dependency's manifest from a
-// virtual filesystem where nothing but the manifest is readable, so any FileManager read of a
-// neighbouring file fails at manifest load for every consumer. SwiftPM caches the evaluated
-// manifest by contents, so `swift package purge-cache` is needed if this checkout was first
-// resolved before the framework was built. See swift/README.md.
+// A released tag has no dist/ — it is git-ignored — so the target falls back to the URL and
+// checksum in release.json, which the release workflow commits before tagging. SwiftPM caches the
+// evaluated manifest by contents, so `swift package purge-cache` is needed if this checkout was
+// first resolved before the framework was built. See swift/README.md.
 import Foundation
 import PackageDescription
 
@@ -25,11 +22,19 @@ if FileManager.default.fileExists(atPath: localFramework) {
         path: "dist/WriteMoreBetterFFI.xcframework"
     )
 } else {
-    ffiTarget = .binaryTarget(
-        name: "WriteMoreBetterFFI",
-        url: "https://github.com/cmlarsen/writemorebetter/releases/download/0.7.0/WriteMoreBetterFFI.xcframework.zip",
-        checksum: "1cc6f089fb3de7682f59f249a4cd5e8a1e53a5456c3250b9fdc07fc4ace71996"
-    )
+    let releaseFile = URL(fileURLWithPath: "\(packageDirectory)/release.json")
+    guard
+        let data = try? Data(contentsOf: releaseFile),
+        let release = try? JSONSerialization.jsonObject(with: data) as? [String: String],
+        let url = release["url"],
+        let checksum = release["checksum"]
+    else {
+        fatalError("""
+            Could not read release.json next to Package.swift, and dist/WriteMoreBetterFFI.xcframework \
+            does not exist. Run scripts/build-xcframework.sh to build the framework locally.
+            """)
+    }
+    ffiTarget = .binaryTarget(name: "WriteMoreBetterFFI", url: url, checksum: checksum)
 }
 
 let package = Package(
