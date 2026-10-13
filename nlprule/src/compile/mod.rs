@@ -78,6 +78,8 @@ struct TokenizerOptionsOverride {
     split_contractions: Option<bool>,
     #[serde(default)]
     chunk_number_from_last_token: Option<bool>,
+    #[serde(default)]
+    word_chars: Option<String>,
 }
 
 #[derive(Error, Debug)]
@@ -147,6 +149,10 @@ pub fn compile(
         }
         if let Some(chunk_number_from_last_token) = options.chunk_number_from_last_token {
             tokenizer_lang_options.chunk_number_from_last_token = chunk_number_from_last_token;
+        }
+        if let Some(word_chars) = options.word_chars {
+            tokenizer_lang_options.word_chars =
+                utils::java_char_class_ranges(&word_chars).map_err(Error::Unexpected)?;
         }
         info!(
             "Read tokenizer options from {}.",

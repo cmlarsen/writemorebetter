@@ -144,6 +144,52 @@ def lt_version(lt_dir):
     return tuple(int(part) for part in match.group(1).split("."))
 
 
+def java_class_strings(path):
+    """The string constants in a Java class file's constant pool."""
+    data = path.read_bytes()
+    count = int.from_bytes(data[8:10], "big")
+    offset = 10
+    index = 1
+    strings = []
+    while index < count:
+        tag = data[offset]
+        offset += 1
+        if tag == 1:
+            length = int.from_bytes(data[offset : offset + 2], "big")
+            strings.append(
+                data[offset + 2 : offset + 2 + length].decode("utf-8", "surrogatepass")
+            )
+            offset += 2 + length
+        elif tag in (3, 4, 9, 10, 11, 12, 17, 18):
+            offset += 4
+        elif tag in (5, 6):
+            offset += 8
+            index += 1
+        elif tag in (7, 8, 16, 19, 20):
+            offset += 2
+        elif tag == 15:
+            offset += 3
+        else:
+            raise ValueError(f"{path}: unknown constant pool tag {tag}")
+        index += 1
+    return strings
+
+
+def english_word_chars(lt_dir):
+    """The word-character class of LanguageTool's ``EnglishWordTokenizer``.
+
+    Its tokenizer pattern is ``[<chars>]+|[^<chars>]``: a run of word
+    characters is one token, every other character a token of its own. The
+    class is read from the compiled class so it tracks the LanguageTool version.
+    """
+    path = lt_dir / "org" / "languagetool" / "tokenizers" / "en" / "EnglishWordTokenizer.class"
+    for string in java_class_strings(path):
+        match = re.fullmatch(r"\[(.+)\]\+\|\[\^(.+)\]", string, re.DOTALL)
+        if match is not None and match.group(1) == match.group(2):
+            return match.group(1)
+    raise ValueError(f"{path}: no word tokenizer pattern found")
+
+
 def write_tokenizer_options(out_dir, lt_dir, lang_code):
     """Select the tokenizer behavior of the LanguageTool version being built.
 
@@ -156,7 +202,8 @@ def write_tokenizer_options(out_dir, lt_dir, lang_code):
       paper``), where 5.2 tagged it plural if any token was.
     * 6.6 rewrote its English word tokenizer: contractions are split into a stem
       and an apostrophe-initial clitic (``do`` + ``n't``) instead of a stem with
-      the apostrophe on its own (``don`` + ``'`` + ``t``).
+      the apostrophe on its own (``don`` + ``'`` + ``t``), and every character
+      outside its word-character class (``word_chars``) is a token of its own.
 
     Only English currently has version-specific behavior.
     """
@@ -169,6 +216,7 @@ def write_tokenizer_options(out_dir, lt_dir, lang_code):
         options["chunk_number_from_last_token"] = True
     if version >= (6, 6):
         options["split_contractions"] = True
+        options["word_chars"] = english_word_chars(lt_dir)
     if not options:
         return
 

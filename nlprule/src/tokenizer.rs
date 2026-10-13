@@ -59,6 +59,28 @@ fn is_apostrophe(c: char) -> bool {
     c == '\'' || c == '\u{2019}'
 }
 
+/// Whether `c` falls in one of the sorted, non-overlapping inclusive `ranges`.
+fn in_ranges(ranges: &[(char, char)], c: char) -> bool {
+    ranges
+        .binary_search_by(|&(start, end)| {
+            if end < c {
+                std::cmp::Ordering::Less
+            } else if start > c {
+                std::cmp::Ordering::Greater
+            } else {
+                std::cmp::Ordering::Equal
+            }
+        })
+        .is_ok()
+}
+
+/// Whether `c` is a variation selector (U+FE00..U+FE0F), which LanguageTool
+/// 6.6+'s English word tokenizer attaches to the preceding token.
+#[inline]
+fn is_variation_selector(c: char) -> bool {
+    ('\u{FE00}'..='\u{FE0F}').contains(&c)
+}
+
 /// The finite set of auxiliaries LanguageTool 6.6+ recognizes before `n't`
 /// (its `EnglishWordTokenizer` `patternList`).
 const CONTRACTION_NEGATION_STEMS: &[&str] = &[
@@ -222,6 +244,13 @@ pub(crate) struct TokenizerLangOptions {
     /// Extra language-specific characters to split text on.
     #[serde(default)]
     pub extra_split_chars: Vec<char>,
+    /// The characters LanguageTool 6.6+'s word tokenizer keeps inside a word, as
+    /// sorted, non-overlapping inclusive ranges. When set, every other character
+    /// (apart from whitespace) is a token of its own; when empty, text is split
+    /// on [crate::utils::splitting_chars]. Switched on per build directory (see
+    /// `build/make_build_dir.py`).
+    #[serde(default)]
+    pub word_chars: Vec<(char, char)>,
     /// Extra language-specific Regexes of which the matches will *not* be split into multiple tokens.
     #[serde(default)]
     pub extra_join_regexes: Vec<Regex>,
@@ -250,6 +279,7 @@ impl Default for TokenizerLangOptions {
             ignore_ids: Vec::new(),
             known_failures: Vec::new(),
             extra_split_chars: Vec::new(),
+            word_chars: Vec::new(),
             extra_join_regexes: Vec::new(),
             split_contractions: false,
             chunk_number_from_last_token: false,
@@ -442,7 +472,15 @@ impl Tokenizer {
     ) -> impl ExactSizeIterator<Item = (Range<usize>, Option<String>)> + 't {
         let mut tokens: Vec<(&'t str, Option<String>)> = Vec::new();
 
-        let split_char = |c: char| c.is_whitespace() || crate::utils::splitting_chars().contains(c);
+        let word_chars = &self.lang_options.word_chars;
+        let split_char = |c: char| {
+            c.is_whitespace()
+                || if word_chars.is_empty() {
+                    crate::utils::splitting_chars().contains(c)
+                } else {
+                    !in_ranges(word_chars, c)
+                }
+        };
         let split_text = |text: &'t str| {
             let mut tokens = Vec::new();
             if self.lang_options.split_contractions {
@@ -496,13 +534,24 @@ impl Tokenizer {
         }
 
         tokens.extend(split_text(&text[prev..text.len()]));
-        tokens.into_iter().map(move |(token, normalized)| {
+        let mut ranges: Vec<(Range<usize>, Option<String>)> = Vec::with_capacity(tokens.len());
+        for (token, normalized) in tokens {
             let byte_start = (token.as_ptr() as usize)
                 .checked_sub(text.as_ptr() as usize)
                 .expect("Each token str is a slice of the text str.");
 
-            (byte_start..byte_start + token.len(), normalized)
-        })
+            if !word_chars.is_empty() && token.chars().count() == 1 {
+                if let Some((previous, None)) = ranges.last_mut() {
+                    if previous.end == byte_start && token.chars().all(is_variation_selector) {
+                        previous.end = byte_start + token.len();
+                        continue;
+                    }
+                }
+            }
+
+            ranges.push((byte_start..byte_start + token.len(), normalized));
+        }
+        ranges.into_iter()
     }
 
     /// Splits a single whitespace/punctuation-delimited piece the way
@@ -725,6 +774,33 @@ impl Tokenizer {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn ranges_contain_their_bounds_only() {
+        let ranges = [
+            ('-', '-'),
+            ('0', '9'),
+            ('\u{300}', '\u{36F}'),
+            ('\u{2019}', '\u{2019}'),
+        ];
+        assert!(in_ranges(&ranges, '-'));
+        assert!(in_ranges(&ranges, '0'));
+        assert!(in_ranges(&ranges, '9'));
+        assert!(in_ranges(&ranges, '\u{301}'));
+        assert!(in_ranges(&ranges, '\u{2019}'));
+        assert!(!in_ranges(&ranges, '\u{2014}'));
+        assert!(!in_ranges(&ranges, '\u{201c}'));
+        assert!(!in_ranges(&ranges, '\u{2026}'));
+        assert!(!in_ranges(&ranges, '\u{2028}'));
+        assert!(!in_ranges(&[], 'a'));
+    }
+
+    #[test]
+    fn variation_selectors() {
+        assert!(is_variation_selector('\u{fe0f}'));
+        assert!(is_variation_selector('\u{fe00}'));
+        assert!(!is_variation_selector('\u{2014}'));
+    }
 
     #[test]
     fn negation_splits_stem_and_clitic() {

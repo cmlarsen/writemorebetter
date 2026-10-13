@@ -6,6 +6,23 @@ inherited 0.6.4 track this project's own release line. Each version is a top-lev
 `# <version>` heading; the Release workflow copies that section verbatim into the GitHub
 release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
+# Unreleased
+
+### Changed
+
+- **Em dashes, en dashes and every other non-word character are now tokens of their own**, as in
+  LanguageTool 6.6. The English tokenizer used to split on a short fixed list, so `Wait—no` or
+  `{{cite` stayed one token; it now uses the word-character class of LanguageTool 6.6's English
+  word tokenizer, which `build/make_build_dir.py` reads from the release and writes to
+  `tokenizer_options.json` as `word_chars`. In fiction, a misspelling beside an em dash is now
+  flagged on its own (`Patenice`, not `Patenice—always`), and rules such as a/an and
+  simple-replace fire on words next to dashes. Nine more rules pass their LanguageTool examples
+  (5986/6032), including `TYPOS/NON_STANDARD_WORD/0`, `TYPOS/WORD_CONTAINS_UNDERSCORE/0`,
+  `TYPOS/LIGATURES/0` and `PUNCTUATION/DASH_RULE/4`. The spellchecker no longer flags a token
+  made only of marks or format characters (a lone right-to-left mark, say), which can now stand
+  alone. Tokenizer binaries move to format version 8
+  ([#112](https://github.com/cmlarsen/writemorebetter/issues/112)).
+
 # 0.7.1 (2026-10-12)
 
 ### Fixed

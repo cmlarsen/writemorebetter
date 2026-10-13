@@ -138,7 +138,8 @@ pub(crate) const RULES_MAGIC: &[u8; 8] = b"WMBRUL01";
 /// Version 5: `Composition.start_keys` was added (a literal-token prefilter).
 /// Version 6: identical antipattern compositions share entries in `PartPool`.
 /// Version 7: `Composition.required_key` extends the literal prefilter.
-pub const TOKENIZER_FORMAT_VERSION: u32 = 7;
+/// Version 8: `TokenizerLangOptions::word_chars` was added.
+pub const TOKENIZER_FORMAT_VERSION: u32 = 8;
 
 /// The on-disk format version of [Rules] binaries.
 ///

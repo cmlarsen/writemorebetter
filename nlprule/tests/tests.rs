@@ -38,6 +38,74 @@ fn handles_whitespace_correctly() {
     assert_eq!(sentences.next(), None);
 }
 
+fn token_texts(text: &str) -> Vec<String> {
+    TOKENIZER
+        .pipe(text)
+        .flat_map(|sentence| {
+            sentence
+                .tokens()
+                .iter()
+                .map(|token| token.word().text().as_str().to_string())
+                .collect::<Vec<_>>()
+        })
+        .collect()
+}
+
+#[test]
+fn tokenizer_splits_fiction_punctuation() {
+    assert_eq!(
+        token_texts("\u{201c}Wait\u{2014}no,\u{201d} she said\u{2026} \u{2018}It\u{2019}s fine\u{2014}isn\u{2019}t it?"),
+        vec![
+            "\u{201c}", "Wait", "\u{2014}", "no", ",", "\u{201d}", "she", "said", "\u{2026}",
+            "\u{2018}", "It", "'s", "fine", "\u{2014}", "is", "n't", "it", "?",
+        ]
+    );
+    assert_eq!(
+        token_texts("Pages 10\u{2013}12\u{2015}gone.\u{2028}Then\u{2012}nothing."),
+        vec![
+            "Pages", "10", "\u{2013}", "12", "\u{2015}", "gone", ".", "Then", "\u{2012}",
+            "nothing", ".",
+        ]
+    );
+}
+
+#[test]
+fn tokenizer_splits_on_every_non_word_character() {
+    assert_eq!(
+        token_texts("{{cite |first=S}} x_y 3\u{d7}4 a\u{b7}b TM\u{2122} \u{2192}go"),
+        vec![
+            "{", "{", "cite", "|", "first", "=", "S", "}", "}", "x", "_", "y", "3", "\u{d7}", "4",
+            "a", "\u{b7}", "b", "TM", "\u{2122}", "\u{2192}", "go",
+        ]
+    );
+}
+
+#[test]
+fn tokenizer_keeps_word_characters_together() {
+    assert_eq!(
+        token_texts("well-known caf\u{e9} cafe\u{301} 5\u{b0} 10% $5 \u{a3}3 AT&T me@x"),
+        vec![
+            "well-known",
+            "caf\u{e9}",
+            "cafe\u{301}",
+            "5\u{b0}",
+            "10%",
+            "$5",
+            "\u{a3}3",
+            "AT&T",
+            "me@x",
+        ]
+    );
+}
+
+#[test]
+fn tokenizer_attaches_variation_selectors() {
+    assert_eq!(
+        token_texts("I \u{2764}\u{fe0f}it\u{2014}really."),
+        vec!["I", "\u{2764}\u{fe0f}", "it", "\u{2014}", "really", "."]
+    );
+}
+
 #[quickcheck]
 fn can_tokenize_anything(text: String) -> bool {
     let _: Vec<_> = TOKENIZER.pipe(&text).collect();
@@ -290,6 +358,16 @@ fn spellchecker_accepts_fiction_punctuation() {
 }
 
 #[test]
+fn spellchecker_ignores_lone_format_characters() {
+    for text in &[
+        "\u{201c}Yes\u{200f}\u{2014}no,\u{201d} she said\u{2026}",
+        "He paused\u{200f}\u{2014}then went on.\u{2028}It\u{2019}s done\u{200e}.",
+    ] {
+        assert_eq!(spelling_errors(text), Vec::<&str>::new(), "{}", text);
+    }
+}
+
+#[test]
 fn spellchecker_flags_misspellings_next_to_fiction_punctuation() {
     assert_eq!(
         spelling_errors(
@@ -299,7 +377,7 @@ fn spellchecker_flags_misspellings_next_to_fiction_punctuation() {
     );
     assert_eq!(
         spelling_errors("Nothing.\u{2028}Patenice\u{2014}always."),
-        vec!["Patenice\u{2014}always"]
+        vec!["Patenice"]
     );
 }
 
@@ -816,11 +894,11 @@ fn builtin_a_vs_an_flags_inside_curly_quotes() {
 
 #[test]
 fn builtin_a_vs_an_flags_before_em_dash_word() {
-    // The em dash joins two words into one token; the article still refers to
-    // the "a"-initial word.
+    // The em dash is a token of its own, so the flag covers just the article
+    // and the "a"-initial word.
     assert_eq!(
         builtin_a_vs_an_flags("He gave me a apple\u{2014}then left."),
-        vec![("a apple\u{2014}then".to_string(), "an".to_string())]
+        vec![("a apple".to_string(), "an".to_string())]
     );
 }
 
@@ -1994,10 +2072,11 @@ fn builtin_simple_replace_flags_inside_curly_quotes() {
 }
 
 #[test]
-fn builtin_simple_replace_treats_em_dash_joined_words_as_one_token() {
-    // The tokenizer keeps an em-dash-joined run as a single token, so a table
-    // word inside it is not matched. This mirrors the word-repeat builtin.
-    assert!(builtin_simple_replace_flags("crisps\u{2014}then", "EN_US_SIMPLE_REPLACE").is_empty());
+fn builtin_simple_replace_flags_before_em_dash() {
+    assert_eq!(
+        builtin_simple_replace_flags("crisps\u{2014}then", "EN_US_SIMPLE_REPLACE"),
+        vec![("crisps".to_string(), vec!["Chips".to_string()])]
+    );
 }
 
 #[test]
