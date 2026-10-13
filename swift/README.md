@@ -75,16 +75,16 @@ Resolution picks the binary target when the manifest is evaluated:
 - `dist/WriteMoreBetterFFI.xcframework` exists — a checkout you just ran the build script in. The binary target
   is path-based, so `.package(path:)` works offline and against unreleased changes.
 - It does not exist — a released tag, where `dist/` is git-ignored. The binary target uses the `url` and
-  `checksum` in `release.json`.
+  `checksum` literals in `Package.swift`.
 
-`release.json` is a separate generated manifest rather than values rewritten inside `Package.swift`: the
-hand-written manifest is never machine-edited (no diff churn to review, and a bad rewrite cannot break
-resolution), and the one file that changes per release is exactly the machine-generated one. The release
-workflow builds the framework zip, computes its checksum, commits the updated `release.json` and only then
-tags and uploads the asset, so a tag's `release.json` always matches the asset next to it.
+Those two values have to be literals in `Package.swift` rather than a sibling file: SwiftPM compiles a remote
+dependency's manifest from a virtual filesystem where nothing but the manifest itself is readable, so a manifest
+that reads a neighbouring file with `FileManager` fails at manifest load for every consumer. The release workflow
+rewrites the literals, commits, and only then tags and uploads the asset, so a tag's literals always match the
+asset next to it.
 
 SwiftPM caches evaluated manifests by manifest contents, not by the filesystem. A checkout that was resolved
-before `scripts/build-xcframework.sh` ran keeps the `release.json` branch until `swift package purge-cache`
+before `scripts/build-xcframework.sh` ran keeps the released-URL branch until `swift package purge-cache`
 (or a fresh clone) refreshes it.
 
 ## Tests

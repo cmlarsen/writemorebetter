@@ -3,10 +3,12 @@
 # Resolves and builds the WriteMoreBetter Swift package the way an app does, against an
 # already-built XCFramework zip:
 #
-#   1. a checkout without dist/, so Package.swift takes the release.json `url`+`checksum`
-#      branch instead of the local path-based binary target,
-#   2. release.json pointed at the zip from this run,
-#   3. a tiny consumer package that depends on that checkout, imports WriteMoreBetter,
+#   1. a checkout without dist/, turned into a git repository and tagged, so the consumer
+#      depends on it the way an app depends on GitHub: as a remote (file://) git dependency.
+#      SwiftPM compiles a dependency's manifest from a virtual filesystem, so a git dependency
+#      is the only way to catch a manifest that reads a sibling file,
+#   2. this run's url and checksum staged into that checkout,
+#   3. a tiny consumer package that depends on that repository, imports WriteMoreBetter,
 #      loads the English data and calls check.
 #
 # SwiftPM accepts only `https` for a binary target URL (file:// and http are rejected at
@@ -15,10 +17,11 @@
 # (`sudo`, as the release workflow's macos runner allows).
 #
 # Usage:
-#   scripts/consumer-check.sh --zip FILE --data-dir DIR [--work-dir DIR] [--port PORT]
+#   scripts/consumer-check.sh --zip FILE --data-dir DIR --version VERSION [--work-dir DIR] [--port PORT]
 #
 # --zip       WriteMoreBetterFFI.xcframework.zip to resolve as the release asset.
 # --data-dir  directory holding en_tokenizer.bin and en_rules.bin.
+# --version   the tag the consumer depends on, e.g. 0.7.1 (X.Y.Z).
 # --work-dir  scratch directory (default: a fresh mktemp -d).
 # --port      port for the local HTTPS server (default: 8899).
 set -euo pipefail
@@ -27,15 +30,17 @@ root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 
 zip_path=""
 data_dir=""
+version=""
 work_dir=""
 port=8899
 while [ $# -gt 0 ]; do
     case "$1" in
         --zip) zip_path=$2; shift 2 ;;
         --data-dir) data_dir=$2; shift 2 ;;
+        --version) version=$2; shift 2 ;;
         --work-dir) work_dir=$2; shift 2 ;;
         --port) port=$2; shift 2 ;;
-        -h | --help) sed -n '2,23p' "$0"; exit 0 ;;
+        -h | --help) sed -n '2,26p' "$0"; exit 0 ;;
         *)
             echo "error: unknown argument '$1'" >&2
             exit 1
@@ -43,8 +48,12 @@ while [ $# -gt 0 ]; do
     esac
 done
 
-if [ -z "$zip_path" ] || [ -z "$data_dir" ]; then
-    echo "error: --zip and --data-dir are required" >&2
+if [ -z "$zip_path" ] || [ -z "$data_dir" ] || [ -z "$version" ]; then
+    echo "error: --zip, --data-dir and --version are required" >&2
+    exit 1
+fi
+if ! printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+    echo "error: --version '$version' is not a plain X.Y.Z tag" >&2
     exit 1
 fi
 [ -f "$zip_path" ] || { echo "error: no such zip: $zip_path" >&2; exit 1; }
@@ -85,23 +94,36 @@ echo "artifact: $(basename "$zip_path")"
 echo "checksum: $checksum"
 echo "sha256:   $(shasum -a 256 "$zip_path" | awk '{print $1}')"
 
-# --- a checkout without dist/: Package.swift takes the release.json branch -----
-pkg="$work_dir/pkg"
+# --- a checkout without dist/, served as a git dependency ---------------------
+# The consumer clone has to be a git repository so the dependency looks like the real
+# one; a sibling release.json would be readable on disk and hide the manifest-load bug.
+pkg="$work_dir/repo/writemorebetter"
 mkdir -p "$pkg"
 git -C "$root" archive --format=tar HEAD | tar -x -C "$pkg"
 rm -rf "$pkg/dist"
 # The check only means something if Package.swift cannot take the local, path-based
-# binary target instead of the release.json URL.
+# binary target instead of the released URL.
 if [ -e "$pkg/dist/WriteMoreBetterFFI.xcframework" ]; then
-    echo "error: dist/WriteMoreBetterFFI.xcframework exists in the copy; release.json would not be used" >&2
+    echo "error: dist/WriteMoreBetterFFI.xcframework exists in the copy; the released URL would not be used" >&2
     exit 1
 fi
-cat > "$pkg/release.json" <<EOF
-{
-  "url": "https://127.0.0.1:$port/WriteMoreBetterFFI.xcframework.zip",
-  "checksum": "$checksum"
-}
-EOF
+
+url="https://127.0.0.1:$port/WriteMoreBetterFFI.xcframework.zip"
+if grep -Eq '^[[:space:]]*url: "' "$pkg/Package.swift"; then
+    "$root/scripts/set-binary-target.sh" "$url" "$checksum" "$pkg/Package.swift"
+else
+    # A pre-0.7.1 manifest reads release.json instead. Stage it anyway so the regression
+    # run fails for the real reason — a remote manifest cannot read a sibling file — not
+    # because a file is missing.
+    printf '{\n  "url": "%s",\n  "checksum": "%s"\n}\n' "$url" "$checksum" > "$pkg/release.json"
+fi
+
+git -C "$pkg" init -q
+git -C "$pkg" add -A
+git -C "$pkg" -c user.name="writemorebetter consumer check" \
+    -c user.email="consumer-check@users.noreply.github.com" \
+    commit -q -m "release $version"
+git -C "$pkg" tag "$version"
 
 # --- serve the zip over https ------------------------------------------------
 www="$work_dir/www"
@@ -160,13 +182,13 @@ import PackageDescription
 let package = Package(
     name: "wmb-consumer",
     platforms: [.macOS(.v13)],
-    dependencies: [.package(path: "$pkg")],
+    dependencies: [.package(url: "file://$pkg", exact: "$version")],
     targets: [
         .executableTarget(
             name: "wmb-consumer",
-            // A path dependency's identity is the basename of its directory (pkg),
-            // not the name in its manifest.
-            dependencies: [.product(name: "WriteMoreBetter", package: "pkg")]
+            // The dependency's identity is its URL's last path component, not the name in
+            // its manifest.
+            dependencies: [.product(name: "WriteMoreBetter", package: "writemorebetter")]
         ),
     ]
 )
