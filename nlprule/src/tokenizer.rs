@@ -437,9 +437,9 @@ impl Tokenizer {
         });
         let mut i = 0;
         let mut start_positions = Default::default();
+        let mut complete_sentence = sentence.clone().into_sentence();
 
         while i < n {
-            let complete_sentence = sentence.clone().into_sentence();
             let mut match_sentence = MatchSentence::new(&complete_sentence);
             match_sentence.start_positions = start_positions;
 
@@ -459,7 +459,8 @@ impl Tokenizer {
             // Disambiguation changes tags and spelling flags, never token texts or positions.
             start_positions = match_sentence.start_positions;
             if let Some((index, changes)) = result {
-                self.rules[index].change(&mut sentence, changes);
+                let changed = self.rules[index].change(&mut sentence, changes);
+                complete_sentence.refresh_tokens(&sentence, changed);
                 i = index + 1;
             } else {
                 i = n;
@@ -779,6 +780,7 @@ impl Tokenizer {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::rule::disambiguation::DisambiguationExample;
 
     #[test]
     fn ranges_contain_their_bounds_only() {
@@ -845,5 +847,57 @@ mod tests {
         assert_eq!(contraction_parts("it's"), Some(vec!["it", "'s"]));
         // no apostrophe -> not a contraction shape
         assert_eq!(contraction_parts("plain"), None);
+    }
+
+    fn disambiguate_rebuilding_every_iteration<'t>(
+        tokenizer: &'t Tokenizer,
+        mut sentence: IncompleteSentence<'t>,
+    ) -> IncompleteSentence<'t> {
+        let mut i = 0;
+        while i < tokenizer.rules.len() {
+            let complete_sentence = sentence.clone().into_sentence();
+            let match_sentence = MatchSentence::new(&complete_sentence);
+            let result = tokenizer.rules[i..]
+                .iter()
+                .enumerate()
+                .find_map(|(j, rule)| {
+                    let changes = rule.apply(&tokenizer.parts, &match_sentence);
+                    (!changes.is_empty()).then(|| (j + i, changes))
+                });
+            match result {
+                Some((index, changes)) => {
+                    tokenizer.rules[index].change(&mut sentence, changes);
+                    i = index + 1;
+                }
+                None => break,
+            }
+        }
+        sentence
+    }
+
+    #[test]
+    fn disambiguation_refreshes_only_changed_tokens() {
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../storage/en_tokenizer.bin");
+        let tokenizer = Tokenizer::new(path).unwrap();
+        let snippet =
+            "“She didn’t know…,” he said — and then…nothing, the old man’s dog ran \u{2028}to \
+                       the bank and ‘that’s that’ — I can not go ";
+        let mut texts = vec![snippet.to_string(), snippet.repeat(20)];
+        for rule in tokenizer.rules.iter() {
+            for example in &rule.examples {
+                texts.push(match example {
+                    DisambiguationExample::Unchanged(x) => x.clone(),
+                    DisambiguationExample::Changed(x) => x.text.clone(),
+                });
+            }
+        }
+
+        for text in &texts {
+            if let Some(sentence) = tokenizer.tokenize(text) {
+                let expected =
+                    disambiguate_rebuilding_every_iteration(&tokenizer, sentence.clone());
+                assert_eq!(tokenizer.disambiguate(sentence), expected, "{}", text);
+            }
+        }
     }
 }

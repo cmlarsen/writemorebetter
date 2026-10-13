@@ -13,6 +13,7 @@ use log::{error, info, warn};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::fmt;
+use std::ops::Range;
 
 pub(crate) mod disambiguation;
 pub(crate) mod engine;
@@ -174,8 +175,13 @@ impl DisambiguationRule {
         Changes(all_spans)
     }
 
-    pub(crate) fn change<'t>(&'t self, sentence: &mut IncompleteSentence<'t>, changes: Changes) {
+    pub(crate) fn change<'t>(
+        &'t self,
+        sentence: &mut IncompleteSentence<'t>,
+        changes: Changes,
+    ) -> Range<usize> {
         log::info!("applying {}", self.id);
+        let (mut first, mut last) = (usize::MAX, 0);
 
         for spans in changes.0 {
             let (start, end) = spans
@@ -187,7 +193,13 @@ impl DisambiguationRule {
             let mut groups = Vec::new();
             let mut refs = sentence
                 .iter_mut()
-                .filter(|x| x.span().char().start >= start && x.span().char().end <= end)
+                .enumerate()
+                .filter(|(_, x)| x.span().char().start >= start && x.span().char().end <= end)
+                .map(|(i, x)| {
+                    first = first.min(i);
+                    last = last.max(i + 1);
+                    x
+                })
                 .collect::<Vec<_>>();
 
             for group_spans in spans {
@@ -202,6 +214,8 @@ impl DisambiguationRule {
 
             self.disambiguations.apply(groups);
         }
+
+        first.min(last)..last
     }
 
     /// Often there are examples associated with a rule.

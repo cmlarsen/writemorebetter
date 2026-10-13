@@ -287,6 +287,17 @@ impl<'t> Sentence<'t> {
     pub fn span(&self) -> &Span {
         &self.span
     }
+
+    /// Replaces the tokens in `range` with the completed tokens at the same indices in `sentence`.
+    pub(crate) fn refresh_tokens(
+        &mut self,
+        sentence: &IncompleteSentence<'t>,
+        range: Range<usize>,
+    ) {
+        for i in range {
+            self.tokens[i] = sentence.tokens[i].clone().into_token();
+        }
+    }
 }
 
 /// Lemma and part-of-speech tag associated with a word.
