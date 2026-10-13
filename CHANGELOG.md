@@ -8,6 +8,13 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
 # Unreleased
 
+### Fixed
+
+- **All-caps proper nouns were tagged as unknown words.** The English tagger now looks up an
+  all-uppercase word in title case when neither its own form nor its lowercase form is in the
+  dictionary, as LanguageTool 6.6 does, so `SCHWARZWALD` is tagged `Schwarzwald/NNP` and
+  `TYPOS/IM_I_M/0` passes ([#111](https://github.com/cmlarsen/writemorebetter/issues/111)).
+
 ### Changed
 
 - **The data binaries no longer depend on the build machine's architecture.** Every hashed
@@ -19,6 +26,9 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   `TOKENIZER_FORMAT_VERSION` is now 8 and `RULES_FORMAT_VERSION` 11, so binaries built by earlier
   versions must be rebuilt
   ([#103](https://github.com/cmlarsen/writemorebetter/issues/103)).
+
+- The tokenizer binary format version is now 9 (`TaggerLangOptions` gained
+  `title_case_all_uppercase`), so tokenizer binaries must be rebuilt with this engine.
 
 # 0.7.1 (2026-10-12)
 

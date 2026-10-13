@@ -142,7 +142,8 @@ pub(crate) const RULES_MAGIC: &[u8; 8] = b"WMBRUL01";
 /// text-engine group maps) are written in sorted key order, and the chunker model's parameter
 /// arrays are laid out in sorted context order, so the binary no longer depends on the
 /// architecture's hash-table layout.
-pub const TOKENIZER_FORMAT_VERSION: u32 = 8;
+/// Version 9: `TaggerLangOptions::title_case_all_uppercase` was added.
+pub const TOKENIZER_FORMAT_VERSION: u32 = 9;
 
 /// The on-disk format version of [Rules] binaries.
 ///

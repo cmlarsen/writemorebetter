@@ -1,6 +1,7 @@
 {
     "use_compound_split_heuristic": true,
     "always_add_lower_tags": false,
+    "title_case_all_uppercase": false,
     "extra_tags": [
         "PKT",
         "PRO:IND:DAT:SIN:NEU"
