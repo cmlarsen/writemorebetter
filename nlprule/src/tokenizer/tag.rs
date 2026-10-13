@@ -188,6 +188,7 @@ pub(crate) struct TaggerFields {
     /// Reverse index for synthesis: lemma bytes + one index byte -> packed (word id, pos id).
     pub(crate) synth_fst: Vec<u8>,
     pub(crate) word_store_fst: Vec<u8>,
+    #[serde(serialize_with = "crate::types::sorted::bimap")]
     pub(crate) tag_store: DefaultBiMap<String, PosIdInt>,
     pub(crate) lang_options: TaggerLangOptions,
     /// Kept for serialized-format compatibility. The FSTs are queried directly at load, so the

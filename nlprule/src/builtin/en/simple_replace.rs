@@ -57,14 +57,19 @@ pub struct SimpleReplace {
     /// The parsed table lines.
     entries: Vec<Entry>,
     /// Single-token lookup (`MatchMode::Single`), keyed by the wrong form.
+    #[serde(serialize_with = "crate::types::sorted::map")]
     single: DefaultHashMap<String, usize>,
     /// Phrase lookup for wrong forms without a space (lowercased key).
+    #[serde(serialize_with = "crate::types::sorted::map")]
     no_space: DefaultHashMap<String, usize>,
     /// Phrase lookup for wrong forms that contain a space (lowercased key).
+    #[serde(serialize_with = "crate::types::sorted::map")]
     space: DefaultHashMap<String, usize>,
     /// For phrases, the first word -> the longest phrase with that first word.
+    #[serde(serialize_with = "crate::types::sorted::map")]
     start_space: DefaultHashMap<String, usize>,
     /// For single words, the first character -> the longest key with it.
+    #[serde(serialize_with = "crate::types::sorted::map")]
     start_no_space: DefaultHashMap<char, usize>,
 }
 

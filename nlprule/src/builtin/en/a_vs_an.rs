@@ -48,8 +48,10 @@ pub(crate) enum Article {
 pub(crate) struct ArticleData {
     /// Words (stored lowercased unless they came from a `*`-prefixed,
     /// case-sensitive line) that take "a".
+    #[serde(serialize_with = "crate::types::sorted::set")]
     requires_a: DefaultHashSet<String>,
     /// Words that take "an", with the same case normalization as `requires_a`.
+    #[serde(serialize_with = "crate::types::sorted::set")]
     requires_an: DefaultHashSet<String>,
 }
 
@@ -107,8 +109,10 @@ impl ArticleData {
 pub struct AVsAn {
     /// Words (stored lowercased unless they came from a `*`-prefixed,
     /// case-sensitive line) that take "a".
+    #[serde(serialize_with = "crate::types::sorted::set")]
     requires_a: DefaultHashSet<String>,
     /// Words that take "an", with the same case normalization as `requires_a`.
+    #[serde(serialize_with = "crate::types::sorted::set")]
     requires_an: DefaultHashSet<String>,
 }
 
