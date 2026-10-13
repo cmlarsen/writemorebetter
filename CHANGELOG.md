@@ -24,14 +24,40 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   tongue's rules run. For German, French, Spanish and Dutch, LanguageTool 6.6 itself uses n-gram
   confusion rules instead, which are out of scope here
   ([#84](https://github.com/cmlarsen/writemorebetter/issues/84)). No mother tongue is selected by
-  default, so checking output is unchanged. The rules binary format version is now 13.
+  default, so checking output is unchanged. The rules binary format version is now 14.
 
 ### Fixed
 
+- **Contractions, apostrophes and hyphens are handled as in LanguageTool 6.6.** Hyphens at either
+  end of a word are now tokens of their own (`didn't-->` is `didn ' t - - >`, `Go-` is `Go -`),
+  and a mixed-case contraction such as `don'T` is split at its apostrophe because the tagger,
+  like LanguageTool's, only tries the lowercase form of a title-case or all-uppercase word. A
+  `\1` reference in a suggestion uses the token's normalized text (`were’re` → `we're`, which
+  `Rules::suggest` re-curls to `we’re` for curly input), an
+  antipattern only blocks a match when it overlaps a matched token rather than a skipped one or
+  the match's edge, `skip="-1"` is no longer capped at 20 tokens (an antipattern is now skipped
+  when a literal it requires is absent from the sentence, so the uncapped skip does not slow
+  long sentences down), and `suppress_misspelled`
+  drops suggestions that could not be synthesized (no more `(anyone)` for `anyone’s`).
+  `TYPOS/APOS_RE/1`, `TYPOS/WERE_RE/0`, `GRAMMAR/MISSING_APOSTROPHE_T/0`,
+  `TYPOS/APOSTROPHE_PLURAL_/1`, `GRAMMAR/SINGED_CONTRACT/0`, `PUNCTUATION/DASH_RULE/0`,
+  `PUNCTUATION/TWO_HYPHENS/0`, `PUNCTUATION/ENUMERATION_AND_DASHES/0`, `TYPOGRAPHY/ARROWS/0` and
+  nine other rules now pass their LanguageTool examples. `RULES_FORMAT_VERSION` is now 13, so
+  rules binaries must be rebuilt
+  ([#77](https://github.com/cmlarsen/writemorebetter/issues/77),
+  [#115](https://github.com/cmlarsen/writemorebetter/issues/115)).
 - **All-caps proper nouns were tagged as unknown words.** The English tagger now looks up an
   all-uppercase word in title case when neither its own form nor its lowercase form is in the
   dictionary, as LanguageTool 6.6 does, so `SCHWARZWALD` is tagged `Schwarzwald/NNP` and
   `TYPOS/IM_I_M/0` passes ([#111](https://github.com/cmlarsen/writemorebetter/issues/111)).
+- **A very long sentence was checked in quadratic time.** Three spots did O(sentence) work per
+  match or per word: a rule with antipatterns re-ran every antipattern over the whole sentence for
+  each candidate match, a disambiguation change re-scanned (and hashed) every token of the sentence
+  for each match, and the chunker's beam search copied each hypothesis's full history at every
+  word. Antipattern spans are now computed once per rule and sentence, a change only looks at the
+  tokens inside its match, and the beam search keeps shared back-pointers. A 5,000-word sentence
+  with no terminator now checks in ~0.8 s instead of ~6.6 s; output is unchanged
+  ([#101](https://github.com/cmlarsen/writemorebetter/issues/101)).
 - **Edge cases in the rule compiler and tagger.** A possessive or counted optional regex assertion
   (`x$?+y`, `x$?{2}y`) now compiles to `xy` as Java matches it, instead of re-binding the
   quantifier to the previous atom; a bounded lookbehind with more than 256 variants now reports
