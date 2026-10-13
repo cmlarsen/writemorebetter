@@ -129,7 +129,7 @@ A shorter, ruleset-independent reproduction is `"I " * n`, which the regression 
 `repeated_token_run_does_not_scan_quadratically` uses: `n = 1000` went 1.5 s → 0.16 s
 and `n = 2000` went 21.0 s → 0.6 s (identical on LT 5.2 and 6.6).
 
-### The residual superlinear cost on long sentences (reported, not fixed)
+### The residual superlinear cost on long sentences (fixed by PR #127)
 
 The `nt` rows above are still slow because a sentence with no terminator costs more in
 the **tokenizer** than in the rules. Tagging is linear; the two superlinear stages after
@@ -151,8 +151,13 @@ rule's match iteration, not group-token lookups. The per-iteration clone/`into_s
 1.63 s, of which ~0.5 s is outside tagging/chunking/disambiguation (multiword tagging
 and materialising the `Sentence`). This is why nt 1 000 words cannot reach 100 ms.
 
-It is tracked in
-[#101 engine: disambiguation and chunker are superlinear on a single long sentence](https://github.com/cmlarsen/writemorebetter/issues/101).
+It was tracked in
+[#101 engine: disambiguation and chunker are superlinear on a single long sentence](https://github.com/cmlarsen/writemorebetter/issues/101)
+and fixed in PR #127: antipattern spans are computed once per rule and sentence, a
+disambiguation change only scans the tokens inside its match, and the chunker's beam search
+shares back-pointers instead of copying each hypothesis. The PR measured a 5 000-word `nt` sentence going from
+~6.6 s to ~0.8 s. Disambiguation still rebuilds the sentence once per applied rule
+([#125](https://github.com/cmlarsen/writemorebetter/issues/125)).
 
 The speller blowup (`"a" * 100_000`, 121 s → 0.08 s) is fixed with a length cap in
 `VariantChecker::search` (`nlprule/src/spell/mod.rs`).

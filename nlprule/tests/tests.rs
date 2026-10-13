@@ -2302,6 +2302,32 @@ fn grammar_include_skipped_adds_the_skipped_tokens() {
 }
 
 #[test]
+fn long_unterminated_sentence_checks_in_near_linear_time() {
+    // A sentence with no terminator used to be checked in quadratic time: every candidate match
+    // re-ran the rule's antipatterns over the whole sentence, every disambiguation change scanned
+    // every token, and the chunker's beam search copied each hypothesis's history at every word.
+    // This ~3,600-word sentence took ~36s before the fix and ~1s after with the app's profile and
+    // speller; the bound is generous so the test stays reliable on slow machines.
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    let _ = rules.apply_profile(&Profile::fiction());
+    rules.spell_mut().options_mut().variant = Some(rules.spell().variant("en_US").unwrap());
+
+    let snippet =
+        "“We’re not going—not yet…” she said, and the dog’s bark\u{2028}echoed across the \
+                   old man’s field while they waited ";
+    let text = snippet.repeat(200);
+    assert_eq!(TOKENIZER.pipe(&text).count(), 1);
+
+    let start = std::time::Instant::now();
+    let _ = rules.suggest(&text, &*TOKENIZER);
+    assert!(
+        start.elapsed() < std::time::Duration::from_secs(12),
+        "checking a 200-copy unterminated sentence took {:?}",
+        start.elapsed()
+    );
+}
+
+#[test]
 fn long_unterminated_sentence_is_tagged_the_same_at_every_repeat() {
     let snippet = "“She didn’t know…,” he said — and then…nothing, the old man’s dog ran \u{2028}to the bank and ";
     let copies = 120;
