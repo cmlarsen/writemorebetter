@@ -1042,19 +1042,31 @@ mod composition {
         }
 
         pub(in crate::compile) fn graph_id(&self) -> Option<GraphId> {
-            if let MatcherKind::Graph(id) = &self.matcher {
-                Some(*id)
-            } else {
-                None
+            match &self.matcher {
+                MatcherKind::Graph(id) => Some(*id),
+                MatcherKind::Synthesis(reference, _) => Some(reference.id),
+                _ => None,
             }
         }
 
         pub(in crate::compile) fn mut_graph_id(&mut self) -> Option<&mut GraphId> {
-            if let MatcherKind::Graph(id) = &mut self.matcher {
-                Some(id)
-            } else {
-                None
+            match &mut self.matcher {
+                MatcherKind::Graph(id) => Some(id),
+                MatcherKind::Synthesis(reference, _) => Some(&mut reference.id),
+                _ => None,
             }
+        }
+
+        pub(in crate::compile) fn with_synthesis(
+            mut self,
+            mut reference: crate::rule::grammar::Match,
+            is_regex: bool,
+        ) -> Self {
+            if let Some(id) = self.graph_id() {
+                reference.id = id;
+                self.matcher = MatcherKind::Synthesis(Box::new(reference), is_regex);
+            }
+            self
         }
     }
 

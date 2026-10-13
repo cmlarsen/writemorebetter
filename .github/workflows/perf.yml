@@ -19,6 +19,7 @@ jobs:
           workspaces: |
             . -> target
             bench/tools/wmb-probe -> target
+            bench/tools/wmb-chunkbench -> target
       - name: Install profilers
         run: sudo apt-get update && sudo apt-get install -y valgrind
       - uses: actions/setup-python@v5
@@ -37,6 +38,9 @@ jobs:
 
       - name: Golden output (default and fiction profiles)
         run: bench/tools/golden.sh --check
+
+      - name: Chunker golden output
+        run: bench/tools/chunker_golden.sh --check
 
       - name: Prepare merge-base engine with identical probe
         env:
