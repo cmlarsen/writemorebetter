@@ -62,6 +62,8 @@ pub struct Rules {
     pub(crate) parts: crate::rule::engine::composition::PartPool,
     #[serde(skip)]
     pub(crate) batch_size: Option<usize>,
+    #[serde(skip)]
+    pub(crate) mother_tongue: Option<String>,
 }
 
 impl Rules {
@@ -70,6 +72,47 @@ impl Rules {
     /// Values below one are treated as one. The default is 128 natively and 32 on `wasm32`.
     pub fn set_batch_size(&mut self, sentences: usize) {
         self.batch_size = Some(sentences.max(1));
+    }
+
+    /// Selects the writer's mother tongue as a language code such as "de" or "pt-BR" (only the
+    /// language part is used), or `None` for no mother tongue (the default).
+    ///
+    /// Rules written for one mother tongue, such as the false friends compiled from
+    /// LanguageTool's `false-friends.xml`, only run while that mother tongue is selected; the
+    /// rules of other mother tongues never run, even if enabled. [Rules::mother_tongues] lists the
+    /// mother tongues this rule set has rules for.
+    pub fn set_mother_tongue(&mut self, mother_tongue: Option<&str>) {
+        self.mother_tongue = mother_tongue.map(|code| {
+            code.split(['-', '_'])
+                .next()
+                .unwrap_or_default()
+                .to_lowercase()
+        });
+    }
+
+    /// The mother tongue selected with [Rules::set_mother_tongue].
+    pub fn mother_tongue(&self) -> Option<&str> {
+        self.mother_tongue.as_deref()
+    }
+
+    /// The mother tongues this rule set has rules for, sorted.
+    pub fn mother_tongues(&self) -> Vec<&str> {
+        let mut codes: Vec<&str> = self
+            .rules
+            .iter()
+            .filter_map(|rule| rule.mother_tongue())
+            .collect();
+        codes.sort_unstable();
+        codes.dedup();
+        codes
+    }
+
+    fn is_active(&self, rule: &Rule) -> bool {
+        rule.enabled()
+            && match rule.mother_tongue() {
+                Some(code) => self.mother_tongue.as_deref() == Some(code),
+                None => true,
+            }
     }
 
     /// Creates a new rule set from a path to a binary.
@@ -229,11 +272,19 @@ impl Rules {
         let speller = self.spell.speller();
         let sentence = MatchSentence::new(sentence);
 
-        let mut output: Vec<(usize, Suggestion)> = self
-            .rules
+        let rules = match self.mother_tongue {
+            Some(_) => &self.rules[..],
+            None => {
+                &self.rules[..self
+                    .rules
+                    .partition_point(|rule| rule.mother_tongue.is_none())]
+            }
+        };
+
+        let mut output: Vec<(usize, Suggestion)> = rules
             .maybe_par_iter_cond(parallel)
             .enumerate()
-            .filter(|(_, rule)| rule.enabled())
+            .filter(|(_, rule)| self.is_active(rule))
             .map(|(i, rule)| {
                 let mut output = Vec::new();
 

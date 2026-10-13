@@ -13,6 +13,7 @@ from glob import glob
 from chardet.universaldetector import UniversalDetector
 
 from chunker import write_chunker  # type: ignore
+from false_friends import write_false_friends  # type: ignore
 
 
 def write_freqlist(f, lang_code, top_n=1000):
@@ -342,6 +343,7 @@ Only needed if the language requires a chunker (e. g. English).
 
     write_freqlist(open(args.out_dir / "common.txt", "w"), args.lang_code)
     copy_lt_files(args.out_dir, args.lt_dir, args.lang_code)
+    write_false_friends(args.out_dir, args.lt_dir, args.lang_code)
 
     # tagger dictionary
     dump_dict(

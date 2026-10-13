@@ -595,6 +595,7 @@ pub struct Rule {
     /// compile time, and stored once per [Rules][crate::Rules] instead of once per
     /// rule.
     pub(crate) uses_articles: bool,
+    pub(crate) mother_tongue: Option<String>,
     pub(crate) enabled: bool,
 }
 
@@ -707,6 +708,13 @@ impl Rule {
     /// Gets the type of the category this rule is in e. g. "style" or "grammar".
     pub fn category_type(&self) -> Option<&str> {
         self.category_type.as_deref()
+    }
+
+    /// Gets the mother tongue this rule is written for, e. g. "de" for a false friend of German
+    /// speakers. Such a rule only runs while [Rules::set_mother_tongue][crate::Rules::set_mother_tongue]
+    /// selects that mother tongue.
+    pub fn mother_tongue(&self) -> Option<&str> {
+        self.mother_tongue.as_deref()
     }
 
     pub(crate) fn apply<'a, 't>(

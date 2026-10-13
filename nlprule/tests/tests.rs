@@ -2378,3 +2378,123 @@ fn speller_checks_tokens_not_contractions() {
     assert!(!speller.is_correct("didn\u{2019}t"));
     assert!(speller.is_correct("did") && speller.is_correct("n\u{2019}t"));
 }
+
+fn false_friends(rules: &Rules, text: &str) -> Vec<(String, std::ops::Range<usize>, Vec<String>)> {
+    rules
+        .suggest(text, &*TOKENIZER)
+        .into_iter()
+        .filter(|suggestion| suggestion.source().starts_with("FALSE_FRIENDS/"))
+        .map(|suggestion| {
+            (
+                suggestion.source().to_string(),
+                suggestion.span().char().clone(),
+                suggestion.replacements().to_vec(),
+            )
+        })
+        .collect()
+}
+
+const FALSE_FRIEND_TEXT: &str =
+    "\u{201c}My handy is broken\u{2014}again\u{2026}\u{201d}\u{2028}It\u{2019}s the actual problem.";
+
+#[test]
+fn false_friends_need_a_mother_tongue() {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    assert_eq!(rules.mother_tongue(), None);
+    assert!(false_friends(&rules, FALSE_FRIEND_TEXT).is_empty());
+
+    rules
+        .select_mut(&Category::new("false_friends").into())
+        .for_each(|rule| rule.enable());
+    assert!(false_friends(&rules, FALSE_FRIEND_TEXT).is_empty());
+}
+
+#[test]
+fn mother_tongue_selects_its_false_friends() {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    assert_eq!(
+        rules.mother_tongues(),
+        vec!["ca", "de", "es", "fr", "ga", "gl", "it", "ja", "nl", "pl", "pt", "ru", "sv"]
+    );
+
+    rules.set_mother_tongue(Some("de-DE"));
+    assert_eq!(rules.mother_tongue(), Some("de"));
+    assert_eq!(
+        false_friends(&rules, FALSE_FRIEND_TEXT),
+        vec![
+            (
+                "FALSE_FRIENDS/HANDY/0".to_string(),
+                4..9,
+                vec!["cell phone".to_string(), "mobile phone".to_string()]
+            ),
+            (
+                "FALSE_FRIENDS/ACTUAL/0".to_string(),
+                37..43,
+                vec![
+                    "current".to_string(),
+                    "(the) latest".to_string(),
+                    "up-to-date".to_string()
+                ]
+            ),
+        ]
+    );
+
+    rules.set_mother_tongue(Some("PL"));
+    assert_eq!(
+        false_friends(&rules, FALSE_FRIEND_TEXT),
+        vec![(
+            "FALSE_FRIENDS/ACTUAL/0".to_string(),
+            37..43,
+            vec![
+                "current".to_string(),
+                "(the) latest".to_string(),
+                "up-to-date".to_string()
+            ]
+        )]
+    );
+
+    rules.set_mother_tongue(Some("en"));
+    assert!(false_friends(&rules, FALSE_FRIEND_TEXT).is_empty());
+    rules.set_mother_tongue(None);
+    assert!(false_friends(&rules, FALSE_FRIEND_TEXT).is_empty());
+}
+
+#[test]
+fn false_friend_messages_are_localized() {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    rules.set_mother_tongue(Some("de"));
+    let suggestions = rules.suggest("We will become friends.", &*TOKENIZER);
+    let suggestion = suggestions
+        .iter()
+        .find(|suggestion| suggestion.source() == "FALSE_FRIENDS/BECOME/0")
+        .expect("a false-friend match for \"become\"");
+    assert_eq!(*suggestion.span().char(), 8..14);
+    assert_eq!(suggestion.replacements(), ["get", "receive"]);
+    assert_eq!(
+        suggestion.message(),
+        "Hinweis: \"become\" (English) bedeutet \"werden\" (German). Meinten Sie vielleicht get, receive?"
+    );
+}
+
+#[test]
+fn default_off_false_friends_stay_off() {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    rules.set_mother_tongue(Some("de"));
+    assert!(false_friends(&rules, "Did he also work there?").is_empty());
+
+    rules
+        .select_mut(&"false_friends/also".try_into().unwrap())
+        .for_each(|rule| rule.enable());
+    assert_eq!(
+        false_friends(&rules, "Did he also work there?"),
+        vec![(
+            "FALSE_FRIENDS/ALSO/0".to_string(),
+            7..11,
+            vec![
+                "thus".to_string(),
+                "therefore".to_string(),
+                "so".to_string()
+            ]
+        )]
+    );
+}
