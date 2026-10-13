@@ -121,6 +121,32 @@ fn tokenizer_attaches_variation_selectors_to_normalized_clitics() {
     }
 }
 
+#[test]
+fn tokenizer_splits_mixed_case_negation_clitics() {
+    assert_eq!(
+        token_texts("\u{201c}We don\u{2019}T\u{2014}\u{201d} she said\u{2026}\u{2028}\u{201c}We DON\u{2019}T.\u{201d}"),
+        vec![
+            "\u{201c}", "We", "do", "n", "\u{2019}", "T", "\u{2014}", "\u{201d}", "she", "said",
+            "\u{2026}", "\u{201c}", "We", "DO", "N'T", ".", "\u{201d}",
+        ]
+    );
+    assert_eq!(
+        token_texts("We don'T need this."),
+        vec!["We", "do", "n", "'", "T", "need", "this", "."]
+    );
+}
+
+#[test]
+fn tokenizer_splits_hyphens_at_word_edges() {
+    assert_eq!(
+        token_texts("Germans didn't-->  \u{201c}Go-\u{201d} he said\u{2014}then -fine\u{2026}"),
+        vec![
+            "Germans", "didn", "'", "t", "-", "-", ">", "\u{201c}", "Go", "-", "\u{201d}", "he",
+            "said", "\u{2014}", "then", "-", "fine", "\u{2026}",
+        ]
+    );
+}
+
 #[quickcheck]
 fn can_tokenize_anything(text: String) -> bool {
     let _: Vec<_> = TOKENIZER.pipe(&text).collect();
@@ -1980,6 +2006,59 @@ fn rule_synthesis_produces_inflected_forms() {
     );
 }
 
+fn rule_flags(text: &str, rule: &str) -> Vec<(String, Vec<String>)> {
+    RULES
+        .suggest(text, &*TOKENIZER)
+        .into_iter()
+        .filter(|suggestion| suggestion.source().starts_with(rule))
+        .map(|suggestion| {
+            let span = suggestion.span().char().clone();
+            (
+                text.chars().skip(span.start).take(span.len()).collect(),
+                suggestion.replacements().to_vec(),
+            )
+        })
+        .collect()
+}
+
+#[test]
+fn apostrophe_rules_match_languagetool_on_fiction_text() {
+    assert_eq!(
+        rule_flags(
+            "\u{201c}We don'T need this,\u{201d} she said\u{2026}",
+            "TYPOS/APOS_RE/"
+        ),
+        vec![("don'T".to_string(), vec!["don't".to_string()])]
+    );
+    assert_eq!(
+        rule_flags(
+            "\u{201c}While were\u{2019}re at it\u{2014}\u{201d} he began.",
+            "TYPOS/WERE_RE/"
+        ),
+        vec![(
+            "were\u{2019}re".to_string(),
+            vec!["we\u{2019}re".to_string()]
+        )]
+    );
+    assert_eq!(
+        rule_flags(
+            "Here is a copy of the singed contract\u{2026} I\u{2019}m sure.",
+            "GRAMMAR/SINGED_CONTRACT/"
+        ),
+        vec![("singed".to_string(), vec!["signed".to_string()])]
+    );
+    assert!(rule_flags(
+        "Profit such as Adam Smith\u{2019}s where part of the undertaker\u{2019}s profits were for risk bearing.",
+        "TYPOS/APOSTROPHE_PLURAL_/"
+    )
+    .is_empty());
+    assert!(rule_flags(
+        "\u{2026} the Germans didn\u{2019}t-->  The French armies were\u{2026}",
+        "GRAMMAR/MISSING_APOSTROPHE_T/"
+    )
+    .is_empty());
+}
+
 /// The chunker applies the LanguageTool 5.9+ rule from the 6.6 build directory:
 /// a noun phrase whose last token is singular is singular even if it contains a
 /// plural (the 5.2 behavior marked it plural if any token was). The 5.2 rule is
@@ -2299,6 +2378,74 @@ fn grammar_include_skipped_adds_the_skipped_tokens() {
         "{:?}",
         replacements
     );
+}
+
+#[test]
+fn long_unterminated_sentence_checks_in_near_linear_time() {
+    // A sentence with no terminator used to be checked in quadratic time: every candidate match
+    // re-ran the rule's antipatterns over the whole sentence, every disambiguation change scanned
+    // every token, and the chunker's beam search copied each hypothesis's history at every word.
+    // This ~3,600-word sentence took ~36s before the fix and ~1s after with the app's profile and
+    // speller; the bound is generous so the test stays reliable on slow machines.
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    let _ = rules.apply_profile(&Profile::fiction());
+    rules.spell_mut().options_mut().variant = Some(rules.spell().variant("en_US").unwrap());
+
+    let snippet =
+        "“We’re not going—not yet…” she said, and the dog’s bark\u{2028}echoed across the \
+                   old man’s field while they waited ";
+    let text = snippet.repeat(200);
+    assert_eq!(TOKENIZER.pipe(&text).count(), 1);
+
+    let start = std::time::Instant::now();
+    let _ = rules.suggest(&text, &*TOKENIZER);
+    assert!(
+        start.elapsed() < std::time::Duration::from_secs(12),
+        "checking a 200-copy unterminated sentence took {:?}",
+        start.elapsed()
+    );
+}
+
+#[test]
+fn unbounded_skip_antipatterns_stay_fast_on_a_run_of_opening_quotes() {
+    let text = "\u{201c}".repeat(2000);
+    let start = std::time::Instant::now();
+    let _ = RULES.suggest(&text, &*TOKENIZER);
+    assert!(
+        start.elapsed() < std::time::Duration::from_secs(12),
+        "checking 2,000 opening quotes took {:?}",
+        start.elapsed()
+    );
+}
+
+#[test]
+fn long_unterminated_sentence_is_tagged_the_same_at_every_repeat() {
+    let snippet = "“She didn’t know…,” he said — and then…nothing, the old man’s dog ran \u{2028}to the bank and ";
+    let copies = 120;
+    let text = snippet.repeat(copies);
+    let sentences: Vec<_> = TOKENIZER.pipe(&text).collect();
+    assert_eq!(sentences.len(), 1);
+
+    let tokens: Vec<_> = sentences[0].iter().collect();
+    assert_eq!(tokens.len() % copies, 0);
+    let per_copy = tokens.len() / copies;
+    let copy = |i: usize| {
+        tokens[i * per_copy..(i + 1) * per_copy]
+            .iter()
+            .map(|token| {
+                (
+                    token.word().text().as_str().to_string(),
+                    format!("{:?}", token.word().tags()),
+                    token.chunks().to_vec(),
+                )
+            })
+            .collect::<Vec<_>>()
+    };
+
+    let expected = copy(copies / 4);
+    for i in copies / 4..copies * 3 / 4 {
+        assert_eq!(copy(i), expected, "copy {}", i);
+    }
 }
 
 #[test]
