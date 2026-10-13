@@ -37,10 +37,22 @@ impl TokenEngine {
                             .char()
                             .end;
 
-                        let rule_start = graph.by_index(0).span.char().start;
-                        let rule_end = graph.by_index(graph.groups().len() - 1).span.char().end;
+                        let overlaps = self
+                            .composition
+                            .parts
+                            .iter()
+                            .enumerate()
+                            .filter(|(_, part)| pool.get(**part).visible)
+                            .any(|(idx, _)| {
+                                let span = graph.by_index(idx + 1).span.char();
+                                if span.start < span.end {
+                                    anti_start < span.end && span.start < anti_end
+                                } else {
+                                    idx == 0 && anti_start <= span.start && span.start < anti_end
+                                }
+                            });
 
-                        if anti_start <= rule_end && rule_start <= anti_end {
+                        if overlaps {
                             blocked = true;
                             break;
                         }

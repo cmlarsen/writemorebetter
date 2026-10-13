@@ -10,6 +10,21 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
 ### Fixed
 
+- **Contractions, apostrophes and hyphens are handled as in LanguageTool 6.6.** Hyphens at either
+  end of a word are now tokens of their own (`didn't-->` is `didn ' t - - >`, `Go-` is `Go -`),
+  and a mixed-case contraction such as `don'T` is split at its apostrophe because the tagger,
+  like LanguageTool's, only tries the lowercase form of a title-case or all-uppercase word. A
+  `\1` reference in a suggestion uses the token's normalized text (`were’re` → `we're`), an
+  antipattern only blocks a match when it overlaps a matched token rather than a skipped one or
+  the match's edge, `skip="-1"` is no longer capped at 20 tokens, and `suppress_misspelled`
+  drops suggestions that could not be synthesized (no more `(anyone)` for `anyone’s`).
+  `TYPOS/APOS_RE/1`, `TYPOS/WERE_RE/0`, `GRAMMAR/MISSING_APOSTROPHE_T/0`,
+  `TYPOS/APOSTROPHE_PLURAL_/1`, `GRAMMAR/SINGED_CONTRACT/0`, `PUNCTUATION/DASH_RULE/0`,
+  `PUNCTUATION/TWO_HYPHENS/0`, `PUNCTUATION/ENUMERATION_AND_DASHES/0`, `TYPOGRAPHY/ARROWS/0` and
+  nine other rules now pass their LanguageTool examples. `RULES_FORMAT_VERSION` is now 13, so
+  rules binaries must be rebuilt
+  ([#77](https://github.com/cmlarsen/writemorebetter/issues/77),
+  [#115](https://github.com/cmlarsen/writemorebetter/issues/115)).
 - **All-caps proper nouns were tagged as unknown words.** The English tagger now looks up an
   all-uppercase word in title case when neither its own form nor its lowercase form is in the
   dictionary, as LanguageTool 6.6 does, so `SCHWARZWALD` is tagged `Schwarzwald/NNP` and
