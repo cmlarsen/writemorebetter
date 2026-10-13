@@ -1253,10 +1253,10 @@ pub(in crate::compile) mod filters {
 /// Build-time construction of the grammar-rule filters
 /// ([`crate::rule::filter::RuleFilter`]).
 ///
-/// Filters whose class needs resources the on-device engine does not have (a
-/// speller suggestion model, LanguageTool's multitoken-speller data) stay
-/// compile errors that name the class, so a rule can never silently ignore its
-/// filter.
+/// Filters whose class needs resources the on-device engine does not have
+/// (LanguageTool's multitoken-speller data) or that query the speller and are
+/// not ported yet stay compile errors that name the class, so a rule can never
+/// silently ignore its filter.
 pub(in crate::compile) mod rule_filters {
     use std::{collections::HashMap, path::Path};
 
@@ -1443,8 +1443,7 @@ pub(in crate::compile) mod rule_filters {
             | "FindSuggestionsFilter"
             | "EnglishNumberInWordFilter" => {
                 return Err(Error::Unimplemented(format!(
-                    "filter class '{}' needs the speller suggestion model at match time, \
-                     which the rule engine does not expose yet.",
+                    "filter class '{}' needs the speller at match time and is not ported yet.",
                     class
                 )))
             }

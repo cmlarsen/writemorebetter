@@ -8,6 +8,15 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
 # Unreleased
 
+### Added
+
+- **Rule filters can query the speller while a rule matches.** `Spell::speller()` returns a
+  read-only `Speller` for the selected variant with `is_correct(word)` and `suggest(word, n)`,
+  and the grammar-rule filters receive it alongside the rule match, ready for the speller-backed
+  filter ports ([#70](https://github.com/cmlarsen/writemorebetter/issues/70)). A curly
+  apostrophe counts as a straight one and surrounding whitespace (including U+2028) is ignored.
+  Checking output is unchanged.
+
 ### Fixed
 
 - **All-caps proper nouns were tagged as unknown words.** The English tagger now looks up an
@@ -22,6 +31,12 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   tokens inside its match, and the beam search keeps shared back-pointers. A 5,000-word sentence
   with no terminator now checks in ~0.8 s instead of ~6.6 s; output is unchanged
   ([#101](https://github.com/cmlarsen/writemorebetter/issues/101)).
+- **Edge cases in the rule compiler and tagger.** A possessive or counted optional regex assertion
+  (`x$?+y`, `x$?{2}y`) now compiles to `xy` as Java matches it, instead of re-binding the
+  quantifier to the previous atom; a bounded lookbehind with more than 256 variants now reports
+  that cap instead of "unbounded length"; and the all-caps title-case lookup no longer runs for
+  compound-split parts that disable lowercase lookup. No shipped rule or config hits these, so
+  checking output is unchanged ([#117](https://github.com/cmlarsen/writemorebetter/issues/117)).
 
 ### Changed
 
