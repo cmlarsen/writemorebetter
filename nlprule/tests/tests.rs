@@ -2300,3 +2300,33 @@ fn grammar_include_skipped_adds_the_skipped_tokens() {
         replacements
     );
 }
+
+#[test]
+fn long_unterminated_sentence_is_tagged_the_same_at_every_repeat() {
+    let snippet = "“She didn’t know…,” he said — and then…nothing, the old man’s dog ran \u{2028}to the bank and ";
+    let copies = 120;
+    let text = snippet.repeat(copies);
+    let sentences: Vec<_> = TOKENIZER.pipe(&text).collect();
+    assert_eq!(sentences.len(), 1);
+
+    let tokens: Vec<_> = sentences[0].iter().collect();
+    assert_eq!(tokens.len() % copies, 0);
+    let per_copy = tokens.len() / copies;
+    let copy = |i: usize| {
+        tokens[i * per_copy..(i + 1) * per_copy]
+            .iter()
+            .map(|token| {
+                (
+                    token.word().text().as_str().to_string(),
+                    format!("{:?}", token.word().tags()),
+                    token.chunks().to_vec(),
+                )
+            })
+            .collect::<Vec<_>>()
+    };
+
+    let expected = copy(copies / 4);
+    for i in copies / 4..copies * 3 / 4 {
+        assert_eq!(copy(i), expected, "copy {}", i);
+    }
+}

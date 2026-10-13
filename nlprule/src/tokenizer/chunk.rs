@@ -22,58 +22,42 @@ fn softmax(vec: &mut Vec<f32>) {
 #[derive(Debug, Clone)]
 struct Sequence<'a> {
     outcomes: Vec<&'a str>,
-    probs: Vec<f32>,
-    log_prob: f32,
 }
 
-impl<'a> Eq for Sequence<'a> {}
+struct Node {
+    outcome: usize,
+    parent: Option<usize>,
+}
 
-impl<'a> PartialEq for Sequence<'a> {
+struct Beam {
+    log_prob: f32,
+    node: Option<usize>,
+}
+
+impl Eq for Beam {}
+
+impl PartialEq for Beam {
     fn eq(&self, other: &Self) -> bool {
-        other.outcomes == self.outcomes
+        self.cmp(other) == Ordering::Equal
     }
 }
 
-impl<'a> Ord for Sequence<'a> {
+impl Ord for Beam {
     fn cmp(&self, other: &Self) -> Ordering {
         self.partial_cmp(&other).unwrap()
     }
 }
 
-impl<'a> PartialOrd for Sequence<'a> {
+impl PartialOrd for Beam {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         other.log_prob.partial_cmp(&self.log_prob)
     }
 }
 
-impl<'a> Default for Sequence<'a> {
-    fn default() -> Self {
-        Sequence {
-            outcomes: Vec::new(),
-            probs: Vec::new(),
-            log_prob: 0.,
-        }
-    }
-}
-
 impl<'a> Sequence<'a> {
-    fn new(outcomes: Vec<&'a str>, probs: Vec<f32>) -> Self {
-        let log_prob = probs.iter().fold(0., |a, b| a + b.ln());
-        Sequence {
-            outcomes,
-            probs,
-            log_prob,
-        }
-    }
-
     #[inline]
     fn outcomes(&self) -> &[&'a str] {
         &self.outcomes
-    }
-
-    #[inline]
-    pub fn probs(&self) -> &[f32] {
-        &self.probs
     }
 }
 
@@ -397,9 +381,13 @@ impl Model {
         size: usize,
         eval_fn: E,
     ) -> Vec<Sequence> {
-        let mut prev: BinaryHeap<Sequence> = BinaryHeap::new();
-        let mut next: BinaryHeap<Sequence> = BinaryHeap::new();
-        prev.push(Sequence::default());
+        let mut nodes: Vec<Node> = Vec::new();
+        let mut prev: BinaryHeap<Beam> = BinaryHeap::new();
+        let mut next: BinaryHeap<Beam> = BinaryHeap::new();
+        prev.push(Beam {
+            log_prob: 0.,
+            node: None,
+        });
 
         let mut cache: DefaultHashMap<u64, Vec<f32>> = DefaultHashMap::default();
 
@@ -409,20 +397,35 @@ impl Model {
             }
 
             for seq in prev.iter() {
-                let hash = hash_fn(seq.outcomes(), i);
+                let mut window = [""; 2];
+                let mut len = 0;
+                let mut node = seq.node;
+                while let (true, Some(idx)) = (len < window.len(), node) {
+                    window[window.len() - 1 - len] =
+                        self.outcome_labels[nodes[idx].outcome].as_str();
+                    node = nodes[idx].parent;
+                    len += 1;
+                }
+                let outcomes = &window[window.len() - len..];
+
+                let hash = hash_fn(outcomes, i);
                 if cache.get(&hash).is_none() {
-                    let context = context_fn(tokens, seq.outcomes(), i);
+                    let context = context_fn(tokens, outcomes, i);
                     cache.insert(hash, eval_fn(&context, i));
                 }
                 let scores = cache.get(&hash).unwrap();
                 let top_n = self.get_top_n(&scores, size, 1e-1);
 
-                for (_, p, pred) in top_n {
-                    if valid_fn(tokens, &seq.outcomes(), i, pred) {
-                        let next_outcomes: Vec<_> = [seq.outcomes(), &[pred]].concat();
-                        let next_probs: Vec<_> = [seq.probs(), &[p]].concat();
-
-                        next.push(Sequence::new(next_outcomes, next_probs));
+                for (j, p, pred) in top_n {
+                    if valid_fn(tokens, outcomes, i, pred) {
+                        nodes.push(Node {
+                            outcome: j,
+                            parent: seq.node,
+                        });
+                        next.push(Beam {
+                            log_prob: seq.log_prob + p.ln(),
+                            node: Some(nodes.len() - 1),
+                        });
                     }
                 }
 
@@ -430,14 +433,15 @@ impl Model {
                 if next.is_empty() {
                     for (j, p) in scores.iter().enumerate() {
                         let pred = self.outcome_labels[j].as_str();
-                        if valid_fn(tokens, &seq.outcomes(), i, pred) {
-                            let mut next_outcomes: Vec<_> = seq.outcomes().to_vec();
-                            next_outcomes.push(pred);
-
-                            let mut next_probs: Vec<_> = seq.probs().to_vec();
-                            next_probs.push(*p);
-
-                            next.push(Sequence::new(next_outcomes, next_probs));
+                        if valid_fn(tokens, outcomes, i, pred) {
+                            nodes.push(Node {
+                                outcome: j,
+                                parent: seq.node,
+                            });
+                            next.push(Beam {
+                                log_prob: seq.log_prob + p.ln(),
+                                node: Some(nodes.len() - 1),
+                            });
                         }
                     }
                 }
@@ -449,7 +453,18 @@ impl Model {
 
         let mut out: Vec<_> = prev.drain().collect();
         out.sort();
-        out
+        out.into_iter()
+            .map(|beam| {
+                let mut outcomes = Vec::new();
+                let mut node = beam.node;
+                while let Some(idx) = node {
+                    outcomes.push(self.outcome_labels[nodes[idx].outcome].as_str());
+                    node = nodes[idx].parent;
+                }
+                outcomes.reverse();
+                Sequence { outcomes }
+            })
+            .collect()
     }
 }
 
@@ -731,10 +746,10 @@ impl MaxentPosTagger {
     fn hash(tags: &[&str], i: usize) -> u64 {
         let mut s = DefaultHasher::default();
         if i >= 1 {
-            tags[i - 1].hash(&mut s);
+            tags[tags.len() - 1].hash(&mut s);
         }
         if i >= 2 {
-            tags[i - 2].hash(&mut s);
+            tags[tags.len() - 2].hash(&mut s);
         }
         i.hash(&mut s);
         s.finish()
@@ -755,12 +770,12 @@ impl MaxentPosTagger {
             "*SE*"
         };
         let (prev, tagprev) = if i >= 1 {
-            (tokens[i - 1], Some(tags[i - 1]))
+            (tokens[i - 1], Some(tags[tags.len() - 1]))
         } else {
             ("*SB*", None)
         };
         let (prevprev, tagprevprev) = if i >= 2 {
-            (tokens[i - 2], Some(tags[i - 2]))
+            (tokens[i - 2], Some(tags[tags.len() - 2]))
         } else {
             ("*SB*", None)
         };
@@ -849,10 +864,10 @@ impl MaxentChunker {
     fn hash(preds: &[&str], i: usize) -> u64 {
         let mut s = DefaultHasher::default();
         if i >= 1 {
-            preds[i - 1].hash(&mut s);
+            preds[preds.len() - 1].hash(&mut s);
         }
         if i >= 2 {
-            preds[i - 2].hash(&mut s);
+            preds[preds.len() - 2].hash(&mut s);
         }
         i.hash(&mut s);
         s.finish()
@@ -928,8 +943,15 @@ impl MaxentChunker {
         let (tp2p, tp2v) = ("t2=", if i + 2 >= n { "eos" } else { tag(i + 2) });
 
         // `p_2` has no `=` before a real prediction, but does before `bos` (LanguageTool quirk).
-        let (pm2p, pm2v) = ("p_2", if i < 2 { "=bos" } else { preds[i - 2] });
-        let (pm1p, pm1v) = ("p_1=", if i < 1 { "bos" } else { preds[i - 1] });
+        let (pm2p, pm2v) = (
+            "p_2",
+            if i < 2 {
+                "=bos"
+            } else {
+                preds[preds.len() - 2]
+            },
+        );
+        let (pm1p, pm1v) = ("p_1=", if i < 1 { "bos" } else { preds[preds.len() - 1] });
 
         let h = |parts: &[&str]| hash::hash_parts(parts);
 

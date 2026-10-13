@@ -14,6 +14,14 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   all-uppercase word in title case when neither its own form nor its lowercase form is in the
   dictionary, as LanguageTool 6.6 does, so `SCHWARZWALD` is tagged `Schwarzwald/NNP` and
   `TYPOS/IM_I_M/0` passes ([#111](https://github.com/cmlarsen/writemorebetter/issues/111)).
+- **A very long sentence was checked in quadratic time.** Three spots did O(sentence) work per
+  match or per word: a rule with antipatterns re-ran every antipattern over the whole sentence for
+  each candidate match, a disambiguation change re-scanned (and hashed) every token of the sentence
+  for each match, and the chunker's beam search copied each hypothesis's full history at every
+  word. Antipattern spans are now computed once per rule and sentence, a change only looks at the
+  tokens inside its match, and the beam search keeps shared back-pointers. A 5,000-word sentence
+  with no terminator now checks in ~0.8 s instead of ~6.6 s; output is unchanged
+  ([#101](https://github.com/cmlarsen/writemorebetter/issues/101)).
 
 ### Changed
 
