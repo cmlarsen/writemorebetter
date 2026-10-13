@@ -10,8 +10,8 @@ use unicase::UniCase;
 
 type Context<'a, 't> = (&'a MatchSentence<'t>, &'a MatchGraph<'t>);
 
-/// The three ways a [Matcher] compares: a literal string, the text of another pattern group, or a
-/// regular expression.
+/// The ways a [Matcher] compares: a literal string, the text of another pattern group, the word
+/// forms synthesized from another pattern group, or a regular expression.
 ///
 /// Kept compact (regex and string boxed, a graph reference is just an id) so [`Atom`] and
 /// `Vec<Part>` stay small — those vectors hold one entry per pattern atom and dominate the loaded
@@ -21,6 +21,7 @@ pub enum MatcherKind {
     Text(Box<str>),
     Graph(GraphId),
     Regex(Box<Regex>),
+    Synthesis(Box<crate::rule::grammar::Match>, bool),
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -95,6 +96,25 @@ impl Matcher {
                             UniCase::new(reference) == UniCase::new(input)
                         }
                     })
+            }
+            MatcherKind::Synthesis(reference, any_form) => {
+                let (sentence, graph) =
+                    context.expect("context must be set for context-dependent matcher");
+                let equals = |form: &str| {
+                    if case_sensitive {
+                        form == input
+                    } else {
+                        UniCase::new(form) == UniCase::new(input)
+                    }
+                };
+
+                reference.forms(sentence, graph, None).is_some_and(|forms| {
+                    if *any_form {
+                        forms.iter().any(|form| equals(form))
+                    } else {
+                        equals(&forms.join("|"))
+                    }
+                })
             }
             MatcherKind::Regex(regex) => regex.is_match(input),
         };

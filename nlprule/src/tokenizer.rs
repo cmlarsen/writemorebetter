@@ -224,6 +224,16 @@ fn t_was_parts(s: &str) -> Option<Vec<&str>> {
     }
 }
 
+fn is_mixed_case(s: &str) -> bool {
+    let mut rest = s.chars().skip(1);
+    let all_uppercase = !s.chars().any(char::is_lowercase);
+    let capitalized =
+        s.chars().next().is_some_and(char::is_uppercase) && !rest.any(char::is_uppercase);
+    let all_lowercase = !s.chars().any(char::is_uppercase);
+
+    !all_uppercase && !capitalized && !all_lowercase
+}
+
 /// The LanguageTool 6.6+ `patternList`: if a word containing an apostrophe
 /// matches one of these shapes, its capture groups are emitted as tokens.
 fn contraction_parts(s: &str) -> Option<Vec<&str>> {
@@ -605,8 +615,8 @@ impl Tokenizer {
         }
 
         // LanguageTool looks the word up after normalizing curly apostrophes;
-        // its tagger is case insensitive, so try both the exact and lowercase
-        // forms. When it is known, the normalized form is the token text, so a
+        // its tagger also tries the lowercase form unless the word is mixed
+        // case (so `'VE` is known but `'Ve` is not). When it is known, the normalized form is the token text, so a
         // recognized contraction is emitted with a straight apostrophe.
         let normalized = if s.contains('\u{2019}') {
             s.replace('\u{2019}', "'")
@@ -615,11 +625,12 @@ impl Tokenizer {
         };
 
         let known = self.tagger.id_word(normalized.as_str().into()).1.is_some()
-            || self
-                .tagger
-                .id_word(normalized.to_lowercase().as_str().into())
-                .1
-                .is_some();
+            || (!is_mixed_case(&normalized)
+                && self
+                    .tagger
+                    .id_word(normalized.to_lowercase().as_str().into())
+                    .1
+                    .is_some());
 
         if known {
             if normalized == s {
