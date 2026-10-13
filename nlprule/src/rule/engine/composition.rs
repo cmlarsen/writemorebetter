@@ -97,24 +97,31 @@ impl Matcher {
                         }
                     })
             }
-            MatcherKind::Synthesis(reference, any_form) => {
+            MatcherKind::Synthesis(reference, is_regex) => {
                 let (sentence, graph) =
                     context.expect("context must be set for context-dependent matcher");
-                let equals = |form: &str| {
-                    if case_sensitive {
-                        form == input
-                    } else {
-                        UniCase::new(form) == UniCase::new(input)
-                    }
-                };
+                let joined = reference
+                    .forms(sentence, graph, None)
+                    .map_or_else(String::new, |forms| forms.join("|"));
 
-                reference.forms(sentence, graph, None).is_some_and(|forms| {
-                    if *any_form {
-                        forms.iter().any(|form| equals(form))
-                    } else {
-                        equals(&forms.join("|"))
-                    }
-                })
+                if joined.is_empty() {
+                    return true;
+                }
+
+                if *is_regex {
+                    Regex::is_match_uncached(
+                        &format!(
+                            "{}^(?:{})$",
+                            if case_sensitive { "" } else { "(?i)" },
+                            joined
+                        ),
+                        input,
+                    )
+                } else if case_sensitive {
+                    joined == input
+                } else {
+                    UniCase::new(joined.as_str()) == UniCase::new(input)
+                }
             }
             MatcherKind::Regex(regex) => regex.is_match(input),
         };

@@ -617,18 +617,15 @@ fn parse_match(
 
     let postag_regexp = matches!(m.postag_regex.as_deref(), Some("yes"));
 
-    let pos_replacer = m
-        .postag
-        .as_deref()
-        .map(|postag| {
-            parse_pos_replacer(
-                postag,
-                postag_regexp,
-                m.postag_replace.clone(),
-                static_lemma.is_some(),
-            )
-        })
-        .transpose()?;
+    let pos_replacer = match m.postag.as_deref() {
+        Some(postag) => Some(parse_pos_replacer(
+            postag,
+            postag_regexp,
+            m.postag_replace.clone(),
+            static_lemma.is_some(),
+        )?),
+        None => None,
+    };
 
     let regex_replacer = match (m.regexp_match, m.regexp_replace) {
         (Some(regex_match), Some(regex_replace)) => Some((
@@ -839,6 +836,28 @@ fn pattern_uses_readings(pattern: &structure::Pattern) -> bool {
     })
 }
 
+fn rule_reads_readings_outside_pattern(rule: &structure::Rule) -> bool {
+    let synthesizes = |m: &structure::Match| m.postag.is_some();
+    let suggestion_synthesizes = |suggestion: &structure::Suggestion| {
+        suggestion.parts.iter().any(|part| match part {
+            structure::SuggestionPart::Match(m) => synthesizes(m),
+            structure::SuggestionPart::Text(_) => false,
+        })
+    };
+
+    rule.filter.is_some()
+        || rule.message.parts.iter().any(|part| match part {
+            structure::MessagePart::Suggestion(suggestion) => suggestion_synthesizes(suggestion),
+            structure::MessagePart::Match(m) => synthesizes(m),
+            structure::MessagePart::Text(_) => false,
+        })
+        || rule
+            .suggestions
+            .iter()
+            .flatten()
+            .any(suggestion_synthesizes)
+}
+
 fn parse_pattern(
     pattern: structure::Pattern,
     info: &mut BuildInfo,
@@ -961,6 +980,18 @@ impl Rule {
         pool: &mut PartInterner,
     ) -> Result<Rule, Error> {
         let is_regex_rule = data.regex.is_some();
+
+        if data
+            .pattern
+            .as_ref()
+            .is_some_and(|pattern| pattern.raw_pos.as_deref() == Some("yes"))
+            && rule_reads_readings_outside_pattern(&data)
+        {
+            return Err(Error::Unimplemented(
+                "raw_pos with a filter or a synthesizing <match> in the message is not implemented."
+                    .into(),
+            ));
+        }
 
         let (engine, start, end) = match (&data.pattern, data.regex) {
             (Some(_), Some(_)) => Err(Error::Unexpected(
@@ -1734,7 +1765,7 @@ mod tests {
         assert_eq!(mins(&parts), vec![0, 2]);
     }
 
-    fn compiled_mins(xml: &str) -> Vec<u32> {
+    fn try_compiled_mins(xml: &str) -> Result<Vec<u32>, Error> {
         let pattern: structure::Pattern = serde_xml_rs::from_str(xml).unwrap();
         let mut info = BuildInfo::new(
             Arc::new(Tagger::default()),
@@ -1742,12 +1773,96 @@ mod tests {
             PathBuf::new(),
         );
         let mut pool = PartInterner::default();
-        let (composition, _, _) = parse_pattern(pattern, &mut info, &mut pool).unwrap();
-        composition
+        let (composition, _, _) = parse_pattern(pattern, &mut info, &mut pool)?;
+        Ok(composition
             .parts
             .iter()
             .map(|id| pool.get(*id).quantifier.min)
-            .collect()
+            .collect())
+    }
+
+    fn compiled_mins(xml: &str) -> Vec<u32> {
+        try_compiled_mins(xml).unwrap()
+    }
+
+    fn is_unimplemented(result: Result<Vec<u32>, Error>) -> bool {
+        matches!(result, Err(Error::Unimplemented(_)))
+    }
+
+    #[test]
+    fn or_group_takes_its_first_tokens_quantifier() {
+        assert_eq!(
+            compiled_mins(
+                r#"<pattern><token><text text="“Please"/></token><or><token min="0"><text text="multiple"/></token><token><text text="—"/></token></or><token><text text="by…"/></token></pattern>"#
+            ),
+            vec![1, 0, 1]
+        );
+        assert_eq!(
+            compiled_mins(
+                "<pattern><and><token skip=\"2\"><text text=\"it’s\"/></token><token><text text=\"it’s\"/></token></and><token><text text=\"\u{2028}\"/></token></pattern>"
+            ),
+            vec![1, 0, 1]
+        );
+    }
+
+    #[test]
+    fn quantifier_on_a_later_parallel_token_is_rejected() {
+        assert!(is_unimplemented(try_compiled_mins(
+            r#"<pattern><token><text text="“Well"/></token><or><token><text text="it’s"/></token><token min="0"><text text="—"/></token></or></pattern>"#
+        )));
+    }
+
+    fn rule(xml: &str) -> structure::Rule {
+        serde_xml_rs::from_str(&xml.replace(
+            "</rule>",
+            r#"<example><text text="“Maybe "/><marker><text text="I’Ve"/></marker><text text=" seen it…”"/></example></rule>"#,
+        ))
+        .unwrap()
+    }
+
+    #[test]
+    fn raw_pos_rule_rejects_synthesis_and_filters_outside_the_pattern() {
+        let pattern = r#"<pattern raw_pos="yes"><token><text text="“I"/></token><token spacebefore="no"><text text="’"/></token><token><text text="Ve…"/></token></pattern>"#;
+
+        assert!(!rule_reads_readings_outside_pattern(&rule(&format!(
+            r#"<rule>{}<message><text text="Use "/><suggestion><match no="3" case_conversion="alllower"/></suggestion><text text="—check it."/></message></rule>"#,
+            pattern
+        ))));
+
+        for tail in [
+            r#"<message><text text="Use "/><suggestion><match no="3" postag="VBP"/></suggestion><text text="—check it."/></message>"#,
+            r#"<message><text text="Is "/><match no="1" postag="PRP"/><text text=" right…"/></message>"#,
+            r#"<message><text text="Check it."/></message><suggestion><match no="3" postag="VBP"/></suggestion>"#,
+            r#"<message><text text="Check it."/></message><filter class="org.languagetool.rules.en.AdverbFilter" args="adverb:1"/>"#,
+        ] {
+            assert!(
+                rule_reads_readings_outside_pattern(&rule(&format!(
+                    "<rule>{}{}</rule>",
+                    pattern, tail
+                ))),
+                "{}",
+                tail
+            );
+        }
+    }
+
+    #[test]
+    fn raw_pos_compiles_only_patterns_that_ignore_readings() {
+        assert!(try_compiled_mins(
+            r#"<pattern raw_pos="yes"><token><text text="“I"/></token><token spacebefore="no"><text text="’"/></token><token><text text="Ve…"/></token></pattern>"#
+        )
+        .is_ok());
+
+        for xml in [
+            r#"<pattern raw_pos="yes"><token postag="VB"><text text="—"/></token></pattern>"#,
+            r#"<pattern raw_pos="yes"><token inflected="yes"><text text="it’s"/></token></pattern>"#,
+            r#"<pattern raw_pos="yes"><token chunk_re="B-NP"><text text="…"/></token></pattern>"#,
+            r#"<pattern raw_pos="yes"><token><text text="“I"/><exception postag="PRP"/></token></pattern>"#,
+            r#"<pattern raw_pos="yes"><or><token><text text="’"/></token><token postag="POS"><text text="'"/></token></or></pattern>"#,
+            "<pattern raw_pos=\"yes\"><marker><token chunk=\"I-VP\"><text text=\"\u{2028}\"/></token></marker></pattern>",
+        ] {
+            assert!(is_unimplemented(try_compiled_mins(xml)), "{}", xml);
+        }
     }
 
     #[test]

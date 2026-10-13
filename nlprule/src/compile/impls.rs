@@ -1039,11 +1039,11 @@ mod composition {
         pub(in crate::compile) fn with_synthesis(
             mut self,
             mut reference: crate::rule::grammar::Match,
-            any_form: bool,
+            is_regex: bool,
         ) -> Self {
             if let Some(id) = self.graph_id() {
                 reference.id = id;
-                self.matcher = MatcherKind::Synthesis(Box::new(reference), any_form);
+                self.matcher = MatcherKind::Synthesis(Box::new(reference), is_regex);
             }
             self
         }

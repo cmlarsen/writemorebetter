@@ -2437,3 +2437,33 @@ fn tokenizer_splits_mixed_case_clitics_at_the_apostrophe() {
         ]
     );
 }
+
+#[test]
+fn token_match_without_synthesized_forms_matches_any_token() {
+    for text in [
+        "\u{201c}Methinks want wanted more,\u{201d} she said\u{2026}",
+        "She paused\u{2014}methinks want wanted more.",
+        "He paused.\u{2028}Methinks want wanted more.",
+        "\u{201c}Thus spake want wanted the prophet,\u{201d} she said\u{2026}",
+    ] {
+        assert!(
+            RULES
+                .suggest(text, &*TOKENIZER)
+                .iter()
+                .all(|suggestion| !suggestion.source().starts_with("GRAMMAR/REPEATED_VERBS/")),
+            "{}",
+            text
+        );
+    }
+
+    assert_eq!(
+        flags_from(
+            "He paused.\u{2028}I want wanted more.",
+            "GRAMMAR/REPEATED_VERBS/0"
+        ),
+        vec![(
+            "want wanted".to_string(),
+            vec!["want".to_string(), "wanted".to_string()]
+        )]
+    );
+}
