@@ -1134,9 +1134,11 @@ mod composition {
             // indexed by `k` and holds `part index + 1` (see `GraphIndex`).
             let mut id_to_idx: Vec<u32> = vec![0];
 
-            let required_key = if start_keys.is_none() {
+            let required_key = {
+                let skip_first = usize::from(start_keys.is_some());
                 parts
                     .iter()
+                    .skip(skip_first)
                     .filter(|part| part.quantifier.min > 0)
                     .filter_map(|part| {
                         let mut keys = Vec::new();
@@ -1151,8 +1153,6 @@ mod composition {
                     })
                     .max_by_key(|key| key.text.len())
                     .map(Box::new)
-            } else {
-                None
             };
 
             for (i, part) in parts.iter().enumerate() {
@@ -1265,10 +1265,10 @@ pub(in crate::compile) mod filters {
 /// Build-time construction of the grammar-rule filters
 /// ([`crate::rule::filter::RuleFilter`]).
 ///
-/// Filters whose class needs resources the on-device engine does not have (a
-/// speller suggestion model, LanguageTool's multitoken-speller data) stay
-/// compile errors that name the class, so a rule can never silently ignore its
-/// filter.
+/// Filters whose class needs resources the on-device engine does not have
+/// (LanguageTool's multitoken-speller data) or that query the speller and are
+/// not ported yet stay compile errors that name the class, so a rule can never
+/// silently ignore its filter.
 pub(in crate::compile) mod rule_filters {
     use std::{collections::HashMap, path::Path};
 
@@ -1455,8 +1455,7 @@ pub(in crate::compile) mod rule_filters {
             | "FindSuggestionsFilter"
             | "EnglishNumberInWordFilter" => {
                 return Err(Error::Unimplemented(format!(
-                    "filter class '{}' needs the speller suggestion model at match time, \
-                     which the rule engine does not expose yet.",
+                    "filter class '{}' needs the speller at match time and is not ported yet.",
                     class
                 )))
             }

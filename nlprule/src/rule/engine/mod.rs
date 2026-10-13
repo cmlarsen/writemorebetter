@@ -15,48 +15,110 @@ pub struct TokenEngine {
     pub(crate) antipatterns: Vec<AntipatternId>,
 }
 
+struct Blockers {
+    starts: Vec<usize>,
+    max_ends: Vec<usize>,
+}
+
+impl Blockers {
+    fn new(engine: &TokenEngine, pool: &PartPool, sentence: &MatchSentence) -> Self {
+        let mut spans = Vec::new();
+        let positions = sentence.start_positions();
+        for antipattern in &engine.antipatterns {
+            let antipattern = pool.antipattern(*antipattern);
+            if let Some(key) = antipattern.required_key.as_deref() {
+                if !positions.may_contain(key) {
+                    continue;
+                }
+            }
+            let starts: Vec<usize> = match antipattern.start_keys.as_deref() {
+                Some(keys) => {
+                    let mut starts: Vec<usize> = keys
+                        .iter()
+                        .flat_map(|key| positions.get(key))
+                        .map(|&i| i as usize)
+                        .collect();
+                    starts.sort_unstable();
+                    starts.dedup();
+                    starts
+                }
+                None => (0..sentence.len()).collect(),
+            };
+            for i in starts {
+                if let Some(anti_graph) = antipattern.apply(pool, sentence, i) {
+                    let anti_start = anti_graph.by_index(0).span.char().start;
+                    let anti_end = anti_graph
+                        .by_index(anti_graph.groups().len() - 1)
+                        .span
+                        .char()
+                        .end;
+                    spans.push((anti_start, anti_end));
+                }
+            }
+        }
+        Self::from_spans(spans)
+    }
+
+    fn from_spans(mut spans: Vec<(usize, usize)>) -> Self {
+        spans.sort_unstable();
+
+        let mut max_end = 0;
+        let max_ends = spans
+            .iter()
+            .map(|(_, end)| {
+                max_end = max_end.max(*end);
+                max_end
+            })
+            .collect();
+
+        Blockers {
+            starts: spans.into_iter().map(|(start, _)| start).collect(),
+            max_ends,
+        }
+    }
+
+    fn overlaps(&self, start: usize, end: usize) -> bool {
+        let n = if start < end {
+            self.starts.partition_point(|anti_start| *anti_start < end)
+        } else {
+            self.starts
+                .partition_point(|anti_start| *anti_start <= start)
+        };
+        n > 0 && self.max_ends[n - 1] > start
+    }
+}
+
 impl TokenEngine {
     fn get_match<'t>(
         &'t self,
         pool: &'t PartPool,
         sentence: &'t MatchSentence,
         i: usize,
+        blockers: &mut Option<Blockers>,
     ) -> Option<MatchGraph<'t>> {
-        if let Some(graph) = self.composition.apply(pool, sentence, i) {
-            let mut blocked = false;
+        let graph = self.composition.apply(pool, sentence, i)?;
 
-            // TODO: cache / move to outer loop
-            for i in 0..sentence.len() {
-                for antipattern in &self.antipatterns {
-                    let antipattern = pool.antipattern(*antipattern);
-                    if let Some(anti_graph) = antipattern.apply(pool, sentence, i) {
-                        let anti_start = anti_graph.by_index(0).span.char().start;
-                        let anti_end = anti_graph
-                            .by_index(anti_graph.groups().len() - 1)
-                            .span
-                            .char()
-                            .end;
-
-                        let rule_start = graph.by_index(0).span.char().start;
-                        let rule_end = graph.by_index(graph.groups().len() - 1).span.char().end;
-
-                        if anti_start <= rule_end && rule_start <= anti_end {
-                            blocked = true;
-                            break;
-                        }
-                    }
-                }
-                if blocked {
-                    break;
-                }
-            }
-
-            if !blocked {
-                return Some(graph);
-            }
+        if self.antipatterns.is_empty() {
+            return Some(graph);
         }
 
-        None
+        let blockers = blockers.get_or_insert_with(|| Blockers::new(self, pool, sentence));
+        let blocked = self
+            .composition
+            .parts
+            .iter()
+            .enumerate()
+            .filter(|(_, part)| pool.get(**part).visible)
+            .any(|(idx, _)| {
+                let span = graph.by_index(idx + 1).span.char();
+                (span.start < span.end || idx == 0) && blockers.overlaps(span.start, span.end)
+            });
+
+        if blocked {
+            None
+        } else {
+            Some(graph)
+        }
     }
 }
 
@@ -84,6 +146,7 @@ struct TokenMatches<'a, 't> {
     /// literal (see [`Composition::start_keys`]).
     starts: Starts<'t>,
     cursor: usize,
+    blockers: Option<Blockers>,
 }
 
 /// Which token positions a rule can start a match at.
@@ -152,10 +215,14 @@ impl<'a, 't> Iterator for EngineMatches<'a, 't> {
                     inner.index += 1;
                 }
 
-                let graph = match inner.engine.get_match(inner.pool, sentence, i) {
-                    Some(graph) => graph,
-                    None => continue,
-                };
+                let graph =
+                    match inner
+                        .engine
+                        .get_match(inner.pool, sentence, i, &mut inner.blockers)
+                    {
+                        Some(graph) => graph,
+                        None => continue,
+                    };
 
                 let start_group = graph.by_id(start_id);
                 let end_group = graph.by_id(end_id);
@@ -243,6 +310,7 @@ impl Engine {
                     mask: Vec::new(),
                     starts,
                     cursor: 0,
+                    blockers: None,
                 })
             }
 
@@ -269,5 +337,29 @@ impl Engine {
             end,
             inner,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Blockers;
+    use quickcheck_macros::quickcheck;
+
+    #[quickcheck]
+    fn blockers_overlap_like_a_linear_scan(spans: Vec<(u8, u8)>, start: u8, len: u8) -> bool {
+        let spans: Vec<(usize, usize)> = spans
+            .into_iter()
+            .map(|(a, b)| (a.min(b) as usize, a.max(b) as usize))
+            .collect();
+        let (start, end) = (start as usize, start as usize + len as usize);
+        let expected = spans.iter().any(|(anti_start, anti_end)| {
+            if start < end {
+                *anti_start < end && start < *anti_end
+            } else {
+                *anti_start <= start && start < *anti_end
+            }
+        });
+
+        Blockers::from_spans(spans).overlaps(start, end) == expected
     }
 }

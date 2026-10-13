@@ -4,6 +4,7 @@ use crate::types::*;
 use crate::{
     builtin::en::ArticleData,
     filter::{Filter, Filterable},
+    spell::Speller,
     tokenizer::Tokenizer,
     utils,
 };
@@ -177,8 +178,17 @@ impl DisambiguationRule {
         log::info!("applying {}", self.id);
 
         for spans in changes.0 {
+            let (start, end) = spans
+                .iter()
+                .flatten()
+                .fold((usize::MAX, 0), |(start, end), span| {
+                    (start.min(span.char().start), end.max(span.char().end))
+                });
             let mut groups = Vec::new();
-            let mut refs = sentence.iter_mut().collect::<Vec<_>>();
+            let mut refs = sentence
+                .iter_mut()
+                .filter(|x| x.span().char().start >= start && x.span().char().end <= end)
+                .collect::<Vec<_>>();
 
             for group_spans in spans {
                 let mut group = Vec::new();
@@ -302,9 +312,8 @@ pub struct Suggestions<'a, 't> {
     /// The article word lists for `+DT`/`+INDT` synthesis, shared by every rule in the set.
     /// `None` when the rule set has no determiner synthesis.
     articles: Option<&'a ArticleData>,
-    /// Overrides "today" for the time-dependent rule filters; the rule test
-    /// harness passes LanguageTool's fixed test date.
-    now: Option<filter::Date>,
+    /// What the rule filter may consult besides the match.
+    filter_context: filter::FilterContext<'a>,
 }
 
 impl<'a, 't> Iterator for Suggestions<'a, 't> {
@@ -314,7 +323,7 @@ impl<'a, 't> Iterator for Suggestions<'a, 't> {
         let rule = self.rule;
         let sentence = self.sentence;
         let (start, end) = (self.rule.start, self.rule.end);
-        let now = self.now;
+        let filter_context = &self.filter_context;
         let articles = self.articles;
 
         self.matches.find_map(|graph| {
@@ -333,6 +342,10 @@ impl<'a, 't> Iterator for Suggestions<'a, 't> {
                 .filter_map(|x| x.alternatives(sentence, &graph, start, end, articles))
                 .flatten()
                 .collect();
+
+            if rule.suppress_misspelled && replacements.is_empty() {
+                return None;
+            }
 
             // A rule without a <suggestion> still reports a match, with its
             // message and no replacement (LanguageTool's behaviour). Such a rule
@@ -399,7 +412,9 @@ impl<'a, 't> Iterator for Suggestions<'a, 't> {
             // (before the "suggestion equals the matched text" cleanup below),
             // as LanguageTool filters do.
             let match_ = match &rule.filter {
-                Some(rule_filter) => rule_filter.accept(match_, sentence, &graph, now)?,
+                Some(rule_filter) => {
+                    rule_filter.accept(match_, sentence, &graph, filter_context)?
+                }
                 None => match_,
             };
 
@@ -578,6 +593,9 @@ pub struct Rule {
     pub(crate) examples: Examples,
     pub(crate) suggesters: Vec<grammar::Synthesizer>,
     pub(crate) message: grammar::Synthesizer,
+    /// LanguageTool's `<message suppress_misspelled="yes">`: a match whose suggestions were all
+    /// suppressed is not reported.
+    pub(crate) suppress_misspelled: bool,
     pub(crate) start: GraphId,
     pub(crate) end: GraphId,
     pub(crate) url: Option<String>,
@@ -712,19 +730,24 @@ impl Rule {
         pool: &'a PartPool,
         sentence: &'t MatchSentence<'t>,
         articles: Option<&'a ArticleData>,
+        speller: Option<&'a Speller<'a>>,
     ) -> Suggestions<'a, 't> {
-        self.apply_with_date(pool, sentence, articles, None)
+        self.apply_with_context(
+            pool,
+            sentence,
+            articles,
+            filter::FilterContext { now: None, speller },
+        )
     }
 
-    /// Like [`Rule::apply`], but with an explicit "today" for the
-    /// time-dependent filters (the rule test harness passes LanguageTool's
-    /// fixed test date).
-    fn apply_with_date<'a, 't>(
+    /// Like [`Rule::apply`], but with an explicit filter context (the rule
+    /// test harness passes LanguageTool's fixed test date as "today").
+    fn apply_with_context<'a, 't>(
         &'a self,
         pool: &'a PartPool,
         sentence: &'t MatchSentence<'t>,
         articles: Option<&'a ArticleData>,
-        now: Option<filter::Date>,
+        filter_context: filter::FilterContext<'a>,
     ) -> Suggestions<'a, 't> {
         Suggestions {
             matches: self
@@ -733,20 +756,22 @@ impl Rule {
             rule: self,
             sentence,
             articles,
-            now,
+            filter_context,
         }
     }
 
     /// Grammar rules always have at least one example associated with them.
     /// This method checks whether the correct action is taken in the examples.
     ///
-    /// `articles` are the rule set's shared article word lists; use
+    /// `articles` are the rule set's shared article word lists and `speller` its
+    /// speller for the selected variant; use
     /// [`Rules::test_rule`][crate::Rules::test_rule] to supply them.
     pub(crate) fn test(
         &self,
         tokenizer: &Tokenizer,
         pool: &PartPool,
         articles: Option<&ArticleData>,
+        speller: Option<&Speller>,
     ) -> bool {
         let mut passes = Vec::new();
 
@@ -768,11 +793,14 @@ impl Rule {
 
             info!("Sentence: {:#?}", sentence);
             let suggestions: Vec<_> = self
-                .apply_with_date(
+                .apply_with_context(
                     pool,
                     &MatchSentence::new(&sentence),
                     articles,
-                    Some(filter::test_date()),
+                    filter::FilterContext {
+                        now: Some(filter::test_date()),
+                        speller,
+                    },
                 )
                 .map(|s| s.lshift(shift_delta))
                 .collect();

@@ -431,7 +431,9 @@ pub(crate) struct StartPositions {
 impl StartPositions {
     pub(crate) fn may_contain(&self, key: &StartKey) -> bool {
         // Lowercasing is not full Unicode case folding, so absence is conclusive only for ASCII.
-        (!key.case_sensitive && (self.has_non_ascii || !key.text.is_ascii()))
+        (!key.case_sensitive
+            && (self.has_non_ascii || !key.text.is_ascii())
+            && key.text.chars().any(char::is_alphabetic))
             || !self.get(key).is_empty()
     }
 
@@ -997,6 +999,13 @@ mod prefilter_tests {
             assert!(positions.may_contain(&key));
             key.case_sensitive = true;
             assert!(!positions.may_contain(&key));
+            for text in ["\"", "--", "\u{2019}"] {
+                let key = StartKey {
+                    text: text.into(),
+                    case_sensitive: false,
+                };
+                assert!(!positions.may_contain(&key));
+            }
         }
     }
 }

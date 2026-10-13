@@ -276,6 +276,7 @@ fn empty_synthesizer() -> Synthesizer {
     Synthesizer {
         use_titlecase_adjust: false,
         parts: Vec::new(),
+        suppress_misspelled: false,
     }
 }
 
