@@ -1652,4 +1652,42 @@ mod tests {
         require_last_token_match(&mut parts);
         assert_eq!(mins(&parts), vec![0, 2]);
     }
+
+    fn compiled_mins(xml: &str) -> Vec<u32> {
+        let pattern: structure::Pattern = serde_xml_rs::from_str(xml).unwrap();
+        let mut info = BuildInfo::new(
+            Arc::new(Tagger::default()),
+            RegexCache::new(0),
+            PathBuf::new(),
+        );
+        let mut pool = PartInterner::default();
+        let (composition, _, _) = parse_pattern(pattern, &mut info, &mut pool).unwrap();
+        composition
+            .parts
+            .iter()
+            .map(|id| pool.get(*id).quantifier.min)
+            .collect()
+    }
+
+    #[test]
+    fn parsed_pattern_requires_its_trailing_optional_token() {
+        assert_eq!(
+            compiled_mins(
+                r#"<pattern><token><text text="“He’s"/></token><token min="0"><text text="—…"/></token></pattern>"#
+            ),
+            vec![1, 1]
+        );
+        assert_eq!(
+            compiled_mins(
+                "<pattern><marker><token><text text=\"it’s\"/></token></marker><token min=\"0\" max=\"-1\"><text text=\"\u{2028}\"/></token></pattern>"
+            ),
+            vec![1, 1]
+        );
+        assert_eq!(
+            compiled_mins(
+                r#"<pattern><token min="0"><text text="zqa"/></token><token><text text="zqb"/></token></pattern>"#
+            ),
+            vec![0, 1]
+        );
+    }
 }

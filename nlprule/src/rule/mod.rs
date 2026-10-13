@@ -551,7 +551,7 @@ mod example_tests {
         );
         assert_eq!(
             describe_expected(&example(ExampleKind::Incorrect, None)),
-            "exactly one match at chars 1..5"
+            "exactly one match at chars 1..5 (bytes 3..9)"
         );
         let found = Suggestion::new(
             "ID".into(),
@@ -561,12 +561,12 @@ mod example_tests {
         );
         assert_eq!(
             describe_expected(&example(ExampleKind::Incorrect, Some(found.clone()))),
-            "exactly one match at chars 1..5 with one of [\"He’s\"]"
+            "exactly one match at chars 1..5 (bytes 3..9) with one of [\"He’s\"]"
         );
         assert_eq!(describe_found(&[]), "no match");
         assert_eq!(
             describe_found(&[found]),
-            "1 match(es): chars 1..5 [\"He’s\"]"
+            "1 match(es): chars 1..5 (bytes 3..9) [\"He’s\"]"
         );
     }
 }
@@ -624,7 +624,7 @@ fn example_suggestion_matches(expected: &Suggestion, actual: &Suggestion) -> boo
 }
 
 fn describe_span(span: &Span) -> String {
-    format!("chars {:?}", span.char())
+    format!("chars {:?} (bytes {:?})", span.char(), span.byte())
 }
 
 fn describe_expected(example: &Example) -> String {
