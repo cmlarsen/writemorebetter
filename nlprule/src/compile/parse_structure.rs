@@ -442,7 +442,7 @@ fn parse_token(
 
     if let Some(to_skip) = token.skip.clone() {
         let to_skip = if to_skip == "-1" {
-            max_matches()
+            u32::MAX as usize
         } else {
             to_skip.parse().expect("can't parse skip as usize or -1")
         };
@@ -675,9 +675,12 @@ fn parse_synthesizer_text(text: &str, engine: &Engine) -> Result<Vec<Synthesizer
 fn parse_suggestion(
     data: structure::Suggestion,
     engine: &Engine,
+    rule_suppress_misspelled: bool,
     info: &mut BuildInfo,
     pool: &PartInterner,
 ) -> Result<Synthesizer, Error> {
+    let suppress_misspelled =
+        rule_suppress_misspelled || data.suppress_misspelled.as_deref() == Some("yes");
     let mut parts = Vec::new();
     for part in data.parts {
         match part {
@@ -696,6 +699,7 @@ fn parse_suggestion(
         parts,
         // use titlecase adjustment (i. e. make replacement title case if match is title case) if token rule
         use_titlecase_adjust: matches!(engine, Engine::Token(_)),
+        suppress_misspelled,
     })
 }
 
@@ -1000,13 +1004,23 @@ impl Rule {
 
         let mut message_parts = Vec::new();
         let mut suggesters = Vec::new();
+        let suppress_misspelled = data.message.suppress_misspelled.as_deref() == Some("yes");
 
         for part in data.message.parts {
             match part {
                 structure::MessagePart::Suggestion(suggestion) => {
-                    let suggester = parse_suggestion(suggestion.clone(), &engine, info, pool)?;
+                    let suggester = parse_suggestion(
+                        suggestion.clone(),
+                        &engine,
+                        suppress_misspelled,
+                        info,
+                        pool,
+                    )?;
                     // simpler to just parse a second time than cloning the result
-                    message_parts.extend(parse_suggestion(suggestion, &engine, info, pool)?.parts);
+                    message_parts.extend(
+                        parse_suggestion(suggestion, &engine, suppress_misspelled, info, pool)?
+                            .parts,
+                    );
                     suggesters.push(suggester);
                 }
                 structure::MessagePart::Text(text) => {
@@ -1022,7 +1036,13 @@ impl Rule {
 
         if let Some(suggestions) = data.suggestions {
             for suggestion in suggestions {
-                suggesters.push(parse_suggestion(suggestion, &engine, info, pool)?);
+                suggesters.push(parse_suggestion(
+                    suggestion,
+                    &engine,
+                    suppress_misspelled,
+                    info,
+                    pool,
+                )?);
             }
         }
 
@@ -1145,6 +1165,7 @@ impl Rule {
         let message = Synthesizer {
             parts: message_parts,
             use_titlecase_adjust: true,
+            suppress_misspelled: false,
         };
 
         // LanguageTool's `+DT`/`+INDT` synthesis chooses the article from the
@@ -1164,6 +1185,7 @@ impl Rule {
             examples: crate::rule::Examples::from_vec(examples),
             suggesters,
             message,
+            suppress_misspelled,
             uses_articles,
             url: data.url.map(|x| x.to_string()),
             short: data.short.map(|x| x.to_string()),

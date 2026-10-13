@@ -23,9 +23,28 @@ struct Blockers {
 impl Blockers {
     fn new(engine: &TokenEngine, pool: &PartPool, sentence: &MatchSentence) -> Self {
         let mut spans = Vec::new();
+        let positions = sentence.start_positions();
         for antipattern in &engine.antipatterns {
             let antipattern = pool.antipattern(*antipattern);
-            for i in 0..sentence.len() {
+            if let Some(key) = antipattern.required_key.as_deref() {
+                if !positions.may_contain(key) {
+                    continue;
+                }
+            }
+            let starts: Vec<usize> = match antipattern.start_keys.as_deref() {
+                Some(keys) => {
+                    let mut starts: Vec<usize> = keys
+                        .iter()
+                        .flat_map(|key| positions.get(key))
+                        .map(|&i| i as usize)
+                        .collect();
+                    starts.sort_unstable();
+                    starts.dedup();
+                    starts
+                }
+                None => (0..sentence.len()).collect(),
+            };
+            for i in starts {
                 if let Some(anti_graph) = antipattern.apply(pool, sentence, i) {
                     let anti_start = anti_graph.by_index(0).span.char().start;
                     let anti_end = anti_graph
@@ -59,8 +78,13 @@ impl Blockers {
     }
 
     fn overlaps(&self, start: usize, end: usize) -> bool {
-        let n = self.starts.partition_point(|anti_start| *anti_start <= end);
-        n > 0 && self.max_ends[n - 1] >= start
+        let n = if start < end {
+            self.starts.partition_point(|anti_start| *anti_start < end)
+        } else {
+            self.starts
+                .partition_point(|anti_start| *anti_start <= start)
+        };
+        n > 0 && self.max_ends[n - 1] > start
     }
 }
 
@@ -78,11 +102,19 @@ impl TokenEngine {
             return Some(graph);
         }
 
-        let rule_start = graph.by_index(0).span.char().start;
-        let rule_end = graph.by_index(graph.groups().len() - 1).span.char().end;
-
         let blockers = blockers.get_or_insert_with(|| Blockers::new(self, pool, sentence));
-        if blockers.overlaps(rule_start, rule_end) {
+        let blocked = self
+            .composition
+            .parts
+            .iter()
+            .enumerate()
+            .filter(|(_, part)| pool.get(**part).visible)
+            .any(|(idx, _)| {
+                let span = graph.by_index(idx + 1).span.char();
+                (span.start < span.end || idx == 0) && blockers.overlaps(span.start, span.end)
+            });
+
+        if blocked {
             None
         } else {
             Some(graph)
@@ -320,9 +352,13 @@ mod tests {
             .map(|(a, b)| (a.min(b) as usize, a.max(b) as usize))
             .collect();
         let (start, end) = (start as usize, start as usize + len as usize);
-        let expected = spans
-            .iter()
-            .any(|(anti_start, anti_end)| *anti_start <= end && start <= *anti_end);
+        let expected = spans.iter().any(|(anti_start, anti_end)| {
+            if start < end {
+                *anti_start < end && start < *anti_end
+            } else {
+                *anti_start <= start && start < *anti_end
+            }
+        });
 
         Blockers::from_spans(spans).overlaps(start, end) == expected
     }

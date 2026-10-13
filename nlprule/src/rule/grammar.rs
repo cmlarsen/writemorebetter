@@ -1,4 +1,4 @@
-use super::engine::composition::{GraphId, MatchGraph, MatchSentence};
+use super::engine::composition::{GraphId, Group, MatchGraph, MatchSentence};
 use crate::builtin::en::{
     indefinite_article, lowercase_first_char_if_capitalized, Article, ArticleData,
 };
@@ -298,6 +298,32 @@ pub(crate) enum IncludeRange {
     Following,
 }
 
+/// The text of `group` with every token whose text the tokenizer normalized
+/// (a curly apostrophe in a recognized contraction) replaced by its normalized
+/// form, as LanguageTool's `\n` references expand to the token text.
+fn normalized_text(group: &Group, sentence: &MatchSentence) -> String {
+    let raw = group.text(sentence);
+    if !raw.contains('\u{2019}') {
+        return raw.to_string();
+    }
+
+    let mut out = String::with_capacity(raw.len());
+    let mut position = group.span.start();
+    for token in group.tokens(sentence) {
+        out.push_str(sentence.slice(Span::from_positions(position, token.span().start())));
+        let text = sentence.slice(token.span().clone());
+        let word = token.word().as_str();
+        if word != text && word == text.replace('\u{2019}', "'") {
+            out.push_str(word);
+        } else {
+            out.push_str(text);
+        }
+        position = token.span().end();
+    }
+    out.push_str(sentence.slice(Span::from_positions(position, group.span.end())));
+    out
+}
+
 /// A resolved `include_skipped`: which range to take and the graph index of the
 /// skip group that follows the referenced element.
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
@@ -362,7 +388,7 @@ impl Match {
             let raw = self
                 .static_lemma
                 .clone()
-                .unwrap_or_else(|| group_text.to_string());
+                .unwrap_or_else(|| normalized_text(graph.by_id(self.id), sentence));
 
             // Without a synthesis, the match text is extended over the skipped
             // tokens directly.
@@ -455,10 +481,28 @@ fn is_whitespace_or_punct(c: char) -> bool {
     c.is_whitespace() || matches!(c, ',' | ':' | ';' | '.' | '!' | '?')
 }
 
+/// Whether LanguageTool's `SUGGESTION_PATTERN_SUPPRESS` removes `suggestion`: it holds
+/// exactly one parenthesized part (a token that could not be synthesized) and no
+/// other parentheses or angle brackets.
+fn is_unsynthesized(suggestion: &str) -> bool {
+    if suggestion.contains(['<', '>']) {
+        return false;
+    }
+    let mut parens = suggestion.chars().filter(|c| matches!(c, '(' | ')'));
+    matches!(
+        (parens.next(), parens.next(), parens.next()),
+        (Some('('), Some(')'), None)
+    )
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Synthesizer {
     pub(crate) use_titlecase_adjust: bool,
     pub(crate) parts: Vec<SynthesizerPart>,
+    /// LanguageTool's `suppress_misspelled="yes"` on the suggestion or the rule's message:
+    /// an alternative containing a token that could not be synthesized (rendered as
+    /// `(token)`) is dropped.
+    pub(crate) suppress_misspelled: bool,
 }
 
 impl Synthesizer {
@@ -563,6 +607,7 @@ impl Synthesizer {
                         suggestion
                     }
                 })
+                .filter(|suggestion| !(self.suppress_misspelled && is_unsynthesized(suggestion)))
                 .collect(),
         )
     }
