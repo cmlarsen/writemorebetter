@@ -26,7 +26,9 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   `\1` reference in a suggestion uses the token's normalized text (`were’re` → `we're`, which
   `Rules::suggest` re-curls to `we’re` for curly input), an
   antipattern only blocks a match when it overlaps a matched token rather than a skipped one or
-  the match's edge, `skip="-1"` is no longer capped at 20 tokens, and `suppress_misspelled`
+  the match's edge, `skip="-1"` is no longer capped at 20 tokens (an antipattern is now skipped
+  when a literal it requires is absent from the sentence, so the uncapped skip does not slow
+  long sentences down), and `suppress_misspelled`
   drops suggestions that could not be synthesized (no more `(anyone)` for `anyone’s`).
   `TYPOS/APOS_RE/1`, `TYPOS/WERE_RE/0`, `GRAMMAR/MISSING_APOSTROPHE_T/0`,
   `TYPOS/APOSTROPHE_PLURAL_/1`, `GRAMMAR/SINGED_CONTRACT/0`, `PUNCTUATION/DASH_RULE/0`,

@@ -23,9 +23,28 @@ struct Blockers {
 impl Blockers {
     fn new(engine: &TokenEngine, pool: &PartPool, sentence: &MatchSentence) -> Self {
         let mut spans = Vec::new();
+        let positions = sentence.start_positions();
         for antipattern in &engine.antipatterns {
             let antipattern = pool.antipattern(*antipattern);
-            for i in 0..sentence.len() {
+            if let Some(key) = antipattern.required_key.as_deref() {
+                if !positions.may_contain(key) {
+                    continue;
+                }
+            }
+            let starts: Vec<usize> = match antipattern.start_keys.as_deref() {
+                Some(keys) => {
+                    let mut starts: Vec<usize> = keys
+                        .iter()
+                        .flat_map(|key| positions.get(key))
+                        .map(|&i| i as usize)
+                        .collect();
+                    starts.sort_unstable();
+                    starts.dedup();
+                    starts
+                }
+                None => (0..sentence.len()).collect(),
+            };
+            for i in starts {
                 if let Some(anti_graph) = antipattern.apply(pool, sentence, i) {
                     let anti_start = anti_graph.by_index(0).span.char().start;
                     let anti_end = anti_graph
