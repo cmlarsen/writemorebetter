@@ -40,7 +40,7 @@ while [ $# -gt 0 ]; do
         --version) version=$2; shift 2 ;;
         --work-dir) work_dir=$2; shift 2 ;;
         --port) port=$2; shift 2 ;;
-        -h | --help) sed -n '2,25p' "$0"; exit 0 ;;
+        -h | --help) sed -n '2,26p' "$0"; exit 0 ;;
         *)
             echo "error: unknown argument '$1'" >&2
             exit 1
