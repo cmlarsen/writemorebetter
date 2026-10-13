@@ -15,60 +15,80 @@ pub struct TokenEngine {
     pub(crate) antipatterns: Vec<AntipatternId>,
 }
 
+#[derive(Default)]
+struct AntipatternSpans {
+    scanned: usize,
+    spans: Vec<(usize, usize)>,
+}
+
 impl TokenEngine {
+    fn scan_antipatterns(
+        &self,
+        pool: &PartPool,
+        sentence: &MatchSentence,
+        cache: &mut AntipatternSpans,
+        char_end: usize,
+    ) {
+        while cache.scanned < sentence.len()
+            && sentence.index(cache.scanned).span().char().start < char_end
+        {
+            for antipattern in &self.antipatterns {
+                let antipattern = pool.antipattern(*antipattern);
+                if let Some(anti_graph) = antipattern.apply(pool, sentence, cache.scanned) {
+                    let anti_start = anti_graph.by_index(0).span.char().start;
+                    let anti_end = anti_graph
+                        .by_index(anti_graph.groups().len() - 1)
+                        .span
+                        .char()
+                        .end;
+                    cache.spans.push((anti_start, anti_end));
+                }
+            }
+            cache.scanned += 1;
+        }
+    }
+
     fn get_match<'t>(
         &'t self,
         pool: &'t PartPool,
         sentence: &'t MatchSentence,
         i: usize,
+        cache: &mut AntipatternSpans,
     ) -> Option<MatchGraph<'t>> {
-        if let Some(graph) = self.composition.apply(pool, sentence, i) {
-            let mut blocked = false;
-
-            // TODO: cache / move to outer loop
-            for i in 0..sentence.len() {
-                for antipattern in &self.antipatterns {
-                    let antipattern = pool.antipattern(*antipattern);
-                    if let Some(anti_graph) = antipattern.apply(pool, sentence, i) {
-                        let anti_start = anti_graph.by_index(0).span.char().start;
-                        let anti_end = anti_graph
-                            .by_index(anti_graph.groups().len() - 1)
-                            .span
-                            .char()
-                            .end;
-
-                        let overlaps = self
-                            .composition
-                            .parts
-                            .iter()
-                            .enumerate()
-                            .filter(|(_, part)| pool.get(**part).visible)
-                            .any(|(idx, _)| {
-                                let span = graph.by_index(idx + 1).span.char();
-                                if span.start < span.end {
-                                    anti_start < span.end && span.start < anti_end
-                                } else {
-                                    idx == 0 && anti_start <= span.start && span.start < anti_end
-                                }
-                            });
-
-                        if overlaps {
-                            blocked = true;
-                            break;
-                        }
-                    }
-                }
-                if blocked {
-                    break;
-                }
-            }
-
-            if !blocked {
-                return Some(graph);
-            }
+        let graph = self.composition.apply(pool, sentence, i)?;
+        if self.antipatterns.is_empty() {
+            return Some(graph);
         }
 
-        None
+        let char_end = graph
+            .groups()
+            .iter()
+            .map(|group| group.span.char().end)
+            .max()
+            .unwrap_or(0);
+        self.scan_antipatterns(pool, sentence, cache, char_end);
+
+        let blocked = cache.spans.iter().any(|&(anti_start, anti_end)| {
+            self.composition
+                .parts
+                .iter()
+                .enumerate()
+                .filter(|(_, part)| pool.get(**part).visible)
+                .any(|(idx, _)| {
+                    let span = graph.by_index(idx + 1).span.char();
+                    if span.start < span.end {
+                        anti_start < span.end && span.start < anti_end
+                    } else {
+                        idx == 0 && anti_start <= span.start && span.start < anti_end
+                    }
+                })
+        });
+
+        if blocked {
+            None
+        } else {
+            Some(graph)
+        }
     }
 }
 
@@ -96,6 +116,7 @@ struct TokenMatches<'a, 't> {
     /// literal (see [`Composition::start_keys`]).
     starts: Starts<'t>,
     cursor: usize,
+    antipatterns: AntipatternSpans,
 }
 
 /// Which token positions a rule can start a match at.
@@ -164,10 +185,14 @@ impl<'a, 't> Iterator for EngineMatches<'a, 't> {
                     inner.index += 1;
                 }
 
-                let graph = match inner.engine.get_match(inner.pool, sentence, i) {
-                    Some(graph) => graph,
-                    None => continue,
-                };
+                let graph =
+                    match inner
+                        .engine
+                        .get_match(inner.pool, sentence, i, &mut inner.antipatterns)
+                    {
+                        Some(graph) => graph,
+                        None => continue,
+                    };
 
                 let start_group = graph.by_id(start_id);
                 let end_group = graph.by_id(end_id);
@@ -255,6 +280,7 @@ impl Engine {
                     mask: Vec::new(),
                     starts,
                     cursor: 0,
+                    antipatterns: AntipatternSpans::default(),
                 })
             }
 

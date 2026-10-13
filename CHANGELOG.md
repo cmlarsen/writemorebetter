@@ -14,7 +14,8 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   end of a word are now tokens of their own (`didn't-->` is `didn ' t - - >`, `Go-` is `Go -`),
   and a mixed-case contraction such as `don'T` is split at its apostrophe because the tagger,
   like LanguageTool's, only tries the lowercase form of a title-case or all-uppercase word. A
-  `\1` reference in a suggestion uses the token's normalized text (`were’re` → `we're`), an
+  `\1` reference in a suggestion uses the token's normalized text (`were’re` → `we're`, which
+  `Rules::suggest` re-curls to `we’re` for curly input), an
   antipattern only blocks a match when it overlaps a matched token rather than a skipped one or
   the match's edge, `skip="-1"` is no longer capped at 20 tokens, and `suppress_misspelled`
   drops suggestions that could not be synthesized (no more `(anyone)` for `anyone’s`).
@@ -61,6 +62,11 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   made only of marks or format characters (a lone right-to-left mark, say), which can now stand
   alone. Tokenizer binaries move to format version 10 and rules binaries to 12
   ([#112](https://github.com/cmlarsen/writemorebetter/issues/112)).
+- **A rule's antipatterns are matched once per sentence instead of once per candidate match.**
+  A long sentence with many candidate matches no longer rescans every antipattern for each one,
+  which was cubic in sentence length for rules whose antipatterns use `skip="-1"`: 2,000 `“` in
+  a row took 57 s to check once `skip="-1"` was uncapped, and now take 0.4 s (1.5–2 s before
+  this release). Checking output is unchanged.
 
 # 0.7.1 (2026-10-12)
 
