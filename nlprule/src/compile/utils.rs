@@ -990,7 +990,7 @@ mod regex {
         fn quantified_optional_assertion_is_empty() {
             assert_eq!(from_java_regex(r"x$?+y", true, false).unwrap(), r"xy");
             assert_eq!(from_java_regex(r"x$?{2}y", true, false).unwrap(), r"xy");
-            assert_eq!(from_java_regex(r"x\b?*y", true, false).unwrap(), r"xy");
+            assert_eq!(from_java_regex(r"x\b?{3}y", true, false).unwrap(), r"xy");
 
             assert_eq!(matches(&compiled(r"x$?+y"), "xxy xy y"), vec!["xy", "xy"]);
             assert_eq!(matches(&compiled(r"x$?{2}y"), "xxy"), vec!["xy"]);

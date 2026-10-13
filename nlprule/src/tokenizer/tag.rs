@@ -931,6 +931,24 @@ mod tests {
     }
 
     #[test]
+    fn compound_split_skips_title_case_lookup_without_add_lower() {
+        let tagger = case_tagger(true);
+        let compound = |word: &str, add_lower: bool| {
+            tagger
+                .get_tags_with_options(word, Some(add_lower), Some(true))
+                .map(|data| data.pos().as_str().to_string())
+                .collect::<Vec<_>>()
+        };
+
+        assert!(compound("XXSCHWARZWALD", false).is_empty());
+        assert!(compound("“—SCHWARZWALD", false).is_empty());
+        assert!(compound("…\u{2028}D’ARTAGNAN", false).is_empty());
+        assert_eq!(compound("XXSCHWARZWALD", true), vec!["NNP"]);
+        assert_eq!(compound("“—SCHWARZWALD", true), vec!["NNP"]);
+        assert_eq!(compound("…\u{2028}D’ARTAGNAN", true), vec!["NNP"]);
+    }
+
+    #[test]
     fn title_case_lookup_handles_punctuation_tokens() {
         let tagger = case_tagger(true);
 
