@@ -144,7 +144,8 @@ pub(crate) const RULES_MAGIC: &[u8; 8] = b"WMBRUL01";
 /// architecture's hash-table layout.
 /// Version 9: `TaggerLangOptions::title_case_all_uppercase` was added.
 /// Version 10: `TokenizerLangOptions::word_chars` was added.
-pub const TOKENIZER_FORMAT_VERSION: u32 = 10;
+/// Version 11: `MatcherKind::Synthesis` was added (`<match postag="…"/>` inside a `<token>`).
+pub const TOKENIZER_FORMAT_VERSION: u32 = 11;
 
 /// The on-disk format version of [Rules] binaries.
 ///
@@ -167,7 +168,8 @@ pub const TOKENIZER_FORMAT_VERSION: u32 = 10;
 /// in tokenizer version 8.
 /// Version 12: `SpellLangOptions::word_chars` was added.
 /// Version 13: `Rule::suppress_misspelled` and `Synthesizer::suppress_misspelled` were added.
-pub const RULES_FORMAT_VERSION: u32 = 13;
+/// Version 14: `MatcherKind::Synthesis` was added (`<match postag="…"/>` inside a `<token>`).
+pub const RULES_FORMAT_VERSION: u32 = 14;
 
 /// The longest engine version string accepted in a binary header.
 const MAX_ENGINE_VERSION_LEN: usize = 256;

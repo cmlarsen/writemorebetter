@@ -348,9 +348,10 @@ pub enum TokenPart {
 pub struct Sub {
     pub no: String,
     /// `<match .../>` inside a `<token>` can carry the full attribute set of a
-    /// match reference (see LanguageTool's `pattern.xsd`). Only `no` is
-    /// implemented; the rest need the synthesis / case machinery and are
-    /// rejected explicitly in `parse_token`.
+    /// match reference (see LanguageTool's `pattern.xsd`). `no`,
+    /// `case_conversion` and the `postag` synthesis are implemented;
+    /// `regexp_match`/`regexp_replace` and `include_skipped` are rejected
+    /// explicitly in `parse_token`.
     pub postag: Option<String>,
     pub postag_regexp: Option<String>,
     pub postag_replace: Option<String>,
@@ -505,7 +506,9 @@ pub struct Pattern {
     pub case_sensitive: Option<String>,
     /// `raw_pos="yes"` makes the token's POS tags refer to the tagger output
     /// *before* disambiguation. Matching on the raw tags would need the
-    /// pre-disambiguation readings at runtime, so it is rejected explicitly.
+    /// pre-disambiguation readings at runtime, so a pattern that reads POS
+    /// tags, lemmas or chunks is rejected explicitly; a text-only pattern
+    /// matches the same either way.
     pub raw_pos: Option<String>,
     #[serde(rename = "$value")]
     pub parts: Vec<PatternPart>,

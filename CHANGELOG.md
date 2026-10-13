@@ -37,6 +37,15 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   rules binaries must be rebuilt
   ([#77](https://github.com/cmlarsen/writemorebetter/issues/77),
   [#115](https://github.com/cmlarsen/writemorebetter/issues/115)).
+- **Four more LanguageTool rules compile and pass.** The rule compiler now supports
+  `<match no="…" postag="…"/>` inside a `<token>` (the referenced token's synthesized forms are
+  matched, `GRAMMAR/REPEATED_VERBS/0` and `/1`), a quantifier on the first token of an `<or>`/`<and>`
+  group (it applies to the whole group, `CONFUSED_WORDS/MULTIPLE_MULTIPLY/4`), and `raw_pos="yes"`
+  on patterns that only test token text (`TYPOS/CONTRACTION_CASE/0`). The tokenizer now splits a
+  mixed-case contraction such as `I'Ve` at the apostrophe, as LanguageTool 6.6 does, which also
+  makes `TYPOS/APOS_RE/1` pass. Tokenizer binaries move to format version 11 and rules binaries to
+  14, so binaries built by earlier versions must be recompiled
+  ([#75](https://github.com/cmlarsen/writemorebetter/issues/75)).
 - **All-caps proper nouns were tagged as unknown words.** The English tagger now looks up an
   all-uppercase word in title case when neither its own form nor its lowercase form is in the
   dictionary, as LanguageTool 6.6 does, so `SCHWARZWALD` is tagged `Schwarzwald/NNP` and
