@@ -1,10 +1,11 @@
 name: Release
 
-# Releases are cut by hand, from main. `release.json` has to live inside the tagged
-# commit (a released checkout has no dist/, so Package.swift falls back to its url and
-# checksum), which is why a tag-push trigger cannot work: by the time a tag exists the
-# commit is already fixed. Instead this workflow commits release.json, tags that commit
-# and creates the release itself. Run a dry run first. See docs/RELEASING.md.
+# Releases are cut by hand, from main. The released XCFramework url and checksum are literals
+# inside Package.swift (a remote manifest is compiled from a virtual filesystem, so it cannot
+# read a sibling file) and have to be staged inside the tagged commit, which is why a tag-push
+# trigger cannot work: by the time a tag exists the commit is already fixed. Instead this
+# workflow rewrites those literals, tags that commit and creates the release itself. Run a dry
+# run first. See docs/RELEASING.md.
 #
 # Tags are plain `X.Y.Z` (no `v`), matching the tag style SwiftPM needs.
 on:
@@ -184,7 +185,7 @@ jobs:
           unzip -q data-artifacts/writemorebetter-data-*.zip -d data-consumer
 
       - name: Resolve and build the package as an app would
-        run: scripts/consumer-check.sh --zip dist-artifacts/WriteMoreBetterFFI.xcframework.zip --data-dir data-consumer
+        run: scripts/consumer-check.sh --zip dist-artifacts/WriteMoreBetterFFI.xcframework.zip --data-dir data-consumer --version "${{ needs.validate.outputs.version }}"
 
   publish:
     name: Publish release
@@ -211,7 +212,7 @@ jobs:
           name: writemorebetter-xcframework-${{ needs.validate.outputs.version }}
           path: release-assets
 
-      - name: Commit release.json, tag and publish
+      - name: Stage the binary target url and checksum, tag and publish
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ needs.validate.outputs.version }}
@@ -221,7 +222,7 @@ jobs:
           set -euo pipefail
           version="$VERSION"
           url="https://github.com/${REPOSITORY}/releases/download/${version}/WriteMoreBetterFFI.xcframework.zip"
-          printf '{\n  "url": "%s",\n  "checksum": "%s"\n}\n' "$url" "$CHECKSUM" > release.json
+          scripts/set-binary-target.sh "$url" "$CHECKSUM"
 
           # Release notes are CHANGELOG.md's section for this version, verbatim. The
           # heading may carry a date or a title after the version, e.g.
@@ -246,8 +247,8 @@ jobs:
 
           git config user.name "writemorebetter release bot"
           git config user.email "release-bot@users.noreply.github.com"
-          git add release.json
-          git commit -m "release: release.json for $version"
+          git add Package.swift
+          git commit -m "release: Package.swift binary target for $version"
           # Push the commit before creating the tag: if main moved while the artifacts
           # were being built this push is rejected (non-fast-forward) and nothing is
           # tagged or released.
