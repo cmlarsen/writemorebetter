@@ -138,7 +138,10 @@ pub(crate) const RULES_MAGIC: &[u8; 8] = b"WMBRUL01";
 /// Version 5: `Composition.start_keys` was added (a literal-token prefilter).
 /// Version 6: identical antipattern compositions share entries in `PartPool`.
 /// Version 7: `Composition.required_key` extends the literal prefilter.
-pub const TOKENIZER_FORMAT_VERSION: u32 = 7;
+/// Version 8: hashed collections (the tagger's tag store, the chunker's tag dictionary and
+/// text-engine group maps) are written in sorted key order, so the binary no longer depends on
+/// the architecture's hash-table layout.
+pub const TOKENIZER_FORMAT_VERSION: u32 = 8;
 
 /// The on-disk format version of [Rules] binaries.
 ///
@@ -155,7 +158,11 @@ pub const TOKENIZER_FORMAT_VERSION: u32 = 7;
 /// Version 7: `Composition.start_keys` was added (a literal-token prefilter).
 /// Version 8: identical antipattern compositions share entries in `Rules.parts`.
 /// Version 9: `Composition.required_key` extends the literal prefilter.
-pub const RULES_FORMAT_VERSION: u32 = 10;
+/// Version 10: lazily parsed rule examples are stored as LZ4-compressed blocks.
+/// Version 11: hashed collections (the spellchecker's maps and whitelist, builtin word lists and
+/// replacement tables, filter tables, text-engine group maps) are written in sorted key order, as
+/// in tokenizer version 8.
+pub const RULES_FORMAT_VERSION: u32 = 11;
 
 /// The longest engine version string accepted in a binary header.
 const MAX_ENGINE_VERSION_LEN: usize = 256;

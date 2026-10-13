@@ -23,9 +23,32 @@ fn max_matches() -> usize {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub(crate) struct RegexCache {
+    #[serde(serialize_with = "serialize_cache")]
     cache: DefaultHashMap<u64, Option<DefaultHashSet<WordIdInt>>>,
     // this is compared with the hash of the word store of the tagger
     word_hash: u64,
+}
+
+fn serialize_cache<S>(
+    cache: &DefaultHashMap<u64, Option<DefaultHashSet<WordIdInt>>>,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    let mut entries: Vec<(u64, Option<Vec<WordIdInt>>)> = cache
+        .iter()
+        .map(|(key, set)| {
+            let set = set.as_ref().map(|set| {
+                let mut ids: Vec<WordIdInt> = set.iter().copied().collect();
+                ids.sort_unstable();
+                ids
+            });
+            (*key, set)
+        })
+        .collect();
+    entries.sort_unstable_by_key(|(key, _)| *key);
+    serializer.collect_map(entries)
 }
 
 impl RegexCache {
