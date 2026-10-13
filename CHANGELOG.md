@@ -6,6 +6,20 @@ inherited 0.6.4 track this project's own release line. Each version is a top-lev
 `# <version>` heading; the Release workflow copies that section verbatim into the GitHub
 release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
+# Unreleased
+
+### Fixed
+
+- **All-caps proper nouns were tagged as unknown words.** The English tagger now looks up an
+  all-uppercase word in title case when neither its own form nor its lowercase form is in the
+  dictionary, as LanguageTool 6.6 does, so `SCHWARZWALD` is tagged `Schwarzwald/NNP` and
+  `TYPOS/IM_I_M/0` passes ([#111](https://github.com/cmlarsen/writemorebetter/issues/111)).
+
+### Changed
+
+- The tokenizer binary format version is now 8 (`TaggerLangOptions` gained
+  `title_case_all_uppercase`), so tokenizer binaries must be rebuilt with this engine.
+
 # 0.7.1 (2026-10-12)
 
 ### Fixed
