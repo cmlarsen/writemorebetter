@@ -6,7 +6,7 @@
 #
 # Unlike golden.sh (which captures whole-check suggestion lines), this captures only the
 # chunker: every token's chunk tags plus the chunk model's internal tokens/POS/chunk labels,
-# for both rule sets. It runs the pipeline up to chunking once and the chunker on its own.
+# for the LT 6.6 rules. It runs the pipeline up to chunking once and the chunker on its own.
 set -euo pipefail
 
 mode=check
