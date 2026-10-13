@@ -178,8 +178,17 @@ impl DisambiguationRule {
         log::info!("applying {}", self.id);
 
         for spans in changes.0 {
+            let (start, end) = spans
+                .iter()
+                .flatten()
+                .fold((usize::MAX, 0), |(start, end), span| {
+                    (start.min(span.char().start), end.max(span.char().end))
+                });
             let mut groups = Vec::new();
-            let mut refs = sentence.iter_mut().collect::<Vec<_>>();
+            let mut refs = sentence
+                .iter_mut()
+                .filter(|x| x.span().char().start >= start && x.span().char().end <= end)
+                .collect::<Vec<_>>();
 
             for group_spans in spans {
                 let mut group = Vec::new();
