@@ -16,6 +16,12 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   filter ports ([#70](https://github.com/cmlarsen/writemorebetter/issues/70)). A curly
   apostrophe counts as a straight one and surrounding whitespace (including U+2028) is ignored.
   Checking output is unchanged.
+- **Speller-backed rule filters work with spellchecking off.** While no spell variant is
+  selected, `Spell::speller()` answers for the language's default variant (`en_US` for English,
+  as LanguageTool uses for plain English) instead of returning `None`; spelling suggestions stay
+  off. The rule test harness (`--bin test`, `Rules::test_rule`) therefore runs rule examples with
+  an `en_US` speller ([#119](https://github.com/cmlarsen/writemorebetter/issues/119)). Rules
+  binaries move to format version 15 (`SpellLangOptions::default_variant`); recompile them.
 
 ### Fixed
 
@@ -46,6 +52,10 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   makes `TYPOS/APOS_RE/1` pass. Tokenizer binaries move to format version 11 and rules binaries to
   14, so binaries built by earlier versions must be recompiled
   ([#75](https://github.com/cmlarsen/writemorebetter/issues/75)).
+- **Spell option changes were ignored while the variant stayed the same.** Changing `top_n`,
+  `max_distance` or `freq_weight` through `Spell::options_mut` now applies to spelling suggestions
+  and `Speller::suggest` without switching the variant
+  ([#132](https://github.com/cmlarsen/writemorebetter/issues/132)).
 - **All-caps proper nouns were tagged as unknown words.** The English tagger now looks up an
   all-uppercase word in title case when neither its own form nor its lowercase form is in the
   dictionary, as LanguageTool 6.6 does, so `SCHWARZWALD` is tagged `Schwarzwald/NNP` and

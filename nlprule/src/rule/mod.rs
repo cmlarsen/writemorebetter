@@ -764,7 +764,7 @@ impl Rule {
     /// This method checks whether the correct action is taken in the examples.
     ///
     /// `articles` are the rule set's shared article word lists and `speller` its
-    /// speller for the selected variant; use
+    /// speller ([`Spell::speller`][crate::spell::Spell::speller]); use
     /// [`Rules::test_rule`][crate::Rules::test_rule] to supply them.
     pub(crate) fn test(
         &self,
