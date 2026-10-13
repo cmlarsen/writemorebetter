@@ -4,10 +4,10 @@
 //! can veto the match, rewrite its suggestions, or adjust the matched range.
 //! This module is the on-device equivalent. Every filter the English rules use
 //! that needs no data beyond the tagger, the synthesizer and regular
-//! expressions has one variant; the filters that need a speller suggestion
-//! model, LanguageTool's multitoken-speller data, or example handling that
-//! another milestone owns stay compile errors that name the class (see
-//! `compile/impls.rs`).
+//! expressions has one variant; the filters that query the speller (it is in
+//! [`FilterContext`], but they are not ported yet), need LanguageTool's
+//! multitoken-speller data, or need example handling that another milestone
+//! owns stay compile errors that name the class (see `compile/impls.rs`).
 //!
 //! Arguments follow LanguageTool's `RuleFilterEvaluator`: a value starting with
 //! a backslash is a reference to the text of that numbered pattern token
@@ -20,6 +20,7 @@ pub(crate) mod date;
 use serde::{Deserialize, Serialize};
 
 use crate::rule::engine::composition::{GraphId, MatchGraph, MatchSentence};
+use crate::spell::Speller;
 use crate::types::{DefaultHashMap, Position, Span};
 use crate::utils::regex::Regex;
 
@@ -70,6 +71,18 @@ pub(crate) struct FilterMatch {
     pub replacements: Vec<String>,
 }
 
+/// What a filter may consult besides the match itself: "today" for the
+/// time-dependent filters and the speller for the selected variant.
+#[derive(Debug, Default)]
+pub(crate) struct FilterContext<'a> {
+    /// Overrides "today" (the rule test harness passes LanguageTool's fixed
+    /// test date).
+    pub now: Option<Date>,
+    /// `None` when no speller variant is selected.
+    #[allow(dead_code)]
+    pub speller: Option<&'a Speller<'a>>,
+}
+
 /// One filter per LanguageTool filter class the English rules use.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub(crate) enum RuleFilter {
@@ -86,15 +99,15 @@ pub(crate) enum RuleFilter {
 }
 
 impl RuleFilter {
-    /// Runs the filter. `now` overrides "today" for the time-dependent filters
-    /// (the rule test harness passes LanguageTool's fixed test date).
+    /// Runs the filter.
     pub(crate) fn accept<'t>(
         &self,
         m: FilterMatch,
         sentence: &'t MatchSentence<'t>,
         graph: &MatchGraph<'t>,
-        now: Option<Date>,
+        ctx: &FilterContext,
     ) -> Option<FilterMatch> {
+        let now = ctx.now;
         match self {
             RuleFilter::UnderlineSpaces(f) => f.accept(m, sentence),
             RuleFilter::OrdinalSuffix => Some(ordinal_suffix(m)),
