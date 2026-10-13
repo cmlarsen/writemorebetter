@@ -2341,6 +2341,41 @@ fn speller_falls_back_to_the_default_variant_while_spellchecking_is_off() {
 }
 
 #[test]
+fn spell_option_changes_apply_while_the_variant_stays_the_same() {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    let text =
+        "\u{201c}Teh colour\u{2014}it\u{2019}s gone\u{2026}\u{201d}\u{2028}O\u{2019}Brien said.";
+    let en_us = rules.spell().variant("en_US").unwrap();
+
+    for variant in [None, Some(en_us)] {
+        rules.spell_mut().options_mut().variant = variant.clone();
+        assert_eq!(
+            rules.spell().speller().unwrap().suggest("teh", 10).len(),
+            10
+        );
+
+        rules.spell_mut().options_mut().top_n = 1;
+        assert_eq!(
+            rules.spell().speller().unwrap().suggest("teh", 10),
+            vec!["the"]
+        );
+        let spelling: Vec<_> = rules
+            .suggest(text, &TOKENIZER)
+            .into_iter()
+            .filter(|x| x.source().starts_with("SPELLCHECK"))
+            .collect();
+        if variant.is_some() {
+            assert_eq!(spelling.len(), 2);
+            assert!(spelling.iter().all(|x| x.replacements().len() == 1));
+        } else {
+            assert!(spelling.is_empty());
+        }
+
+        rules.spell_mut().options_mut().top_n = 10;
+    }
+}
+
+#[test]
 fn speller_answers_single_word_queries_in_fiction_text() {
     let mut rules = Rules::new(RULES_PATH).unwrap();
     rules.spell_mut().options_mut().variant = Some(rules.spell().variant("en_US").unwrap());

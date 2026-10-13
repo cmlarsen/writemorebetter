@@ -619,13 +619,10 @@ impl Spell {
     }
 
     pub(crate) fn ingest_options(&mut self) {
+        let existing = self.variant_checker.take().or(self.default_checker.take());
         if let Some(variant) = self.options.variant.clone() {
-            let existing = self.variant_checker.take();
             self.variant_checker = Some(self.build_checker(variant, existing));
-            self.default_checker = None;
         } else {
-            self.variant_checker = None;
-            let existing = self.default_checker.take();
             self.default_checker = self
                 .lang_options
                 .default_variant
@@ -643,7 +640,10 @@ impl Spell {
 
         let mut checker = match existing {
             // if the variant checker exists and uses the correct variant, we don't need to rebuild
-            Some(checker) if checker.variant == variant => checker,
+            Some(mut checker) if checker.variant == variant => {
+                checker.options = self.options.clone();
+                checker
+            }
             _ => VariantChecker {
                 variant,
                 variant_index,
@@ -850,8 +850,8 @@ impl Spell {
     }
 }
 
-/// Read-only single-word queries against a [Spell] for its selected variant, obtained by
-/// [Spell::speller]. Rule filters use it to ask the speller while a rule is matching.
+/// Read-only single-word queries against a [Spell] for its selected variant (or its default
+/// variant while none is selected), obtained by [Spell::speller]. Rule filters use it to ask the speller while a rule is matching.
 #[derive(Debug)]
 pub struct Speller<'a> {
     checker: &'a VariantChecker,
@@ -859,7 +859,7 @@ pub struct Speller<'a> {
 }
 
 impl<'a> Speller<'a> {
-    /// Gets the selected variant.
+    /// Gets the variant this speller answers for.
     pub fn variant(&self) -> &Variant {
         &self.checker.variant
     }

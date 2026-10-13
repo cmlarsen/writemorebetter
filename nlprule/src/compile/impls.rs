@@ -1493,6 +1493,24 @@ mod tests {
     }
 
     #[test]
+    fn spell_rejects_a_default_variant_outside_its_variants() {
+        let lang_options: SpellLangOptions = serde_json::from_str(
+            r#"{"variants": ["en_GB", "en_US"], "split_hyphens": true, "default_variant": "en_’NZ"}"#,
+        )
+        .unwrap();
+        let error = Spell::from_dumps(
+            "missing",
+            "missing",
+            "missing",
+            lang_options,
+            &Tokenizer::default(),
+        )
+        .unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::InvalidData);
+        assert!(error.to_string().contains("en_\u{2019}NZ"));
+    }
+
+    #[test]
     fn chunk_model_serializes_independently_of_pmap_layout() {
         let mut keys: Vec<String> = (0..500).map(|i| format!("w={}", i)).collect();
         keys.extend(

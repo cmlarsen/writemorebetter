@@ -25,6 +25,10 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
 ### Fixed
 
+- **Spell option changes were ignored while the variant stayed the same.** Changing `top_n`,
+  `max_distance` or `freq_weight` through `Spell::options_mut` now applies to spelling suggestions
+  and `Speller::suggest` without switching the variant
+  ([#132](https://github.com/cmlarsen/writemorebetter/issues/132)).
 - **All-caps proper nouns were tagged as unknown words.** The English tagger now looks up an
   all-uppercase word in title case when neither its own form nor its lowercase form is in the
   dictionary, as LanguageTool 6.6 does, so `SCHWARZWALD` is tagged `Schwarzwald/NNP` and
