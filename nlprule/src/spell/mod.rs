@@ -840,7 +840,14 @@ impl<'a> Speller<'a> {
 
     /// Whether `word` is spelled correctly on its own, by the same checks the spellchecker
     /// applies to a single token (including the user dictionary). Surrounding whitespace is
-    /// ignored and a curly apostrophe counts as a straight one, as the tokenizer normalizes it.
+    /// ignored and a curly apostrophe counts as a straight one, matching the straight-apostrophe
+    /// speller and user-dictionary entries.
+    ///
+    /// `word` must be one token as the tokenizer produces it. The tokenizer splits contractions
+    /// (`didn't` is `did` + `n't`), so a whole contraction or a multi-word string is not correct
+    /// here; tokenize it and check each token, as LanguageTool's filters do. A token the
+    /// disambiguator marked to skip spelling (such as `wo` in `won't`) is skipped by the
+    /// spellchecker but not here: check [`Token::ignore_spelling`] first.
     pub fn is_correct(&self, word: &str) -> bool {
         self.checker.is_correct(&self.fst, &Self::normalize(word))
     }

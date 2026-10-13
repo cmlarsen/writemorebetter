@@ -2336,4 +2336,45 @@ fn speller_answers_single_word_queries_in_fiction_text() {
     assert!(speller
         .suggest("Xylophoni", 5)
         .contains(&"Xylophonix".to_string()));
+    assert_eq!(speller.suggest("teh", 3).len(), 3);
+    assert!(speller.suggest("teh", 0).is_empty());
+}
+
+#[test]
+fn speller_accepts_single_word_whitelist_entries() {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    let en_us = rules.spell().variant("en_US").unwrap();
+    {
+        let mut options = rules.spell_mut().options_mut();
+        options.variant = Some(en_us);
+        options.whitelist.insert("Quillfeather".into());
+        options.whitelist.insert("Vharn Keep".into());
+    }
+    let speller = rules.spell().speller().unwrap();
+
+    assert!(speller.is_correct("Quillfeather"));
+    assert!(speller.is_correct("Quillfeather\u{2028}"));
+    assert!(!speller.is_correct("Vharn"));
+}
+
+#[test]
+fn speller_checks_tokens_not_contractions() {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    rules.spell_mut().options_mut().variant = Some(rules.spell().variant("en_US").unwrap());
+    let speller = rules.spell().speller().unwrap();
+
+    let text = "\u{201c}I didn\u{2019}t\u{2026} I won\u{2019}t,\u{201d} she said\u{2014}O\u{2019}Brien\u{2019}s.\u{2028}";
+    for sentence in TOKENIZER.pipe(text) {
+        assert!(rules.spell().suggest(&sentence).is_empty());
+        for token in sentence.tokens() {
+            let word = token.word().text().as_str();
+            assert!(
+                token.ignore_spelling() || speller.is_correct(word),
+                "{:?}",
+                word
+            );
+        }
+    }
+    assert!(!speller.is_correct("didn\u{2019}t"));
+    assert!(speller.is_correct("did") && speller.is_correct("n\u{2019}t"));
 }
