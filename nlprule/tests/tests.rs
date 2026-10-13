@@ -38,6 +38,89 @@ fn handles_whitespace_correctly() {
     assert_eq!(sentences.next(), None);
 }
 
+fn token_texts(text: &str) -> Vec<String> {
+    TOKENIZER
+        .pipe(text)
+        .flat_map(|sentence| {
+            sentence
+                .tokens()
+                .iter()
+                .map(|token| token.word().text().as_str().to_string())
+                .collect::<Vec<_>>()
+        })
+        .collect()
+}
+
+#[test]
+fn tokenizer_splits_fiction_punctuation() {
+    assert_eq!(
+        token_texts("\u{201c}Wait\u{2014}no,\u{201d} she said\u{2026} \u{2018}It\u{2019}s fine\u{2014}isn\u{2019}t it?"),
+        vec![
+            "\u{201c}", "Wait", "\u{2014}", "no", ",", "\u{201d}", "she", "said", "\u{2026}",
+            "\u{2018}", "It", "'s", "fine", "\u{2014}", "is", "n't", "it", "?",
+        ]
+    );
+    assert_eq!(
+        token_texts("Pages 10\u{2013}12\u{2015}gone.\u{2028}Then\u{2012}nothing."),
+        vec![
+            "Pages", "10", "\u{2013}", "12", "\u{2015}", "gone", ".", "Then", "\u{2012}",
+            "nothing", ".",
+        ]
+    );
+}
+
+#[test]
+fn tokenizer_splits_on_every_non_word_character() {
+    assert_eq!(
+        token_texts("{{cite |first=S}} x_y 3\u{d7}4 a\u{b7}b TM\u{2122} \u{2192}go"),
+        vec![
+            "{", "{", "cite", "|", "first", "=", "S", "}", "}", "x", "_", "y", "3", "\u{d7}", "4",
+            "a", "\u{b7}", "b", "TM", "\u{2122}", "\u{2192}", "go",
+        ]
+    );
+}
+
+#[test]
+fn tokenizer_keeps_word_characters_together() {
+    assert_eq!(
+        token_texts("well-known caf\u{e9} cafe\u{301} 5\u{b0} 10% $5 \u{a3}3 AT&T me@x"),
+        vec![
+            "well-known",
+            "caf\u{e9}",
+            "cafe\u{301}",
+            "5\u{b0}",
+            "10%",
+            "$5",
+            "\u{a3}3",
+            "AT&T",
+            "me@x",
+        ]
+    );
+}
+
+#[test]
+fn tokenizer_attaches_variation_selectors() {
+    assert_eq!(
+        token_texts("I \u{2764}\u{fe0f}it\u{2014}really."),
+        vec!["I", "\u{2764}\u{fe0f}", "it", "\u{2014}", "really", "."]
+    );
+}
+
+#[test]
+fn tokenizer_attaches_variation_selectors_to_normalized_clitics() {
+    for text in [
+        "He said isn\u{2019}t\u{fe0f} so.",
+        "He said isn't\u{fe0f} so.",
+    ] {
+        assert_eq!(
+            token_texts(text),
+            vec!["He", "said", "is", "n't\u{fe0f}", "so", "."],
+            "{}",
+            text
+        );
+    }
+}
+
 #[quickcheck]
 fn can_tokenize_anything(text: String) -> bool {
     let _: Vec<_> = TOKENIZER.pipe(&text).collect();
@@ -290,6 +373,16 @@ fn spellchecker_accepts_fiction_punctuation() {
 }
 
 #[test]
+fn spellchecker_ignores_lone_format_characters() {
+    for text in &[
+        "\u{201c}Yes\u{200f}\u{2014}no,\u{201d} she said\u{2026}",
+        "He paused\u{200f}\u{2014}then went on.\u{2028}It\u{2019}s done\u{200e}.",
+    ] {
+        assert_eq!(spelling_errors(text), Vec::<&str>::new(), "{}", text);
+    }
+}
+
+#[test]
 fn spellchecker_flags_misspellings_next_to_fiction_punctuation() {
     assert_eq!(
         spelling_errors(
@@ -299,7 +392,7 @@ fn spellchecker_flags_misspellings_next_to_fiction_punctuation() {
     );
     assert_eq!(
         spelling_errors("Nothing.\u{2028}Patenice\u{2014}always."),
-        vec!["Patenice\u{2014}always"]
+        vec!["Patenice"]
     );
 }
 
@@ -392,6 +485,29 @@ fn user_dictionary_accented_and_em_dash_names() {
                 text
             )
             .is_empty(),
+            "{}",
+            text
+        );
+    }
+}
+
+#[test]
+fn user_dictionary_entries_with_split_characters() {
+    let words = [
+        "Ka\u{b7}lel",
+        "Zorvath\u{2014}Quill",
+        "Vel\u{2019}dara\u{2014}Quinn",
+    ];
+    assert!(!spelling_errors("Ka\u{b7}lel smiled at Zorvath\u{2014}Quill.").is_empty());
+
+    for text in [
+        "Ka\u{b7}lel smiled at Zorvath\u{2014}Quill.",
+        "\u{201c}Ka\u{b7}lel\u{2026}\u{201d} Zorvath\u{2014}Quill\u{2019}s voice trailed off.",
+        "Vel\u{2019}dara\u{2014}Quinn left. Vel'dara\u{2014}Quinn returned.",
+        "Nothing.\u{2028}Ka\u{b7}lel and Vel\u{2019}dara\u{2014}Quinn waited.",
+    ] {
+        assert!(
+            spelling_errors_with_words(&words, text).is_empty(),
             "{}",
             text
         );
@@ -665,7 +781,7 @@ fn builtin_word_repeat_ignores_numbers() {
 
 #[test]
 fn builtin_word_repeat_ignores_em_dash() {
-    // "the—the" is a single token, so it is not a repetition of two words.
+    // The em dash is a token between the two occurrences of "the".
     assert!(builtin_word_repeat_flags("the\u{2014}the").is_empty());
 }
 
@@ -816,11 +932,11 @@ fn builtin_a_vs_an_flags_inside_curly_quotes() {
 
 #[test]
 fn builtin_a_vs_an_flags_before_em_dash_word() {
-    // The em dash joins two words into one token; the article still refers to
-    // the "a"-initial word.
+    // The em dash is a token of its own, so the flag covers just the article
+    // and the "a"-initial word.
     assert_eq!(
         builtin_a_vs_an_flags("He gave me a apple\u{2014}then left."),
-        vec![("a apple\u{2014}then".to_string(), "an".to_string())]
+        vec![("a apple".to_string(), "an".to_string())]
     );
 }
 
@@ -1150,8 +1266,8 @@ fn builtin_word_coherency_flags_after_curly_apostrophe() {
 
 #[test]
 fn builtin_word_coherency_flags_across_em_dash() {
-    // The em dash joins neighbouring words into one token, which must not stop
-    // the other variant from being recognised.
+    // The em dash is a token of its own, which must not stop the other variant
+    // from being recognised.
     assert_eq!(
         builtin_word_coherency_flags(
             "The advisor waited\u{2014}impatiently\u{2014}for the adviser."
@@ -1413,16 +1529,16 @@ fn builtin_unpaired_is_wired_into_suggest() {
 }
 
 #[test]
-fn builtin_unpaired_brackets_sees_symbols_merged_into_words() {
-    // The tokenizer produces "[eBook", "_quietly_." and "_)" etc. as single
-    // tokens; the rule still sees the bracket characters inside them.
+fn builtin_unpaired_brackets_pairs_brackets_against_words() {
+    // The rule pairs brackets that sit directly against words, underscores and
+    // full stops.
     assert!(builtin_unpaired_flags("See [eBook #2701] here.").is_empty());
     assert!(builtin_unpaired_flags("He left (_quietly_.) and came back.").is_empty());
 }
 
 #[test]
-fn builtin_unpaired_quotes_sees_mark_merged_into_word() {
-    // "_x“" and "y”_z" are single tokens; the marks still pair.
+fn builtin_unpaired_quotes_pairs_marks_between_underscores() {
+    // The underscores and curly quotes are tokens of their own; the marks still pair.
     assert!(builtin_unpaired_flags("The marks _x\u{201c} and y\u{201d}_z balance.").is_empty());
 }
 
@@ -1536,8 +1652,7 @@ fn builtin_uppercase_sentence_start_ignores_ellipsis_continuation() {
 
 #[test]
 fn builtin_uppercase_sentence_start_ignores_em_dash() {
-    // The em dash joins words into a single token, so "then" is not a sentence
-    // start.
+    // The em dash does not end a sentence, so "then" is not a sentence start.
     assert!(
         builtin_uppercase_sentence_start_flags("He opened the door\u{2014}then stopped.")
             .is_empty()
@@ -1708,8 +1823,7 @@ fn builtin_wrong_word_flags_after_curly_apostrophe() {
 
 #[test]
 fn builtin_wrong_word_flags_around_em_dashes() {
-    // The em dashes join "door—then" into a single token; the flagged word is
-    // still its own token.
+    // The em dash is a token of its own and does not hide the flagged word.
     assert_eq!(
         builtin_wrong_word_flags(
             "She opened the door\u{2014}then the gorilla charged the \
@@ -2050,10 +2164,11 @@ fn builtin_simple_replace_flags_inside_curly_quotes() {
 }
 
 #[test]
-fn builtin_simple_replace_treats_em_dash_joined_words_as_one_token() {
-    // The tokenizer keeps an em-dash-joined run as a single token, so a table
-    // word inside it is not matched. This mirrors the word-repeat builtin.
-    assert!(builtin_simple_replace_flags("crisps\u{2014}then", "EN_US_SIMPLE_REPLACE").is_empty());
+fn builtin_simple_replace_flags_before_em_dash() {
+    assert_eq!(
+        builtin_simple_replace_flags("crisps\u{2014}then", "EN_US_SIMPLE_REPLACE"),
+        vec![("crisps".to_string(), vec!["Chips".to_string()])]
+    );
 }
 
 #[test]

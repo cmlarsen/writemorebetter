@@ -66,18 +66,19 @@ pub(crate) fn spellchecker_lang_options(lang_code: &str) -> Option<SpellLangOpti
     SPELLCHECKER_LANG_OPTIONS.get(lang_code).cloned()
 }
 
-pub(crate) use regex::{from_java_regex, replace_spaces_in_regex};
+pub(crate) use regex::{from_java_regex, java_char_class_ranges, replace_spaces_in_regex};
 
 mod regex {
     use std::collections::HashMap;
 
     use lazy_static::lazy_static;
     use regex_syntax::ast::{
-        print::Printer, Alternation, Assertion, AssertionKind, Ast, CaptureName, Class,
-        ClassBracketed, ClassPerlKind, ClassSet, ClassSetItem, ClassSetUnion, Concat, ErrorKind,
-        Flag, Flags, FlagsItemKind, Group, GroupKind, Literal, LiteralKind, Position, Repetition,
-        RepetitionKind, RepetitionOp, RepetitionRange, Span,
+        print::Printer, Alternation, Assertion, AssertionKind, Ast, CaptureName, Class, ClassAscii,
+        ClassAsciiKind, ClassBracketed, ClassPerlKind, ClassSet, ClassSetItem, ClassSetUnion,
+        Concat, ErrorKind, Flag, Flags, FlagsItemKind, Group, GroupKind, Literal, LiteralKind,
+        Position, Repetition, RepetitionKind, RepetitionOp, RepetitionRange, Span,
     };
+    use regex_syntax::hir::{self, HirKind};
 
     use crate::compile::Error;
 
@@ -734,9 +735,79 @@ mod regex {
         Ok(out)
     }
 
+    fn ascii_digit_item(item: &mut ClassSetItem) {
+        match item {
+            ClassSetItem::Perl(perl) if matches!(perl.kind, ClassPerlKind::Digit) => {
+                *item = ClassSetItem::Ascii(ClassAscii {
+                    span: perl.span,
+                    kind: ClassAsciiKind::Digit,
+                    negated: perl.negated,
+                });
+            }
+            ClassSetItem::Union(union) => union.items.iter_mut().for_each(ascii_digit_item),
+            ClassSetItem::Bracketed(bracketed) => ascii_digit_set(&mut bracketed.kind),
+            _ => {}
+        }
+    }
+
+    fn ascii_digit_set(set: &mut ClassSet) {
+        match set {
+            ClassSet::Item(item) => ascii_digit_item(item),
+            ClassSet::BinaryOp(op) => {
+                ascii_digit_set(&mut op.lhs);
+                ascii_digit_set(&mut op.rhs);
+            }
+        }
+    }
+
+    /// Expands the body of a Java character class (the text between `[` and
+    /// `]`) into sorted, non-overlapping inclusive char ranges. Java's `\d` only
+    /// matches ASCII digits unless `UNICODE_CHARACTER_CLASS` is set, so it is
+    /// read as `[0-9]`.
+    pub fn java_char_class_ranges(class: &str) -> Result<Vec<(char, char)>, String> {
+        let pattern = format!("[{}]", class);
+        let mut ast = regex_syntax::ast::parse::Parser::new()
+            .parse(&pattern)
+            .map_err(|error| error.to_string())?;
+        match &mut ast {
+            Ast::Class(Class::Bracketed(bracketed)) => ascii_digit_set(&mut bracketed.kind),
+            _ => return Err(format!("{:?} is not a character class", class)),
+        }
+
+        let hir = regex_syntax::hir::translate::Translator::new()
+            .translate(&pattern, &ast)
+            .map_err(|error| error.to_string())?;
+
+        match hir.into_kind() {
+            HirKind::Class(hir::Class::Unicode(class)) => Ok(class
+                .iter()
+                .map(|range| (range.start(), range.end()))
+                .collect()),
+            _ => Err(format!("{:?} is not a Unicode character class", class)),
+        }
+    }
+
     #[cfg(test)]
     mod tests {
         use super::*;
+
+        #[test]
+        fn java_char_class_digits_are_ascii() {
+            let ranges = java_char_class_ranges(r"\d\-’").unwrap();
+            assert_eq!(ranges, vec![('-', '-'), ('0', '9'), ('’', '’')]);
+        }
+
+        #[test]
+        fn java_char_class_expands_properties_and_ranges() {
+            let ranges = java_char_class_ranges("\\p{L}\u{300}-\u{36F}°").unwrap();
+            let contains = |c: char| ranges.iter().any(|&(start, end)| start <= c && c <= end);
+            assert!(contains('é'));
+            assert!(contains('\u{301}'));
+            assert!(contains('°'));
+            assert!(!contains('—'));
+            assert!(!contains('٣'));
+            assert!(ranges.windows(2).all(|pair| pair[0].1 < pair[1].0));
+        }
 
         #[test]
         fn i_flag_removed() {

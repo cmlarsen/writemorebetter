@@ -78,6 +78,8 @@ struct TokenizerOptionsOverride {
     split_contractions: Option<bool>,
     #[serde(default)]
     chunk_number_from_last_token: Option<bool>,
+    #[serde(default)]
+    word_chars: Option<String>,
 }
 
 #[derive(Error, Debug)]
@@ -148,6 +150,10 @@ pub fn compile(
         if let Some(chunk_number_from_last_token) = options.chunk_number_from_last_token {
             tokenizer_lang_options.chunk_number_from_last_token = chunk_number_from_last_token;
         }
+        if let Some(word_chars) = options.word_chars {
+            tokenizer_lang_options.word_chars =
+                utils::java_char_class_ranges(&word_chars).map_err(Error::Unexpected)?;
+        }
         info!(
             "Read tokenizer options from {}.",
             paths.tokenizer_options_path.display()
@@ -164,7 +170,7 @@ pub fn compile(
             lang_code: lang_code.clone(),
         })?;
 
-    let spellchecker_lang_options =
+    let mut spellchecker_lang_options =
         utils::spellchecker_lang_options(&lang_code).ok_or_else(|| {
             Error::LanguageOptionsDoNotExist {
                 lang_code: lang_code.clone(),
@@ -242,6 +248,7 @@ pub fn compile(
         tokenizer_lang_options,
     )?;
     tokenizer.to_writer(tokenizer_dest)?;
+    spellchecker_lang_options.word_chars = tokenizer.lang_options().word_chars.clone();
 
     let spell = if paths.spell_dir_path.exists() {
         info!("Creating spellchecker.");

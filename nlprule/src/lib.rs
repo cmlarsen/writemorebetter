@@ -143,7 +143,8 @@ pub(crate) const RULES_MAGIC: &[u8; 8] = b"WMBRUL01";
 /// arrays are laid out in sorted context order, so the binary no longer depends on the
 /// architecture's hash-table layout.
 /// Version 9: `TaggerLangOptions::title_case_all_uppercase` was added.
-pub const TOKENIZER_FORMAT_VERSION: u32 = 9;
+/// Version 10: `TokenizerLangOptions::word_chars` was added.
+pub const TOKENIZER_FORMAT_VERSION: u32 = 10;
 
 /// The on-disk format version of [Rules] binaries.
 ///
@@ -164,7 +165,8 @@ pub const TOKENIZER_FORMAT_VERSION: u32 = 9;
 /// Version 11: hashed collections (the spellchecker's maps and whitelist, builtin word lists and
 /// replacement tables, filter tables, text-engine group maps) are written in sorted key order, as
 /// in tokenizer version 8.
-pub const RULES_FORMAT_VERSION: u32 = 11;
+/// Version 12: `SpellLangOptions::word_chars` was added.
+pub const RULES_FORMAT_VERSION: u32 = 12;
 
 /// The longest engine version string accepted in a binary header.
 const MAX_ENGINE_VERSION_LEN: usize = 256;
