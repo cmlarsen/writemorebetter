@@ -2059,6 +2059,67 @@ fn apostrophe_rules_match_languagetool_on_fiction_text() {
     .is_empty());
 }
 
+#[test]
+fn antipattern_on_adjacent_punctuation_does_not_block_match() {
+    let flagged = vec![("singed".to_string(), vec!["signed".to_string()])];
+    for text in [
+        "\u{201c}Here is a copy of the singed contract.\u{201d} she said.",
+        "\u{2014}Here is a copy of the singed contract.",
+        "\u{2026}Here is a copy of the singed contract.\u{2026}",
+        "She kept the singed contract.\u{2028}He didn\u{2019}t.",
+    ] {
+        assert_eq!(
+            rule_flags(text, "GRAMMAR/SINGED_CONTRACT/"),
+            flagged,
+            "{:?}",
+            text
+        );
+    }
+    for text in [
+        "\u{201c}I\u{2019}m sure it\u{2019}s the singed contract\u{2014}\u{201d} she began.",
+        "\u{201c}It\u{2019}s the singed contract\u{2026}\u{201d}",
+    ] {
+        assert!(
+            rule_flags(text, "GRAMMAR/SINGED_CONTRACT/").is_empty(),
+            "{:?}",
+            text
+        );
+    }
+}
+
+#[test]
+fn opening_quote_antipattern_does_not_block_repeated_verbs() {
+    let flagged = vec![("made make".to_string(), vec!["make".to_string()])];
+    for text in [
+        "\u{201c}To made make your text better.",
+        "\u{201c} To made make your text better.",
+        "To made make your text better.",
+        "She said, \u{201c}To made make your text better.\u{201d}",
+        "\u{2018}To made make your text better.\u{2019}",
+        "\u{2014}To made make your text better.",
+        "\u{2026}To made make your text better.",
+        "She paused.\u{2028}\u{201c}To made make your text better.\u{201d}",
+        "He didn\u{2019}t answer.\u{2028}To made make your text better\u{2026}",
+    ] {
+        assert_eq!(
+            rule_flags(text, "GRAMMAR/REPEATED_VERBS/1"),
+            flagged,
+            "{:?}",
+            text
+        );
+    }
+    assert_eq!(
+        rule_flags(
+            "\u{201c}Sally, I want wanted to congratulate you.\u{201d}",
+            "GRAMMAR/REPEATED_VERBS/0"
+        ),
+        vec![(
+            "want wanted".to_string(),
+            vec!["want".to_string(), "wanted".to_string()]
+        )]
+    );
+}
+
 /// The chunker applies the LanguageTool 5.9+ rule from the 6.6 build directory:
 /// a noun phrase whose last token is singular is singular even if it contains a
 /// plural (the 5.2 behavior marked it plural if any token was). The 5.2 rule is

@@ -362,4 +362,15 @@ mod tests {
 
         Blockers::from_spans(spans).overlaps(start, end) == expected
     }
+
+    #[test]
+    fn adjacent_blockers_do_not_overlap() {
+        let blockers = Blockers::from_spans(vec![(0, 1), (10, 11)]);
+        assert!(!blockers.overlaps(1, 4));
+        assert!(!blockers.overlaps(5, 10));
+        assert!(!blockers.overlaps(1, 1));
+        assert!(blockers.overlaps(0, 4));
+        assert!(blockers.overlaps(5, 11));
+        assert!(blockers.overlaps(0, 0));
+    }
 }
