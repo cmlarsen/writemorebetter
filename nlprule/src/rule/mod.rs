@@ -529,6 +529,46 @@ mod example_tests {
         assert!(empty.is_empty());
         assert!(empty.get().is_empty());
     }
+
+    #[test]
+    fn failure_description_names_the_example_kind_and_matches() {
+        let text = "“He’s” here—it’s…\u{2028}";
+        let span = Span::new(3..9, 1..5);
+        let example = |kind, suggestion| Example {
+            text: text.into(),
+            suggestion,
+            kind,
+            marker: Some(span.clone()),
+        };
+
+        assert_eq!(
+            describe_expected(&example(ExampleKind::TriggersError, None)),
+            "at least one match"
+        );
+        assert_eq!(
+            describe_expected(&example(ExampleKind::Correct, None)),
+            "no match"
+        );
+        assert_eq!(
+            describe_expected(&example(ExampleKind::Incorrect, None)),
+            "exactly one match at chars 1..5"
+        );
+        let found = Suggestion::new(
+            "ID".into(),
+            "message".into(),
+            span.clone(),
+            vec!["He’s".into()],
+        );
+        assert_eq!(
+            describe_expected(&example(ExampleKind::Incorrect, Some(found.clone()))),
+            "exactly one match at chars 1..5 with one of [\"He’s\"]"
+        );
+        assert_eq!(describe_found(&[]), "no match");
+        assert_eq!(
+            describe_found(&[found]),
+            "1 match(es): chars 1..5 [\"He’s\"]"
+        );
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -581,6 +621,39 @@ fn example_suggestion_matches(expected: &Suggestion, actual: &Suggestion) -> boo
                 .iter()
                 .any(|x| actual.replacements().contains(x))
         }
+}
+
+fn describe_span(span: &Span) -> String {
+    format!("chars {:?}", span.char())
+}
+
+fn describe_expected(example: &Example) -> String {
+    match example.kind() {
+        ExampleKind::Correct => "no match".to_string(),
+        ExampleKind::TriggersError => "at least one match".to_string(),
+        ExampleKind::Incorrect => match (example.suggestion(), example.marker()) {
+            (Some(suggestion), _) => format!(
+                "exactly one match at {} with one of {:?}",
+                describe_span(suggestion.span()),
+                suggestion.replacements()
+            ),
+            (None, Some(marker)) => {
+                format!("exactly one match at {}", describe_span(marker))
+            }
+            (None, None) => "exactly one match".to_string(),
+        },
+    }
+}
+
+fn describe_found(suggestions: &[Suggestion]) -> String {
+    if suggestions.is_empty() {
+        return "no match".to_string();
+    }
+    let matches: Vec<String> = suggestions
+        .iter()
+        .map(|s| format!("{} {:?}", describe_span(s.span()), s.replacements()))
+        .collect();
+    format!("{} match(es): {}", suggestions.len(), matches.join("; "))
 }
 
 impl Rule {
@@ -682,7 +755,7 @@ impl Rule {
         // if the suggestions are shifted back
         let shift_delta = Position { byte: 1, char: 1 };
 
-        for test in self.examples.get().iter() {
+        for (index, test) in self.examples.get().iter().enumerate() {
             // by convention examples are always considered as one sentence even if the sentencizer would split
             let sentence = tokenizer
                 .disambiguate(
@@ -729,11 +802,13 @@ impl Rule {
 
             if !pass {
                 warn!(
-                    "Rule {}: test \"{}\" failed. Expected: {:#?}. Found: {:#?}.",
+                    "Rule {}: example {} ({:?}) \"{}\" failed. Expected: {}. Found: {}.",
                     self.id,
+                    index,
+                    test.kind(),
                     test.text(),
-                    test.suggestion(),
-                    suggestions
+                    describe_expected(test),
+                    describe_found(&suggestions)
                 );
             }
 
