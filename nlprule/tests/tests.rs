@@ -2302,8 +2302,42 @@ fn grammar_include_skipped_adds_the_skipped_tokens() {
 }
 
 #[test]
-fn speller_needs_a_variant() {
-    assert!(RULES.spell().speller().is_none());
+fn speller_falls_back_to_the_default_variant_while_spellchecking_is_off() {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    assert!(rules.spell().options().variant.is_none());
+    assert_eq!(RULES.spell().speller().unwrap().variant().as_str(), "en_US");
+
+    rules.add_words(["Zar\u{2019}khan"]);
+    let text =
+        "\u{201c}Teh colour\u{2014}it\u{2019}s gone\u{2026}\u{201d}\u{2028}O\u{2019}Brien said.";
+    assert!(!rules
+        .suggest(text, &TOKENIZER)
+        .iter()
+        .any(|x| x.source().starts_with("SPELLCHECK")));
+    {
+        let speller = rules.spell().speller().unwrap();
+        assert_eq!(speller.variant().as_str(), "en_US");
+        let misspelled: Vec<String> = token_texts(text)
+            .into_iter()
+            .filter(|word| !speller.is_correct(word))
+            .collect();
+        assert_eq!(misspelled, vec!["Teh", "colour"]);
+        assert_eq!(speller.suggest("teh", 1), vec!["the"]);
+    }
+
+    rules.spell_mut().options_mut().variant = Some(rules.spell().variant("en_GB").unwrap());
+    {
+        let speller = rules.spell().speller().unwrap();
+        assert_eq!(speller.variant().as_str(), "en_GB");
+        assert!(speller.is_correct("colour"));
+        assert!(speller.is_correct("Zar\u{2019}khan"));
+    }
+
+    rules.spell_mut().options_mut().variant = None;
+    let speller = rules.spell().speller().unwrap();
+    assert_eq!(speller.variant().as_str(), "en_US");
+    assert!(!speller.is_correct("colour"));
+    assert!(speller.is_correct("Zar\u{2019}khan"));
 }
 
 #[test]

@@ -72,13 +72,13 @@ pub(crate) struct FilterMatch {
 }
 
 /// What a filter may consult besides the match itself: "today" for the
-/// time-dependent filters and the speller for the selected variant.
+/// time-dependent filters and the speller.
 #[derive(Debug, Default)]
 pub(crate) struct FilterContext<'a> {
     /// Overrides "today" (the rule test harness passes LanguageTool's fixed
     /// test date).
     pub now: Option<Date>,
-    /// `None` when no speller variant is selected.
+    /// `None` only when no spell variant is selected and the language has no default one.
     #[allow(dead_code)]
     pub speller: Option<&'a Speller<'a>>,
 }

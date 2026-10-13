@@ -16,6 +16,12 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   filter ports ([#70](https://github.com/cmlarsen/writemorebetter/issues/70)). A curly
   apostrophe counts as a straight one and surrounding whitespace (including U+2028) is ignored.
   Checking output is unchanged.
+- **Speller-backed rule filters work with spellchecking off.** While no spell variant is
+  selected, `Spell::speller()` answers for the language's default variant (`en_US` for English,
+  as LanguageTool uses for plain English) instead of returning `None`; spelling suggestions stay
+  off. The rule test harness (`--bin test`, `Rules::test_rule`) therefore runs rule examples with
+  an `en_US` speller ([#119](https://github.com/cmlarsen/writemorebetter/issues/119)). Rules
+  binaries move to format version 13 (`SpellLangOptions::default_variant`); recompile them.
 
 ### Fixed
 

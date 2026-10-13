@@ -118,6 +118,19 @@ impl Spell {
             DefaultHashMap::default();
         let mut max_freq = 0;
 
+        if let Some(default) = &lang_options.default_variant {
+            if !lang_options.variants.contains(default) {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!(
+                        "default spell variant \"{}\" is not one of the variants {:?}",
+                        default.as_str(),
+                        lang_options.variants
+                    ),
+                ));
+            }
+        }
+
         for (i, variant) in lang_options.variants.iter().enumerate() {
             let spell_path = spell_dir_path
                 .as_ref()
