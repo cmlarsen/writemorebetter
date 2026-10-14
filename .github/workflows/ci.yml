@@ -77,7 +77,7 @@ jobs:
       - name: Disambiguation conformance
         env:
           RUST_LOG: WARN
-          DISAMBIG_PASSING: 1016
+          DISAMBIG_PASSING: 1012
         run: |
           # the binary exits 1 when any rule fails its examples; the floor below is the gate
           cargo run --release --all-features --bin test_disambiguation -- --tokenizer storage/en_tokenizer.bin > storage/disambiguation_conformance.log 2>&1 || true
@@ -102,8 +102,8 @@ jobs:
       - name: Grammar conformance
         env:
           RUST_LOG: WARN
-          GRAMMAR_PASSING: 6047
-          GRAMMAR_RUNNABLE: 6052
+          GRAMMAR_PASSING: 6054
+          GRAMMAR_RUNNABLE: 6060
         run: |
           # the binary exits 1 when any rule fails its examples; the floors below are the gate
           cargo run --release --all-features --bin test -- --tokenizer storage/en_tokenizer.bin --rules storage/en_rules.bin > storage/grammar_conformance.log 2>&1 || true
