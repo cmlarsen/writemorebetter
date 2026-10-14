@@ -16,6 +16,16 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   filter ports ([#70](https://github.com/cmlarsen/writemorebetter/issues/70)). A curly
   apostrophe counts as a straight one and surrounding whitespace (including U+2028) is ignored.
   Checking output is unchanged.
+- **False-friend rules for writers whose first language is not English.** `Rules::set_mother_tongue`
+  (`setMotherTongue` in the wasm binding) selects a mother tongue, and `Rules::mother_tongues`
+  lists the 13 the English binary supports (ca, de, es, fr, ga, gl, it, ja, nl, pl, pt, ru, sv).
+  The rules are compiled from LanguageTool 6.6's `false-friends.xml`, with its localized
+  messages, into the rules binary as `FALSE_FRIENDS/<ID>/<n>`, and only the selected mother
+  tongue's rules run. Selecting a mother tongue is the opt-in: LanguageTool 6.6 tags these rules
+  `picky` and runs them only at its picky level, and for German, French, Spanish and Dutch
+  speakers it runs n-gram confusion rules instead of these XML rules (n-gram rules are out of
+  scope here; [#137](https://github.com/cmlarsen/writemorebetter/issues/137)). No mother tongue is
+  selected by default, so checking output is unchanged. The rules binary format version is now 17.
 - **Speller-backed rule filters work with spellchecking off.** While no spell variant is
   selected, `Spell::speller()` answers for the language's default variant (`en_US` for English,
   as LanguageTool uses for plain English) instead of returning `None`; spelling suggestions stay
@@ -35,6 +45,15 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   examples, among them `TYPOS/VERB_APOSTROPHE_S/5` (`that just go's`)
   ([#123](https://github.com/cmlarsen/writemorebetter/issues/123)). The fuller beam costs about
   4% more instructions per check (see `docs/PERF.md`).
+- **`scope="next"` exceptions see the readings LanguageTool 6.6 sees.** A token's next-token
+  exception now checks only the next token's first reading (`UNKNOWN` for an untagged word), and
+  is ignored (text exceptions included) when the previous pattern token has a `skip`; on a
+  token with its own `skip` it still checks every reading, unless that token is the last
+  pattern token. `This vehicle get’s used too much.` is now flagged
+  (`TYPOS/VERB_APOSTROPHE_S/3`), `„Wait…“and` is flagged by `TYPOGRAPHY/GERMAN_QUOTES/3`, and
+  `GRAMMAR/ONE_PLURAL/0` passes too
+  ([#122](https://github.com/cmlarsen/writemorebetter/issues/122)). Tokenizer binaries move to
+  format version 12 and rules binaries to 16 (`WordDataAtom::first_reading`); recompile them.
 - **The speller accepts all-caps words and restores case in suggestions.** An all-caps token
   (`THE END`, shouted `HELLO`) is no longer flagged when its lowercase or capitalized form is
   known, and a capitalized or all-caps token is searched case-insensitively with the candidates
