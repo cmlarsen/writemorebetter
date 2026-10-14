@@ -747,6 +747,8 @@ macro_rules! flatten_group {
     }};
 }
 
+const GRAMMAR_WHITESPACE_SENSITIVE_TAGS: &[&str] = &["suggestion", "example"];
+
 type GrammarRuleReading = (Rule, Option<Group>, Option<Category>);
 type DisambiguationRuleReading = (DisambiguationRule, Option<Group>, Option<Category>);
 
@@ -756,7 +758,7 @@ pub fn read_rules<P: AsRef<std::path::Path>>(
     let file = File::open(path.as_ref()).unwrap();
     let file = BufReader::new(file);
 
-    let sanitized = preprocess::sanitize(file, &["suggestion", "example"]);
+    let sanitized = preprocess::sanitize(file, GRAMMAR_WHITESPACE_SENSITIVE_TAGS);
     let rules = preprocess::extract_rules(sanitized.as_bytes());
 
     let mut unifications = Vec::new();
@@ -880,7 +882,7 @@ mod tests {
     use super::*;
 
     fn example_texts(xml: &str) -> Vec<String> {
-        let sanitized = preprocess::sanitize(xml.as_bytes(), &["suggestion", "example"]);
+        let sanitized = preprocess::sanitize(xml.as_bytes(), GRAMMAR_WHITESPACE_SENSITIVE_TAGS);
         let document = roxmltree::Document::parse(&sanitized).unwrap();
         document
             .descendants()

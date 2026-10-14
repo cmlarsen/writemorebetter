@@ -3814,6 +3814,30 @@ fn apostrophe_type_filter_reads_the_raw_apostrophe() {
 }
 
 #[test]
+fn apostrophe_type_filter_on_fiction_clitics() {
+    let text = "\u{201c}Give \u{2019}em hell,\u{201d} said James\u{2019} brother\u{2014}rock \
+                \u{2019}n\u{2019} roll\u{2026}\u{2028}I\u{2019}ll go. Rock 'n' roll.";
+    let spans = |selector: &str| -> Vec<(std::ops::Range<usize>, Vec<String>)> {
+        rule_matches(selector, text)
+            .into_iter()
+            .map(|(_, span, replacements)| (span, replacements))
+            .collect()
+    };
+
+    assert_eq!(
+        spans("typography/typewriter_apostrophe"),
+        vec![
+            (42..45, vec!["'n'".to_string()]),
+            (53..56, vec!["'ll".to_string()]),
+        ]
+    );
+    assert_eq!(
+        spans("typography/typographical_apostrophe"),
+        vec![(66..69, vec!["\u{2019}n\u{2019}".to_string()])]
+    );
+}
+
+#[test]
 fn consecutive_spaces_match_like_languagetool() {
     let spans = |selector: &str, text: &str| -> Vec<std::ops::Range<usize>> {
         rule_matches(selector, text)
