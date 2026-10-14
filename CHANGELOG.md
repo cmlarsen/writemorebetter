@@ -48,8 +48,18 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   `s` instead of the referenced text alone, so `TYPO_OR_OF` (off by default) no longer flags
   "the active couple or actives" ([#164](https://github.com/cmlarsen/writemorebetter/issues/164)).
   Literal text around a reference that also carries `postag` or `regexp="yes"` is rejected at
-  compile time. `TOKENIZER_FORMAT_VERSION` is now 15 and `RULES_FORMAT_VERSION` 21, so binaries
+  compile time. `TOKENIZER_FORMAT_VERSION` is now 16 and `RULES_FORMAT_VERSION` 21, so binaries
   built by earlier versions must be rebuilt.
+- **G-dropped words like `doin'` stay one token tagged as the `-ing` form, as in LanguageTool
+  6.6.** An unknown word ending in `in'` (or `in’`) is tagged like its `-ing` form (`doin'` as
+  `do/VBG`, `nothin'` as `nothing`), so the tokenizer no longer splits off the apostrophe, the
+  spellchecker no longer flags `goin`, and `HOW_YOU_DOING` marks the whole `how you doin'`
+  ([#162](https://github.com/cmlarsen/writemorebetter/issues/162)). This deliberately differs
+  from LanguageTool 6.6 when the word without its apostrophe is itself a word: LanguageTool tags
+  `sin’` as `sing` and `robin’` as `robe/VBG`, which swallows the closing quote of `‘a sin’` and
+  raises a false unpaired-quote error; here those quotes stay tokens of their own. The
+  unpaired-quote rule no longer treats the apostrophe of such a word as a closing quote, so
+  `‘Doin’ fine,’ she said.` is not flagged. The tokenizer binary format version is now 15.
 - **Grammar-rule antipatterns immunize tokens, as in LanguageTool 6.6.** A pattern element can no
   longer match a token covered by one of the rule's antipatterns, and a `skip` continues past such
   a token to a later one, instead of the whole match being dropped when it overlaps an

@@ -2,6 +2,7 @@
     "use_compound_split_heuristic": false,
     "always_add_lower_tags": true,
     "title_case_all_uppercase": true,
+    "tag_g_dropped_ing": true,
     "extra_tags": [
         "PCT",
         "ORD",
