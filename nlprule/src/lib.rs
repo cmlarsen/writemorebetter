@@ -151,7 +151,9 @@ pub(crate) const RULES_MAGIC: &[u8; 8] = b"WMBRUL01";
 /// `multiword_*` casing and tag-replacement options.
 /// Version 14: the part pool stores each antipattern's `<marker>` range.
 /// Version 15: `TaggerLangOptions::tag_g_dropped_ing` was added.
-pub const TOKENIZER_FORMAT_VERSION: u32 = 15;
+/// Version 16: `MatcherKind::AffixedGraph` was added (literal text around a `<match>` inside a
+/// `<token>`).
+pub const TOKENIZER_FORMAT_VERSION: u32 = 16;
 
 /// The on-disk format version of [Rules] binaries.
 ///
@@ -182,7 +184,14 @@ pub const TOKENIZER_FORMAT_VERSION: u32 = 15;
 /// Version 19: `Spell::phrases` was added.
 /// Version 20: the part pool stores each antipattern's `<marker>` range, as in tokenizer
 /// version 14.
-pub const RULES_FORMAT_VERSION: u32 = 20;
+/// Version 21: `SpellOptions::freq_weight` was removed.
+/// Version 22: `RuleFilter` gained the `FindSuggestions`, `SuppressMisspelledSuggestions` and
+/// `NumberInWord` filters.
+/// Version 23: the `DoublePunctuation`, `MultipleWhitespace`, `SentenceWhitespace` and `EmptyLine`
+/// builtins were added.
+/// Version 24: `PosReplacer::spell_number` was added (`<match postag="_spell_number_"/>`).
+/// Version 25: `MatcherKind::AffixedGraph` was added, as in tokenizer version 16.
+pub const RULES_FORMAT_VERSION: u32 = 25;
 
 /// The longest engine version string accepted in a binary header.
 const MAX_ENGINE_VERSION_LEN: usize = 256;

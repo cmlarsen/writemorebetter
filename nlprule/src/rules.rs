@@ -237,7 +237,8 @@ impl Rules {
     /// A rule with LanguageTool's `raw_pos` matches [Sentence::raw]; on a sentence that did not keep
     /// it (one not from [Tokenizer::pipe]) such a rule matches the disambiguated tokens instead.
     pub fn apply(&self, sentence: &Sentence) -> Vec<Suggestion> {
-        let builtin_suggestions = self.builtin_suggestions(std::slice::from_ref(sentence), None);
+        let builtin_suggestions =
+            self.builtin_suggestions(std::slice::from_ref(sentence), None, true);
         self.apply_with(sentence, builtin_suggestions)
     }
 
@@ -245,11 +246,15 @@ impl Rules {
         &self,
         sentences: &[Sentence],
         previous: Option<&Sentence>,
+        ends_text: bool,
     ) -> Vec<Suggestion> {
         self.builtins
             .iter()
             .filter(|rule| rule.enabled())
-            .flat_map(|rule| rule.builtin().check_text_with_previous(sentences, previous))
+            .flat_map(|rule| {
+                rule.builtin()
+                    .check_paragraph(sentences, previous, ends_text)
+            })
             .collect()
     }
 
@@ -359,33 +364,38 @@ impl Rules {
             .iter()
             .any(|rule| rule.enabled() && rule.raw_pos());
 
-        for sentence in tokenizer.pipe_with_raw(text, keep_raw) {
+        let mut sentences = tokenizer.pipe_with_raw(text, keep_raw).peekable();
+        while let Some(sentence) = sentences.next() {
             let ends_paragraph = sentence.text().contains('\n');
             paragraph.push(sentence);
 
             if ends_paragraph {
-                previous = self.extend_paragraph(&mut paragraph, previous.as_ref(), &mut batch);
+                let ends_text = sentences.peek().is_none();
+                previous =
+                    self.extend_paragraph(&mut paragraph, previous.as_ref(), ends_text, &mut batch);
                 if batch.len() >= self.batch_size.unwrap_or(PARALLEL_BATCH) {
                     self.flush_batch(&mut batch, &mut suggestions);
                 }
             }
         }
-        self.extend_paragraph(&mut paragraph, previous.as_ref(), &mut batch);
+        self.extend_paragraph(&mut paragraph, previous.as_ref(), true, &mut batch);
         self.flush_batch(&mut batch, &mut suggestions);
 
         suggestions
     }
 
     /// Adds one paragraph's `(sentence, builtin suggestions)` pairs to the pending batch. `previous`
-    /// is the last sentence of the preceding paragraph, if any. Returns the paragraph's last
-    /// sentence so the caller can pass it on as context.
+    /// is the last sentence of the preceding paragraph, if any, and `ends_text` tells whether no
+    /// sentence follows. Returns the paragraph's last sentence so the caller can pass it on as
+    /// context.
     fn extend_paragraph<'t>(
         &self,
         paragraph: &mut Vec<Sentence<'t>>,
         previous: Option<&Sentence<'t>>,
+        ends_text: bool,
         batch: &mut Vec<(Sentence<'t>, Vec<Suggestion>)>,
     ) -> Option<Sentence<'t>> {
-        let mut builtin_suggestions = self.builtin_suggestions(paragraph, previous);
+        let mut builtin_suggestions = self.builtin_suggestions(paragraph, previous, ends_text);
         let last = paragraph.last().cloned();
 
         for sentence in paragraph.drain(..) {

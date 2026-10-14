@@ -603,7 +603,9 @@ impl Tokenizer {
     /// `EnglishWordTokenizer.wordsToAdd` does: hyphens at either end of the word
     /// are tokens of their own, a word without an apostrophe (or whose
     /// normalized form is known to the tagger) stays whole, an unknown word
-    /// containing apostrophes is split at them.
+    /// containing apostrophes is split at them. Unlike LanguageTool, a leading
+    /// straight quote is split off a g-dropped word such as `'goin'`, which then
+    /// stays whole.
     fn words_to_add<'t>(&self, s: &'t str, out: &mut Vec<(&'t str, Option<String>)>) {
         let core = s.trim_start_matches('-');
         out.extend((0..s.len() - core.len()).map(|i| (&s[i..i + 1], None)));
@@ -652,9 +654,27 @@ impl Tokenizer {
             } else {
                 out.push((s, Some(normalized)));
             }
+        } else if let Some(rest) = s
+            .strip_prefix('\'')
+            .filter(|rest| self.is_g_dropped_word(rest))
+        {
+            out.push((&s[..1], None));
+            self.words_to_add_core(rest, out);
         } else {
             out.extend(split(s, is_apostrophe).into_iter().map(|x| (x, None)));
         }
+    }
+
+    fn is_g_dropped_word(&self, s: &str) -> bool {
+        if !self.tagger.lang_options().tag_g_dropped_ing {
+            return false;
+        }
+        let normalized = s.replace('\u{2019}', "'");
+        normalized.to_lowercase().ends_with("in'")
+            && !self
+                .tagger
+                .tags_for_normalized(&normalized, false)
+                .is_empty()
     }
 
     pub(crate) fn get_token_strs<'t>(&self, text: &'t str) -> Vec<&'t str> {
