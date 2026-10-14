@@ -1,6 +1,5 @@
 //! A Chunker ported from [OpenNLP](https://opennlp.apache.org/).
 
-use half::bf16;
 use serde::{Deserialize, Serialize};
 use std::hash::{Hash, Hasher};
 use std::ops::Range;
@@ -155,7 +154,7 @@ struct ModelFields {
     outcome_labels: Vec<String>,
     pmap: Vec<(u64, u8)>,
     outcomes: Vec<u8>,
-    parameters: Vec<bf16>,
+    parameters: Vec<f32>,
 }
 
 /// One entry of a [Pmap]. `offset` addresses the flat `outcomes`/`parameters` arrays and fits in
@@ -310,9 +309,7 @@ pub(crate) struct Model {
     /// Outcome indices into `outcome_labels`; the on-disk type is `u8` and the label count is
     /// asserted to fit it at load.
     pub(crate) outcomes: Vec<u8>,
-    /// Kept in the on-disk half-precision type and widened to `f32` at use. Widening is exact,
-    /// so this is bit-identical to converting at load.
-    pub(crate) parameters: Vec<bf16>,
+    pub(crate) parameters: Vec<f32>,
     pub(crate) pmap: Pmap,
 }
 
@@ -326,7 +323,7 @@ impl Model {
         let parameters = &self.parameters[start..end];
 
         for (idx, param) in outcomes.iter().zip(parameters.iter()) {
-            prior[*idx as usize] += param.to_f32();
+            prior[*idx as usize] += param;
         }
     }
 

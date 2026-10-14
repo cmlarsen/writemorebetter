@@ -142,6 +142,16 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   examples, among them `TYPOS/VERB_APOSTROPHE_S/5` (`that just go's`)
   ([#123](https://github.com/cmlarsen/writemorebetter/issues/123)). The fuller beam costs about
   4% more instructions per check (see `docs/PERF.md`).
+- **The chunker breaks near-ties like LanguageTool 6.6.** The chunker's tokenizer, POS tagger and
+  chunk models now keep their parameters as `f32` instead of `bf16`, which was too coarse to
+  separate sequences whose scores differ by less than 0.01 log-probability. On the public texts
+  the chunker now matches LanguageTool 6.6's `EnglishChunker` on every internal token, POS tag
+  and chunk tag (previously 1 sentence's tokens, 7 POS tags and 16 chunk tags differed), and
+  `PUNCTUATION/OXFORD_NEW_CLAUSE/1` (`nginx, php, and mysql error logs and`) and
+  `STYLE/SERIAL_COMMA_ON/4` (`special, fast and nice`) pass. Grammar conformance rises from 6042
+  to 6044 rules ([#165](https://github.com/cmlarsen/writemorebetter/issues/165),
+  [#154](https://github.com/cmlarsen/writemorebetter/issues/154)). The tokenizer binary grows
+  by 1.9 MB and peak RSS by about 2 MiB; the tokenizer binary format version is now 16.
 - **`scope="next"` exceptions see the readings LanguageTool 6.6 sees.** A token's next-token
   exception now checks only the next token's first reading (`UNKNOWN` for an untagged word), and
   is ignored (text exceptions included) when the previous pattern token has a `skip`; on a

@@ -151,7 +151,8 @@ pub(crate) const RULES_MAGIC: &[u8; 8] = b"WMBRUL01";
 /// `multiword_*` casing and tag-replacement options.
 /// Version 14: the part pool stores each antipattern's `<marker>` range.
 /// Version 15: `TaggerLangOptions::tag_g_dropped_ing` was added.
-pub const TOKENIZER_FORMAT_VERSION: u32 = 15;
+/// Version 16: the chunker models store their parameters as `f32` instead of `bf16`.
+pub const TOKENIZER_FORMAT_VERSION: u32 = 16;
 
 /// The on-disk format version of [Rules] binaries.
 ///

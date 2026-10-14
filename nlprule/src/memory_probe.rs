@@ -12,7 +12,6 @@
 
 use std::path::Path;
 
-use half::bf16;
 use serde::{de::DeserializeOwned, Serialize};
 
 use crate::rule::disambiguation::Disambiguation;
@@ -803,7 +802,7 @@ pub fn load(name: &str, path: &Path) -> Result<Held, String> {
         "chunker_chunk_model" => Held::new(load_typed::<MaxentChunker>(path)?),
         "chunker_model_parameters"
         | "chunker_token_model_parameters"
-        | "chunker_pos_model_parameters" => Held::new(load_typed::<Vec<bf16>>(path)?),
+        | "chunker_pos_model_parameters" => Held::new(load_typed::<Vec<f32>>(path)?),
         "chunker_model_outcomes" => Held::new(load_typed::<Vec<u8>>(path)?),
         "chunker_model_pmap" | "chunker_token_model_pmap" | "chunker_pos_model_pmap" => {
             Held::new(load_typed::<Pmap>(path)?)
@@ -1032,8 +1031,8 @@ pub fn describe(tokenizer_bin: &Path, rules_bin: &Path) -> Result<Vec<(String, S
         ];
         for (name, model) in models {
             facts.push((
-                format!("chunker.{}.parameters (loaded bf16 bytes)", name),
-                format!("{}", model.parameters.len() * 2),
+                format!("chunker.{}.parameters (loaded f32 bytes)", name),
+                format!("{}", model.parameters.len() * 4),
             ));
             facts.push((
                 format!("chunker.{}.outcomes (loaded u8 bytes)", name),
