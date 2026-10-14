@@ -182,7 +182,8 @@ pub const TOKENIZER_FORMAT_VERSION: u32 = 15;
 /// Version 19: `Spell::phrases` was added.
 /// Version 20: the part pool stores each antipattern's `<marker>` range, as in tokenizer
 /// version 14.
-pub const RULES_FORMAT_VERSION: u32 = 20;
+/// Version 21: `SpellOptions::freq_weight` was removed.
+pub const RULES_FORMAT_VERSION: u32 = 21;
 
 /// The longest engine version string accepted in a binary header.
 const MAX_ENGINE_VERSION_LEN: usize = 256;

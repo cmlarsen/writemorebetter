@@ -598,16 +598,6 @@ impl PySpellOptions {
     }
 
     #[getter]
-    fn get_freq_weight(&self) -> f32 {
-        self.spell().options().freq_weight
-    }
-
-    #[setter]
-    fn set_freq_weight(&self, freq_weight: f32) {
-        self.spell_mut().options_mut().freq_weight = freq_weight
-    }
-
-    #[getter]
     fn get_top_n(&self) -> usize {
         self.spell().options().top_n
     }

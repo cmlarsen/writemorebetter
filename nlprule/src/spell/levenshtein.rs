@@ -101,7 +101,9 @@ impl<'a> Automaton for Levenshtein<'a> {
                 if i > 1 {
                     // transposes
                     if let Some(prev_row) = state.prev_row.as_ref() {
-                        if byte == self.query[i - 2] && state.prev_byte == self.query[i - 1] {
+                        if self.equal(byte, self.query[i - 2])
+                            && self.equal(state.prev_byte, self.query[i - 1])
+                        {
                             cost = min(cost, prev_row[i - 2] + 1);
                         }
                     }
@@ -116,8 +118,8 @@ impl<'a> Automaton for Levenshtein<'a> {
                 1
             };
 
-            let lower_bound = state.n.saturating_sub(distance);
-            let upper_bound = cmp::min(state.n + distance, self.query.len());
+            let lower_bound = (state.n + 1).saturating_sub(distance);
+            let upper_bound = cmp::min(state.n + 1 + distance, self.query.len());
 
             let cutoff = if lower_bound > upper_bound {
                 0
@@ -149,7 +151,16 @@ mod tests {
     use super::*;
 
     fn distance(query: &str, key: &str, fold_case: bool) -> Option<usize> {
-        let automaton = Levenshtein::new(query, 2, 0).fold_case(fold_case);
+        distance_with_prefix(query, key, fold_case, 0)
+    }
+
+    fn distance_with_prefix(
+        query: &str,
+        key: &str,
+        fold_case: bool,
+        prefix: usize,
+    ) -> Option<usize> {
+        let automaton = Levenshtein::new(query, 2, prefix).fold_case(fold_case);
         let mut state = automaton.start();
         for byte in key.bytes() {
             state = automaton.accept(&state, byte);
@@ -163,7 +174,30 @@ mod tests {
         assert_eq!(distance("TEH", "ten", true), Some(1));
         assert_eq!(distance("Teh", "Ted", true), Some(1));
         assert_eq!(distance("Teh", "the", true), Some(1));
-        assert_eq!(distance("Hte", "the", true), Some(2));
+        assert_eq!(distance("Hte", "the", true), Some(1));
+        assert_eq!(distance("Hte", "the", false), Some(2));
         assert_eq!(distance("CAF\u{c9}", "caf\u{e9}", true), Some(1));
+        assert_eq!(distance("GOIGN", "going", true), Some(1));
+        assert_eq!(distance("WHTA", "what", true), Some(1));
+    }
+
+    #[test]
+    fn leading_deletions_survive_the_prefix() {
+        assert_eq!(distance_with_prefix("Aduke", "duke", true, 2), Some(1));
+        assert_eq!(distance_with_prefix("Wat", "at", true, 2), Some(1));
+        assert_eq!(distance_with_prefix("IPHONE", "phone", true, 2), Some(1));
+        assert_eq!(distance_with_prefix("abxycd", "abcd", false, 2), Some(2));
+    }
+
+    #[test]
+    fn deletions_anywhere_in_the_word_survive_distance_one() {
+        for key in ["hick", "tick", "thck", "thik", "thic"] {
+            let automaton = Levenshtein::new("thick", 1, 0);
+            let mut state = automaton.start();
+            for byte in key.bytes() {
+                state = automaton.accept(&state, byte);
+            }
+            assert_eq!(state.map(|state| state.dist()), Some(1), "{}", key);
+        }
     }
 }
