@@ -60,7 +60,6 @@ impl LongSentence {
              sentences make the text easier to read.",
             self.max_words
         );
-        let mut suggestions = Vec::new();
         let mut quote: Option<usize> = None;
         let mut first_word: Option<&Token> = None;
         let mut i = 0;
@@ -80,13 +79,12 @@ impl LongSentence {
                 if quote.is_none() && is_word(text) {
                     let first = *first_word.get_or_insert(token);
                     if words == self.max_words {
-                        suggestions.push(Suggestion::new(
+                        return vec![Suggestion::new(
                             format!("BUILTIN/{}", ID),
-                            message.clone(),
+                            message,
                             Span::from_positions(first.span().start(), match_end(tokens)),
                             Vec::new(),
-                        ));
-                        break;
+                        )];
                     }
                     words += 1;
                 }
@@ -95,7 +93,7 @@ impl LongSentence {
             i += 1;
         }
 
-        suggestions
+        Vec::new()
     }
 }
 

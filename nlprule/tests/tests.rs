@@ -4068,6 +4068,25 @@ fn word_repeat_beginning_looks_across_paragraphs() {
         ),
         vec![pronoun_flag("He", "he")]
     );
+    for paragraph in ["He ran home.", "He sat down.", "He left the room."] {
+        assert!(builtin_flags(&RULES, "ENGLISH_WORD_REPEAT_BEGINNING_RULE", paragraph).is_empty());
+    }
+}
+
+#[test]
+fn word_repeat_beginning_counts_sentences_after_a_line_separator() {
+    let text = "He ran home.\u{2028}He sat down. He left the room. He slept.";
+    let flags = builtin_flags(&RULES, "ENGLISH_WORD_REPEAT_BEGINNING_RULE", text);
+    assert_eq!(flags, vec![pronoun_flag("He", "he")]);
+    let start = RULES
+        .suggest(text, &*TOKENIZER)
+        .into_iter()
+        .find(|x| x.source() == "BUILTIN/ENGLISH_WORD_REPEAT_BEGINNING_RULE")
+        .unwrap()
+        .span()
+        .char()
+        .start;
+    assert_eq!(start, text.chars().count() - "He slept.".len());
 }
 
 #[test]
@@ -4137,6 +4156,17 @@ fn fiction_profile_disables_word_repeat_beginning() {
 }
 
 #[test]
+fn fiction_profile_keeps_long_sentence_and_paragraph_off() {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    rules.apply_profile(&Profile::fiction());
+    for rule in rules.builtins() {
+        if matches!(rule.id(), "TOO_LONG_SENTENCE" | "TOO_LONG_PARAGRAPH") {
+            assert!(!rule.enabled(), "{}", rule.id());
+        }
+    }
+}
+
+#[test]
 fn long_sentence_and_paragraph_are_off_by_default() {
     let text = format!("The {} sat.", distinct_words(250));
     assert!(builtin_flags(&RULES, "TOO_LONG_SENTENCE", &text).is_empty());
@@ -4154,6 +4184,12 @@ fn long_sentence_flags_more_than_forty_words() {
         long_sentence_flags(&text),
         vec![text.trim_end_matches('\u{2026}').to_owned()]
     );
+}
+
+#[test]
+fn long_sentence_reports_a_sentence_once() {
+    let text = format!("The {} sat.", distinct_words(90));
+    assert_eq!(long_sentence_flags(&text), vec![text.clone()]);
 }
 
 #[test]
@@ -4258,4 +4294,15 @@ fn long_paragraph_skips_paragraphs_with_line_breaks() {
     let flags = |text: &str| builtin_flags(&PICKY_RULES, "TOO_LONG_PARAGRAPH", text);
     assert!(flags(&format!("{}\nNext line.", paragraph_of(230))).is_empty());
     assert!(flags(&format!("Intro line.\n{}", paragraph_of(230))).is_empty());
+}
+
+#[test]
+fn long_paragraph_does_not_count_fiction_punctuation() {
+    let flags = |text: &str| builtin_flags(&PICKY_RULES, "TOO_LONG_PARAGRAPH", text);
+    let dialogue = " She said, \u{201c}hi\u{201d} \u{2014} then\u{2026} don\u{2019}t.";
+    assert!(flags(&format!("{}{}", paragraph_of(219), dialogue)).is_empty());
+    assert_eq!(
+        flags(&format!("{}{}", paragraph_of(220), dialogue)),
+        vec![("w218 w219".to_owned(), vec![])]
+    );
 }
