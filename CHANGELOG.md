@@ -35,6 +35,20 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   a paragraph or line, which LanguageTool flags whenever the previous paragraph ends a sentence.
   A profile selector can now name a builtin case, as in `BUILTIN/WHITESPACE_RULE/INDENTATION`. The
   rules binary format version is now 23.
+- **Sentence- and paragraph-level style rules from LanguageTool 6.6** run as builtins
+  ([#82](https://github.com/cmlarsen/writemorebetter/issues/82)), with LanguageTool's IDs,
+  messages, thresholds and spans:
+  - `ENGLISH_WORD_REPEAT_BEGINNING_RULE` flags the third of three sentences that begin with the
+    same word, or the second of two that begin with the same adverb (`Moreover`, `Indeed`, ...),
+    across paragraphs. It is on by default, as in LanguageTool, and the `fiction` profile
+    disables it.
+  - `TOO_LONG_SENTENCE` (over 40 words) and `TOO_LONG_PARAGRAPH` (over 225 words) are off by
+    default, because LanguageTool tags them picky; `Rules::builtins_mut` enables them. Like
+    LanguageTool, they give way to any other match that overlaps them.
+
+  Builtins now see the last two sentences before a paragraph and whether the paragraph ends the
+  text (`Builtin::check_paragraph`, which replaces `Builtin::check_text_with_previous`). The rules
+  binary format version is now 27.
 - **The speller-backed rule filters are ported, so nine more rules run.** `FindSuggestionsFilter`
   (`PRP_MD_NN` [5] and [6], `A_INFINITIVE` [0] and [1]), `EnglishSuppressMisspelledSuggestionsFilter`
   (`EN_SPLIT_WORDS_HYPHEN` [0]–[3]) and `EnglishNumberInWordFilter` (`NUMBERS_IN_WORDS`) now
@@ -97,7 +111,7 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   are checked against the `scope="next"` exceptions of the pattern token before them, whether
   or not that token matched, as in LanguageTool 6.6
   ([#161](https://github.com/cmlarsen/writemorebetter/issues/161)). The rules binary format
-  version is now 27 and the tokenizer binary format version is now 17.
+  version is now 28 and the tokenizer binary format version is now 17.
 
 - **A `scope="next"` exception after an optional token depends on whether the token matched.**
   The exception checks the next word's first reading only when the last token that matched has
