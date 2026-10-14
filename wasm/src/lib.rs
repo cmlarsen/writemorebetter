@@ -131,4 +131,21 @@ impl Checker {
         serde_json::to_string(&self.rules.words())
             .map_err(|err| JsValue::from_str(&format!("failed to serialize words: {err}")))
     }
+
+    /// Selects the writer's mother tongue (e.g. `"de"`) so the false-friend rules for speakers
+    /// of that language run; pass `undefined` (or an empty string) to turn them off again (the
+    /// default). Changes apply to the next `check`.
+    #[wasm_bindgen(js_name = setMotherTongue)]
+    pub fn set_mother_tongue(&mut self, mother_tongue: Option<String>) {
+        self.rules
+            .set_mother_tongue(mother_tongue.as_deref().filter(|code| !code.is_empty()));
+    }
+
+    /// Lists the mother tongues the rules binary has false-friend rules for, as a JSON array of
+    /// language codes.
+    #[wasm_bindgen(js_name = motherTongues)]
+    pub fn mother_tongues(&self) -> Result<String, JsValue> {
+        serde_json::to_string(&self.rules.mother_tongues())
+            .map_err(|err| JsValue::from_str(&format!("failed to serialize mother tongues: {err}")))
+    }
 }

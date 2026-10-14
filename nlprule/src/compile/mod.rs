@@ -36,6 +36,7 @@ struct BuildFilePaths {
     chunker_path: PathBuf,
     disambiguation_path: PathBuf,
     grammar_path: PathBuf,
+    false_friends_dir_path: PathBuf,
     multiword_tag_path: PathBuf,
     common_words_path: PathBuf,
     regex_cache_path: PathBuf,
@@ -43,6 +44,7 @@ struct BuildFilePaths {
     spell_dir_path: PathBuf,
     spell_map_path: PathBuf,
     spell_extra_path: PathBuf,
+    spell_global_path: PathBuf,
     /// Optional per-build-directory tokenizer overrides.
     tokenizer_options_path: PathBuf,
 }
@@ -57,6 +59,7 @@ impl BuildFilePaths {
             chunker_path: p.join("chunker.json"),
             disambiguation_path: p.join("disambiguation.xml"),
             grammar_path: p.join("grammar.xml"),
+            false_friends_dir_path: p.join("false_friends"),
             multiword_tag_path: p.join("tags/multiwords.txt"),
             common_words_path: p.join("common.txt"),
             regex_cache_path: p.join("regex_cache.bin"),
@@ -64,6 +67,7 @@ impl BuildFilePaths {
             spell_dir_path: p.join("spell"),
             spell_map_path: p.join("spell/map.txt"),
             spell_extra_path: p.join("spell/spelling.txt"),
+            spell_global_path: p.join("spell/spelling_global.txt"),
             tokenizer_options_path: p.join("tokenizer_options.json"),
         }
     }
@@ -228,6 +232,7 @@ pub fn compile(
         Some(MultiwordTagger::from_dump(
             paths.multiword_tag_path,
             &build_info,
+            &tokenizer_lang_options,
         )?)
     } else {
         None
@@ -256,6 +261,7 @@ pub fn compile(
             &paths.spell_dir_path,
             &paths.spell_map_path,
             &paths.spell_extra_path,
+            &paths.spell_global_path,
             spellchecker_lang_options,
             &tokenizer,
         )?
@@ -269,8 +275,26 @@ pub fn compile(
 
     info!("Creating grammar rules.");
     let builtins = builtin::for_language(&lang_code, build_dir, &tokenizer)?;
+    let mut mother_tongue_paths = Vec::new();
+    if paths.false_friends_dir_path.exists() {
+        for entry in fs::read_dir(&paths.false_friends_dir_path)? {
+            let path = entry?.path();
+            if path.extension().is_some_and(|x| x == "xml") {
+                if let Some(code) = path.file_stem().and_then(|x| x.to_str()) {
+                    mother_tongue_paths.push((code.to_string(), path.clone()));
+                }
+            }
+        }
+        mother_tongue_paths.sort();
+        info!(
+            "Read false friend rules for {} mother tongues from {}.",
+            mother_tongue_paths.len(),
+            paths.false_friends_dir_path.display()
+        );
+    }
     let rules = Rules::from_xml(
         &paths.grammar_path,
+        &mother_tongue_paths,
         &mut build_info,
         spell,
         rules_lang_options,

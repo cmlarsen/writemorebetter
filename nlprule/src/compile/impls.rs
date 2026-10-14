@@ -6,11 +6,11 @@ use log::warn;
 use serde::{Deserialize, Serialize};
 use std::{
     cmp,
-    collections::{HashMap, HashSet},
+    collections::{BTreeSet, HashMap, HashSet},
     hash::{Hash, Hasher},
     io::{self, BufRead, BufReader},
     iter::once,
-    path::Path,
+    path::{Path, PathBuf},
 };
 
 use crate::{
@@ -33,7 +33,7 @@ use crate::{
         Tokenizer, TokenizerLangOptions,
     },
     types::*,
-    utils::{parallelism::MaybeParallelIterator, regex::Regex},
+    utils::{apply_to_first, parallelism::MaybeParallelIterator, regex::Regex},
 };
 
 use super::{parse_structure::BuildInfo, Error};
@@ -42,6 +42,7 @@ impl Spell {
     fn new(
         fst: Vec<u8>,
         multiwords: DefaultHashMap<String, Vec<(Vec<String>, SpellInt)>>,
+        phrases: Vec<u8>,
         max_freq: usize,
         map: DefaultHashMap<String, String>,
         lang_options: SpellLangOptions,
@@ -49,6 +50,7 @@ impl Spell {
         let mut spell = Spell {
             fst,
             multiwords,
+            phrases,
             max_freq,
             map,
             lang_options,
@@ -106,10 +108,63 @@ impl Spell {
         }
     }
 
+    fn casing_variants(entry: &str) -> Vec<String> {
+        let is_camel_case = {
+            let rest = entry.trim_start_matches(|c: char| c.is_ascii_lowercase());
+            let mut chars = rest.chars();
+            rest.len() < entry.len()
+                && chars.next().is_some_and(|c| c.is_ascii_uppercase())
+                && !chars.as_str().is_empty()
+                && chars.all(|c| c.is_ascii_alphabetic())
+        };
+
+        let mut variants = vec![entry.to_owned()];
+        let mut push = |variant: String| {
+            if !variants.contains(&variant) {
+                variants.push(variant);
+            }
+        };
+        if !is_camel_case {
+            push(entry.to_uppercase());
+        }
+        push(apply_to_first(entry, |c| c.to_uppercase().collect()));
+        variants
+    }
+
+    fn global_phrases(path: &Path, tokenizer: &Tokenizer) -> io::Result<Vec<u8>> {
+        let mut phrases = BTreeSet::new();
+
+        let reader = BufReader::new(File::open(path)?);
+        for line in reader.lines() {
+            let line = line?;
+            let line = line.trim();
+            if line.starts_with('#') {
+                continue;
+            }
+            let entry = line[..line.find('#').unwrap_or(line.len())].trim();
+            if entry.is_empty() {
+                continue;
+            }
+
+            for variant in Spell::casing_variants(entry) {
+                let tokens = tokenizer.get_token_strs(&variant);
+                if !tokens.is_empty() {
+                    phrases.insert(tokens.join(" "));
+                }
+            }
+        }
+
+        Ok(fst::Set::from_iter(phrases)
+            .expect("phrases are lexicographically sorted.")
+            .into_fst()
+            .to_vec())
+    }
+
     pub(in crate::compile) fn from_dumps(
         spell_dir_path: impl AsRef<Path>,
         map_path: impl AsRef<Path>,
         global_word_path: impl AsRef<Path>,
+        global_phrase_path: impl AsRef<Path>,
         lang_options: SpellLangOptions,
         tokenizer: &Tokenizer,
     ) -> io::Result<Self> {
@@ -206,9 +261,16 @@ impl Spell {
             assert!(parts.next().is_none());
         }
 
+        let phrases = if global_phrase_path.as_ref().exists() {
+            Spell::global_phrases(global_phrase_path.as_ref(), tokenizer)?
+        } else {
+            Vec::new()
+        };
+
         Ok(Spell::new(
             fst.into_fst().to_vec(),
             multiwords,
+            phrases,
             max_freq,
             map,
             lang_options,
@@ -471,13 +533,65 @@ impl Tagger {
     }
 }
 
+fn uppercase_first_letter_or_digit(text: &str) -> String {
+    let mut chars = text.char_indices();
+    if text.chars().nth(1).is_none() {
+        return text.to_uppercase();
+    }
+    let last = text.char_indices().last().map_or(0, |(i, _)| i);
+    let (pos, first) = chars
+        .find(|(i, c)| c.is_alphanumeric() || *i == last)
+        .expect("text has at least two chars");
+    let mut upper = first.to_uppercase();
+    let upper = match (upper.next(), upper.next()) {
+        (Some(c), None) => c,
+        _ => first,
+    };
+    let mut out = text[..pos].to_owned();
+    out.push(upper);
+    out.push_str(&text[pos + first.len_utf8()..]);
+    out
+}
+
+fn is_camel_case(text: &str) -> bool {
+    let lower = text.chars().take_while(|c| c.is_ascii_lowercase()).count();
+    let rest: Vec<char> = text.chars().skip(lower).collect();
+    lower > 0
+        && rest.len() >= 2
+        && rest[0].is_ascii_uppercase()
+        && rest[1..].iter().all(|c| c.is_ascii_alphabetic())
+}
+
+fn casing_variants(
+    phrase: &str,
+    known: &DefaultHashMap<String, usize>,
+    options: &TokenizerLangOptions,
+) -> Vec<String> {
+    let mut variants = Vec::new();
+    if options.multiword_all_uppercase && !is_camel_case(phrase) {
+        let upper = phrase.to_uppercase();
+        if !known.contains_key(&upper) && upper != phrase {
+            variants.push(upper);
+        }
+    }
+    if options.multiword_first_capitalized {
+        let first_capitalized = uppercase_first_letter_or_digit(phrase);
+        if !known.contains_key(&first_capitalized) && first_capitalized != phrase {
+            variants.push(first_capitalized);
+        }
+    }
+    variants
+}
+
 impl MultiwordTagger {
     pub(in crate::compile) fn from_dump<P: AsRef<Path>>(
         dump: P,
         info: &BuildInfo,
+        options: &TokenizerLangOptions,
     ) -> Result<Self, io::Error> {
         let reader = BufReader::new(File::open(dump.as_ref())?);
-        let mut multiwords = Vec::new();
+        let mut multiwords: Vec<(String, String, owned::PosId)> = Vec::new();
+        let mut indices: DefaultHashMap<String, usize> = DefaultHashMap::default();
 
         for line in reader.lines() {
             let line = line?;
@@ -489,12 +603,20 @@ impl MultiwordTagger {
             }
             let tab_split: Vec<_> = line.split('\t').collect();
 
-            let word: String = tab_split[0]
-                .split_whitespace()
-                .collect::<Vec<_>>()
-                .join(" ");
+            let word = tab_split[0].to_owned();
             let pos = info.tagger().id_tag(tab_split[1]).to_owned_id();
-            multiwords.push((word, pos));
+
+            let variants = casing_variants(&word, &indices, options);
+            for phrase in std::iter::once(word.clone()).chain(variants) {
+                let entry = (phrase.clone(), word.clone(), pos.clone());
+                match indices.get(&phrase) {
+                    Some(&i) => multiwords[i] = entry,
+                    None => {
+                        indices.insert(phrase, multiwords.len());
+                        multiwords.push(entry);
+                    }
+                }
+            }
         }
 
         Ok((MultiwordTaggerFields { multiwords }).into())
@@ -569,120 +691,140 @@ fn has_picky_tag(tags: Option<&str>) -> bool {
     tags.map_or(false, |tags| tags.split_whitespace().any(|x| x == "picky"))
 }
 
+fn rules_from_xml<P: AsRef<Path>>(
+    path: P,
+    build_info: &mut BuildInfo,
+    options: &RulesLangOptions,
+    pool: &mut PartInterner,
+    errors: &mut HashMap<String, usize>,
+) -> Vec<Rule> {
+    super::parse_structure::read_rules(path)
+        .into_iter()
+        .filter_map(|x| match x {
+            Ok((rule_structure, group, category)) => {
+                let category = category.expect("grammar rules must have category");
+                let id = Category::new(category.id.as_str());
+
+                let id = if let Some(group) = &group {
+                    id.join(group.id.as_str()).join(group.n)
+                } else {
+                    id.join(
+                        rule_structure
+                            .id
+                            .as_ref()
+                            .expect("ID must be set if not in group."),
+                    )
+                    .join(0)
+                };
+
+                // LanguageTool's repetition experiment (`min_prev_matches` /
+                // `distance_tokens`) needs cross-match state, so reject it
+                // explicitly instead of compiling a rule that ignores the
+                // constraint.
+                if rule_structure.min_prev_matches.is_some()
+                    || rule_structure.distance_tokens.is_some()
+                    || group.as_ref().map_or(false, |g| {
+                        g.min_prev_matches.is_some() || g.distance_tokens.is_some()
+                    })
+                {
+                    *errors
+                        .entry(
+                            "[Rule] feature not implemented: repetition attributes \
+                             (min_prev_matches / distance_tokens) are not implemented."
+                                .into(),
+                        )
+                        .or_insert(0) += 1;
+                    return None;
+                }
+
+                let rule_on = match rule_structure.default.as_deref() {
+                    Some("off") | Some("temp_off") => false,
+                    Some("on") | None => true,
+                    Some(x) => panic!("unknown `default` value: {}", x),
+                };
+
+                let group_on = match group.as_ref().and_then(|x| x.default.as_deref()) {
+                    Some("off") | Some("temp_off") => false,
+                    Some("on") | None => true,
+                    Some(x) => panic!("unknown `default` value: {}", x),
+                };
+
+                let category_on = match category.default.as_deref() {
+                    Some("off") | Some("temp_off") => false,
+                    Some("on") | None => true,
+                    Some(x) => panic!("unknown `default` value: {}", x),
+                };
+
+                // `tags="picky"` rules are LanguageTool's Level.PICKY and are
+                // off by default. Rulegroup tags apply to every rule inside.
+                let picky = has_picky_tag(rule_structure.tags.as_deref())
+                    || group
+                        .as_ref()
+                        .map_or(false, |g| has_picky_tag(g.tags.as_deref()));
+
+                let name = rule_structure.name.as_ref().map_or_else(
+                    || {
+                        let group = group.as_ref().expect("must have group if name not set");
+                        group.name.clone()
+                    },
+                    |x| x.clone(),
+                );
+
+                match Rule::from_rule_structure(rule_structure, build_info, pool) {
+                    Ok(mut rule) => {
+                        if options.ignore_ids.iter().any(|x| x.is_match(&id)) {
+                            warn!("Skipping rule {}: it is listed in `ignore_ids`.", id);
+                            None
+                        } else if options.ids.is_empty()
+                            || options.ids.iter().any(|x| x.is_match(&id))
+                        {
+                            rule.id = id;
+                            rule.name = name;
+                            rule.category_name = category.name;
+                            rule.category_type = category.kind;
+                            rule.enabled = category_on && group_on && rule_on && !picky;
+                            Some(rule)
+                        } else {
+                            None
+                        }
+                    }
+                    Err(x) => {
+                        *errors.entry(format!("[Rule] {}", x)).or_insert(0) += 1;
+                        None
+                    }
+                }
+            }
+            Err(x) => {
+                *errors.entry(format!("[Structure] {}", x)).or_insert(0) += 1;
+                None
+            }
+        })
+        .collect()
+}
+
 impl Rules {
     pub(in crate::compile) fn from_xml<P: AsRef<Path>>(
         path: P,
+        mother_tongue_paths: &[(String, PathBuf)],
         build_info: &mut BuildInfo,
         spell: Spell,
         options: RulesLangOptions,
         builtins: Vec<BuiltinRule>,
     ) -> Self {
-        let rules = super::parse_structure::read_rules(path);
         let mut errors: HashMap<String, usize> = HashMap::new();
         let mut pool = PartInterner::default();
 
-        let rules: Vec<_> = rules
-            .into_iter()
-            .filter_map(|x| match x {
-                Ok((rule_structure, group, category)) => {
-                    let category = category.expect("grammar rules must have category");
-                    let id = Category::new(category.id.as_str());
-
-                    let id = if let Some(group) = &group {
-                        id.join(group.id.as_str()).join(group.n)
-                    } else {
-                        id.join(
-                            rule_structure
-                                .id
-                                .as_ref()
-                                .expect("ID must be set if not in group."),
-                        )
-                        .join(0)
-                    };
-
-                    // LanguageTool's repetition experiment (`min_prev_matches` /
-                    // `distance_tokens`) needs cross-match state, so reject it
-                    // explicitly instead of compiling a rule that ignores the
-                    // constraint.
-                    if rule_structure.min_prev_matches.is_some()
-                        || rule_structure.distance_tokens.is_some()
-                        || group.as_ref().map_or(false, |g| {
-                            g.min_prev_matches.is_some() || g.distance_tokens.is_some()
-                        })
-                    {
-                        *errors
-                            .entry(
-                                "[Rule] feature not implemented: repetition attributes \
-                                 (min_prev_matches / distance_tokens) are not implemented."
-                                    .into(),
-                            )
-                            .or_insert(0) += 1;
-                        return None;
-                    }
-
-                    let rule_on = match rule_structure.default.as_deref() {
-                        Some("off") | Some("temp_off") => false,
-                        Some("on") | None => true,
-                        Some(x) => panic!("unknown `default` value: {}", x),
-                    };
-
-                    let group_on = match group.as_ref().and_then(|x| x.default.as_deref()) {
-                        Some("off") | Some("temp_off") => false,
-                        Some("on") | None => true,
-                        Some(x) => panic!("unknown `default` value: {}", x),
-                    };
-
-                    let category_on = match category.default.as_deref() {
-                        Some("off") | Some("temp_off") => false,
-                        Some("on") | None => true,
-                        Some(x) => panic!("unknown `default` value: {}", x),
-                    };
-
-                    // `tags="picky"` rules are LanguageTool's Level.PICKY and are
-                    // off by default. Rulegroup tags apply to every rule inside.
-                    let picky = has_picky_tag(rule_structure.tags.as_deref())
-                        || group
-                            .as_ref()
-                            .map_or(false, |g| has_picky_tag(g.tags.as_deref()));
-
-                    let name = rule_structure.name.as_ref().map_or_else(
-                        || {
-                            let group = group.as_ref().expect("must have group if name not set");
-                            group.name.clone()
-                        },
-                        |x| x.clone(),
-                    );
-
-                    match Rule::from_rule_structure(rule_structure, build_info, &mut pool) {
-                        Ok(mut rule) => {
-                            if options.ignore_ids.iter().any(|x| x.is_match(&id)) {
-                                warn!("Skipping rule {}: it is listed in `ignore_ids`.", id);
-                                None
-                            } else if options.ids.is_empty()
-                                || options.ids.iter().any(|x| x.is_match(&id))
-                            {
-                                rule.id = id;
-                                rule.name = name;
-                                rule.category_name = category.name;
-                                rule.category_type = category.kind;
-                                rule.enabled = category_on && group_on && rule_on && !picky;
-                                Some(rule)
-                            } else {
-                                None
-                            }
-                        }
-                        Err(x) => {
-                            *errors.entry(format!("[Rule] {}", x)).or_insert(0) += 1;
-                            None
-                        }
-                    }
-                }
-                Err(x) => {
-                    *errors.entry(format!("[Structure] {}", x)).or_insert(0) += 1;
-                    None
-                }
-            })
-            .collect();
+        let mut rules = rules_from_xml(path, build_info, &options, &mut pool, &mut errors);
+        for (mother_tongue, path) in mother_tongue_paths {
+            rules.extend(
+                rules_from_xml(path, build_info, &options, &mut pool, &mut errors)
+                    .into_iter()
+                    .map(|mut rule| {
+                        rule.mother_tongue = Some(mother_tongue.clone());
+                        rule
+                    }),
+            );
+        }
 
         if !errors.is_empty() {
             let mut errors: Vec<(String, usize)> = errors.into_iter().collect();
@@ -712,6 +854,7 @@ impl Rules {
             articles,
             parts: pool.into_pool(),
             batch_size: None,
+            mother_tongue: None,
         }
     }
 }
@@ -1486,6 +1629,48 @@ pub(in crate::compile) mod rule_filters {
 mod tests {
     use super::*;
 
+    #[test]
+    fn multiword_casing_variants_follow_the_chunker() {
+        let options = TokenizerLangOptions {
+            multiword_first_capitalized: true,
+            multiword_all_uppercase: true,
+            ..TokenizerLangOptions::default()
+        };
+        let none = DefaultHashMap::default();
+        assert_eq!(casing_variants("O'Brien", &none, &options), vec!["O'BRIEN"]);
+        assert_eq!(casing_variants("O’Brien", &none, &options), vec!["O’BRIEN"]);
+        assert_eq!(casing_variants("L'Oréal", &none, &options), vec!["L'ORÉAL"]);
+        assert_eq!(
+            casing_variants("in a while", &none, &options),
+            vec!["IN A WHILE", "In a while"]
+        );
+        assert_eq!(casing_variants("iPad", &none, &options), vec!["IPad"]);
+        assert_eq!(
+            casing_variants("“élan”", &none, &options),
+            vec!["“ÉLAN”", "“Élan”"]
+        );
+        assert!(casing_variants("U.S.", &none, &options).is_empty());
+
+        let mut known = DefaultHashMap::default();
+        known.insert("O'BRIEN".to_owned(), 0);
+        assert!(casing_variants("O'Brien", &known, &options).is_empty());
+
+        let off = TokenizerLangOptions::default();
+        assert!(casing_variants("O'Brien", &none, &off).is_empty());
+    }
+
+    #[test]
+    fn uppercase_first_letter_or_digit_skips_leading_punctuation() {
+        assert_eq!(uppercase_first_letter_or_digit("ß"), "SS");
+        assert_eq!(uppercase_first_letter_or_digit("ßa"), "ßa");
+        assert_eq!(uppercase_first_letter_or_digit("‘tis"), "‘Tis");
+        assert_eq!(uppercase_first_letter_or_digit("—…"), "—…");
+        assert_eq!(uppercase_first_letter_or_digit("\u{2028}x"), "\u{2028}X");
+        assert!(is_camel_case("iPad"));
+        assert!(!is_camel_case("iP"));
+        assert!(!is_camel_case("O'Brien"));
+    }
+
     fn model_data(keys: &[String], capacity: usize) -> ModelData {
         let mut pmap = DefaultHashMap::with_capacity_and_hasher(capacity, Default::default());
         for key in keys {
@@ -1514,12 +1699,35 @@ mod tests {
             "missing",
             "missing",
             "missing",
+            "missing",
             lang_options,
             &Tokenizer::default(),
         )
         .unwrap_err();
         assert_eq!(error.kind(), io::ErrorKind::InvalidData);
         assert!(error.to_string().contains("en_\u{2019}NZ"));
+    }
+
+    #[test]
+    fn global_phrase_casing_variants_follow_the_multiword_chunker() {
+        assert_eq!(
+            Spell::casing_variants("McCarthy"),
+            vec!["McCarthy", "MCCARTHY"]
+        );
+        assert_eq!(Spell::casing_variants("eBay"), vec!["eBay", "EBay"]);
+        assert_eq!(
+            Spell::casing_variants("iPhone4"),
+            vec!["iPhone4", "IPHONE4", "IPhone4"]
+        );
+        assert_eq!(
+            Spell::casing_variants("McDonald\u{2019}s"),
+            vec!["McDonald\u{2019}s", "MCDONALD\u{2019}S"]
+        );
+        assert_eq!(
+            Spell::casing_variants("\u{e9}clair"),
+            vec!["\u{e9}clair", "\u{c9}CLAIR", "\u{c9}clair"]
+        );
+        assert_eq!(Spell::casing_variants("NASA"), vec!["NASA"]);
     }
 
     #[test]

@@ -505,10 +505,9 @@ pub enum PatternPart {
 pub struct Pattern {
     pub case_sensitive: Option<String>,
     /// `raw_pos="yes"` makes the token's POS tags refer to the tagger output
-    /// *before* disambiguation. Matching on the raw tags would need the
-    /// pre-disambiguation readings at runtime, so a pattern that reads POS
-    /// tags, lemmas or chunks is rejected explicitly; a text-only pattern
-    /// matches the same either way.
+    /// *before* disambiguation. A rule that reads POS tags, lemmas or chunks
+    /// then matches against [`Sentence::raw`][crate::types::Sentence::raw];
+    /// a text-only pattern matches the same either way.
     pub raw_pos: Option<String>,
     #[serde(rename = "$value")]
     pub parts: Vec<PatternPart>,
@@ -538,7 +537,7 @@ pub struct Rule {
     pub message: Message,
     #[serde(rename = "suggestion")]
     pub suggestions: Option<Vec<Suggestion>>,
-    #[serde(rename = "example")]
+    #[serde(rename = "example", default)]
     pub examples: Vec<Example>,
     pub id: Option<String>,
     pub name: Option<String>,

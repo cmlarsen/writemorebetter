@@ -485,6 +485,55 @@ fn spellchecker_accepts_all_caps_known_words() {
 }
 
 #[test]
+fn spellchecker_accepts_all_caps_names_from_the_global_list() {
+    assert_eq!(
+        spelling_errors(
+            "\u{201c}MCCARTHY!\u{201d} he roared\u{2014}MCKINLEY\u{2019}S men ran\u{2026}\u{2028}\u{2018}MCDONALD\u{2019}S, YOUTUBE, POWERPOINT,\u{2019} she said."
+        ),
+        Vec::<&str>::new()
+    );
+    assert_eq!(
+        spelling_errors(
+            "\u{201c}MCDONALD!\u{201d} MACARTHUR\u{2014}EBAY\u{2026}\u{2028}\u{2018}MCCARTNEY.\u{2019}"
+        ),
+        vec!["MCDONALD", "MACARTHUR", "EBAY", "MCCARTNEY"]
+    );
+    assert_eq!(
+        spelling_errors(
+            "\u{201c}JOSQUIN DES PR\u{c9}S\u{2026}\u{201d} Josquin des Pr\u{e9}s sang\u{2014}DES PR\u{c9}S.\u{2028}Pr\u{e9}s."
+        ),
+        vec!["PR\u{c9}S", "Pr\u{e9}s"]
+    );
+}
+
+#[test]
+fn speller_suggests_dictionary_casing_for_mixed_case_words() {
+    let speller = RULES.spell().speller().unwrap();
+    assert_eq!(speller.suggest("iPHONE", 2), vec!["iPhone", "iPhones"]);
+    assert_eq!(
+        speller.suggest("McKINLEY", 5),
+        vec!["McKinley", "McKinney", "McKinsey", "McGinley", "Mckinney"]
+    );
+
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    rules.spell_mut().options_mut().variant = Some(rules.spell().variant("en_US").unwrap());
+    let text = "\u{201c}My iPHONE\u{2014}gone\u{2026}\u{201d}\u{2028}\u{2018}McKINLEY\u{2019}s fault.\u{2019}";
+    let first_replacements: Vec<(&str, String)> = rules
+        .suggest(text, &*TOKENIZER)
+        .into_iter()
+        .filter(|x| x.source().starts_with("SPELLCHECK"))
+        .map(|x| (&text[x.span().byte().clone()], x.replacements()[0].clone()))
+        .collect();
+    assert_eq!(
+        first_replacements,
+        vec![
+            ("iPHONE", "iPhone".to_string()),
+            ("McKINLEY", "McKinley".to_string()),
+        ]
+    );
+}
+
+#[test]
 fn speller_suggestions_restore_the_case_of_capitalized_words() {
     let speller = RULES.spell().speller().unwrap();
     assert_eq!(
@@ -573,11 +622,61 @@ fn user_dictionary_case_handling() {
         spelling_errors_with_words(&["Xylophonix"], "the xylophonix"),
         vec!["xylophonix"]
     );
-    // Nor does it accept an all-caps form.
+    // Every entry accepts its all-caps form.
+    assert!(spelling_errors_with_words(&["Xylophonix"], "the XYLOPHONIX").is_empty());
+    assert!(spelling_errors_with_words(&["xylophonix"], "the XYLOPHONIX").is_empty());
+    // A partly uppercased form is still flagged.
     assert_eq!(
-        spelling_errors_with_words(&["Xylophonix"], "the XYLOPHONIX"),
+        spelling_errors_with_words(&["Xylophonix"], "the XYLOPHONiX"),
+        vec!["XYLOPHONiX"]
+    );
+}
+
+#[test]
+fn user_dictionary_accepts_shouted_entries() {
+    let words = ["Xylophonix", "James", "Port Royal", "Zar'khan"];
+    for text in [
+        "\u{201c}XYLOPHONIX!\u{201d} she screamed.",
+        "XYLOPHONIX\u{2019}S wand\u{2014}gone\u{2026}",
+        "Nothing.\u{2028}XYLOPHONIX'S wand. XYLOPHONIX's wand.",
+        "\u{2018}JAMES\u{2019} coat,\u{2019} he said. JAMES' coat.",
+        "\u{201c}PORT ROYAL burns!\u{201d}",
+        "\u{201c}ZAR\u{2019}KHAN\u{2026}\u{201d} ZAR'KHAN\u{2014}",
+    ] {
+        assert!(
+            spelling_errors_with_words(&words, text).is_empty(),
+            "{}",
+            text
+        );
+    }
+
+    assert_eq!(
+        spelling_errors_with_words(
+            &words,
+            "\u{201c}XYLOPHONIZ!\u{201d}\u{2014}PORT ROYEL\u{2026}"
+        ),
+        vec!["XYLOPHONIZ", "ROYEL"]
+    );
+
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    rules.spell_mut().options_mut().variant = Some(rules.spell().variant("en_US").unwrap());
+    rules.add_words(words);
+    assert_eq!(
+        rules.spell().speller().unwrap().suggest("XYLOPHONIZ", 1),
         vec!["XYLOPHONIX"]
     );
+
+    assert!(spelling_errors_with_words(
+        &["Zorvath Josquin"],
+        "Zorvath Josquin des Pr\u{e9}s sang\u{2014}\u{201c}ZORVATH JOSQUIN DES PR\u{c9}S\u{2026}\u{201d}\u{2028}"
+    )
+    .is_empty());
+
+    rules.add_words(["NASA"]);
+    let speller = rules.spell().speller().unwrap();
+    for word in ["XYLOPHONIX\u{2019}S", "NASA'S", "NASA\u{2019}S", "NASA's"] {
+        assert!(speller.is_correct(word), "{}", word);
+    }
 }
 
 #[test]
@@ -2263,6 +2362,96 @@ fn chunker_marks_noun_phrase_from_last_token() {
     assert_eq!(chunks("paper"), vec!["E-NP-singular".to_string()]);
 }
 
+/// Chunk tags LanguageTool 6.6 assigns to these sentences. The chunker's beam search
+/// must keep low-probability tags (`right/NN`, `that/WDT` here), extend the best
+/// sequence first when no top tag is valid (`her/PRP`), and never continue a chunk
+/// after `O` (the closing quote).
+#[test]
+fn chunker_matches_languagetool_beam_search() {
+    let chunk_tags = |text: &str| -> Vec<(String, String)> {
+        TOKENIZER
+            .pipe(text)
+            .flat_map(|sentence| sentence.into_iter())
+            .filter(|token| !token.word().as_str().trim().is_empty())
+            .map(|token| (token.word().as_str().to_string(), token.chunks().join("|")))
+            .collect()
+    };
+    let expected = |pairs: &[(&str, &str)]| -> Vec<(String, String)> {
+        pairs
+            .iter()
+            .map(|(word, chunks)| (word.to_string(), chunks.to_string()))
+            .collect()
+    };
+    let phrase = [
+        ("I", "B-NP-singular|E-NP-singular"),
+        ("miss", "B-VP"),
+        ("the", "B-NP-singular"),
+        ("button", "E-NP-singular"),
+        ("on", "B-PP"),
+        ("the", "B-NP-singular"),
+        ("bottom", "I-NP-singular"),
+        ("right", "E-NP-singular"),
+        ("that", "B-NP-singular|E-NP-singular"),
+        ("just", "B-ADVP"),
+        ("go", "B-VP"),
+    ];
+    let errors = [
+        ("'s", "B-NP-singular|E-NP-singular"),
+        ("over", "B-PP"),
+        ("all", "B-NP-plural"),
+        ("the", "I-NP-plural"),
+        ("errors", "E-NP-plural"),
+    ];
+
+    let mut straight = expected(&phrase);
+    straight.extend(expected(&errors));
+    straight.push((".".to_string(), "O".to_string()));
+    assert_eq!(
+        chunk_tags("I miss the button on the bottom right that just go's over all the errors."),
+        straight
+    );
+
+    let mut quoted = expected(&[("\u{201c}", "B-ADVP")]);
+    quoted.extend(expected(&phrase));
+    quoted.extend(expected(&errors));
+    quoted.extend(expected(&[
+        ("\u{2026}", "B-PP"),
+        ("\u{201d}", "B-NP-singular|E-NP-singular"),
+        ("she", "B-NP-singular|E-NP-singular"),
+        ("said", "B-VP"),
+        (".", "O"),
+    ]));
+    assert_eq!(
+        chunk_tags(
+            "\u{201c}I miss the button on the bottom right that just go\u{2019}s over all the errors\u{2026}\u{201d} she said.\u{2028}"
+        ),
+        quoted
+    );
+
+    let told = chunk_tags(
+        "I did not tell her that his recipe, or a version of it, was still in the till, because some gifts are for keeping.",
+    );
+    assert_eq!(
+        told[3..6],
+        expected(&[
+            ("tell", "I-VP"),
+            ("her", "B-NP-singular|E-NP-singular"),
+            ("that", "B-PP"),
+        ])[..]
+    );
+
+    let spain =
+        chunk_tags("\u{201c}Spain\u{2014}a great whale stranded on the shores of Europe.\u{201d}");
+    assert_eq!(
+        spain[spain.len() - 3..],
+        expected(&[
+            ("Europe", "B-NP-singular|E-NP-singular"),
+            (".", "O"),
+            ("\u{201d}", "B-NP-singular|E-NP-singular"),
+        ])[..]
+    );
+}
+
 /// A suggestion that references a token with `min="0"` which did not take part
 /// in the match must not keep the space that separated it from the next token.
 /// 5.2's A_NNS rule suggests `\2 \3`, where token 2 is an optional adjective,
@@ -2956,6 +3145,244 @@ fn speller_checks_tokens_not_contractions() {
     assert!(speller.is_correct("did") && speller.is_correct("n\u{2019}t"));
 }
 
+fn look_slike_matches(rules: &Rules, text: &str) -> Vec<(std::ops::Range<usize>, Vec<String>)> {
+    rules
+        .suggest(text, &*TOKENIZER)
+        .into_iter()
+        .filter(|s| s.source().ends_with("LOOK_SLIKE/0"))
+        .map(|s| (s.span().char().clone(), s.replacements().to_vec()))
+        .collect()
+}
+
+#[test]
+fn raw_pos_rule_matches_pre_disambiguation_tags() {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    let selector: Selector = "typos/look_slike".try_into().unwrap();
+    rules
+        .rules_mut()
+        .iter_mut()
+        .filter(|rule| !selector.is_match(rule.id()))
+        .for_each(|rule| rule.disable());
+    rules
+        .builtins_mut()
+        .iter_mut()
+        .for_each(|rule| rule.disable());
+
+    assert!(look_slike_matches(&rules, "He always look sfor challenges. It’s fine.").is_empty());
+
+    rules.select_mut(&selector).for_each(|x| x.enable());
+
+    for (text, expected) in [
+        (
+            "He always look sfor challenges. It’s fine.",
+            vec![(10..19, "looks for")],
+        ),
+        (
+            "Dogs always look sfor food.\u{2028}Cats don’t.",
+            vec![(12..21, "looks for")],
+        ),
+        (
+            "The dog quickly look sfor the bone…",
+            vec![(16..25, "looks for")],
+        ),
+        ("This sound slike an error.", vec![(5..16, "sounds like")]),
+        ("She’d never look sfor trouble—never.", vec![]),
+        ("“This sound slike an error,” she said—quietly…", vec![]),
+    ] {
+        let expected: Vec<_> = expected
+            .into_iter()
+            .map(|(span, replacement)| (span, vec![replacement.to_string()]))
+            .collect();
+        assert_eq!(look_slike_matches(&rules, text), expected, "{}", text);
+    }
+}
+
+#[test]
+fn pipe_keeps_the_raw_sentence() {
+    let sentence = TOKENIZER
+        .pipe("“This sound slike an error,” she said—quietly…")
+        .next()
+        .unwrap();
+    let raw = sentence.raw().unwrap();
+    let has_vb = |sentence: &nlprule::types::Sentence| {
+        sentence
+            .tokens()
+            .iter()
+            .find(|token| token.word().text().as_str() == "sound")
+            .unwrap()
+            .word()
+            .tags()
+            .iter()
+            .any(|data| data.pos().as_str() == "VB")
+    };
+
+    assert_eq!(raw.tokens().len(), sentence.tokens().len());
+    assert_eq!(raw.span(), sentence.span());
+    assert!(has_vb(raw));
+    assert!(!has_vb(&sentence));
+    assert!(raw.raw().is_none());
+}
+
+fn false_friends(rules: &Rules, text: &str) -> Vec<(String, std::ops::Range<usize>, Vec<String>)> {
+    rules
+        .suggest(text, &*TOKENIZER)
+        .into_iter()
+        .filter(|suggestion| suggestion.source().starts_with("FALSE_FRIENDS/"))
+        .map(|suggestion| {
+            (
+                suggestion.source().to_string(),
+                suggestion.span().char().clone(),
+                suggestion.replacements().to_vec(),
+            )
+        })
+        .collect()
+}
+
+const FALSE_FRIEND_TEXT: &str =
+    "\u{201c}My handy is broken\u{2014}again\u{2026}\u{201d}\u{2028}It\u{2019}s the actual problem.";
+
+#[test]
+fn false_friends_need_a_mother_tongue() {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    assert_eq!(rules.mother_tongue(), None);
+    assert!(false_friends(&rules, FALSE_FRIEND_TEXT).is_empty());
+
+    rules
+        .select_mut(&Category::new("false_friends").into())
+        .for_each(|rule| rule.enable());
+    assert!(false_friends(&rules, FALSE_FRIEND_TEXT).is_empty());
+}
+
+#[test]
+fn reordered_rules_still_run_without_a_mother_tongue() {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    let (id, text) = rules
+        .rules()
+        .iter()
+        .filter(|rule| rule.enabled())
+        .find_map(|rule| {
+            rule.examples()
+                .iter()
+                .find(|example| example.suggestion().is_some())
+                .map(|example| (rule.id().to_string(), example.text().to_string()))
+        })
+        .unwrap();
+    let fires = |rules: &Rules| {
+        rules
+            .suggest(&text, &*TOKENIZER)
+            .iter()
+            .any(|suggestion| suggestion.source() == id)
+    };
+    assert!(fires(&rules));
+
+    let first = rules
+        .rules()
+        .iter()
+        .position(|rule| rule.mother_tongue().is_some())
+        .unwrap();
+    let middle = rules.rules().len() / 2;
+    rules.rules_mut().rotate_left(first);
+    rules.rules_mut().rotate_right(middle);
+    assert!(fires(&rules));
+}
+
+#[test]
+fn mother_tongue_selects_its_false_friends() {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    assert_eq!(
+        rules.mother_tongues(),
+        vec!["ca", "de", "es", "fr", "ga", "gl", "it", "ja", "nl", "pl", "pt", "ru", "sv"]
+    );
+
+    rules.set_mother_tongue(Some("de-DE"));
+    assert_eq!(rules.mother_tongue(), Some("de"));
+    assert_eq!(
+        false_friends(&rules, FALSE_FRIEND_TEXT),
+        vec![
+            (
+                "FALSE_FRIENDS/HANDY/0".to_string(),
+                4..9,
+                vec!["cell phone".to_string(), "mobile phone".to_string()]
+            ),
+            (
+                "FALSE_FRIENDS/ACTUAL/0".to_string(),
+                37..43,
+                vec![
+                    "current".to_string(),
+                    "(the) latest".to_string(),
+                    "up-to-date".to_string()
+                ]
+            ),
+        ]
+    );
+
+    rules.set_mother_tongue(Some("PL"));
+    assert_eq!(
+        false_friends(&rules, FALSE_FRIEND_TEXT),
+        vec![(
+            "FALSE_FRIENDS/ACTUAL/0".to_string(),
+            37..43,
+            vec![
+                "current".to_string(),
+                "(the) latest".to_string(),
+                "up-to-date".to_string()
+            ]
+        )]
+    );
+
+    rules.set_mother_tongue(Some("en"));
+    assert!(false_friends(&rules, FALSE_FRIEND_TEXT).is_empty());
+    rules.set_mother_tongue(None);
+    assert!(false_friends(&rules, FALSE_FRIEND_TEXT).is_empty());
+}
+
+#[test]
+fn false_friend_messages_are_localized() {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    rules.set_mother_tongue(Some("de"));
+    let suggestions = rules.suggest("We will become friends.", &*TOKENIZER);
+    let suggestion = suggestions
+        .iter()
+        .find(|suggestion| suggestion.source() == "FALSE_FRIENDS/BECOME/0")
+        .expect("a false-friend match for \"become\"");
+    assert_eq!(*suggestion.span().char(), 8..14);
+    assert_eq!(suggestion.replacements(), ["get", "receive"]);
+    let message = suggestion.message();
+    assert!(message.contains("\"become\"") && message.contains("\"werden\""));
+    assert!(message.contains("get, receive") && !message.contains(" means "));
+
+    rules.set_mother_tongue(Some("pt"));
+    let suggestions = rules.suggest("It\u{2019}s the actual problem.", &*TOKENIZER);
+    let suggestion = suggestions
+        .iter()
+        .find(|suggestion| suggestion.source() == "FALSE_FRIENDS/ACTUAL/0")
+        .expect("a false-friend match for \"actual\"");
+    assert!(suggestion.message().contains(" means "));
+}
+
+#[test]
+fn default_off_false_friends_stay_off() {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    rules.set_mother_tongue(Some("de"));
+    assert!(false_friends(&rules, "Did he also work there?").is_empty());
+
+    rules
+        .select_mut(&"false_friends/also".try_into().unwrap())
+        .for_each(|rule| rule.enable());
+    assert_eq!(
+        false_friends(&rules, "Did he also work there?"),
+        vec![(
+            "FALSE_FRIENDS/ALSO/0".to_string(),
+            7..11,
+            vec![
+                "thus".to_string(),
+                "therefore".to_string(),
+                "so".to_string()
+            ]
+        )]
+    );
+}
+
 /// A `scope="next"` exception on a token whose predecessor has no `skip` sees only the next
 /// token's first reading, as in LanguageTool 6.6. Expected flags checked against LanguageTool
 /// 6.6 (-l en-US).
@@ -3047,4 +3474,102 @@ fn scope_next_exception_after_a_skip_is_not_checked() {
         "TYPOGRAPHY/GERMAN_QUOTES/3"
     )
     .is_empty());
+}
+
+#[test]
+fn comma_suggestion_starts_the_match_at_the_previous_token() {
+    assert_eq!(
+        rule_flags(
+            "Tim make his life worse\u{2014}she\u{2019}d said so\u{2026} \u{201c}Again.\u{201d}\u{2028}",
+            "GRAMMAR/NNP_AGREEMENT/"
+        ),
+        vec![(
+            " make".to_string(),
+            vec![" makes".to_string(), " made".into(), ", make".into()]
+        )]
+    );
+    assert_eq!(
+        rule_flags(
+            "\u{201c}There wasn\u{2019}t nobody there,\u{201d} he said\u{2014}twice\u{2026}",
+            "GRAMMAR/DOUBLE_NEGATIVE/"
+        ),
+        vec![(
+            " nobody".to_string(),
+            vec![" anybody".to_string(), ", nobody".into()]
+        )]
+    );
+    assert_eq!(
+        rule_flags("Tim\u{2028}make his life worse.", "GRAMMAR/NNP_AGREEMENT/"),
+        vec![(
+            "\u{2028}make".to_string(),
+            vec![" makes".to_string(), " made".into(), ", make".into()]
+        )]
+    );
+}
+
+fn word_tags_of(text: &str, word: &str) -> Vec<(String, String)> {
+    let mut tags: Vec<_> = tags_of(text, word)
+        .into_iter()
+        .filter(|(_, pos)| !matches!(pos.as_str(), "" | "UNKNOWN" | "SENT_END"))
+        .collect();
+    tags.sort();
+    tags.dedup();
+    tags
+}
+
+#[test]
+fn all_uppercase_multiword_names_get_the_phrase_reading() {
+    for (text, first, rest, lemma) in [
+        ("I met O'BRIEN today.", "O", "BRIEN", "O'Brien"),
+        (
+            "“I met O’BRIEN — again…”\u{2028}He left.",
+            "O",
+            "BRIEN",
+            "O’Brien",
+        ),
+        ("‘L’ORÉAL,’ she said…", "L", "ORÉAL", "L’Oréal"),
+        ("She used L'ORÉAL—twice.", "L", "ORÉAL", "L'Oréal"),
+    ] {
+        let expected = vec![(lemma.to_string(), "NNP".to_string())];
+        assert_eq!(word_tags_of(text, first), expected, "{text}");
+        assert_eq!(word_tags_of(text, rest), expected, "{text}");
+    }
+}
+
+#[test]
+fn single_token_multiword_names_keep_their_tagger_readings() {
+    let tags = word_tags_of("“I met BAHÁ’Í today…”\u{2028}", "BAHÁ'Í");
+    assert!(
+        tags.contains(&("Bahá'í".to_string(), "NNP".to_string())),
+        "{tags:?}"
+    );
+    assert!(
+        tags.contains(&("Bahá'í".to_string(), "JJ".to_string())),
+        "{tags:?}"
+    );
+
+    let tags = word_tags_of("I met O'Brien today — again…", "O'Brien");
+    assert_eq!(tags, vec![("O'Brien".to_string(), "NNP".to_string())]);
+}
+
+#[test]
+fn dm_d_is_one_token() {
+    assert!(token_texts("He DM'D me — twice…").contains(&"DM'D".to_string()));
+    assert!(token_texts("“She dm’d me.”\u{2028}").contains(&"dm'd".to_string()));
+}
+
+#[test]
+fn multiword_entries_with_stray_whitespace_do_not_match() {
+    let tags = word_tags_of("“My Advisor said no — twice…”\u{2028}", "Advisor");
+    assert!(!tags.iter().any(|(_, pos)| pos == "NNP"), "{tags:?}");
+
+    let text = "“I met James Garfield — again…”\u{2028}He left.";
+    assert_eq!(
+        word_tags_of(text, "James"),
+        vec![("James".to_string(), "NNP".to_string())]
+    );
+    assert_eq!(
+        word_tags_of(text, "Garfield"),
+        vec![("Garfield".to_string(), "NNP".to_string())]
+    );
 }
