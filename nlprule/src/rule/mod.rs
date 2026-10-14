@@ -345,9 +345,9 @@ impl<'a, 't> Iterator for Suggestions<'a, 't> {
         let filter_context = &self.filter_context;
         let articles = self.articles;
 
-        self.matches.find_map(|graph| {
+        let evaluate = |graph: &MatchGraph<'t>, vetoed: &mut bool| {
             if let Some(unification) = &rule.unification {
-                if !unification.keep(&graph, sentence) {
+                if !unification.keep(graph, sentence) {
                     return None;
                 }
             }
@@ -358,7 +358,7 @@ impl<'a, 't> Iterator for Suggestions<'a, 't> {
             let replacements: Vec<String> = rule
                 .suggesters
                 .iter()
-                .filter_map(|x| x.alternatives(sentence, &graph, start, end, articles))
+                .filter_map(|x| x.alternatives(sentence, graph, start, end, articles))
                 .flatten()
                 .collect();
 
@@ -416,7 +416,7 @@ impl<'a, 't> Iterator for Suggestions<'a, 't> {
 
             let message = rule
                 .message
-                .apply(sentence, &graph, rule.start, rule.end, articles)
+                .apply(sentence, graph, rule.start, rule.end, articles)
                 .expect("Rules must have a message.");
 
             let match_ = filter::FilterMatch {
@@ -432,7 +432,13 @@ impl<'a, 't> Iterator for Suggestions<'a, 't> {
             // as LanguageTool filters do.
             let match_ = match &rule.filter {
                 Some(rule_filter) => {
-                    rule_filter.accept(match_, sentence, &graph, filter_context)?
+                    match rule_filter.accept(match_, sentence, graph, filter_context) {
+                        Some(match_) => match_,
+                        None => {
+                            *vetoed = true;
+                            return None;
+                        }
+                    }
                 }
                 None => match_,
             };
@@ -463,7 +469,18 @@ impl<'a, 't> Iterator for Suggestions<'a, 't> {
             } else {
                 None
             }
-        })
+        };
+
+        while let Some(graph) = self.matches.next() {
+            let mut vetoed = false;
+            if let Some(suggestion) = evaluate(&graph, &mut vetoed) {
+                return Some(suggestion);
+            }
+            if vetoed {
+                self.matches.release(&graph);
+            }
+        }
+        None
     }
 }
 

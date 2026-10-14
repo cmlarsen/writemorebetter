@@ -1840,6 +1840,109 @@ mod tests {
         }
     }
 
+    const VETOING_FILTER: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
+<rules lang="en">
+<category id="PROBE" name="Probe">
+  <rule id="PAIR" name="m">
+    <pattern><token regexp="yes">[a-z]{3}</token><token regexp="yes">[a-z]{3}</token></pattern>
+    <filter class="org.languagetool.rules.patterns.RegexAntiPatternFilter" args="antipatterns:aaa"/>
+    <message>m</message>
+  </rule>
+</category>
+</rules>
+"#;
+
+    #[test]
+    fn a_vetoed_match_does_not_hide_a_later_overlapping_match() {
+        let tokenizer = Tokenizer::new("../storage/en_tokenizer.bin").unwrap();
+        let path =
+            std::env::temp_dir().join(format!("wmb-vetoing-filter-{}.xml", std::process::id()));
+        std::fs::write(&path, VETOING_FILTER).unwrap();
+        let mut info = BuildInfo::new(
+            tokenizer.tagger().clone(),
+            RegexCache::new(0),
+            PathBuf::new(),
+        );
+        let mut pool = PartInterner::default();
+        let rules = rules_from_xml(
+            &path,
+            &mut info,
+            &RulesLangOptions::default(),
+            &mut pool,
+            &mut HashMap::new(),
+        );
+        std::fs::remove_file(&path).unwrap();
+        let pool = pool.into_pool();
+        assert_eq!(rules.len(), 1);
+
+        for (text, expected) in [
+            ("\u{201c}aaa bbb ccc\u{2026}\u{201d} she said.", vec![5..12]),
+            ("aaa bbb\u{2014}ccc ddd eee.", vec![8..15]),
+            ("She left.\u{2028}aaa bbb ccc ddd.", vec![14..21]),
+            ("\u{2018}ccc ddd aaa bbb\u{2019}", vec![1..8]),
+        ] {
+            let mut flagged = Vec::new();
+            for sentence in tokenizer.pipe(text) {
+                let sentence = MatchSentence::new(&sentence);
+                flagged.extend(
+                    rules[0]
+                        .apply(&pool, &sentence, None, None)
+                        .map(|suggestion| suggestion.span().char().clone()),
+                );
+            }
+            assert_eq!(flagged, expected, "{:?}", text);
+        }
+    }
+
+    #[test]
+    fn multitoken_phrases_keep_the_java_hash_map_order() {
+        assert_eq!(java_hash_map_hash("hello"), 99162322 ^ (99162322 >> 16));
+        assert_eq!(java_hash_map_capacity(12), 16);
+        assert_eq!(java_hash_map_capacity(13), 32);
+
+        let path = std::env::temp_dir().join(format!("wmb-multitoken-{}.txt", std::process::id()));
+        std::fs::write(
+            &path,
+            "New York\nNoah Harari\nNotre Dame\nNorth Sea\nNova Scotia\nnoah harari\nNoah Harari\n\
+             Harari\nZo\u{eb} Quill\nZoe-Quill\nMara\u{2014}Venn\nO\u{2019}Brien Hall\n",
+        )
+        .unwrap();
+        let speller = MultitokenSpeller::from_file(&path).unwrap();
+        std::fs::remove_file(&path).unwrap();
+
+        let keys: Vec<&str> = speller.by_first_char[&'n']
+            .iter()
+            .map(|(key, _)| key.as_str())
+            .collect();
+        assert_eq!(
+            keys,
+            [
+                "noah harari",
+                "nova scotia",
+                "north sea",
+                "notre dame",
+                "new york"
+            ]
+        );
+        assert_eq!(
+            speller.by_first_char[&'n'][0].1,
+            ["Noah Harari", "noah harari"]
+        );
+        assert_eq!(
+            speller.by_first_char[&'z'],
+            [(
+                "zoe quill".to_owned(),
+                vec!["Zo\u{eb} Quill".to_owned(), "Zoe-Quill".to_owned()]
+            )]
+        );
+        assert_eq!(
+            speller.by_key_without_spaces["o\u{2019}brienhall"],
+            ["O\u{2019}Brien Hall"]
+        );
+        assert!(!speller.by_first_char.contains_key(&'h'));
+        assert!(!speller.by_first_char.contains_key(&'m'));
+    }
+
     #[test]
     fn multiword_casing_variants_follow_the_chunker() {
         let options = TokenizerLangOptions {

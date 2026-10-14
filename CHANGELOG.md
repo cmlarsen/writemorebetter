@@ -63,6 +63,11 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
 ### Fixed
 
+- **A match a rule filter vetoes no longer hides a later overlapping match of the same rule.**
+  The matcher claimed a match's characters before the filter ran, so when the filter vetoed it,
+  the next candidate starting inside it was skipped. LanguageTool 6.6 drops a vetoed match
+  before it removes overlaps, so `“yuval Noha Harari,” she said.` now gets "Noah Harari" from
+  `EN_MULTITOKEN_SPELLING_TWO` after the filter rejects "yuval Noha".
 - **Spelling suggestions rank by edit distance, then frequency, as in LanguageTool 6.6.** A
   common word two edits away no longer outranks a rarer word one edit away, and only the
   candidates at the smallest edit distance found are suggested, so `Hecla` suggests `Hekla`

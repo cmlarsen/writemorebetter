@@ -277,6 +277,19 @@ impl<'a, 't> Iterator for EngineMatches<'a, 't> {
     }
 }
 
+impl<'t> EngineMatches<'_, 't> {
+    pub fn release(&mut self, graph: &MatchGraph<'t>) {
+        if let InnerMatches::Token(inner) = &mut self.inner {
+            let sentence_start = self.sentence.span().char().start;
+            let start = graph.by_id(self.start).span.char().start - sentence_start;
+            let end = graph.by_id(self.end).span.char().end - sentence_start;
+            inner.mask[start..end]
+                .iter_mut()
+                .for_each(|claimed| *claimed = false);
+        }
+    }
+}
+
 impl Engine {
     pub fn get_matches<'a, 't>(
         &'a self,
