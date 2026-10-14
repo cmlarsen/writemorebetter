@@ -3786,6 +3786,17 @@ fn g_dropped_word_after_an_opening_straight_quote_stays_whole() {
             "\u{2019}",
         ]
     );
+    assert_eq!(
+        token_texts("'Tis nothin', 'tis.\u{2028}I'll get 'em. 'Cause \u{2019}Twas cold."),
+        vec![
+            "'", "T", "is", "nothin'", ",", "'", "t", "is", ".", "I", "'ll", "get", "'", "em", ".",
+            "'", "Cause", "\u{2019}", "T", "was", "cold", ".",
+        ]
+    );
+    assert_eq!(
+        token_texts("She said 'goin'."),
+        vec!["She", "said", "'", "goin'", "."]
+    );
 }
 
 #[test]
