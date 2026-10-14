@@ -237,7 +237,7 @@ impl DisambiguationRule {
             // by convention examples are always considered as one sentence even if the sentencizer would split
             let sentence_before = tokenizer.disambiguate_up_to_id(
                 tokenizer
-                    .tokenize(text)
+                    .tokenize_no_multiword(text)
                     .expect("test text must not be empty"),
                 Some(&self.id),
             );

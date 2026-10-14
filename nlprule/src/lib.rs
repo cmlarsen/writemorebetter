@@ -147,7 +147,9 @@ pub(crate) const RULES_MAGIC: &[u8; 8] = b"WMBRUL01";
 /// Version 11: `MatcherKind::Synthesis` was added (`<match postag="…"/>` inside a `<token>`).
 /// Version 12: `WordDataAtom::first_reading` was added (`scope="next"` exceptions see only the
 /// next token's first reading).
-pub const TOKENIZER_FORMAT_VERSION: u32 = 12;
+/// Version 13: multiword entries carry their lemma, and `TokenizerLangOptions` gained the
+/// `multiword_*` casing and tag-replacement options.
+pub const TOKENIZER_FORMAT_VERSION: u32 = 13;
 
 /// The on-disk format version of [Rules] binaries.
 ///
