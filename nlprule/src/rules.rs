@@ -234,6 +234,8 @@ impl Rules {
 
     /// Compute the suggestions for the given sentence by checking all rules.
     /// Builtin rules that look across sentences only see this sentence; use [Rules::suggest] for full context.
+    /// A rule with LanguageTool's `raw_pos` matches [Sentence::raw]; on a sentence that did not keep
+    /// it (one not from [Tokenizer::pipe]) such a rule matches the disambiguated tokens instead.
     pub fn apply(&self, sentence: &Sentence) -> Vec<Suggestion> {
         let builtin_suggestions = self.builtin_suggestions(std::slice::from_ref(sentence), None);
         self.apply_with(sentence, builtin_suggestions)
@@ -270,6 +272,7 @@ impl Rules {
     ) -> Vec<Suggestion> {
         let spell_suggestions = self.spell.suggest(sentence);
         let speller = self.spell.speller();
+        let raw_sentence = sentence.raw().map(MatchSentence::new);
         let sentence = MatchSentence::new(sentence);
 
         let mut output: Vec<(usize, Suggestion)> = self
@@ -280,9 +283,14 @@ impl Rules {
             .map(|(i, rule)| {
                 let mut output = Vec::new();
 
+                let match_sentence = match &raw_sentence {
+                    Some(raw) if rule.raw_pos() => raw,
+                    _ => &sentence,
+                };
+
                 for suggestion in rule.apply(
                     &self.parts,
-                    &sentence,
+                    match_sentence,
                     self.articles.as_ref(),
                     speller.as_ref(),
                 ) {
@@ -346,7 +354,12 @@ impl Rules {
         // builtins (UppercaseSentenceStart) can use it as context.
         let mut previous: Option<Sentence> = None;
 
-        for sentence in tokenizer.pipe(text) {
+        let keep_raw = self
+            .rules
+            .iter()
+            .any(|rule| rule.enabled() && rule.raw_pos());
+
+        for sentence in tokenizer.pipe_with_raw(text, keep_raw) {
             let ends_paragraph = sentence.text().contains('\n');
             paragraph.push(sentence);
 

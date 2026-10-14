@@ -32,6 +32,14 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   off. The rule test harness (`--bin test`, `Rules::test_rule`) therefore runs rule examples with
   an `en_US` speller ([#119](https://github.com/cmlarsen/writemorebetter/issues/119)). Rules
   binaries move to format version 15 (`SpellLangOptions::default_variant`); recompile them.
+- **`raw_pos` rules that read POS tags or chunks compile and match.** A rule whose
+  `<pattern raw_pos="yes">` tests tags or chunks now matches, as in LanguageTool, against the
+  sentence as tagged and chunked, before multiword tagging and disambiguation, which
+  `Sentence::raw()` exposes. That adds `TYPOS/LOOK_SLIKE/0` (`look sfor` → `looks for`), which
+  is off by default ([#130](https://github.com/cmlarsen/writemorebetter/issues/130)).
+  `Rules::suggest` keeps the raw tokens only while such a rule is enabled (a text-only
+  `raw_pos` rule such as `TYPOS/CONTRACTION_CASE/0` does not count); `Tokenizer::pipe` always
+  keeps them. Rules binaries move to format version 18 (`Rule::raw_pos`); recompile them.
 
 ### Fixed
 
@@ -54,6 +62,15 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   `GRAMMAR/ONE_PLURAL/0` passes too
   ([#122](https://github.com/cmlarsen/writemorebetter/issues/122)). Tokenizer binaries move to
   format version 12 and rules binaries to 16 (`WordDataAtom::first_reading`); recompile them.
+- **All-caps names with apostrophes get their proper-noun reading.** The multiword tagger now
+  works like LanguageTool 6.6's English multiword chunker: it also matches each phrase in all
+  caps and with its first letter capitalized, matches phrases the tokenizer split into adjacent
+  tokens (`O'BRIEN` is `O` `'` `BRIEN`), and gives every token of a multi-token phrase only the
+  phrase's reading. `O'BRIEN`, `O’BRIEN` and `L'ORÉAL` are now tagged `O'Brien/NNP`,
+  `O’Brien/NNP` and `L'Oréal/NNP`, and `STANLEY KUBRICK` matches like `Stanley Kubrick`.
+  Multiword readings are no longer protected from disambiguation rules, and `DM'D` stays one
+  token like `CC'D` ([#116](https://github.com/cmlarsen/writemorebetter/issues/116)). Tokenizer
+  binaries move to format version 13; recompile them.
 - **The speller accepts all-caps words and restores case in suggestions.** An all-caps token
   (`THE END`, shouted `HELLO`) is no longer flagged when its lowercase or capitalized form is
   known, and a capitalized or all-caps token is searched case-insensitively with the candidates

@@ -230,6 +230,7 @@ pub fn compile(
         Some(MultiwordTagger::from_dump(
             paths.multiword_tag_path,
             &build_info,
+            &tokenizer_lang_options,
         )?)
     } else {
         None
