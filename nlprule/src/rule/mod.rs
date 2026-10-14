@@ -191,13 +191,18 @@ impl DisambiguationRule {
                     (start.min(span.char().start), end.max(span.char().end))
                 });
             let mut groups = Vec::new();
-            let mut refs = sentence
+            let tokens = sentence.tokens_mut();
+            let lo = tokens.partition_point(|x| x.span().char().start < start);
+            let hi = tokens
+                .partition_point(|x| x.span().char().start <= end)
+                .max(lo);
+            let mut refs = tokens[lo..hi]
                 .iter_mut()
                 .enumerate()
-                .filter(|(_, x)| x.span().char().start >= start && x.span().char().end <= end)
+                .filter(|(_, x)| x.span().char().end <= end)
                 .map(|(i, x)| {
-                    first = first.min(i);
-                    last = last.max(i + 1);
+                    first = first.min(lo + i);
+                    last = last.max(lo + i + 1);
                     x
                 })
                 .collect::<Vec<_>>();

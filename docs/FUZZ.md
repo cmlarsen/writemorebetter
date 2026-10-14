@@ -157,7 +157,8 @@ and fixed in PR #127: antipattern spans are computed once per rule and sentence,
 disambiguation change only scans the tokens inside its match, and the chunker's beam search
 shares back-pointers instead of copying each hypothesis. The PR measured a 5 000-word `nt` sentence going from
 ~6.6 s to ~0.8 s. Disambiguation no longer rebuilds the sentence once per applied rule; it
-refreshes only the tokens each rule changed
+refreshes only the tokens each rule changed, and match groups, disambiguation changes and the
+chunker no longer scan the whole sentence per match, chunk or word
 ([#125](https://github.com/cmlarsen/writemorebetter/issues/125)).
 
 The speller blowup (`"a" * 100_000`, 121 s → 0.08 s) is fixed with a length cap in

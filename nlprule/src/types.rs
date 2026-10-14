@@ -186,6 +186,10 @@ impl<'t> IncompleteSentence<'t> {
         self.tokens.iter_mut()
     }
 
+    pub(crate) fn tokens_mut(&mut self) -> &mut [IncompleteToken<'t>] {
+        &mut self.tokens
+    }
+
     /// Returns an iterator over tokens by reference.
     pub fn iter(&self) -> impl DoubleEndedIterator<Item = &IncompleteToken> {
         self.tokens.iter()
