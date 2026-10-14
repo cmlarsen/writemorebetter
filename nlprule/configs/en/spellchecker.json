@@ -4,5 +4,6 @@
         "en_US",
         "en_AU"
     ],
-    "split_hyphens": true
+    "split_hyphens": true,
+    "default_variant": "en_US"
 }

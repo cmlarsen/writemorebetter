@@ -2059,6 +2059,67 @@ fn apostrophe_rules_match_languagetool_on_fiction_text() {
     .is_empty());
 }
 
+#[test]
+fn antipattern_on_adjacent_punctuation_does_not_block_match() {
+    let flagged = vec![("singed".to_string(), vec!["signed".to_string()])];
+    for text in [
+        "\u{201c}Here is a copy of the singed contract.\u{201d} she said.",
+        "\u{2014}Here is a copy of the singed contract.",
+        "\u{2026}Here is a copy of the singed contract.\u{2026}",
+        "She kept the singed contract.\u{2028}He didn\u{2019}t.",
+    ] {
+        assert_eq!(
+            rule_flags(text, "GRAMMAR/SINGED_CONTRACT/"),
+            flagged,
+            "{:?}",
+            text
+        );
+    }
+    for text in [
+        "\u{201c}I\u{2019}m sure it\u{2019}s the singed contract\u{2014}\u{201d} she began.",
+        "\u{201c}It\u{2019}s the singed contract\u{2026}\u{201d}",
+    ] {
+        assert!(
+            rule_flags(text, "GRAMMAR/SINGED_CONTRACT/").is_empty(),
+            "{:?}",
+            text
+        );
+    }
+}
+
+#[test]
+fn opening_quote_antipattern_does_not_block_repeated_verbs() {
+    let flagged = vec![("made make".to_string(), vec!["make".to_string()])];
+    for text in [
+        "\u{201c}To made make your text better.",
+        "\u{201c} To made make your text better.",
+        "To made make your text better.",
+        "She said, \u{201c}To made make your text better.\u{201d}",
+        "\u{2018}To made make your text better.\u{2019}",
+        "\u{2014}To made make your text better.",
+        "\u{2026}To made make your text better.",
+        "She paused.\u{2028}\u{201c}To made make your text better.\u{201d}",
+        "He didn\u{2019}t answer.\u{2028}To made make your text better\u{2026}",
+    ] {
+        assert_eq!(
+            rule_flags(text, "GRAMMAR/REPEATED_VERBS/1"),
+            flagged,
+            "{:?}",
+            text
+        );
+    }
+    assert_eq!(
+        rule_flags(
+            "\u{201c}Sally, I want wanted to congratulate you.\u{201d}",
+            "GRAMMAR/REPEATED_VERBS/0"
+        ),
+        vec![(
+            "want wanted".to_string(),
+            vec!["want".to_string(), "wanted".to_string()]
+        )]
+    );
+}
+
 /// The chunker applies the LanguageTool 5.9+ rule from the 6.6 build directory:
 /// a noun phrase whose last token is singular is singular even if it contains a
 /// plural (the 5.2 behavior marked it plural if any token was). The 5.2 rule is
@@ -2380,6 +2441,173 @@ fn grammar_include_skipped_adds_the_skipped_tokens() {
     );
 }
 
+fn flags_from(text: &str, source: &str) -> Vec<(String, Vec<String>)> {
+    let chars: Vec<char> = text.chars().collect();
+    RULES
+        .suggest(text, &*TOKENIZER)
+        .iter()
+        .filter(|suggestion| suggestion.source() == source)
+        .map(|suggestion| {
+            (
+                chars[suggestion.span().char().clone()].iter().collect(),
+                suggestion.replacements().to_vec(),
+            )
+        })
+        .collect()
+}
+
+#[test]
+fn or_group_takes_the_first_tokens_quantifier() {
+    let source = "CONFUSED_WORDS/MULTIPLE_MULTIPLY/4";
+    let multiply = vec![("multiple".to_string(), vec!["multiply".to_string()])];
+
+    assert_eq!(
+        flags_from(
+            "\u{201c}Please multiple by five,\u{201d} she said\u{2026}",
+            source
+        ),
+        multiply
+    );
+    assert_eq!(
+        flags_from("She paused\u{2014}please multiple them by two.", source),
+        multiply
+    );
+    assert_eq!(
+        flags_from("He paused.\u{2028}Please multiple them by two.", source),
+        multiply
+    );
+    assert!(flags_from("Please multiple 10 them by 5.", source).is_empty());
+}
+
+#[test]
+fn token_match_synthesizes_the_referenced_verb() {
+    assert_eq!(
+        flags_from(
+            "\u{201c}He\u{2019}s not going go to Boston,\u{201d} she said\u{2026}",
+            "GRAMMAR/REPEATED_VERBS/0"
+        ),
+        vec![(
+            "going go".to_string(),
+            vec!["going".to_string(), "go".to_string()]
+        )]
+    );
+    assert_eq!(
+        flags_from(
+            "She paused\u{2014}I want wanted to thank you.",
+            "GRAMMAR/REPEATED_VERBS/0"
+        ),
+        vec![(
+            "want wanted".to_string(),
+            vec!["want".to_string(), "wanted".to_string()]
+        )]
+    );
+    assert_eq!(
+        flags_from(
+            "He paused.\u{2028}He\u{2019}s not going go home.",
+            "GRAMMAR/REPEATED_VERBS/0"
+        ),
+        vec![(
+            "going go".to_string(),
+            vec!["going".to_string(), "go".to_string()]
+        )]
+    );
+    assert_eq!(
+        flags_from(
+            "\u{201c}Well, to made make it better\u{2026}\u{201d} she began.",
+            "GRAMMAR/REPEATED_VERBS/1"
+        ),
+        vec![("made make".to_string(), vec!["make".to_string()])]
+    );
+    assert_eq!(
+        flags_from(
+            "He paused.\u{2028}To made make it better, try this.",
+            "GRAMMAR/REPEATED_VERBS/1"
+        ),
+        vec![("made make".to_string(), vec!["make".to_string()])]
+    );
+
+    for text in [
+        "\u{201c}Take Took Taken!\u{201d} she shouted.",
+        "No one I know knows how to do that\u{2014}truly.",
+    ] {
+        assert!(
+            RULES
+                .suggest(text, &*TOKENIZER)
+                .iter()
+                .all(|suggestion| !suggestion.source().starts_with("GRAMMAR/REPEATED_VERBS/")),
+            "{}",
+            text
+        );
+    }
+}
+
+#[test]
+fn raw_pos_text_only_pattern_matches() {
+    let source = "TYPOS/CONTRACTION_CASE/0";
+
+    assert_eq!(
+        flags_from(
+            "\u{201c}Maybe I'Ve seen this before,\u{201d} he said\u{2026}",
+            source
+        ),
+        vec![("I'Ve".to_string(), vec!["I've".to_string()])]
+    );
+    assert_eq!(
+        flags_from("She paused\u{2014}I'Ll do so tomorrow.", source),
+        vec![("I'Ll".to_string(), vec!["I'll".to_string()])]
+    );
+    assert_eq!(
+        flags_from("He paused.\u{2028}I'Ve seen this before.", source),
+        vec![("I'Ve".to_string(), vec!["I've".to_string()])]
+    );
+    assert!(flags_from(
+        "\u{201c}Maybe I\u{2019}Ve seen this before,\u{201d} he said.",
+        source
+    )
+    .is_empty());
+}
+
+#[test]
+fn tokenizer_splits_mixed_case_clitics_at_the_apostrophe() {
+    assert_eq!(
+        token_texts("They\u{2019}Re here\u{2014}they'RE here\u{2026} I'Ve seen it."),
+        vec![
+            "They", "\u{2019}", "Re", "here", "\u{2014}", "they", "'RE", "here", "\u{2026}", "I",
+            "'", "Ve", "seen", "it", "."
+        ]
+    );
+}
+
+#[test]
+fn token_match_without_synthesized_forms_matches_any_token() {
+    for text in [
+        "\u{201c}Methinks want wanted more,\u{201d} she said\u{2026}",
+        "She paused\u{2014}methinks want wanted more.",
+        "He paused.\u{2028}Methinks want wanted more.",
+        "\u{201c}Thus spake want wanted the prophet,\u{201d} she said\u{2026}",
+    ] {
+        assert!(
+            RULES
+                .suggest(text, &*TOKENIZER)
+                .iter()
+                .all(|suggestion| !suggestion.source().starts_with("GRAMMAR/REPEATED_VERBS/")),
+            "{}",
+            text
+        );
+    }
+
+    assert_eq!(
+        flags_from(
+            "He paused.\u{2028}I want wanted more.",
+            "GRAMMAR/REPEATED_VERBS/0"
+        ),
+        vec![(
+            "want wanted".to_string(),
+            vec!["want".to_string(), "wanted".to_string()]
+        )]
+    );
+}
+
 #[test]
 fn long_unterminated_sentence_checks_in_near_linear_time() {
     // A sentence with no terminator used to be checked in quadratic time: every candidate match
@@ -2464,8 +2692,77 @@ fn very_long_unterminated_sentence_tokenizes_in_near_linear_time() {
 }
 
 #[test]
-fn speller_needs_a_variant() {
-    assert!(RULES.spell().speller().is_none());
+fn speller_falls_back_to_the_default_variant_while_spellchecking_is_off() {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    assert!(rules.spell().options().variant.is_none());
+    assert_eq!(RULES.spell().speller().unwrap().variant().as_str(), "en_US");
+
+    rules.add_words(["Zar\u{2019}khan"]);
+    let text =
+        "\u{201c}Teh colour\u{2014}it\u{2019}s gone\u{2026}\u{201d}\u{2028}O\u{2019}Brien said.";
+    assert!(!rules
+        .suggest(text, &TOKENIZER)
+        .iter()
+        .any(|x| x.source().starts_with("SPELLCHECK")));
+    {
+        let speller = rules.spell().speller().unwrap();
+        assert_eq!(speller.variant().as_str(), "en_US");
+        let misspelled: Vec<String> = token_texts(text)
+            .into_iter()
+            .filter(|word| !speller.is_correct(word))
+            .collect();
+        assert_eq!(misspelled, vec!["Teh", "colour"]);
+        assert_eq!(speller.suggest("teh", 1), vec!["the"]);
+    }
+
+    rules.spell_mut().options_mut().variant = Some(rules.spell().variant("en_GB").unwrap());
+    {
+        let speller = rules.spell().speller().unwrap();
+        assert_eq!(speller.variant().as_str(), "en_GB");
+        assert!(speller.is_correct("colour"));
+        assert!(speller.is_correct("Zar\u{2019}khan"));
+    }
+
+    rules.spell_mut().options_mut().variant = None;
+    let speller = rules.spell().speller().unwrap();
+    assert_eq!(speller.variant().as_str(), "en_US");
+    assert!(!speller.is_correct("colour"));
+    assert!(speller.is_correct("Zar\u{2019}khan"));
+}
+
+#[test]
+fn spell_option_changes_apply_while_the_variant_stays_the_same() {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    let text =
+        "\u{201c}Teh colour\u{2014}it\u{2019}s gone\u{2026}\u{201d}\u{2028}O\u{2019}Brien said.";
+    let en_us = rules.spell().variant("en_US").unwrap();
+
+    for variant in [None, Some(en_us)] {
+        rules.spell_mut().options_mut().variant = variant.clone();
+        assert_eq!(
+            rules.spell().speller().unwrap().suggest("teh", 10).len(),
+            10
+        );
+
+        rules.spell_mut().options_mut().top_n = 1;
+        assert_eq!(
+            rules.spell().speller().unwrap().suggest("teh", 10),
+            vec!["the"]
+        );
+        let spelling: Vec<_> = rules
+            .suggest(text, &TOKENIZER)
+            .into_iter()
+            .filter(|x| x.source().starts_with("SPELLCHECK"))
+            .collect();
+        if variant.is_some() {
+            assert_eq!(spelling.len(), 2);
+            assert!(spelling.iter().all(|x| x.replacements().len() == 1));
+        } else {
+            assert!(spelling.is_empty());
+        }
+
+        rules.spell_mut().options_mut().top_n = 10;
+    }
 }
 
 #[test]

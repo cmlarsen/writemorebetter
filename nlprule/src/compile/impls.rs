@@ -118,6 +118,19 @@ impl Spell {
             DefaultHashMap::default();
         let mut max_freq = 0;
 
+        if let Some(default) = &lang_options.default_variant {
+            if !lang_options.variants.contains(default) {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!(
+                        "default spell variant \"{}\" is not one of the variants {:?}",
+                        default.as_str(),
+                        lang_options.variants
+                    ),
+                ));
+            }
+        }
+
         for (i, variant) in lang_options.variants.iter().enumerate() {
             let spell_path = spell_dir_path
                 .as_ref()
@@ -1021,19 +1034,31 @@ mod composition {
         }
 
         pub(in crate::compile) fn graph_id(&self) -> Option<GraphId> {
-            if let MatcherKind::Graph(id) = &self.matcher {
-                Some(*id)
-            } else {
-                None
+            match &self.matcher {
+                MatcherKind::Graph(id) => Some(*id),
+                MatcherKind::Synthesis(reference, _) => Some(reference.id),
+                _ => None,
             }
         }
 
         pub(in crate::compile) fn mut_graph_id(&mut self) -> Option<&mut GraphId> {
-            if let MatcherKind::Graph(id) = &mut self.matcher {
-                Some(id)
-            } else {
-                None
+            match &mut self.matcher {
+                MatcherKind::Graph(id) => Some(id),
+                MatcherKind::Synthesis(reference, _) => Some(&mut reference.id),
+                _ => None,
             }
+        }
+
+        pub(in crate::compile) fn with_synthesis(
+            mut self,
+            mut reference: crate::rule::grammar::Match,
+            is_regex: bool,
+        ) -> Self {
+            if let Some(id) = self.graph_id() {
+                reference.id = id;
+                self.matcher = MatcherKind::Synthesis(Box::new(reference), is_regex);
+            }
+            self
         }
     }
 
@@ -1477,6 +1502,24 @@ mod tests {
             outcome_labels: vec!["B-NP".into(), "I-NP".into(), "B-VP".into(), "O".into()],
             pmap,
         }
+    }
+
+    #[test]
+    fn spell_rejects_a_default_variant_outside_its_variants() {
+        let lang_options: SpellLangOptions = serde_json::from_str(
+            r#"{"variants": ["en_GB", "en_US"], "split_hyphens": true, "default_variant": "en_’NZ"}"#,
+        )
+        .unwrap();
+        let error = Spell::from_dumps(
+            "missing",
+            "missing",
+            "missing",
+            lang_options,
+            &Tokenizer::default(),
+        )
+        .unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::InvalidData);
+        assert!(error.to_string().contains("en_\u{2019}NZ"));
     }
 
     #[test]
