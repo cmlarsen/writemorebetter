@@ -1085,8 +1085,8 @@ mod composition {
     use super::*;
     use crate::{
         rule::engine::composition::{
-            AndAtom, Atom, Composition, FalseAtom, GraphId, NotAtom, OffsetAtom, OrAtom, Part,
-            PartInterner, Quantifier, TrueAtom,
+            AffixedGraph, AndAtom, Atom, Composition, FalseAtom, GraphId, NotAtom, OffsetAtom,
+            OrAtom, Part, PartInterner, Quantifier, TrueAtom,
         },
         utils::regex::Regex,
     };
@@ -1176,9 +1176,27 @@ mod composition {
             self
         }
 
+        pub(in crate::compile) fn with_reference_affix(
+            mut self,
+            prefix: &str,
+            suffix: &str,
+        ) -> Self {
+            if let MatcherKind::Graph(id) = self.matcher {
+                if !prefix.is_empty() || !suffix.is_empty() {
+                    self.matcher = MatcherKind::AffixedGraph(Box::new(AffixedGraph {
+                        id,
+                        prefix: prefix.into(),
+                        suffix: suffix.into(),
+                    }));
+                }
+            }
+            self
+        }
+
         pub(in crate::compile) fn graph_id(&self) -> Option<GraphId> {
             match &self.matcher {
                 MatcherKind::Graph(id) => Some(*id),
+                MatcherKind::AffixedGraph(graph) => Some(graph.id),
                 MatcherKind::Synthesis(reference, _) => Some(reference.id),
                 _ => None,
             }
@@ -1187,6 +1205,7 @@ mod composition {
         pub(in crate::compile) fn mut_graph_id(&mut self) -> Option<&mut GraphId> {
             match &mut self.matcher {
                 MatcherKind::Graph(id) => Some(id),
+                MatcherKind::AffixedGraph(graph) => Some(&mut graph.id),
                 MatcherKind::Synthesis(reference, _) => Some(&mut reference.id),
                 _ => None,
             }

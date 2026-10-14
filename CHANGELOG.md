@@ -43,6 +43,13 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
 ### Fixed
 
+- **A `<token>` combining a `<match>` reference with literal text matches both, as in LanguageTool
+  6.6.** `<token><match no="0"/>s</token>` now matches the referenced token's text followed by
+  `s` instead of the referenced text alone, so `TYPO_OR_OF` (off by default) no longer flags
+  "the active couple or actives" ([#164](https://github.com/cmlarsen/writemorebetter/issues/164)).
+  Literal text around a reference that also carries `postag` or `regexp="yes"` is rejected at
+  compile time. `TOKENIZER_FORMAT_VERSION` is now 15 and `RULES_FORMAT_VERSION` 21, so binaries
+  built by earlier versions must be rebuilt.
 - **Grammar-rule antipatterns immunize tokens, as in LanguageTool 6.6.** A pattern element can no
   longer match a token covered by one of the rule's antipatterns, and a `skip` continues past such
   a token to a later one, instead of the whole match being dropped when it overlaps an

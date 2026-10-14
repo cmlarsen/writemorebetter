@@ -10,8 +10,9 @@ use unicase::UniCase;
 
 type Context<'a, 't> = (&'a MatchSentence<'t>, &'a MatchGraph<'t>);
 
-/// The ways a [Matcher] compares: a literal string, the text of another pattern group, the word
-/// forms synthesized from another pattern group, or a regular expression.
+/// The ways a [Matcher] compares: a literal string, the text of another pattern group (alone or
+/// with literal text around it), the word forms synthesized from another pattern group, or a
+/// regular expression.
 ///
 /// Kept compact (regex and string boxed, a graph reference is just an id) so [`Atom`] and
 /// `Vec<Part>` stay small — those vectors hold one entry per pattern atom and dominate the loaded
@@ -22,6 +23,14 @@ pub enum MatcherKind {
     Graph(GraphId),
     Regex(Box<Regex>),
     Synthesis(Box<crate::rule::grammar::Match>, bool),
+    AffixedGraph(Box<AffixedGraph>),
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct AffixedGraph {
+    pub(crate) id: GraphId,
+    pub(crate) prefix: Box<str>,
+    pub(crate) suffix: Box<str>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -74,29 +83,16 @@ impl Matcher {
                 }
             }
             MatcherKind::Graph(id) => {
-                let (sentence, graph) =
-                    context.expect("context must be set for context-dependent matcher");
-
-                graph
-                    .by_id(*id)
-                    .tokens(sentence)
-                    .next()
-                    .map_or(false, |token| {
-                        let reference = token.word().as_str();
-                        if let Some(conversion) = &self.reference_conversion {
-                            let converted = conversion.convert(reference, reference);
-                            if case_sensitive {
-                                converted == input
-                            } else {
-                                UniCase::new(converted.as_str()) == UniCase::new(input)
-                            }
-                        } else if case_sensitive {
-                            reference == input
-                        } else {
-                            UniCase::new(reference) == UniCase::new(input)
-                        }
-                    })
+                self.is_reference_match(*id, "", "", input, context, case_sensitive)
             }
+            MatcherKind::AffixedGraph(graph) => self.is_reference_match(
+                graph.id,
+                &graph.prefix,
+                &graph.suffix,
+                input,
+                context,
+                case_sensitive,
+            ),
             MatcherKind::Synthesis(reference, is_regex) => {
                 let (sentence, graph) =
                     context.expect("context must be set for context-dependent matcher");
@@ -131,6 +127,45 @@ impl Matcher {
         } else {
             matches
         }
+    }
+
+    fn is_reference_match(
+        &self,
+        id: GraphId,
+        prefix: &str,
+        suffix: &str,
+        input: &str,
+        context: Option<Context>,
+        case_sensitive: bool,
+    ) -> bool {
+        let (sentence, graph) = context.expect("context must be set for context-dependent matcher");
+
+        graph
+            .by_id(id)
+            .tokens(sentence)
+            .next()
+            .map_or(false, |token| {
+                let reference = token.word().as_str();
+                let converted;
+                let reference = if let Some(conversion) = &self.reference_conversion {
+                    converted = conversion.convert(reference, reference);
+                    converted.as_str()
+                } else {
+                    reference
+                };
+                let affixed;
+                let expected = if prefix.is_empty() && suffix.is_empty() {
+                    reference
+                } else {
+                    affixed = format!("{}{}{}", prefix, reference, suffix);
+                    affixed.as_str()
+                };
+                if case_sensitive {
+                    expected == input
+                } else {
+                    UniCase::new(expected) == UniCase::new(input)
+                }
+            })
     }
 }
 
