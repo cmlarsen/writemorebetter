@@ -71,6 +71,11 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   no `skip`, decided per match instead of once when the rule is compiled
   ([#151](https://github.com/cmlarsen/writemorebetter/issues/151)).
 
+- **Repeated tokens follow LanguageTool 6.6's `min` and `max`.** `min="2"` without `max`
+  matches exactly two words instead of up to 20, `max="-1"` has no limit instead of 20, and a
+  word an antipattern immunized no longer trips a `scope="next"` exception inside a `skip`
+  window ([#214](https://github.com/cmlarsen/writemorebetter/pull/214)).
+
 - **Spelling suggestions rank by edit distance, then frequency, as in LanguageTool 6.6.** A
   common word two edits away no longer outranks a rarer word one edit away, and only the
   candidates at the smallest edit distance found are suggested, so `Hecla` suggests `Hekla`

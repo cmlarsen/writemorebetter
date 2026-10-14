@@ -15,10 +15,10 @@ use crate::rule::engine::*;
 use crate::rule::grammar::*;
 use crate::rule::{id::Index, DisambiguationRule, Rule, Unification};
 
-// this is set arbitrarily at the moment, could be an option
+// `max="-1"`: LanguageTool sets no limit
 #[inline]
 fn max_matches() -> usize {
-    20
+    u32::MAX as usize
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -462,7 +462,7 @@ fn parse_token(
         .clone()
         .map(|x| {
             if x == "-1" {
-                max_matches()
+                1
             } else {
                 x.parse().expect("can't parse min as usize")
             }
@@ -480,7 +480,7 @@ fn parse_token(
         })
         .unwrap_or(1usize);
     if min > 1 && max == 1 {
-        max = max_matches();
+        max = min;
     }
 
     let quantifier = Quantifier::new(min, max);
@@ -499,7 +499,6 @@ fn parse_token(
         atom,
         quantifier,
         visible: true,
-        greedy: true,
         unify: token.unify.as_ref().map(|x| x == "yes"),
         next_exception: get_next_exceptions(token, case_sensitive, info)?.map(Box::new),
     });
@@ -515,7 +514,6 @@ fn parse_token(
             atom: (TrueAtom {}).into(),
             quantifier: Quantifier::new(0, to_skip),
             visible: false,
-            greedy: false,
             unify: None,
             next_exception: None,
         });
@@ -1800,7 +1798,6 @@ mod tests {
         Part {
             atom: Atom::TrueAtom(TrueAtom {}),
             quantifier: Quantifier::new(min, max),
-            greedy: visible,
             visible,
             unify: None,
             next_exception: None,

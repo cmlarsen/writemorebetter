@@ -720,7 +720,6 @@ impl<'t> MatchGraph<'t> {
 pub struct Part {
     pub atom: Atom,
     pub quantifier: Quantifier,
-    pub greedy: bool,
     pub visible: bool,
     pub unify: Option<bool>,
     pub next_exception: Option<Box<NextExceptions>>,
@@ -866,7 +865,7 @@ pub struct Composition {
     /// `GraphId(k) -> group index`, as a `Vec` indexed by `k` (`u32::MAX` = absent). See
     /// [`GraphIndex`] for why this is not a map.
     pub(crate) id_to_idx: Vec<u32>,
-    pub(crate) can_stop_mask: Vec<bool>,
+    pub(crate) optional_count: u32,
     /// Literal token texts such that a match of this composition can only *start* at a token
     /// whose text is one of them. `None` when the first part is not a required literal (a regex,
     /// a POS constraint, an optional token, …). The matcher uses this to skip the whole position
@@ -958,18 +957,6 @@ impl Composition {
         }
     }
 
-    fn test(
-        &self,
-        pool: &PartPool,
-        context: Context,
-        index: usize,
-        position: usize,
-        immune: Option<&[bool]>,
-    ) -> bool {
-        let part = pool.get(self.parts[index]);
-        part.admits(position, immune) && part.atom.is_match(context, position)
-    }
-
     #[allow(clippy::too_many_arguments)]
     fn test_after(
         &self,
@@ -982,19 +969,22 @@ impl Composition {
         immune: Option<&[bool]>,
         excepted: &mut bool,
     ) -> bool {
+        let part = pool.get(self.parts[index]);
+        if !part.admits(position, immune) {
+            return false;
+        }
         if !*excepted && prev_skip > 0 {
             *excepted = prev
                 .and_then(|prev| pool.get(self.parts[prev]).next_exception.as_ref())
                 .is_some_and(|exception| exception.all.is_match(context, position));
         }
         if !*excepted && prev_skip == 0 && position + 1 < context.0.len() {
-            *excepted = pool
-                .get(self.parts[index])
+            *excepted = part
                 .next_exception
                 .as_ref()
                 .is_some_and(|exception| exception.first.is_match(context, position + 1));
         }
-        !*excepted && self.test(pool, context, index, position, immune)
+        !*excepted && part.atom.is_match(context, position)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -1040,14 +1030,7 @@ impl Composition {
     ) -> Option<(MatchGraph<'t>, usize)> {
         let len = sentence.len() as i64;
         let pattern_size = (self.id_to_idx.len() - 1) as i64;
-        let min_occur_correction = self
-            .parts
-            .iter()
-            .filter(|id| {
-                let part = pool.get(**id);
-                part.visible && part.quantifier.min == 0
-            })
-            .count() as i64;
+        let min_occur_correction = self.optional_count as i64;
 
         let mut next_pos = start as i64;
         let mut prev_skip = 0i64;

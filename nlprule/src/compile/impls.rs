@@ -1317,9 +1317,10 @@ mod composition {
                 }
             }
 
-            let can_stop_mask = (0..parts.len())
-                .map(|i| parts[i..].iter().all(|x| x.quantifier.min == 0))
-                .collect();
+            let optional_count = parts
+                .iter()
+                .filter(|part| part.visible && part.quantifier.min == 0)
+                .count() as u32;
 
             for (i, part) in parts.iter_mut().enumerate() {
                 for id in part.atom.mut_graph_ids() {
@@ -1345,7 +1346,7 @@ mod composition {
             Ok(Composition {
                 parts: parts.into_iter().map(|part| pool.intern(part)).collect(),
                 id_to_idx,
-                can_stop_mask,
+                optional_count,
                 start_keys,
                 required_key,
             })
@@ -1874,6 +1875,72 @@ mod tests {
                 ("It was so it went.\u{2028}Done.", vec![]),
                 ("It was not so it went.", vec![]),
                 ("It was not did it go.", vec![("SKIPPED", 3)]),
+            ],
+        );
+    }
+
+    const IMMUNIZED_AND_REPEATED: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
+<rules lang="en">
+<category id="PROBE" name="Probe">
+  <rule id="IMMUNE_EXCEPTION" name="m">
+    <antipattern><token>was</token><token>then</token></antipattern>
+    <pattern><token skip="4">it<exception scope="next">then</exception></token><token>was</token></pattern>
+    <message>m</message>
+  </rule>
+  <rule id="MIN_TWO" name="m">
+    <pattern><token>saw</token><token case_sensitive="yes" min="2" regexp="yes">[A-Z].*</token></pattern>
+    <message>m</message>
+  </rule>
+  <rule id="MIN_TWO_NEXT" name="m">
+    <pattern><token>saw</token><token case_sensitive="yes" min="2" regexp="yes">[A-Z].*</token><token>plant</token></pattern>
+    <message>m</message>
+  </rule>
+  <rule id="MAX_ANY" name="m">
+    <pattern><token>said</token><token max="-1">no</token><token>more</token></pattern>
+    <message>m</message>
+  </rule>
+</category>
+</rules>
+"#;
+
+    #[test]
+    fn immunized_tokens_skip_next_exceptions_and_repeats_follow_min_and_max() {
+        let many_noes = format!("She said {} more\u{2014}again.", vec!["no"; 25].join(" "));
+        assert_flag_starts(
+            "immunized-repeated",
+            IMMUNIZED_AND_REPEATED,
+            vec![
+                ("It soon was then was gone.", vec![("IMMUNE_EXCEPTION", 0)]),
+                (
+                    "\u{201c}It soon was then was gone\u{2026}\u{201d}",
+                    vec![("IMMUNE_EXCEPTION", 1)],
+                ),
+                (
+                    "It soon was\u{2014}then was gone.",
+                    vec![("IMMUNE_EXCEPTION", 0)],
+                ),
+                ("It soon then was gone.", vec![]),
+                (
+                    "It\u{2019}s odd.\u{2028}It soon was then was gone.",
+                    vec![("IMMUNE_EXCEPTION", 10)],
+                ),
+                (
+                    "\u{201c}We saw Nine Mile Nuclear Power plant\u{2026}\u{201d}",
+                    vec![("MIN_TWO", 4)],
+                ),
+                (
+                    "We saw Nine Mile plant\u{2014}today.",
+                    vec![("MIN_TWO", 3), ("MIN_TWO_NEXT", 3)],
+                ),
+                (
+                    "We\u{2019}d saw Nine Mile Nuclear today.",
+                    vec![("MIN_TWO", 5)],
+                ),
+                (&many_noes, vec![("MAX_ANY", 4)]),
+                (
+                    "\u{201c}She said no no more,\u{201d} he said.\u{2028}Fine.",
+                    vec![("MAX_ANY", 5)],
+                ),
             ],
         );
     }
