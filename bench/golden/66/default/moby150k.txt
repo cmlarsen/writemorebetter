@@ -1,213 +1,62 @@
-1 | SPELLCHECK/SINGLE | "MOBY-DICK" -> [] | Possibly misspelled word.
-3 | SPELLCHECK/SINGLE | "THE" -> ["THC", "Tom", "TDE", "TME", "kHz", "TNE", "TAE", "TEE", "BHE", "TRE"] | Possibly misspelled word.
-3 | SPELLCHECK/SINGLE | "WHALE" -> ["WHA", "SHAPE"] | Possibly misspelled word.
-9 | SPELLCHECK/SINGLE | "CONTENTS" -> [] | Possibly misspelled word.
-11 | SPELLCHECK/SINGLE | "ETYMOLOGY" -> [] | Possibly misspelled word.
-13 | SPELLCHECK/SINGLE | "EXTRACTS" -> [] | Possibly misspelled word.
-15 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-15 | SPELLCHECK/SINGLE | "Loomings" -> ["boomings", "booming", "moorings", "bookings", "looming", "Loomis", "rooming", "zooming", "footings", "comings"] | Possibly misspelled word.
-17 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-19 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-21 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-23 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-25 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-27 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-29 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-31 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-33 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-35 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-37 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-39 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-41 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-43 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-45 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-47 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-49 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-51 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-53 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-55 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-57 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-59 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-61 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-63 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-65 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-67 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-69 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-71 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-71 | SPELLCHECK/SINGLE | "Stubb" -> ["Stubbs", "stubby", "stub", "stubs", "Stu"] | Possibly misspelled word.
-73 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-75 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-77 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-79 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
+15 | SPELLCHECK/SINGLE | "Loomings" -> ["Looming", "Looking", "Lookings", "Lootings", "Loopings", "Boomings", "Gloomings", "Looting", "Booming", "Moorings"] | Possibly misspelled word.
+71 | SPELLCHECK/SINGLE | "Stubb" -> ["Stub", "Stubby", "Stubbs", "Stubs", "Study", "Sub", "Stuck", "Stunt", "Stuff", "Stump"] | Possibly misspelled word.
 79 | SPELLCHECK/SINGLE | "Specksnyder" -> [] | Possibly misspelled word.
-81 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-83 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-85 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-87 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-89 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-91 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-93 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-95 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-97 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-99 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-101 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-103 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-105 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-107 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-109 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-111 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-113 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
 113 | SPELLCHECK/SINGLE | "Fedallah" -> [] | Possibly misspelled word.
-115 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-117 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-119 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-119 | SPELLCHECK/SINGLE | "Gam" -> ["Sam", "dam", "ram", "a", "was", "ham", "cam", "Ham", "Guam", "yam"] | Possibly misspelled word.
-121 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-123 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-125 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-128 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-131 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-133 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-135 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-137 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-137 | SPELLCHECK/SINGLE | "Stubb" -> ["Stubbs", "stubby", "stub", "stubs", "Stu"] | Possibly misspelled word.
-139 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-141 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-143 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-143 | SPELLCHECK/SINGLE | "Stubb" -> ["Stubbs", "stubby", "stub", "stubs", "Stu"] | Possibly misspelled word.
-145 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-147 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-149 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-151 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-153 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-155 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-155 | SPELLCHECK/SINGLE | "Sphynx" -> ["Sphinx", "sphinx", "Shinx"] | Possibly misspelled word.
-157 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-159 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-161 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-161 | SPELLCHECK/SINGLE | "Stubb" -> ["Stubbs", "stubby", "stub", "stubs", "Stu"] | Possibly misspelled word.
-164 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-166 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-168 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-170 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
+119 | SPELLCHECK/SINGLE | "Gam" -> ["GAM", "Game", "Gas", "Gap", "Sam", "Gym", "RAM", "Ram", "Gag", "Dam"] | Possibly misspelled word.
+137 | SPELLCHECK/SINGLE | "Stubb" -> ["Stub", "Stubby", "Stubbs", "Stubs", "Study", "Sub", "Stuck", "Stunt", "Stuff", "Stump"] | Possibly misspelled word.
+143 | SPELLCHECK/SINGLE | "Stubb" -> ["Stub", "Stubby", "Stubbs", "Stubs", "Study", "Sub", "Stuck", "Stunt", "Stuff", "Stump"] | Possibly misspelled word.
+155 | SPELLCHECK/SINGLE | "Sphynx" -> ["Sphinx", "Shinx"] | Possibly misspelled word.
+161 | SPELLCHECK/SINGLE | "Stubb" -> ["Stub", "Stubby", "Stubbs", "Stubs", "Study", "Sub", "Stuck", "Stunt", "Stuff", "Stump"] | Possibly misspelled word.
 170 | SPELLCHECK/SINGLE | "Heidelburgh" -> ["Heidelberg"] | Possibly misspelled word.
-172 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-174 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-176 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-178 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-178 | SPELLCHECK/SINGLE | "Pequod" -> ["Mequon"] | Possibly misspelled word.
-180 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-182 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-184 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
+178 | SPELLCHECK/SINGLE | "Pequod" -> ["Period", "Piqued", "Mequon"] | Possibly misspelled word.
 184 | SPELLCHECK/SINGLE | "Pitchpoling" -> [] | Possibly misspelled word.
-186 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-188 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-190 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-192 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-194 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-196 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-198 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-198 | SPELLCHECK/SINGLE | "Pequod" -> ["Mequon"] | Possibly misspelled word.
-200 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-202 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-204 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-206 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-208 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-210 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-212 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-214 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-216 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-218 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-220 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-220 | SPELLCHECK/SINGLE | "Arsacides" -> [] | Possibly misspelled word.
-222 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-224 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-226 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-228 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-230 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-232 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-234 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
+198 | SPELLCHECK/SINGLE | "Pequod" -> ["Period", "Piqued", "Mequon"] | Possibly misspelled word.
+220 | SPELLCHECK/SINGLE | "Arsacides" -> ["Arsenides"] | Possibly misspelled word.
 234 | SPELLCHECK/SINGLE | "Starbuck" -> ["Starbucks"] | Possibly misspelled word.
-236 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
 236 | SPELLCHECK/SINGLE | "Queequeg" -> [] | Possibly misspelled word.
-238 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-240 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-242 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-244 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-246 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-246 | SPELLCHECK/SINGLE | "Pequod" -> ["Mequon"] | Possibly misspelled word.
-248 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-250 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-252 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-254 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-256 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-258 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-260 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-262 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-264 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-266 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-268 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-270 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-272 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-272 | SPELLCHECK/SINGLE | "Pequod" -> ["Mequon"] | Possibly misspelled word.
-274 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-276 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-278 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-278 | SPELLCHECK/SINGLE | "Pequod" -> ["Mequon"] | Possibly misspelled word.
-280 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-282 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-284 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-286 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
+246 | SPELLCHECK/SINGLE | "Pequod" -> ["Period", "Piqued", "Mequon"] | Possibly misspelled word.
+272 | SPELLCHECK/SINGLE | "Pequod" -> ["Period", "Piqued", "Mequon"] | Possibly misspelled word.
+278 | SPELLCHECK/SINGLE | "Pequod" -> ["Period", "Piqued", "Mequon"] | Possibly misspelled word.
 295 | SPELLCHECK/SINGLE | "etexts" -> ["texts", "events", "text", "tests", "elects", "tents", "detects", "exerts", "ejects", "stents"] | Possibly misspelled word.
-295 | SPELLCHECK/SINGLE | "ERIS" -> ["ERS", "HRIS", "IRIS", "EIS", "FRS", "MRI", "PRI", "IRS", "PRS", "SRS"] | Possibly misspelled word.
 298 | SPELLCHECK/SINGLE | "etext" -> ["text", "event", "next", "test", "extent", "texts", "detect", "elect", "tent", "erect"] | Possibly misspelled word.
-305 | SPELLCHECK/SINGLE | "ETYMOLOGY" -> [] | Possibly misspelled word.
 318 | SPELLCHECK/SINGLE | "maketh" -> ["make", "market", "makes", "makeup", "markets", "maker", "math", "makers", "Gareth", "daleth"] | Possibly misspelled word.
-320 | SPELLCHECK/SINGLE | "Hackluyt" -> ["Hakluyt"] | Possibly misspelled word.
-322 | SPELLCHECK/SINGLE | "WHALE" -> ["WHA", "SHAPE"] | Possibly misspelled word.
+320 | SPELLCHECK/SINGLE | "Hackluyt" -> ["Hakluyt", "Hackly"] | Possibly misspelled word.
 322 | BUILTIN/UPPERCASE_SENTENCE_START | "and" -> ["And"] | This sentence does not start with an uppercase letter.
 322 | SPELLCHECK/SINGLE | "hval" -> ["oval", "heal", "has", "had", "have", "half", "head", "hear", "hill", "heat"] | Possibly misspelled word.
 323 | SPELLCHECK/SINGLE | "hvalt" -> ["halt", "half", "heart", "health", "heat", "hall", "hat", "oval", "shalt", "heal"] | Possibly misspelled word.
-326 | SPELLCHECK/SINGLE | "WHALE" -> ["WHA", "SHAPE"] | Possibly misspelled word.
-326 | SPELLCHECK/SINGLE | "Dut" -> ["but", "out", "put", "cut", "hut", "nut", "gut", "rut", "must", "tut"] | Possibly misspelled word.
+326 | SPELLCHECK/SINGLE | "Dut" -> ["But", "Out", "Due", "Cut", "Put", "Duty", "Duo", "Dust", "Duet", "Dot"] | Possibly misspelled word.
 326 | BUILTIN/UPPERCASE_SENTENCE_START | "and" -> ["And"] | This sentence does not start with an uppercase letter.
-326 | SPELLCHECK/SINGLE | "Wallen" -> ["fallen", "Waller", "Walden", "called", "valley", "Wales", "Walter", "Wall", "Warren", "Walker"] | Possibly misspelled word.
-327 | SPELLCHECK/SINGLE | "Walw-ian" -> [] | Possibly misspelled word.
+326 | SPELLCHECK/SINGLE | "Wallen" -> ["Fallen", "Walled", "Walden", "Waller", "Wallet", "Called", "Wall", "Walls", "Valley", "Wales"] | Possibly misspelled word.
+327 | SPELLCHECK/SINGLE | "Walw-ian" -> ["Walk-in"] | Possibly misspelled word.
 330 | SPELLCHECK/SINGLE | "חו" -> [] | Possibly misspelled word.
 331 | SPELLCHECK/SINGLE | "ϰητος" -> [] | Possibly misspelled word.
-332 | SPELLCHECK/SINGLE | "CETUS" -> ["CTS", "CEGES", "CENU", "CEPS", "SCOTUS", "ECTS", "CESS", "CET", "CETA", "CUTS"] | Possibly misspelled word.
-333 | SPELLCHECK/SINGLE | "WHŒL" -> [] | Possibly misspelled word.
-334 | SPELLCHECK/SINGLE | "HVALT" -> ["HVAC", "HVACs", "HALE"] | Possibly misspelled word.
-335 | SPELLCHECK/SINGLE | "WAL" -> ["WAP", "WAC", "JAL", "NAL", "EAL", "PA", "GAL", "BAL", "WWF", "WSL"] | Possibly misspelled word.
-336 | SPELLCHECK/SINGLE | "HWAL" -> ["HTML", "SWAT", "CWA", "HVAC", "TWA", "HUAC", "AWOL", "HSL", "HCA", "HNL"] | Possibly misspelled word.
-337 | SPELLCHECK/SINGLE | "HVALUR" -> [] | Possibly misspelled word.
-338 | SPELLCHECK/SINGLE | "WHALE" -> ["WHA", "SHAPE"] | Possibly misspelled word.
-339 | SPELLCHECK/SINGLE | "BALEINE" -> [] | Possibly misspelled word.
-340 | SPELLCHECK/SINGLE | "BALLENA" -> [] | Possibly misspelled word.
+333 | SPELLCHECK/SINGLE | "WHŒL" -> ["WHEEL", "WHORL", "WHIRL"] | Possibly misspelled word.
+334 | SPELLCHECK/SINGLE | "HVALT" -> ["HALT", "HALF", "HEART", "HEALTH", "HEAT", "HALL", "HAT", "OVAL", "SHALT"] | Possibly misspelled word.
+336 | SPELLCHECK/SINGLE | "HWAL" -> ["HEAL", "HAS", "HAD", "AWAY", "HALF", "HEAD", "HEAR", "HILL", "HEAT", "HALL"] | Possibly misspelled word.
+337 | SPELLCHECK/SINGLE | "HVALUR" -> ["HEALER", "HALER"] | Possibly misspelled word.
+339 | SPELLCHECK/SINGLE | "BALEINE" -> ["SALINE", "BASELINE", "BLAINE", "BYLINE", "BALDING", "BALEEN", "BALLING", "BALING", "BALKING", "SALTINE"] | Possibly misspelled word.
+340 | SPELLCHECK/SINGLE | "BALLENA" -> ["FALLEN", "BALLET", "BALLERINA", "BALLETS", "BALEEN", "GALENA", "BELLONA", "BALLED", "BALLING", "BALLER"] | Possibly misspelled word.
 341 | SPELLCHECK/SINGLE | "PEKEE-NUEE-NUEE" -> [] | Possibly misspelled word.
-341 | SPELLCHECK/SINGLE | "Fegee" -> ["degree", "Free", "melee", "levee", "Hegel", "Renee", "segue", "Negev", "gee", "beget"] | Possibly misspelled word.
+341 | SPELLCHECK/SINGLE | "Fegee" -> ["Free", "Feet", "Degree", "Feel", "Fees", "Fee", "Fewer", "Feed", "Flee", "Fever"] | Possibly misspelled word.
 342 | SPELLCHECK/SINGLE | "PEHEE-NUEE-NUEE" -> [] | Possibly misspelled word.
 342 | SPELLCHECK/SINGLE | "Erromangoan" -> [] | Possibly misspelled word.
-345 | SPELLCHECK/SINGLE | "EXTRACTS" -> [] | Possibly misspelled word.
-351 | SPELLCHECK/SINGLE | "Vaticans" -> ["Vatican", "Vaticanism", "Mahicans"] | Possibly misspelled word.
+351 | SPELLCHECK/SINGLE | "Vaticans" -> ["Vatican", "Vatical", "Vaticanism", "Mahicans"] | Possibly misspelled word.
 352 | STYLE/ANYWAYS/0 | "anyways" -> ["anyway"] | The word 'anyways' is informal American English. Did you mean anyway?
 353 | PUNCTUATION/SENT_START_CONJUNCTIVE_LINKING_ADVERB_COMMA/0 | "Therefore" -> ["Therefore,"] | A comma may be missing after the conjunctive/linking adverb 'Therefore'.
 363 | SPELLCHECK/SINGLE | "belongest" -> ["belongs", "belonged", "decongest", "blondest"] | Possibly misspelled word.
 370 | GRAMMAR/DO_XX_MD_VB/1 | "Would that I could" -> ["That I could"] | One modal verb seems to be obsolete here. Consider rephrasing this sentence.
 376 | SPELLCHECK/SINGLE | "unsplinterable" -> [] | Possibly misspelled word.
-378 | SPELLCHECK/SINGLE | "EXTRACTS" -> [] | Possibly misspelled word.
 382 | SPELLCHECK/SINGLE | "maketh" -> ["make", "market", "makes", "makeup", "markets", "maker", "math", "makers", "Gareth", "daleth"] | Possibly misspelled word.
 396 | SPELLCHECK/SINGLE | "cometh" -> ["comet", "comets", "come", "comes", "comedy", "compete", "comers", "cosets", "comer", "covets"] | Possibly misspelled word.
 398 | SPELLCHECK/SINGLE | "perisheth" -> ["perished", "perishes", "perishers", "perisher"] | Possibly misspelled word.
 401 | SPELLCHECK/SINGLE | "breedeth" -> ["breadth", "breeders", "breeder"] | Possibly misspelled word.
-402 | SPELLCHECK/SINGLE | "Whirlpooles" -> ["whirlpools"] | Possibly misspelled word.
-402 | SPELLCHECK/SINGLE | "Balaene" -> ["Blaine", "Blane"] | Possibly misspelled word.
+402 | SPELLCHECK/SINGLE | "Whirlpooles" -> ["Whirlpools", "Whirlpool"] | Possibly misspelled word.
+402 | SPELLCHECK/SINGLE | "Balaene" -> ["Balance", "Blaine", "Baleen", "Blane", "Baleens"] | Possibly misspelled word.
 403 | SPELLCHECK/SINGLE | "arpens" -> ["aspens", "areas", "gardens", "arena", "aliens", "happens", "arenas", "apes", "argent", "greens"] | Possibly misspelled word.
-409 | SPELLCHECK/SINGLE | "Tooke" -> ["Cooke", "Hooke", "took", "book", "books", "look", "looks", "looked", "Moore", "rookie"] | Possibly misspelled word.
+409 | SPELLCHECK/SINGLE | "Tooke" -> ["Took", "Cooke", "Hooke", "Too", "Those", "Book", "Take", "Books", "Tools", "Look"] | Possibly misspelled word.
 416 | SPELLCHECK/SINGLE | "catched" -> ["matched", "catches", "watched", "catcher", "hatched", "patched", "cached", "latched", "matches", "batched"] | Possibly misspelled word.
-425 | SPELLCHECK/SINGLE | "MONTAIGNE" -> [] | Possibly misspelled word.
-425 | SPELLCHECK/SINGLE | "Raimond" -> ["Raymond", "Hammond", "Redmond", "Ramon", "Ramona"] | Possibly misspelled word.
-426 | SPELLCHECK/SINGLE | "Sebond" -> ["second", "beyond", "rebound", "Seton", "rebind", "deboned", "debone"] | Possibly misspelled word.
+425 | SPELLCHECK/SINGLE | "Raimond" -> ["Raymond", "Hammond", "Redmond", "Ramon", "Ramona", "Raiment", "Raions", "Raion"] | Possibly misspelled word.
+426 | SPELLCHECK/SINGLE | "Sebond" -> ["Second", "Seconds", "Beyond", "Send", "Rebound", "Seton", "Secund", "Rebind", "Deboned", "Debone"] | Possibly misspelled word.
 434 | SPELLCHECK/SINGLE | "maketh" -> ["make", "market", "makes", "makeup", "markets", "maker", "math", "makers", "Gareth", "daleth"] | Possibly misspelled word.
 437 | SPELLCHECK/SINGLE | "ork" -> ["or", "work", "oak", "fork", "pork", "Cork", "of", "cork", "ark", "orb"] | Possibly misspelled word.
 445 | SPELLCHECK/SINGLE | "sovereignest" -> ["sovereigns"] | Possibly misspelled word.
@@ -215,81 +64,80 @@
 451 | SPELLCHECK/SINGLE | "availle" -> ["available", "avail", "availed", "avails", "faille", "Saville", "Lacaille"] | Possibly misspelled word.
 452 | SPELLCHECK/SINGLE | "returne" -> ["return", "returned", "returns", "returner", "returnee", "retune", "retire", "returnees", "retiree", "recurve"] | Possibly misspelled word.
 452 | SPELLCHECK/SINGLE | "againe" -> ["again", "against", "magazine", "gained", "gain", "Maine", "aging", "gains", "alpine", "tagline"] | Possibly misspelled word.
-452 | SPELLCHECK/SINGLE | "Dinting" -> ["hinting", "minting", "tinting", "winning", "finding", "singing", "mining", "binding", "sitting", "citing"] | Possibly misspelled word.
+452 | SPELLCHECK/SINGLE | "Dinting" -> ["Dining", "Minting", "Hinting", "Dieting", "Tinting", "Denting", "Winning", "Dinning", "Mining", "Dating"] | Possibly misspelled word.
 453 | SPELLCHECK/SINGLE | "paine" -> ["pain", "paint", "Maine", "pine", "pains", "Caine", "pane", "Paine", "Kaine", "pained"] | Possibly misspelled word.
 454 | SPELLCHECK/SINGLE | "thro" -> ["throw", "the", "to", "this", "that", "thru", "who", "taro", "two", "they"] | Possibly misspelled word.
 454 | SPELLCHECK/SINGLE | "maine" -> ["main", "mine", "marine", "Maine", "maize", "mains", "Caine", "mane", "Paine", "Kaine"] | Possibly misspelled word.
-454 | SPELLCHECK/SINGLE | "Fairie" -> ["Fairlie", "Fair", "Marie", "fairies", "Laurie", "Carrie", "Fairview", "Barrie", "Fannie", "dairies"] | Possibly misspelled word.
+454 | SPELLCHECK/SINGLE | "Fairie" -> ["Fairies", "Fairlie", "Faerie", "Fire", "Fairly", "Fair", "Fabric", "Marie", "Feirie"] | Possibly misspelled word.
 459 | SPELLCHECK/SINGLE | "Davenant" -> [] | Possibly misspelled word.
 460 | SPELLCHECK/SINGLE | "Gondibert" -> [] | Possibly misspelled word.
 462 | SPELLCHECK/SINGLE | "spermacetti" -> ["spermaceti", "spermacetis"] | Possibly misspelled word.
-463 | SPELLCHECK/SINGLE | "Hosmannus" -> [] | Possibly misspelled word.
-463 | SPELLCHECK/SINGLE | "Nescio" -> ["Nessie", "Tesco", "Pesci"] | Possibly misspelled word.
-464 | SPELLCHECK/SINGLE | "Sperma" -> ["opera", "Sherman", "Sierra", "Superman", "Sparta", "Selma", "Serra", "Sperry", "Sherpa", "sperms"] | Possibly misspelled word.
-464 | SPELLCHECK/SINGLE | "Ceti" -> ["get", "yeti", "set", "yet", "let", "sets", "gets", "semi", "net", "jet"] | Possibly misspelled word.
-464 | SPELLCHECK/SINGLE | "Sperma" -> ["opera", "Sherman", "Sierra", "Superman", "Sparta", "Selma", "Serra", "Sperry", "Sherpa", "sperms"] | Possibly misspelled word.
-464 | SPELLCHECK/SINGLE | "Ceti" -> ["get", "yeti", "set", "yet", "let", "sets", "gets", "semi", "net", "jet"] | Possibly misspelled word.
+463 | SPELLCHECK/SINGLE | "Hosmannus" -> ["Hosannas"] | Possibly misspelled word.
+463 | SPELLCHECK/SINGLE | "Nescio" -> ["UNESCO", "Nuncio", "Nessie", "Enesco", "Tesco", "Pesci"] | Possibly misspelled word.
+464 | SPELLCHECK/SINGLE | "Sperma" -> ["Opera", "Sperm", "Sperms", "Sierra", "Superman", "Sherman", "Sparta", "Selma", "Serra", "Sperry"] | Possibly misspelled word.
+464 | SPELLCHECK/SINGLE | "Ceti" -> ["CTI", "Yeti", "Get", "City", "Set", "Cut", "Yet", "Let", "Gets", "Sets"] | Possibly misspelled word.
+464 | SPELLCHECK/SINGLE | "Sperma" -> ["Opera", "Sperm", "Sperms", "Sierra", "Superman", "Sherman", "Sparta", "Selma", "Serra", "Sperry"] | Possibly misspelled word.
+464 | SPELLCHECK/SINGLE | "Ceti" -> ["CTI", "Yeti", "Get", "City", "Set", "Cut", "Yet", "Let", "Gets", "Sets"] | Possibly misspelled word.
 469 | SPELLCHECK/SINGLE | "jav" -> ["jaw", "a", "was", "jar", "jab", "have", "had", "java", "has", "jay"] | Possibly misspelled word.
 469 | SPELLCHECK/SINGLE | "lins" -> ["line", "lines", "lies", "link", "links", "wins", "lens", "pins", "lips", "sins"] | Possibly misspelled word.
-476 | SPELLCHECK/SINGLE | "Civitas" -> [] | Possibly misspelled word.
-479 | SPELLCHECK/SINGLE | "Mansoul" -> ["Manson", "Rantoul"] | Possibly misspelled word.
-498 | SPELLCHECK/SINGLE | "Annus" -> ["Angus", "Anna", "Ainus", "Anne", "Annie", "Andes", "Agnes", "inns", "Indus", "Asus"] | Possibly misspelled word.
+476 | SPELLCHECK/SINGLE | "Civitas" -> ["Civics", "Civets"] | Possibly misspelled word.
+479 | SPELLCHECK/SINGLE | "Mansoul" -> ["Manson", "Manful", "Rantoul"] | Possibly misspelled word.
+498 | SPELLCHECK/SINGLE | "Annus" -> ["Angus", "Annul", "ANZUS", "Annuls", "Annual", "Anne", "Anus", "Anna", "Ainus", "Ants"] | Possibly misspelled word.
 505 | SPELLCHECK/SINGLE | "Spitzbergen" -> ["Spitsbergen"] | Possibly misspelled word.
-514 | SPELLCHECK/SINGLE | "Schouten" -> ["Schluter"] | Possibly misspelled word.
+514 | SPELLCHECK/SINGLE | "Schouten" -> ["Shorten", "Shouted", "Scouted", "Scouter", "Shouter", "Schluter"] | Possibly misspelled word.
 521 | SPELLCHECK/SINGLE | "harpooneers" -> ["harpooners", "harpooner"] | Possibly misspelled word.
 522 | SPELLCHECK/SINGLE | "Spitzbergen" -> ["Spitsbergen"] | Possibly misspelled word.
-525 | SPELLCHECK/SINGLE | "Anno" -> ["Anna", "Anne", "Arno", "into", "Ann", "onto", "Anglo", "Andy", "unto", "inn"] | Possibly misspelled word.
+525 | SPELLCHECK/SINGLE | "Anno" -> ["Anne", "Anna", "And", "An", "Any", "Arno", "Annoy", "Into", "Anon", "Cannot"] | Possibly misspelled word.
 528 | SPELLCHECK/SINGLE | "Pitferren" -> [] | Possibly misspelled word.
-529 | SPELLCHECK/SINGLE | "Sibbald" -> ["Sinbad", "ribald", "piebald"] | Possibly misspelled word.
-532 | SPELLCHECK/SINGLE | "Sperma-ceti" -> ["spermaceti"] | Possibly misspelled word.
+529 | SPELLCHECK/SINGLE | "Sibbald" -> ["Sinbad", "Ribald", "Piebald"] | Possibly misspelled word.
+532 | SPELLCHECK/SINGLE | "Sperma-ceti" -> ["Spermaceti", "Spermacetis"] | Possibly misspelled word.
 532 | REDUNDANCY/OF_ANY_OF/0 | "of any of" -> ["of"] | Consider simply using of instead.
-546 | SPELLCHECK/SINGLE | "Ulloa" -> ["allow", "Alloa", "alloy", "Ella", "Alcoa", "allot", "Ulva", "allo", "Ellon"] | Possibly misspelled word.
-551 | SPELLCHECK/SINGLE | "Tho" -> ["who", "the", "Thor", "Thom", "Tao", "Theo", "she", "show", "thou", "whom"] | Possibly misspelled word.
-574 | SPELLCHECK/SINGLE | "Uno" -> ["in", "and", "Una", "on", "an", "one", "any", "into", "end", "UK"] | Possibly misspelled word.
-574 | SPELLCHECK/SINGLE | "Troil" -> ["broil", "trail", "Tamil", "Troy", "groin", "frail", "troll", "Croix", "Tyrol", "Grail"] | Possibly misspelled word.
-577 | SPELLCHECK/SINGLE | "Spermacetti" -> ["spermaceti"] | Possibly misspelled word.
+546 | SPELLCHECK/SINGLE | "Ulloa" -> ["Allow", "UCLA", "Alloa", "Alloy", "Ultra", "Ella", "Upload", "Unload", "Ulna", "Bulla"] | Possibly misspelled word.
+551 | SPELLCHECK/SINGLE | "Tho" -> ["The", "To", "Who", "Two", "Too", "Thou", "WHO", "This", "Thor", "Thy"] | Possibly misspelled word.
+574 | SPELLCHECK/SINGLE | "Uno" -> ["UNO", "Unto", "And", "In", "Juno", "UNC", "Undo", "On", "Una", "USO"] | Possibly misspelled word.
+574 | SPELLCHECK/SINGLE | "Troil" -> ["Trail", "Troll", "Toil", "Broil", "Train", "Trial", "Trip", "Tail", "Tool", "Trio"] | Possibly misspelled word.
+577 | SPELLCHECK/SINGLE | "Spermacetti" -> ["Spermaceti", "Spermacetis"] | Possibly misspelled word.
 577 | SPELLCHECK/SINGLE | "Nantuckois" -> [] | Possibly misspelled word.
-594 | SPELLCHECK/SINGLE | "Rodmond" -> ["Redmond", "Raymond", "Lomond", "Rosamond", "Roermond", "Rodman"] | Possibly misspelled word.
-619 | SPELLCHECK/SINGLE | "Spermacetti" -> ["spermaceti"] | Possibly misspelled word.
-621 | SPELLCHECK/SINGLE | "Colnett" -> ["Colbert", "Corbett", "cornett", "Colette", "Colet", "Cobbett", "Golett", "Follett"] | Possibly misspelled word.
+594 | SPELLCHECK/SINGLE | "Rodmond" -> ["Redmond", "Raymond", "Lomond", "Rosamond", "Dromond", "Rodman", "Roermond", "Rodeoed", "Ormond"] | Possibly misspelled word.
+619 | SPELLCHECK/SINGLE | "Spermacetti" -> ["Spermaceti", "Spermacetis"] | Possibly misspelled word.
+621 | SPELLCHECK/SINGLE | "Colnett" -> ["Cornett", "Connect", "Collect", "Coldest", "Colbert", "Cornet", "Corbett", "Cornets", "Colette", "Collet"] | Possibly misspelled word.
 626 | SPELLCHECK/SINGLE | "chace" -> ["chance", "chase", "chafe", "came", "coach", "charge", "case", "change", "care", "share"] | Possibly misspelled word.
 626 | SPELLCHECK/SINGLE | "colour" -> ["color", "colors", "colony", "cloud", "collar", "cooler", "contour", "colder", "colon", "clout"] | Possibly misspelled word.
 635 | BUILTIN/UPPERCASE_SENTENCE_START | "sing" -> ["Sing"] | This sentence does not start with an uppercase letter.
-645 | SPELLCHECK/SINGLE | "Obed" -> ["abed", "OKed", "Obad", "Owen", "obey", "Abel", "ibid", "Opel", "Abe", "Oleg"] | Possibly misspelled word.
+645 | SPELLCHECK/SINGLE | "Obed" -> ["Owed", "Obey", "Lobed", "Robed", "One", "Over", "Open", "Old", "Moved", "Owned"] | Possibly misspelled word.
 658 | SPELLCHECK/SINGLE | "raal" -> ["real", "rail", "Baal", "kraal", "Waal", "race", "road", "call", "rate", "ran"] | Possibly misspelled word.
 661 | SPELLCHECK/SINGLE | "Eckermann" -> ["Ackerman"] | Possibly misspelled word.
-664 | SPELLCHECK/SINGLE | "Chace" -> ["Chase", "Chance", "chance", "shape", "share", "phase", "chase", "Chaco", "Chile", "whale"] | Possibly misspelled word.
-667 | SPELLCHECK/SINGLE | "Chace" -> ["Chase", "Chance", "chance", "shape", "share", "phase", "chase", "Chaco", "Chile", "whale"] | Possibly misspelled word.
+664 | SPELLCHECK/SINGLE | "Chace" -> ["Chance", "Chase", "Chafe", "Came", "Case", "Care", "Coach", "Charge"] | Possibly misspelled word.
+667 | SPELLCHECK/SINGLE | "Chace" -> ["Chance", "Chase", "Chafe", "Came", "Case", "Care", "Coach", "Charge"] | Possibly misspelled word.
 672 | SPELLCHECK/SINGLE | "phospher" -> ["phosphor", "prosper", "phosphors", "phisher", "phosphori", "phosphene"] | Possibly misspelled word.
-706 | SPELLCHECK/SINGLE | "Debell" -> ["rebel", "rebels", "Newell", "Dell", "Sewell", "befell", "resell", "Jewell", "retell", "Bebel"] | Possibly misspelled word.
-722 | SPELLCHECK/SINGLE | "Ay" -> ["by", "my", "a", "AF", "I", "Ayr", "AW", "AD", "AQ", "bye"] | Possibly misspelled word.
+706 | SPELLCHECK/SINGLE | "Debell" -> ["Rebel", "Rebels", "Dwell", "Newell", "Dell", "Jewell", "Resell", "Befell", "Sewell"] | Possibly misspelled word.
+722 | SPELLCHECK/SINGLE | "Ay" -> ["A", "By", "As", "At", "An", "Any", "May", "My", "Day", "Way"] | Possibly misspelled word.
 722 | SPELLCHECK/SINGLE | "ay" -> ["a", "at", "by", "as", "an", "any", "my", "day", "may", "way"] | Possibly misspelled word.
 725 | BUILTIN/UPPERCASE_SENTENCE_START | "sing" -> ["Sing"] | This sentence does not start with an uppercase letter.
-727 | SPELLCHECK/SINGLE | "Ay" -> ["by", "my", "a", "AF", "I", "Ayr", "AW", "AD", "AQ", "bye"] | Possibly misspelled word.
-727 | SPELLCHECK/SINGLE | "Ay" -> ["by", "my", "a", "AF", "I", "Ayr", "AW", "AD", "AQ", "bye"] | Possibly misspelled word.
+727 | SPELLCHECK/SINGLE | "Ay" -> ["A", "By", "As", "At", "An", "Any", "May", "My", "Day", "Way"] | Possibly misspelled word.
+727 | SPELLCHECK/SINGLE | "Ay" -> ["A", "By", "As", "At", "An", "Any", "May", "My", "Day", "Way"] | Possibly misspelled word.
 727 | BUILTIN/UPPERCASE_SENTENCE_START | "there" -> ["There"] | This sentence does not start with an uppercase letter.
 727 | SPELLCHECK/SINGLE | "thar" -> ["that", "than", "the", "tear", "this", "tsar", "tar", "thaw", "char", "their"] | Possibly misspelled word.
 728 | SPELLCHECK/SINGLE | "bowes" -> ["boxes", "bones", "bowls", "bowed", "bows", "bowel", "bowels", "Bowes", "bores", "bower"] | Possibly misspelled word.
 728 | SPELLCHECK/SINGLE | "bo-o-os" -> ["bonobos"] | Possibly misspelled word.
 734 | BUILTIN/UPPERCASE_SENTENCE_START | "so" -> ["So"] | This sentence does not start with an uppercase letter.
-736 | SPELLCHECK/SINGLE | "Cruize" -> ["Cruise", "prize", "cruise", "Cruz", "bruise", "Crusoe", "Frunze", "Curiae", "Brize"] | Possibly misspelled word.
-748 | SPELLCHECK/SINGLE | "Tyerman" -> ["Thurman", "Terran", "Tyrian", "Nyeman"] | Possibly misspelled word.
+736 | SPELLCHECK/SINGLE | "Cruize" -> ["Cruise", "Prize", "Crime", "Crude", "Cruiser", "Cruises", "Cruz", "Cruised", "Craze"] | Possibly misspelled word.
+748 | SPELLCHECK/SINGLE | "Tyerman" -> ["Thermal", "Thurman", "Tyrian", "Terran", "Nyeman"] | Possibly misspelled word.
 759 | SPELLCHECK/SINGLE | "Whaleman" -> ["Whalen", "Walkman", "Waldman"] | Possibly misspelled word.
-761 | SPELLCHECK/SINGLE | "Cheever" -> ["whenever", "Chester", "wherever", "whoever", "Wheeler", "wheeler", "whyever", "sheerer", "cheerer"] | Possibly misspelled word.
+761 | SPELLCHECK/SINGLE | "Cheever" -> ["Cheese", "Cheaper", "Cheerer", "Whenever", "Clever", "Wherever", "Chester", "Whoever", "Cheer", "Wheeler"] | Possibly misspelled word.
 775 | SPELLCHECK/SINGLE | "whalemen" -> ["whaleses"] | Possibly misspelled word.
 786 | REDUNDANCY/MIGHT_PERHAPS/0 | "may\r\n  perhaps" -> ["may", "perhaps"] | Consider using may, perhaps.
 793 | SPELLCHECK/SINGLE | "Hobomack" -> [] | Possibly misspelled word.
 819 | SPELLCHECK/SINGLE | "harpooneer" -> ["harpooner", "harpooned", "harpooners"] | Possibly misspelled word.
 822 | COMPOUNDING/MID_HYPHEN/0 | "mid storm" -> ["mid-storm"] | This word is normally spelled with a hyphen.
-830 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-830 | SPELLCHECK/SINGLE | "Loomings" -> ["boomings", "booming", "moorings", "bookings", "looming", "Loomis", "rooming", "zooming", "footings", "comings"] | Possibly misspelled word.
+830 | SPELLCHECK/SINGLE | "Loomings" -> ["Looming", "Looking", "Lookings", "Lootings", "Loopings", "Boomings", "Gloomings", "Looting", "Booming", "Moorings"] | Possibly misspelled word.
 849 | SPELLCHECK/SINGLE | "Manhattoes" -> ["Manhattans"] | Possibly misspelled word.
-856 | SPELLCHECK/SINGLE | "Corlears" -> ["forbears"] | Possibly misspelled word.
-857 | SPELLCHECK/SINGLE | "Coenties" -> ["counties", "bounties", "Mounties", "Coventries"] | Possibly misspelled word.
+856 | SPELLCHECK/SINGLE | "Corlears" -> ["Corners", "Collars", "Coolers", "Curlers", "Corneas", "Forbears", "Corkers", "Coalers", "Corders", "Coleads"] | Possibly misspelled word.
+857 | SPELLCHECK/SINGLE | "Coenties" -> ["Counties", "Countries", "Bounties", "Centimes", "Mounties", "Cooties", "Comities", "Cogencies", "Coventries"] | Possibly misspelled word.
 867 | BUILTIN/UPPERCASE_SENTENCE_START | "here" -> ["Here"] | This sentence does not start with an uppercase letter.
-872 | SPELLCHECK/SINGLE | "Inlanders" -> ["Icelanders", "Englanders", "inlander"] | Possibly misspelled word.
+872 | SPELLCHECK/SINGLE | "Inlanders" -> ["Islanders", "Inlander", "Invaders", "Icelanders", "Islander", "Englanders", "Inlands"] | Possibly misspelled word.
 884 | GRAMMAR/PCT_SINGULAR_NOUN_PLURAL_VERB_AGREEMENT/0 | "happen" -> ["happens"] | "Caravan" is a singular noun. It appears that the verb form is incorrect.
-890 | SPELLCHECK/SINGLE | "Saco" -> ["Waco", "Paco", "Sato", "Sacco", "taco", "back", "each", "race", "San", "lack"] | Possibly misspelled word.
+890 | SPELLCHECK/SINGLE | "Saco" -> ["Sack", "Sac", "Sacs", "Waco", "Paco", "SACD", "Sago", "Sato", "Taco", "Such"] | Possibly misspelled word.
 945 | SPELLCHECK/SINGLE | "Rensselaers" -> ["Rensselaer"] | Possibly misspelled word.
 945 | SPELLCHECK/SINGLE | "Randolphs" -> ["Randolph"] | Possibly misspelled word.
 945 | SPELLCHECK/SINGLE | "Hardicanutes" -> ["Hardecanute"] | Possibly misspelled word.
@@ -301,14 +149,7 @@
 988 | GRAMMAR/THIS_MISSING_VERB/0 | "this" -> ["this is"] | A verb may be missing.
 990 | TYPOS/ANY_BODY/0 | "any one" -> ["anyone"] | Did you mean anyone?
 992 | SPELLCHECK/SINGLE | "programme" -> ["programmer", "programmed", "program", "programs", "programmers", "prograde"] | Possibly misspelled word.
-998 | SPELLCHECK/SINGLE | "WHALING" -> [] | Possibly misspelled word.
-998 | SPELLCHECK/SINGLE | "VOYAGE" -> [] | Possibly misspelled word.
-998 | SPELLCHECK/SINGLE | "BY" -> ["BC", "a", "BT", "BYU", "I", "BG", "YB", "NY", "BH", "BBC"] | Possibly misspelled word.
-998 | SPELLCHECK/SINGLE | "ISHMAEL" -> [] | Possibly misspelled word.
-998 | SPELLCHECK/SINGLE | "BLOODY" -> [] | Possibly misspelled word.
-998 | SPELLCHECK/SINGLE | "BATTLE" -> [] | Possibly misspelled word.
-998 | SPELLCHECK/SINGLE | "AFFGHANISTAN" -> [] | Possibly misspelled word.
-1031 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
+998 | SPELLCHECK/SINGLE | "AFFGHANISTAN" -> ["AFGHANISTAN"] | Possibly misspelled word.
 1035 | SPELLCHECK/SINGLE | "Manhatto" -> ["Manhattan", "Mankato"] | Possibly misspelled word.
 1046 | SPELLCHECK/SINGLE | "monopolising" -> ["monopolizing"] | Possibly misspelled word.
 1050 | SPELLCHECK/SINGLE | "whalemen" -> ["whaleses"] | Possibly misspelled word.
@@ -328,7 +169,6 @@
 1149 | STYLE/SENT_START_ARE_NOT_ARENT_FORMAL/0 | "Would not" -> ["Wouldn't"] | Questions beginning with 'Would not' can sound very formal.
 1151 | BUILTIN/UPPERCASE_SENTENCE_START | "go" -> ["Go"] | This sentence does not start with an uppercase letter.
 1162 | GRAMMAR/KIND_OF_A/0 | "sort of a" -> ["sort of"] | If 'sort' is a classification term, 'a' is not necessary. Use sort of. (The phrases 'kind of' and 'sort of' are informal if they mean 'to some extent'.)
-1165 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
 1170 | SPELLCHECK/SINGLE | "oilpainting" -> [] | Possibly misspelled word.
 1170 | SPELLCHECK/SINGLE | "besmoked" -> ["bestowed", "bespoke", "bespoken"] | Possibly misspelled word.
 1171 | SPELLCHECK/SINGLE | "crosslights" -> [] | Possibly misspelled word.
@@ -355,7 +195,7 @@
 1290 | GRAMMAR/HE_VERB_AGR/0 | "do" -> ["does", "dost", "doth", "did", "didst"] | The pronoun 'he' is usually used with a third-person or a past tense verb.
 1292 | SPELLCHECK/SINGLE | "harpooneer" -> ["harpooner", "harpooned", "harpooners"] | Possibly misspelled word.
 1297 | SPELLCHECK/SINGLE | "harpooneer" -> ["harpooner", "harpooned", "harpooners"] | Possibly misspelled word.
-1308 | SPELLCHECK/SINGLE | "Feegees" -> ["teepees", "peewees", "Weegee"] | Possibly misspelled word.
+1308 | SPELLCHECK/SINGLE | "Feegees" -> ["Feeders", "Feelers", "Teepees", "Peewees", "Feelies", "Feeless", "Weegee"] | Possibly misspelled word.
 1312 | SPELLCHECK/SINGLE | "woollen" -> ["woolen", "wooden", "pollen", "swollen", "woolly", "Woolley", "woolens", "woodmen", "woollies", "woollier"] | Possibly misspelled word.
 1313 | SPELLCHECK/SINGLE | "bedarned" -> ["learned", "bearded", "yearned", "bewared", "bedaubed"] | Possibly misspelled word.
 1318 | SPELLCHECK/SINGLE | "brimmers" -> ["trimmers", "krimmers", "drummers", "primers", "brimmed", "trimmer", "grimmer", "bringers", "brimless", "bribers"] | Possibly misspelled word.
@@ -390,8 +230,8 @@
 1448 | SPELLCHECK/SINGLE | "rayther" -> ["rather", "father", "farther", "Father", "gather", "Rather", "rancher", "raster", "panther", "Mather"] | Possibly misspelled word.
 1448 | SPELLCHECK/SINGLE | "harpooneer" -> ["harpooner", "harpooned", "harpooners"] | Possibly misspelled word.
 1449 | SPELLCHECK/SINGLE | "slanderin" -> ["slandering", "slander", "slandered", "slanders", "slanderer"] | Possibly misspelled word.
-1458 | SPELLCHECK/SINGLE | "Sartain" -> ["captain", "Martin", "Satan", "bargain", "tartan", "Spartan", "Martian", "martin", "Maritain", "partan"] | Possibly misspelled word.
-1460 | SPELLCHECK/SINGLE | "Hecla" -> ["Hekla", "Mecca", "Decca", "Tesla", "Bella", "Healy", "Helga", "Hecht", "mecca", "decal"] | Possibly misspelled word.
+1458 | SPELLCHECK/SINGLE | "Sartain" -> ["Captain", "Martin", "Sustain", "Strain", "Satan", "Bargain", "Martian", "Tartan", "Spartan", "Sprain"] | Possibly misspelled word.
+1460 | SPELLCHECK/SINGLE | "Hecla" -> ["Held", "Help", "Hekla", "Hello", "Hell", "Helm", "Heal", "Heel", "Sheila", "Mecca"] | Possibly misspelled word.
 1464 | SPELLCHECK/SINGLE | "harpooneer" -> ["harpooner", "harpooned", "harpooners"] | Possibly misspelled word.
 1464 | SPELLCHECK/SINGLE | "harpooneer" -> ["harpooner", "harpooned", "harpooners"] | Possibly misspelled word.
 1467 | SPELLCHECK/SINGLE | "connexion" -> ["connection", "connexional"] | Possibly misspelled word.
@@ -414,7 +254,7 @@
 1495 | SPELLCHECK/SINGLE | "harpooneer" -> ["harpooner", "harpooned", "harpooners"] | Possibly misspelled word.
 1497 | SPELLCHECK/SINGLE | "lar" -> ["law", "war", "far", "car", "lay", "bar", "lap", "ear", "lab", "par"] | Possibly misspelled word.
 1498 | TYPOS/CONFUSION_OF_ME_I/1 | "me" -> ["I"] | Did you mean I?
-1504 | SPELLCHECK/SINGLE | "Arter" -> ["Arte", "Artur", "order", "writer", "Arthur", "crater", "artery", "Artem", "Arber", "Amber"] | Possibly misspelled word.
+1504 | SPELLCHECK/SINGLE | "Arter" -> ["After", "Alter", "Carter", "Artery", "Arte", "Barter", "Artur", "Garter", "Darter", "Are"] | Possibly misspelled word.
 1507 | SPELLCHECK/SINGLE | "vum" -> ["sum", "gum", "rum", "hum", "mum", "ovum", "bum", "but", "yum", "tum"] | Possibly misspelled word.
 1508 | SPELLCHECK/SINGLE | "harpooneer" -> ["harpooner", "harpooned", "harpooners"] | Possibly misspelled word.
 1511 | GRAMMAR/STAIRS_COMPOUNDS/0 | "up stairs" -> ["upstairs"] | Did you mean upstairs?
@@ -461,7 +301,6 @@
 1712 | SPELLCHECK/SINGLE | "gettee" -> ["getter", "settee", "better", "letter", "settle", "gentle", "gotten", "netted", "wetter", "Bette"] | Possibly misspelled word.
 1715 | SPELLCHECK/SINGLE | "tattooings" -> ["tattooing", "tattooists"] | Possibly misspelled word.
 1726 | SPELLCHECK/SINGLE | "Queequeg" -> [] | Possibly misspelled word.
-1735 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
 1737 | SPELLCHECK/SINGLE | "Queequeg" -> [] | Possibly misspelled word.
 1740 | SPELLCHECK/SINGLE | "parti-coloured" -> ["parti-colored", "party-colored"] | Possibly misspelled word.
 1749 | SPELLCHECK/SINGLE | "Queequeg" -> [] | Possibly misspelled word.
@@ -487,26 +326,24 @@
 1860 | SPELLCHECK/SINGLE | "Queequeg" -> [] | Possibly misspelled word.
 1863 | SPELLCHECK/SINGLE | "centre" -> ["center", "century", "central", "genre", "centers", "centered", "venture", "tenure", "centra", "cent"] | Possibly misspelled word.
 1869 | SPELLCHECK/SINGLE | "Queequeg" -> [] | Possibly misspelled word.
-1879 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
 1895 | SPELLCHECK/SINGLE | "whalemen" -> ["whaleses"] | Possibly misspelled word.
 1897 | SPELLCHECK/SINGLE | "harpooneers" -> ["harpooners", "harpooner"] | Possibly misspelled word.
 1906 | SPELLCHECK/SINGLE | "tawn" -> ["town", "dawn", "Dawn", "tan", "lawn", "pawn", "fawn", "tawny", "sawn", "two"] | Possibly misspelled word.
 1908 | SPELLCHECK/SINGLE | "Queequeg" -> [] | Possibly misspelled word.
 1908 | BUILTIN/UPPERCASE_SENTENCE_START | "which" -> ["Which"] | This sentence does not start with an uppercase letter.
-1917 | SPELLCHECK/SINGLE | "Ledyard" -> ["Leonard", "Layard", "bedward", "beeyard", "Lenard"] | Possibly misspelled word.
+1917 | SPELLCHECK/SINGLE | "Ledyard" -> ["Leonard", "Leopard", "Leeward", "Lanyard", "Leotard", "Layard", "Beeyard", "Bedward", "Lenard"] | Possibly misspelled word.
 1917 | SPELLCHECK/SINGLE | "traveller" -> ["travelled", "traveler", "traveled", "travelers", "gravelled", "traverser"] | Possibly misspelled word.
-1920 | SPELLCHECK/SINGLE | "Ledyard" -> ["Leonard", "Layard", "bedward", "beeyard", "Lenard"] | Possibly misspelled word.
+1920 | SPELLCHECK/SINGLE | "Ledyard" -> ["Leonard", "Leopard", "Leeward", "Lanyard", "Leotard", "Layard", "Beeyard", "Bedward", "Lenard"] | Possibly misspelled word.
 1933 | REDUNDANCY/ALL_OF_THE/0 | "all of the" -> ["all the"] | Consider removing "of" to be more concise
 1936 | GRAMMAR/THIS_NNS/7 | "these timid warrior" -> ["this timid warrior", "these timid warriors"] | The plural determiner 'these' does not agree with the singular noun 'warrior'.
 1937 | SPELLCHECK/SINGLE | "whalemen" -> ["whaleses"] | Possibly misspelled word.
 1939 | SPELLCHECK/SINGLE | "Queequeg" -> [] | Possibly misspelled word.
 1939 | SPELLCHECK/SINGLE | "Queequeg" -> [] | Possibly misspelled word.
 1949 | SPELLCHECK/SINGLE | "Queequeg" -> [] | Possibly misspelled word.
-1957 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
 1960 | SPELLCHECK/SINGLE | "Queequeg" -> [] | Possibly misspelled word.
 1965 | SPELLCHECK/SINGLE | "nondescripts" -> ["nondescript", "nondescriptly"] | Possibly misspelled word.
-1968 | SPELLCHECK/SINGLE | "Lascars" -> ["mascara", "rascals", "Lascaux", "pascals", "cascara", "mascaras", "Pascals", "cascaras", "calcars"] | Possibly misspelled word.
-1970 | SPELLCHECK/SINGLE | "Wapping" -> ["mapping", "tapping", "rapping", "capping", "lapping", "sapping", "napping", "zapping", "gapping", "yapping"] | Possibly misspelled word.
+1968 | SPELLCHECK/SINGLE | "Lascars" -> ["NASCAR", "Lasers", "Lancers", "Flatcars", "Mascara", "Rascals", "Pascals", "Lascaux", "Cascara"] | Possibly misspelled word.
+1970 | SPELLCHECK/SINGLE | "Wapping" -> ["Mapping", "Swapping", "Tapping", "Wrapping", "Rapping", "Capping", "Warping", "Lapping", "Sapping", "Napping"] | Possibly misspelled word.
 1975 | SPELLCHECK/SINGLE | "Feegeeans" -> [] | Possibly misspelled word.
 1975 | SPELLCHECK/SINGLE | "Tongatobooarrs" -> [] | Possibly misspelled word.
 1975 | SPELLCHECK/SINGLE | "Erromanggoans" -> [] | Possibly misspelled word.
@@ -523,77 +360,34 @@
 2025 | REDUNDANCY/SUMMER_TIME/1 | "summer time" -> ["summer"] | Consider using summer.
 2029 | SPELLCHECK/SINGLE | "superinduced" -> [] | Possibly misspelled word.
 2035 | PUNCTUATION/SENT_START_CONJUNCTIVE_LINKING_ADVERB_COMMA/0 | "Elsewhere" -> ["Elsewhere,"] | A comma may be missing after the conjunctive/linking adverb 'Elsewhere'.
-2039 | SPELLCHECK/SINGLE | "Puritanic" -> ["Puritan", "Puritans", "Ruritania"] | Possibly misspelled word.
-2042 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
+2039 | SPELLCHECK/SINGLE | "Puritanic" -> ["Puritan", "Puritanical", "Puritans", "Puritanism", "Puritanize", "Ruritania"] | Possibly misspelled word.
 2044 | SPELLCHECK/SINGLE | "Whaleman" -> ["Whalen", "Walkman", "Waldman"] | Possibly misspelled word.
 2054 | SPELLCHECK/SINGLE | "worshipper" -> ["worshiper", "worshiped", "worshipers"] | Possibly misspelled word.
 2058 | SPELLCHECK/SINGLE | "masoned" -> ["manned", "masked", "masonry", "majored", "massed", "masons", "mashed", "mason", "masted", "masonic"] | Possibly misspelled word.
-2062 | SPELLCHECK/SINGLE | "SACRED" -> ["SACD", "SACEM"] | Possibly misspelled word.
-2062 | SPELLCHECK/SINGLE | "THE" -> ["THC", "Tom", "TDE", "TME", "kHz", "TNE", "TAE", "TEE", "BHE", "TRE"] | Possibly misspelled word.
-2062 | SPELLCHECK/SINGLE | "MEMORY" -> [] | Possibly misspelled word.
-2062 | SPELLCHECK/SINGLE | "JOHN" -> ["JPN", "AON", "COIN", "CON", "WON", "SON", "DON", "EOH", "EOPN", "SOHO"] | Possibly misspelled word.
-2062 | SPELLCHECK/SINGLE | "TALBOT" -> [] | Possibly misspelled word.
 2064 | SPELLCHECK/SINGLE | "st" -> ["at", "it", "set", "so", "St", "ft", "sit", "sat", "Lt", "a"] | Possibly misspelled word.
-2064 | SPELLCHECK/SINGLE | "THIS" -> ["THI", "TIS", "THS", "NHS", "TBS", "TS", "TDI", "TCS", "TFS", "TLS"] | Possibly misspelled word.
-2064 | SPELLCHECK/SINGLE | "TABLET" -> ["TARGET"] | Possibly misspelled word.
-2064 | SPELLCHECK/SINGLE | "BY" -> ["BC", "a", "BT", "BYU", "I", "BG", "YB", "NY", "BH", "BBC"] | Possibly misspelled word.
-2064 | SPELLCHECK/SINGLE | "HIS" -> ["I", "HFS", "HHS", "HSS", "IHS", "HTS", "HIC", "HDS", "HMS", "HIV"] | Possibly misspelled word.
-2064 | SPELLCHECK/SINGLE | "SISTER" -> [] | Possibly misspelled word.
-2066 | SPELLCHECK/SINGLE | "SACRED" -> ["SACD", "SACEM"] | Possibly misspelled word.
-2066 | SPELLCHECK/SINGLE | "THE" -> ["THC", "Tom", "TDE", "TME", "kHz", "TNE", "TAE", "TEE", "BHE", "TRE"] | Possibly misspelled word.
-2066 | SPELLCHECK/SINGLE | "MEMORY" -> [] | Possibly misspelled word.
-2066 | SPELLCHECK/SINGLE | "ROBERT" -> [] | Possibly misspelled word.
-2066 | SPELLCHECK/SINGLE | "LONG" -> ["LNG", "LPG", "LVN", "LPN", "LOGO", "LPNs", "HON", "HONY", "WON", "TOG"] | Possibly misspelled word.
-2066 | SPELLCHECK/SINGLE | "WILLIS" -> [] | Possibly misspelled word.
-2066 | SPELLCHECK/SINGLE | "ELLERY" -> [] | Possibly misspelled word.
-2066 | SPELLCHECK/SINGLE | "NATHAN" -> ["NATA"] | Possibly misspelled word.
-2066 | SPELLCHECK/SINGLE | "COLEMAN" -> ["COGEMA"] | Possibly misspelled word.
-2067 | SPELLCHECK/SINGLE | "WALTER" -> [] | Possibly misspelled word.
-2067 | SPELLCHECK/SINGLE | "CANNY" -> ["CNN", "CNNY", "CUNY", "CAY", "ICANN", "CAN", "CNY", "OANN", "CNNs", "CANCA"] | Possibly misspelled word.
-2067 | SPELLCHECK/SINGLE | "SETH" -> ["SETI", "SET", "PET", "STP", "SSH", "SST", "SMTP", "PETA", "SEATO", "SRT"] | Possibly misspelled word.
-2067 | SPELLCHECK/SINGLE | "MACY" -> ["MACS", "MA", "MCC", "MSC", "PAC", "MCP", "MCs", "WAC", "NAC", "TAC"] | Possibly misspelled word.
-2067 | SPELLCHECK/SINGLE | "SAMUEL" -> ["SAMLE", "SAMU", "SAML"] | Possibly misspelled word.
-2067 | SPELLCHECK/SINGLE | "GLEIG" -> ["GEI"] | Possibly misspelled word.
-2068 | SPELLCHECK/SINGLE | "THE" -> ["THC", "Tom", "TDE", "TME", "kHz", "TNE", "TAE", "TEE", "BHE", "TRE"] | Possibly misspelled word.
-2068 | SPELLCHECK/SINGLE | "SHIP" -> ["AHIP", "SIP", "SHP", "SKIP", "SVP", "SNP", "SAP", "SGI", "STP", "SSP"] | Possibly misspelled word.
-2068 | SPELLCHECK/SINGLE | "ELIZA" -> ["EISA", "ELA", "ELI", "ELINT", "ENITA", "EPITA", "ESIEA", "EIA"] | Possibly misspelled word.
-2069 | SPELLCHECK/SINGLE | "PACIFIC" -> [] | Possibly misspelled word.
+2066 | SPELLCHECK/SINGLE | "ELLERY" -> ["EVERY", "ELDER", "ELDERLY", "ELLEN", "ELDERS", "SELLERS", "SELLER", "ALLEY", "TELLER", "ALLERGY"] | Possibly misspelled word.
+2067 | SPELLCHECK/SINGLE | "GLEIG" -> ["GLEN", "GLENN", "GREG", "GIG", "KLEIN", "OLEG", "GREGG", "SLEIGH", "GLUING"] | Possibly misspelled word.
 2069 | SPELLCHECK/SINGLE | "st" -> ["at", "it", "set", "so", "St", "ft", "sit", "sat", "Lt", "a"] | Possibly misspelled word.
-2069 | SPELLCHECK/SINGLE | "THIS" -> ["THI", "TIS", "THS", "NHS", "TBS", "TS", "TDI", "TCS", "TFS", "TLS"] | Possibly misspelled word.
-2069 | SPELLCHECK/SINGLE | "MARBLE" -> ["MALE"] | Possibly misspelled word.
-2070 | SPELLCHECK/SINGLE | "SHIPMATES" -> [] | Possibly misspelled word.
-2072 | SPELLCHECK/SINGLE | "SACRED" -> ["SACD", "SACEM"] | Possibly misspelled word.
-2072 | SPELLCHECK/SINGLE | "THE" -> ["THC", "Tom", "TDE", "TME", "kHz", "TNE", "TAE", "TEE", "BHE", "TRE"] | Possibly misspelled word.
-2072 | SPELLCHECK/SINGLE | "MEMORY" -> [] | Possibly misspelled word.
-2072 | SPELLCHECK/SINGLE | "CAPTAIN" -> [] | Possibly misspelled word.
-2072 | SPELLCHECK/SINGLE | "EZEKIEL" -> [] | Possibly misspelled word.
-2072 | SPELLCHECK/SINGLE | "HARDY" -> ["CARDS", "HALDE", "HRD", "IARD", "BARDA"] | Possibly misspelled word.
-2074 | SPELLCHECK/SINGLE | "THIS" -> ["THI", "TIS", "THS", "NHS", "TBS", "TS", "TDI", "TCS", "TFS", "TLS"] | Possibly misspelled word.
-2074 | SPELLCHECK/SINGLE | "TABLET" -> ["TARGET"] | Possibly misspelled word.
-2074 | SPELLCHECK/SINGLE | "BY" -> ["BC", "a", "BT", "BYU", "I", "BG", "YB", "NY", "BH", "BBC"] | Possibly misspelled word.
-2074 | SPELLCHECK/SINGLE | "HIS" -> ["I", "HFS", "HHS", "HSS", "IHS", "HTS", "HIC", "HDS", "HMS", "HIV"] | Possibly misspelled word.
-2074 | SPELLCHECK/SINGLE | "WIDOW" -> ["WIPO", "WICOR", "FIDO"] | Possibly misspelled word.
 2078 | SPELLCHECK/SINGLE | "Queequeg" -> [] | Possibly misspelled word.
 2087 | SPELLCHECK/SINGLE | "unhealing" -> ["unsealing", "unhearing", "unveiling", "unseating", "inhaling", "annealing", "unfeeling", "unceasing", "underling", "unmeaning"] | Possibly misspelled word.
 2091 | BUILTIN/UPPERCASE_SENTENCE_START | "ye" -> ["Ye"] | This sentence does not start with an uppercase letter.
 2094 | GRAMMAR/WHAT_VBZ/0 | "despair" -> ["despairs"] | After 'What', use the third-person verb form despairs.
-2098 | SPELLCHECK/SINGLE | "Elephanta" -> ["elephant", "elephants"] | Possibly misspelled word.
+2098 | SPELLCHECK/SINGLE | "Elephanta" -> ["Elephant", "Elephants"] | Possibly misspelled word.
 2108 | SPELLCHECK/SINGLE | "unstirring" -> ["unstinting", "unsticking", "unstriving", "unstifling", "unsmirking", "unstinging", "unstarting", "unshirking"] | Possibly misspelled word.
 2120 | SPELLCHECK/SINGLE | "whalemen" -> ["whaleses"] | Possibly misspelled word.
-2136 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-2142 | SPELLCHECK/SINGLE | "Mapple" -> ["Marple", "dapple", "sample", "maple", "Male", "Mantle", "rappel", "dappled", "Mable", "papule"] | Possibly misspelled word.
+2142 | SPELLCHECK/SINGLE | "Mapple" -> ["Maple", "Marple", "Dapple", "Male", "Sample", "Marble", "Mapped", "Mantle", "Ample"] | Possibly misspelled word.
 2142 | SPELLCHECK/SINGLE | "whalemen" -> ["whaleses"] | Possibly misspelled word.
 2143 | SPELLCHECK/SINGLE | "favourite" -> ["favorite", "favorites", "favosite"] | Possibly misspelled word.
 2143 | SPELLCHECK/SINGLE | "harpooneer" -> ["harpooner", "harpooned", "harpooners"] | Possibly misspelled word.
-2145 | SPELLCHECK/SINGLE | "Mapple" -> ["Marple", "dapple", "sample", "maple", "Male", "Mantle", "rappel", "dappled", "Mable", "papule"] | Possibly misspelled word.
-2151 | SPELLCHECK/SINGLE | "Mapple" -> ["Marple", "dapple", "sample", "maple", "Male", "Mantle", "rappel", "dappled", "Mable", "papule"] | Possibly misspelled word.
+2145 | SPELLCHECK/SINGLE | "Mapple" -> ["Maple", "Marple", "Dapple", "Male", "Sample", "Marble", "Mapped", "Mantle", "Ample"] | Possibly misspelled word.
+2151 | SPELLCHECK/SINGLE | "Mapple" -> ["Maple", "Marple", "Dapple", "Male", "Sample", "Marble", "Mapped", "Mantle", "Ample"] | Possibly misspelled word.
 2161 | GRAMMAR/A_NNS/4 | "a\r\nregular stairs" -> ["a regular stair", "regular stairs"] | The plural noun "stairs" cannot be used with the article "a".
-2164 | SPELLCHECK/SINGLE | "Mapple" -> ["Marple", "dapple", "sample", "maple", "Male", "Mantle", "rappel", "dappled", "Mable", "papule"] | Possibly misspelled word.
+2164 | SPELLCHECK/SINGLE | "Mapple" -> ["Maple", "Marple", "Dapple", "Male", "Sample", "Marble", "Mapped", "Mantle", "Ample"] | Possibly misspelled word.
 2165 | GRAMMAR/A_NNS/2 | "a stairs" -> ["a stair", "stairs"] | The plural noun "stairs" cannot be used with the article "a". Did you mean a stair or stairs?
 2169 | SPELLCHECK/SINGLE | "colour" -> ["color", "colors", "colony", "cloud", "collar", "cooler", "contour", "colder", "colon", "clout"] | Possibly misspelled word.
-2172 | SPELLCHECK/SINGLE | "Mapple" -> ["Marple", "dapple", "sample", "maple", "Male", "Mantle", "rappel", "dappled", "Mable", "papule"] | Possibly misspelled word.
-2182 | SPELLCHECK/SINGLE | "Mapple" -> ["Marple", "dapple", "sample", "maple", "Male", "Mantle", "rappel", "dappled", "Mable", "papule"] | Possibly misspelled word.
-2188 | SPELLCHECK/SINGLE | "Mapple" -> ["Marple", "dapple", "sample", "maple", "Male", "Mantle", "rappel", "dappled", "Mable", "papule"] | Possibly misspelled word.
+2172 | SPELLCHECK/SINGLE | "Mapple" -> ["Maple", "Marple", "Dapple", "Male", "Sample", "Marble", "Mapped", "Mantle", "Ample"] | Possibly misspelled word.
+2182 | SPELLCHECK/SINGLE | "Mapple" -> ["Maple", "Marple", "Dapple", "Male", "Sample", "Marble", "Mapped", "Mantle", "Ample"] | Possibly misspelled word.
+2188 | SPELLCHECK/SINGLE | "Mapple" -> ["Maple", "Marple", "Dapple", "Male", "Sample", "Marble", "Mapped", "Mantle", "Ample"] | Possibly misspelled word.
 2194 | SPELLCHECK/SINGLE | "connexions" -> ["connections", "connexional"] | Possibly misspelled word.
 2196 | SPELLCHECK/SINGLE | "Ehrenbreitstein" -> [] | Possibly misspelled word.
 2200 | SPELLCHECK/SINGLE | "sea-farings" -> ["seafarings", "seafaring"] | Possibly misspelled word.
@@ -601,8 +395,7 @@
 2210 | BUILTIN/UPPERCASE_SENTENCE_START | "the" -> ["The"] | This sentence does not start with an uppercase letter.
 2220 | COLLOCATIONS/COLLOCATION_ERRORS_BOKOMARU/174 | "comes in" -> ["come to", "come into"] | The words "come in" and "come to" have different meanings. "Come in its office" means "have an orgasm in its office". "Come to" or "Come into" means "enter".
 2223 | SPELLCHECK/SINGLE | "favourable" -> ["favorable", "favorably", "savorable"] | Possibly misspelled word.
-2228 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
-2230 | SPELLCHECK/SINGLE | "Mapple" -> ["Marple", "dapple", "sample", "maple", "Male", "Mantle", "rappel", "dappled", "Mable", "papule"] | Possibly misspelled word.
+2230 | SPELLCHECK/SINGLE | "Mapple" -> ["Maple", "Marple", "Dapple", "Male", "Sample", "Marble", "Mapped", "Mantle", "Ample"] | Possibly misspelled word.
 2231 | BUILTIN/UPPERCASE_SENTENCE_START | "side" -> ["Side"] | This sentence does not start with an uppercase letter.
 2232 | BUILTIN/UPPERCASE_SENTENCE_START | "midships" -> ["Midships"] | This sentence does not start with an uppercase letter.
 2279 | SPELLCHECK/SINGLE | "sealine" -> ["sealing", "saline", "decline", "selling", "dealing", "seating", "stealing", "healing", "realize", "scaling"] | Possibly misspelled word.
@@ -634,7 +427,6 @@
 2534 | BUILTIN/UPPERCASE_SENTENCE_START | "on" -> ["On"] | This sentence does not start with an uppercase letter.
 2536 | STYLE/SENT_START_ARE_NOT_ARENT_FORMAL/0 | "Is not" -> ["Isn't"] | Questions beginning with 'Is not' can sound very formal.
 2542 | GRAMMAR/HE_VERB_AGR/0 | "pluck" -> ["plucks", "plucked"] | The pronoun 'he' is usually used with a third-person or a past tense verb.
-2559 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
 2561 | SPELLCHECK/SINGLE | "Queequeg" -> [] | Possibly misspelled word.
 2562 | GRAMMAR/PRP_VBG/3 | "he having" -> ["he's having", "he is having", "he was having"] | An auxiliary verb seems to be missing from this progressive structure. Did you mean he's having, he is having, or he was having?
 2576 | REDUNDANCY/LARGE_NUMBER_OF/0 | "a large number of" -> ["many", "numerous"] | To reduce wordiness, try specifying a number or using many or numerous instead.
@@ -659,7 +451,6 @@
 2690 | SPELLCHECK/SINGLE | "salamed" -> ["salaamed", "slated", "steamed", "salvaged", "ashamed", "salad", "salaried", "slammed", "salted", "calmed"] | Possibly misspelled word.
 2698 | SPELLCHECK/SINGLE | "Queequeg" -> [] | Possibly misspelled word.
 2698 | SPELLCHECK/SINGLE | "cosy" -> ["cost", "copy", "rosy", "cozy", "most", "nosy", "coy", "come", "city", "posy"] | Possibly misspelled word.
-2701 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
 2704 | SPELLCHECK/SINGLE | "Queequeg" -> [] | Possibly misspelled word.
 2707 | SPELLCHECK/SINGLE | "nappishness" -> ["snappishness", "waspishness", "vampishness", "dampishness"] | Possibly misspelled word.
 2714 | SPELLCHECK/SINGLE | "kneepans" -> ["kneecaps"] | Possibly misspelled word.
@@ -667,7 +458,6 @@
 2741 | SPELLCHECK/SINGLE | "Queequeg" -> [] | Possibly misspelled word.
 2747 | SPELLCHECK/SINGLE | "Queequeg" -> [] | Possibly misspelled word.
 2749 | TYPOS/I_IF/0 | "I" -> ["If", "I,"] | Did you mean If or is a comma missing (I,)?
-2765 | SPELLCHECK/SINGLE | "CHAPTER" -> [] | Possibly misspelled word.
 2767 | SPELLCHECK/SINGLE | "Queequeg" -> [] | Possibly misspelled word.
 2767 | SPELLCHECK/SINGLE | "Rokovoko" -> [] | Possibly misspelled word.
 2772 | SPELLCHECK/SINGLE | "Queequeg" -> [] | Possibly misspelled word.

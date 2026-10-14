@@ -11,7 +11,7 @@ use unicode_categories::UnicodeCategories;
 
 use crate::{
     types::*,
-    utils::{apply_to_first, is_title_case},
+    utils::{apply_to_first, is_title_case, is_uppercase},
     Error,
 };
 
@@ -374,6 +374,21 @@ impl UserMatcher {
     }
 }
 
+fn is_all_caps(word: &str) -> bool {
+    is_uppercase(word) && word.chars().any(char::is_uppercase)
+}
+
+fn recase(term: String, all_caps: bool) -> String {
+    let mixed_case = !is_uppercase(&term) && term.chars().skip(1).any(char::is_uppercase);
+    if mixed_case {
+        term
+    } else if all_caps {
+        term.to_uppercase()
+    } else {
+        apply_to_first(&term, |x| x.to_uppercase().collect())
+    }
+}
+
 /// Spellchecker logic for one variant. Does the actual work.
 ///
 /// Holds no copy of the valid words: lookups go against the shared speller FST (passed in by the caller)
@@ -396,9 +411,7 @@ impl VariantChecker {
     /// If this is true, the token is always correct. The converse is not true because e.g. multiwords are checked separately.
     fn check_word(&self, fst: &Map<&[u8]>, word: &str, recurse: bool) -> bool {
         word.is_empty()
-            || fst
-                .get(word)
-                .map_or(false, |v| SpellInt(v).contains_variant(self.variant_index))
+            || self.is_known(fst, word)
             || self.user.accepts(word)
             || word.chars().all(|x| {
                 x.is_symbol() || x.is_punctuation() || x.is_numeric() || x.is_mark() || x.is_other()
@@ -412,6 +425,16 @@ impl VariantChecker {
                     &apply_to_first(word, |x| x.to_lowercase().collect()),
                     false,
                 ))
+            || (recurse && is_all_caps(word) && {
+                let lower = word.to_lowercase();
+                self.is_known(fst, &lower)
+                    || self.is_known(fst, &apply_to_first(&lower, |x| x.to_uppercase().collect()))
+            })
+    }
+
+    fn is_known(&self, fst: &Map<&[u8]>, word: &str) -> bool {
+        fst.get(word)
+            .is_some_and(|v| SpellInt(v).contains_variant(self.variant_index))
     }
 
     /// Populates `correct_mask` according to the correctness of the given zeroth token.
@@ -502,7 +525,10 @@ impl VariantChecker {
             return Vec::new();
         }
 
-        let query = levenshtein::Levenshtein::new(word, self.options.max_distance, 2);
+        let all_caps = is_all_caps(word);
+        let convert_case = all_caps || is_title_case(word);
+        let query = levenshtein::Levenshtein::new(word, self.options.max_distance, 2)
+            .fold_case(convert_case);
 
         let mut out = BinaryHeap::with_capacity(self.options.top_n);
         self.push_candidates(&mut out, fst, &query);
@@ -516,7 +542,13 @@ impl VariantChecker {
         let mut seen = HashSet::new();
         out.into_sorted_vec()
             .into_iter()
-            .map(|x| x.term)
+            .map(|x| {
+                if convert_case {
+                    recase(x.term, all_caps)
+                } else {
+                    x.term
+                }
+            })
             .filter(|term| seen.insert(term.clone()))
             .collect()
     }

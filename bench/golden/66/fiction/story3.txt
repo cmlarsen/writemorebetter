@@ -1,4 +1,3 @@
-4 | SPELLCHECK/SINGLE | "SERVICES" -> [] | Possibly misspelled word.
 17 | SPELLCHECK/SINGLE | "Sokolov" -> ["Sokoto"] | Possibly misspelled word.
 19 | SPELLCHECK/SINGLE | "buisness" -> ["business", "Guinness", "bigness", "busyness", "briskness", "biasness", "puisnes", "bluishness", "bassness"] | Possibly misspelled word.
 24 | SPELLCHECK/SINGLE | "freind" -> ["friend", "friends", "trend", "freed", "freeing", "fried", "grind", "frying", "fiend", "feint"] | Possibly misspelled word.
@@ -12,5 +11,4 @@
 46 | SPELLCHECK/SINGLE | "knowlege" -> ["knowledge", "knowledges"] | Possibly misspelled word.
 47 | BUILTIN/ENGLISH_WORD_REPEAT_RULE | "to to" -> ["to"] | Possible typo: you repeated a word.
 79 | PUNCTUATION/THANKS_SENT_END_COMMA/0 | " thank" -> [", thank"] | Consider adding a comma here.
-89 | SPELLCHECK/SINGLE | "SERVICES" -> [] | Possibly misspelled word.
 94 | BUILTIN/ENGLISH_WORD_REPEAT_RULE | "and and" -> ["and"] | Possible typo: you repeated a word.
