@@ -339,7 +339,7 @@ impl UserMatcher {
             for (i, form) in forms.into_iter().enumerate() {
                 accepted.insert(form.clone());
                 accepted.insert(format!("{form}'s"));
-                if i >= suggested {
+                if is_all_caps(&form) {
                     accepted.insert(format!("{form}'S"));
                 }
                 if form.ends_with(['s', 'z', 'x', 'S', 'Z', 'X']) {
@@ -478,13 +478,7 @@ impl VariantChecker {
     /// - `correct_mask[0]` is `true` if the zeroth token is correct, `false` if it is not correct.
     /// - Indices `1..n` of `correct_mask` are `true` if the `n`th token is also definitely correct.
     ///     If they are `false`, they need to be checked separately.  
-    fn check(
-        &self,
-        fst: &Map<&[u8]>,
-        phrases: Option<&Fst<&[u8]>>,
-        tokens: &[Token],
-        correct_mask: &mut [bool],
-    ) {
+    fn check(&self, fst: &Map<&[u8]>, tokens: &[Token], correct_mask: &mut [bool]) {
         let word = tokens[0].word().text().as_str();
         correct_mask[0] = self.check_separated(fst, word);
 
@@ -493,12 +487,6 @@ impl VariantChecker {
             .or_else(|| self.matching_continuation(self.user.multiwords.get(word), tokens))
         {
             correct_mask[..1 + matching_cont.len()]
-                .iter_mut()
-                .for_each(|x| *x = true);
-        }
-
-        if let Some(phrases) = phrases {
-            correct_mask[..phrase_len(phrases, tokens)]
                 .iter_mut()
                 .for_each(|x| *x = true);
         }
@@ -922,8 +910,13 @@ impl Spell {
         for (i, token) in tokens.iter().enumerate() {
             let text = token.word().text().as_str();
 
+            if let Some(phrases) = &phrases {
+                correct_mask[i..i + phrase_len(phrases, &tokens[i..])]
+                    .iter_mut()
+                    .for_each(|x| *x = true);
+            }
             if !correct_mask[i] {
-                variant_checker.check(&fst, phrases.as_ref(), &tokens[i..], &mut correct_mask[i..]);
+                variant_checker.check(&fst, &tokens[i..], &mut correct_mask[i..]);
             }
             if correct_mask[i] || token.ignore_spelling() {
                 continue;

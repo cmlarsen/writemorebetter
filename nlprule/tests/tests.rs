@@ -620,6 +620,18 @@ fn user_dictionary_accepts_shouted_entries() {
         rules.spell().speller().unwrap().suggest("XYLOPHONIZ", 1),
         vec!["XYLOPHONIX"]
     );
+
+    assert!(spelling_errors_with_words(
+        &["Zorvath Josquin"],
+        "Zorvath Josquin des Pr\u{e9}s sang\u{2014}\u{201c}ZORVATH JOSQUIN DES PR\u{c9}S\u{2026}\u{201d}\u{2028}"
+    )
+    .is_empty());
+
+    rules.add_words(["NASA"]);
+    let speller = rules.spell().speller().unwrap();
+    for word in ["XYLOPHONIX\u{2019}S", "NASA'S", "NASA\u{2019}S", "NASA's"] {
+        assert!(speller.is_correct(word), "{}", word);
+    }
 }
 
 #[test]
