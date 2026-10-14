@@ -118,6 +118,30 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   landed in the wrong function and crashed in the tokenizer and speller. The framework is now linked as a
   dylib with the linker dropping local symbols and debug info, and nothing runs `strip`
   ([#238](https://github.com/cmlarsen/writemorebetter/issues/238)).
+
+- **Token patterns match like LanguageTool 6.6, without backtracking.** An optional token
+  (`min="0"`) is skipped whenever the pattern token after it matches the same word, a `skip`
+  window comes from the last token that matched, and a repeated token takes as many words as it
+  can ([#160](https://github.com/cmlarsen/writemorebetter/issues/160)). `COMMA_COMPOUND_SENTENCE`
+  now flags "They've acted irresponsibly and immorally and it has to stop.", and
+  `DO_XX_MD_VB` no longer flags "Would that I could".
+
+- **An absent optional token no longer applies its own `skip`.** The words in a `skip` window
+  are checked against the `scope="next"` exceptions of the pattern token before them, whether
+  or not that token matched, as in LanguageTool 6.6
+  ([#161](https://github.com/cmlarsen/writemorebetter/issues/161)). The rules binary format
+  version is now 28 and the tokenizer binary format version is now 17.
+
+- **A `scope="next"` exception after an optional token depends on whether the token matched.**
+  The exception checks the next word's first reading only when the last token that matched has
+  no `skip`, decided per match instead of once when the rule is compiled
+  ([#151](https://github.com/cmlarsen/writemorebetter/issues/151)).
+
+- **Repeated tokens follow LanguageTool 6.6's `min` and `max`.** `min="2"` without `max`
+  matches exactly two words instead of up to 20, `max="-1"` has no limit instead of 20, and a
+  word an antipattern immunized no longer trips a `scope="next"` exception inside a `skip`
+  window ([#214](https://github.com/cmlarsen/writemorebetter/pull/214)).
+
 - **"best" before a preposition is tagged as a superlative adjective, as in LanguageTool 6.6.**
   The English tokenizer config no longer skips the `BEST_JJS` disambiguation rule, a leftover
   from upstream nlprule, so `PRP_MD_NN` now flags "It may best to add this" and suggests "may be

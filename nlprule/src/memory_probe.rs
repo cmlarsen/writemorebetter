@@ -133,7 +133,7 @@ fn empty_engine() -> Engine {
         composition: Composition {
             parts: Vec::new(),
             id_to_idx: Vec::new(),
-            can_stop_mask: Vec::new(),
+            optional_count: 0,
             start_keys: None,
             required_key: None,
         },
@@ -254,8 +254,6 @@ pub enum GrammarBlank {
     PartPool,
     /// `Composition.id_to_idx` maps.
     IdToIdx,
-    /// `Composition.can_stop_mask` vectors.
-    CanStopMask,
     /// The `Box<Regex>` of a text engine.
     TextRegex,
     /// The `id_to_idx` map of a text engine.
@@ -394,11 +392,6 @@ fn blank_rule(rule: &mut Rule, blank: GrammarBlank, pool: &mut PartPool) {
                 token.composition.id_to_idx.clear();
             }
         }
-        GrammarBlank::CanStopMask => {
-            if let Engine::Token(token) = &mut rule.engine {
-                token.composition.can_stop_mask.clear();
-            }
-        }
         GrammarBlank::TextRegex => {
             if let Engine::Text(regex, _) = &mut rule.engine {
                 **regex = Regex::new(String::new());
@@ -460,7 +453,6 @@ pub const GRAMMAR_FIELD_BLANKS: &[(&str, GrammarBlank)] = &[
     ("rules_no_gr_parts", GrammarBlank::Parts),
     ("rules_no_gr_part_pool", GrammarBlank::PartPool),
     ("rules_no_gr_id_to_idx", GrammarBlank::IdToIdx),
-    ("rules_no_gr_can_stop_mask", GrammarBlank::CanStopMask),
     ("rules_no_gr_text_regex", GrammarBlank::TextRegex),
     ("rules_no_gr_text_id_to_idx", GrammarBlank::TextIdToIdx),
     ("rules_no_gr_atoms", GrammarBlank::Atoms),
@@ -478,7 +470,6 @@ fn blank_antipattern_pool(pool: &mut PartPool, blank: GrammarBlank) {
             match blank {
                 GrammarBlank::Parts => antipattern.parts.clear(),
                 GrammarBlank::IdToIdx => antipattern.id_to_idx.clear(),
-                GrammarBlank::CanStopMask => antipattern.can_stop_mask.clear(),
                 _ => {}
             }
         }
