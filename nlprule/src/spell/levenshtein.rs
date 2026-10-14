@@ -295,4 +295,87 @@ mod tests {
             assert_eq!(state.map(|state| state.dist()), Some(1), "{}", key);
         }
     }
+
+    const ALPHABET: [char; 22] = [
+        'a',
+        'b',
+        'A',
+        'B',
+        'i',
+        'I',
+        '\u{131}',
+        '\u{130}',
+        '\u{e9}',
+        '\u{c9}',
+        '\u{df}',
+        '\u{1e9e}',
+        '\u{3c3}',
+        '\u{3c2}',
+        '\u{3a3}',
+        '\u{2019}',
+        '\u{201c}',
+        '\u{2014}',
+        '\u{2026}',
+        '\u{2028}',
+        '\u{65e5}',
+        '\u{1f600}',
+    ];
+
+    fn word(indices: &[u8]) -> String {
+        indices
+            .iter()
+            .take(7)
+            .map(|i| ALPHABET[*i as usize % ALPHABET.len()])
+            .collect()
+    }
+
+    fn reference_distance(query: &str, key: &str, fold_case: bool) -> usize {
+        let chars = |s: &str| -> Vec<char> {
+            s.chars()
+                .map(|c| if fold_case { fold(c) } else { c })
+                .collect()
+        };
+        let (a, b) = (chars(query), chars(key));
+        let mut d = vec![vec![0; b.len() + 1]; a.len() + 1];
+        for (i, row) in d.iter_mut().enumerate() {
+            row[0] = i;
+        }
+        for (j, cell) in d[0].iter_mut().enumerate() {
+            *cell = j;
+        }
+        for i in 1..=a.len() {
+            for j in 1..=b.len() {
+                let substitution = d[i - 1][j - 1] + usize::from(a[i - 1] != b[j - 1]);
+                d[i][j] = substitution.min(d[i - 1][j] + 1).min(d[i][j - 1] + 1);
+                if i > 1 && j > 1 && a[i - 1] == b[j - 2] && a[i - 2] == b[j - 1] {
+                    d[i][j] = d[i][j].min(d[i - 2][j - 2] + 1);
+                }
+            }
+        }
+        d[a.len()][b.len()]
+    }
+
+    #[quickcheck_macros::quickcheck]
+    fn agrees_with_char_level_distance_on_multibyte_text(
+        query: Vec<u8>,
+        key: Vec<u8>,
+        fold_case: bool,
+    ) -> bool {
+        let (query, key) = (word(&query), word(&key));
+        let automaton = Levenshtein::new(&query, 2, 0).fold_case(fold_case);
+        let mut state = automaton.start();
+        for (i, byte) in key.bytes().enumerate() {
+            state = automaton.accept(&state, byte);
+            if !key.is_char_boundary(i + 1) && automaton.is_match(&state) {
+                return false;
+            }
+        }
+        let expected = reference_distance(&query, &key, fold_case);
+        let dist = state.as_ref().map(LevenshteinState::dist);
+        if expected <= 2 {
+            dist == Some(expected) && automaton.is_match(&state)
+        } else {
+            dist.map_or(true, |dist| dist == expected) && !automaton.is_match(&state)
+        }
+    }
 }
