@@ -43,6 +43,11 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
 ### Fixed
 
+- **A suggestion starting with a comma widens the match as in LanguageTool 6.6.** When any of a
+  match's suggestions starts with a comma, the match now starts at the end of the previous token,
+  not only when all of them do. `Tim make` offers ` makes`, ` made` and `, make` over ` make`
+  instead of applying ` makes` to `make` and doubling the space. Grammar conformance rises from
+  6017 to 6021 of 6038 rules ([#78](https://github.com/cmlarsen/writemorebetter/issues/78)).
 - **The chunker's beam search follows OpenNLP 1.9.4, as LanguageTool 6.6 runs it.** The POS
   tagger and chunker no longer drop candidate tags below probability 0.1, the "advance every
   valid tag" fallback extends the best sequence first instead of an arbitrary one, a chunk can no

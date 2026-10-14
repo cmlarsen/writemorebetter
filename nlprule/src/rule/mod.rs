@@ -374,7 +374,7 @@ impl<'a, 't> Iterator for Suggestions<'a, 't> {
             let start = if !replacements.is_empty()
                 && replacements
                     .iter()
-                    .all(|x| utils::no_space_chars().chars().any(|c| x.starts_with(c)))
+                    .any(|x| utils::no_space_chars().chars().any(|c| x.starts_with(c)))
             {
                 let first_token = graph.groups()[graph.get_index(start)..]
                     .iter()
