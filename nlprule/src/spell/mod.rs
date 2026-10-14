@@ -11,7 +11,7 @@ use unicode_categories::UnicodeCategories;
 
 use crate::{
     types::*,
-    utils::{apply_to_first, is_title_case},
+    utils::{apply_to_first, is_title_case, is_uppercase},
     Error,
 };
 
@@ -170,6 +170,10 @@ pub(crate) struct SpellLangOptions {
     pub split_hyphens: bool,
     #[serde(default)]
     pub word_chars: Vec<(char, char)>,
+    /// The variant [Spell::speller] answers for while no variant is selected, so speller-backed
+    /// rule filters work with spellchecking off. `None` leaves them without a speller.
+    #[serde(default)]
+    pub default_variant: Option<Variant>,
 }
 
 impl Default for SpellOptions {
@@ -370,6 +374,21 @@ impl UserMatcher {
     }
 }
 
+fn is_all_caps(word: &str) -> bool {
+    is_uppercase(word) && word.chars().any(char::is_uppercase)
+}
+
+fn recase(term: String, all_caps: bool) -> String {
+    let mixed_case = !is_uppercase(&term) && term.chars().skip(1).any(char::is_uppercase);
+    if mixed_case {
+        term
+    } else if all_caps {
+        term.to_uppercase()
+    } else {
+        apply_to_first(&term, |x| x.to_uppercase().collect())
+    }
+}
+
 /// Spellchecker logic for one variant. Does the actual work.
 ///
 /// Holds no copy of the valid words: lookups go against the shared speller FST (passed in by the caller)
@@ -392,9 +411,7 @@ impl VariantChecker {
     /// If this is true, the token is always correct. The converse is not true because e.g. multiwords are checked separately.
     fn check_word(&self, fst: &Map<&[u8]>, word: &str, recurse: bool) -> bool {
         word.is_empty()
-            || fst
-                .get(word)
-                .map_or(false, |v| SpellInt(v).contains_variant(self.variant_index))
+            || self.is_known(fst, word)
             || self.user.accepts(word)
             || word.chars().all(|x| {
                 x.is_symbol() || x.is_punctuation() || x.is_numeric() || x.is_mark() || x.is_other()
@@ -408,6 +425,16 @@ impl VariantChecker {
                     &apply_to_first(word, |x| x.to_lowercase().collect()),
                     false,
                 ))
+            || (recurse && is_all_caps(word) && {
+                let lower = word.to_lowercase();
+                self.is_known(fst, &lower)
+                    || self.is_known(fst, &apply_to_first(&lower, |x| x.to_uppercase().collect()))
+            })
+    }
+
+    fn is_known(&self, fst: &Map<&[u8]>, word: &str) -> bool {
+        fst.get(word)
+            .is_some_and(|v| SpellInt(v).contains_variant(self.variant_index))
     }
 
     /// Populates `correct_mask` according to the correctness of the given zeroth token.
@@ -498,23 +525,28 @@ impl VariantChecker {
             return Vec::new();
         }
 
-        let query = levenshtein::Levenshtein::new(word, self.options.max_distance, 2);
+        let all_caps = is_all_caps(word);
+        let convert_case = all_caps || is_title_case(word);
+        let query = levenshtein::Levenshtein::new(word, self.options.max_distance, 2)
+            .fold_case(convert_case);
+        let restore_case = |term: String| {
+            if convert_case {
+                recase(term, all_caps)
+            } else {
+                term
+            }
+        };
 
         let mut out = BinaryHeap::with_capacity(self.options.top_n);
-        self.push_candidates(&mut out, fst, &query);
+        self.push_candidates(&mut out, fst, &query, &restore_case);
 
         if !self.user.suggestion_fst.is_empty() {
             let user_map = Map::new(self.user.suggestion_fst.as_slice())
                 .expect("serialized user suggestion fst must be valid.");
-            self.push_candidates(&mut out, &user_map, &query);
+            self.push_candidates(&mut out, &user_map, &query, &restore_case);
         }
 
-        let mut seen = HashSet::new();
-        out.into_sorted_vec()
-            .into_iter()
-            .map(|x| x.term)
-            .filter(|term| seen.insert(term.clone()))
-            .collect()
+        out.into_sorted_vec().into_iter().map(|x| x.term).collect()
     }
 
     /// Pushes the candidates of one speller FST into `out`, capping it at `top_n`.
@@ -523,6 +555,7 @@ impl VariantChecker {
         out: &mut BinaryHeap<Candidate>,
         fst: &Map<&[u8]>,
         query: &levenshtein::Levenshtein,
+        recase: &dyn Fn(String) -> String,
     ) {
         let mut stream = fst.search_with_state(query.clone()).into_stream();
         while let Some((k, v, s)) = stream.next() {
@@ -535,13 +568,21 @@ impl VariantChecker {
 
             let state = s.expect("matching levenshtein state is always `Some`.");
 
-            let term = String::from_utf8(k.to_vec()).expect("fst keys must be valid utf-8.");
+            let term =
+                recase(String::from_utf8(k.to_vec()).expect("fst keys must be valid utf-8."));
+            let score = (self.options.max_distance - state.dist()) as f32
+                + id.freq() as f32 / self.max_freq as f32 * self.options.freq_weight;
+            if let Some(existing) = out.iter().find(|x| x.term == term) {
+                if existing.score >= score {
+                    continue;
+                }
+                out.retain(|x| x.term != term);
+            }
             out.push(Candidate {
                 distance: state.dist(),
                 freq: id.freq(),
                 term,
-                score: (self.options.max_distance - state.dist()) as f32
-                    + id.freq() as f32 / self.max_freq as f32 * self.options.freq_weight,
+                score,
             });
             if out.len() > self.options.top_n {
                 out.pop();
@@ -568,6 +609,10 @@ pub struct Spell {
     /// The structure containing the actual spellchecking logic. Computed based on the selected variant.
     #[serde(skip)]
     pub(crate) variant_checker: Option<VariantChecker>,
+    /// The checker for [SpellLangOptions::default_variant], built only while no variant is
+    /// selected. Serves [Spell::speller], never [Spell::suggest].
+    #[serde(skip)]
+    pub(crate) default_checker: Option<VariantChecker>,
     /// The runtime user dictionary. Never serialized: the caller persists it and re-adds it.
     #[serde(skip)]
     pub(crate) user: UserWords,
@@ -611,22 +656,31 @@ impl Spell {
     }
 
     pub(crate) fn ingest_options(&mut self) {
-        let variant = if let Some(variant) = self.options.variant.as_ref() {
-            variant.clone()
+        let existing = self.variant_checker.take().or(self.default_checker.take());
+        if let Some(variant) = self.options.variant.clone() {
+            self.variant_checker = Some(self.build_checker(variant, existing));
         } else {
-            self.variant_checker = None;
-            return;
-        };
+            self.default_checker = self
+                .lang_options
+                .default_variant
+                .clone()
+                .map(|variant| self.build_checker(variant, existing));
+        }
+    }
 
+    fn build_checker(&self, variant: Variant, existing: Option<VariantChecker>) -> VariantChecker {
         let variant_index = self
             .variants()
             .iter()
             .position(|x| *x == variant)
             .expect("only valid variants are created.");
 
-        let mut checker = match self.variant_checker.take() {
+        let mut checker = match existing {
             // if the variant checker exists and uses the correct variant, we don't need to rebuild
-            Some(checker) if checker.variant == variant => checker,
+            Some(mut checker) if checker.variant == variant => {
+                checker.options = self.options.clone();
+                checker
+            }
             _ => VariantChecker {
                 variant,
                 variant_index,
@@ -695,13 +749,17 @@ impl Spell {
             variant_index,
             &self.lang_options.word_chars,
         );
-        self.variant_checker = Some(checker);
+        checker
     }
 
     /// Rebuilds only the user-dictionary view of the variant checker, leaving the (much more
     /// expensive) multiword filtering alone. Used when the user dictionary changes.
     fn rebuild_user(&mut self) {
-        if let Some(checker) = self.variant_checker.as_mut() {
+        let checker = self
+            .variant_checker
+            .as_mut()
+            .or(self.default_checker.as_mut());
+        if let Some(checker) = checker {
             checker.user = UserMatcher::new(
                 &self.user,
                 self.max_freq,
@@ -777,10 +835,15 @@ impl Spell {
         self.user.entries.iter().cloned().collect()
     }
 
-    /// A read-only view of the speller for single-word queries, or `None` when no variant is
-    /// selected (spellchecking is disabled).
+    /// A read-only view of the speller for single-word queries. While no variant is selected
+    /// (spellchecking is disabled) it answers for the language's default variant (`en_US` for
+    /// English, as LanguageTool uses for plain English), so speller-backed rule filters behave the
+    /// same with spellchecking on or off. `None` only when the language has no default variant.
     pub fn speller(&self) -> Option<Speller<'_>> {
-        let checker = self.variant_checker.as_ref()?;
+        let checker = self
+            .variant_checker
+            .as_ref()
+            .or(self.default_checker.as_ref())?;
         Some(Speller {
             checker,
             fst: Map::new(self.fst.as_slice()).expect("serialized fst must be valid."),
@@ -824,8 +887,8 @@ impl Spell {
     }
 }
 
-/// Read-only single-word queries against a [Spell] for its selected variant, obtained by
-/// [Spell::speller]. Rule filters use it to ask the speller while a rule is matching.
+/// Read-only single-word queries against a [Spell] for its selected variant (or its default
+/// variant while none is selected), obtained by [Spell::speller]. Rule filters use it to ask the speller while a rule is matching.
 #[derive(Debug)]
 pub struct Speller<'a> {
     checker: &'a VariantChecker,
@@ -833,7 +896,7 @@ pub struct Speller<'a> {
 }
 
 impl<'a> Speller<'a> {
-    /// Gets the selected variant.
+    /// Gets the variant this speller answers for.
     pub fn variant(&self) -> &Variant {
         &self.checker.variant
     }

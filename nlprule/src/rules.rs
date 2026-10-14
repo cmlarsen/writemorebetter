@@ -418,7 +418,8 @@ impl Rules {
 
     /// Tests one rule's examples against `tokenizer`, supplying this set's shared article word
     /// lists and part pool (the `+DT`/`+INDT` determiner synthesis needs the former) and its
-    /// speller for the selected variant (the speller-backed rule filters need it).
+    /// speller (the speller-backed rule filters need it): the selected variant's, or the default
+    /// variant's (`en_US` for English) while none is selected.
     pub fn test_rule(&self, rule: &Rule, tokenizer: &Tokenizer) -> bool {
         rule.test(
             tokenizer,
