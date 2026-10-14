@@ -229,6 +229,50 @@ fn sentencizer_splits_like_languagetool() {
 }
 
 #[test]
+fn sentencizer_keeps_honorifics_like_languagetool() {
+    let segments = |text: &'static str| -> Vec<&'static str> {
+        TOKENIZER
+            .pipe(text)
+            .map(|sentence| &text[sentence.span().byte().clone()])
+            .collect()
+    };
+    for text in [
+        "I had known Mr. Aduke for eleven years and did not know his first name.",
+        "I saw Mrs. Okafor, Ms. Lin and Dr. Patel in St. Louis.",
+        "I saw Prof. Hale, Sgt. Ross and Capt. Lee.",
+        "He met Rev. Hale and Gen. Lee and Gov. Ray.",
+        "I saw Mr. and Mrs. A. Okafor at the market.",
+        "I saw Messrs. Aduke and Okafor.",
+        "He met John Hale Jr. Then he left.",
+        "\u{201c}Mr. Aduke,\u{201d} she said, \u{201c}come in.\u{201d}",
+        "\u{201c}Mrs. Okafor!\u{201d} she called.",
+        "He waited\u{2014}Mr. Aduke never came.",
+        "\u{2014}Dr. Patel arrived late\u{2026}",
+        "She\u{2019}d asked Ms. Lin\u{2019}s name twice.",
+        "I saw Mr.\u{2028}Aduke at the market.",
+        "I saw Mr.  Aduke at the market.",
+    ] {
+        assert_eq!(segments(text), vec![text]);
+    }
+    assert_eq!(
+        segments("\u{201c}I know.\u{201d} Mr. Aduke nodded."),
+        vec!["\u{201c}I know.\u{201d} ", "Mr. Aduke nodded."]
+    );
+    assert_eq!(
+        segments("Well\u{2026} Mr. Aduke came anyway."),
+        vec!["Well\u{2026} ", "Mr. Aduke came anyway."]
+    );
+    assert_eq!(
+        segments("I saw Mr.\u{201d} Aduke laughed."),
+        vec!["I saw Mr.\u{201d} ", "Aduke laughed."]
+    );
+    assert_eq!(
+        segments("I saw mr. Aduke. MR. ADUKE came early."),
+        vec!["I saw mr. ", "Aduke. ", "MR. ", "ADUKE came early."]
+    );
+}
+
+#[test]
 fn batch_size_does_not_change_suggestions() {
     let text = "I can due his homework.\n\n“She dont know”—he said… \u{2028}It’s fine. A apple fell.\n\nThey was late.";
     let mut rules = Rules::new(RULES_PATH).unwrap();
