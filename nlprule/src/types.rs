@@ -859,12 +859,16 @@ impl Suggestion {
     }
 
     /// Uses the apostrophe style of the replaced text in the replacements: if `original` has curly
-    /// apostrophes and no straight ones, straight apostrophes in the replacements become curly.
+    /// apostrophes and no straight ones, straight apostrophes in the replacements become curly,
+    /// unless that would turn a replacement back into `original`.
     pub(crate) fn match_apostrophes(mut self, original: &str) -> Self {
         if original.contains('\u{2019}') && !original.contains('\'') {
             for replacement in self.replacements.iter_mut() {
                 if replacement.contains('\'') {
-                    *replacement = replacement.replace('\'', "\u{2019}");
+                    let curly = replacement.replace('\'', "\u{2019}");
+                    if curly != original {
+                        *replacement = curly;
+                    }
                 }
             }
         }
@@ -966,6 +970,12 @@ mod tests {
         assert_eq!(s.replacements(), ["doesn't"]);
         let s = suggestion(&["doesn't"]).match_apostrophes("dosnt");
         assert_eq!(s.replacements(), ["doesn't"]);
+    }
+
+    #[test]
+    fn replacements_stay_straight_when_curly_would_be_the_original() {
+        let s = suggestion(&["'s", "doesn't"]).match_apostrophes("\u{2019}s");
+        assert_eq!(s.replacements(), ["'s", "doesn\u{2019}t"]);
     }
 
     #[test]

@@ -4557,3 +4557,151 @@ fn builtin_profanity_flags_without_suggestions() {
         vec![flag("twat", &[]), flag("arsehole", &[]), flag("Twat", &[])]
     );
 }
+
+fn typo_or_of_matches(rules: &Rules, text: &str) -> Vec<(std::ops::Range<usize>, String)> {
+    rules
+        .suggest(text, &*TOKENIZER)
+        .into_iter()
+        .filter(|s| s.source() == "TYPOS/TYPO_OR_OF/1")
+        .map(|s| {
+            let chars: Vec<char> = text.chars().collect();
+            (
+                s.span().char().clone(),
+                chars[s.span().char().clone()].iter().collect(),
+            )
+        })
+        .collect()
+}
+
+#[test]
+fn reference_with_literal_suffix_matches_reference_plus_suffix() {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    let selector: Selector = "typos/typo_or_of".try_into().unwrap();
+    rules.select_mut(&selector).for_each(|x| x.enable());
+
+    for text in [
+        "The 1’s are the active couple or actives in the middle; the 2’s wait.",
+        "“The active couple or actives in the middle—wait…”\u{2028}She nodded.",
+        "The active couple or Actives in the middle wait.",
+        "The ACTIVE couple or actives in the middle wait.",
+    ] {
+        assert!(typo_or_of_matches(&rules, text).is_empty(), "{}", text);
+    }
+
+    for text in [
+        "Below is a list or guidelines on how to handle it.",
+        "“The active couple or dancers in the middle—wait…”\u{2028}She nodded.",
+    ] {
+        let matches = typo_or_of_matches(&rules, text);
+        assert_eq!(matches.len(), 1, "{}", text);
+        assert_eq!(matches[0].1, "or", "{}", text);
+    }
+}
+
+fn rule_matches(selector: &str, text: &str) -> Vec<(String, std::ops::Range<usize>, Vec<String>)> {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    let selector: Selector = selector.try_into().unwrap();
+    rules.rules_mut().iter_mut().for_each(|rule| rule.disable());
+    rules
+        .builtins_mut()
+        .iter_mut()
+        .for_each(|rule| rule.disable());
+    rules.select_mut(&selector).for_each(|x| x.enable());
+    rules
+        .suggest(text, &*TOKENIZER)
+        .into_iter()
+        .map(|s| {
+            (
+                s.source().to_string(),
+                s.span().char().clone(),
+                s.replacements().to_vec(),
+            )
+        })
+        .collect()
+}
+
+#[test]
+fn apostrophe_type_filter_reads_the_raw_apostrophe() {
+    let text = "An actress\u{2019}s role. An actress's role.\u{2028}\u{201c}She didn\u{2019}t \
+                know\u{2026},\u{201d} he said \u{2014} the old man\u{2019}s dog ran to the bank \
+                and \u{2018}that\u{2019}s that\u{2019} \u{2014} I can\u{2019}t.";
+    let spans = |selector: &str| -> Vec<(std::ops::Range<usize>, Vec<String>)> {
+        rule_matches(selector, text)
+            .into_iter()
+            .map(|(_, span, replacements)| (span, replacements))
+            .collect()
+    };
+
+    assert_eq!(
+        spans("typography/typewriter_apostrophe"),
+        vec![
+            (10..12, vec!["'s".to_string()]),
+            (79..81, vec!["'s".to_string()]),
+            (111..113, vec!["'s".to_string()]),
+        ]
+    );
+    assert_eq!(
+        spans("typography/typographical_apostrophe"),
+        vec![(29..31, vec!["\u{2019}s".to_string()])]
+    );
+}
+
+#[test]
+fn apostrophe_type_filter_on_fiction_clitics() {
+    let text = "\u{201c}Give \u{2019}em hell,\u{201d} said James\u{2019} brother\u{2014}rock \
+                \u{2019}n\u{2019} roll\u{2026}\u{2028}I\u{2019}ll go. Rock 'n' roll.";
+    let spans = |selector: &str| -> Vec<(std::ops::Range<usize>, Vec<String>)> {
+        rule_matches(selector, text)
+            .into_iter()
+            .map(|(_, span, replacements)| (span, replacements))
+            .collect()
+    };
+
+    assert_eq!(
+        spans("typography/typewriter_apostrophe"),
+        vec![
+            (42..45, vec!["'n'".to_string()]),
+            (53..56, vec!["'ll".to_string()]),
+        ]
+    );
+    assert_eq!(
+        spans("typography/typographical_apostrophe"),
+        vec![(66..69, vec!["\u{2019}n\u{2019}".to_string()])]
+    );
+}
+
+#[test]
+fn consecutive_spaces_match_like_languagetool() {
+    let spans = |selector: &str, text: &str| -> Vec<std::ops::Range<usize>> {
+        rule_matches(selector, text)
+            .into_iter()
+            .map(|(_, span, _)| span)
+            .collect()
+    };
+
+    assert_eq!(
+        spans(
+            "typography/consecutive_spaces",
+            "This is a  sentence with two spaces.  Next."
+        ),
+        vec![9..11]
+    );
+    assert_eq!(
+        spans("typography/consecutive_spaces", "This  is  a  test."),
+        vec![4..6, 8..10]
+    );
+    assert_eq!(
+        spans(
+            "typography/consecutive_spaces",
+            "\u{201c}Wait.\u{201d}  She left \u{2014} then  came back\u{2026}  \u{201c}Fine,\u{201d} he said.\u{2028}"
+        ),
+        vec![24..26]
+    );
+    assert_eq!(
+        spans(
+            "typography/consecutive_spaces_single_char",
+            "This  is  a  test."
+        ),
+        vec![11..13]
+    );
+}
