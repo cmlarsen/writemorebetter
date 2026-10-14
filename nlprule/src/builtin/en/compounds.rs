@@ -449,3 +449,49 @@ fn sub_rule_id(compound: &str) -> String {
         })
         .collect()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn data_reads_the_suffixes() {
+        let data = CompoundData::new(
+            [
+                "# comment",
+                "part-time*",
+                "back-fire+",
+                "Web-Site?",
+                "e-mail$ # both",
+                "well-being",
+            ]
+            .iter()
+            .map(|x| x.to_string())
+            .collect(),
+        );
+        assert!(data.dash.contains("part time") && !data.joined.contains("part time"));
+        assert!(data.joined.contains("back fire") && !data.dash.contains("back fire"));
+        assert_eq!(data.joined_lowercase, vec!["Web Site", "e mail"]);
+        assert!(data.dash.contains("e mail") && data.joined.contains("e mail"));
+        assert!(data.dash.contains("well being") && data.joined.contains("well being"));
+        assert_eq!(data.incorrect.len(), 5);
+    }
+
+    #[test]
+    fn helpers_follow_language_tool() {
+        assert_eq!(normalize(" part - time\u{2028}"), "part time\u{2028}");
+        assert_eq!(normalize("self\r\n  driven"), "self driven");
+        assert_eq!(merge_compound("Web Site", true), "Website");
+        assert_eq!(merge_compound("back-fire", false), "backfire");
+        assert_eq!(collapse_hyphens("a--b---c"), "a-b-c");
+        assert_eq!(replace_digits("5 year 10"), "\\d+ year \\d+");
+        assert!(!is_not_all_uppercase("PART time"));
+        assert!(is_not_all_uppercase("Part - time"));
+        assert_eq!(sub_rule_id("e mail"), "EN_COMPOUNDS_E_MAIL");
+        assert_eq!(sub_rule_id("o'clock"), "EN_COMPOUNDS_O_Q_CLOCK");
+        assert_eq!(
+            sub_rule_id("caf\u{e9} au lait"),
+            "EN_COMPOUNDS_CAF\u{c9}_AU_LAIT"
+        );
+    }
+}

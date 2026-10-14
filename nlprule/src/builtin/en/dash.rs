@@ -148,3 +148,41 @@ fn to_hyphens(text: &str) -> String {
     }
     result
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn to_hyphens_replaces_dashes_with_their_spaces() {
+        assert_eq!(to_hyphens("T\u{2014}shirt"), "T-shirt");
+        assert_eq!(to_hyphens("T \u{2013} shirt"), "T-shirt");
+        assert_eq!(
+            to_hyphens("mother \u{2014} in \u{2014} law"),
+            "mother-in-law"
+        );
+    }
+
+    #[test]
+    fn new_skips_joined_only_compounds_and_strips_suffixes() {
+        let rule = Dash::new(
+            [
+                "# comment",
+                "",
+                "T-shirt",
+                "web-cam+",
+                "e-mail?",
+                "well-being*",
+                "x-ray$",
+            ]
+            .iter()
+            .map(|x| x.to_string())
+            .collect(),
+        );
+        assert!(rule.is_dashed_compound("T\u{2014}shirt"));
+        assert!(rule.is_dashed_compound("well \u{2013} being"));
+        assert!(rule.is_dashed_compound("x\u{2013}ray"));
+        assert!(!rule.is_dashed_compound("web\u{2014}cam"));
+        assert!(!rule.is_dashed_compound("e\u{2014}mail"));
+    }
+}

@@ -555,3 +555,29 @@ fn java_replacement(replacement: &str) -> String {
     }
     result
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn uppercase_first_char_skips_leading_non_alphanumerics() {
+        assert_eq!(uppercase_first_char("(either one)"), "(Either one)");
+        assert_eq!(
+            uppercase_first_char("\u{201c}well\u{201d}"),
+            "\u{201c}Well\u{201d}"
+        );
+        assert_eq!(uppercase_first_char("\u{2026}"), "\u{2026}");
+        assert_eq!(uppercase_first_char(""), "");
+    }
+
+    #[test]
+    fn java_replacement_drops_escaping_backslashes() {
+        assert_eq!(java_replacement(r"a\b"), "ab");
+        assert_eq!(java_replacement(r"a\\b"), r"a\b");
+        assert_eq!(
+            java_replacement("she\u{2019}d\u{2014}no"),
+            "she\u{2019}d\u{2014}no"
+        );
+    }
+}

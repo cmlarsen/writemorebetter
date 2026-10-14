@@ -4540,10 +4540,27 @@ fn builtin_plain_english_and_redundancy_flag_phrases() {
     );
     assert_eq!(
         builtin_flags(
+            "EN_PLAIN_ENGLISH_REPLACE",
+            "\u{201c}She\u{2019}d a fatal outcome,\u{201d} he said.\u{2028}Fatal outcome."
+        ),
+        vec![
+            flag("fatal outcome", &["death"]),
+            flag("Fatal outcome", &["Death"])
+        ]
+    );
+    assert_eq!(
+        builtin_flags(
             "EN_REDUNDANCY_REPLACE",
             "\u{201c}A tuna fish,\u{201d} she\u{2019}d said.\u{2028}Tuna fish again."
         ),
         vec![flag("tuna fish", &["tuna"]), flag("Tuna fish", &["Tuna"])]
+    );
+    assert_eq!(
+        builtin_flags(
+            "EN_REDUNDANCY_REPLACE",
+            "A tuna fish\u{2014}no\u{2026} a tuna fish."
+        ),
+        vec![flag("tuna fish", &["tuna"]), flag("tuna fish", &["tuna"])]
     );
 }
 
@@ -4555,6 +4572,10 @@ fn builtin_profanity_flags_without_suggestions() {
             "\u{201c}What a twat,\u{201d} he said\u{2026} arsehole\u{2014}really.\u{2028}Twat."
         ),
         vec![flag("twat", &[]), flag("arsehole", &[]), flag("Twat", &[])]
+    );
+    assert_eq!(
+        builtin_flags("PROFANITY", "She\u{2019}s a twat\u{2019}s friend."),
+        vec![flag("twat", &[])]
     );
 }
 
