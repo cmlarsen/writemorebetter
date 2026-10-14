@@ -118,7 +118,7 @@ impl RepeatedWords {
         let mut tokens: Vec<&Token> = vec![Token::sent_start()];
         tokens.extend(sentence.tokens());
 
-        let ends_with_whitespace = sentence.text().ends_with(is_java_whitespace);
+        let ends_with_whitespace = sentence.text().ends_with(is_trailing_token);
         let last = tokens[tokens.len() - 1].word().text().as_str();
         if (ends_text && ends_with_whitespace) || !matches!(last, "." | "!" | "?") {
             return Vec::new();
@@ -288,11 +288,11 @@ fn is_capitalized_word(text: &str) -> bool {
         && chars.all(|c| !c.is_alphabetic() || c.is_lowercase())
 }
 
-/// Whether LanguageTool keeps `c` as a whitespace token.
-fn is_java_whitespace(c: char) -> bool {
-    c <= ' '
-        || c == '\u{200B}'
-        || (c.is_whitespace() && !matches!(c, '\u{A0}' | '\u{2007}' | '\u{202F}'))
+/// Whether LanguageTool keeps `c` as a token after the last word or
+/// punctuation of a text: whitespace, or a no-break space, which it does not
+/// count as whitespace and keeps as a token of its own.
+fn is_trailing_token(c: char) -> bool {
+    c <= ' ' || c == '\u{200B}' || c.is_whitespace()
 }
 
 fn uppercase_first_char(text: &str) -> String {
@@ -330,15 +330,18 @@ fn parse_synonyms(line: &str, words: &mut DefaultHashMap<String, Synonyms>) -> R
     let error = || format!("malformed synonym line: {}", line);
     let full_match = |pattern: &str| compiled(format!("^(?:{})$", pattern), line);
 
-    let parts: Vec<&str> = line.split('=').collect();
+    let parts = java_split(line, '=');
     match parts.as_slice() {
         [word, synonyms] => {
-            let synonyms: Vec<String> = synonyms.split(';').map(str::to_owned).collect();
-            let mut fields = word.split('/');
+            let synonyms: Vec<String> = java_split(synonyms, ';')
+                .into_iter()
+                .map(str::to_owned)
+                .collect();
+            let mut fields = java_split(word, '/').into_iter();
             let word = fields.next().unwrap_or("");
             let pos = fields.next().map(full_match).transpose()?;
             let chunk = fields.next().map(full_match).transpose()?;
-            if word.is_empty() || words.contains_key(word) {
+            if word.is_empty() || synonyms.is_empty() || words.contains_key(word) {
                 return Err(error());
             }
             words.insert(
@@ -351,7 +354,7 @@ fn parse_synonyms(line: &str, words: &mut DefaultHashMap<String, Synonyms>) -> R
             );
         }
         [group] => {
-            let group: Vec<&str> = group.split(';').collect();
+            let group = java_split(group, ';');
             if group.len() < 2 {
                 return Err(error());
             }
@@ -378,6 +381,18 @@ fn parse_synonyms(line: &str, words: &mut DefaultHashMap<String, Synonyms>) -> R
     }
 
     Ok(())
+}
+
+/// Splits `text` at `separator` like Java's `String.split`, which drops the
+/// empty strings at the end, so `a;b;` gives `a` and `b`.
+fn java_split(text: &str, separator: char) -> Vec<&str> {
+    let mut parts: Vec<&str> = text.split(separator).collect();
+    if parts.len() > 1 {
+        while parts.last() == Some(&"") {
+            parts.pop();
+        }
+    }
+    parts
 }
 
 fn compiled(pattern: String, line: &str) -> Result<Regex, String> {
@@ -428,4 +443,31 @@ fn parse_antipattern(line: &str) -> Result<Vec<PatternToken>, String> {
         return Err(format!("empty antipattern: {}", line));
     }
     Ok(pattern)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn rule(synonym_lines: &[&str]) -> Result<RepeatedWords, String> {
+        let lines: Vec<String> = synonym_lines.iter().map(|x| (*x).to_owned()).collect();
+        RepeatedWords::new(&lines, &[])
+    }
+
+    #[test]
+    fn synonym_lines_split_like_java() {
+        let rule = rule(&["nice/JJ=pleasant;charming;", "big;large; # comment"]).unwrap();
+        assert_eq!(rule.words["nice"].synonyms, ["pleasant", "charming"]);
+        assert_eq!(rule.words["big"].synonyms, ["large"]);
+        assert_eq!(rule.words["large"].synonyms, ["big"]);
+    }
+
+    #[test]
+    fn malformed_synonym_lines_are_errors() {
+        assert!(rule(&["nice="]).is_err());
+        assert!(rule(&["nice=a=b"]).is_err());
+        assert!(rule(&["nice"]).is_err());
+        assert!(rule(&["nice=a", "nice=b"]).is_err());
+        assert!(rule(&["nice/(=a"]).is_err());
+    }
 }

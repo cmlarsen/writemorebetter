@@ -62,7 +62,8 @@ Disables exactly these:
 `EN_REPEATEDWORDS` (synonyms for a word repeated within 150 words) needs no
 entry: it is off by default (`picky` in LT), and when enabled it already skips
 every sentence that does not end in `.`, `!` or `?`, which leaves out dialogue
-that ends in a closing quote. Its word list is short (about 40 words such as
+that ends in a closing quote. Dialogue followed by a tag (`“Definitely,” she
+said.`) is still checked. Its word list is short (about 40 words such as
 "nice", "amazing", "definitely"), so an author who turns it on gets few flags.
 
 Applying it to the compiled English rules disables 147 rules and reports 0

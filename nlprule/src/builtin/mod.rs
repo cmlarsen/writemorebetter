@@ -87,17 +87,35 @@ impl Builtin {
     /// Like [`Builtin::check_text`], but for a paragraph that follows `previous`,
     /// the last sentence of the preceding paragraph. Only rules that are
     /// text-level in LanguageTool (and therefore look across paragraphs) use it.
+    /// The rules that count words across a text (`EN_REPEATEDWORDS`,
+    /// `TOO_OFTEN_USED_*`) take `sentences` as the whole text.
     pub fn check_text_with_previous(
         &self,
         sentences: &[Sentence],
         previous: Option<&Sentence>,
     ) -> Vec<Suggestion> {
-        self.check_paragraph(sentences, previous, true)
+        match self {
+            Builtin::RepeatedWords(_) | Builtin::TooOftenUsed(_) => {
+                let mut state = RuleState::default();
+                let mut suggestions: Vec<Suggestion> = sentences
+                    .iter()
+                    .enumerate()
+                    .flat_map(|(i, sentence)| {
+                        self.check_in_text(sentence, i + 1 == sentences.len(), &mut state)
+                    })
+                    .collect();
+                suggestions.extend(self.finish_text(&state));
+                suggestions
+            }
+            _ => self.check_paragraph(sentences, previous, true),
+        }
     }
 
     /// Like [`Builtin::check_text_with_previous`], for a paragraph that is
     /// followed by more text unless `ends_text` is set. Only rules that look at
-    /// the end of the text (`EMPTY_LINE`) use `ends_text`.
+    /// the end of the text (`EMPTY_LINE`) use `ends_text`. The rules that count
+    /// words across a text return nothing here: [`Rules::suggest`](crate::Rules::suggest)
+    /// runs them on the whole text.
     pub fn check_paragraph(
         &self,
         sentences: &[Sentence],
