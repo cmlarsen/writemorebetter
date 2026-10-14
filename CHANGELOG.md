@@ -20,7 +20,28 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   sentence and paragraph boundaries, and the count starts from zero on every `Rules::suggest`
   call, so an app that checks text incrementally sees repetitions only within the text it passes
   (`Rules::apply` sees only its one sentence). The fiction profile turns `REP_THANK_YOU_FOR` off,
-  since dialogue repeats it on purpose. The rules binary format version is now 22.
+  since dialogue repeats it on purpose. The rules binary format version is now 26.
+- **Whitespace and double-punctuation checks.** Four more of LanguageTool's Java-coded rules run
+  as builtins ([#80](https://github.com/cmlarsen/writemorebetter/issues/80)):
+  `DOUBLE_PUNCTUATION` flags `..` and `,,` (ellipses, `?..`, `!..` and `…` next to a dot are
+  left alone), `WHITESPACE_RULE` flags repeated whitespace such as two spaces between words,
+  `SENTENCE_WHITESPACE` flags a sentence that follows the previous one without a space
+  (`world.This`), and `EMPTY_LINE` flags more than one empty line between paragraphs. As in
+  LanguageTool 6.6, `EMPTY_LINE` is off by default; enable it through `Rules::builtins_mut`. The
+  fiction profile keeps all four but stops `WHITESPACE_RULE` from flagging the spaces that indent
+  a paragraph or line, which LanguageTool flags whenever the previous paragraph ends a sentence.
+  A profile selector can now name a builtin case, as in `BUILTIN/WHITESPACE_RULE/INDENTATION`. The
+  rules binary format version is now 23.
+- **The speller-backed rule filters are ported, so nine more rules run.** `FindSuggestionsFilter`
+  (`PRP_MD_NN` [5] and [6], `A_INFINITIVE` [0] and [1]), `EnglishSuppressMisspelledSuggestionsFilter`
+  (`EN_SPLIT_WORDS_HYPHEN` [0]–[3]) and `EnglishNumberInWordFilter` (`NUMBERS_IN_WORDS`) now
+  compile and query the speller while a rule matches
+  ([#71](https://github.com/cmlarsen/writemorebetter/issues/71)), so "Go0d morning" suggests
+  "Good" and "The break- up" suggests "break-up". `FindSuggestionsFilter` searches the speller's
+  word list where LanguageTool searches its tagger dictionary, so some candidates differ
+  ([#135](https://github.com/cmlarsen/writemorebetter/issues/135)). The rules binary format
+  version is now 22.
+
 - **Rule filters can query the speller while a rule matches.** `Spell::speller()` returns a
   read-only `Speller` for the selected variant with `is_correct(word)` and `suggest(word, n)`,
   and the grammar-rule filters receive it alongside the rule match, ready for the speller-backed
@@ -51,9 +72,32 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   `Rules::suggest` keeps the raw tokens only while such a rule is enabled (a text-only
   `raw_pos` rule such as `TYPOS/CONTRACTION_CASE/0` does not count); `Tokenizer::pipe` always
   keeps them. Rules binaries move to format version 18 (`Rule::raw_pos`); recompile them.
+- **Grammar-rule suggestions can spell out numbers.** `<match postag="_spell_number_"/>` now
+  writes the matched number in English words as LanguageTool 6.6 does (`12` → `twelve`,
+  `1001` → `one thousand and one`, `100200` → `one hundred thousand, two hundred`, up to 45
+  digits, leading zeros ignored); anything other than plain ASCII digits is not spelled and the
+  match is dropped as before. The off-by-default `STYLE/SENT_START_NUM/0` now suggests
+  `Twelve` for `12 soldiers were killed!`
+  ([#163](https://github.com/cmlarsen/writemorebetter/issues/163)). Rules binaries move to
+  format version 24 (`PosReplacer::spell_number`); recompile them.
 
 ### Fixed
 
+- **The apostrophe-style rules see a curly apostrophe, as in LanguageTool 6.6.** The opt-in
+  `TYPEWRITER_APOSTROPHE` rule now flags `’s` in `actress’s` and suggests `'s` (a straight
+  apostrophe in a suggestion is no longer made curly when that would repeat the flagged text),
+  and the opt-in `TYPOGRAPHICAL_APOSTROPHE` rule no longer flags a `’s` that is already curly:
+  their filter read the token after its curly apostrophe was normalized to a straight one. The
+  rules compiler also keeps a whitespace-only `<marker>` in rule examples, so `CONSECUTIVE_SPACES`
+  and `CONSECUTIVE_SPACES_SINGLE_CHAR` pass their examples. Checking output with the default rules
+  is unchanged on the golden texts ([#76](https://github.com/cmlarsen/writemorebetter/issues/76)).
+- **A `<token>` combining a `<match>` reference with literal text matches both, as in LanguageTool
+  6.6.** `<token><match no="0"/>s</token>` now matches the referenced token's text followed by
+  `s` instead of the referenced text alone, so `TYPO_OR_OF` (off by default) no longer flags
+  "the active couple or actives" ([#164](https://github.com/cmlarsen/writemorebetter/issues/164)).
+  Literal text around a reference that also carries `postag` or `regexp="yes"` is rejected at
+  compile time. `TOKENIZER_FORMAT_VERSION` is now 16 and `RULES_FORMAT_VERSION` 25, so binaries
+  built by earlier versions must be rebuilt.
 - **Spelling suggestions rank by edit distance, then frequency, as in LanguageTool 6.6.** A
   common word two edits away no longer outranks a rarer word one edit away, and only the
   candidates at the smallest edit distance found are suggested, so `Hecla` suggests `Hekla`
@@ -75,6 +119,14 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   raises a false unpaired-quote error; here those quotes stay tokens of their own. The
   unpaired-quote rule no longer treats the apostrophe of such a word as a closing quote, so
   `‘Doin’ fine,’ she said.` is not flagged. The tokenizer binary format version is now 15.
+- **A g-dropped word right after an opening straight single quote stays whole.** In
+  `'goin' home,' she said.`, `'Nothin',' she said.` and `'Comin' through!'` the opening `'` is
+  now its own token and `goin'`, `Nothin'` and `Comin'` stay one word tagged as their `-ing`
+  form, as they already were after a curly `‘`
+  ([#188](https://github.com/cmlarsen/writemorebetter/issues/188)). This deliberately differs
+  from LanguageTool 6.6, which splits `'goin'` at both apostrophes, flags `goin` as a misspelling
+  and the closing quote as unpaired. A word whose stem is itself a word (`'sin'`, `'Robin'`) and
+  an ordinary quoted word (`'hello'`) are still split as before.
 - **Grammar-rule antipatterns immunize tokens, as in LanguageTool 6.6.** A pattern element can no
   longer match a token covered by one of the rule's antipatterns, and a `skip` continues past such
   a token to a later one, instead of the whole match being dropped when it overlaps an

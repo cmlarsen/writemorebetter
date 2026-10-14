@@ -595,6 +595,24 @@ impl VariantChecker {
             .collect()
     }
 
+    /// Every word of this variant within `max_distance` edits of `word`, ignoring ASCII case,
+    /// nearest first and then in byte order, spelled as the speller stores it.
+    fn similar(&self, fst: &Map<&[u8]>, word: &str, max_distance: usize) -> Vec<String> {
+        let query = levenshtein::Levenshtein::new(word, max_distance, 0).fold_case(true);
+        let mut out = Vec::new();
+        let mut stream = fst.search_with_state(query).into_stream();
+        while let Some((k, v, s)) = stream.next() {
+            if !SpellInt(v).contains_variant(self.variant_index) {
+                continue;
+            }
+            let state = s.expect("matching levenshtein state is always `Some`.");
+            let term = String::from_utf8(k.to_vec()).expect("fst keys must be valid utf-8.");
+            out.push((state.dist(), term));
+        }
+        out.sort();
+        out.into_iter().map(|(_, term)| term).collect()
+    }
+
     /// Pushes the candidates of one speller FST into `out`, capping it at `top_n`.
     fn push_candidates(
         &self,
@@ -978,6 +996,17 @@ impl<'a> Speller<'a> {
         let mut suggestions = self.checker.search(&self.fst, &word);
         suggestions.truncate(n);
         suggestions
+    }
+
+    /// Every known word within `max_distance` edits of `word`, ignoring ASCII case, nearest first
+    /// and then in byte order, like Morfologik's `findSimilarWords`. Unlike [`Speller::suggest`]
+    /// it is not capped, not ranked by frequency, and does not consult the user dictionary.
+    pub(crate) fn similar(&self, word: &str, max_distance: usize) -> Vec<String> {
+        let word = Self::normalize(word);
+        if word.is_empty() {
+            return Vec::new();
+        }
+        self.checker.similar(&self.fst, &word, max_distance)
     }
 
     fn normalize(word: &str) -> Cow<'_, str> {
