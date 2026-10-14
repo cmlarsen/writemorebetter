@@ -198,6 +198,23 @@ fn best_before_a_preposition_is_a_superlative_adjective() {
 }
 
 #[test]
+fn default_disambiguation_keeps_the_last_reading_with_the_tag() {
+    for text in [
+        "His motives were unclear.",
+        "\u{201c}His motives were unclear\u{2014}truly\u{2026}\u{201d}",
+        "Mara\u{2019}s motives were unclear.",
+        "His motives\u{2028}were unclear.",
+    ] {
+        assert_eq!(readings(text, "motives"), vec!["motif/NNS"], "{}", text);
+    }
+
+    assert_eq!(
+        readings("\u{201c}Her motives?\u{201d} he asked.", "motives"),
+        vec!["motive/NNS", "motif/NNS"]
+    );
+}
+
+#[test]
 fn lemma_only_removal_drops_the_instal_readings() {
     for (text, word, expected) in [
         ("Did you installed the new app?", "installed", "install/VBD"),
