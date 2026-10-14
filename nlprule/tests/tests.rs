@@ -2750,6 +2750,21 @@ fn long_unterminated_sentence_is_tagged_the_same_at_every_repeat() {
 }
 
 #[test]
+fn very_long_unterminated_sentence_tokenizes_in_near_linear_time() {
+    let snippet = "“We’re not going—not yet…” she said, and the dogs’ barks\u{2028}echoed across \
+                   the old man’s fields while they waited ";
+    let text = snippet.repeat(3000);
+
+    let start = std::time::Instant::now();
+    assert_eq!(TOKENIZER.pipe(&text).count(), 1);
+    assert!(
+        start.elapsed() < std::time::Duration::from_secs(15),
+        "tokenizing a 3,000-copy unterminated sentence took {:?}",
+        start.elapsed()
+    );
+}
+
+#[test]
 fn speller_falls_back_to_the_default_variant_while_spellchecking_is_off() {
     let mut rules = Rules::new(RULES_PATH).unwrap();
     assert!(rules.spell().options().variant.is_none());

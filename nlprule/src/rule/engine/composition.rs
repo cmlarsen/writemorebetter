@@ -380,7 +380,13 @@ impl Group {
         let start = self.span.char().start;
         let end = self.span.char().end;
 
-        sentence.iter().filter(move |x| {
+        let tokens = sentence.sentence.tokens();
+        let lo = tokens.partition_point(|x| x.span().char().start < start);
+        let hi = tokens
+            .partition_point(|x| x.span().char().start < end)
+            .max(lo);
+
+        tokens[lo..hi].iter().filter(move |x| {
             x.span().char().end > x.span().char().start // special tokens with zero range (e. g. SENT_START) can not be part of groups
                 && x.span().char().start >= start
                 && x.span().char().end <= end

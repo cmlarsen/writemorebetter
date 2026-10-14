@@ -76,6 +76,13 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   tokens inside its match, and the beam search keeps shared back-pointers. A 5,000-word sentence
   with no terminator now checks in ~0.8 s instead of ~6.6 s; output is unchanged
   ([#101](https://github.com/cmlarsen/writemorebetter/issues/101)).
+- **Disambiguation rebuilt the whole sentence after every applied rule.** It now keeps one
+  matchable copy of the sentence and refreshes only the tokens a rule changed. Finding a match
+  group's tokens and a change's tokens now binary-searches the sentence instead of scanning every
+  token per match, and the chunker no longer scans the whole sentence per word (its internal
+  tokenizer) or per chunk (plural lookup and chunk assignment). Sequential tokenization of a
+  7,000-token sentence drops from ~0.26 s to ~0.16 s, and of a ~60,000-token one from ~28 s to
+  ~3.5 s; output is unchanged ([#125](https://github.com/cmlarsen/writemorebetter/issues/125)).
 - **Edge cases in the rule compiler and tagger.** A possessive or counted optional regex assertion
   (`x$?+y`, `x$?{2}y`) now compiles to `xy` as Java matches it, instead of re-binding the
   quantifier to the previous atom; a bounded lookbehind with more than 256 variants now reports
