@@ -9,6 +9,7 @@
 //! Both rules are paragraph-level: they see every sentence of one paragraph, so
 //! a symbol opened in one sentence and closed in a later one still pairs.
 
+use crate::tokenizer::is_apostrophe;
 use crate::types::{Position, Sentence, Span, Suggestion};
 use serde::{Deserialize, Serialize};
 
@@ -36,6 +37,9 @@ struct Piece<'s> {
     start: Position,
     end: Position,
     sentence: usize,
+    /// Whether this is the trailing apostrophe of a word token the tokenizer kept
+    /// whole, such as `doin’`. LanguageTool sees such a token as a word, not a quote.
+    word_tail: bool,
 }
 
 /// Flattens all characters of a paragraph into one list so that a character's
@@ -56,6 +60,11 @@ fn flatten<'s>(sentences: &'s [Sentence<'_>]) -> Vec<Piece<'s>> {
             let text = &sentence_text[token.span().byte().start - sentence_start
                 ..token.span().byte().end - sentence_start];
             let start = token.span().start();
+            let tail_byte = text
+                .char_indices()
+                .last()
+                .filter(|&(i, c)| i > 0 && is_apostrophe(c) && is_word(&text[..i]))
+                .map(|(i, _)| i);
             let mut char_offset = 0;
             for (byte_offset, ch) in text.char_indices() {
                 let end_byte = byte_offset + ch.len_utf8();
@@ -70,6 +79,7 @@ fn flatten<'s>(sentences: &'s [Sentence<'_>]) -> Vec<Piece<'s>> {
                         char: start.char + char_offset + 1,
                     },
                     sentence,
+                    word_tail: tail_byte == Some(byte_offset),
                 });
                 char_offset += 1;
             }
@@ -324,6 +334,9 @@ impl UnpairedQuotes {
         let mut seen_opening = false;
 
         for k in 0..pieces.len() {
+            if pieces[k].word_tail {
+                continue;
+            }
             let sym = first_char(pieces[k].text);
             if START_QUOTES.contains(&sym) && is_opening_quote(&pieces, k) {
                 seen_opening = true;
