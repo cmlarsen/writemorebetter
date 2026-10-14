@@ -64,10 +64,30 @@ extern crate serde_crate as serde;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-use std::{collections::HashMap, ops::Range};
+use std::{
+    collections::HashMap,
+    ops::Range,
+    sync::{Arc, OnceLock},
+};
 
 use regex::Regex as RegexCrate;
-use regex_automata::meta::Regex;
+use regex_automata::{meta::Regex, Anchored, Input, MatchKind, PatternID};
+
+const AFTER_BREAK_GROUP: &str = "srx_after_break";
+
+/// Joins a rule's `before_break` and `after_break` into the single pattern the rule is compiled from.
+pub(crate) fn rule_pattern(before_break: &str, after_break: &str) -> String {
+    format!("(?:{before_break})(?P<{AFTER_BREAK_GROUP}>{after_break})")
+}
+
+/// Splits a pattern built by [`rule_pattern`] back into `before_break` and `after_break`.
+fn split_rule_pattern(pattern: &str) -> Option<(&str, &str)> {
+    let marker = format!(")(?P<{AFTER_BREAK_GROUP}>");
+    let index = pattern.rfind(&marker)?;
+    let before_break = pattern.strip_prefix("(?:")?.get(..index - 3)?;
+    let after_break = pattern[index + marker.len()..].strip_suffix(')')?;
+    Some((before_break, after_break))
+}
 
 /// Builds the matcher for a `before_break(after_break)` rule pattern.
 ///
@@ -99,20 +119,89 @@ pub use from_xml::Error;
 pub struct Language(pub String);
 
 /// A single SRX rule. In SRX, consists of one `before_break` and one `after_break` Regex.
-/// For efficiency this crate compiles these regexes into one regex of the form `before_break(after_break)`
-/// and uses the start of the first capture group as the split index.
+/// For efficiency this crate compiles these regexes into one regex of the form
+/// `(?:before_break)(?P<srx_after_break>after_break)` and uses the start of the named group as the split index.
+/// Patterns serialized before the group was named are of the form `before_break(after_break)`;
+/// for those the first capture group is used.
 ///
 /// Serialization is implemented by hand: the compiled matcher is serialized as
 /// the pattern string it was built from, exactly like the previous
 /// `serde_regex` representation of `regex::Regex`, so the on-disk format is
-/// unchanged. Deserialization rebuilds the matcher with [`build_regex`].
+/// unchanged. Deserialization rebuilds the matcher with [`Rule::from_pattern`].
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 struct Rule {
-    /// The `before_break(after_break)` pattern the rule was compiled from.
+    /// The `(?:before_break)(?P<srx_after_break>after_break)` pattern the rule was compiled from.
     regex_str: String,
-    regex: Regex,
+    regex: Matcher,
+    split_group: usize,
+    /// Built on first use, since most `break="no"` rules never match.
+    exception: OnceLock<Option<Exception>>,
     do_break: bool,
+}
+
+/// How a `break="no"` rule is checked at a position, like the Java SRX implementation
+/// LanguageTool uses: it suppresses a break at every index where some match of `before_break`
+/// ends and `after_break` matches. One search of the combined pattern yields only one split per
+/// match start, so `["”'’]\s*` + `\s*\p{Ll}` would miss the index after the first of two spaces.
+#[derive(Debug, Clone)]
+struct Exception {
+    /// `before_break` with [`MatchKind::All`], so an anchored search finds its longest match.
+    before_break: Regex,
+    /// `after_break`, or `None` when it is empty.
+    after_break: Option<Regex>,
+}
+
+impl Exception {
+    fn new(pattern: &str) -> Option<Self> {
+        let (before_break, after_break) = split_rule_pattern(pattern)?;
+        let before_break = Regex::builder()
+            .configure(
+                Regex::config()
+                    .onepass(false)
+                    .hybrid(false)
+                    .dfa(false)
+                    .match_kind(MatchKind::All),
+            )
+            .build(before_break)
+            .ok()?;
+        let after_break = if after_break.is_empty() {
+            None
+        } else {
+            Some(
+                Regex::builder()
+                    .configure(Regex::config().onepass(false).hybrid(false).dfa(false))
+                    .build(after_break)
+                    .ok()?,
+            )
+        };
+        Some(Exception {
+            before_break,
+            after_break,
+        })
+    }
+
+    /// Pushes every index at which a match of `before_break` starting at `start` ends and
+    /// `after_break` matches.
+    fn split_indices(&self, text: &str, start: usize, out: &mut Vec<usize>) {
+        let mut end = text.len();
+        while let Some(found) = self
+            .before_break
+            .search(&Input::new(text).range(start..end).anchored(Anchored::Yes))
+        {
+            let split = found.end();
+            let after_matches = self.after_break.as_ref().is_none_or(|after_break| {
+                after_break.is_match(Input::new(text).range(split..).anchored(Anchored::Yes))
+            });
+            if after_matches {
+                out.push(split);
+            }
+            if split == start {
+                break;
+            }
+            end = split - 1;
+        }
+    }
 }
 
 #[cfg(feature = "serde")]
@@ -146,25 +235,113 @@ impl<'de> Deserialize<'de> for Rule {
         }
 
         let Repr { regex, do_break } = Repr::deserialize(deserializer)?;
-        let compiled = build_regex(&regex).map_err(serde::de::Error::custom)?;
-        Ok(Rule {
-            regex_str: regex,
-            regex: compiled,
-            do_break,
-        })
+        Rule::from_pattern(regex, do_break).map_err(serde::de::Error::custom)
     }
 }
 
+/// The compiled form of a rule pattern. SRX patterns are Java regexes; the few that use
+/// look-around, which `regex-automata` does not support, are compiled with `fancy-regex`.
+#[derive(Debug, Clone)]
+enum Matcher {
+    Automata(Regex),
+    Fancy(Arc<fancy_regex::Regex>),
+}
+
 impl Rule {
+    fn from_pattern(
+        regex_str: String,
+        do_break: bool,
+    ) -> Result<Self, Box<regex_automata::meta::BuildError>> {
+        let (regex, split_group) = match build_regex(&regex_str) {
+            Ok(regex) => {
+                let split_group = regex
+                    .group_info()
+                    .to_index(PatternID::ZERO, AFTER_BREAK_GROUP)
+                    .unwrap_or(1);
+                (Matcher::Automata(regex), split_group)
+            }
+            Err(error) => {
+                let regex = fancy_regex::Regex::new(&regex_str).map_err(|_| Box::new(error))?;
+                let split_group = regex
+                    .capture_names()
+                    .position(|name| name == Some(AFTER_BREAK_GROUP))
+                    .unwrap_or(1);
+                (Matcher::Fancy(Arc::new(regex)), split_group)
+            }
+        };
+
+        Ok(Rule {
+            regex_str,
+            regex,
+            split_group,
+            exception: OnceLock::new(),
+            do_break,
+        })
+    }
+
+    fn exception(&self) -> Option<&Exception> {
+        match (&self.regex, self.do_break) {
+            (Matcher::Automata(_), false) => self
+                .exception
+                .get_or_init(|| Exception::new(&self.regex_str))
+                .as_ref(),
+            _ => None,
+        }
+    }
+
     /// Gets all byte indices in the text at which this rule matches.
-    /// Contrary to the SRX 2.0 spec this does not find overlapping matches.
-    fn match_indices<'a>(&'a self, text: &'a str) -> impl Iterator<Item = usize> + 'a {
-        self.regex.captures_iter(text).filter_map(|x| {
+    /// Matches may overlap: the search for the next match resumes one character after the start of
+    /// the previous one. For a `break="no"` rule every split of a match is found (see [`Exception`]).
+    fn match_indices(&self, text: &str) -> Vec<usize> {
+        let mut indices = Vec::new();
+        let mut captures = match &self.regex {
+            Matcher::Automata(regex) => Some(regex.create_captures()),
+            Matcher::Fancy(_) => None,
+        };
+        let mut start = 0;
+
+        while start <= text.len() {
+            let (found_start, split) = match (&self.regex, captures.as_mut()) {
+                (Matcher::Automata(regex), Some(captures)) => {
+                    regex.search_captures(&Input::new(text).range(start..), captures);
+                    let Some(found) = captures.get_match() else {
+                        break;
+                    };
+                    let split = captures.get_group(self.split_group).map(|span| span.start);
+                    (found.start(), split)
+                }
+                (Matcher::Fancy(regex), _) => {
+                    let captures = match regex.captures_from_pos(text, start) {
+                        Ok(Some(captures)) => captures,
+                        Ok(None) => break,
+                        Err(_) => {
+                            start += text[start..].chars().next().map_or(1, char::len_utf8);
+                            continue;
+                        }
+                    };
+                    let Some(found) = captures.get(0) else {
+                        break;
+                    };
+                    let split = captures.get(self.split_group).map(|span| span.start());
+                    (found.start(), split)
+                }
+                (Matcher::Automata(_), None) => break,
+            };
+
+            start = found_start + text[found_start..].chars().next().map_or(1, char::len_utf8);
+
             // generally it is guaranteed that a regex has
             // at least one match, but be lenient about
             // errors in the srx xml files and drop those without
-            x.get_group(1).map(|span| span.start)
-        })
+            if let Some(split) = split {
+                match self.exception() {
+                    Some(exception) => exception.split_indices(text, found_start, &mut indices),
+                    None => indices.push(split),
+                }
+            }
+        }
+
+        indices
     }
 
     /// Whether this rule breaks or prevents breaking.
@@ -195,10 +372,10 @@ impl Rules {
         // TODO use a proper tri-state enum here
         let mut masked_bytes: Vec<Option<bool>> = vec![None; text.len()];
 
-        'outer: for rule in &self.rules {
+        for rule in &self.rules {
             for byte_index in rule.match_indices(text) {
                 if byte_index >= text.len() {
-                    continue 'outer;
+                    continue;
                 }
 
                 if masked_bytes[byte_index].is_none() {
@@ -311,12 +488,8 @@ mod tests {
             rules: patterns
                 .iter()
                 .map(|(before, after, do_break)| {
-                    let regex_str = format!("{}({})", before, after);
-                    Rule {
-                        regex: build_regex(&regex_str).expect("test rule is valid"),
-                        regex_str,
-                        do_break: *do_break,
-                    }
+                    Rule::from_pattern(rule_pattern(before, after), *do_break)
+                        .expect("test rule is valid")
                 })
                 .collect(),
         }
@@ -326,12 +499,7 @@ mod tests {
     fn match_indices_correct() {
         let rules = rules_for(&[("abc", "d+fg", true)]);
 
-        assert_eq!(
-            rules.rules[0]
-                .match_indices("abcddfgxxx")
-                .collect::<Vec<_>>(),
-            vec![3_usize]
-        );
+        assert_eq!(rules.rules[0].match_indices("abcddfgxxx"), vec![3_usize]);
     }
 
     #[test]
@@ -353,6 +521,85 @@ mod tests {
                 " He is well."
             ]
         );
+    }
+
+    #[test]
+    fn before_break_groups_do_not_move_the_split() {
+        let rules = rules_for(&[(r"\b(Mr|Dr)\.\s", "", false), (r"[\.!?]\s", "", true)]);
+
+        assert_eq!(
+            rules
+                .split("Mr. Bush left. Dr. Doe stayed.")
+                .collect::<Vec<_>>(),
+            vec!["Mr. Bush left. ", "Dr. Doe stayed."]
+        );
+    }
+
+    #[test]
+    fn matches_may_overlap() {
+        let rules = rules_for(&[
+            (r"[\.\s]\p{L}{1,2}\.\s", r"[\p{N}\p{Ll}]", false),
+            (r"[\.!?\u{2026}][\u{201D}]*\s", "", true),
+        ]);
+
+        assert_eq!(
+            rules
+                .split("Thelen et. al. 2001 said\u{2026} \u{201c}It\u{2019}s fine.\u{201d} Then\u{2014}gone.")
+                .collect::<Vec<_>>(),
+            vec![
+                "Thelen et. al. 2001 said\u{2026} ",
+                "\u{201c}It\u{2019}s fine.\u{201d} ",
+                "Then\u{2014}gone."
+            ]
+        );
+    }
+
+    #[test]
+    fn look_around_rules_are_supported() {
+        let rules = rules_for(&[
+            (r"\s(?!(on|it))\p{L}{1,2}\.\s", r"\p{Ll}", false),
+            (r"\.\s", "", true),
+        ]);
+
+        assert_eq!(
+            rules
+                .split("Wait 2 hr. or so\u{2014}it\u{2019}s fine. Go on. now\u{2026}")
+                .collect::<Vec<_>>(),
+            vec![
+                "Wait 2 hr. or so\u{2014}it\u{2019}s fine. ",
+                "Go on. ",
+                "now\u{2026}"
+            ]
+        );
+    }
+
+    #[test]
+    fn no_break_rules_hold_at_every_split_of_a_match() {
+        let rules = rules_for(&[
+            (r#"["”'’][\s\u00A0]*"#, r"[\s\u00A0]*\p{Ll}", false),
+            (r"[\.!?…][”’]*\s", "", true),
+        ]);
+
+        assert_eq!(
+            rules
+                .split("\u{201c}Wait!\u{201d}  she\u{2019}d cried\u{2028}then stopped\u{2014}gone\u{2026} \u{201c}Go.\u{201d}  He went.")
+                .collect::<Vec<_>>(),
+            vec![
+                "\u{201c}Wait!\u{201d}  she\u{2019}d cried\u{2028}then stopped\u{2014}gone\u{2026} ",
+                "\u{201c}Go.\u{201d} ",
+                " He went."
+            ]
+        );
+    }
+
+    #[test]
+    fn split_rule_pattern_inverts_rule_pattern() {
+        assert_eq!(
+            split_rule_pattern(&rule_pattern(r"\b(Mr|Dr)\.\s", r"(?:\p{Lu})")),
+            Some((r"\b(Mr|Dr)\.\s", r"(?:\p{Lu})"))
+        );
+        assert_eq!(split_rule_pattern(&rule_pattern("", "")), Some(("", "")));
+        assert_eq!(split_rule_pattern(r"\b(Mr|Dr)\.(\s)"), None);
     }
 
     #[test]

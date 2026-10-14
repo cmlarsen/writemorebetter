@@ -735,13 +735,7 @@
 @	name	NN	I-NP
 @	was	VBD	B-VP
 @	Dr.	NNP	B-NP
-0	3	B-NP-singular	Her
-4	8	E-NP-singular	name
-9	12	B-VP	was
-13	15		Dr
-15	16		.
-## sentence
-@	Reyna	NNP	B-NP
+@	Reyna	NNP	I-NP
 @	Sokolov	NNP	I-NP
 @	,	,	O
 @	though	IN	B-SBAR
@@ -760,26 +754,31 @@
 @	were	VBD	B-VP
 @	optional	JJ	B-ADJP
 @	.	.	O
-0	5	B-NP-singular	Reyna
-6	13	E-NP-singular	Sokolov
-13	14	O	,
-15	21	B-SBAR	though
-22	25	B-NP-singular,E-NP-singular	she
-26	32	B-VP	signed
-33	36	B-NP-singular	the
-37	45	E-NP-singular	register
-46	50	B-PP	with
-51	55	B-NP-singular	just
-56	58	I-NP-singular	an
-59	60		R
-60	61		,
-62	64	B-SBAR	as
-65	67	I-SBAR	if
-68	71	B-NP-singular	the
-72	76	E-NP-singular	rest
-77	81	B-VP	were
-82	90	B-ADJP	optional
-90	91	O	.
+0	3	B-NP-singular	Her
+4	8	E-NP-singular	name
+9	12	B-VP	was
+13	15		Dr
+15	16		.
+17	22	I-NP-singular	Reyna
+23	30	E-NP-singular	Sokolov
+30	31	O	,
+32	38	B-SBAR	though
+39	42	B-NP-singular,E-NP-singular	she
+43	49	B-VP	signed
+50	53	B-NP-singular	the
+54	62	E-NP-singular	register
+63	67	B-PP	with
+68	72	B-NP-singular	just
+73	75	I-NP-singular	an
+76	77		R
+77	78		,
+79	81	B-SBAR	as
+82	84	I-SBAR	if
+85	88	B-NP-singular	the
+89	93	E-NP-singular	rest
+94	98	B-VP	were
+99	107	B-ADJP	optional
+107	108	O	.
 ## sentence
 @	She	PRP	B-NP
 @	stayed	VBD	B-VP

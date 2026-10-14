@@ -2679,18 +2679,17 @@
 @	*	IN	B-PP
 @	Sw	NNP	B-NP
 @	.	.	O
+@	and	CC	O
+@	Dan	NNP	B-NP
+@	.	.	O
 0	1	B-NP-singular	*
 2	3	E-NP-singular	*
 4	5	B-PP	*
 6	8	B-NP-singular,E-NP-singular	Sw
 8	9	O	.
-## sentence
-@	and	CC	O
-@	Dan	NNP	B-NP
-@	.	.	O
-0	3	O	and
-4	7	B-NP-singular,E-NP-singular	Dan
-7	8	O	.
+10	13	O	and
+14	17	B-NP-singular,E-NP-singular	Dan
+17	18	O	.
 ## sentence
 @	_hval_	NN	B-NP
 @	.	.	O
@@ -6691,12 +6690,7 @@
 56	60	E-NP-singular	1729
 60	61	O	.
 ## sentence
-@	“...	.	O
-2	5		“
-5	6		.
-6	7		.
-7	8		.
-## sentence
+@	“...	,	O
 @	and	CC	O
 @	the	DT	B-NP
 @	breath	NN	I-NP
@@ -6728,40 +6722,44 @@
 @	South	NNP	I-NP
 @	America_	NNP	I-NP
 @	.	.	O
-0	3	O	and
-4	7	B-NP-singular	the
-8	14	E-NP-singular	breath
-15	17	B-PP	of
-18	21	B-NP-plural	the
-22	27	E-NP-plural	whale
-28	30	B-VP	is
-31	41	I-VP	frequently
-42	50	I-VP	attended
-51	55	B-PP	with
-56	60	B-NP-singular	such
-61	63	I-NP-singular	an
-67	80	I-NP-singular	insupportable
-81	86	E-NP-singular	smell
-86	87	O	,
-88	90	O	as
-91	93	B-VP	to
-94	99	I-VP	bring
-100	102	B-PRT	on
-103	104	B-NP-singular	a
-105	113	E-NP-singular	disorder
-114	116	B-PP	of
-117	120	B-NP-singular	the
-121	126	E-NP-singular	brain
-126	127	O	.
-127	130	O	”
-134	137		—
-137	138		_
-138	143		Ulloa
-143	147	B-NP-singular	's
-148	153	I-NP-singular	South
-154	161		America
-161	162		_
-162	163	O	.
+2	5		“
+5	6		.
+6	7		.
+7	8		.
+9	12	O	and
+13	16	B-NP-singular	the
+17	23	E-NP-singular	breath
+24	26	B-PP	of
+27	30	B-NP-plural	the
+31	36	E-NP-plural	whale
+37	39	B-VP	is
+40	50	I-VP	frequently
+51	59	I-VP	attended
+60	64	B-PP	with
+65	69	B-NP-singular	such
+70	72	I-NP-singular	an
+76	89	I-NP-singular	insupportable
+90	95	E-NP-singular	smell
+95	96	O	,
+97	99	O	as
+100	102	B-VP	to
+103	108	I-VP	bring
+109	111	B-PRT	on
+112	113	B-NP-singular	a
+114	122	E-NP-singular	disorder
+123	125	B-PP	of
+126	129	B-NP-singular	the
+130	135	E-NP-singular	brain
+135	136	O	.
+136	139	O	”
+143	146		—
+146	147		_
+147	152		Ulloa
+152	156	B-NP-singular	's
+157	162	I-NP-singular	South
+163	170		America
+170	171		_
+171	172	O	.
 ## sentence
 @	“To	JJ	B-NP
 @	fifty	CD	I-NP
@@ -8960,16 +8958,14 @@
 ## sentence
 @	“My	NN	B-NP
 @	God	NNP	I-NP
-@	!	.	I-NP
-@	Mr.	NNP	I-NP
+@	!	.	O
 2	5		“
 5	7		My
-8	11	I-NP-singular	God
-11	12	I-NP-singular	!
-13	15		Mr
-15	16		.
+8	11	E-NP-singular	God
+11	12	O	!
 ## sentence
-@	Chace	NN	B-NP
+@	Mr.	NNP	B-NP
+@	Chace	NNP	I-NP
 @	,	,	O
 @	what	WP	B-NP
 @	is	VBZ	B-VP
@@ -8977,14 +8973,16 @@
 @	matter	NN	I-NP
 @	?	.	O
 @	”	.	O
-0	5	B-NP-singular,E-NP-singular	Chace
-5	6	O	,
-7	11	B-NP-singular,E-NP-singular	what
-12	14	B-VP	is
-15	18	B-NP-singular	the
-19	25	E-NP-singular	matter
-25	26	O	?
-26	29	O	”
+0	2		Mr
+2	3		.
+4	9	E-NP-singular	Chace
+9	10	O	,
+11	15	B-NP-singular,E-NP-singular	what
+16	18	B-VP	is
+19	22	B-NP-singular	the
+23	29	E-NP-singular	matter
+29	30	O	?
+30	33	O	”
 ## sentence
 @	I	PRP	B-NP
 @	answered	VBD	B-VP
@@ -10421,16 +10419,7 @@
 @	”	NNP	B-NP
 @	said	VBD	B-VP
 @	Mr.	NNP	B-NP
-2	5		“
-5	14		Nantucket
-15	21	B-NP-singular,E-NP-singular	itself
-21	22	O	,
-22	25	B-NP-singular,E-NP-singular	”
-26	30	B-VP	said
-31	33		Mr
-33	34		.
-## sentence
-@	Webster	NNP	B-NP
+@	Webster	NNP	I-NP
 @	,	,	O
 @	“is	VBZ	B-VP
 @	a	DT	B-NP
@@ -10444,21 +10433,29 @@
 @	National	NNP	I-NP
 @	interest	NN	I-NP
 @	.	.	O
-0	7	B-NP-singular,E-NP-singular	Webster
-7	8	O	,
-9	12		“
-12	14		is
-15	16	B-NP-singular	a
-17	21	I-NP-singular	very
-22	30	I-NP-singular	striking
-31	34	I-NP-singular	and
-38	46	I-NP-singular	peculiar
-47	54	E-NP-singular	portion
-55	57	B-PP	of
-58	61	B-NP-singular	the
-62	70	I-NP-singular	National
-71	79	E-NP-singular	interest
-79	80	O	.
+2	5		“
+5	14		Nantucket
+15	21	B-NP-singular,E-NP-singular	itself
+21	22	O	,
+22	25	B-NP-singular,E-NP-singular	”
+26	30	B-VP	said
+31	33		Mr
+33	34		.
+35	42	E-NP-singular	Webster
+42	43	O	,
+44	47		“
+47	49		is
+50	51	B-NP-singular	a
+52	56	I-NP-singular	very
+57	65	I-NP-singular	striking
+66	69	I-NP-singular	and
+73	81	I-NP-singular	peculiar
+82	89	E-NP-singular	portion
+90	92	B-PP	of
+93	96	B-NP-singular	the
+97	105	I-NP-singular	National
+106	114	E-NP-singular	interest
+114	115	O	.
 ## sentence
 @	There	EX	B-NP
 @	is	VBZ	B-VP
@@ -10682,21 +10679,20 @@
 ## sentence
 @	_By	NN	B-NP
 @	Rev.	NNP	I-NP
+@	Henry	NNP	I-NP
+@	T.	NNP	I-NP
+@	Cheever_	NNP	I-NP
+@	.	.	O
 0	1		_
 1	3		By
 4	7		Rev
 7	8		.
-## sentence
-@	Henry	NNP	B-NP
-@	T.	NNP	I-NP
-@	Cheever_	NNP	I-NP
-@	.	.	O
-0	5	B-NP-singular	Henry
-6	7		T
-7	8		.
-9	16		Cheever
-16	17		_
-17	18	O	.
+9	14	I-NP-singular	Henry
+15	16		T
+16	17		.
+18	25		Cheever
+25	26		_
+26	27	O	.
 ## sentence
 @	“If	IN	B-SBAR
 @	you	PRP	B-NP
@@ -27535,6 +27531,14 @@
 @	cool	JJ	I-ADJP
 @	as	IN	B-PP
 @	Mt	NNP	B-NP
+@	.	.	I-NP
+@	Hecla	NNP	I-NP
+@	in	IN	B-PP
+@	a	DT	B-NP
+@	snow-storm—“landlord	NN	I-NP
+@	,	,	O
+@	stop	VB	B-VP
+@	whittling	NN	B-NP
 @	.	.	O
 0	3		“
 3	11		Landlord
@@ -27550,28 +27554,19 @@
 40	42	B-ADJP	as
 43	47	I-ADJP	cool
 48	50	B-PP	as
-51	53	B-NP-singular,E-NP-singular	Mt
-53	54	O	.
-## sentence
-@	Hecla	NNP	B-NP
-@	in	IN	B-PP
-@	a	DT	B-NP
-@	snow-storm—“landlord	NN	I-NP
-@	,	,	O
-@	stop	NN	B-NP
-@	whittling	NN	I-NP
-@	.	.	O
-0	5	B-NP-singular,E-NP-singular	Hecla
-6	8	B-PP	in
-9	10	B-NP-singular	a
-12	22		snow-storm
-22	25		—
-25	28		“
-28	36		landlord
-36	37	O	,
-38	42	B-NP-singular	stop
-43	52	E-NP-singular	whittling
-52	53	O	.
+51	53	B-NP-singular	Mt
+53	54	I-NP-singular	.
+55	60	E-NP-singular	Hecla
+61	63	B-PP	in
+64	65	B-NP-singular	a
+67	77		snow-storm
+77	80		—
+80	83		“
+83	91		landlord
+91	92	O	,
+93	97	B-VP	stop
+98	107	B-NP-singular,E-NP-singular	whittling
+107	108	O	.
 ## sentence
 @	You	PRP	B-NP
 @	and	CC	O

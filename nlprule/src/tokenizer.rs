@@ -781,7 +781,7 @@ impl Tokenizer {
         self.sentencize_with_raw(text, false)
     }
 
-    fn sentencize_with_raw<'t>(
+    pub(crate) fn sentencize_with_raw<'t>(
         &'t self,
         text: &'t str,
         keep_raw: bool,
