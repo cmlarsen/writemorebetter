@@ -53,6 +53,13 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
 ### Fixed
 
+- **Disambiguation antipatterns block a match the way LanguageTool 6.6 does.** A
+  disambiguation rule is skipped when one of its antipatterns touches or overlaps any part of
+  the match from its first token to its last, including tokens a `skip` passed over, so an
+  antipattern on the word right before or after the match (no space between) also blocks it.
+  Disambiguation rules keep dropping blocked matches rather than immunizing tokens as grammar
+  rules do, which is what 6.6's `DisambiguationPatternRuleReplacer` does
+  ([#170](https://github.com/cmlarsen/writemorebetter/issues/170)).
 - **Spelling suggestions rank by edit distance, then frequency, as in LanguageTool 6.6.** A
   common word two edits away no longer outranks a rarer word one edit away, and only the
   candidates at the smallest edit distance found are suggested, so `Hecla` suggests `Hekla`
