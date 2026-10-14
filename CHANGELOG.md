@@ -72,6 +72,14 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
 ### Fixed
 
+- **"best" before a preposition is tagged as a superlative adjective, as in LanguageTool 6.6.**
+  The English tokenizer config no longer skips the `BEST_JJS` disambiguation rule, a leftover
+  from upstream nlprule, so `PRP_MD_NN` now flags "It may best to add this" and suggests "may be
+  best" ([#221](https://github.com/cmlarsen/writemorebetter/issues/221)). Two disambiguation
+  actions now behave as in LanguageTool 6.6: `<disambig postag="…">` without an action leaves one
+  reading (the last one with that tag, so "best" becomes `well/JJS` rather than `good/JJS` and
+  `well/JJS`), and `<disambig action="remove">` with a `<wd>` that has only a lemma removes every
+  reading with that lemma, so "installed" no longer keeps `instal` readings.
 - **A `<token>` combining a `<match>` reference with literal text matches both, as in LanguageTool
   6.6.** `<token><match no="0"/>s</token>` now matches the referenced token's text followed by
   `s` instead of the referenced text alone, so `TYPO_OR_OF` (off by default) no longer flags

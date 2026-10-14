@@ -150,6 +150,73 @@ fn tokenizer_splits_hyphens_at_word_edges() {
     );
 }
 
+fn readings(text: &str, word: &str) -> Vec<String> {
+    let sentence = TOKENIZER.pipe(text).next().unwrap();
+    let token = sentence
+        .tokens()
+        .iter()
+        .find(|token| token.word().text().as_str() == word)
+        .unwrap();
+    token
+        .word()
+        .tags()
+        .iter()
+        .filter(|data| !data.pos().as_str().is_empty())
+        .map(|data| format!("{}/{}", data.lemma().as_str(), data.pos().as_str()))
+        .collect()
+}
+
+#[test]
+fn best_before_a_preposition_is_a_superlative_adjective() {
+    for text in [
+        "It may best to add this.",
+        "It\u{2019}s best for him.",
+        "\u{201c}It may best for him\u{2014}or for her\u{2026}\u{201d}",
+        "It may best\u{2028}for him.",
+    ] {
+        assert_eq!(readings(text, "best"), vec!["well/JJS"], "{}", text);
+    }
+
+    for text in [
+        "He brought out the best in people.",
+        "The best for him is rest.",
+    ] {
+        assert_eq!(
+            readings(text, "best"),
+            vec![
+                "best/NN:U",
+                "best/VB",
+                "best/VBP",
+                "good/JJS",
+                "well/JJS",
+                "well/RBS"
+            ],
+            "{}",
+            text
+        );
+    }
+}
+
+#[test]
+fn lemma_only_removal_drops_the_instal_readings() {
+    for (text, word, expected) in [
+        ("Did you installed the new app?", "installed", "install/VBD"),
+        (
+            "\u{201c}We installed it\u{2014}twice\u{2026}\u{201d}",
+            "installed",
+            "install/VBD",
+        ),
+        ("They\u{2019}re installing it.", "installing", "install/VBG"),
+        (
+            "It was installed\u{2028}yesterday.",
+            "installed",
+            "install/VBN",
+        ),
+    ] {
+        assert_eq!(readings(text, word), vec![expected], "{}", text);
+    }
+}
+
 #[quickcheck]
 fn can_tokenize_anything(text: String) -> bool {
     let _: Vec<_> = TOKENIZER.pipe(&text).collect();
