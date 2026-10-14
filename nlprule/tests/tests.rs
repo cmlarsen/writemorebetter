@@ -2837,6 +2837,21 @@ fn long_unterminated_sentence_is_tagged_the_same_at_every_repeat() {
 }
 
 #[test]
+fn very_long_unterminated_sentence_tokenizes_in_near_linear_time() {
+    let snippet = "“We’re not going—not yet…” she said, and the dogs’ barks\u{2028}echoed across \
+                   the old man’s fields while they waited ";
+    let text = snippet.repeat(3000);
+
+    let start = std::time::Instant::now();
+    assert_eq!(TOKENIZER.pipe(&text).count(), 1);
+    assert!(
+        start.elapsed() < std::time::Duration::from_secs(15),
+        "tokenizing a 3,000-copy unterminated sentence took {:?}",
+        start.elapsed()
+    );
+}
+
+#[test]
 fn speller_falls_back_to_the_default_variant_while_spellchecking_is_off() {
     let mut rules = Rules::new(RULES_PATH).unwrap();
     assert!(rules.spell().options().variant.is_none());
@@ -2981,4 +2996,257 @@ fn speller_checks_tokens_not_contractions() {
     }
     assert!(!speller.is_correct("didn\u{2019}t"));
     assert!(speller.is_correct("did") && speller.is_correct("n\u{2019}t"));
+}
+
+fn false_friends(rules: &Rules, text: &str) -> Vec<(String, std::ops::Range<usize>, Vec<String>)> {
+    rules
+        .suggest(text, &*TOKENIZER)
+        .into_iter()
+        .filter(|suggestion| suggestion.source().starts_with("FALSE_FRIENDS/"))
+        .map(|suggestion| {
+            (
+                suggestion.source().to_string(),
+                suggestion.span().char().clone(),
+                suggestion.replacements().to_vec(),
+            )
+        })
+        .collect()
+}
+
+const FALSE_FRIEND_TEXT: &str =
+    "\u{201c}My handy is broken\u{2014}again\u{2026}\u{201d}\u{2028}It\u{2019}s the actual problem.";
+
+#[test]
+fn false_friends_need_a_mother_tongue() {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    assert_eq!(rules.mother_tongue(), None);
+    assert!(false_friends(&rules, FALSE_FRIEND_TEXT).is_empty());
+
+    rules
+        .select_mut(&Category::new("false_friends").into())
+        .for_each(|rule| rule.enable());
+    assert!(false_friends(&rules, FALSE_FRIEND_TEXT).is_empty());
+}
+
+#[test]
+fn reordered_rules_still_run_without_a_mother_tongue() {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    let (id, text) = rules
+        .rules()
+        .iter()
+        .filter(|rule| rule.enabled())
+        .find_map(|rule| {
+            rule.examples()
+                .iter()
+                .find(|example| example.suggestion().is_some())
+                .map(|example| (rule.id().to_string(), example.text().to_string()))
+        })
+        .unwrap();
+    let fires = |rules: &Rules| {
+        rules
+            .suggest(&text, &*TOKENIZER)
+            .iter()
+            .any(|suggestion| suggestion.source() == id)
+    };
+    assert!(fires(&rules));
+
+    let first = rules
+        .rules()
+        .iter()
+        .position(|rule| rule.mother_tongue().is_some())
+        .unwrap();
+    let middle = rules.rules().len() / 2;
+    rules.rules_mut().rotate_left(first);
+    rules.rules_mut().rotate_right(middle);
+    assert!(fires(&rules));
+}
+
+#[test]
+fn mother_tongue_selects_its_false_friends() {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    assert_eq!(
+        rules.mother_tongues(),
+        vec!["ca", "de", "es", "fr", "ga", "gl", "it", "ja", "nl", "pl", "pt", "ru", "sv"]
+    );
+
+    rules.set_mother_tongue(Some("de-DE"));
+    assert_eq!(rules.mother_tongue(), Some("de"));
+    assert_eq!(
+        false_friends(&rules, FALSE_FRIEND_TEXT),
+        vec![
+            (
+                "FALSE_FRIENDS/HANDY/0".to_string(),
+                4..9,
+                vec!["cell phone".to_string(), "mobile phone".to_string()]
+            ),
+            (
+                "FALSE_FRIENDS/ACTUAL/0".to_string(),
+                37..43,
+                vec![
+                    "current".to_string(),
+                    "(the) latest".to_string(),
+                    "up-to-date".to_string()
+                ]
+            ),
+        ]
+    );
+
+    rules.set_mother_tongue(Some("PL"));
+    assert_eq!(
+        false_friends(&rules, FALSE_FRIEND_TEXT),
+        vec![(
+            "FALSE_FRIENDS/ACTUAL/0".to_string(),
+            37..43,
+            vec![
+                "current".to_string(),
+                "(the) latest".to_string(),
+                "up-to-date".to_string()
+            ]
+        )]
+    );
+
+    rules.set_mother_tongue(Some("en"));
+    assert!(false_friends(&rules, FALSE_FRIEND_TEXT).is_empty());
+    rules.set_mother_tongue(None);
+    assert!(false_friends(&rules, FALSE_FRIEND_TEXT).is_empty());
+}
+
+#[test]
+fn false_friend_messages_are_localized() {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    rules.set_mother_tongue(Some("de"));
+    let suggestions = rules.suggest("We will become friends.", &*TOKENIZER);
+    let suggestion = suggestions
+        .iter()
+        .find(|suggestion| suggestion.source() == "FALSE_FRIENDS/BECOME/0")
+        .expect("a false-friend match for \"become\"");
+    assert_eq!(*suggestion.span().char(), 8..14);
+    assert_eq!(suggestion.replacements(), ["get", "receive"]);
+    let message = suggestion.message();
+    assert!(message.contains("\"become\"") && message.contains("\"werden\""));
+    assert!(message.contains("get, receive") && !message.contains(" means "));
+
+    rules.set_mother_tongue(Some("pt"));
+    let suggestions = rules.suggest("It\u{2019}s the actual problem.", &*TOKENIZER);
+    let suggestion = suggestions
+        .iter()
+        .find(|suggestion| suggestion.source() == "FALSE_FRIENDS/ACTUAL/0")
+        .expect("a false-friend match for \"actual\"");
+    assert!(suggestion.message().contains(" means "));
+}
+
+#[test]
+fn default_off_false_friends_stay_off() {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    rules.set_mother_tongue(Some("de"));
+    assert!(false_friends(&rules, "Did he also work there?").is_empty());
+
+    rules
+        .select_mut(&"false_friends/also".try_into().unwrap())
+        .for_each(|rule| rule.enable());
+    assert_eq!(
+        false_friends(&rules, "Did he also work there?"),
+        vec![(
+            "FALSE_FRIENDS/ALSO/0".to_string(),
+            7..11,
+            vec![
+                "thus".to_string(),
+                "therefore".to_string(),
+                "so".to_string()
+            ]
+        )]
+    );
+}
+
+/// A `scope="next"` exception on a token whose predecessor has no `skip` sees only the next
+/// token's first reading, as in LanguageTool 6.6. Expected flags checked against LanguageTool
+/// 6.6 (-l en-US).
+#[test]
+fn scope_next_exception_checks_only_the_first_reading() {
+    let gets = |text: &str| vec![(text.to_string(), vec!["gets".to_string()])];
+    for (text, flag) in [
+        (
+            "\u{201c}This vehicle get\u{2019}s used too much.\u{201d}",
+            "get\u{2019}s",
+        ),
+        ("This vehicle get's used\u{2014}too much.", "get's"),
+        ("The air get\u{2019}s colder\u{2026}", "get\u{2019}s"),
+        (
+            "She sighed.\u{2028}This vehicle get\u{2019}s used too much.",
+            "get\u{2019}s",
+        ),
+        (
+            "\u{2018}This vehicle get\u{2019}s broken again.\u{2019}",
+            "get\u{2019}s",
+        ),
+        ("This vehicle get\u{2019}s driven too much.", "get\u{2019}s"),
+    ] {
+        assert_eq!(
+            rule_flags(text, "TYPOS/VERB_APOSTROPHE_S/3"),
+            gets(flag),
+            "{:?}",
+            text
+        );
+    }
+    for text in [
+        "This vehicle get\u{2019}s are cold.",
+        "\u{2018}This vehicle get\u{2019}s fallen off.\u{2019}",
+        "This vehicle get\u{2019}s washed every day.",
+    ] {
+        assert!(
+            rule_flags(text, "TYPOS/VERB_APOSTROPHE_S/3").is_empty(),
+            "{:?}",
+            text
+        );
+    }
+}
+
+/// An untagged next token's first reading is `UNKNOWN`, not the empty reading every token
+/// carries. Expected flags checked against LanguageTool 6.6 (-l en-US).
+#[test]
+fn scope_next_exception_sees_unknown_as_the_first_reading() {
+    for text in [
+        "You can get the third-party Homeseer kit.",
+        "\u{201c}You can get the third-party Zorblax kit\u{2026}\u{201d}",
+        "The third-party left.\u{2028}The third-party Homeseer kit\u{2026}",
+    ] {
+        assert!(
+            rule_flags(text, "GRAMMAR/THE_THIRD_PARTY/").is_empty(),
+            "{:?}",
+            text
+        );
+    }
+    assert_eq!(
+        rule_flags(
+            "\u{201c}The third-party wasn\u{2019}t informed\u{2014}again.\u{201d}",
+            "GRAMMAR/THE_THIRD_PARTY/"
+        ),
+        vec![("third-party".to_string(), vec!["third party".to_string()])]
+    );
+}
+
+/// A `scope="next"` exception on a token whose predecessor has a `skip` is not checked, as in
+/// LanguageTool 6.6, so `TYPOGRAPHY/GERMAN_QUOTES/3` flags a closing quote even when a
+/// lowercase word follows it without a space. Expected flags checked against LanguageTool 6.6
+/// (-l en-US).
+#[test]
+fn scope_next_exception_after_a_skip_is_not_checked() {
+    for text in [
+        "\u{201e}Wait\u{2026}\u{201c}and then she ran.",
+        "\u{201e}Don\u{2019}t\u{2026}\u{201c}and then she ran.",
+        "\u{201e}Wait\u{2026}\u{201c}And then she ran.",
+        "She sighed.\u{2028}\u{201e}Wait\u{2026}\u{201c}and then she ran.",
+    ] {
+        assert_eq!(
+            rule_flags(text, "TYPOGRAPHY/GERMAN_QUOTES/3"),
+            vec![("\u{201c}".to_string(), vec!["\u{201d}".to_string()])],
+            "{:?}",
+            text
+        );
+    }
+    assert!(rule_flags(
+        "\u{201e}Wait\u{2014}\u{201c}and then she ran.",
+        "TYPOGRAPHY/GERMAN_QUOTES/3"
+    )
+    .is_empty());
 }

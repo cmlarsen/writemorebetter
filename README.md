@@ -150,10 +150,6 @@ caller owns persistence — the words are not written into a binary.
 
 ## Known limitations
 
-- **Long sentences with no terminator are slower than the same words split into sentences.** Rule
-  matching (#100), the chunker and antipattern checks (#101) are linear now, but disambiguation
-  still rebuilds the whole sentence once per applied rule
-  ([#125](https://github.com/cmlarsen/writemorebetter/issues/125)).
 - **N-gram confusion rules are out of scope on-device** (their/there, then/than, …): they need
   LanguageTool's multi-gigabyte n-gram index ([#85](https://github.com/cmlarsen/writemorebetter/issues/85)).
 - **Rule coverage has gaps** — see the roadmap in
