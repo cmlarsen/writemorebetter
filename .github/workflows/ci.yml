@@ -102,7 +102,7 @@ jobs:
       - name: Grammar conformance
         env:
           RUST_LOG: WARN
-          GRAMMAR_PASSING: 5977
+          GRAMMAR_PASSING: 6032
           GRAMMAR_RUNNABLE: 6032
         run: |
           # the binary exits 1 when any rule fails its examples; the floors below are the gate

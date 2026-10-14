@@ -545,6 +545,21 @@ fn parse_pos_replacer(
 ) -> Result<PosReplacer, Error> {
     let postag = postag.trim();
 
+    if postag == "_spell_number_" {
+        return Ok(PosReplacer {
+            postag: postag.to_string(),
+            regex: None,
+            postag_replace: None,
+            determiner: None,
+            spell_number: true,
+        });
+    } else if postag.starts_with("_spell_number_") {
+        return Err(Error::Unimplemented(format!(
+            "the number spelling postag '{}' is not supported.",
+            postag
+        )));
+    }
+
     // LanguageTool's English synthesizer extends synthesis with two special
     // postags: `+INDT` adds "a"/"an" and `+DT` adds "a"/"an" or "the". In the
     // regexp form the tag ends with `\+INDT`/`\+DT` (a `\`-escaped `+` in the
@@ -591,6 +606,7 @@ fn parse_pos_replacer(
         regex,
         postag_replace,
         determiner,
+        spell_number: false,
     })
 }
 
