@@ -555,18 +555,21 @@ impl VariantChecker {
         // run of characters with no word break (a token far longer than any word) is
         // not worth correcting, so skip the search rather than let it dominate a check.
         const MAX_SEARCH_LEN: usize = 64;
-        if word.chars().count() > MAX_SEARCH_LEN {
+        let len = word.chars().count();
+        if len > MAX_SEARCH_LEN {
             return Vec::new();
         }
+        let search_distance = if len <= self.options.max_distance {
+            len.saturating_sub(1)
+        } else {
+            self.options.max_distance
+        };
 
         let all_caps = is_all_caps(word);
         let convert_case = all_caps || is_title_case(word);
-        let query = levenshtein::Levenshtein::new(
-            word,
-            self.options.max_distance,
-            self.options.prefix_length,
-        )
-        .fold_case(word.chars().any(char::is_uppercase));
+        let query =
+            levenshtein::Levenshtein::new(word, search_distance, self.options.prefix_length)
+                .fold_case(word.chars().any(char::is_uppercase));
         let restore_case = |term: String| {
             if convert_case {
                 recase(term, all_caps)
@@ -587,7 +590,7 @@ impl VariantChecker {
         let out = out.into_sorted_vec();
         let max_distance = match out.first() {
             Some(x) if x.distance > 0 => x.distance,
-            _ => self.options.max_distance,
+            _ => search_distance,
         };
         out.into_iter()
             .take_while(|x| x.distance <= max_distance)
@@ -595,7 +598,7 @@ impl VariantChecker {
             .collect()
     }
 
-    /// Every word of this variant within `max_distance` edits of `word`, ignoring ASCII case,
+    /// Every word of this variant within `max_distance` edits of `word`, ignoring case,
     /// nearest first and then in byte order, spelled as the speller stores it.
     fn similar(&self, fst: &Map<&[u8]>, word: &str, max_distance: usize) -> Vec<String> {
         let query = levenshtein::Levenshtein::new(word, max_distance, 0).fold_case(true);
@@ -998,7 +1001,7 @@ impl<'a> Speller<'a> {
         suggestions
     }
 
-    /// Every known word within `max_distance` edits of `word`, ignoring ASCII case, nearest first
+    /// Every known word within `max_distance` edits of `word`, ignoring case, nearest first
     /// and then in byte order, like Morfologik's `findSimilarWords`. Unlike [`Speller::suggest`]
     /// it is not capped, not ranked by frequency, and does not consult the user dictionary.
     pub(crate) fn similar(&self, word: &str, max_distance: usize) -> Vec<String> {

@@ -70,6 +70,11 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   and the speller-backed rule filters stop treating them as misspelled
   ([#167](https://github.com/cmlarsen/writemorebetter/issues/167)). Recompile rules binaries to
   pick up the words; the format is unchanged.
+- **Spelling suggestions ignore the case of accented and non-Latin letters.** The suggestion
+  search compares characters instead of UTF-8 bytes, so a capitalized or all-caps word matches
+  its dictionary entry whatever its letters (`ÉCLAIRR` → `ÉCLAIR`, `SØRENN` → `SØREN`, Greek and
+  Cyrillic names too), and an accented letter counts as one edit, not two
+  ([#144](https://github.com/cmlarsen/writemorebetter/issues/144)).
 - **Spelling suggestions rank by edit distance, then frequency, as in LanguageTool 6.6.** A
   common word two edits away no longer outranks a rarer word one edit away, and only the
   candidates at the smallest edit distance found are suggested, so `Hecla` suggests `Hekla`

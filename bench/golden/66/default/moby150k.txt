@@ -53,7 +53,7 @@
 332 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 332 | BUILTIN/WHITESPACE_RULE | "             " -> [" "] | Possible typo: you repeated a whitespace
 333 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
-333 | SPELLCHECK/SINGLE | "WHŒL" -> ["WHEEL", "WHORL", "WHIRL"] | Possibly misspelled word.
+333 | SPELLCHECK/SINGLE | "WHŒL" -> ["WHO", "WELL", "WHEN", "WHAT", "WHILE", "WILL", "WHOLE", "WHOM", "WALL", "WHEEL"] | Possibly misspelled word.
 333 | BUILTIN/WHITESPACE_RULE | "              " -> [" "] | Possible typo: you repeated a whitespace
 334 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 334 | SPELLCHECK/SINGLE | "HVALT" -> ["HALT"] | Possibly misspelled word.
