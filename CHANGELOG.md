@@ -53,6 +53,14 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   raises a false unpaired-quote error; here those quotes stay tokens of their own. The
   unpaired-quote rule no longer treats the apostrophe of such a word as a closing quote, so
   `‘Doin’ fine,’ she said.` is not flagged. The tokenizer binary format version is now 15.
+- **A g-dropped word right after an opening straight single quote stays whole.** In
+  `'goin' home,' she said.`, `'Nothin',' she said.` and `'Comin' through!'` the opening `'` is
+  now its own token and `goin'`, `Nothin'` and `Comin'` stay one word tagged as their `-ing`
+  form, as they already were after a curly `‘`
+  ([#188](https://github.com/cmlarsen/writemorebetter/issues/188)). This deliberately differs
+  from LanguageTool 6.6, which splits `'goin'` at both apostrophes, flags `goin` as a misspelling
+  and the closing quote as unpaired. A word whose stem is itself a word (`'sin'`, `'Robin'`) and
+  an ordinary quoted word (`'hello'`) are still split as before.
 - **Grammar-rule antipatterns immunize tokens, as in LanguageTool 6.6.** A pattern element can no
   longer match a token covered by one of the rule's antipatterns, and a `skip` continues past such
   a token to a later one, instead of the whole match being dropped when it overlaps an
