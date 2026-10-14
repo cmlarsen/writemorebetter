@@ -292,18 +292,20 @@ mod tests {
     #[test]
     fn whitespace_classes_are_ascii_like_java() {
         assert_eq!(
-            java_whitespace(r"[\.!?][\s ]\\s\S*@"),
-            r"[\.!?][[\t\n\x0B\x0C\r ] ]\\s[^\t\n\x0B\x0C\r ]*@"
+            java_whitespace(r"[\.!?][\s\u00A0]\\s\S*@"),
+            r"[\.!?][[\t\n\x0B\x0C\r ]\u00A0]\\s[^\t\n\x0B\x0C\r ]*@"
         );
 
         let rules = Rule::new(Some(r"\.\s"), None::<&str>, true).expect("valid rule");
         let rules = super::super::Rules { rules: vec![rules] };
         assert_eq!(
             rules
-                .split("It\u{2019}s late.\u{2028}She left.\u{00A0}Fine\u{2026} \u{201c}Go.\u{201d} Now\u{2014}yes.")
+                .split("It\u{2019}s late.\u{2028}She left.\u{00A0}Fine\u{2026} \u{201c}Go.\u{201d} Now\u{2014}yes. Done.\tGone.")
                 .collect::<Vec<_>>(),
             vec![
-                "It\u{2019}s late.\u{2028}She left.\u{00A0}Fine\u{2026} \u{201c}Go.\u{201d} Now\u{2014}yes."
+                "It\u{2019}s late.\u{2028}She left.\u{00A0}Fine\u{2026} \u{201c}Go.\u{201d} Now\u{2014}yes. ",
+                "Done.\t",
+                "Gone."
             ]
         );
     }

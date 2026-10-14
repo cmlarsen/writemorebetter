@@ -1537,7 +1537,7 @@ fn builtin_word_coherency_flags_across_em_dash() {
 
 #[test]
 fn builtin_word_coherency_flags_across_u2028() {
-    // U+2028 is whitespace inside a paragraph, so both sentences share state.
+    // U+2028 is whitespace inside a paragraph, so the whole paragraph shares state.
     assert_eq!(
         builtin_word_coherency_flags("The advisor waited.\u{2028}Then the adviser came."),
         vec![("adviser".to_string(), "advisor".to_string())]
