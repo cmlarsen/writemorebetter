@@ -7,7 +7,7 @@ description = "Swift bindings for writemorebetter: English grammar and spelling 
 publish = false
 
 [lib]
-crate-type = ["staticlib", "lib"]
+crate-type = ["cdylib", "lib"]
 
 [dependencies]
 nlprule = { path = "../nlprule" }

@@ -98,8 +98,26 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   ([#163](https://github.com/cmlarsen/writemorebetter/issues/163)). Rules binaries move to
   format version 24 (`PosReplacer::spell_number`); recompile them.
 
+### Changed
+
+- **The Swift package ships a dynamic framework and supports macOS 12.** `WriteMoreBetterFFI.xcframework`
+  now holds a `WriteMoreBetterFFI.framework` per slice instead of a static library, so an app can link it
+  next to another Rust/UniFFI XCFramework: only the UniFFI C functions are exported, so Rust's `std` and
+  shared crates no longer collide, and the module map sits inside the framework instead of a top-level
+  `Headers/module.modulemap` that Xcode copies to `include/`. `Package.swift` declares macOS 12 (was 13) and
+  every object, including the Oniguruma C code, targets macOS 12.0 and iOS 16.0. The generated Swift API is
+  unchanged. The release consumer check now links a second Rust static library and rejects a framework that
+  exports Rust symbols ([#239](https://github.com/cmlarsen/writemorebetter/issues/239)).
+
 ### Fixed
 
+- **The Swift package no longer segfaults when built with Xcode 27.** `build-xcframework.sh` ran Xcode's
+  `strip -S` over the static library, and Xcode 27's `strip` drops the `.llvm.<hash>` suffixes that keep
+  LLVM's promoted local functions apart. Two different `<char as Pattern>::is_contained_in` copies (a general
+  one and one specialized for U+2019 with a different calling convention) ended up with one name, so calls
+  landed in the wrong function and crashed in the tokenizer and speller. The framework is now linked as a
+  dylib with the linker dropping local symbols and debug info, and nothing runs `strip`
+  ([#238](https://github.com/cmlarsen/writemorebetter/issues/238)).
 - **"best" before a preposition is tagged as a superlative adjective, as in LanguageTool 6.6.**
   The English tokenizer config no longer skips the `BEST_JJS` disambiguation rule, a leftover
   from upstream nlprule, so `PRP_MD_NN` now flags "It may best to add this" and suggests "may be
