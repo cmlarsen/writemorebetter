@@ -68,10 +68,17 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   match is dropped as before. The off-by-default `STYLE/SENT_START_NUM/0` now suggests
   `Twelve` for `12 soldiers were killed!`
   ([#163](https://github.com/cmlarsen/writemorebetter/issues/163)). Rules binaries move to
-  format version 21 (`PosReplacer::spell_number`); recompile them.
+  format version 24 (`PosReplacer::spell_number`); recompile them.
 
 ### Fixed
 
+- **A `<token>` combining a `<match>` reference with literal text matches both, as in LanguageTool
+  6.6.** `<token><match no="0"/>s</token>` now matches the referenced token's text followed by
+  `s` instead of the referenced text alone, so `TYPO_OR_OF` (off by default) no longer flags
+  "the active couple or actives" ([#164](https://github.com/cmlarsen/writemorebetter/issues/164)).
+  Literal text around a reference that also carries `postag` or `regexp="yes"` is rejected at
+  compile time. `TOKENIZER_FORMAT_VERSION` is now 16 and `RULES_FORMAT_VERSION` 25, so binaries
+  built by earlier versions must be rebuilt.
 - **Spelling suggestions rank by edit distance, then frequency, as in LanguageTool 6.6.** A
   common word two edits away no longer outranks a rarer word one edit away, and only the
   candidates at the smallest edit distance found are suggested, so `Hecla` suggests `Hekla`

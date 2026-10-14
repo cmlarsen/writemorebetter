@@ -4393,3 +4393,43 @@ fn fiction_profile_keeps_other_whitespace_flags() {
         vec!["  ", "  ", "\u{a0}\u{a0}"]
     );
 }
+
+fn typo_or_of_matches(rules: &Rules, text: &str) -> Vec<(std::ops::Range<usize>, String)> {
+    rules
+        .suggest(text, &*TOKENIZER)
+        .into_iter()
+        .filter(|s| s.source() == "TYPOS/TYPO_OR_OF/1")
+        .map(|s| {
+            let chars: Vec<char> = text.chars().collect();
+            (
+                s.span().char().clone(),
+                chars[s.span().char().clone()].iter().collect(),
+            )
+        })
+        .collect()
+}
+
+#[test]
+fn reference_with_literal_suffix_matches_reference_plus_suffix() {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    let selector: Selector = "typos/typo_or_of".try_into().unwrap();
+    rules.select_mut(&selector).for_each(|x| x.enable());
+
+    for text in [
+        "The 1’s are the active couple or actives in the middle; the 2’s wait.",
+        "“The active couple or actives in the middle—wait…”\u{2028}She nodded.",
+        "The active couple or Actives in the middle wait.",
+        "The ACTIVE couple or actives in the middle wait.",
+    ] {
+        assert!(typo_or_of_matches(&rules, text).is_empty(), "{}", text);
+    }
+
+    for text in [
+        "Below is a list or guidelines on how to handle it.",
+        "“The active couple or dancers in the middle—wait…”\u{2028}She nodded.",
+    ] {
+        let matches = typo_or_of_matches(&rules, text);
+        assert_eq!(matches.len(), 1, "{}", text);
+        assert_eq!(matches[0].1, "or", "{}", text);
+    }
+}
