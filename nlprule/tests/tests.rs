@@ -3717,6 +3717,270 @@ fn multiword_entries_with_stray_whitespace_do_not_match() {
     );
 }
 
+fn strings(xs: &[&str]) -> Vec<String> {
+    xs.iter().map(|x| x.to_string()).collect()
+}
+
+#[test]
+fn number_in_word_filter_matches_languagetool_on_fiction_text() {
+    let rule = "TYPOS/NUMBERS_IN_WORDS/";
+    assert_eq!(
+        rule_flags("Go0d morning!", rule),
+        vec![("Go0d".into(), strings(&["Good", "God"]))]
+    );
+    assert_eq!(
+        rule_flags("\u{201c}The w0rld\u{2014}it ended.\u{201d}", rule),
+        vec![("w0rld".into(), strings(&["world"]))]
+    );
+    assert_eq!(
+        rule_flags("He was a g00d man.\u{2028}Then he was g0ne\u{2026}", rule),
+        vec![("g0ne".into(), strings(&["gone"]))]
+    );
+    let flagged = rule_flags("\u{201c}H3llo,\u{201d} she said\u{2026}", rule);
+    assert_eq!(flagged.len(), 1);
+    assert_eq!(flagged[0].1.first().map(String::as_str), Some("Hello"));
+}
+
+#[test]
+fn suppress_misspelled_filter_matches_languagetool_on_fiction_text() {
+    let rule = "TYPOS/EN_SPLIT_WORDS_HYPHEN/";
+    assert_eq!(
+        rule_flags("The pia- nist played\u{2014}badly\u{2026}", rule),
+        vec![("pia- nist".into(), strings(&["pianist"]))]
+    );
+    assert_eq!(
+        rule_flags(
+            "\u{2018}The seco- ndary school\u{2019}s gate.\u{2019}",
+            rule
+        ),
+        vec![("seco- ndary".into(), strings(&["secondary"]))]
+    );
+    assert!(rule_flags("Her ex- husband was there\u{2026}\u{2028}He smiled.", rule).is_empty());
+}
+
+#[test]
+fn find_suggestions_filter_matches_languagetool_on_fiction_text() {
+    assert_eq!(
+        rule_flags(
+            "\u{201c}I can trait,\u{201d} she said\u{2014}quietly.",
+            "GRAMMAR/PRP_MD_NN/"
+        ),
+        vec![("trait".into(), strings(&["trail", "train"]))]
+    );
+    assert_eq!(
+        rule_flags("I can cheeseburger\u{2026}", "GRAMMAR/PRP_MD_NN/"),
+        vec![("cheeseburger".into(), vec![])]
+    );
+    assert_eq!(
+        rule_flags(
+            "It was a compete disaster\u{2014}truly.",
+            "GRAMMAR/A_INFINITIVE/"
+        ),
+        vec![(
+            "a compete".into(),
+            strings(&["a competed", "a complete", "a compote"])
+        )]
+    );
+    assert_eq!(
+        rule_flags(
+            "\u{201c}Worth a send,\u{201d} she said\u{2026}",
+            "GRAMMAR/A_INFINITIVE/"
+        ),
+        vec![(
+            "a send".into(),
+            strings(&["a Sand", "a Seed", "a sand", "a seed", "a sent"])
+        )]
+    );
+}
+
+#[test]
+fn tokenizer_keeps_g_dropped_words_whole() {
+    assert_eq!(
+        token_texts("\u{201c}How you doin\u{2019}?\u{201d} he asked\u{2026}\u{2028}\u{201c}Nothin\u{2019}\u{2014}just somethin' I was goin' on about.\u{201d}"),
+        vec![
+            "\u{201c}", "How", "you", "doin'", "?", "\u{201d}", "he", "asked", "\u{2026}",
+            "\u{201c}", "Nothin'", "\u{2014}", "just", "somethin'", "I", "was", "goin'", "on",
+            "about", ".", "\u{201d}",
+        ]
+    );
+    assert_eq!(
+        token_texts("DOIN' IT NOW\u{2014}comin'\u{2026}"),
+        vec!["DOIN'", "IT", "NOW", "\u{2014}", "comin'", "\u{2026}"]
+    );
+}
+
+#[test]
+fn g_dropped_words_are_tagged_as_their_ing_form() {
+    let pos_tags = |text: &str, word: &str| -> Vec<(String, String)> {
+        tags_of(text, word)
+            .into_iter()
+            .filter(|(_, pos)| !pos.is_empty())
+            .collect()
+    };
+    let doing = vec![
+        ("doing".to_string(), "NN:UN".to_string()),
+        ("do".to_string(), "VBG".to_string()),
+    ];
+    assert_eq!(pos_tags("how you doin'?", "doin'"), doing);
+    assert_eq!(
+        pos_tags("\u{201c}How you doin\u{2019}?\u{201d}", "doin'"),
+        doing
+    );
+    assert_eq!(
+        pos_tags("\u{2018}Doin\u{2019} fine\u{2014}\u{2019}", "Doin'"),
+        doing
+    );
+    assert_eq!(pos_tags("DOIN' IT NOW\u{2026}", "DOIN'"), doing);
+    assert!(pos_tags("He was goin' home.\u{2028}", "goin'")
+        .contains(&("go".to_string(), "VBG".to_string())));
+}
+
+#[test]
+fn closing_quote_after_a_word_ending_in_in_stays_a_token() {
+    assert_eq!(
+        token_texts("\u{2018}A cabin\u{2019} \u{2014} \u{2018}a sin\u{2019}\u{2026} \u{2018}the robin\u{2019} \u{2028}'so thin' 'a win'"),
+        vec![
+            "\u{2018}", "A", "cabin", "\u{2019}", "\u{2014}", "\u{2018}", "a", "sin", "\u{2019}",
+            "\u{2026}", "\u{2018}", "the", "robin", "\u{2019}", "'", "so", "thin", "'", "'", "a",
+            "win", "'",
+        ]
+    );
+    assert_eq!(
+        token_texts("\u{2018}goin\u{2019} home,\u{2019} she said."),
+        vec!["\u{2018}", "goin'", "home", ",", "\u{2019}", "she", "said", "."]
+    );
+    for text in [
+        "\u{2018}It was a sin\u{2019} \u{2014} he said\u{2026}",
+        "\u{2018}The robin\u{2019} sang.\u{2028}",
+        "'It was a sin' he said.",
+        "\u{2018}Doin\u{2019} fine,\u{2019} she said.",
+        "\u{2018}goin\u{2019} home,\u{2019} she said.",
+    ] {
+        assert_eq!(builtin_unpaired_flags(text), vec![], "{}", text);
+    }
+}
+
+#[test]
+fn g_dropped_word_before_a_closing_quote_is_not_a_quote() {
+    for text in [
+        "'I ain't doin'.'",
+        "\u{2018}I ain\u{2019}t doin\u{2019}.\u{2019}",
+        "\u{2018}I\u{2019}m doin\u{2019} fine. You keep goin\u{2019}.\u{2019}\u{2028}",
+        "She said, \u{2018}He\u{2019}s just talkin\u{2019}\u{2026}\u{2019}",
+        "\u{201c}She said \u{2018}I ain\u{2019}t doin\u{2019} it\u{2019} and left.\u{201d}",
+        "\"She said 'I ain't doin' it' and left.\"",
+        "\u{201c}\u{2018}Nothin\u{2019},\u{2019} she said.\u{201d}",
+        "'Keep goin',' he said.",
+        "\u{2018}Lookin\u{2019} good,\u{2019} said Tom\u{2014}\u{2018}real good.\u{2019}",
+        "\u{2018}Rock \u{2019}n\u{2019} roll,\u{2019} he said.",
+        "'Rock 'n' roll,' he said.",
+    ] {
+        assert_eq!(builtin_unpaired_flags(text), vec![], "{}", text);
+    }
+    assert_eq!(
+        builtin_unpaired_flags("\u{2018}I said goin\u{2019}\u{2019} and left."),
+        vec![quote_flag("\u{2019}")]
+    );
+}
+
+#[test]
+fn g_dropped_word_after_an_opening_straight_quote_stays_whole() {
+    assert_eq!(
+        token_texts("'goin' home,' she said."),
+        vec!["'", "goin'", "home", ",", "'", "she", "said", "."]
+    );
+    assert_eq!(
+        token_texts("'Nothin',' she said.\u{2028}'Comin' through!'"),
+        vec!["'", "Nothin'", ",", "'", "she", "said", ".", "'", "Comin'", "through", "!", "'",]
+    );
+    assert_eq!(
+        token_texts("\u{201c}'Goin\u{2019} home,' she said\u{2014}'DOIN' IT\u{2026}'\u{201d}"),
+        vec![
+            "\u{201c}", "'", "Goin'", "home", ",", "'", "she", "said", "\u{2014}", "'", "DOIN'",
+            "IT", "\u{2026}", "'", "\u{201d}",
+        ]
+    );
+    assert_eq!(
+        token_texts("\"'Nothin'.' He left.\""),
+        vec!["\"", "'", "Nothin'", ".", "'", "He", "left", ".", "\""]
+    );
+    assert_eq!(
+        token_texts("'hello' \u{2014} 'a sin' \u{2026} 'Robin' 'cabin'\u{2028}'sin'"),
+        vec![
+            "'", "hello", "'", "\u{2014}", "'", "a", "sin", "'", "\u{2026}", "'", "Robin", "'",
+            "'", "cabin", "'", "'", "sin", "'",
+        ]
+    );
+    assert_eq!(
+        token_texts("'Rock 'n' roll,' he said. \u{2018}Comin\u{2019}?\u{2019}"),
+        vec![
+            "'", "Rock", "'n'", "roll", ",", "'", "he", "said", ".", "\u{2018}", "Comin'", "?",
+            "\u{2019}",
+        ]
+    );
+    assert_eq!(
+        token_texts("'Tis nothin', 'tis.\u{2028}I'll get 'em. 'Cause \u{2019}Twas cold."),
+        vec![
+            "'", "T", "is", "nothin'", ",", "'", "t", "is", ".", "I", "'ll", "get", "'", "em", ".",
+            "'", "Cause", "\u{2019}", "T", "was", "cold", ".",
+        ]
+    );
+    assert_eq!(
+        token_texts("She said 'goin'."),
+        vec!["She", "said", "'", "goin'", "."]
+    );
+}
+
+#[test]
+fn g_dropped_word_after_an_opening_straight_quote_is_tagged() {
+    let has_tag = |text: &str, word: &str, lemma: &str, pos: &str| {
+        tags_of(text, word).contains(&(lemma.to_string(), pos.to_string()))
+    };
+    assert!(has_tag("'goin' home,' she said.", "goin'", "go", "VBG"));
+    assert!(has_tag(
+        "\u{201c}'Comin' through!'\u{201d}",
+        "Comin'",
+        "come",
+        "VBG"
+    ));
+    assert!(has_tag(
+        "'Doin\u{2019} fine\u{2014}'\u{2028}",
+        "Doin'",
+        "do",
+        "VBG"
+    ));
+    assert!(has_tag("'DOIN' IT\u{2026}'", "DOIN'", "do", "VBG"));
+    assert!(tags_of("'Nothin',' she said.", "Nothin'")
+        .iter()
+        .any(|(lemma, pos)| lemma == "nothing" && !pos.is_empty()));
+}
+
+#[test]
+fn g_dropped_word_after_an_opening_straight_quote_has_no_flags() {
+    for text in [
+        "'goin' home,' she said.",
+        "'Nothin',' she said.",
+        "'Comin' through!'",
+        "\u{201c}'Goin\u{2019} home,' she said\u{2014}'doin' it\u{2026}'\u{201d}\u{2028}",
+        "\"'Nothin'.' He left.\"",
+        "She looked up. 'Somethin' wrong?'",
+        "'Hello,' she said. 'Comin'?'",
+    ] {
+        assert_eq!(builtin_unpaired_flags(text), vec![], "{}", text);
+        assert_eq!(spelling_errors(text), Vec::<&str>::new(), "{}", text);
+    }
+}
+
+#[test]
+fn spellchecker_accepts_g_dropped_words() {
+    for text in &[
+        "\u{201c}How you doin\u{2019}?\u{201d} he asked\u{2026}",
+        "\u{201c}Nothin\u{2019}\u{2014}just somethin' I was goin' on about.\u{201d}\u{2028}",
+    ] {
+        assert_eq!(spelling_errors(text), Vec::<&str>::new(), "{}", text);
+    }
+}
+
 /// Runs the builtin rule `id` over `text` paragraph by paragraph, as
 /// [`Rules::suggest`] does, and returns the flagged text and all replacements
 /// of every suggestion.
@@ -3812,80 +4076,6 @@ fn builtin_double_punctuation_flags_fiction_punctuation() {
     assert_eq!(
         builtin_flags("DOUBLE_PUNCTUATION", "It\u{2019}s fine,, isn\u{2019}t it?"),
         vec![flag(",,", &[","])]
-
-fn strings(xs: &[&str]) -> Vec<String> {
-    xs.iter().map(|x| x.to_string()).collect()
-}
-
-#[test]
-fn number_in_word_filter_matches_languagetool_on_fiction_text() {
-    let rule = "TYPOS/NUMBERS_IN_WORDS/";
-    assert_eq!(
-        rule_flags("Go0d morning!", rule),
-        vec![("Go0d".into(), strings(&["Good", "God"]))]
-    );
-    assert_eq!(
-        rule_flags("\u{201c}The w0rld\u{2014}it ended.\u{201d}", rule),
-        vec![("w0rld".into(), strings(&["world"]))]
-    );
-    assert_eq!(
-        rule_flags("He was a g00d man.\u{2028}Then he was g0ne\u{2026}", rule),
-        vec![("g0ne".into(), strings(&["gone"]))]
-    );
-    let flagged = rule_flags("\u{201c}H3llo,\u{201d} she said\u{2026}", rule);
-    assert_eq!(flagged.len(), 1);
-    assert_eq!(flagged[0].1.first().map(String::as_str), Some("Hello"));
-}
-
-#[test]
-fn suppress_misspelled_filter_matches_languagetool_on_fiction_text() {
-    let rule = "TYPOS/EN_SPLIT_WORDS_HYPHEN/";
-    assert_eq!(
-        rule_flags("The pia- nist played\u{2014}badly\u{2026}", rule),
-        vec![("pia- nist".into(), strings(&["pianist"]))]
-    );
-    assert_eq!(
-        rule_flags(
-            "\u{2018}The seco- ndary school\u{2019}s gate.\u{2019}",
-            rule
-        ),
-        vec![("seco- ndary".into(), strings(&["secondary"]))]
-    );
-    assert!(rule_flags("Her ex- husband was there\u{2026}\u{2028}He smiled.", rule).is_empty());
-}
-
-#[test]
-fn find_suggestions_filter_matches_languagetool_on_fiction_text() {
-    assert_eq!(
-        rule_flags(
-            "\u{201c}I can trait,\u{201d} she said\u{2014}quietly.",
-            "GRAMMAR/PRP_MD_NN/"
-        ),
-        vec![("trait".into(), strings(&["trail", "train"]))]
-    );
-    assert_eq!(
-        rule_flags("I can cheeseburger\u{2026}", "GRAMMAR/PRP_MD_NN/"),
-        vec![("cheeseburger".into(), vec![])]
-    );
-    assert_eq!(
-        rule_flags(
-            "It was a compete disaster\u{2014}truly.",
-            "GRAMMAR/A_INFINITIVE/"
-        ),
-        vec![(
-            "a compete".into(),
-            strings(&["a competed", "a complete", "a compote"])
-        )]
-    );
-    assert_eq!(
-        rule_flags(
-            "\u{201c}Worth a send,\u{201d} she said\u{2026}",
-            "GRAMMAR/A_INFINITIVE/"
-        ),
-        vec![(
-            "a send".into(),
-            strings(&["a Sand", "a Seed", "a sand", "a seed", "a sent"])
-        )]
     );
 }
 
@@ -3945,19 +4135,6 @@ fn builtin_multiple_whitespace_handles_unicode_spaces() {
             "A\u{2007}\u{2007}figure and A \u{202f} narrow."
         ),
         vec![flag(" \u{202f} ", &[" "])]
-
-fn tokenizer_keeps_g_dropped_words_whole() {
-    assert_eq!(
-        token_texts("\u{201c}How you doin\u{2019}?\u{201d} he asked\u{2026}\u{2028}\u{201c}Nothin\u{2019}\u{2014}just somethin' I was goin' on about.\u{201d}"),
-        vec![
-            "\u{201c}", "How", "you", "doin'", "?", "\u{201d}", "he", "asked", "\u{2026}",
-            "\u{201c}", "Nothin'", "\u{2014}", "just", "somethin'", "I", "was", "goin'", "on",
-            "about", ".", "\u{201d}",
-        ]
-    );
-    assert_eq!(
-        token_texts("DOIN' IT NOW\u{2014}comin'\u{2026}"),
-        vec!["DOIN'", "IT", "NOW", "\u{2014}", "comin'", "\u{2026}"]
     );
 }
 
@@ -4172,175 +4349,4 @@ fn fiction_profile_keeps_other_whitespace_flags() {
         ),
         vec!["  ", "  ", "\u{a0}\u{a0}"]
     );
-}
-
-fn g_dropped_words_are_tagged_as_their_ing_form() {
-    let pos_tags = |text: &str, word: &str| -> Vec<(String, String)> {
-        tags_of(text, word)
-            .into_iter()
-            .filter(|(_, pos)| !pos.is_empty())
-            .collect()
-    };
-    let doing = vec![
-        ("doing".to_string(), "NN:UN".to_string()),
-        ("do".to_string(), "VBG".to_string()),
-    ];
-    assert_eq!(pos_tags("how you doin'?", "doin'"), doing);
-    assert_eq!(
-        pos_tags("\u{201c}How you doin\u{2019}?\u{201d}", "doin'"),
-        doing
-    );
-    assert_eq!(
-        pos_tags("\u{2018}Doin\u{2019} fine\u{2014}\u{2019}", "Doin'"),
-        doing
-    );
-    assert_eq!(pos_tags("DOIN' IT NOW\u{2026}", "DOIN'"), doing);
-    assert!(pos_tags("He was goin' home.\u{2028}", "goin'")
-        .contains(&("go".to_string(), "VBG".to_string())));
-}
-
-#[test]
-fn closing_quote_after_a_word_ending_in_in_stays_a_token() {
-    assert_eq!(
-        token_texts("\u{2018}A cabin\u{2019} \u{2014} \u{2018}a sin\u{2019}\u{2026} \u{2018}the robin\u{2019} \u{2028}'so thin' 'a win'"),
-        vec![
-            "\u{2018}", "A", "cabin", "\u{2019}", "\u{2014}", "\u{2018}", "a", "sin", "\u{2019}",
-            "\u{2026}", "\u{2018}", "the", "robin", "\u{2019}", "'", "so", "thin", "'", "'", "a",
-            "win", "'",
-        ]
-    );
-    assert_eq!(
-        token_texts("\u{2018}goin\u{2019} home,\u{2019} she said."),
-        vec!["\u{2018}", "goin'", "home", ",", "\u{2019}", "she", "said", "."]
-    );
-    for text in [
-        "\u{2018}It was a sin\u{2019} \u{2014} he said\u{2026}",
-        "\u{2018}The robin\u{2019} sang.\u{2028}",
-        "'It was a sin' he said.",
-        "\u{2018}Doin\u{2019} fine,\u{2019} she said.",
-        "\u{2018}goin\u{2019} home,\u{2019} she said.",
-    ] {
-        assert_eq!(builtin_unpaired_flags(text), vec![], "{}", text);
-    }
-}
-
-#[test]
-fn g_dropped_word_before_a_closing_quote_is_not_a_quote() {
-    for text in [
-        "'I ain't doin'.'",
-        "\u{2018}I ain\u{2019}t doin\u{2019}.\u{2019}",
-        "\u{2018}I\u{2019}m doin\u{2019} fine. You keep goin\u{2019}.\u{2019}\u{2028}",
-        "She said, \u{2018}He\u{2019}s just talkin\u{2019}\u{2026}\u{2019}",
-        "\u{201c}She said \u{2018}I ain\u{2019}t doin\u{2019} it\u{2019} and left.\u{201d}",
-        "\"She said 'I ain't doin' it' and left.\"",
-        "\u{201c}\u{2018}Nothin\u{2019},\u{2019} she said.\u{201d}",
-        "'Keep goin',' he said.",
-        "\u{2018}Lookin\u{2019} good,\u{2019} said Tom\u{2014}\u{2018}real good.\u{2019}",
-        "\u{2018}Rock \u{2019}n\u{2019} roll,\u{2019} he said.",
-        "'Rock 'n' roll,' he said.",
-    ] {
-        assert_eq!(builtin_unpaired_flags(text), vec![], "{}", text);
-    }
-    assert_eq!(
-        builtin_unpaired_flags("\u{2018}I said goin\u{2019}\u{2019} and left."),
-        vec![quote_flag("\u{2019}")]
-    );
-}
-
-#[test]
-fn g_dropped_word_after_an_opening_straight_quote_stays_whole() {
-    assert_eq!(
-        token_texts("'goin' home,' she said."),
-        vec!["'", "goin'", "home", ",", "'", "she", "said", "."]
-    );
-    assert_eq!(
-        token_texts("'Nothin',' she said.\u{2028}'Comin' through!'"),
-        vec!["'", "Nothin'", ",", "'", "she", "said", ".", "'", "Comin'", "through", "!", "'",]
-    );
-    assert_eq!(
-        token_texts("\u{201c}'Goin\u{2019} home,' she said\u{2014}'DOIN' IT\u{2026}'\u{201d}"),
-        vec![
-            "\u{201c}", "'", "Goin'", "home", ",", "'", "she", "said", "\u{2014}", "'", "DOIN'",
-            "IT", "\u{2026}", "'", "\u{201d}",
-        ]
-    );
-    assert_eq!(
-        token_texts("\"'Nothin'.' He left.\""),
-        vec!["\"", "'", "Nothin'", ".", "'", "He", "left", ".", "\""]
-    );
-    assert_eq!(
-        token_texts("'hello' \u{2014} 'a sin' \u{2026} 'Robin' 'cabin'\u{2028}'sin'"),
-        vec![
-            "'", "hello", "'", "\u{2014}", "'", "a", "sin", "'", "\u{2026}", "'", "Robin", "'",
-            "'", "cabin", "'", "'", "sin", "'",
-        ]
-    );
-    assert_eq!(
-        token_texts("'Rock 'n' roll,' he said. \u{2018}Comin\u{2019}?\u{2019}"),
-        vec![
-            "'", "Rock", "'n'", "roll", ",", "'", "he", "said", ".", "\u{2018}", "Comin'", "?",
-            "\u{2019}",
-        ]
-    );
-    assert_eq!(
-        token_texts("'Tis nothin', 'tis.\u{2028}I'll get 'em. 'Cause \u{2019}Twas cold."),
-        vec![
-            "'", "T", "is", "nothin'", ",", "'", "t", "is", ".", "I", "'ll", "get", "'", "em", ".",
-            "'", "Cause", "\u{2019}", "T", "was", "cold", ".",
-        ]
-    );
-    assert_eq!(
-        token_texts("She said 'goin'."),
-        vec!["She", "said", "'", "goin'", "."]
-    );
-}
-
-#[test]
-fn g_dropped_word_after_an_opening_straight_quote_is_tagged() {
-    let has_tag = |text: &str, word: &str, lemma: &str, pos: &str| {
-        tags_of(text, word).contains(&(lemma.to_string(), pos.to_string()))
-    };
-    assert!(has_tag("'goin' home,' she said.", "goin'", "go", "VBG"));
-    assert!(has_tag(
-        "\u{201c}'Comin' through!'\u{201d}",
-        "Comin'",
-        "come",
-        "VBG"
-    ));
-    assert!(has_tag(
-        "'Doin\u{2019} fine\u{2014}'\u{2028}",
-        "Doin'",
-        "do",
-        "VBG"
-    ));
-    assert!(has_tag("'DOIN' IT\u{2026}'", "DOIN'", "do", "VBG"));
-    assert!(tags_of("'Nothin',' she said.", "Nothin'")
-        .iter()
-        .any(|(lemma, pos)| lemma == "nothing" && !pos.is_empty()));
-}
-
-#[test]
-fn g_dropped_word_after_an_opening_straight_quote_has_no_flags() {
-    for text in [
-        "'goin' home,' she said.",
-        "'Nothin',' she said.",
-        "'Comin' through!'",
-        "\u{201c}'Goin\u{2019} home,' she said\u{2014}'doin' it\u{2026}'\u{201d}\u{2028}",
-        "\"'Nothin'.' He left.\"",
-        "She looked up. 'Somethin' wrong?'",
-        "'Hello,' she said. 'Comin'?'",
-    ] {
-        assert_eq!(builtin_unpaired_flags(text), vec![], "{}", text);
-        assert_eq!(spelling_errors(text), Vec::<&str>::new(), "{}", text);
-    }
-}
-
-#[test]
-fn spellchecker_accepts_g_dropped_words() {
-    for text in &[
-        "\u{201c}How you doin\u{2019}?\u{201d} he asked\u{2026}",
-        "\u{201c}Nothin\u{2019}\u{2014}just somethin' I was goin' on about.\u{201d}\u{2028}",
-    ] {
-        assert_eq!(spelling_errors(text), Vec::<&str>::new(), "{}", text);
-    }
 }
