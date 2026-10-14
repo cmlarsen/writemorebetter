@@ -43,7 +43,6 @@
 352 | STYLE/ANYWAYS/0 | "anyways" -> ["anyway"] | The word 'anyways' is informal American English. Did you mean anyway?
 353 | PUNCTUATION/SENT_START_CONJUNCTIVE_LINKING_ADVERB_COMMA/0 | "Therefore" -> ["Therefore,"] | A comma may be missing after the conjunctive/linking adverb 'Therefore'.
 363 | SPELLCHECK/SINGLE | "belongest" -> ["belonged", "belongs", "decongest", "blondest"] | Possibly misspelled word.
-370 | GRAMMAR/DO_XX_MD_VB/1 | "Would that I could" -> ["That I could"] | One modal verb seems to be obsolete here. Consider rephrasing this sentence.
 376 | SPELLCHECK/SINGLE | "unsplinterable" -> [] | Possibly misspelled word.
 382 | SPELLCHECK/SINGLE | "maketh" -> ["make", "makes", "market", "makeup", "markets", "maker", "makers", "math", "Gareth", "Rakesh"] | Possibly misspelled word.
 396 | SPELLCHECK/SINGLE | "cometh" -> ["comet", "comets"] | Possibly misspelled word.

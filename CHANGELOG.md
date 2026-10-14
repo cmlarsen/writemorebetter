@@ -53,6 +53,13 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
 ### Fixed
 
+- **Token patterns match like LanguageTool 6.6, without backtracking.** An optional token
+  (`min="0"`) is skipped whenever the pattern token after it matches the same word, a `skip`
+  window comes from the last token that matched, and a repeated token takes as many words as it
+  can ([#160](https://github.com/cmlarsen/writemorebetter/issues/160)). `COMMA_COMPOUND_SENTENCE`
+  now flags "They've acted irresponsibly and immorally and it has to stop.", and
+  `DO_XX_MD_VB` no longer flags "Would that I could".
+
 - **Spelling suggestions rank by edit distance, then frequency, as in LanguageTool 6.6.** A
   common word two edits away no longer outranks a rarer word one edit away, and only the
   candidates at the smallest edit distance found are suggested, so `Hecla` suggests `Hekla`

@@ -1701,12 +1701,10 @@ mod tests {
 </rules>
 "#;
 
-    #[test]
-    fn antipattern_marker_limits_the_immunized_tokens() {
+    fn assert_flag_starts(name: &str, xml: &str, cases: Vec<(&str, Vec<(&str, usize)>)>) {
         let tokenizer = Tokenizer::new("../storage/en_tokenizer.bin").unwrap();
-        let path =
-            std::env::temp_dir().join(format!("wmb-antipattern-marker-{}.xml", std::process::id()));
-        std::fs::write(&path, MARKER_ANTIPATTERNS).unwrap();
+        let path = std::env::temp_dir().join(format!("wmb-{}-{}.xml", name, std::process::id()));
+        std::fs::write(&path, xml).unwrap();
         let mut info = BuildInfo::new(
             tokenizer.tagger().clone(),
             RegexCache::new(0),
@@ -1722,31 +1720,9 @@ mod tests {
         );
         std::fs::remove_file(&path).unwrap();
         let pool = pool.into_pool();
-        assert_eq!(rules.len(), 5);
+        assert_eq!(rules.len(), xml.matches("<rule ").count());
 
-        for (text, expected) in [
-            (
-                "\u{201c}bbb ccc\u{2026}\u{201d} she said.",
-                vec![
-                    ("M_AFTER", 5),
-                    ("M_INNER", 5),
-                    ("M_LEAD", 5),
-                    ("M_TRAIL", 5),
-                ],
-            ),
-            (
-                "\u{201c}www iii\u{2014}iii qqq,\u{201d} he said.",
-                vec![("M_TWO", 9)],
-            ),
-            (
-                "She left.\u{2028}aaa bbb ccc ddd.",
-                vec![("M_AFTER", 18), ("M_LEAD", 18), ("M_TRAIL", 18)],
-            ),
-            (
-                "\u{201c}aaa bbb ccc ddd\u{2019}\u{201d}",
-                vec![("M_AFTER", 9), ("M_LEAD", 9), ("M_TRAIL", 9)],
-            ),
-        ] {
+        for (text, expected) in cases {
             let mut flagged = Vec::new();
             for sentence in tokenizer.pipe(text) {
                 let sentence = MatchSentence::new(&sentence);
@@ -1766,6 +1742,80 @@ mod tests {
                 .collect();
             assert_eq!(flagged, expected, "{:?}", text);
         }
+    }
+
+    #[test]
+    fn antipattern_marker_limits_the_immunized_tokens() {
+        assert_flag_starts(
+            "antipattern-marker",
+            MARKER_ANTIPATTERNS,
+            vec![
+                (
+                    "\u{201c}bbb ccc\u{2026}\u{201d} she said.",
+                    vec![
+                        ("M_AFTER", 5),
+                        ("M_INNER", 5),
+                        ("M_LEAD", 5),
+                        ("M_TRAIL", 5),
+                    ],
+                ),
+                (
+                    "\u{201c}www iii\u{2014}iii qqq,\u{201d} he said.",
+                    vec![("M_TWO", 9)],
+                ),
+                (
+                    "She left.\u{2028}aaa bbb ccc ddd.",
+                    vec![("M_AFTER", 18), ("M_LEAD", 18), ("M_TRAIL", 18)],
+                ),
+                (
+                    "\u{201c}aaa bbb ccc ddd\u{2019}\u{201d}",
+                    vec![("M_AFTER", 9), ("M_LEAD", 9), ("M_TRAIL", 9)],
+                ),
+            ],
+        );
+    }
+
+    const OPTIONAL_TOKENS: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
+<rules lang="en">
+<category id="PROBE" name="Probe">
+  <rule id="LAZY" name="m">
+    <pattern><token>we</token><token min="0" regexp="yes">really|truly</token><token regexp="yes">truly|left</token><token>early</token></pattern>
+    <message>m</message>
+  </rule>
+  <rule id="COMPOUND" name="m">
+    <pattern><token>and</token><token min="0" postag="RB"/><token postag="NNPS?|PRP_S.*" postag_regexp="yes"/><token inflected="yes" min="0" regexp="yes">be|do|have</token><token min="0" postag="RB|TO" postag_regexp="yes"/><token min="0" postag="VB[DPZ]?" postag_regexp="yes"><exception regexp="yes">are|be|do|have</exception></token><token min="0" postag="RB"/><token postag="SENT_END"/></pattern>
+    <message>m</message>
+  </rule>
+</category>
+</rules>
+"#;
+
+    #[test]
+    fn optional_token_is_absent_when_the_next_token_matches_too() {
+        assert_flag_starts(
+            "optional-tokens",
+            OPTIONAL_TOKENS,
+            vec![
+                ("We left and it has to stop.", vec![]),
+                (
+                    "\u{201c}We left and it has to stop,\u{201d} she said.",
+                    vec![],
+                ),
+                ("We left and it is to stop.", vec![]),
+                ("We left \u{2014} and it has not.", vec![("COMPOUND", 10)]),
+                ("We left\u{2026} and it stops.", vec![("COMPOUND", 9)]),
+                ("We truly left early.", vec![]),
+                (
+                    "We\u{2019}d left.\u{2028}We truly left early\u{2026}",
+                    vec![],
+                ),
+                (
+                    "\u{201c}We really left early,\u{201d} she said.",
+                    vec![("LAZY", 1)],
+                ),
+                ("We truly early \u{2014} or so.", vec![("LAZY", 0)]),
+            ],
+        );
     }
 
     #[test]
