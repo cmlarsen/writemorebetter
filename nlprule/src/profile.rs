@@ -6,7 +6,10 @@
 //! - a [`Selector`] as understood by [`Rules::select_mut`](crate::Rules::select_mut),
 //!   written with `/` separators, e.g. `"TYPOGRAPHY/EN_QUOTES"` or `"REDUNDANCY"`, or
 //! - a builtin rule id prefixed with `"BUILTIN/"`, e.g.
-//!   `"BUILTIN/UPPERCASE_SENTENCE_START"`.
+//!   `"BUILTIN/UPPERCASE_SENTENCE_START"`, or
+//! - a builtin rule id and one of its cases, which disables only that case (see
+//!   [`BuiltinRule::disable_case`](crate::builtin::BuiltinRule::disable_case)), e.g.
+//!   `"BUILTIN/WHITESPACE_RULE/INDENTATION"`.
 //!
 //! The selectors are *identifiers*, not rule data: the list lives in the engine
 //! source under the same MIT/Apache-2.0 license as the rest of the engine. It
@@ -80,6 +83,11 @@ impl Profile {
                 "GRAMMAR/YOU_GOOD",
                 // Stylistic redundancy advice, e.g. some of the -> some (not errors).
                 "REDUNDANCY",
+                // Repeated "Thank you for" in nearby sentences; dialogue repeats it on purpose.
+                "REPETITIONS_STYLE/REP_THANK_YOU_FOR",
+                // Indentation with spaces at the start of a paragraph or line, which
+                // LanguageTool flags after a sentence end or a CRLF (403 on moby150k).
+                "BUILTIN/WHITESPACE_RULE/INDENTATION",
             ]
             .iter()
             .map(|selector| (*selector).to_owned())
@@ -103,7 +111,7 @@ impl Rules {
     ///
     /// Grammar rules are selected with [`Rules::select_mut`](crate::Rules::select_mut)
     /// using each selector string; builtins are matched by the part of the selector
-    /// after `"BUILTIN/"`.
+    /// after `"BUILTIN/"`, and a selector that also names a case disables only that case.
     ///
     /// Returns the selectors that matched no rule, so a typo in a profile is caught by
     /// a test rather than silently ignored. Each unmatched selector is also logged at
@@ -113,11 +121,21 @@ impl Rules {
 
         for selector in &profile.disable {
             let matched = if let Some(id) = selector.strip_prefix(BUILTIN_PREFIX) {
+                let (id, case) = match id.split_once('/') {
+                    Some((id, case)) => (id, Some(case)),
+                    None => (id, None),
+                };
                 let mut matched = false;
                 for rule in self.builtins.iter_mut() {
-                    if rule.id() == id {
-                        rule.disable();
-                        matched = true;
+                    if rule.id() != id {
+                        continue;
+                    }
+                    match case {
+                        Some(case) => matched |= rule.disable_case(case),
+                        None => {
+                            rule.disable();
+                            matched = true;
+                        }
                     }
                 }
                 matched

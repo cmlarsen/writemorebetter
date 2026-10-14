@@ -554,8 +554,8 @@ pub struct Rule {
     /// The value may be a space separated list.
     pub tags: Option<String>,
     /// LanguageTool's repetition experiment: fire only after `min_prev_matches`
-    /// earlier matches within `distance_tokens` tokens. Requires cross-match
-    /// state, so it is rejected explicitly.
+    /// earlier matches within `distance_tokens` tokens. The state spans one
+    /// [`Rules::suggest`](crate::Rules::suggest) call.
     pub min_prev_matches: Option<String>,
     pub distance_tokens: Option<String>,
     pub filter: Option<Filter>,
@@ -760,6 +760,8 @@ macro_rules! flatten_group {
     }};
 }
 
+const GRAMMAR_WHITESPACE_SENSITIVE_TAGS: &[&str] = &["suggestion", "example"];
+
 type GrammarRuleReading = (Rule, Option<Group>, Option<Category>);
 type DisambiguationRuleReading = (DisambiguationRule, Option<Group>, Option<Category>);
 
@@ -769,7 +771,7 @@ pub fn read_rules<P: AsRef<std::path::Path>>(
     let file = File::open(path.as_ref()).unwrap();
     let file = BufReader::new(file);
 
-    let sanitized = preprocess::sanitize(file, &["suggestion"]);
+    let sanitized = preprocess::sanitize(file, GRAMMAR_WHITESPACE_SENSITIVE_TAGS);
     let rules = preprocess::extract_rules(sanitized.as_bytes());
 
     let mut unifications = Vec::new();
@@ -891,4 +893,33 @@ pub fn read_disambiguation_rules<P: AsRef<std::path::Path>>(
             Err(x) => Err(x),
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn example_texts(xml: &str) -> Vec<String> {
+        let sanitized = preprocess::sanitize(xml.as_bytes(), GRAMMAR_WHITESPACE_SENSITIVE_TAGS);
+        let document = roxmltree::Document::parse(&sanitized).unwrap();
+        document
+            .descendants()
+            .filter(|x| x.tag_name().name() == "text")
+            .map(|x| x.attribute("text").unwrap().to_owned())
+            .collect()
+    }
+
+    #[test]
+    fn whitespace_only_example_markers_are_kept() {
+        assert_eq!(
+            example_texts("<example>This is a<marker>  </marker>sentence.</example>"),
+            ["This is a", "  ", "sentence."]
+        );
+        assert_eq!(
+            example_texts(
+                "<example>\u{201c}It\u{2019}s\u{2026}<marker>\u{a0} </marker>\u{2014}\u{2028}</example>"
+            ),
+            ["\u{201c}It\u{2019}s\u{2026}", "\u{a0} ", "\u{2014}\u{2028}"]
+        );
+    }
 }
