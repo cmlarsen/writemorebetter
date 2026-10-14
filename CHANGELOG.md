@@ -60,6 +60,12 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   now flags "They've acted irresponsibly and immorally and it has to stop.", and
   `DO_XX_MD_VB` no longer flags "Would that I could".
 
+- **An absent optional token no longer applies its own `skip`.** The words in a `skip` window
+  are checked against the `scope="next"` exceptions of the pattern token before them, whether
+  or not that token matched, as in LanguageTool 6.6
+  ([#161](https://github.com/cmlarsen/writemorebetter/issues/161)). The rules binary format
+  version is now 23 and the tokenizer binary format version is now 16.
+
 - **Spelling suggestions rank by edit distance, then frequency, as in LanguageTool 6.6.** A
   common word two edits away no longer outranks a rarer word one edit away, and only the
   candidates at the smallest edit distance found are suggested, so `Hecla` suggests `Hekla`

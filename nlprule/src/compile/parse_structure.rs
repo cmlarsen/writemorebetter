@@ -281,7 +281,6 @@ fn parse_match_attribs(
 
 #[derive(Clone, Copy, PartialEq)]
 enum NextException {
-    AllReadings,
     FirstReading,
     Ignored,
 }
@@ -307,10 +306,38 @@ fn ends_with_skip(parts: &[Part]) -> bool {
         .is_some_and(|x| !x.visible && x.quantifier.max > 0)
 }
 
+#[allow(clippy::result_large_err)]
+fn get_next_exceptions(
+    token: &structure::Token,
+    case_sensitive: bool,
+    info: &mut BuildInfo,
+) -> Result<Option<Atom>, Error> {
+    let exceptions = token
+        .parts
+        .iter()
+        .flatten()
+        .filter_map(|x| match x {
+            structure::TokenPart::Exception(x) if x.scope.as_deref() == Some("next") => Some(x),
+            _ => None,
+        })
+        .map(|x| {
+            parse_match_attribs(
+                x,
+                x.text.as_ref().map(|text| text.as_str()),
+                case_sensitive,
+                None,
+                None,
+                None,
+                info,
+            )
+        })
+        .collect::<Result<Vec<_>, Error>>()?;
+    Ok((!exceptions.is_empty()).then(|| OrAtom::or(exceptions)))
+}
+
 fn get_exceptions(
     token: &structure::Token,
     case_sensitive: bool,
-    only_shifted: bool,
     next_exception: NextException,
     info: &mut BuildInfo,
 ) -> Result<Atom, Error> {
@@ -353,7 +380,6 @@ fn get_exceptions(
 
                 if offset == 1 {
                     match next_exception {
-                        NextException::AllReadings => {}
                         NextException::FirstReading => first_reading_only(&mut atom),
                         NextException::Ignored => return None,
                     }
@@ -363,11 +389,7 @@ fn get_exceptions(
                     atom = OffsetAtom::new(atom, offset).into();
                 }
 
-                if !only_shifted || (offset != 0) {
-                    Some(Ok(atom))
-                } else {
-                    None
-                }
+                Some(Ok(atom))
             })
             .collect::<Result<Vec<_>, Error>>()?;
         Ok(NotAtom::not(OrAtom::or(exceptions)))
@@ -492,16 +514,14 @@ fn parse_token(
         reference_synthesis,
         info,
     )?;
-    let next_exception = if has_skip(token) && !last {
-        NextException::AllReadings
-    } else if prev_skip {
+    let next_exception = if prev_skip || (has_skip(token) && !last) {
         NextException::Ignored
     } else {
         NextException::FirstReading
     };
     atom = AndAtom::and(vec![
         atom,
-        get_exceptions(token, case_sensitive, false, next_exception, info)?,
+        get_exceptions(token, case_sensitive, next_exception, info)?,
     ]);
 
     parts.push(Part {
@@ -510,6 +530,7 @@ fn parse_token(
         visible: true,
         greedy: true,
         unify: token.unify.as_ref().map(|x| x == "yes"),
+        next_exception: get_next_exceptions(token, case_sensitive, info)?.map(Box::new),
     });
 
     if let Some(to_skip) = token.skip.clone() {
@@ -520,17 +541,12 @@ fn parse_token(
         };
 
         parts.push(Part {
-            atom: get_exceptions(
-                token,
-                case_sensitive,
-                true,
-                NextException::AllReadings,
-                info,
-            )?,
+            atom: (TrueAtom {}).into(),
             quantifier: Quantifier::new(0, to_skip),
             visible: false,
             greedy: false,
             unify: None,
+            next_exception: None,
         });
     }
 
@@ -1863,6 +1879,7 @@ mod tests {
             greedy: visible,
             visible,
             unify: None,
+            next_exception: None,
         }
     }
 
@@ -2013,13 +2030,35 @@ mod tests {
         );
     }
 
+    fn compiled_runtime_next_exceptions(xml: &str) -> Vec<Vec<bool>> {
+        let pattern: structure::Pattern = serde_xml_rs::from_str(xml).unwrap();
+        let mut info = BuildInfo::new(
+            Arc::new(Tagger::default()),
+            RegexCache::new(0),
+            PathBuf::new(),
+        );
+        let mut pool = PartInterner::default();
+        let (composition, _, _) = parse_pattern(pattern, &mut info, &mut pool).unwrap();
+        composition
+            .parts
+            .iter()
+            .map(|id| {
+                let mut out = Vec::new();
+                if let Some(atom) = &pool.get(*id).next_exception {
+                    next_exception_readings(atom, true, &mut out);
+                }
+                out
+            })
+            .collect()
+    }
+
     #[test]
-    fn scope_next_exception_on_a_skipping_token_sees_every_reading() {
+    fn scope_next_exception_on_a_skipping_token_is_checked_while_matching() {
+        let xml = r#"<pattern><token skip="2"><text text="“It’s"/><exception postag="VBN" scope="next"/></token><token><text text="…"/></token></pattern>"#;
+        assert_eq!(compiled_next_exceptions(xml), vec![Vec::<bool>::new(); 3]);
         assert_eq!(
-            compiled_next_exceptions(
-                r#"<pattern><token skip="2"><text text="“It’s"/><exception postag="VBN" scope="next"/></token><token><text text="…"/></token></pattern>"#
-            ),
-            vec![vec![false], vec![false], vec![]]
+            compiled_runtime_next_exceptions(xml),
+            vec![vec![false], vec![], vec![]]
         );
     }
 
@@ -2029,13 +2068,13 @@ mod tests {
             compiled_next_exceptions(
                 r#"<pattern><token><text text="“So"/></token><token skip="2"><text text="it’s"/><exception postag="VBN" scope="next"/></token></pattern>"#
             ),
-            vec![vec![], vec![true], vec![false]]
+            vec![vec![], vec![true], vec![]]
         );
         assert_eq!(
             compiled_next_exceptions(
                 "<pattern><token skip=\"1\"><text text=\"—so\"/></token><marker><token skip=\"2\"><text text=\"\u{2028}it…\"/><exception postag=\"VBN\" scope=\"next\"/></token></marker></pattern>"
             ),
-            vec![vec![], vec![], vec![], vec![false]]
+            vec![Vec::<bool>::new(); 4]
         );
     }
 

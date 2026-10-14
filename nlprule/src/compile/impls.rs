@@ -1786,6 +1786,10 @@ mod tests {
     <pattern><token>and</token><token min="0" postag="RB"/><token postag="NNPS?|PRP_S.*" postag_regexp="yes"/><token inflected="yes" min="0" regexp="yes">be|do|have</token><token min="0" postag="RB|TO" postag_regexp="yes"/><token min="0" postag="VB[DPZ]?" postag_regexp="yes"><exception regexp="yes">are|be|do|have</exception></token><token min="0" postag="RB"/><token postag="SENT_END"/></pattern>
     <message>m</message>
   </rule>
+  <rule id="SKIPPED" name="m">
+    <pattern><token skip="-1">was<exception scope="next">did</exception></token><token min="0" skip="-1">not<exception scope="next">so</exception></token><token>it</token></pattern>
+    <message>m</message>
+  </rule>
 </category>
 </rules>
 "#;
@@ -1814,6 +1818,23 @@ mod tests {
                     vec![("LAZY", 1)],
                 ),
                 ("We truly early \u{2014} or so.", vec![("LAZY", 0)]),
+            ],
+        );
+    }
+
+    #[test]
+    fn absent_optional_token_uses_the_previous_skip_window() {
+        assert_flag_starts(
+            "optional-skip",
+            OPTIONAL_TOKENS,
+            vec![
+                ("It was then did it go\u{2026}", vec![]),
+                ("\u{201c}It was then so it went.\u{201d}", vec![]),
+                ("It was then it went.", vec![("SKIPPED", 3)]),
+                ("It was not then it went \u{2014} oh.", vec![("SKIPPED", 3)]),
+                ("It was so it went.\u{2028}Done.", vec![]),
+                ("It was not so it went.", vec![]),
+                ("It was not did it go.", vec![("SKIPPED", 3)]),
             ],
         );
     }

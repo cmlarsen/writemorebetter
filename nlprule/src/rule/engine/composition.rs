@@ -723,6 +723,7 @@ pub struct Part {
     pub greedy: bool,
     pub visible: bool,
     pub unify: Option<bool>,
+    pub next_exception: Option<Box<Atom>>,
 }
 
 struct Immunity<'a> {
@@ -963,16 +964,49 @@ impl Composition {
         part.admits(position, immune) && part.atom.is_match(context, position)
     }
 
+    #[allow(clippy::too_many_arguments)]
+    fn test_after(
+        &self,
+        pool: &PartPool,
+        context: Context,
+        index: usize,
+        position: usize,
+        prev: Option<usize>,
+        prev_skip: i64,
+        immune: Option<&[bool]>,
+        excepted: &mut bool,
+    ) -> bool {
+        if !*excepted && prev_skip > 0 {
+            *excepted = prev
+                .and_then(|prev| pool.get(self.parts[prev]).next_exception.as_ref())
+                .is_some_and(|exception| exception.is_match(context, position));
+        }
+        !*excepted && self.test(pool, context, index, position, immune)
+    }
+
+    #[allow(clippy::too_many_arguments)]
     fn next_element_matches(
         &self,
         pool: &PartPool,
         context: Context,
-        mut index: usize,
+        current: usize,
         position: usize,
+        prev_skip: i64,
         immune: Option<&[bool]>,
+        excepted: &mut bool,
     ) -> bool {
+        let mut index = self.element_after(pool, current).1;
         while index < self.parts.len() {
-            if self.test(pool, context, index, position, immune) {
+            if self.test_after(
+                pool,
+                context,
+                index,
+                position,
+                Some(current),
+                prev_skip,
+                immune,
+                excepted,
+            ) {
                 return true;
             }
             if pool.get(self.parts[index]).quantifier.min > 0 {
@@ -1004,7 +1038,8 @@ impl Composition {
 
         let mut next_pos = start as i64;
         let mut prev_skip = 0i64;
-        let mut prev_skip_part: Option<usize> = None;
+        let mut prev_element: Option<usize> = None;
+        let mut prev_present_skip: Option<usize> = None;
         let mut index = 0;
         let mut k = 0i64;
 
@@ -1019,29 +1054,29 @@ impl Composition {
                 (next_pos + prev_skip).min(len - (pattern_size - k) + min_occur_correction);
 
             let mut found = None;
+            let mut excepted = false;
             let mut m = next_pos;
             while m <= max_tok {
                 let position = m as usize;
-                if m > next_pos {
-                    if let Some(skip) = prev_skip_part {
-                        if !pool
-                            .get(self.parts[skip])
-                            .atom
-                            .is_match((sentence, &graph), position - 1)
-                        {
-                            return None;
-                        }
-                    }
-                }
-
-                let matched = self.test(pool, (sentence, &graph), index, position, immunity.immune);
+                let matched = self.test_after(
+                    pool,
+                    (sentence, &graph),
+                    index,
+                    position,
+                    prev_element,
+                    prev_skip,
+                    immunity.immune,
+                    &mut excepted,
+                );
                 if part.quantifier.min == 0
                     && self.next_element_matches(
                         pool,
                         (sentence, &graph),
-                        next_index,
+                        index,
                         position,
+                        prev_skip,
                         immunity.immune,
+                        &mut excepted,
                     )
                 {
                     immunity.stopped = true;
@@ -1051,6 +1086,9 @@ impl Composition {
                     immunity.stopped |= part.quantifier.min == 0 || m < max_tok;
                     found = Some(position);
                     break;
+                }
+                if excepted {
+                    return None;
                 }
                 m += 1;
             }
@@ -1065,7 +1103,16 @@ impl Composition {
                 let mut count = 1;
                 while count < part.quantifier.max
                     && (last as i64 + 1) < len - remaining
-                    && self.test(pool, (sentence, &graph), index, last + 1, immunity.immune)
+                    && self.test_after(
+                        pool,
+                        (sentence, &graph),
+                        index,
+                        last + 1,
+                        prev_element,
+                        prev_skip,
+                        immunity.immune,
+                        &mut excepted,
+                    )
                 {
                     last += 1;
                     count += 1;
@@ -1076,7 +1123,7 @@ impl Composition {
                 immunity.stopped |= count > 1;
 
                 if first as i64 > next_pos {
-                    if let Some(skip) = prev_skip_part {
+                    if let Some(skip) = prev_present_skip {
                         let group = &mut graph.groups[skip + 1];
                         group
                             .span
@@ -1096,10 +1143,11 @@ impl Composition {
                         max as i64
                     }
                 });
-                prev_skip_part = skip_index;
+                prev_present_skip = skip_index;
                 next_pos = last as i64 + 1;
             }
 
+            prev_element = Some(index);
             index = next_index;
             k += 1;
         }
