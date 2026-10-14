@@ -166,8 +166,8 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   the chunker now matches LanguageTool 6.6's `EnglishChunker` on every internal token, POS tag
   and chunk tag (previously 1 sentence's tokens, 7 POS tags and 16 chunk tags differed), and
   `PUNCTUATION/OXFORD_NEW_CLAUSE/1` (`nginx, php, and mysql error logs and`) and
-  `STYLE/SERIAL_COMMA_ON/4` (`special, fast and nice`) pass. Grammar conformance rises from 6042
-  to 6044 rules ([#165](https://github.com/cmlarsen/writemorebetter/issues/165),
+  `STYLE/SERIAL_COMMA_ON/4` (`special, fast and nice`) pass. Grammar conformance rises from 6046
+  to 6048 rules ([#165](https://github.com/cmlarsen/writemorebetter/issues/165),
   [#154](https://github.com/cmlarsen/writemorebetter/issues/154)). The tokenizer binary grows
   by 1.9 MB (2.0 MB gzipped), peak RSS by 1.3–1.9 MiB and the tokenizer's loaded heap by
   1.0 MiB. The loaded parameter tables no longer keep the up-to-2× spare capacity that
