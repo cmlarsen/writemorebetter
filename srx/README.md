@@ -5,8 +5,9 @@
 > `regex-automata` with the one-pass DFA disabled, and the compiled regex is stored
 > alongside its pattern string so serialization is unchanged. See `Cargo.toml`.
 > Rules match like the Java SRX implementation LanguageTool uses: whitespace inside
-> `<beforebreak>`/`<afterbreak>` is kept, matches of one rule may overlap, the split
-> index is a named group so capture groups in `beforebreak` do not move it, and
+> `<beforebreak>`/`<afterbreak>` is kept, matches of one rule may overlap, a `break="no"`
+> rule holds at every index where its `beforebreak` can end and its `afterbreak` matches, the
+> split index is a named group so capture groups in `beforebreak` do not move it, and
 > patterns with look-around fall back to `fancy-regex`.
 > The upstream tests, benchmark and `data/` samples were removed because that data is
 > LanguageTool-derived and is not committed here; the remaining tests are data-free.

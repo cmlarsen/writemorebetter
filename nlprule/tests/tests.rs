@@ -196,6 +196,18 @@ fn sentencizer_splits_like_languagetool() {
         segments("\u{201c}I\u{2019}m done.\u{201d} She left."),
         vec!["\u{201c}I\u{2019}m done.\u{201d} ", "She left."]
     );
+    assert_eq!(
+        segments("\u{201c}Wait!\u{201d}  she cried\u{2014}then stopped\u{2026} \u{201c}Go.\u{201d}  He went."),
+        vec![
+            "\u{201c}Wait!\u{201d}  she cried\u{2014}then stopped\u{2026} ",
+            "\u{201c}Go.\u{201d} ",
+            " He went."
+        ]
+    );
+    assert_eq!(
+        segments("She\u{2019}d said \u{2018}no.\u{2019}  then left."),
+        vec!["She\u{2019}d said \u{2018}no.\u{2019}  then left."]
+    );
 }
 
 #[test]
