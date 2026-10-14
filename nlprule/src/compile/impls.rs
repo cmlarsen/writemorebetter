@@ -541,10 +541,7 @@ impl MultiwordTagger {
             }
             let tab_split: Vec<_> = line.split('\t').collect();
 
-            let word: String = tab_split[0]
-                .split_whitespace()
-                .collect::<Vec<_>>()
-                .join(" ");
+            let word = tab_split[0].to_owned();
             let pos = info.tagger().id_tag(tab_split[1]).to_owned_id();
 
             let variants = casing_variants(&word, &indices, options);

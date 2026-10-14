@@ -258,6 +258,21 @@ mod tests {
     }
 
     #[test]
+    fn phrases_with_other_whitespace_never_match() {
+        let tagger = tagger(&[
+            ("advisor ", "advisor "),
+            ("James\u{a0}Garfield", "James\u{a0}Garfield"),
+        ]);
+        assert!(hits(&tagger, &[("“", true), ("advisor", false), ("—", false)]).is_empty());
+        assert!(hits(&tagger, &[("advisor", true), ("said", true), ("…", false)]).is_empty());
+        assert!(hits(
+            &tagger,
+            &[("James", true), ("Garfield", true), ("’", false)]
+        )
+        .is_empty());
+    }
+
+    #[test]
     fn spaced_phrases_match_at_token_boundaries() {
         let tagger = tagger(&[
             ("Samuel L. Jackson", "Samuel L. Jackson"),

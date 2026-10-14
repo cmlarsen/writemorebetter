@@ -3214,3 +3214,19 @@ fn dm_d_is_one_token() {
     assert!(token_texts("He DM'D me — twice…").contains(&"DM'D".to_string()));
     assert!(token_texts("“She dm’d me.”\u{2028}").contains(&"dm'd".to_string()));
 }
+
+#[test]
+fn multiword_entries_with_stray_whitespace_do_not_match() {
+    let tags = word_tags_of("“My Advisor said no — twice…”\u{2028}", "Advisor");
+    assert!(!tags.iter().any(|(_, pos)| pos == "NNP"), "{tags:?}");
+
+    let text = "“I met James Garfield — again…”\u{2028}He left.";
+    assert_eq!(
+        word_tags_of(text, "James"),
+        vec![("James".to_string(), "NNP".to_string())]
+    );
+    assert_eq!(
+        word_tags_of(text, "Garfield"),
+        vec![("Garfield".to_string(), "NNP".to_string())]
+    );
+}
