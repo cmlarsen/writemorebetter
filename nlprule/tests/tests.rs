@@ -3660,3 +3660,107 @@ fn multiword_entries_with_stray_whitespace_do_not_match() {
         vec![("Garfield".to_string(), "NNP".to_string())]
     );
 }
+
+#[test]
+fn tokenizer_keeps_g_dropped_words_whole() {
+    assert_eq!(
+        token_texts("\u{201c}How you doin\u{2019}?\u{201d} he asked\u{2026}\u{2028}\u{201c}Nothin\u{2019}\u{2014}just somethin' I was goin' on about.\u{201d}"),
+        vec![
+            "\u{201c}", "How", "you", "doin'", "?", "\u{201d}", "he", "asked", "\u{2026}",
+            "\u{201c}", "Nothin'", "\u{2014}", "just", "somethin'", "I", "was", "goin'", "on",
+            "about", ".", "\u{201d}",
+        ]
+    );
+    assert_eq!(
+        token_texts("DOIN' IT NOW\u{2014}comin'\u{2026}"),
+        vec!["DOIN'", "IT", "NOW", "\u{2014}", "comin'", "\u{2026}"]
+    );
+}
+
+#[test]
+fn g_dropped_words_are_tagged_as_their_ing_form() {
+    let pos_tags = |text: &str, word: &str| -> Vec<(String, String)> {
+        tags_of(text, word)
+            .into_iter()
+            .filter(|(_, pos)| !pos.is_empty())
+            .collect()
+    };
+    let doing = vec![
+        ("doing".to_string(), "NN:UN".to_string()),
+        ("do".to_string(), "VBG".to_string()),
+    ];
+    assert_eq!(pos_tags("how you doin'?", "doin'"), doing);
+    assert_eq!(
+        pos_tags("\u{201c}How you doin\u{2019}?\u{201d}", "doin'"),
+        doing
+    );
+    assert_eq!(
+        pos_tags("\u{2018}Doin\u{2019} fine\u{2014}\u{2019}", "Doin'"),
+        doing
+    );
+    assert_eq!(pos_tags("DOIN' IT NOW\u{2026}", "DOIN'"), doing);
+    assert!(pos_tags("He was goin' home.\u{2028}", "goin'")
+        .contains(&("go".to_string(), "VBG".to_string())));
+}
+
+#[test]
+fn closing_quote_after_a_word_ending_in_in_stays_a_token() {
+    assert_eq!(
+        token_texts("\u{2018}A cabin\u{2019} \u{2014} \u{2018}a sin\u{2019}\u{2026} \u{2018}the robin\u{2019} \u{2028}'so thin' 'a win'"),
+        vec![
+            "\u{2018}", "A", "cabin", "\u{2019}", "\u{2014}", "\u{2018}", "a", "sin", "\u{2019}",
+            "\u{2026}", "\u{2018}", "the", "robin", "\u{2019}", "'", "so", "thin", "'", "'", "a",
+            "win", "'",
+        ]
+    );
+    assert_eq!(
+        token_texts("'goin' home,' she said."),
+        vec!["'", "goin", "'", "home", ",", "'", "she", "said", "."]
+    );
+    assert_eq!(
+        token_texts("\u{2018}goin\u{2019} home,\u{2019} she said."),
+        vec!["\u{2018}", "goin'", "home", ",", "\u{2019}", "she", "said", "."]
+    );
+    for text in [
+        "\u{2018}It was a sin\u{2019} \u{2014} he said\u{2026}",
+        "\u{2018}The robin\u{2019} sang.\u{2028}",
+        "'It was a sin' he said.",
+        "\u{2018}Doin\u{2019} fine,\u{2019} she said.",
+        "\u{2018}goin\u{2019} home,\u{2019} she said.",
+    ] {
+        assert_eq!(builtin_unpaired_flags(text), vec![], "{}", text);
+    }
+}
+
+#[test]
+fn g_dropped_word_before_a_closing_quote_is_not_a_quote() {
+    for text in [
+        "'I ain't doin'.'",
+        "\u{2018}I ain\u{2019}t doin\u{2019}.\u{2019}",
+        "\u{2018}I\u{2019}m doin\u{2019} fine. You keep goin\u{2019}.\u{2019}\u{2028}",
+        "She said, \u{2018}He\u{2019}s just talkin\u{2019}\u{2026}\u{2019}",
+        "\u{201c}She said \u{2018}I ain\u{2019}t doin\u{2019} it\u{2019} and left.\u{201d}",
+        "\"She said 'I ain't doin' it' and left.\"",
+        "\u{201c}\u{2018}Nothin\u{2019},\u{2019} she said.\u{201d}",
+        "'Keep goin',' he said.",
+        "\u{2018}Lookin\u{2019} good,\u{2019} said Tom\u{2014}\u{2018}real good.\u{2019}",
+        "\u{2018}Rock \u{2019}n\u{2019} roll,\u{2019} he said.",
+        "'Rock 'n' roll,' he said.",
+    ] {
+        assert_eq!(builtin_unpaired_flags(text), vec![], "{}", text);
+    }
+    assert_eq!(
+        builtin_unpaired_flags("\u{2018}I said goin\u{2019}\u{2019} and left."),
+        vec![quote_flag("\u{2019}")]
+    );
+}
+
+#[test]
+fn spellchecker_accepts_g_dropped_words() {
+    for text in &[
+        "\u{201c}How you doin\u{2019}?\u{201d} he asked\u{2026}",
+        "\u{201c}Nothin\u{2019}\u{2014}just somethin' I was goin' on about.\u{201d}\u{2028}",
+    ] {
+        assert_eq!(spelling_errors(text), Vec::<&str>::new(), "{}", text);
+    }
+}
