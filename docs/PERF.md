@@ -710,9 +710,9 @@ the joined strings are never built. `hash_str(s) == hash_parts(&[s])` and
 terminator), so every feature hash is unchanged.
 
 The chunk model's 19 word/tag features do not depend on the predicted outcomes. They are now
-computed once per position (`static_context`) and their `pmap` entries resolved and summed once
-(`Model::resolved_prior`, applied by `Model::eval_with_prior`), instead of re-hashing,
-binary-searching and re-adding them for every beam entry. The 22 outcome-dependent features (`pred_context`) are looked up as before. `beam_search`
+computed once per position (`static_context`) and their `pmap` entries resolved once
+(`Model::eval_with_resolved`), instead of re-hashing and binary-searching them for every beam
+entry. The 22 outcome-dependent features (`pred_context`) are looked up as before. `beam_search`
 takes the eval step as a closure so the POS tagger keeps the plain `Model::eval`, and it swaps
 its two beam heaps instead of deep-cloning the live sequences each token.
 
@@ -816,4 +816,34 @@ chunker instruction cost is dominated by the model evaluation (pmap lookups and 
 than the allocations that the dropped attempts reduced; the harness records the allocation volume
 separately (attempt 1 alone cut chunker allocation calls by 50%).
 
+### OpenNLP beam parity ([#123](https://github.com/cmlarsen/writemorebetter/issues/123), [#156](https://github.com/cmlarsen/writemorebetter/pull/156))
 
+Matching OpenNLP 1.9.4's `BeamSearch` (no 0.1 probability cutoff, chunker beam 10 instead of 7)
+is a correctness change, but it makes every beam full: each kept sequence advances its top 10
+chunk tags (top 3 POS tags) instead of the one or two above 0.1. The chunker's cost more than
+doubled. Three output-preserving changes recover about half of it (the chunker golden is
+byte-identical before and after them):
+
+- The POS tagger sums its word/affix features once per position (`Model::prior`) and looks up
+  only `t=`/`t2=` per beam entry; the chunker does the same for its 19 word/tag features. The
+  model still adds every feature in OpenNLP's order.
+- The chunker resolves the 20 features that depend only on the previous outcome
+  (`pred1_context`) once per position and outcome, and looks up only the two `p_2` features
+  (`pred2_context`) per beam entry.
+- `beam_search` sorts a context's outcomes once when it evaluates the context, creates nodes
+  only for the sequences that survive each step, and the POS tagger looks up each token's
+  tag-dictionary entry once per sentence.
+
+`NLPRULE_PARALLELISM=off PROFILE=fiction SPELL=en_US`, `moby150k`, LT 6.6, macOS
+`/usr/bin/time -l` instructions retired (two runs each, within 0.2%), and chunkbench on
+`moby150k` (instructions per chunker pass, from `--runs=1` and `--runs=5`):
+
+| | whole check | chunker pass | chunker requested MiB / pass |
+|---|---:|---:|---:|
+| main (`acc7778`) | 48.24B | 2.65B | 25 |
+| beam parity as first written | 52.33B (+8.5%) | 6.73B | 187 |
+| with the changes above | 50.19B (+4.0%) | 4.57B | 66 |
+
+The remaining cost is the extra model evaluations a full beam needs. Using `f64` for the model
+sums, softmax and log-probabilities (as OpenNLP does) changed no chunk or POS label on the six
+public texts and cost about 10% more chunker instructions, so it was not kept.
