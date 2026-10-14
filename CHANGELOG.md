@@ -64,6 +64,12 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
 ### Fixed
 
+- **Names from LanguageTool's global spelling list are accepted by `Speller::is_correct` and
+  suggested.** Single-word entries of `spelling_global.txt` (`Josquin`, `fit4work`, `Nestlé`) are
+  now speller words for every variant, as in LanguageTool 6.6, so `Josquinn` suggests `Josquin`
+  and the speller-backed rule filters stop treating them as misspelled
+  ([#167](https://github.com/cmlarsen/writemorebetter/issues/167)). Recompile rules binaries to
+  pick up the words; the format is unchanged.
 - **Spelling suggestions rank by edit distance, then frequency, as in LanguageTool 6.6.** A
   common word two edits away no longer outranks a rarer word one edit away, and only the
   candidates at the smallest edit distance found are suggested, so `Hecla` suggests `Hekla`

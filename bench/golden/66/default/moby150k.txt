@@ -200,7 +200,7 @@
 462 | SPELLCHECK/SINGLE | "spermacetti" -> ["spermaceti"] | Possibly misspelled word.
 463 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 463 | SPELLCHECK/SINGLE | "Hosmannus" -> ["Hosannas"] | Possibly misspelled word.
-463 | SPELLCHECK/SINGLE | "Nescio" -> ["UNESCO", "Nuncio", "Nessie", "Enesco", "ENSCI", "Pesci", "Tesco"] | Possibly misspelled word.
+463 | SPELLCHECK/SINGLE | "Nescio" -> ["UNESCO", "Nuncio", "Nessie", "Enesco", "ENSCI", "Pesci", "Tesco", "ESCO"] | Possibly misspelled word.
 464 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 464 | SPELLCHECK/SINGLE | "Sperma" -> ["Sperm", "Sperms"] | Possibly misspelled word.
 464 | SPELLCHECK/SINGLE | "Ceti" -> ["CTI", "Yeti", "CEDI", "CEI", "CESI", "CET", "CETA", "CETE", "CETIM", "Ceto"] | Possibly misspelled word.
@@ -215,7 +215,7 @@
 471 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 475 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 476 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
-476 | SPELLCHECK/SINGLE | "Civitas" -> ["Civets", "Civics", "Vitas"] | Possibly misspelled word.
+476 | SPELLCHECK/SINGLE | "Civitas" -> ["Civets", "Civics", "Vitas", "Caritas"] | Possibly misspelled word.
 477 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 479 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 479 | SPELLCHECK/SINGLE | "Mansoul" -> ["Manson", "Manful", "Rantoul"] | Possibly misspelled word.
@@ -261,7 +261,7 @@
 528 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 528 | SPELLCHECK/SINGLE | "Pitferren" -> [] | Possibly misspelled word.
 529 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
-529 | SPELLCHECK/SINGLE | "Sibbald" -> ["Sinbad", "Piebald", "Ribald"] | Possibly misspelled word.
+529 | SPELLCHECK/SINGLE | "Sibbald" -> ["Sinbad", "Piebald", "Ribald", "Siebold"] | Possibly misspelled word.
 531 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 532 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 532 | SPELLCHECK/SINGLE | "Sperma-ceti" -> ["Spermaceti"] | Possibly misspelled word.
@@ -668,7 +668,7 @@
 1686 | SPELLCHECK/SINGLE | "debel" -> ["rebel", "Bebel"] | Possibly misspelled word.
 1691 | BUILTIN/UPPERCASE_SENTENCE_START | "save" -> ["Save"] | This sentence does not start with an uppercase letter.
 1693 | SPELLCHECK/SINGLE | "tell-ee" -> ["teller", "tellies"] | Possibly misspelled word.
-1693 | SPELLCHECK/SINGLE | "who-ee" -> ["whole", "whose", "wholes", "whee", "whoopee", "whoaed", "whore", "whored", "whores"] | Possibly misspelled word.
+1693 | SPELLCHECK/SINGLE | "who-ee" -> ["whole", "whose", "wholes", "whee", "whoopee", "whoaed", "whore", "whored", "whores", "Shopee"] | Possibly misspelled word.
 1694 | SPELLCHECK/SINGLE | "flourishings" -> ["flourishing"] | Possibly misspelled word.
 1699 | SPELLCHECK/SINGLE | "Queequeg" -> [] | Possibly misspelled word.
 1703 | SPELLCHECK/SINGLE | "harpooneer" -> ["harpooner"] | Possibly misspelled word.
@@ -796,7 +796,7 @@
 2279 | SPELLCHECK/SINGLE | "sealine" -> ["sealing", "saline"] | Possibly misspelled word.
 2279 | BUILTIN/UPPERCASE_SENTENCE_START | "what" -> ["What"] | This sentence does not start with an uppercase letter.
 2282 | SPELLCHECK/SINGLE | "kelpy" -> ["kelp", "kelps", "kempy"] | Possibly misspelled word.
-2290 | SPELLCHECK/SINGLE | "Amittai" -> [] | Possibly misspelled word.
+2290 | SPELLCHECK/SINGLE | "Amittai" -> ["Anitta"] | Possibly misspelled word.
 2290 | SPELLCHECK/SINGLE | "wilful" -> ["willful", "wailful"] | Possibly misspelled word.
 2312 | BUILTIN/UPPERCASE_SENTENCE_START | "most" -> ["Most"] | This sentence does not start with an uppercase letter.
 2317 | BUILTIN/UPPERCASE_SENTENCE_START | "no" -> ["No"] | This sentence does not start with an uppercase letter.

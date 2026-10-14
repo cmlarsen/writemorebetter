@@ -583,6 +583,36 @@ fn spellchecker_accepts_all_caps_names_from_the_global_list() {
 }
 
 #[test]
+fn speller_accepts_and_suggests_words_from_the_global_list() {
+    let speller = RULES.spell().speller().unwrap();
+    for word in ["Josquin", "JOSQUIN", "fit4work", "Nestl\u{e9}"] {
+        assert!(speller.is_correct(word), "{}", word);
+    }
+    assert!(!speller.is_correct("Pr\u{e9}s"));
+    assert_eq!(speller.suggest("Josquinn", 5), vec!["Josquin"]);
+    let nescio = speller.suggest("Nescio", 10);
+    assert_eq!(
+        nescio.last().map(String::as_str),
+        Some("ESCO"),
+        "{:?}",
+        nescio
+    );
+
+    for variant in ["en_US", "en_GB"] {
+        let mut rules = Rules::new(RULES_PATH).unwrap();
+        rules.spell_mut().options_mut().variant = Some(rules.spell().variant(variant).unwrap());
+        let text = "\u{201c}Josquinn\u{2014}again\u{2026}\u{201d}\u{2028}\u{2018}Josquin\u{2019}s motet, fit4work, Nestl\u{e9},\u{2019} she said.";
+        let flags: Vec<(&str, Vec<String>)> = rules
+            .suggest(text, &*TOKENIZER)
+            .into_iter()
+            .filter(|x| x.source().starts_with("SPELLCHECK"))
+            .map(|x| (&text[x.span().byte().clone()], x.replacements().to_vec()))
+            .collect();
+        assert_eq!(flags, vec![("Josquinn", vec!["Josquin".to_string()])]);
+    }
+}
+
+#[test]
 fn speller_suggests_dictionary_casing_for_mixed_case_words() {
     let speller = RULES.spell().speller().unwrap();
     assert_eq!(speller.suggest("iPHONE", 2), vec!["iPhone", "phone"]);
