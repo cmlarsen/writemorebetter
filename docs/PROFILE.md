@@ -59,6 +59,15 @@ Disables exactly these:
 Applying it to the compiled English rules disables 147 rules and reports 0
 unmatched selectors.
 
+The fiction profile does not need to name rules that are off by default. Of the
+builtins ported for [#81](https://github.com/cmlarsen/writemorebetter/issues/81),
+`PROFANITY` (swearing is deliberate in dialogue), `EN_PLAIN_ENGLISH_REPLACE` and
+`EN_REDUNDANCY_REPLACE` (style advice, not errors) and `EN_DASH_RULE` (it reads an
+em dash between two words, as in `well—being`, as a typo for a hyphen) are off by
+default as in LanguageTool 6.6, so they stay off in fiction too. `EN_COMPOUNDS`
+(`part time` → `part-time`) and `EN_SPECIFIC_CASE` (`Harry potter` → `Harry Potter`)
+flag spelling errors and stay on.
+
 ### Rules found while searching `data/en/grammar.xml`
 
 - **Verbless dialogue questions:** the rule is `<rulegroup id="YOU_GOOD">`

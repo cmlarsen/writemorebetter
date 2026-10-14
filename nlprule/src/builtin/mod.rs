@@ -6,7 +6,10 @@
 //! enabled flag. Builtin rules are stored alongside the XML rules in
 //! [`Rules`](crate::rules::Rules).
 
-use crate::types::{Sentence, Suggestion};
+use crate::{
+    spell::Speller,
+    types::{Sentence, Suggestion},
+};
 use serde::{Deserialize, Serialize};
 
 pub mod en;
@@ -44,6 +47,13 @@ pub enum Builtin {
     SentenceWhitespace(en::SentenceWhitespace),
     /// Flags more than one empty line between paragraphs.
     EmptyLine(en::EmptyLine),
+    /// Flags a multi-word proper noun with the wrong capitalization, e.g.
+    /// `"Harry potter"`.
+    SpecificCase(en::SpecificCase),
+    /// Flags a hyphenated compound written with a dash, e.g. `"T—shirt"`.
+    Dash(en::Dash),
+    /// Flags a compound written as separate words, e.g. `"part time"`.
+    Compounds(en::Compounds),
 }
 
 impl Builtin {
@@ -64,6 +74,9 @@ impl Builtin {
             Builtin::MultipleWhitespace(rule) => rule.id(),
             Builtin::SentenceWhitespace(rule) => rule.id(),
             Builtin::EmptyLine(rule) => rule.id(),
+            Builtin::SpecificCase(rule) => rule.id(),
+            Builtin::Dash(rule) => rule.id(),
+            Builtin::Compounds(rule) => rule.id(),
         }
     }
 
@@ -86,17 +99,20 @@ impl Builtin {
         sentences: &[Sentence],
         previous: Option<&Sentence>,
     ) -> Vec<Suggestion> {
-        self.check_paragraph(sentences, previous, true)
+        self.check_paragraph(sentences, previous, true, None)
     }
 
     /// Like [`Builtin::check_text_with_previous`], for a paragraph that is
     /// followed by more text unless `ends_text` is set. Only rules that look at
-    /// the end of the text (`EMPTY_LINE`) use `ends_text`.
+    /// the end of the text (`EMPTY_LINE`) use `ends_text`. Rules that check
+    /// their suggestions against the speller (`EN_COMPOUNDS`) use `speller`;
+    /// without one they keep every suggestion.
     pub fn check_paragraph(
         &self,
         sentences: &[Sentence],
         previous: Option<&Sentence>,
         ends_text: bool,
+        speller: Option<&Speller>,
     ) -> Vec<Suggestion> {
         match self {
             Builtin::CommaParenthesisWhitespace(rule) => rule.check_sentences(sentences),
@@ -114,6 +130,12 @@ impl Builtin {
             Builtin::MultipleWhitespace(rule) => rule.check_with_previous(sentences, previous),
             Builtin::SentenceWhitespace(rule) => rule.check_with_previous(sentences, previous),
             Builtin::EmptyLine(rule) => rule.check_text(sentences, ends_text),
+            Builtin::SpecificCase(rule) => sentences.iter().flat_map(|x| rule.check(x)).collect(),
+            Builtin::Dash(rule) => sentences.iter().flat_map(|x| rule.check(x)).collect(),
+            Builtin::Compounds(rule) => sentences
+                .iter()
+                .flat_map(|x| rule.check(x, speller))
+                .collect(),
         }
     }
 }

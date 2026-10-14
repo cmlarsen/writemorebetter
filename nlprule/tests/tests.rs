@@ -458,10 +458,17 @@ fn apply_profile_reports_unmatched_selectors() {
             "NO_SUCH_CATEGORY"
         ]
     );
+    let off_by_default = [
+        "EMPTY_LINE",
+        "EN_DASH_RULE",
+        "EN_PLAIN_ENGLISH_REPLACE",
+        "EN_REDUNDANCY_REPLACE",
+        "PROFANITY",
+    ];
     assert!(rules
         .builtins()
         .iter()
-        .all(|rule| rule.enabled() || rule.id() == "EMPTY_LINE"));
+        .all(|rule| rule.enabled() || off_by_default.contains(&rule.id())));
 }
 
 /// The `BUILTIN/` selector path disables a builtin rule by its id.
@@ -4044,14 +4051,17 @@ fn builtin_flags(id: &str, text: &str) -> Vec<(String, Vec<String>)> {
         }
     }
 
+    let speller = RULES.spell().speller();
     let mut previous = None;
     let mut suggestions = Vec::new();
     for (i, paragraph) in paragraphs.iter().enumerate() {
         let ends_text = paragraphs[i + 1..].iter().all(Vec::is_empty);
-        suggestions.extend(
-            rule.builtin()
-                .check_paragraph(paragraph, previous, ends_text),
-        );
+        suggestions.extend(rule.builtin().check_paragraph(
+            paragraph,
+            previous,
+            ends_text,
+            speller.as_ref(),
+        ));
         previous = paragraph.last().or(previous);
     }
 
@@ -4391,5 +4401,159 @@ fn fiction_profile_keeps_other_whitespace_flags() {
             "\u{201c}Hi,\u{201d}  she said \u{2014}  softly\u{2026}\n  Then\u{a0}\u{a0}left \u{2028}  here."
         ),
         vec!["  ", "  ", "\u{a0}\u{a0}"]
+    );
+}
+
+fn builtin_enabled(id: &str) -> bool {
+    RULES
+        .builtins()
+        .iter()
+        .find(|rule| rule.id() == id)
+        .unwrap()
+        .enabled()
+}
+
+#[test]
+fn builtins_from_issue_81_follow_languagetool_defaults() {
+    assert!(builtin_enabled("EN_COMPOUNDS"));
+    assert!(builtin_enabled("EN_SPECIFIC_CASE"));
+    assert!(!builtin_enabled("EN_DASH_RULE"));
+    assert!(!builtin_enabled("EN_PLAIN_ENGLISH_REPLACE"));
+    assert!(!builtin_enabled("EN_REDUNDANCY_REPLACE"));
+    assert!(!builtin_enabled("PROFANITY"));
+}
+
+#[test]
+fn builtin_compounds_flags_separated_compounds() {
+    assert_eq!(
+        builtin_flags(
+            "EN_COMPOUNDS",
+            "\u{201c}I need a part time job,\u{201d} she said.\n\nHe sent an e mail\u{2026} then a back fire."
+        ),
+        vec![
+            flag("part time", &["part-time"]),
+            flag("e mail", &["e-mail"]),
+            flag("back fire", &["backfire"]),
+        ]
+    );
+    assert_eq!(
+        builtin_flags(
+            "EN_COMPOUNDS",
+            "She\u{2019}d a part time job\u{2014}and an e mail.\u{2028}Part time work is fine."
+        ),
+        vec![
+            flag("part time", &["part-time"]),
+            flag("e mail", &["e-mail"])
+        ]
+    );
+    assert_eq!(
+        builtin_flags("EN_COMPOUNDS", "Part time work is fine. PART TIME too."),
+        vec![flag("Part time", &["Part-time"])]
+    );
+    assert_eq!(
+        builtin_flags("EN_COMPOUNDS", "The part-time job and the back-fire."),
+        vec![flag("back-fire", &["backfire"])]
+    );
+}
+
+#[test]
+fn builtin_compounds_reports_sub_rule_ids_and_messages() {
+    let suggestions = RULES.suggest("He sent me an e mail\u{2026}", &TOKENIZER);
+    let compound = suggestions
+        .iter()
+        .find(|suggestion| suggestion.source().starts_with("BUILTIN/EN_COMPOUNDS"))
+        .expect("the compound is flagged");
+    assert_eq!(compound.source(), "BUILTIN/EN_COMPOUNDS_E_MAIL");
+    assert_eq!(compound.replacements(), &["e-mail".to_string()]);
+    assert_eq!(
+        compound.message(),
+        "This word is normally spelled with a hyphen."
+    );
+}
+
+#[test]
+fn builtin_compounds_skips_antipatterns() {
+    assert_eq!(
+        builtin_flags(
+            "EN_COMPOUNDS",
+            "We well received your email.\n\nHow well received was it?\n\nThey\u{2019}re re married."
+        ),
+        vec![]
+    );
+}
+
+#[test]
+fn builtin_specific_case_flags_proper_nouns() {
+    let flag_harry = || flag("Harry potter", &["Harry Potter"]);
+    assert_eq!(
+        builtin_flags(
+            "EN_SPECIFIC_CASE",
+            "She said \u{201c}harry potter\u{201d} twice\u{2026} and Harry potter\u{2019}s wand."
+        ),
+        vec![flag("harry potter", &["Harry Potter"]), flag_harry()]
+    );
+    assert_eq!(
+        builtin_flags(
+            "EN_SPECIFIC_CASE",
+            "\u{201c}Harry potter,\u{201d} she said\u{2014}then the empire state building.\u{2028}HARRY POTTER is fine."
+        ),
+        vec![
+            flag_harry(),
+            flag("empire state building", &["Empire State Building"])
+        ]
+    );
+}
+
+#[test]
+fn builtin_dash_flags_compounds_with_dashes() {
+    assert_eq!(
+        builtin_flags(
+            "EN_DASH_RULE",
+            "He wore a T\u{2014}shirt\u{2026} and a \u{201c}T \u{2013} shirt\u{201d}.\u{2028}The well\u{2014}being of all."
+        ),
+        vec![
+            flag("T\u{2014}shirt", &["T-shirt"]),
+            flag("T \u{2013} shirt", &["T-shirt"]),
+            flag("well\u{2014}being", &["well-being"]),
+        ]
+    );
+    assert_eq!(
+        builtin_flags(
+            "EN_DASH_RULE",
+            "She\u{2019}d gone\u{2014}well, being late\u{2014}and an E\u{2014}mail."
+        ),
+        vec![]
+    );
+}
+
+#[test]
+fn builtin_plain_english_and_redundancy_flag_phrases() {
+    assert_eq!(
+        builtin_flags(
+            "EN_PLAIN_ENGLISH_REPLACE",
+            "It was a fatal outcome, she said\u{2014}in close proximity to the door\u{2026}"
+        ),
+        vec![
+            flag("fatal outcome", &["death"]),
+            flag("in close proximity to", &["close", "near"]),
+        ]
+    );
+    assert_eq!(
+        builtin_flags(
+            "EN_REDUNDANCY_REPLACE",
+            "\u{201c}A tuna fish,\u{201d} she\u{2019}d said.\u{2028}Tuna fish again."
+        ),
+        vec![flag("tuna fish", &["tuna"]), flag("Tuna fish", &["Tuna"])]
+    );
+}
+
+#[test]
+fn builtin_profanity_flags_without_suggestions() {
+    assert_eq!(
+        builtin_flags(
+            "PROFANITY",
+            "\u{201c}What a twat,\u{201d} he said\u{2026} arsehole\u{2014}really.\u{2028}Twat."
+        ),
+        vec![flag("twat", &[]), flag("arsehole", &[]), flag("Twat", &[])]
     );
 }

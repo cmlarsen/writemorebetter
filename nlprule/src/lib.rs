@@ -188,7 +188,9 @@ pub const TOKENIZER_FORMAT_VERSION: u32 = 15;
 /// Version 23: the `DoublePunctuation`, `MultipleWhitespace`, `SentenceWhitespace` and `EmptyLine`
 /// builtins were added.
 /// Version 24: `PosReplacer::spell_number` was added (`<match postag="_spell_number_"/>`).
-pub const RULES_FORMAT_VERSION: u32 = 24;
+/// Version 25: the `SpecificCase`, `Dash` and `Compounds` builtins were added, and `SimpleReplace`
+/// gained `has_suggestions`.
+pub const RULES_FORMAT_VERSION: u32 = 25;
 
 /// The longest engine version string accepted in a binary header.
 const MAX_ENGINE_VERSION_LEN: usize = 256;
