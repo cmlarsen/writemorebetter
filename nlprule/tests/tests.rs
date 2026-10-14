@@ -3026,4 +3026,11 @@ fn comma_suggestion_starts_the_match_at_the_previous_token() {
             vec![" anybody".to_string(), ", nobody".into()]
         )]
     );
+    assert_eq!(
+        rule_flags("Tim\u{2028}make his life worse.", "GRAMMAR/NNP_AGREEMENT/"),
+        vec![(
+            "\u{2028}make".to_string(),
+            vec![" makes".to_string(), " made".into(), ", make".into()]
+        )]
+    );
 }
