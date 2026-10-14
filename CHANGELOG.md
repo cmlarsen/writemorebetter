@@ -101,6 +101,14 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   the next candidate starting inside it was skipped. LanguageTool 6.6 drops a vetoed match
   before it removes overlaps, so `“yuval Noha Harari,” she said.` now gets "Noah Harari" from
   `EN_MULTITOKEN_SPELLING_TWO` after the filter rejects "yuval Noha".
+- **"best" before a preposition is tagged as a superlative adjective, as in LanguageTool 6.6.**
+  The English tokenizer config no longer skips the `BEST_JJS` disambiguation rule, a leftover
+  from upstream nlprule, so `PRP_MD_NN` now flags "It may best to add this" and suggests "may be
+  best" ([#221](https://github.com/cmlarsen/writemorebetter/issues/221)). Two disambiguation
+  actions now behave as in LanguageTool 6.6: `<disambig postag="…">` without an action leaves one
+  reading (the last one with that tag, so "best" becomes `well/JJS` rather than `good/JJS` and
+  `well/JJS`), and `<disambig action="remove">` with a `<wd>` that has only a lemma removes every
+  reading with that lemma, so "installed" no longer keeps `instal` readings.
 - **The apostrophe-style rules see a curly apostrophe, as in LanguageTool 6.6.** The opt-in
   `TYPEWRITER_APOSTROPHE` rule now flags `’s` in `actress’s` and suggests `'s` (a straight
   apostrophe in a suggestion is no longer made curly when that would repeat the flagged text),
