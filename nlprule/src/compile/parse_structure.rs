@@ -102,6 +102,7 @@ impl BuildInfo {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn parse_match_attribs(
     attribs: impl structure::MatchAttributes,
     text: Option<&str>,
@@ -109,6 +110,7 @@ fn parse_match_attribs(
     text_match_idx: Option<usize>,
     reference_conversion: Option<Conversion>,
     reference_synthesis: Option<Match>,
+    reference_affix: Option<(String, String)>,
     info: &mut BuildInfo,
 ) -> Result<Atom, Error> {
     let mut atoms: Vec<Atom> = Vec::new();
@@ -187,8 +189,12 @@ fn parse_match_attribs(
                 case_sensitive,
                 inflected,
             );
-            match (text_match_idx, reference_conversion) {
+            let matcher = match (text_match_idx, reference_conversion) {
                 (Some(_), Some(conversion)) => matcher.with_reference_conversion(conversion),
+                _ => matcher,
+            };
+            match (text_match_idx, reference_affix) {
+                (Some(_), Some((prefix, suffix))) => matcher.with_reference_affix(&prefix, &suffix),
                 _ => matcher,
             }
         };
@@ -334,6 +340,7 @@ fn get_exceptions(
                     None,
                     None,
                     None,
+                    None,
                     info,
                 ) {
                     Ok(atom) => atom,
@@ -374,6 +381,24 @@ fn get_exceptions(
     } else {
         Ok((TrueAtom {}).into())
     }
+}
+
+fn reference_affix(parts: &[structure::TokenPart]) -> (String, String) {
+    let mut prefix = String::new();
+    let mut suffix = String::new();
+    let mut seen_reference = false;
+    for part in parts {
+        match part {
+            structure::TokenPart::Text(text) if seen_reference => suffix.push_str(text),
+            structure::TokenPart::Text(text) => prefix.push_str(text),
+            structure::TokenPart::Sub(_) => seen_reference = true,
+            structure::TokenPart::Exception(_) => {}
+        }
+    }
+    (
+        prefix.trim_start().to_string(),
+        suffix.trim_end().to_string(),
+    )
 }
 
 fn parse_token(
@@ -445,16 +470,34 @@ fn parse_token(
                     }),
                 };
 
-                Some((sub.no.parse::<usize>()? + 1, conversion, synthesis))
+                let (prefix, suffix) = reference_affix(parts);
+                if (!prefix.is_empty() || !suffix.is_empty())
+                    && (synthesis.is_some() || token.regexp.as_deref() == Some("yes"))
+                {
+                    return Err(Error::Unimplemented(
+                        "literal text around a <match> with postag or regexp inside a <token> is not implemented."
+                            .into(),
+                    ));
+                }
+
+                Some((
+                    sub.no.parse::<usize>()? + 1,
+                    conversion,
+                    synthesis,
+                    (prefix, suffix),
+                ))
             }
         }
     } else {
         None
     };
-    let (text_match_idx, reference_conversion, reference_synthesis) = match text_match {
-        Some((idx, conversion, synthesis)) => (Some(idx), conversion, synthesis),
-        None => (None, None, None),
-    };
+    let (text_match_idx, reference_conversion, reference_synthesis, reference_affix) =
+        match text_match {
+            Some((idx, conversion, synthesis, affix)) => {
+                (Some(idx), conversion, synthesis, Some(affix))
+            }
+            None => (None, None, None, None),
+        };
 
     let min = token
         .min
@@ -490,6 +533,7 @@ fn parse_token(
         text_match_idx,
         reference_conversion,
         reference_synthesis,
+        reference_affix,
         info,
     )?;
     let next_exception = if has_skip(token) && !last {
@@ -545,6 +589,21 @@ fn parse_pos_replacer(
 ) -> Result<PosReplacer, Error> {
     let postag = postag.trim();
 
+    if postag == "_spell_number_" {
+        return Ok(PosReplacer {
+            postag: postag.to_string(),
+            regex: None,
+            postag_replace: None,
+            determiner: None,
+            spell_number: true,
+        });
+    } else if postag.starts_with("_spell_number_") {
+        return Err(Error::Unimplemented(format!(
+            "the number spelling postag '{}' is not supported.",
+            postag
+        )));
+    }
+
     // LanguageTool's English synthesizer extends synthesis with two special
     // postags: `+INDT` adds "a"/"an" and `+DT` adds "a"/"an" or "the". In the
     // regexp form the tag ends with `\+INDT`/`\+DT` (a `\`-escaped `+` in the
@@ -591,6 +650,7 @@ fn parse_pos_replacer(
         regex,
         postag_replace,
         determiner,
+        spell_number: false,
     })
 }
 
@@ -1379,6 +1439,7 @@ impl Rule {
             suppress_misspelled,
             uses_articles,
             raw_pos,
+            repetition: None,
             url: data.url.map(|x| x.to_string()),
             short: data.short.map(|x| x.to_string()),
             // fields below need information from rule group / category, so are set later
@@ -2048,6 +2109,57 @@ mod tests {
     }
 
     #[test]
+    fn literal_text_around_a_token_reference_is_its_affix() {
+        let affix = |xml: &str| {
+            let token: structure::Token = serde_xml_rs::from_str(xml).unwrap();
+            reference_affix(token.parts.as_deref().unwrap())
+        };
+
+        assert_eq!(
+            affix(r#"<token><match no="0"/><text text="s"/></token>"#),
+            ("".to_string(), "s".to_string())
+        );
+        assert_eq!(
+            affix(
+                "<token><text text=\"“\"/><match no=\"1\"/><text text=\"’s—…\u{2028}\"/><exception postag=\"VBN\"/></token>"
+            ),
+            ("“".to_string(), "’s—…".to_string())
+        );
+        assert_eq!(
+            affix(r#"<token><match no="2" case_conversion="startupper"/></token>"#),
+            (String::new(), String::new())
+        );
+    }
+
+    #[test]
+    fn literal_text_around_a_reference_with_postag_or_regexp_is_unimplemented() {
+        let pattern = |second: &str| {
+            format!(
+                "<pattern><token><text text=\"“active\"/></token>{}</pattern>",
+                second
+            )
+        };
+
+        assert!(is_unimplemented(try_compiled_mins(&pattern(
+            r#"<token><match no="0" postag="NNS"/><text text="’s—…"/></token>"#
+        ))));
+        assert!(is_unimplemented(try_compiled_mins(&pattern(
+            "<token regexp=\"yes\"><match no=\"0\"/><text text=\"s?\u{2028}x\"/></token>"
+        ))));
+
+        assert_eq!(
+            compiled_mins(&pattern(
+                r#"<token><match no="0"/><text text="’s—…"/></token>"#
+            )),
+            vec![1, 1]
+        );
+        assert_eq!(
+            compiled_mins(&pattern(r#"<token><match no="0" postag="NNS"/></token>"#)),
+            vec![1, 1]
+        );
+    }
+
+    #[test]
     fn raw_pos_applies_only_to_rules_that_read_readings() {
         let text_only = r#"<pattern case_sensitive="yes" raw_pos="yes"><token><text text="“I"/></token><token spacebefore="no"><text text="’"/></token><token><text text="Ve…"/></token></pattern>"#;
         let message = r#"<message><text text="Use "/><suggestion><match no="3" case_conversion="alllower"/></suggestion><text text="—check it."/></message>"#;
@@ -2088,6 +2200,34 @@ mod tests {
                 tail
             );
         }
+    }
+
+    #[test]
+    fn spell_number_postag_compiles_to_a_number_speller() {
+        for postag_regexp in [false, true] {
+            let replacer = parse_pos_replacer(" _spell_number_ ", postag_regexp, None, false)
+                .expect("_spell_number_ compiles");
+            assert!(replacer.spell_number);
+            assert!(replacer.regex.is_none());
+            assert!(replacer.determiner.is_none());
+        }
+
+        for postag in ["_spell_number_:feminine", "_spell_number_:Roman"] {
+            assert!(
+                matches!(
+                    parse_pos_replacer(postag, false, None, false),
+                    Err(Error::Unimplemented(_))
+                ),
+                "{}",
+                postag
+            );
+        }
+
+        assert!(
+            !parse_pos_replacer("NNS", false, None, false)
+                .unwrap()
+                .spell_number
+        );
     }
 
     #[test]

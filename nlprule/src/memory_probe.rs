@@ -298,6 +298,11 @@ fn blank_matcher(matcher: &mut Matcher, blank: AtomBlank) {
         AtomBlank::MatcherStrings => match &mut matcher.matcher {
             MatcherKind::Text(string) => *string = "".into(),
             MatcherKind::Graph(id) => *id = GraphId(0),
+            MatcherKind::AffixedGraph(graph) => {
+                graph.id = GraphId(0);
+                graph.prefix = "".into();
+                graph.suffix = "".into();
+            }
             MatcherKind::Synthesis(..) | MatcherKind::Regex(_) => {}
         },
         AtomBlank::Sets => {}
@@ -896,7 +901,7 @@ impl GrammarStats {
                     self.matcher_unique += string.len() as u64;
                 }
             }
-            MatcherKind::Graph(_) | MatcherKind::Synthesis(..) => {}
+            MatcherKind::Graph(_) | MatcherKind::AffixedGraph(_) | MatcherKind::Synthesis(..) => {}
             MatcherKind::Regex(regex) => {
                 self.regexes += 1;
                 self.count_regex(regex);
