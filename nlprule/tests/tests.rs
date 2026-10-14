@@ -3241,3 +3241,70 @@ fn scope_next_exception_after_a_skip_is_not_checked() {
     )
     .is_empty());
 }
+
+fn word_tags_of(text: &str, word: &str) -> Vec<(String, String)> {
+    let mut tags: Vec<_> = tags_of(text, word)
+        .into_iter()
+        .filter(|(_, pos)| !matches!(pos.as_str(), "" | "UNKNOWN" | "SENT_END"))
+        .collect();
+    tags.sort();
+    tags.dedup();
+    tags
+}
+
+#[test]
+fn all_uppercase_multiword_names_get_the_phrase_reading() {
+    for (text, first, rest, lemma) in [
+        ("I met O'BRIEN today.", "O", "BRIEN", "O'Brien"),
+        (
+            "“I met O’BRIEN — again…”\u{2028}He left.",
+            "O",
+            "BRIEN",
+            "O’Brien",
+        ),
+        ("‘L’ORÉAL,’ she said…", "L", "ORÉAL", "L’Oréal"),
+        ("She used L'ORÉAL—twice.", "L", "ORÉAL", "L'Oréal"),
+    ] {
+        let expected = vec![(lemma.to_string(), "NNP".to_string())];
+        assert_eq!(word_tags_of(text, first), expected, "{text}");
+        assert_eq!(word_tags_of(text, rest), expected, "{text}");
+    }
+}
+
+#[test]
+fn single_token_multiword_names_keep_their_tagger_readings() {
+    let tags = word_tags_of("“I met BAHÁ’Í today…”\u{2028}", "BAHÁ'Í");
+    assert!(
+        tags.contains(&("Bahá'í".to_string(), "NNP".to_string())),
+        "{tags:?}"
+    );
+    assert!(
+        tags.contains(&("Bahá'í".to_string(), "JJ".to_string())),
+        "{tags:?}"
+    );
+
+    let tags = word_tags_of("I met O'Brien today — again…", "O'Brien");
+    assert_eq!(tags, vec![("O'Brien".to_string(), "NNP".to_string())]);
+}
+
+#[test]
+fn dm_d_is_one_token() {
+    assert!(token_texts("He DM'D me — twice…").contains(&"DM'D".to_string()));
+    assert!(token_texts("“She dm’d me.”\u{2028}").contains(&"dm'd".to_string()));
+}
+
+#[test]
+fn multiword_entries_with_stray_whitespace_do_not_match() {
+    let tags = word_tags_of("“My Advisor said no — twice…”\u{2028}", "Advisor");
+    assert!(!tags.iter().any(|(_, pos)| pos == "NNP"), "{tags:?}");
+
+    let text = "“I met James Garfield — again…”\u{2028}He left.";
+    assert_eq!(
+        word_tags_of(text, "James"),
+        vec![("James".to_string(), "NNP".to_string())]
+    );
+    assert_eq!(
+        word_tags_of(text, "Garfield"),
+        vec![("Garfield".to_string(), "NNP".to_string())]
+    );
+}

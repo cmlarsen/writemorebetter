@@ -52,6 +52,15 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   `GRAMMAR/ONE_PLURAL/0` passes too
   ([#122](https://github.com/cmlarsen/writemorebetter/issues/122)). Tokenizer binaries move to
   format version 12 and rules binaries to 16 (`WordDataAtom::first_reading`); recompile them.
+- **All-caps names with apostrophes get their proper-noun reading.** The multiword tagger now
+  works like LanguageTool 6.6's English multiword chunker: it also matches each phrase in all
+  caps and with its first letter capitalized, matches phrases the tokenizer split into adjacent
+  tokens (`O'BRIEN` is `O` `'` `BRIEN`), and gives every token of a multi-token phrase only the
+  phrase's reading. `O'BRIEN`, `O’BRIEN` and `L'ORÉAL` are now tagged `O'Brien/NNP`,
+  `O’Brien/NNP` and `L'Oréal/NNP`, and `STANLEY KUBRICK` matches like `Stanley Kubrick`.
+  Multiword readings are no longer protected from disambiguation rules, and `DM'D` stays one
+  token like `CC'D` ([#116](https://github.com/cmlarsen/writemorebetter/issues/116)). Tokenizer
+  binaries move to format version 13; recompile them.
 - **The speller accepts all-caps words and restores case in suggestions.** An all-caps token
   (`THE END`, shouted `HELLO`) is no longer flagged when its lowercase or capitalized form is
   known, and a capitalized or all-caps token is searched case-insensitively with the candidates
