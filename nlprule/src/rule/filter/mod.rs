@@ -1069,15 +1069,28 @@ fn is_misspelled(speller: &Speller, text: &str) -> bool {
         .any(|word| !speller.is_correct(word))
 }
 
-/// `StringTools.isCapitalizedWord`: an uppercase first character followed by
-/// lowercase characters only.
+/// `StringTools.isCapitalizedWord`: an uppercase first character and only
+/// lowercase letters after it.
 fn is_capitalized_word(word: &str) -> bool {
     let mut chars = word.chars();
-    chars.next().is_some_and(char::is_uppercase) && chars.all(char::is_lowercase)
+    chars.next().is_some_and(char::is_uppercase)
+        && chars.all(|c| !c.is_alphabetic() || c.is_lowercase())
 }
 
+/// `StringTools.uppercaseFirstChar`: uppercases the first letter or digit,
+/// keeping any characters before it.
 fn uppercase_first(word: &str) -> String {
-    crate::utils::apply_to_first(word, |c| c.to_uppercase().collect())
+    let pos = word
+        .char_indices()
+        .find(|(_, c)| c.is_alphanumeric())
+        .or_else(|| word.char_indices().last())
+        .map_or(0, |(i, _)| i);
+    let (before, rest) = word.split_at(pos);
+    format!(
+        "{}{}",
+        before,
+        crate::utils::apply_to_first(rest, |c| c.to_uppercase().collect())
+    )
 }
 
 #[cfg(test)]
@@ -1143,11 +1156,16 @@ mod tests {
         assert!(!is_capitalized_word("TRAIT"));
         assert!(!is_capitalized_word("trait"));
         assert!(!is_capitalized_word("O\u{2019}Brien"));
-        assert!(!is_capitalized_word("Wait\u{2014}no"));
-        assert!(!is_capitalized_word("So\u{2026}"));
-        assert!(!is_capitalized_word("A\u{2028}"));
+        assert!(is_capitalized_word("Ne\u{2019}er"));
+        assert!(is_capitalized_word("Wait\u{2014}no"));
+        assert!(is_capitalized_word("So\u{2026}"));
+        assert!(is_capitalized_word("A\u{2028}"));
+        assert!(!is_capitalized_word("\u{201c}Trait"));
         assert!(!is_capitalized_word(""));
         assert_eq!(uppercase_first("\u{e9}clair"), "\u{c9}clair");
-        assert_eq!(uppercase_first("\u{2019}tis"), "\u{2019}tis");
+        assert_eq!(uppercase_first("\u{2019}tis"), "\u{2019}Tis");
+        assert_eq!(uppercase_first("\u{201c}\u{2026}"), "\u{201c}\u{2026}");
+        assert_eq!(uppercase_first("\u{2014}"), "\u{2014}");
+        assert_eq!(uppercase_first(""), "");
     }
 }

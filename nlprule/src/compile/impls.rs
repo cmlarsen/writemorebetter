@@ -1480,7 +1480,7 @@ pub(in crate::compile) mod rule_filters {
     }
 
     /// A `wordFrom` argument: `marker` or a 1-based pattern token index.
-    fn word_from(value: &str) -> Result<WordFrom, Error> {
+    fn word_from(value: &str) -> Result<WordFrom, std::num::ParseIntError> {
         Ok(if value == "marker" {
             WordFrom::Marker
         } else {
@@ -1490,10 +1490,14 @@ pub(in crate::compile) mod rule_filters {
 
     /// An optional regular expression argument, matched against the whole
     /// string like Java's `Matcher.matches`.
-    fn optional_regex(args: &HashMap<String, String>, key: &str) -> Result<Option<Regex>, Error> {
-        args.get(key)
-            .map(|pattern| Regex::from_java_regex(pattern, true, true))
-            .transpose()
+    fn optional_regex(
+        args: &HashMap<String, String>,
+        key: &str,
+    ) -> Result<Option<Regex>, Box<Error>> {
+        match args.get(key) {
+            Some(pattern) => Ok(Some(Regex::from_java_regex(pattern, true, true)?)),
+            None => Ok(None),
+        }
     }
 
     /// Reads the LanguageTool adverb -> adjective table used by `AdverbFilter`
@@ -1631,8 +1635,9 @@ pub(in crate::compile) mod rule_filters {
                         true,
                         true,
                     )?,
-                    priority_postag: optional_regex(&args, "priorityPostag")?,
-                    remove_suggestions: optional_regex(&args, "removeSuggestionsRegexp")?,
+                    priority_postag: optional_regex(&args, "priorityPostag").map_err(|e| *e)?,
+                    remove_suggestions: optional_regex(&args, "removeSuggestionsRegexp")
+                        .map_err(|e| *e)?,
                     suppress_match: args
                         .get("suppressMatch")
                         .is_some_and(|x| x.eq_ignore_ascii_case("true")),
@@ -1642,7 +1647,7 @@ pub(in crate::compile) mod rule_filters {
                 RuleFilter::SuppressMisspelledSuggestions(SuppressMisspelledSuggestions {
                     suppress_match: !required(&args, "suppressMatch")?
                         .eq_ignore_ascii_case("false"),
-                    suppress_postag: optional_regex(&args, "SuppressPostag")?,
+                    suppress_postag: optional_regex(&args, "SuppressPostag").map_err(|e| *e)?,
                 })
             }
             "EnglishNumberInWordFilter" => RuleFilter::NumberInWord(NumberInWord {
