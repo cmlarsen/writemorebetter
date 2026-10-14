@@ -2107,6 +2107,34 @@ mod tests {
     }
 
     #[test]
+    fn spell_number_postag_compiles_to_a_number_speller() {
+        for postag_regexp in [false, true] {
+            let replacer = parse_pos_replacer(" _spell_number_ ", postag_regexp, None, false)
+                .expect("_spell_number_ compiles");
+            assert!(replacer.spell_number);
+            assert!(replacer.regex.is_none());
+            assert!(replacer.determiner.is_none());
+        }
+
+        for postag in ["_spell_number_:feminine", "_spell_number_:Roman"] {
+            assert!(
+                matches!(
+                    parse_pos_replacer(postag, false, None, false),
+                    Err(Error::Unimplemented(_))
+                ),
+                "{}",
+                postag
+            );
+        }
+
+        assert!(
+            !parse_pos_replacer("NNS", false, None, false)
+                .unwrap()
+                .spell_number
+        );
+    }
+
+    #[test]
     fn parsed_pattern_requires_its_trailing_optional_token() {
         assert_eq!(
             compiled_mins(

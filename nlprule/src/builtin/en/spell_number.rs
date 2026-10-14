@@ -182,6 +182,8 @@ mod tests {
             ("1010", "one thousand and ten"),
             ("1100", "one thousand one hundred"),
             ("1243", "one thousand two hundred forty-three"),
+            ("10001", "ten thousand and one"),
+            ("11000", "eleven thousand"),
             ("10200", "ten thousand two hundred"),
             ("12345", "twelve thousand three hundred forty-five"),
             ("100000", "one hundred thousand"),
@@ -206,6 +208,8 @@ mod tests {
             ("1000100", "one million, one hundred"),
             ("1001000", "one million, one thousand"),
             ("1010000", "one million, ten thousand"),
+            ("1000010", "one million and ten"),
+            ("1001200", "one million, one thousand two hundred"),
             (
                 "1234567",
                 "one million, two hundred thirty-four thousand, five hundred sixty-seven",
