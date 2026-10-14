@@ -173,8 +173,9 @@ pub const TOKENIZER_FORMAT_VERSION: u32 = 12;
 /// Version 14: `MatcherKind::Synthesis` was added (`<match postag="…"/>` inside a `<token>`).
 /// Version 15: `SpellLangOptions::default_variant` was added.
 /// Version 16: `WordDataAtom::first_reading` was added, as in tokenizer version 12.
-/// Version 17: `Rule::raw_pos` was added.
-pub const RULES_FORMAT_VERSION: u32 = 17;
+/// Version 17: `Rule::mother_tongue` was added.
+/// Version 18: `Rule::raw_pos` was added.
+pub const RULES_FORMAT_VERSION: u32 = 18;
 
 /// The longest engine version string accepted in a binary header.
 const MAX_ENGINE_VERSION_LEN: usize = 256;

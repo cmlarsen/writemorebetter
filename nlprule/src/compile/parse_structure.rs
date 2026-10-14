@@ -1371,6 +1371,7 @@ impl Rule {
             name: String::new(),
             category_name: String::new(),
             category_type: None,
+            mother_tongue: None,
             enabled: true,
         })
     }

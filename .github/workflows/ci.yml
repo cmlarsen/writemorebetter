@@ -60,7 +60,6 @@ jobs:
         run: cargo test --workspace --exclude nlprule-python --all-features --release
 
       - name: Build wasm package and run its JS tests
-        if: matrix.lt == '5.2'
         run: |
           cargo install wasm-bindgen-cli --version 0.2.129
           cargo build --release --target wasm32-unknown-unknown -p writemorebetter-wasm

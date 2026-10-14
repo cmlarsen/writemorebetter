@@ -117,7 +117,8 @@ unzip -o "$LT_DIR/libs/english-pos-dict.jar" \
 # 4. Generate the build directory. No chunker model flags: the chunker is reused from the
 #    published en.zip in the next step. LanguageTool loads English rules from grammar.xml
 #    and style.xml; make_build_dir.py merges style.xml's categories into grammar.xml so
-#    nlprule sees the full rule set.
+#    nlprule sees the full rule set. It also turns languagetool-core.jar's false-friends.xml
+#    into false_friends/<mother tongue>.xml, one grammar.xml-style file per mother tongue.
 data/venv/bin/python build/make_build_dir.py \
     --lt_dir "$LT_DIR" \
     --lang_code en \

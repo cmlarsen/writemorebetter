@@ -92,8 +92,25 @@ eq(JSON.parse(checker.words()), ["O'Brien"], "removeWords updates the list");
 eq(checker.setWords(["Zoë", "Ngũgĩ"]), 2, "setWords replaces the list");
 eq(flags("Xylophonix arrived."), ["Xylophonix"], "setWords drops the old entries");
 
+// False friends run only while their mother tongue is selected.
+function falseFriends(text) {
+  return JSON.parse(checker.check(text))
+    .filter((item) => item.source.startsWith("FALSE_FRIENDS/"))
+    .map((item) => item.source);
+}
+const actual = "“It’s the actual problem—again…”";
+check(JSON.parse(checker.motherTongues()).includes("de"), "motherTongues lists de");
+eq(falseFriends(actual), [], "no false friends without a mother tongue");
+checker.setMotherTongue("de-DE");
+eq(falseFriends(actual), ["FALSE_FRIENDS/ACTUAL/0"], "setMotherTongue selects its rules");
+checker.setMotherTongue("");
+eq(falseFriends(actual), [], "an empty mother tongue clears the selection");
+checker.setMotherTongue("de");
+checker.setMotherTongue(undefined);
+eq(falseFriends(actual), [], "undefined clears the selection");
+
 if (failures > 0) {
   console.error(`\n${failures} assertion(s) failed`);
   process.exit(1);
 }
-console.log("wasm user-dictionary tests passed");
+console.log("wasm binding tests passed");

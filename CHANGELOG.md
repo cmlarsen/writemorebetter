@@ -16,6 +16,16 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   filter ports ([#70](https://github.com/cmlarsen/writemorebetter/issues/70)). A curly
   apostrophe counts as a straight one and surrounding whitespace (including U+2028) is ignored.
   Checking output is unchanged.
+- **False-friend rules for writers whose first language is not English.** `Rules::set_mother_tongue`
+  (`setMotherTongue` in the wasm binding) selects a mother tongue, and `Rules::mother_tongues`
+  lists the 13 the English binary supports (ca, de, es, fr, ga, gl, it, ja, nl, pl, pt, ru, sv).
+  The rules are compiled from LanguageTool 6.6's `false-friends.xml`, with its localized
+  messages, into the rules binary as `FALSE_FRIENDS/<ID>/<n>`, and only the selected mother
+  tongue's rules run. Selecting a mother tongue is the opt-in: LanguageTool 6.6 tags these rules
+  `picky` and runs them only at its picky level, and for German, French, Spanish and Dutch
+  speakers it runs n-gram confusion rules instead of these XML rules (n-gram rules are out of
+  scope here; [#137](https://github.com/cmlarsen/writemorebetter/issues/137)). No mother tongue is
+  selected by default, so checking output is unchanged. The rules binary format version is now 17.
 - **Speller-backed rule filters work with spellchecking off.** While no spell variant is
   selected, `Spell::speller()` answers for the language's default variant (`en_US` for English,
   as LanguageTool uses for plain English) instead of returning `None`; spelling suggestions stay
@@ -29,7 +39,7 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   is off by default ([#130](https://github.com/cmlarsen/writemorebetter/issues/130)).
   `Rules::suggest` keeps the raw tokens only while such a rule is enabled (a text-only
   `raw_pos` rule such as `TYPOS/CONTRACTION_CASE/0` does not count); `Tokenizer::pipe` always
-  keeps them. Rules binaries move to format version 17 (`Rule::raw_pos`); recompile them.
+  keeps them. Rules binaries move to format version 18 (`Rule::raw_pos`); recompile them.
 
 ### Fixed
 

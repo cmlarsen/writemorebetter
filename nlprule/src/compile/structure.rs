@@ -537,7 +537,7 @@ pub struct Rule {
     pub message: Message,
     #[serde(rename = "suggestion")]
     pub suggestions: Option<Vec<Suggestion>>,
-    #[serde(rename = "example")]
+    #[serde(rename = "example", default)]
     pub examples: Vec<Example>,
     pub id: Option<String>,
     pub name: Option<String>,

@@ -30,9 +30,18 @@ fn main() {
 
     let tokenizer = Tokenizer::new(opts.tokenizer).unwrap();
     let rules_container = Rules::new(opts.rules).unwrap();
-    let rules = rules_container.rules();
+    let (mother_tongue_rules, rules): (Vec<_>, Vec<_>) = rules_container
+        .rules()
+        .iter()
+        .partition(|rule| rule.mother_tongue().is_some());
 
     println!("Runnable rules: {}", rules.len());
+    if !mother_tongue_rules.is_empty() {
+        println!(
+            "Mother-tongue rules (no examples, not tested): {}",
+            mother_tongue_rules.len()
+        );
+    }
 
     if opts.list_rules {
         let mut ids: Vec<String> = rules.iter().map(|r| r.id().to_string()).collect();
@@ -45,7 +54,7 @@ fn main() {
     let mut passes = 0;
     let mut passing_ids: Vec<String> = Vec::new();
     let mut failing_ids: Vec<String> = Vec::new();
-    for rule in rules {
+    for rule in &rules {
         if opts.ids.is_empty() || opts.ids.contains(&rule.id().to_string()) {
             if rules_container.test_rule(rule, &tokenizer) {
                 passes += 1;
