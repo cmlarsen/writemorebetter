@@ -52,6 +52,21 @@ Matching is case-sensitive except that a lowercase entry also accepts its senten
 straight apostrophes match each other, and an entry may be a whitespace-separated phrase or contain an internal
 apostrophe.
 
+## Mother tongue
+
+False-friend rules (compiled from LanguageTool's `false-friends.xml`) flag English words that a speaker of
+another language is likely to misuse, such as "handy" for a German speaker. They run only while a mother tongue
+is selected; none is selected by default.
+
+```swift
+checker.motherTongues()                     // -> ["ca", "de", "es", "fr", "ga", "gl", "it", ...]
+checker.setMotherTongue(motherTongue: "de") // flags e.g. "handy" and "actual" for German speakers
+checker.setMotherTongue(motherTongue: nil)  // back to the default: no false-friend rules (so does "")
+```
+
+A region suffix is ignored (`"de-DE"` selects `"de"`). The change applies to the next `check`, and like the
+dictionary calls it is safe while other threads are checking.
+
 ## Building the XCFramework
 
 ```sh
@@ -92,8 +107,9 @@ before `scripts/build-xcframework.sh` ran keeps the released-URL branch until `s
 `swift/Tests/WriteMoreBetterTests` loads the LT 6.6 binaries from `storage/66/` (the repository's
 per-rule-set storage convention; override with `WMB_DATA_DIR`), checks a sentence with a known error,
 asserts UTF-16 offsets on text that mixes an emoji, curly quotes, an em dash, a combining mark and
-U+2028, edits the user dictionary from one thread while four others check and list it, and calls
-`check` concurrently from eight threads. Run them with:
+U+2028, flags a German false friend only after `setMotherTongue`, edits the user dictionary from one
+thread while four others check and list it, and calls `check` concurrently from eight threads. Run them
+with:
 
 ```sh
 cargo run --release --all-features --bin compile -- \

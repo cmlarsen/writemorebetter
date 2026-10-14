@@ -21,6 +21,9 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   call, so an app that checks text incrementally sees repetitions only within the text it passes
   (`Rules::apply` sees only its one sentence). The fiction profile turns `REP_THANK_YOU_FOR` off,
   since dialogue repeats it on purpose. The rules binary format version is now 26.
+- **The Swift binding exposes the mother tongue.** `Checker.setMotherTongue(motherTongue:)` and
+  `Checker.motherTongues()` mirror the wasm `setMotherTongue` / `motherTongues`, so Swift apps
+  can opt in to the false-friend rules ([#138](https://github.com/cmlarsen/writemorebetter/issues/138)).
 - **Whitespace and double-punctuation checks.** Four more of LanguageTool's Java-coded rules run
   as builtins ([#80](https://github.com/cmlarsen/writemorebetter/issues/80)):
   `DOUBLE_PUNCTUATION` flags `..` and `,,` (ellipses, `?..`, `!..` and `…` next to a dot are
