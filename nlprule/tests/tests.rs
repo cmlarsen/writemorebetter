@@ -527,7 +527,7 @@ fn spellchecker_accepts_all_caps_names_from_the_global_list() {
 #[test]
 fn speller_suggests_dictionary_casing_for_mixed_case_words() {
     let speller = RULES.spell().speller().unwrap();
-    assert_eq!(speller.suggest("iPHONE", 2), vec!["iPhone", "iPhones"]);
+    assert_eq!(speller.suggest("iPHONE", 2), vec!["iPhone", "phone"]);
     assert_eq!(
         speller.suggest("McKINLEY", 5),
         vec!["McKinley", "McKinney", "McKinsey", "McGinley", "Mckinney"]
@@ -552,6 +552,40 @@ fn speller_suggests_dictionary_casing_for_mixed_case_words() {
 }
 
 #[test]
+fn speller_ranks_edit_distance_before_frequency() {
+    let speller = RULES.spell().speller().unwrap();
+    assert_eq!(speller.suggest("Hecla", 5), vec!["Hekla"]);
+    assert_eq!(speller.suggest("Aduke", 1), vec!["Duke"]);
+    assert!(speller.suggest("Wat", 10).contains(&"At".to_string()));
+    assert!(speller.suggest("IPHONE", 10).contains(&"PHONE".to_string()));
+    let anno = speller.suggest("Anno", 10);
+    assert!(
+        anno.iter()
+            .all(|x| !["And", "An", "Any"].contains(&x.as_str())),
+        "{:?}",
+        anno
+    );
+
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    rules.spell_mut().options_mut().variant = Some(rules.spell().variant("en_US").unwrap());
+    let text = "\u{201c}Aduke\u{2019}s gone\u{2014}to Hecla\u{2026}\u{201d}\u{2028}\u{2018}Wat now?\u{2019}";
+    let first_replacements: Vec<(&str, String)> = rules
+        .suggest(text, &*TOKENIZER)
+        .into_iter()
+        .filter(|x| x.source().starts_with("SPELLCHECK"))
+        .map(|x| (&text[x.span().byte().clone()], x.replacements()[0].clone()))
+        .collect();
+    assert_eq!(
+        first_replacements,
+        vec![
+            ("Aduke", "Duke".to_string()),
+            ("Hecla", "Hekla".to_string()),
+            ("Wat", "Was".to_string()),
+        ]
+    );
+}
+
+#[test]
 fn speller_suggestions_restore_the_case_of_capitalized_words() {
     let speller = RULES.spell().speller().unwrap();
     assert_eq!(
@@ -571,8 +605,12 @@ fn speller_suggestions_restore_the_case_of_capitalized_words() {
     );
 
     let shouted = speller.suggest("WHTA", 10);
-    assert_eq!(shouted.len(), 10, "{:?}", shouted);
-    assert!(shouted.contains(&"WHAT".to_string()), "{:?}", shouted);
+    assert_eq!(
+        shouted.first().map(String::as_str),
+        Some("WHAT"),
+        "{:?}",
+        shouted
+    );
     assert_eq!(
         shouted.iter().collect::<HashSet<_>>().len(),
         shouted.len(),
