@@ -430,7 +430,10 @@ impl Model {
                     let mut top_n: Vec<usize> =
                         (0..scores.len()).filter(|&j| scores[j] >= 0.).collect();
                     top_n.sort_by(|&a, &b| scores[b].partial_cmp(&scores[a]).unwrap());
-                    top_n.truncate(size);
+                    if let Some(&last) = top_n.get(size - 1) {
+                        let min = scores[last];
+                        top_n.truncate(top_n.iter().take_while(|&&j| scores[j] >= min).count());
+                    }
                     (scores, top_n)
                 });
 
@@ -1286,5 +1289,32 @@ mod tests {
         let chunks = chunks();
         assert_eq!(noun_phrase_number(&chunks, |_| false, 0, false), "singular");
         assert_eq!(noun_phrase_number(&chunks, |_| false, 0, true), "singular");
+    }
+
+    #[test]
+    fn beam_search_keeps_tags_tied_with_the_last_kept_one() {
+        use super::{MaxentChunker, Model, Pmap};
+
+        let model = Model {
+            outcome_labels: vec!["A".into(), "B".into(), "C".into()],
+            outcomes: Vec::new(),
+            parameters: Vec::new(),
+            pmap: Pmap::from_pairs(std::iter::empty()),
+        };
+        let best = model
+            .beam_search(
+                &["x", "y"],
+                MaxentChunker::hash,
+                |_, _, _, _| true,
+                1,
+                |preds, _| match preds {
+                    [] => vec![0.5, 0.5, 0.],
+                    ["B"] => vec![0.98, 0.01, 0.01],
+                    _ => vec![0.4, 0.3, 0.3],
+                },
+            )
+            .remove(0);
+
+        assert_eq!(best.outcomes(), ["B", "A"]);
     }
 }
