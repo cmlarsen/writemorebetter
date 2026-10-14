@@ -31,7 +31,8 @@ struct Node {
 
 struct Beam {
     log_prob: f32,
-    node: Option<usize>,
+    parent: Option<usize>,
+    outcome: usize,
 }
 
 impl Eq for Beam {}
@@ -330,19 +331,23 @@ impl Model {
     }
 
     fn eval(&self, context: &[u64]) -> Vec<f32> {
-        self.eval_with_resolved(&[], context)
+        self.eval_with_prior(self.prior(&[]), context)
     }
 
-    /// Like [`Model::eval`], but the entries of `resolved` (already-looked-up `(offset, length)`
-    /// pairs) are applied without a binary search. The keys in `context` are still looked up.
-    fn eval_with_resolved(&self, resolved: &[(u32, u8)], context: &[u64]) -> Vec<f32> {
+    fn prior(&self, keys: &[u64]) -> Vec<f32> {
         let mut prior =
             vec![(1. / (self.outcome_labels.len() as f32)).ln(); self.outcome_labels.len()];
 
-        for &(offset, length) in resolved {
+        for (offset, length) in keys.iter().filter_map(|key| self.pmap.get(*key)) {
             self.add_entry(&mut prior, offset, length);
         }
 
+        prior
+    }
+
+    /// Like [`Model::eval`], but starts from `prior`, the [`Model::prior`] of features that were
+    /// looked up and summed earlier. The keys in `context` are still looked up.
+    fn eval_with_prior(&self, mut prior: Vec<f32>, context: &[u64]) -> Vec<f32> {
         for (offset, length) in context.iter().filter_map(|x| self.pmap.get(*x)) {
             self.add_entry(&mut prior, offset, length);
         }
@@ -367,39 +372,51 @@ impl Model {
     }
 
     fn beam_search<
+        'm,
         S,
-        C: Fn(&[S], &[&str], usize) -> Vec<u64>,
         H: Fn(&[&str], usize) -> u64,
         V: Fn(&[S], &[&str], usize, &str) -> bool,
-        E: Fn(&[u64], usize) -> Vec<f32>,
+        E: FnMut(&[&'m str], usize) -> Vec<f32>,
     >(
-        &self,
+        &'m self,
         tokens: &[S],
-        context_fn: C,
         hash_fn: H,
         valid_fn: V,
         size: usize,
-        eval_fn: E,
-    ) -> Vec<Sequence> {
+        mut eval_fn: E,
+    ) -> Vec<Sequence<'m>> {
+        if tokens.is_empty() {
+            return vec![Sequence {
+                outcomes: Vec::new(),
+            }];
+        }
+
         let mut nodes: Vec<Node> = Vec::new();
+        let mut current: Vec<(f32, Option<usize>)> = vec![(0., None)];
         let mut prev: BinaryHeap<Beam> = BinaryHeap::new();
         let mut next: BinaryHeap<Beam> = BinaryHeap::new();
-        prev.push(Beam {
-            log_prob: 0.,
-            node: None,
-        });
 
-        let mut cache: DefaultHashMap<u64, Vec<f32>> = DefaultHashMap::default();
+        let mut cache: DefaultHashMap<u64, (Vec<f32>, Vec<usize>)> = DefaultHashMap::default();
 
         for i in 0..tokens.len() {
-            while prev.len() > size {
-                prev.pop();
+            if i > 0 {
+                let mut best = std::mem::take(&mut prev).into_sorted_vec();
+                best.truncate(size);
+                current.clear();
+                for beam in best.drain(..) {
+                    nodes.push(Node {
+                        outcome: beam.outcome,
+                        parent: beam.parent,
+                    });
+                    current.push((beam.log_prob, Some(nodes.len() - 1)));
+                }
+                prev = BinaryHeap::from(best);
             }
 
-            for seq in prev.iter() {
-                let mut window = [""; 2];
+            for &(log_prob, seq_node) in current.iter() {
+                let mut window: [&'m str; 2] = [""; 2];
                 let mut len = 0;
-                let mut node = seq.node;
+                let mut node = seq_node;
                 while let (true, Some(idx)) = (len < window.len(), node) {
                     window[window.len() - 1 - len] =
                         self.outcome_labels[nodes[idx].outcome].as_str();
@@ -408,23 +425,25 @@ impl Model {
                 }
                 let outcomes = &window[window.len() - len..];
 
-                let hash = hash_fn(outcomes, i);
-                if cache.get(&hash).is_none() {
-                    let context = context_fn(tokens, outcomes, i);
-                    cache.insert(hash, eval_fn(&context, i));
-                }
-                let scores = cache.get(&hash).unwrap();
-                let top_n = self.get_top_n(&scores, size, 1e-1);
+                let (scores, top_n) = &*cache.entry(hash_fn(outcomes, i)).or_insert_with(|| {
+                    let scores = eval_fn(outcomes, i);
+                    let mut top_n: Vec<usize> =
+                        (0..scores.len()).filter(|&j| scores[j] >= 0.).collect();
+                    top_n.sort_by(|&a, &b| scores[b].partial_cmp(&scores[a]).unwrap());
+                    if let Some(&last) = top_n.get(size - 1) {
+                        let min = scores[last];
+                        top_n.truncate(top_n.iter().take_while(|&&j| scores[j] >= min).count());
+                    }
+                    (scores, top_n)
+                });
 
-                for (j, p, pred) in top_n {
+                for &j in top_n {
+                    let pred = self.outcome_labels[j].as_str();
                     if valid_fn(tokens, outcomes, i, pred) {
-                        nodes.push(Node {
-                            outcome: j,
-                            parent: seq.node,
-                        });
                         next.push(Beam {
-                            log_prob: seq.log_prob + p.ln(),
-                            node: Some(nodes.len() - 1),
+                            log_prob: log_prob + scores[j].ln(),
+                            parent: seq_node,
+                            outcome: j,
                         });
                     }
                 }
@@ -434,13 +453,10 @@ impl Model {
                     for (j, p) in scores.iter().enumerate() {
                         let pred = self.outcome_labels[j].as_str();
                         if valid_fn(tokens, outcomes, i, pred) {
-                            nodes.push(Node {
-                                outcome: j,
-                                parent: seq.node,
-                            });
                             next.push(Beam {
-                                log_prob: seq.log_prob + p.ln(),
-                                node: Some(nodes.len() - 1),
+                                log_prob: log_prob + p.ln(),
+                                parent: seq_node,
+                                outcome: j,
                             });
                         }
                     }
@@ -455,8 +471,8 @@ impl Model {
         out.sort();
         out.into_iter()
             .map(|beam| {
-                let mut outcomes = Vec::new();
-                let mut node = beam.node;
+                let mut outcomes = vec![self.outcome_labels[beam.outcome].as_str()];
+                let mut node = beam.parent;
                 while let Some(idx) = node {
                     outcomes.push(self.outcome_labels[nodes[idx].outcome].as_str());
                     node = nodes[idx].parent;
@@ -754,7 +770,7 @@ impl MaxentPosTagger {
         s.finish()
     }
 
-    fn context(tokens: &[&str], tags: &[&str], i: usize) -> Vec<u64> {
+    fn static_context(tokens: &[&str], i: usize) -> Vec<u64> {
         let mut context = Vec::new();
 
         let lex = tokens[i];
@@ -768,16 +784,8 @@ impl MaxentPosTagger {
         } else {
             "*SE*"
         };
-        let (prev, tagprev) = if i >= 1 {
-            (tokens[i - 1], Some(tags[tags.len() - 1]))
-        } else {
-            ("*SB*", None)
-        };
-        let (prevprev, tagprevprev) = if i >= 2 {
-            (tokens[i - 2], Some(tags[tags.len() - 2]))
-        } else {
-            ("*SB*", None)
-        };
+        let prev = if i >= 1 { tokens[i - 1] } else { "*SB*" };
+        let prevprev = if i >= 2 { tokens[i - 2] } else { "*SB*" };
 
         context.push(hash::hash_str("default"));
         context.push(hash::hash_slice(&["w=", lex]));
@@ -804,19 +812,25 @@ impl MaxentPosTagger {
             context.push(hash::hash_slice(&["nn=", nextnext]));
         }
 
-        if let Some(tagprev) = tagprev {
-            context.push(hash::hash_slice(&["t=", tagprev]));
-
-            if let Some(tagprevprev) = tagprevprev {
-                context.push(hash::hash_slice(&["t2=", tagprevprev, ",", tagprev]));
-            }
-        }
-
         context
     }
 
-    fn valid(&self, tokens: &[&str], _outcomes: &[&str], i: usize, outcome: &str) -> bool {
-        if let Some(allowed) = self.tagdict.get(tokens[i]) {
+    fn tag_context(tags: &[&str], i: usize) -> Vec<u64> {
+        let mut context = Vec::with_capacity(2);
+        if i >= 1 {
+            let tagprev = tags[tags.len() - 1];
+            context.push(hash::hash_slice(&["t=", tagprev]));
+
+            if i >= 2 {
+                let tagprevprev = tags[tags.len() - 2];
+                context.push(hash::hash_slice(&["t2=", tagprevprev, ",", tagprev]));
+            }
+        }
+        context
+    }
+
+    fn valid(&self, allowed: Option<&[u16]>, outcome: &str) -> bool {
+        if let Some(allowed) = allowed {
             match self.tagdict.tag_id(outcome) {
                 Some(id) => allowed.contains(&id),
                 None => false,
@@ -827,18 +841,26 @@ impl MaxentPosTagger {
     }
 
     fn tag(&self, tokens: &[&str]) -> Sequence {
+        let allowed: Vec<Option<&[u16]>> = tokens.iter().map(|t| self.tagdict.get(t)).collect();
+        let priors: Vec<Vec<f32>> = (0..tokens.len())
+            .map(|i| self.model.prior(&Self::static_context(tokens, i)))
+            .collect();
         self.model
             .beam_search(
                 tokens,
-                Self::context,
                 Self::hash,
-                |a, b, c, d| self.valid(a, b, c, d),
+                |_, _, i, outcome| self.valid(allowed[i], outcome),
                 3,
-                |context, _i| self.model.eval(context),
+                |tags, i| {
+                    self.model
+                        .eval_with_prior(priors[i].clone(), &Self::tag_context(tags, i))
+                },
             )
             .remove(0)
     }
 }
+
+type Pred1Entries = [Option<(u32, u8)>; 20];
 
 #[derive(Serialize, Deserialize, Clone)]
 pub(crate) struct MaxentChunker {
@@ -851,7 +873,7 @@ impl MaxentChunker {
         if outcome.starts_with("I-") {
             if let Some(prev_outcome) = outcomes.iter().next_back() {
                 // can byte index here because "I, B, E, -" are all 1 byte
-                *prev_outcome == "O" || prev_outcome[2..] == outcome[2..]
+                *prev_outcome != "O" && prev_outcome[2..] == outcome[2..]
             } else {
                 false
             }
@@ -921,10 +943,29 @@ impl MaxentChunker {
         ]
     }
 
-    /// The 22 features that involve a predicted outcome (3 pred, 12 pred+tag, 7 pred+word).
-    /// The 19 word/tag features are [`static_context`](Self::static_context); the model resolves
-    /// them (and this context) through [`Model::eval_with_resolved`].
-    fn pred_context(input: &[(&str, &str)], preds: &[&str], i: usize) -> Vec<u64> {
+    /// The 2 features that involve the outcome two tokens back (`p_2`, `p_2` + `p_1`).
+    fn pred2_context(preds: &[&str], i: usize) -> [u64; 2] {
+        // `p_2` has no `=` before a real prediction, but does before `bos` (LanguageTool quirk).
+        let (pm2p, pm2v) = (
+            "p_2",
+            if i < 2 {
+                "=bos"
+            } else {
+                preds[preds.len() - 2]
+            },
+        );
+        let (pm1p, pm1v) = ("p_1=", if i < 1 { "bos" } else { preds[preds.len() - 1] });
+
+        let h = |parts: &[&str]| hash::hash_parts(parts);
+
+        [h(&[pm2p, pm2v]), h(&[pm2p, pm2v, pm1p, pm1v])]
+    }
+
+    /// The 20 features that involve only the previous outcome `pm1v` (1 pred, 12 pred+tag,
+    /// 7 pred+word). With [`pred2_context`](Self::pred2_context) they are the 22 features that
+    /// involve a predicted outcome; the 19 word/tag features are
+    /// [`static_context`](Self::static_context).
+    fn pred1_context(input: &[(&str, &str)], pm1v: &str, i: usize) -> [u64; 20] {
         let n = input.len();
         let tok = |j: usize| input[j].0;
         let tag = |j: usize| input[j].1;
@@ -941,25 +982,13 @@ impl MaxentChunker {
         let (tp1p, tp1v) = ("t1=", if i + 1 >= n { "eos" } else { tag(i + 1) });
         let (tp2p, tp2v) = ("t2=", if i + 2 >= n { "eos" } else { tag(i + 2) });
 
-        // `p_2` has no `=` before a real prediction, but does before `bos` (LanguageTool quirk).
-        let (pm2p, pm2v) = (
-            "p_2",
-            if i < 2 {
-                "=bos"
-            } else {
-                preds[preds.len() - 2]
-            },
-        );
-        let (pm1p, pm1v) = ("p_1=", if i < 1 { "bos" } else { preds[preds.len() - 1] });
+        let pm1p = "p_1=";
 
         let h = |parts: &[&str]| hash::hash_parts(parts);
 
-        let mut context = Vec::with_capacity(22);
-        context.extend([
+        [
             // pred tags
-            h(&[pm2p, pm2v]),
             h(&[pm1p, pm1v]),
-            h(&[pm2p, pm2v, pm1p, pm1v]),
             // pred and tag
             h(&[pm1p, pm1v, tm2p, tm2v]),
             h(&[pm1p, pm1v, tm1p, tm1v]),
@@ -981,31 +1010,50 @@ impl MaxentChunker {
             h(&[pm1p, pm1v, wp2p, wp2v]),
             h(&[pm1p, pm1v, wm1p, wm1v, w0p, w0v]),
             h(&[pm1p, pm1v, w0p, w0v, wp1p, wp1v]),
-        ]);
-        context
+        ]
     }
 
     fn chunk(&self, input: &[(&str, &str)]) -> Sequence {
-        // The word/tag features are position-invariant, so resolve their pmap entries once
-        // instead of binary-searching them for every beam entry. The feature hashes themselves
+        // The word/tag features are position-invariant, so resolve their pmap entries and sum
+        // their parameters once instead of for every beam entry. The feature hashes themselves
         // are only needed to resolve the entries, so they never leave the stack.
-        let resolved: Vec<Vec<(u32, u8)>> = (0..input.len())
-            .map(|i| {
-                Self::static_context(input, i)
-                    .iter()
-                    .filter_map(|key| self.model.pmap.get(*key))
-                    .collect()
-            })
+        let priors: Vec<Vec<f32>> = (0..input.len())
+            .map(|i| self.model.prior(&Self::static_context(input, i)))
             .collect();
-        let eval = |context: &[u64], i: usize| self.model.eval_with_resolved(&resolved[i], context);
-        self.model
+        let mut pred1: Vec<Vec<(&str, Pred1Entries)>> = vec![Vec::new(); input.len()];
+        let model = &self.model;
+        model
             .beam_search(
                 input,
-                Self::pred_context,
                 Self::hash,
                 |a, b, c, d| self.valid(a, b, c, d),
-                7,
-                eval,
+                10,
+                |preds, i| {
+                    let pm1v = if i < 1 { "bos" } else { preds[preds.len() - 1] };
+                    let cached = &mut pred1[i];
+                    let entries = match cached.iter().position(|(p, _)| std::ptr::eq(*p, pm1v)) {
+                        Some(k) => &cached[k].1,
+                        None => {
+                            let keys = Self::pred1_context(input, pm1v, i);
+                            cached.push((pm1v, keys.map(|key| model.pmap.get(key))));
+                            &cached[cached.len() - 1].1
+                        }
+                    };
+                    let [pm2, pm2pm1] =
+                        Self::pred2_context(preds, i).map(|key| model.pmap.get(key));
+
+                    let mut prior = priors[i].clone();
+                    for (offset, length) in std::iter::once(pm2)
+                        .chain(std::iter::once(entries[0]))
+                        .chain(std::iter::once(pm2pm1))
+                        .chain(entries[1..].iter().copied())
+                        .flatten()
+                    {
+                        model.add_entry(&mut prior, offset, length);
+                    }
+                    softmax(&mut prior);
+                    prior
+                },
             )
             .remove(0)
     }
@@ -1243,5 +1291,32 @@ mod tests {
         let chunks = chunks();
         assert_eq!(noun_phrase_number(&chunks, |_| false, 0, false), "singular");
         assert_eq!(noun_phrase_number(&chunks, |_| false, 0, true), "singular");
+    }
+
+    #[test]
+    fn beam_search_keeps_tags_tied_with_the_last_kept_one() {
+        use super::{MaxentChunker, Model, Pmap};
+
+        let model = Model {
+            outcome_labels: vec!["A".into(), "B".into(), "C".into()],
+            outcomes: Vec::new(),
+            parameters: Vec::new(),
+            pmap: Pmap::from_pairs(std::iter::empty()),
+        };
+        let best = model
+            .beam_search(
+                &["x", "y"],
+                MaxentChunker::hash,
+                |_, _, _, _| true,
+                1,
+                |preds, _| match preds {
+                    [] => vec![0.5, 0.5, 0.],
+                    ["B"] => vec![0.98, 0.01, 0.01],
+                    _ => vec![0.4, 0.3, 0.3],
+                },
+            )
+            .remove(0);
+
+        assert_eq!(best.outcomes(), ["B", "A"]);
     }
 }

@@ -43,6 +43,16 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
 ### Fixed
 
+- **The chunker's beam search follows OpenNLP 1.9.4, as LanguageTool 6.6 runs it.** The POS
+  tagger and chunker no longer drop candidate tags below probability 0.1, the "advance every
+  valid tag" fallback extends the best sequence first instead of an arbitrary one, a chunk can no
+  longer continue (`I-`) after an `O` tag, tags tied with the last tag a beam keeps also advance,
+  and the chunker's beam is 10 wide instead of 7. On the public texts this removes 36 of 43
+  POS-tag and 42 of 58 chunk-tag differences from LanguageTool 6.6's chunker; the rest are
+  near-ties that half-precision model weights cannot break. Six more rules pass their own
+  examples, among them `TYPOS/VERB_APOSTROPHE_S/5` (`that just go's`)
+  ([#123](https://github.com/cmlarsen/writemorebetter/issues/123)). The fuller beam costs about
+  4% more instructions per check (see `docs/PERF.md`).
 - **`scope="next"` exceptions see the readings LanguageTool 6.6 sees.** A token's next-token
   exception now checks only the next token's first reading (`UNKNOWN` for an untagged word), and
   is ignored (text exceptions included) when the previous pattern token has a `skip`; on a
