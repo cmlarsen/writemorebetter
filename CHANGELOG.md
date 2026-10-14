@@ -16,6 +16,12 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   filter ports ([#70](https://github.com/cmlarsen/writemorebetter/issues/70)). A curly
   apostrophe counts as a straight one and surrounding whitespace (including U+2028) is ignored.
   Checking output is unchanged.
+- **Speller-backed rule filters work with spellchecking off.** While no spell variant is
+  selected, `Spell::speller()` answers for the language's default variant (`en_US` for English,
+  as LanguageTool uses for plain English) instead of returning `None`; spelling suggestions stay
+  off. The rule test harness (`--bin test`, `Rules::test_rule`) therefore runs rule examples with
+  an `en_US` speller ([#119](https://github.com/cmlarsen/writemorebetter/issues/119)). Rules
+  binaries move to format version 15 (`SpellLangOptions::default_variant`); recompile them.
 
 ### Fixed
 
@@ -29,7 +35,23 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   checked one sentence at a time like LanguageTool's test harness
   ([#124](https://github.com/cmlarsen/writemorebetter/issues/124)). Rebuild the tokenizer
   binary to pick up the new rules.
-
+- **`scope="next"` exceptions see the readings LanguageTool 6.6 sees.** A token's next-token
+  exception now checks only the next token's first reading (`UNKNOWN` for an untagged word), and
+  is ignored (text exceptions included) when the previous pattern token has a `skip`; on a
+  token with its own `skip` it still checks every reading, unless that token is the last
+  pattern token. `This vehicle get’s used too much.` is now flagged
+  (`TYPOS/VERB_APOSTROPHE_S/3`), `„Wait…“and` is flagged by `TYPOGRAPHY/GERMAN_QUOTES/3`, and
+  `GRAMMAR/ONE_PLURAL/0` passes too
+  ([#122](https://github.com/cmlarsen/writemorebetter/issues/122)). Tokenizer binaries move to
+  format version 12 and rules binaries to 16 (`WordDataAtom::first_reading`); recompile them.
+- **The speller accepts all-caps words and restores case in suggestions.** An all-caps token
+  (`THE END`, shouted `HELLO`) is no longer flagged when its lowercase or capitalized form is
+  known, and a capitalized or all-caps token is searched case-insensitively with the candidates
+  re-cased to match (`Teh` suggests `The`, `TEDD` suggests `TED`; mixed-case words such as
+  `iPhone` keep their case), matching LanguageTool 6.6's case conversion
+  ([#121](https://github.com/cmlarsen/writemorebetter/issues/121)). Applies to spelling
+  suggestions and to `Speller::is_correct`/`suggest`. User-dictionary entries are still not
+  accepted in all caps ([#143](https://github.com/cmlarsen/writemorebetter/issues/143)).
 - **Contractions, apostrophes and hyphens are handled as in LanguageTool 6.6.** Hyphens at either
   end of a word are now tokens of their own (`didn't-->` is `didn ' t - - >`, `Go-` is `Go -`),
   and a mixed-case contraction such as `don'T` is split at its apostrophe because the tagger,
@@ -57,6 +79,10 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   makes `TYPOS/APOS_RE/1` pass. Tokenizer binaries move to format version 11 and rules binaries to
   14, so binaries built by earlier versions must be recompiled
   ([#75](https://github.com/cmlarsen/writemorebetter/issues/75)).
+- **Spell option changes were ignored while the variant stayed the same.** Changing `top_n`,
+  `max_distance` or `freq_weight` through `Spell::options_mut` now applies to spelling suggestions
+  and `Speller::suggest` without switching the variant
+  ([#132](https://github.com/cmlarsen/writemorebetter/issues/132)).
 - **All-caps proper nouns were tagged as unknown words.** The English tagger now looks up an
   all-uppercase word in title case when neither its own form nor its lowercase form is in the
   dictionary, as LanguageTool 6.6 does, so `SCHWARZWALD` is tagged `Schwarzwald/NNP` and
@@ -69,6 +95,13 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   tokens inside its match, and the beam search keeps shared back-pointers. A 5,000-word sentence
   with no terminator now checks in ~0.8 s instead of ~6.6 s; output is unchanged
   ([#101](https://github.com/cmlarsen/writemorebetter/issues/101)).
+- **Disambiguation rebuilt the whole sentence after every applied rule.** It now keeps one
+  matchable copy of the sentence and refreshes only the tokens a rule changed. Finding a match
+  group's tokens and a change's tokens now binary-searches the sentence instead of scanning every
+  token per match, and the chunker no longer scans the whole sentence per word (its internal
+  tokenizer) or per chunk (plural lookup and chunk assignment). Sequential tokenization of a
+  7,000-token sentence drops from ~0.26 s to ~0.16 s, and of a ~60,000-token one from ~28 s to
+  ~3.5 s; output is unchanged ([#125](https://github.com/cmlarsen/writemorebetter/issues/125)).
 - **Edge cases in the rule compiler and tagger.** A possessive or counted optional regex assertion
   (`x$?+y`, `x$?{2}y`) now compiles to `xy` as Java matches it, instead of re-binding the
   quantifier to the previous atom; a bounded lookbehind with more than 256 variants now reports

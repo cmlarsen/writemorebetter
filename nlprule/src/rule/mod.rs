@@ -13,6 +13,7 @@ use log::{error, info, warn};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::fmt;
+use std::ops::Range;
 
 pub(crate) mod disambiguation;
 pub(crate) mod engine;
@@ -174,8 +175,13 @@ impl DisambiguationRule {
         Changes(all_spans)
     }
 
-    pub(crate) fn change<'t>(&'t self, sentence: &mut IncompleteSentence<'t>, changes: Changes) {
+    pub(crate) fn change<'t>(
+        &'t self,
+        sentence: &mut IncompleteSentence<'t>,
+        changes: Changes,
+    ) -> Range<usize> {
         log::info!("applying {}", self.id);
+        let (mut first, mut last) = (usize::MAX, 0);
 
         for spans in changes.0 {
             let (start, end) = spans
@@ -185,9 +191,20 @@ impl DisambiguationRule {
                     (start.min(span.char().start), end.max(span.char().end))
                 });
             let mut groups = Vec::new();
-            let mut refs = sentence
+            let tokens = sentence.tokens_mut();
+            let lo = tokens.partition_point(|x| x.span().char().start < start);
+            let hi = tokens
+                .partition_point(|x| x.span().char().start <= end)
+                .max(lo);
+            let mut refs = tokens[lo..hi]
                 .iter_mut()
-                .filter(|x| x.span().char().start >= start && x.span().char().end <= end)
+                .enumerate()
+                .filter(|(_, x)| x.span().char().end <= end)
+                .map(|(i, x)| {
+                    first = first.min(lo + i);
+                    last = last.max(lo + i + 1);
+                    x
+                })
                 .collect::<Vec<_>>();
 
             for group_spans in spans {
@@ -202,6 +219,8 @@ impl DisambiguationRule {
 
             self.disambiguations.apply(groups);
         }
+
+        first.min(last)..last
     }
 
     /// Often there are examples associated with a rule.
@@ -764,7 +783,7 @@ impl Rule {
     /// This method checks whether the correct action is taken in the examples.
     ///
     /// `articles` are the rule set's shared article word lists and `speller` its
-    /// speller for the selected variant; use
+    /// speller ([`Spell::speller`][crate::spell::Spell::speller]); use
     /// [`Rules::test_rule`][crate::Rules::test_rule] to supply them.
     pub(crate) fn test(
         &self,
