@@ -3689,6 +3689,29 @@ fn closing_quote_after_a_word_ending_in_in_stays_a_token() {
 }
 
 #[test]
+fn g_dropped_word_before_a_closing_quote_is_not_a_quote() {
+    for text in [
+        "'I ain't doin'.'",
+        "\u{2018}I ain\u{2019}t doin\u{2019}.\u{2019}",
+        "\u{2018}I\u{2019}m doin\u{2019} fine. You keep goin\u{2019}.\u{2019}\u{2028}",
+        "She said, \u{2018}He\u{2019}s just talkin\u{2019}\u{2026}\u{2019}",
+        "\u{201c}She said \u{2018}I ain\u{2019}t doin\u{2019} it\u{2019} and left.\u{201d}",
+        "\"She said 'I ain't doin' it' and left.\"",
+        "\u{201c}\u{2018}Nothin\u{2019},\u{2019} she said.\u{201d}",
+        "'Keep goin',' he said.",
+        "\u{2018}Lookin\u{2019} good,\u{2019} said Tom\u{2014}\u{2018}real good.\u{2019}",
+        "\u{2018}Rock \u{2019}n\u{2019} roll,\u{2019} he said.",
+        "'Rock 'n' roll,' he said.",
+    ] {
+        assert_eq!(builtin_unpaired_flags(text), vec![], "{}", text);
+    }
+    assert_eq!(
+        builtin_unpaired_flags("\u{2018}I said goin\u{2019}\u{2019} and left."),
+        vec![quote_flag("\u{2019}")]
+    );
+}
+
+#[test]
 fn spellchecker_accepts_g_dropped_words() {
     for text in &[
         "\u{201c}How you doin\u{2019}?\u{201d} he asked\u{2026}",
