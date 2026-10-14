@@ -860,6 +860,8 @@ impl MaxentPosTagger {
     }
 }
 
+type Pred1Entries = [Option<(u32, u8)>; 20];
+
 #[derive(Serialize, Deserialize, Clone)]
 pub(crate) struct MaxentChunker {
     pub(crate) model: Model,
@@ -1018,7 +1020,7 @@ impl MaxentChunker {
         let priors: Vec<Vec<f32>> = (0..input.len())
             .map(|i| self.model.prior(&Self::static_context(input, i)))
             .collect();
-        let mut pred1: Vec<Vec<(&str, [Option<(u32, u8)>; 20])>> = vec![Vec::new(); input.len()];
+        let mut pred1: Vec<Vec<(&str, Pred1Entries)>> = vec![Vec::new(); input.len()];
         let model = &self.model;
         model
             .beam_search(
