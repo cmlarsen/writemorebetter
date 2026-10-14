@@ -25,6 +25,14 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
 ### Fixed
 
+- **The speller accepts all-caps words and restores case in suggestions.** An all-caps token
+  (`THE END`, shouted `HELLO`) is no longer flagged when its lowercase or capitalized form is
+  known, and a capitalized or all-caps token is searched case-insensitively with the candidates
+  re-cased to match (`Teh` suggests `The`, `TEDD` suggests `TED`; mixed-case words such as
+  `iPhone` keep their case), matching LanguageTool 6.6's case conversion
+  ([#121](https://github.com/cmlarsen/writemorebetter/issues/121)). Applies to spelling
+  suggestions and to `Speller::is_correct`/`suggest`. User-dictionary entries are still not
+  accepted in all caps ([#143](https://github.com/cmlarsen/writemorebetter/issues/143)).
 - **Contractions, apostrophes and hyphens are handled as in LanguageTool 6.6.** Hyphens at either
   end of a word are now tokens of their own (`didn't-->` is `didn ' t - - >`, `Go-` is `Go -`),
   and a mixed-case contraction such as `don'T` is split at its apostrophe because the tagger,

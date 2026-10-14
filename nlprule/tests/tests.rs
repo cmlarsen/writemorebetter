@@ -1,4 +1,7 @@
-use std::convert::{TryFrom, TryInto};
+use std::{
+    collections::HashSet,
+    convert::{TryFrom, TryInto},
+};
 
 use lazy_static::lazy_static;
 use nlprule::{
@@ -419,6 +422,76 @@ fn spellchecker_flags_misspellings_next_to_fiction_punctuation() {
     assert_eq!(
         spelling_errors("Nothing.\u{2028}Patenice\u{2014}always."),
         vec!["Patenice"]
+    );
+}
+
+#[test]
+fn spellchecker_accepts_all_caps_known_words() {
+    assert_eq!(
+        spelling_errors(
+            "\u{201c}THE END,\u{201d} she wrote\u{2026} He barked HELLO\u{2014}LOUDLY.\u{2028}\u{2018}DON\u{2019}T MOVE,\u{2019} said O\u{2019}BRIEN in PARIS."
+        ),
+        Vec::<&str>::new()
+    );
+    assert_eq!(
+        spelling_errors("\u{201c}THSI is WRONG\u{2014}TEH END\u{2026}\u{201d}\u{2028}"),
+        vec!["THSI", "TEH"]
+    );
+}
+
+#[test]
+fn speller_suggestions_restore_the_case_of_capitalized_words() {
+    let speller = RULES.spell().speller().unwrap();
+    assert_eq!(
+        speller.suggest("Teh", 5),
+        vec!["The", "Ten", "Tea", "Tech", "Ted"]
+    );
+    assert!(speller.is_correct("HELLO"));
+    assert!(speller.is_correct("PARIS"));
+    assert!(!speller.is_correct("TEH"));
+
+    let shouted = speller.suggest("TEDD", 5);
+    assert!(shouted.contains(&"TED".to_string()), "{:?}", shouted);
+    assert!(
+        shouted.iter().all(|x| x.to_uppercase() == *x),
+        "{:?}",
+        shouted
+    );
+
+    let shouted = speller.suggest("WHTA", 10);
+    assert_eq!(shouted.len(), 10, "{:?}", shouted);
+    assert!(shouted.contains(&"WHAT".to_string()), "{:?}", shouted);
+    assert_eq!(
+        shouted.iter().collect::<HashSet<_>>().len(),
+        shouted.len(),
+        "{:?}",
+        shouted
+    );
+
+    assert_eq!(speller.suggest("Iphone", 1), vec!["iPhone"]);
+    assert_eq!(speller.suggest("MCDONALD", 1), vec!["McDonald"]);
+    assert_eq!(speller.suggest("teh", 1), vec!["the"]);
+}
+
+#[test]
+fn spelling_suggestions_keep_the_case_of_shouted_dialogue() {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    rules.spell_mut().options_mut().variant = Some(rules.spell().variant("en_US").unwrap());
+    let text = "\u{201c}WHERE ARE YOU GOIGN?\u{201d} he shouted\u{2026}\u{2028}\u{2018}Teh END\u{2014}DON\u{2019}T BELEIVE IT.\u{2019}";
+
+    let first_replacements: Vec<(&str, String)> = rules
+        .suggest(text, &*TOKENIZER)
+        .into_iter()
+        .filter(|x| x.source().starts_with("SPELLCHECK"))
+        .map(|x| (&text[x.span().byte().clone()], x.replacements()[0].clone()))
+        .collect();
+    assert_eq!(
+        first_replacements,
+        vec![
+            ("GOIGN", "GOING".to_string()),
+            ("Teh", "The".to_string()),
+            ("BELEIVE", "BELIEVE".to_string()),
+        ]
     );
 }
 
