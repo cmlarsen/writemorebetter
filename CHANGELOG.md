@@ -25,6 +25,12 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
 ### Fixed
 
+- **Grammar-rule antipatterns immunize tokens, as in LanguageTool 6.6.** A pattern element can no
+  longer match a token covered by one of the rule's antipatterns, and a `skip` continues past such
+  a token to a later one, instead of the whole match being dropped when it overlaps an
+  antipattern. `GERMAN_QUOTES` now flags the last `“` in `He said “a,“ b c“ d.`
+  ([#134](https://github.com/cmlarsen/writemorebetter/issues/134)). Disambiguation rules keep
+  the drop-on-overlap behaviour, and check time is unchanged.
 - **Contractions, apostrophes and hyphens are handled as in LanguageTool 6.6.** Hyphens at either
   end of a word are now tokens of their own (`didn't-->` is `didn ' t - - >`, `Go-` is `Go -`),
   and a mixed-case contraction such as `don'T` is split at its apostrophe because the tagger,

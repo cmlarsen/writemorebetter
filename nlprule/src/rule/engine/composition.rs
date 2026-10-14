@@ -1,5 +1,5 @@
 use std::sync::OnceLock;
-use std::{convert::TryFrom, iter};
+use std::{convert::TryFrom, iter, ops::Range};
 
 use crate::{tokenizer::tag::Tagger, types::*, utils::regex::Regex};
 use enum_dispatch::enum_dispatch;
@@ -415,6 +415,15 @@ pub struct MatchSentence<'t> {
     sent_start: &'t Token<'t>,
     /// Token positions by token text, built on first use (see [`MatchSentence::start_positions`]).
     pub(crate) start_positions: OnceLock<StartPositions>,
+    antipattern_matches: OnceLock<Box<[AntipatternMatches]>>,
+}
+
+type AntipatternMatches = OnceLock<Box<[AntipatternMatch]>>;
+
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct AntipatternMatch {
+    pub(crate) tokens: Range<usize>,
+    pub(crate) chars: Range<usize>,
 }
 
 /// Token positions in a sentence, keyed by token text (and its lowercase form), used to jump
@@ -453,6 +462,7 @@ impl<'t> MatchSentence<'t> {
             sentence,
             sent_start: Token::sent_start(),
             start_positions: OnceLock::new(),
+            antipattern_matches: OnceLock::new(),
         }
     }
 
@@ -478,6 +488,53 @@ impl<'t> MatchSentence<'t> {
                     .push(i as u32);
             }
             positions
+        })
+    }
+
+    pub(crate) fn antipattern_matches(
+        &self,
+        pool: &PartPool,
+        id: AntipatternId,
+    ) -> &[AntipatternMatch] {
+        let cache = self.antipattern_matches.get_or_init(|| {
+            (0..pool.antipatterns().len())
+                .map(|_| OnceLock::new())
+                .collect()
+        });
+        cache[id.0 as usize].get_or_init(|| {
+            let antipattern = pool.antipattern(id);
+            let positions = self.start_positions();
+            if let Some(key) = antipattern.required_key.as_deref() {
+                if !positions.may_contain(key) {
+                    return Box::new([]);
+                }
+            }
+            let starts: Vec<usize> = match antipattern.start_keys.as_deref() {
+                Some(keys) => {
+                    let mut starts: Vec<usize> = keys
+                        .iter()
+                        .flat_map(|key| positions.get(key))
+                        .map(|&i| i as usize)
+                        .collect();
+                    starts.sort_unstable();
+                    starts.dedup();
+                    starts
+                }
+                None => (0..self.len()).collect(),
+            };
+            starts
+                .into_iter()
+                .filter(|&i| antipattern.can_start(pool, self, i))
+                .filter_map(|i| {
+                    let (graph, end) = antipattern.apply_from(pool, self, i, None)?;
+                    let start = graph.by_index(0).span.char().start;
+                    let end_char = graph.by_index(graph.groups().len() - 1).span.char().end;
+                    Some(AntipatternMatch {
+                        tokens: i..end,
+                        chars: start..end_char,
+                    })
+                })
+                .collect()
         })
     }
 
@@ -636,6 +693,17 @@ pub struct Part {
     pub greedy: bool,
     pub visible: bool,
     pub unify: Option<bool>,
+}
+
+struct Immunity<'a> {
+    immune: Option<&'a [bool]>,
+    stopped: bool,
+}
+
+impl Part {
+    fn admits(&self, position: usize, immune: Option<&[bool]>) -> bool {
+        !self.visible || !immune.is_some_and(|immune| immune[position])
+    }
 }
 
 /// Index of a [`Part`] in a rule set's shared [`PartPool`].
@@ -840,6 +908,7 @@ impl Composition {
         context: Context,
         position: usize,
         index: usize,
+        immune: Option<&[bool]>,
     ) -> bool {
         let next_required_pos = match self.parts[index + 1..]
             .iter()
@@ -849,9 +918,10 @@ impl Composition {
             None => self.parts.len(),
         };
 
-        self.parts[index + 1..next_required_pos]
-            .iter()
-            .any(|x| pool.get(*x).atom.is_match(context, position))
+        self.parts[index + 1..next_required_pos].iter().any(|x| {
+            let part = pool.get(*x);
+            part.admits(position, immune) && part.atom.is_match(context, position)
+        })
     }
 
     fn apply_recursive<'t>(
@@ -861,7 +931,8 @@ impl Composition {
         mut position: usize,
         mut cur_atom_idx: usize,
         mut graph: MatchGraph<'t>,
-    ) -> Option<MatchGraph<'t>> {
+        immunity: &mut Immunity,
+    ) -> Option<(MatchGraph<'t>, usize)> {
         let mut cur_count = 0u32;
         let is_match = loop {
             if cur_atom_idx >= self.parts.len() {
@@ -885,26 +956,36 @@ impl Composition {
 
             if cur_count >= part.quantifier.min && cur_atom_idx + 1 < self.parts.len() {
                 if !part.greedy
-                    && self.next_can_match(pool, (sentence, &graph), position, cur_atom_idx)
+                    && self.next_can_match(
+                        pool,
+                        (sentence, &graph),
+                        position,
+                        cur_atom_idx,
+                        immunity.immune,
+                    )
                 {
+                    immunity.stopped = true;
                     cur_atom_idx += 1;
                     cur_count = 0;
                     continue;
                 }
                 if part.greedy {
-                    if let Some(graph) = self.apply_recursive(
+                    if let Some(result) = self.apply_recursive(
                         pool,
                         sentence,
                         position,
                         cur_atom_idx + 1,
                         graph.clone(),
+                        immunity,
                     ) {
-                        return Some(graph);
+                        return Some(result);
                     }
                 }
             }
 
-            if part.atom.is_match((sentence, &graph), position) {
+            if part.admits(position, immunity.immune)
+                && part.atom.is_match((sentence, &graph), position)
+            {
                 let group = &mut graph.groups[cur_atom_idx + 1];
 
                 // set the group beginning if the char end was zero (i. e. the group was empty)
@@ -932,7 +1013,7 @@ impl Composition {
 
         if is_match || cur_atom_idx == self.parts.len() || self.can_stop_mask[cur_atom_idx] {
             graph.fill_empty(sentence);
-            Some(graph)
+            Some((graph, position))
         } else {
             None
         }
@@ -945,7 +1026,19 @@ impl Composition {
         start: usize,
     ) -> Option<MatchGraph<'t>> {
         // this path is extremely hot so more optimizations are done
+        if !self.can_start(pool, sentence, start) {
+            return None;
+        }
+        self.apply_from(pool, sentence, start, None)
+            .map(|(graph, _)| graph)
+    }
 
+    pub(crate) fn can_start(
+        &self,
+        pool: &PartPool,
+        sentence: &MatchSentence,
+        start: usize,
+    ) -> bool {
         // the first matcher can never rely on the match graph, so we use an empty default graph for the first match
         // then allocate a new graph if the first matcher matched
         lazy_static! {
@@ -953,10 +1046,16 @@ impl Composition {
         };
 
         let first = pool.get(self.parts[0]);
-        if first.quantifier.min > 0 && !first.atom.is_match((sentence, &DEFAULT_GRAPH), start) {
-            return None;
-        }
+        first.quantifier.min == 0 || first.atom.is_match((sentence, &DEFAULT_GRAPH), start)
+    }
 
+    pub(crate) fn apply_from<'t>(
+        &'t self,
+        pool: &'t PartPool,
+        sentence: &'t MatchSentence,
+        start: usize,
+        immune: Option<&[bool]>,
+    ) -> Option<(MatchGraph<'t>, usize)> {
         let position = start;
 
         let graph = MatchGraph {
@@ -964,7 +1063,30 @@ impl Composition {
             id_to_idx: GraphIndex::Slice(&self.id_to_idx),
         };
 
-        self.apply_recursive(pool, sentence, position, 0, graph)
+        let mut immunity = Immunity {
+            immune,
+            stopped: false,
+        };
+        self.apply_recursive(pool, sentence, position, 0, graph, &mut immunity)
+    }
+
+    pub(crate) fn may_match_immunized(
+        &self,
+        pool: &PartPool,
+        sentence: &MatchSentence,
+        start: usize,
+    ) -> bool {
+        let graph = MatchGraph {
+            groups: smallvec![Group::default(); self.parts.len() + 1],
+            id_to_idx: GraphIndex::Slice(&self.id_to_idx),
+        };
+        let mut immunity = Immunity {
+            immune: None,
+            stopped: false,
+        };
+        self.apply_recursive(pool, sentence, start, 0, graph, &mut immunity)
+            .is_some()
+            || immunity.stopped
     }
 }
 
