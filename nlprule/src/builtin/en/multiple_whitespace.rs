@@ -2,8 +2,10 @@
 //!
 //! The behaviour follows the LanguageTool `WHITESPACE_RULE`: two or more
 //! whitespace characters in a row are reported and replaced by the first one.
-//! Line breaks are never part of a run, and the indentation that follows a line
-//! break is left alone.
+//! Line breaks are never part of a run. Indentation after a line break inside a
+//! sentence is left alone, but indentation that opens a sentence, or follows a
+//! `\r\n`, is reported. [`MultipleWhitespace::skip_indentation`] leaves all
+//! indentation alone.
 
 use crate::types::{Position, Sentence, Span, Suggestion};
 use serde::{Deserialize, Serialize};
@@ -15,7 +17,10 @@ const MESSAGE: &str = "Possible typo: you repeated a whitespace";
 
 /// Flags a run of repeated whitespace, e.g. two spaces between words.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct MultipleWhitespace;
+pub struct MultipleWhitespace {
+    #[serde(skip)]
+    skip_indentation: bool,
+}
 
 /// One token in the sense of LanguageTool: a real token, or a single
 /// whitespace character (`\r\n` is two tokens).
@@ -27,7 +32,7 @@ pub(crate) struct Piece<'a> {
 
 impl MultipleWhitespace {
     pub(crate) fn new() -> Self {
-        MultipleWhitespace
+        MultipleWhitespace::default()
     }
 
     /// The LanguageTool rule identifier.
@@ -35,17 +40,53 @@ impl MultipleWhitespace {
         ID
     }
 
-    /// Checks a sentence and returns the resulting suggestions.
-    pub fn check(&self, sentence: &Sentence) -> Vec<Suggestion> {
+    /// Leaves the whitespace at the start of a line alone: after a line break
+    /// (including U+2028 and U+2029) and at the start of the text. Fiction
+    /// manuscripts indent paragraphs with spaces, which LanguageTool reports
+    /// whenever the previous paragraph ends a sentence.
+    pub fn skip_indentation(&mut self) {
+        self.skip_indentation = true;
+    }
+
+    /// Checks the consecutive sentences of one paragraph. `previous` is the
+    /// last sentence of the preceding paragraph, if any; without it the first
+    /// sentence starts the text.
+    pub fn check_with_previous(
+        &self,
+        sentences: &[Sentence],
+        previous: Option<&Sentence>,
+    ) -> Vec<Suggestion> {
+        let mut line_start = previous.is_none_or(ends_line);
+        let mut suggestions = Vec::new();
+
+        for sentence in sentences {
+            suggestions.extend(self.check_sentence(sentence, line_start));
+            line_start = ends_line(sentence);
+        }
+
+        suggestions
+    }
+
+    fn check_sentence(&self, sentence: &Sentence, line_start: bool) -> Vec<Suggestion> {
         let pieces = pieces(sentence);
+        let removable = |piece: &str| {
+            is_removable_white(piece) && !(self.skip_indentation && is_line_end(piece))
+        };
         let mut suggestions = Vec::new();
 
         let mut i = 0;
+        if self.skip_indentation && line_start {
+            i = after_indentation(&pieces, i);
+        }
         while i < pieces.len() {
+            if self.skip_indentation && is_line_end(pieces[i].text) {
+                i = after_indentation(&pieces, i + 1);
+                continue;
+            }
             if is_first_white(pieces[i].text) {
                 let first = i;
                 i += 1;
-                while i < pieces.len() && is_removable_white(pieces[i].text) {
+                while i < pieces.len() && removable(pieces[i].text) {
                     i += 1;
                 }
                 i -= 1;
@@ -68,6 +109,21 @@ impl MultipleWhitespace {
 
         suggestions
     }
+}
+
+/// The index of the first piece from `i` on that is not indentation.
+fn after_indentation(pieces: &[Piece], mut i: usize) -> usize {
+    while i < pieces.len() && is_first_white(pieces[i].text) && !is_line_end(pieces[i].text) {
+        i += 1;
+    }
+    i
+}
+
+fn ends_line(sentence: &Sentence) -> bool {
+    matches!(
+        sentence.text().chars().next_back(),
+        Some('\n' | '\r' | '\u{2028}' | '\u{2029}')
+    )
 }
 
 /// Splits `sentence` into its tokens and the single whitespace characters
@@ -119,17 +175,25 @@ fn push_gap<'a>(
 }
 
 /// Whether `piece` is a whitespace character in LanguageTool's sense. Unlike
-/// [`char::is_whitespace`], U+0085 and the figure space U+2007 do not count.
+/// [`char::is_whitespace`], U+0085 and the figure space U+2007 do not count,
+/// and the separators U+001C to U+001F do, as in Java.
 pub(crate) fn is_whitespace(piece: &str) -> bool {
     let mut chars = piece.chars();
     match (chars.next(), chars.next()) {
-        (Some(c), None) => c.is_whitespace() && c != '\u{85}' && c != '\u{2007}',
+        (Some(c), None) => {
+            (c.is_whitespace() && c != '\u{85}' && c != '\u{2007}')
+                || ('\u{1c}'..='\u{1f}').contains(&c)
+        }
         _ => false,
     }
 }
 
 fn is_linebreak(piece: &str) -> bool {
     matches!(piece, "\n" | "\r")
+}
+
+fn is_line_end(piece: &str) -> bool {
+    matches!(piece, "\n" | "\r" | "\u{2028}" | "\u{2029}")
 }
 
 fn is_first_white(piece: &str) -> bool {

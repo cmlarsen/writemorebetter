@@ -111,9 +111,7 @@ impl Builtin {
             Builtin::DoublePunctuation(rule) => {
                 sentences.iter().flat_map(|x| rule.check(x)).collect()
             }
-            Builtin::MultipleWhitespace(rule) => {
-                sentences.iter().flat_map(|x| rule.check(x)).collect()
-            }
+            Builtin::MultipleWhitespace(rule) => rule.check_with_previous(sentences, previous),
             Builtin::SentenceWhitespace(rule) => rule.check_with_previous(sentences, previous),
             Builtin::EmptyLine(rule) => rule.check_text(sentences, ends_text),
         }
@@ -168,5 +166,19 @@ impl BuiltinRule {
     /// Disables this rule.
     pub fn disable(&mut self) {
         self.enabled = false;
+    }
+
+    /// Stops this rule from reporting one of its cases, named `case`, while it
+    /// keeps reporting the others. Returns whether the rule has such a case.
+    /// The only case so far is `INDENTATION` of `WHITESPACE_RULE`, see
+    /// [`en::MultipleWhitespace::skip_indentation`].
+    pub fn disable_case(&mut self, case: &str) -> bool {
+        match (&mut self.builtin, case) {
+            (Builtin::MultipleWhitespace(rule), "INDENTATION") => {
+                rule.skip_indentation();
+                true
+            }
+            _ => false,
+        }
     }
 }

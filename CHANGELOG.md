@@ -17,7 +17,10 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   `SENTENCE_WHITESPACE` flags a sentence that follows the previous one without a space
   (`world.This`), and `EMPTY_LINE` flags more than one empty line between paragraphs. As in
   LanguageTool 6.6, `EMPTY_LINE` is off by default; enable it through `Rules::builtins_mut`. The
-  fiction profile keeps all four as they are. The rules binary format version is now 21.
+  fiction profile keeps all four but stops `WHITESPACE_RULE` from flagging the spaces that indent
+  a paragraph or line, which LanguageTool flags whenever the previous paragraph ends a sentence.
+  A profile selector can now name a builtin case, as in `BUILTIN/WHITESPACE_RULE/INDENTATION`. The
+  rules binary format version is now 21.
 - **Rule filters can query the speller while a rule matches.** `Spell::speller()` returns a
   read-only `Speller` for the selected variant with `is_correct(word)` and `suggest(word, n)`,
   and the grammar-rule filters receive it alongside the rule match, ready for the speller-backed

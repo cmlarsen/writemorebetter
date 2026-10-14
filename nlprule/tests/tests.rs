@@ -399,11 +399,25 @@ fn apply_profile_reports_unmatched_selectors() {
         vec![
             "NO_SUCH_CATEGORY".to_owned(),
             "BUILTIN/NO_SUCH_BUILTIN".to_owned(),
+            "BUILTIN/WHITESPACE_RULE/NO_SUCH_CASE".to_owned(),
+            "BUILTIN/UPPERCASE_SENTENCE_START/INDENTATION".to_owned(),
         ],
     );
     let mut unmatched = rules.apply_profile(&profile);
     unmatched.sort();
-    assert_eq!(unmatched, ["BUILTIN/NO_SUCH_BUILTIN", "NO_SUCH_CATEGORY"]);
+    assert_eq!(
+        unmatched,
+        [
+            "BUILTIN/NO_SUCH_BUILTIN",
+            "BUILTIN/UPPERCASE_SENTENCE_START/INDENTATION",
+            "BUILTIN/WHITESPACE_RULE/NO_SUCH_CASE",
+            "NO_SUCH_CATEGORY"
+        ]
+    );
+    assert!(rules
+        .builtins()
+        .iter()
+        .all(|rule| rule.enabled() || rule.id() == "EMPTY_LINE"));
 }
 
 /// The `BUILTIN/` selector path disables a builtin rule by its id.
@@ -3762,6 +3776,10 @@ fn builtin_multiple_whitespace_handles_unicode_spaces() {
         vec![flag("  ", &[" "])]
     );
     assert_eq!(
+        builtin_flags("WHITESPACE_RULE", "Unit\u{1f}\u{1f}separators here."),
+        vec![flag("\u{1f}\u{1f}", &["\u{1f}"])]
+    );
+    assert_eq!(
         builtin_flags(
             "WHITESPACE_RULE",
             "A\u{2007}\u{2007}figure and A \u{202f} narrow."
@@ -3941,5 +3959,44 @@ fn builtin_empty_line_runs_in_suggest_when_enabled() {
     assert_eq!(
         empty_lines("\u{201c}Go.\u{201d}\n\n\n\nShe went\u{2014}slowly\u{2026}\n\n\n\n"),
         vec![4..5]
+    );
+}
+
+/// Flags of `WHITESPACE_RULE` from [`Rules::suggest`] with the profile `name`. The grammar
+/// rules are off, because `TYPOGRAPHY/CONSECUTIVE_SPACES` claims some of the same spans.
+fn whitespace_flags(name: &str, text: &str) -> Vec<String> {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    assert!(rules
+        .apply_profile(&Profile::by_name(name).unwrap())
+        .is_empty());
+    rules.rules_mut().iter_mut().for_each(|rule| rule.disable());
+    let chars: Vec<char> = text.chars().collect();
+    rules
+        .suggest(text, &TOKENIZER)
+        .into_iter()
+        .filter(|suggestion| suggestion.source() == "BUILTIN/WHITESPACE_RULE")
+        .map(|suggestion| chars[suggestion.span().char().clone()].iter().collect())
+        .collect()
+}
+
+#[test]
+fn fiction_profile_skips_whitespace_indentation() {
+    let text = "    \u{201c}Go,\u{201d} she said.\n    He went\u{2014}slowly\u{2026}\n\n  \u{2018}Fine.\u{2019}\r\n    It\u{2019}s late.\n\t  Verse one,\u{2028}   verse two.  Then  stop.";
+
+    assert_eq!(
+        whitespace_flags("default", text),
+        vec!["    ", "    ", "  ", "    ", "\t  ", "\u{2028}   ", "  "]
+    );
+    assert_eq!(whitespace_flags("fiction", text), vec!["  "]);
+}
+
+#[test]
+fn fiction_profile_keeps_other_whitespace_flags() {
+    assert_eq!(
+        whitespace_flags(
+            "fiction",
+            "\u{201c}Hi,\u{201d}  she said \u{2014}  softly\u{2026}\n  Then\u{a0}\u{a0}left \u{2028}  here."
+        ),
+        vec!["  ", "  ", "\u{a0}\u{a0}"]
     );
 }
