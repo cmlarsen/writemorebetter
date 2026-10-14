@@ -10,6 +10,17 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
 ### Added
 
+- **Whitespace and double-punctuation checks.** Four more of LanguageTool's Java-coded rules run
+  as builtins ([#80](https://github.com/cmlarsen/writemorebetter/issues/80)):
+  `DOUBLE_PUNCTUATION` flags `..` and `,,` (ellipses, `?..`, `!..` and `…` next to a dot are
+  left alone), `WHITESPACE_RULE` flags repeated whitespace such as two spaces between words,
+  `SENTENCE_WHITESPACE` flags a sentence that follows the previous one without a space
+  (`world.This`), and `EMPTY_LINE` flags more than one empty line between paragraphs. As in
+  LanguageTool 6.6, `EMPTY_LINE` is off by default; enable it through `Rules::builtins_mut`. The
+  fiction profile keeps all four but stops `WHITESPACE_RULE` from flagging the spaces that indent
+  a paragraph or line, which LanguageTool flags whenever the previous paragraph ends a sentence.
+  A profile selector can now name a builtin case, as in `BUILTIN/WHITESPACE_RULE/INDENTATION`. The
+  rules binary format version is now 23.
 - **The speller-backed rule filters are ported, so nine more rules run.** `FindSuggestionsFilter`
   (`PRP_MD_NN` [5] and [6], `A_INFINITIVE` [0] and [1]), `EnglishSuppressMisspelledSuggestionsFilter`
   (`EN_SPLIT_WORDS_HYPHEN` [0]–[3]) and `EnglishNumberInWordFilter` (`NUMBERS_IN_WORDS`) now
@@ -18,7 +29,7 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   "Good" and "The break- up" suggests "break-up". `FindSuggestionsFilter` searches the speller's
   word list where LanguageTool searches its tagger dictionary, so some candidates differ
   ([#135](https://github.com/cmlarsen/writemorebetter/issues/135)). The rules binary format
-  version is now 21.
+  version is now 22.
 
 - **Rule filters can query the speller while a rule matches.** `Spell::speller()` returns a
   read-only `Speller` for the selected variant with `is_correct(word)` and `suggest(word, n)`,
