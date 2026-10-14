@@ -558,6 +558,10 @@ fn speller_ranks_edit_distance_before_frequency() {
     assert_eq!(speller.suggest("Aduke", 1), vec!["Duke"]);
     assert!(speller.suggest("Wat", 10).contains(&"At".to_string()));
     assert!(speller.suggest("IPHONE", 10).contains(&"PHONE".to_string()));
+    assert_eq!(
+        speller.suggest("McCARTHY", 10),
+        vec!["McCarthy", "McCarty", "McCartney", "McCarry"]
+    );
     let anno = speller.suggest("Anno", 10);
     assert!(
         anno.iter()

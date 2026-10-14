@@ -188,4 +188,16 @@ mod tests {
         assert_eq!(distance_with_prefix("IPHONE", "phone", true, 2), Some(1));
         assert_eq!(distance_with_prefix("abxycd", "abcd", false, 2), Some(2));
     }
+
+    #[test]
+    fn deletions_anywhere_in_the_word_survive_distance_one() {
+        for key in ["hick", "tick", "thck", "thik", "thic"] {
+            let automaton = Levenshtein::new("thick", 1, 0);
+            let mut state = automaton.start();
+            for byte in key.bytes() {
+                state = automaton.accept(&state, byte);
+            }
+            assert_eq!(state.map(|state| state.dist()), Some(1), "{}", key);
+        }
+    }
 }

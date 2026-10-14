@@ -46,9 +46,12 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 - **Spelling suggestions rank by edit distance, then frequency, as in LanguageTool 6.6.** A
   common word two edits away no longer outranks a rarer word one edit away, and only the
   candidates at the smallest edit distance found are suggested, so `Hecla` suggests `Hekla`
-  instead of `Held`. Dropping a word's first letter now counts as one edit (`Aduke` → `Duke`,
-  `Wat` → `At`, `IPHONE` → `PHONE`), and `SpellOptions::prefix_length` is honoured instead of a
-  fixed prefix of 2. `SpellOptions::freq_weight` (and the Python `freq_weight` property) is
+  instead of `Held`; after a match that differs only in case, the closer candidates follow it
+  (`McCARTHY` → `McCarthy`, `McCarty`, `McCartney`, `McCarry`). Dropping a word's first letter
+  now counts as one edit (`Aduke` → `Duke`, `Wat` → `At`, `IPHONE` → `PHONE`), a deletion later
+  in the word is no longer pruned (`thick` reaches `tick`,
+  [#189](https://github.com/cmlarsen/writemorebetter/issues/189)), and
+  `SpellOptions::prefix_length` is honoured instead of a fixed prefix of 2. `SpellOptions::freq_weight` (and the Python `freq_weight` property) is
   removed; `RULES_FORMAT_VERSION` is now 21, so rules binaries must be recompiled
   ([#147](https://github.com/cmlarsen/writemorebetter/issues/147)).
 - **Grammar-rule antipatterns immunize tokens, as in LanguageTool 6.6.** A pattern element can no

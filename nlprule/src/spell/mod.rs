@@ -131,7 +131,8 @@ pub struct SpellOptions {
     /// A fixed prefix length for which to consider only edits with a distance of 1. This speeds up the search by pruning the tree early.
     pub prefix_length: usize,
     /// The maximum number of correction candidates to return. Candidates are ranked by edit
-    /// distance, then by word frequency, and only those at the smallest distance found are kept.
+    /// distance, then by word frequency, and only those at the smallest distance found are kept,
+    /// unless the best candidate differs from the word only in case.
     pub top_n: usize,
     /// A set of words to ignore. Can also contain phrases delimited by a space.
     #[serde(serialize_with = "crate::types::sorted::set")]
@@ -584,9 +585,12 @@ impl VariantChecker {
         }
 
         let out = out.into_sorted_vec();
-        let best = out.iter().map(|x| x.distance).find(|&x| x > 0);
+        let max_distance = match out.first() {
+            Some(x) if x.distance > 0 => x.distance,
+            _ => self.options.max_distance,
+        };
         out.into_iter()
-            .take_while(|x| x.distance == 0 || Some(x.distance) == best)
+            .take_while(|x| x.distance <= max_distance)
             .map(|x| x.term)
             .collect()
     }
