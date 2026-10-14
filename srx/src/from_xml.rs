@@ -27,6 +27,30 @@ pub enum Error {
     SRXError { reason: String },
 }
 
+/// Replaces `\s` and `\S` with the ASCII whitespace set they denote in Java regexes, which SRX
+/// patterns are written in. In this crate's regex engines they also match Unicode whitespace
+/// such as U+00A0 and U+2028.
+fn java_whitespace(pattern: &str) -> String {
+    let mut out = String::with_capacity(pattern.len());
+    let mut chars = pattern.chars();
+    while let Some(c) = chars.next() {
+        if c != '\\' {
+            out.push(c);
+            continue;
+        }
+        match chars.next() {
+            Some('s') => out.push_str(r"[\t\n\x0B\x0C\r ]"),
+            Some('S') => out.push_str(r"[^\t\n\x0B\x0C\r ]"),
+            Some(escaped) => {
+                out.push('\\');
+                out.push(escaped);
+            }
+            None => out.push('\\'),
+        }
+    }
+    out
+}
+
 impl Rule {
     /// Creates a new ruel.
     ///
@@ -45,18 +69,12 @@ impl Rule {
             });
         }
 
-        let regex_str = format!(
-            "{}({})",
-            before_break.as_ref().map_or("", |x| x.as_ref()),
-            after_break.as_ref().map_or("", |x| x.as_ref())
+        let regex_str = super::rule_pattern(
+            &java_whitespace(before_break.as_ref().map_or("", |x| x.as_ref())),
+            &java_whitespace(after_break.as_ref().map_or("", |x| x.as_ref())),
         );
-        let regex = super::build_regex(&regex_str)?;
 
-        Ok(Rule {
-            regex_str,
-            regex,
-            do_break,
-        })
+        Rule::from_pattern(regex_str, do_break).map_err(|error| Error::from(*error))
     }
 }
 
@@ -172,6 +190,7 @@ impl TryFrom<schema::SRX> for SRX {
 
 mod schema {
     use serde::Deserialize;
+    use serde_xml_rs::{EventReader, ParserConfig};
     use std::io::Read;
 
     #[derive(Debug, Clone, Deserialize)]
@@ -250,10 +269,82 @@ mod schema {
     }
 
     pub fn from_reader<R: Read>(reader: R) -> Result<SRX, serde_xml_rs::Error> {
-        serde_xml_rs::from_reader(reader)
+        let config = ParserConfig::new()
+            .trim_whitespace(false)
+            .whitespace_to_characters(false)
+            .cdata_to_characters(true)
+            .ignore_comments(true)
+            .coalesce_characters(true);
+        let mut deserializer =
+            serde_xml_rs::Deserializer::new(EventReader::new_with_config(reader, config));
+        SRX::deserialize(&mut deserializer)
     }
 
     pub fn from_str<S: AsRef<str>>(string: S) -> Result<SRX, serde_xml_rs::Error> {
-        serde_xml_rs::from_str(string.as_ref())
+        from_reader(string.as_ref().as_bytes())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn whitespace_classes_are_ascii_like_java() {
+        assert_eq!(
+            java_whitespace(r"[\.!?][\s ]\\s\S*@"),
+            r"[\.!?][[\t\n\x0B\x0C\r ] ]\\s[^\t\n\x0B\x0C\r ]*@"
+        );
+
+        let rules = Rule::new(Some(r"\.\s"), None::<&str>, true).expect("valid rule");
+        let rules = super::super::Rules { rules: vec![rules] };
+        assert_eq!(
+            rules
+                .split("It\u{2019}s late.\u{2028}She left.\u{00A0}Fine\u{2026} \u{201c}Go.\u{201d} Now\u{2014}yes.")
+                .collect::<Vec<_>>(),
+            vec![
+                "It\u{2019}s late.\u{2028}She left.\u{00A0}Fine\u{2026} \u{201c}Go.\u{201d} Now\u{2014}yes."
+            ]
+        );
+    }
+
+    #[test]
+    fn pattern_whitespace_is_kept() {
+        let srx = SRX::from_str(
+            r#"<?xml version="1.0" encoding="UTF-8"?>
+<srx xmlns="http://www.lisa.org/srx20" version="2.0">
+<header segmentsubflows="yes" cascade="yes"></header>
+<body>
+<languagerules>
+<languagerule languagerulename="English">
+<rule break="no">
+<beforebreak>…[\]\)]* </beforebreak>
+<afterbreak>\p{Ll}</afterbreak>
+</rule>
+<rule break="yes">
+<beforebreak>[\.!?…][”]*\s</beforebreak>
+<afterbreak></afterbreak>
+</rule>
+</languagerule>
+</languagerules>
+<maprules>
+<languagemap languagepattern="en.*" languagerulename="English"></languagemap>
+</maprules>
+</body>
+</srx>"#,
+        )
+        .expect("valid srx");
+
+        assert_eq!(
+            srx.language_rules("en")
+                .split(
+                    "She waited\u{2026} and waited\u{2014}\u{201c}fine.\u{201d} It\u{2019}s over."
+                )
+                .collect::<Vec<_>>(),
+            vec![
+                "She waited\u{2026} and waited\u{2014}\u{201c}fine.\u{201d} ",
+                "It\u{2019}s over."
+            ]
+        );
     }
 }

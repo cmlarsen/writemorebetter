@@ -781,28 +781,33 @@ impl Rule {
         let shift_delta = Position { byte: 1, char: 1 };
 
         for (index, test) in self.examples.get().iter().enumerate() {
-            // by convention examples are always considered as one sentence even if the sentencizer would split
-            let sentence = tokenizer
-                .disambiguate(
+            let text = test.text();
+            let sentences: Vec<_> = tokenizer
+                .sentencize(text)
+                .map(|sentence| {
                     tokenizer
-                        .tokenize(&test.text())
-                        .expect("test text must not be empty."),
-                )
-                .rshift(shift_delta)
-                .into_sentence();
+                        .disambiguate(sentence)
+                        .rshift(shift_delta)
+                        .into_sentence()
+                })
+                .collect();
 
-            info!("Sentence: {:#?}", sentence);
-            let suggestions: Vec<_> = self
-                .apply_with_context(
-                    pool,
-                    &MatchSentence::new(&sentence),
-                    articles,
-                    filter::FilterContext {
-                        now: Some(filter::test_date()),
-                        speller,
-                    },
-                )
-                .map(|s| s.lshift(shift_delta))
+            info!("Sentences: {:#?}", sentences);
+            let suggestions: Vec<_> = sentences
+                .iter()
+                .flat_map(|sentence| {
+                    self.apply_with_context(
+                        pool,
+                        &MatchSentence::new(sentence),
+                        articles,
+                        filter::FilterContext {
+                            now: Some(filter::test_date()),
+                            speller,
+                        },
+                    )
+                    .map(|s| s.lshift(shift_delta))
+                    .collect::<Vec<_>>()
+                })
                 .collect();
 
             let pass = match test.kind() {

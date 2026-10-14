@@ -64,10 +64,17 @@ extern crate serde_crate as serde;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-use std::{collections::HashMap, ops::Range};
+use std::{collections::HashMap, ops::Range, sync::Arc};
 
 use regex::Regex as RegexCrate;
-use regex_automata::meta::Regex;
+use regex_automata::{meta::Regex, Input, PatternID};
+
+const AFTER_BREAK_GROUP: &str = "srx_after_break";
+
+/// Joins a rule's `before_break` and `after_break` into the single pattern the rule is compiled from.
+pub(crate) fn rule_pattern(before_break: &str, after_break: &str) -> String {
+    format!("(?:{before_break})(?P<{AFTER_BREAK_GROUP}>{after_break})")
+}
 
 /// Builds the matcher for a `before_break(after_break)` rule pattern.
 ///
@@ -99,8 +106,10 @@ pub use from_xml::Error;
 pub struct Language(pub String);
 
 /// A single SRX rule. In SRX, consists of one `before_break` and one `after_break` Regex.
-/// For efficiency this crate compiles these regexes into one regex of the form `before_break(after_break)`
-/// and uses the start of the first capture group as the split index.
+/// For efficiency this crate compiles these regexes into one regex of the form
+/// `(?:before_break)(?P<srx_after_break>after_break)` and uses the start of the named group as the split index.
+/// Patterns serialized before the group was named are of the form `before_break(after_break)`;
+/// for those the first capture group is used.
 ///
 /// Serialization is implemented by hand: the compiled matcher is serialized as
 /// the pattern string it was built from, exactly like the previous
@@ -111,7 +120,8 @@ pub struct Language(pub String);
 struct Rule {
     /// The `before_break(after_break)` pattern the rule was compiled from.
     regex_str: String,
-    regex: Regex,
+    regex: Matcher,
+    split_group: usize,
     do_break: bool,
 }
 
@@ -146,24 +156,87 @@ impl<'de> Deserialize<'de> for Rule {
         }
 
         let Repr { regex, do_break } = Repr::deserialize(deserializer)?;
-        let compiled = build_regex(&regex).map_err(serde::de::Error::custom)?;
-        Ok(Rule {
-            regex_str: regex,
-            regex: compiled,
-            do_break,
-        })
+        Rule::from_pattern(regex, do_break).map_err(serde::de::Error::custom)
     }
 }
 
+/// The compiled form of a rule pattern. SRX patterns are Java regexes; the few that use
+/// look-around, which `regex-automata` does not support, are compiled with `fancy-regex`.
+#[derive(Debug, Clone)]
+enum Matcher {
+    Automata(Regex),
+    Fancy(Arc<fancy_regex::Regex>),
+}
+
 impl Rule {
+    fn from_pattern(
+        regex_str: String,
+        do_break: bool,
+    ) -> Result<Self, Box<regex_automata::meta::BuildError>> {
+        let (regex, split_group) = match build_regex(&regex_str) {
+            Ok(regex) => {
+                let split_group = regex
+                    .group_info()
+                    .to_index(PatternID::ZERO, AFTER_BREAK_GROUP)
+                    .unwrap_or(1);
+                (Matcher::Automata(regex), split_group)
+            }
+            Err(error) => {
+                let regex = fancy_regex::Regex::new(&regex_str).map_err(|_| Box::new(error))?;
+                let split_group = regex
+                    .capture_names()
+                    .position(|name| name == Some(AFTER_BREAK_GROUP))
+                    .unwrap_or(1);
+                (Matcher::Fancy(Arc::new(regex)), split_group)
+            }
+        };
+
+        Ok(Rule {
+            regex_str,
+            regex,
+            split_group,
+            do_break,
+        })
+    }
+
     /// Gets all byte indices in the text at which this rule matches.
-    /// Contrary to the SRX 2.0 spec this does not find overlapping matches.
+    /// The SRX reference implementation checks every rule at every index, so matches may overlap:
+    /// the search for the next match resumes one character after the start of the previous one.
     fn match_indices<'a>(&'a self, text: &'a str) -> impl Iterator<Item = usize> + 'a {
-        self.regex.captures_iter(text).filter_map(|x| {
-            // generally it is guaranteed that a regex has
-            // at least one match, but be lenient about
-            // errors in the srx xml files and drop those without
-            x.get_group(1).map(|span| span.start)
+        let mut captures = match &self.regex {
+            Matcher::Automata(regex) => Some(regex.create_captures()),
+            Matcher::Fancy(_) => None,
+        };
+        let mut start = 0;
+
+        std::iter::from_fn(move || {
+            while start <= text.len() {
+                let (found_start, split) = match (&self.regex, captures.as_mut()) {
+                    (Matcher::Automata(regex), Some(captures)) => {
+                        regex.search_captures(&Input::new(text).range(start..), captures);
+                        let found = captures.get_match()?;
+                        let split = captures.get_group(self.split_group).map(|span| span.start);
+                        (found.start(), split)
+                    }
+                    (Matcher::Fancy(regex), _) => {
+                        let captures = regex.captures_from_pos(text, start).ok()??;
+                        let found = captures.get(0)?;
+                        let split = captures.get(self.split_group).map(|span| span.start());
+                        (found.start(), split)
+                    }
+                    (Matcher::Automata(_), None) => return None,
+                };
+
+                start = found_start + text[found_start..].chars().next().map_or(1, char::len_utf8);
+
+                // generally it is guaranteed that a regex has
+                // at least one match, but be lenient about
+                // errors in the srx xml files and drop those without
+                if split.is_some() {
+                    return split;
+                }
+            }
+            None
         })
     }
 
@@ -195,10 +268,10 @@ impl Rules {
         // TODO use a proper tri-state enum here
         let mut masked_bytes: Vec<Option<bool>> = vec![None; text.len()];
 
-        'outer: for rule in &self.rules {
+        for rule in &self.rules {
             for byte_index in rule.match_indices(text) {
                 if byte_index >= text.len() {
-                    continue 'outer;
+                    continue;
                 }
 
                 if masked_bytes[byte_index].is_none() {
@@ -311,12 +384,8 @@ mod tests {
             rules: patterns
                 .iter()
                 .map(|(before, after, do_break)| {
-                    let regex_str = format!("{}({})", before, after);
-                    Rule {
-                        regex: build_regex(&regex_str).expect("test rule is valid"),
-                        regex_str,
-                        do_break: *do_break,
-                    }
+                    Rule::from_pattern(rule_pattern(before, after), *do_break)
+                        .expect("test rule is valid")
                 })
                 .collect(),
         }
@@ -351,6 +420,56 @@ mod tests {
             vec![
                 "The U.K. Prime Minister, Mr. Blair, was seen out with his family today.",
                 " He is well."
+            ]
+        );
+    }
+
+    #[test]
+    fn before_break_groups_do_not_move_the_split() {
+        let rules = rules_for(&[(r"\b(Mr|Dr)\.\s", "", false), (r"[\.!?]\s", "", true)]);
+
+        assert_eq!(
+            rules
+                .split("Mr. Bush left. Dr. Doe stayed.")
+                .collect::<Vec<_>>(),
+            vec!["Mr. Bush left. ", "Dr. Doe stayed."]
+        );
+    }
+
+    #[test]
+    fn matches_may_overlap() {
+        let rules = rules_for(&[
+            (r"[\.\s]\p{L}{1,2}\.\s", r"[\p{N}\p{Ll}]", false),
+            (r"[\.!?\u{2026}][\u{201D}]*\s", "", true),
+        ]);
+
+        assert_eq!(
+            rules
+                .split("Thelen et. al. 2001 said\u{2026} \u{201c}It\u{2019}s fine.\u{201d} Then\u{2014}gone.")
+                .collect::<Vec<_>>(),
+            vec![
+                "Thelen et. al. 2001 said\u{2026} ",
+                "\u{201c}It\u{2019}s fine.\u{201d} ",
+                "Then\u{2014}gone."
+            ]
+        );
+    }
+
+    #[test]
+    fn look_around_rules_are_supported() {
+        let rules = rules_for(&[
+            (r"\s(?!(on|it))\p{L}{1,2}\.\s", r"\p{Ll}", false),
+            (r"\.\s", "", true),
+        ]);
+
+        assert_eq!(
+            rules
+                .split("Wait 2 hr. or so\u{2014}it\u{2019}s fine. Go on. now\u{2026}")
+                .collect::<Vec<_>>(),
+            vec![
+                "Wait 2 hr. or so\u{2014}it\u{2019}s fine. ",
+                "Go on. ",
+                "now\u{2026}"
             ]
         );
     }

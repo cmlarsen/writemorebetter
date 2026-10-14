@@ -163,6 +163,36 @@ fn sentencizer_breaks_at_a_blank_line() {
 }
 
 #[test]
+fn sentencizer_splits_like_languagetool() {
+    let segments = |text: &'static str| -> Vec<&'static str> {
+        TOKENIZER
+            .pipe(text)
+            .map(|sentence| &text[sentence.span().byte().clone()])
+            .collect()
+    };
+    assert_eq!(
+        segments("\u{201c}Wait\u{2026} and then?\u{201d} Mr. Snyder asked\u{2014}quietly. \u{2026} and she\u{2019}d gone."),
+        vec![
+            "\u{201c}Wait\u{2026} and then?\u{201d} ",
+            "Mr. Snyder asked\u{2014}quietly. ",
+            "\u{2026} and she\u{2019}d gone.",
+        ]
+    );
+    assert_eq!(
+        segments("Thelen et. al. 2001 says it\u{2019}s fine\u{2014}mostly."),
+        vec!["Thelen et. al. 2001 says it\u{2019}s fine\u{2014}mostly."]
+    );
+    assert_eq!(
+        segments("We met at 8 a.m. on Friday\u{2026} or so I thought.\u{2028}It wasn\u{2019}t."),
+        vec!["We met at 8 a.m. on Friday\u{2026} or so I thought.\u{2028}It wasn\u{2019}t."]
+    );
+    assert_eq!(
+        segments("\u{201c}I\u{2019}m done.\u{201d} She left."),
+        vec!["\u{201c}I\u{2019}m done.\u{201d} ", "She left."]
+    );
+}
+
+#[test]
 fn batch_size_does_not_change_suggestions() {
     let text = "I can due his homework.\n\n“She dont know”—he said… \u{2028}It’s fine. A apple fell.\n\nThey was late.";
     let mut rules = Rules::new(RULES_PATH).unwrap();
