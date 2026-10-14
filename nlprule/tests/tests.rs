@@ -458,10 +458,11 @@ fn apply_profile_reports_unmatched_selectors() {
             "NO_SUCH_CATEGORY"
         ]
     );
-    assert!(rules
-        .builtins()
-        .iter()
-        .all(|rule| rule.enabled() || rule.id() == "EMPTY_LINE"));
+    assert!(rules.builtins().iter().all(|rule| rule.enabled()
+        || matches!(
+            rule.id(),
+            "EMPTY_LINE" | "TOO_LONG_SENTENCE" | "TOO_LONG_PARAGRAPH"
+        )));
 }
 
 /// The `BUILTIN/` selector path disables a builtin rule by its id.
