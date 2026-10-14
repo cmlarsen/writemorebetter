@@ -10,6 +10,27 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
 ### Added
 
+- **Whitespace and double-punctuation checks.** Four more of LanguageTool's Java-coded rules run
+  as builtins ([#80](https://github.com/cmlarsen/writemorebetter/issues/80)):
+  `DOUBLE_PUNCTUATION` flags `..` and `,,` (ellipses, `?..`, `!..` and `…` next to a dot are
+  left alone), `WHITESPACE_RULE` flags repeated whitespace such as two spaces between words,
+  `SENTENCE_WHITESPACE` flags a sentence that follows the previous one without a space
+  (`world.This`), and `EMPTY_LINE` flags more than one empty line between paragraphs. As in
+  LanguageTool 6.6, `EMPTY_LINE` is off by default; enable it through `Rules::builtins_mut`. The
+  fiction profile keeps all four but stops `WHITESPACE_RULE` from flagging the spaces that indent
+  a paragraph or line, which LanguageTool flags whenever the previous paragraph ends a sentence.
+  A profile selector can now name a builtin case, as in `BUILTIN/WHITESPACE_RULE/INDENTATION`. The
+  rules binary format version is now 23.
+- **The speller-backed rule filters are ported, so nine more rules run.** `FindSuggestionsFilter`
+  (`PRP_MD_NN` [5] and [6], `A_INFINITIVE` [0] and [1]), `EnglishSuppressMisspelledSuggestionsFilter`
+  (`EN_SPLIT_WORDS_HYPHEN` [0]–[3]) and `EnglishNumberInWordFilter` (`NUMBERS_IN_WORDS`) now
+  compile and query the speller while a rule matches
+  ([#71](https://github.com/cmlarsen/writemorebetter/issues/71)), so "Go0d morning" suggests
+  "Good" and "The break- up" suggests "break-up". `FindSuggestionsFilter` searches the speller's
+  word list where LanguageTool searches its tagger dictionary, so some candidates differ
+  ([#135](https://github.com/cmlarsen/writemorebetter/issues/135)). The rules binary format
+  version is now 22.
+
 - **Rule filters can query the speller while a rule matches.** `Spell::speller()` returns a
   read-only `Speller` for the selected variant with `is_correct(word)` and `suggest(word, n)`,
   and the grammar-rule filters receive it alongside the rule match, ready for the speller-backed
@@ -51,6 +72,35 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
 ### Fixed
 
+- **Spelling suggestions rank by edit distance, then frequency, as in LanguageTool 6.6.** A
+  common word two edits away no longer outranks a rarer word one edit away, and only the
+  candidates at the smallest edit distance found are suggested, so `Hecla` suggests `Hekla`
+  instead of `Held`; after a match that differs only in case, the closer candidates follow it
+  (`McCARTHY` → `McCarthy`, `McCarty`, `McCartney`, `McCarry`). Dropping a word's first letter
+  now counts as one edit (`Aduke` → `Duke`, `Wat` → `At`, `IPHONE` → `PHONE`), a deletion later
+  in the word is no longer pruned (`thick` reaches `tick`,
+  [#189](https://github.com/cmlarsen/writemorebetter/issues/189)), and
+  `SpellOptions::prefix_length` is honoured instead of a fixed prefix of 2. `SpellOptions::freq_weight` (and the Python `freq_weight` property) is
+  removed; `RULES_FORMAT_VERSION` is now 21, so rules binaries must be recompiled
+  ([#147](https://github.com/cmlarsen/writemorebetter/issues/147)).
+- **G-dropped words like `doin'` stay one token tagged as the `-ing` form, as in LanguageTool
+  6.6.** An unknown word ending in `in'` (or `in’`) is tagged like its `-ing` form (`doin'` as
+  `do/VBG`, `nothin'` as `nothing`), so the tokenizer no longer splits off the apostrophe, the
+  spellchecker no longer flags `goin`, and `HOW_YOU_DOING` marks the whole `how you doin'`
+  ([#162](https://github.com/cmlarsen/writemorebetter/issues/162)). This deliberately differs
+  from LanguageTool 6.6 when the word without its apostrophe is itself a word: LanguageTool tags
+  `sin’` as `sing` and `robin’` as `robe/VBG`, which swallows the closing quote of `‘a sin’` and
+  raises a false unpaired-quote error; here those quotes stay tokens of their own. The
+  unpaired-quote rule no longer treats the apostrophe of such a word as a closing quote, so
+  `‘Doin’ fine,’ she said.` is not flagged. The tokenizer binary format version is now 15.
+- **A g-dropped word right after an opening straight single quote stays whole.** In
+  `'goin' home,' she said.`, `'Nothin',' she said.` and `'Comin' through!'` the opening `'` is
+  now its own token and `goin'`, `Nothin'` and `Comin'` stay one word tagged as their `-ing`
+  form, as they already were after a curly `‘`
+  ([#188](https://github.com/cmlarsen/writemorebetter/issues/188)). This deliberately differs
+  from LanguageTool 6.6, which splits `'goin'` at both apostrophes, flags `goin` as a misspelling
+  and the closing quote as unpaired. A word whose stem is itself a word (`'sin'`, `'Robin'`) and
+  an ordinary quoted word (`'hello'`) are still split as before.
 - **Grammar-rule antipatterns immunize tokens, as in LanguageTool 6.6.** A pattern element can no
   longer match a token covered by one of the rule's antipatterns, and a `skip` continues past such
   a token to a later one, instead of the whole match being dropped when it overlaps an
