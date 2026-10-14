@@ -2277,6 +2277,34 @@ fn apostrophe_rules_match_languagetool_on_fiction_text() {
 }
 
 #[test]
+fn skip_continues_past_antipattern_immunized_token() {
+    for (text, expected) in [
+        ("He said \u{201c}a,\u{201c} b c\u{201c} d.", vec![16]),
+        ("He said \u{201c}a b c\u{201c} d.", vec![14]),
+        (
+            "He said \u{201c}don\u{2019}t,\u{201c} b c\u{201c} d.",
+            vec![20],
+        ),
+        ("He said \u{201c}a\u{2014}\u{201c} b c\u{201c} d.", vec![16]),
+        ("He said \u{201c}a\u{2026}\u{201c} b c\u{201c} d.", vec![11]),
+        ("He said \u{201c}a\u{2019}\u{201c} b c\u{201c} d.", vec![16]),
+        (
+            "She left.\u{2028}He said \u{201c}a,\u{201c} b c\u{201c} d.",
+            vec![26],
+        ),
+        ("He said \u{201c}a,\u{201c} b,\u{201c} d.", vec![]),
+    ] {
+        let starts: Vec<usize> = RULES
+            .suggest(text, &*TOKENIZER)
+            .into_iter()
+            .filter(|suggestion| suggestion.source().starts_with("TYPOGRAPHY/GERMAN_QUOTES/"))
+            .map(|suggestion| suggestion.span().char().start)
+            .collect();
+        assert_eq!(starts, expected, "{:?}", text);
+    }
+}
+
+#[test]
 fn antipattern_on_adjacent_punctuation_does_not_block_match() {
     let flagged = vec![("singed".to_string(), vec!["signed".to_string()])];
     for text in [

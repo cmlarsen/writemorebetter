@@ -144,7 +144,7 @@ impl DisambiguationRule {
 
         for graph in self
             .engine
-            .get_matches(pool, sentence, self.start, self.end)
+            .get_matches(pool, sentence, self.start, self.end, false)
         {
             if let Some(unification) = &self.unification {
                 if !unification.keep(&graph, sentence) {
@@ -796,7 +796,7 @@ impl Rule {
         Suggestions {
             matches: self
                 .engine
-                .get_matches(pool, sentence, self.start, self.end),
+                .get_matches(pool, sentence, self.start, self.end, true),
             rule: self,
             sentence,
             articles,

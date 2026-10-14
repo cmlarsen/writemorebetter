@@ -43,6 +43,14 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
 ### Fixed
 
+- **Grammar-rule antipatterns immunize tokens, as in LanguageTool 6.6.** A pattern element can no
+  longer match a token covered by one of the rule's antipatterns, and a `skip` continues past such
+  a token to a later one, instead of the whole match being dropped when it overlaps an
+  antipattern. `GERMAN_QUOTES` now flags the last `“` in `He said “a,“ b c“ d.`
+  ([#134](https://github.com/cmlarsen/writemorebetter/issues/134)). An antipattern with a
+  `<marker>` immunizes only the marked tokens, as LanguageTool does, instead of its whole match.
+  Disambiguation rules keep the drop-on-overlap behaviour, and check time is unchanged. The
+  tokenizer and rules binary format versions are now 14 and 20; recompile them.
 - **Sentences are split as in LanguageTool 6.6.** The SRX sentencizer dropped or misplaced
   rules: trailing spaces in a pattern were trimmed (so `… and` started a new sentence), a capture
   group in a `beforebreak` moved the split (`Mr. Bush` and `Dr. Doe` were split after the

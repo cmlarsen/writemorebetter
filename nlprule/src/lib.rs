@@ -149,7 +149,8 @@ pub(crate) const RULES_MAGIC: &[u8; 8] = b"WMBRUL01";
 /// next token's first reading).
 /// Version 13: multiword entries carry their lemma, and `TokenizerLangOptions` gained the
 /// `multiword_*` casing and tag-replacement options.
-pub const TOKENIZER_FORMAT_VERSION: u32 = 13;
+/// Version 14: the part pool stores each antipattern's `<marker>` range.
+pub const TOKENIZER_FORMAT_VERSION: u32 = 14;
 
 /// The on-disk format version of [Rules] binaries.
 ///
@@ -178,7 +179,9 @@ pub const TOKENIZER_FORMAT_VERSION: u32 = 13;
 /// Version 17: `Rule::mother_tongue` was added.
 /// Version 18: `Rule::raw_pos` was added.
 /// Version 19: `Spell::phrases` was added.
-pub const RULES_FORMAT_VERSION: u32 = 19;
+/// Version 20: the part pool stores each antipattern's `<marker>` range, as in tokenizer
+/// version 14.
+pub const RULES_FORMAT_VERSION: u32 = 20;
 
 /// The longest engine version string accepted in a binary header.
 const MAX_ENGINE_VERSION_LEN: usize = 256;

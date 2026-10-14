@@ -18,45 +18,31 @@ pub struct TokenEngine {
 struct Blockers {
     starts: Vec<usize>,
     max_ends: Vec<usize>,
+    immune: Vec<bool>,
 }
 
 impl Blockers {
-    fn new(engine: &TokenEngine, pool: &PartPool, sentence: &MatchSentence) -> Self {
+    fn new(
+        engine: &TokenEngine,
+        pool: &PartPool,
+        sentence: &MatchSentence,
+        immunize: bool,
+    ) -> Self {
         let mut spans = Vec::new();
-        let positions = sentence.start_positions();
+        let mut immune = vec![false; if immunize { sentence.len() } else { 0 }];
         for antipattern in &engine.antipatterns {
-            let antipattern = pool.antipattern(*antipattern);
-            if let Some(key) = antipattern.required_key.as_deref() {
-                if !positions.may_contain(key) {
-                    continue;
-                }
-            }
-            let starts: Vec<usize> = match antipattern.start_keys.as_deref() {
-                Some(keys) => {
-                    let mut starts: Vec<usize> = keys
-                        .iter()
-                        .flat_map(|key| positions.get(key))
-                        .map(|&i| i as usize)
-                        .collect();
-                    starts.sort_unstable();
-                    starts.dedup();
-                    starts
-                }
-                None => (0..sentence.len()).collect(),
-            };
-            for i in starts {
-                if let Some(anti_graph) = antipattern.apply(pool, sentence, i) {
-                    let anti_start = anti_graph.by_index(0).span.char().start;
-                    let anti_end = anti_graph
-                        .by_index(anti_graph.groups().len() - 1)
-                        .span
-                        .char()
-                        .end;
-                    spans.push((anti_start, anti_end));
+            for m in sentence.antipattern_matches(pool, *antipattern) {
+                if immunize {
+                    immune[m.tokens.clone()].fill(true);
+                } else {
+                    spans.push((m.chars.start, m.chars.end));
                 }
             }
         }
-        Self::from_spans(spans)
+        Blockers {
+            immune,
+            ..Self::from_spans(spans)
+        }
     }
 
     fn from_spans(mut spans: Vec<(usize, usize)>) -> Self {
@@ -74,6 +60,7 @@ impl Blockers {
         Blockers {
             starts: spans.into_iter().map(|(start, _)| start).collect(),
             max_ends,
+            immune: Vec::new(),
         }
     }
 
@@ -95,14 +82,31 @@ impl TokenEngine {
         sentence: &'t MatchSentence,
         i: usize,
         blockers: &mut Option<Blockers>,
+        immunize: bool,
     ) -> Option<MatchGraph<'t>> {
-        let graph = self.composition.apply(pool, sentence, i)?;
-
         if self.antipatterns.is_empty() {
-            return Some(graph);
+            return self.composition.apply(pool, sentence, i);
         }
 
-        let blockers = blockers.get_or_insert_with(|| Blockers::new(self, pool, sentence));
+        if !self.composition.can_start(pool, sentence, i) {
+            return None;
+        }
+
+        if immunize {
+            if !self.composition.may_match_immunized(pool, sentence, i) {
+                return None;
+            }
+            let blockers =
+                blockers.get_or_insert_with(|| Blockers::new(self, pool, sentence, true));
+            return self
+                .composition
+                .apply_from(pool, sentence, i, Some(&blockers.immune))
+                .map(|(graph, _)| graph);
+        }
+
+        let (graph, _) = self.composition.apply_from(pool, sentence, i, None)?;
+
+        let blockers = blockers.get_or_insert_with(|| Blockers::new(self, pool, sentence, false));
         let blocked = self
             .composition
             .parts
@@ -147,6 +151,7 @@ struct TokenMatches<'a, 't> {
     starts: Starts<'t>,
     cursor: usize,
     blockers: Option<Blockers>,
+    immunize: bool,
 }
 
 /// Which token positions a rule can start a match at.
@@ -215,14 +220,16 @@ impl<'a, 't> Iterator for EngineMatches<'a, 't> {
                     inner.index += 1;
                 }
 
-                let graph =
-                    match inner
-                        .engine
-                        .get_match(inner.pool, sentence, i, &mut inner.blockers)
-                    {
-                        Some(graph) => graph,
-                        None => continue,
-                    };
+                let graph = match inner.engine.get_match(
+                    inner.pool,
+                    sentence,
+                    i,
+                    &mut inner.blockers,
+                    inner.immunize,
+                ) {
+                    Some(graph) => graph,
+                    None => continue,
+                };
 
                 let start_group = graph.by_id(start_id);
                 let end_group = graph.by_id(end_id);
@@ -277,6 +284,7 @@ impl Engine {
         sentence: &'t MatchSentence,
         start: GraphId,
         end: GraphId,
+        immunize: bool,
     ) -> EngineMatches<'a, 't> {
         let inner = match &self {
             Engine::Token(engine) => {
@@ -311,6 +319,7 @@ impl Engine {
                     starts,
                     cursor: 0,
                     blockers: None,
+                    immunize,
                 })
             }
 
