@@ -193,6 +193,24 @@ fn sentencizer_splits_like_languagetool() {
         ]
     );
     assert_eq!(
+        segments("He said it.\u{2028}\u{201c}No,\u{201d} she whispered.\u{2028}The rain kept falling\u{2026} It always did."),
+        vec![
+            "He said it.\u{2028}\u{201c}No,\u{201d} she whispered.\u{2028}The rain kept falling\u{2026} ",
+            "It always did."
+        ]
+    );
+    assert_eq!(
+        segments(
+            "Mr.\u{a0}Smith left. Dr.\u{2028}Doe stayed. The end.\u{a0}The beginning\u{2014}maybe."
+        ),
+        vec![
+            "Mr.\u{a0}Smith left. ",
+            "Dr.\u{2028}Doe stayed. ",
+            "The end.\u{a0}",
+            "The beginning\u{2014}maybe."
+        ]
+    );
+    assert_eq!(
         segments("\u{201c}I\u{2019}m done.\u{201d} She left."),
         vec!["\u{201c}I\u{2019}m done.\u{201d} ", "She left."]
     );
@@ -1195,14 +1213,12 @@ fn builtin_a_vs_an_ignores_correct_prose_with_fiction_punctuation() {
 
 #[test]
 fn builtin_a_vs_an_checks_across_u2028() {
-    // U+2028 separates two sentences inside one paragraph; each is checked.
+    // As in LanguageTool 6.6, U+2028 after a period does not end the sentence, so
+    // "An year" is not at a sentence start.
     assert!(builtin_a_vs_an_flags("It was a one-time thing.\u{2028}An honest mistake.").is_empty());
     assert_eq!(
         builtin_a_vs_an_flags("It was a apple.\u{2028}An year passed."),
-        vec![
-            ("a apple".to_string(), "an".to_string()),
-            ("An year".to_string(), "A".to_string()),
-        ]
+        vec![("a apple".to_string(), "an".to_string())]
     );
 }
 
@@ -1851,11 +1867,11 @@ fn builtin_uppercase_sentence_start_flags_curly_apostrophe() {
 }
 
 #[test]
-fn builtin_uppercase_sentence_start_flags_across_u2028() {
-    // U+2028 is whitespace inside a paragraph, so the second sentence is still
-    // checked against the first one.
+fn builtin_uppercase_sentence_start_ignores_lowercase_after_u2028() {
+    // As in LanguageTool 6.6, U+2028 after a period does not end the sentence.
+    assert!(builtin_uppercase_sentence_start_flags("Good.\u{2028}bad start here.").is_empty());
     assert_eq!(
-        builtin_uppercase_sentence_start_flags("Good.\u{2028}bad start here."),
+        builtin_uppercase_sentence_start_flags("Good.\u{2028}Fine. bad start here."),
         vec![("bad".to_string(), "Bad".to_string())]
     );
 }
@@ -2086,8 +2102,7 @@ fn builtin_wrong_word_flags_before_ellipsis() {
 
 #[test]
 fn builtin_wrong_word_flags_across_u2028() {
-    // U+2028 separates two sentences inside one paragraph; each is checked on
-    // its own.
+    // Both confusions are flagged in one paragraph, across a U+2028.
     assert_eq!(
         builtin_wrong_word_flags(
             "Please sing the contract.\u{2028}The statues were passed by the government."
