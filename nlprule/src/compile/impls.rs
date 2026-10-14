@@ -10,7 +10,7 @@ use std::{
     hash::{Hash, Hasher},
     io::{self, BufRead, BufReader},
     iter::once,
-    path::Path,
+    path::{Path, PathBuf},
 };
 
 use crate::{
@@ -569,120 +569,140 @@ fn has_picky_tag(tags: Option<&str>) -> bool {
     tags.map_or(false, |tags| tags.split_whitespace().any(|x| x == "picky"))
 }
 
+fn rules_from_xml<P: AsRef<Path>>(
+    path: P,
+    build_info: &mut BuildInfo,
+    options: &RulesLangOptions,
+    pool: &mut PartInterner,
+    errors: &mut HashMap<String, usize>,
+) -> Vec<Rule> {
+    super::parse_structure::read_rules(path)
+        .into_iter()
+        .filter_map(|x| match x {
+            Ok((rule_structure, group, category)) => {
+                let category = category.expect("grammar rules must have category");
+                let id = Category::new(category.id.as_str());
+
+                let id = if let Some(group) = &group {
+                    id.join(group.id.as_str()).join(group.n)
+                } else {
+                    id.join(
+                        rule_structure
+                            .id
+                            .as_ref()
+                            .expect("ID must be set if not in group."),
+                    )
+                    .join(0)
+                };
+
+                // LanguageTool's repetition experiment (`min_prev_matches` /
+                // `distance_tokens`) needs cross-match state, so reject it
+                // explicitly instead of compiling a rule that ignores the
+                // constraint.
+                if rule_structure.min_prev_matches.is_some()
+                    || rule_structure.distance_tokens.is_some()
+                    || group.as_ref().map_or(false, |g| {
+                        g.min_prev_matches.is_some() || g.distance_tokens.is_some()
+                    })
+                {
+                    *errors
+                        .entry(
+                            "[Rule] feature not implemented: repetition attributes \
+                             (min_prev_matches / distance_tokens) are not implemented."
+                                .into(),
+                        )
+                        .or_insert(0) += 1;
+                    return None;
+                }
+
+                let rule_on = match rule_structure.default.as_deref() {
+                    Some("off") | Some("temp_off") => false,
+                    Some("on") | None => true,
+                    Some(x) => panic!("unknown `default` value: {}", x),
+                };
+
+                let group_on = match group.as_ref().and_then(|x| x.default.as_deref()) {
+                    Some("off") | Some("temp_off") => false,
+                    Some("on") | None => true,
+                    Some(x) => panic!("unknown `default` value: {}", x),
+                };
+
+                let category_on = match category.default.as_deref() {
+                    Some("off") | Some("temp_off") => false,
+                    Some("on") | None => true,
+                    Some(x) => panic!("unknown `default` value: {}", x),
+                };
+
+                // `tags="picky"` rules are LanguageTool's Level.PICKY and are
+                // off by default. Rulegroup tags apply to every rule inside.
+                let picky = has_picky_tag(rule_structure.tags.as_deref())
+                    || group
+                        .as_ref()
+                        .map_or(false, |g| has_picky_tag(g.tags.as_deref()));
+
+                let name = rule_structure.name.as_ref().map_or_else(
+                    || {
+                        let group = group.as_ref().expect("must have group if name not set");
+                        group.name.clone()
+                    },
+                    |x| x.clone(),
+                );
+
+                match Rule::from_rule_structure(rule_structure, build_info, pool) {
+                    Ok(mut rule) => {
+                        if options.ignore_ids.iter().any(|x| x.is_match(&id)) {
+                            warn!("Skipping rule {}: it is listed in `ignore_ids`.", id);
+                            None
+                        } else if options.ids.is_empty()
+                            || options.ids.iter().any(|x| x.is_match(&id))
+                        {
+                            rule.id = id;
+                            rule.name = name;
+                            rule.category_name = category.name;
+                            rule.category_type = category.kind;
+                            rule.enabled = category_on && group_on && rule_on && !picky;
+                            Some(rule)
+                        } else {
+                            None
+                        }
+                    }
+                    Err(x) => {
+                        *errors.entry(format!("[Rule] {}", x)).or_insert(0) += 1;
+                        None
+                    }
+                }
+            }
+            Err(x) => {
+                *errors.entry(format!("[Structure] {}", x)).or_insert(0) += 1;
+                None
+            }
+        })
+        .collect()
+}
+
 impl Rules {
     pub(in crate::compile) fn from_xml<P: AsRef<Path>>(
         path: P,
+        mother_tongue_paths: &[(String, PathBuf)],
         build_info: &mut BuildInfo,
         spell: Spell,
         options: RulesLangOptions,
         builtins: Vec<BuiltinRule>,
     ) -> Self {
-        let rules = super::parse_structure::read_rules(path);
         let mut errors: HashMap<String, usize> = HashMap::new();
         let mut pool = PartInterner::default();
 
-        let rules: Vec<_> = rules
-            .into_iter()
-            .filter_map(|x| match x {
-                Ok((rule_structure, group, category)) => {
-                    let category = category.expect("grammar rules must have category");
-                    let id = Category::new(category.id.as_str());
-
-                    let id = if let Some(group) = &group {
-                        id.join(group.id.as_str()).join(group.n)
-                    } else {
-                        id.join(
-                            rule_structure
-                                .id
-                                .as_ref()
-                                .expect("ID must be set if not in group."),
-                        )
-                        .join(0)
-                    };
-
-                    // LanguageTool's repetition experiment (`min_prev_matches` /
-                    // `distance_tokens`) needs cross-match state, so reject it
-                    // explicitly instead of compiling a rule that ignores the
-                    // constraint.
-                    if rule_structure.min_prev_matches.is_some()
-                        || rule_structure.distance_tokens.is_some()
-                        || group.as_ref().map_or(false, |g| {
-                            g.min_prev_matches.is_some() || g.distance_tokens.is_some()
-                        })
-                    {
-                        *errors
-                            .entry(
-                                "[Rule] feature not implemented: repetition attributes \
-                                 (min_prev_matches / distance_tokens) are not implemented."
-                                    .into(),
-                            )
-                            .or_insert(0) += 1;
-                        return None;
-                    }
-
-                    let rule_on = match rule_structure.default.as_deref() {
-                        Some("off") | Some("temp_off") => false,
-                        Some("on") | None => true,
-                        Some(x) => panic!("unknown `default` value: {}", x),
-                    };
-
-                    let group_on = match group.as_ref().and_then(|x| x.default.as_deref()) {
-                        Some("off") | Some("temp_off") => false,
-                        Some("on") | None => true,
-                        Some(x) => panic!("unknown `default` value: {}", x),
-                    };
-
-                    let category_on = match category.default.as_deref() {
-                        Some("off") | Some("temp_off") => false,
-                        Some("on") | None => true,
-                        Some(x) => panic!("unknown `default` value: {}", x),
-                    };
-
-                    // `tags="picky"` rules are LanguageTool's Level.PICKY and are
-                    // off by default. Rulegroup tags apply to every rule inside.
-                    let picky = has_picky_tag(rule_structure.tags.as_deref())
-                        || group
-                            .as_ref()
-                            .map_or(false, |g| has_picky_tag(g.tags.as_deref()));
-
-                    let name = rule_structure.name.as_ref().map_or_else(
-                        || {
-                            let group = group.as_ref().expect("must have group if name not set");
-                            group.name.clone()
-                        },
-                        |x| x.clone(),
-                    );
-
-                    match Rule::from_rule_structure(rule_structure, build_info, &mut pool) {
-                        Ok(mut rule) => {
-                            if options.ignore_ids.iter().any(|x| x.is_match(&id)) {
-                                warn!("Skipping rule {}: it is listed in `ignore_ids`.", id);
-                                None
-                            } else if options.ids.is_empty()
-                                || options.ids.iter().any(|x| x.is_match(&id))
-                            {
-                                rule.id = id;
-                                rule.name = name;
-                                rule.category_name = category.name;
-                                rule.category_type = category.kind;
-                                rule.enabled = category_on && group_on && rule_on && !picky;
-                                Some(rule)
-                            } else {
-                                None
-                            }
-                        }
-                        Err(x) => {
-                            *errors.entry(format!("[Rule] {}", x)).or_insert(0) += 1;
-                            None
-                        }
-                    }
-                }
-                Err(x) => {
-                    *errors.entry(format!("[Structure] {}", x)).or_insert(0) += 1;
-                    None
-                }
-            })
-            .collect();
+        let mut rules = rules_from_xml(path, build_info, &options, &mut pool, &mut errors);
+        for (mother_tongue, path) in mother_tongue_paths {
+            rules.extend(
+                rules_from_xml(path, build_info, &options, &mut pool, &mut errors)
+                    .into_iter()
+                    .map(|mut rule| {
+                        rule.mother_tongue = Some(mother_tongue.clone());
+                        rule
+                    }),
+            );
+        }
 
         if !errors.is_empty() {
             let mut errors: Vec<(String, usize)> = errors.into_iter().collect();
@@ -712,6 +732,7 @@ impl Rules {
             articles,
             parts: pool.into_pool(),
             batch_size: None,
+            mother_tongue: None,
         }
     }
 }
