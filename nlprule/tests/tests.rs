@@ -3003,3 +3003,27 @@ fn scope_next_exception_after_a_skip_is_not_checked() {
     )
     .is_empty());
 }
+
+#[test]
+fn comma_suggestion_starts_the_match_at_the_previous_token() {
+    assert_eq!(
+        rule_flags(
+            "Tim make his life worse\u{2014}she\u{2019}d said so\u{2026} \u{201c}Again.\u{201d}\u{2028}",
+            "GRAMMAR/NNP_AGREEMENT/"
+        ),
+        vec![(
+            " make".to_string(),
+            vec![" makes".to_string(), " made".into(), ", make".into()]
+        )]
+    );
+    assert_eq!(
+        rule_flags(
+            "\u{201c}There wasn\u{2019}t nobody there,\u{201d} he said\u{2014}twice\u{2026}",
+            "GRAMMAR/DOUBLE_NEGATIVE/"
+        ),
+        vec![(
+            " nobody".to_string(),
+            vec![" anybody".to_string(), ", nobody".into()]
+        )]
+    );
+}

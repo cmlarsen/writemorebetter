@@ -25,6 +25,11 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
 ### Fixed
 
+- **A suggestion starting with a comma widens the match as in LanguageTool 6.6.** When any of a
+  match's suggestions starts with a comma, the match now starts at the end of the previous token,
+  not only when all of them do. `Tim make` offers ` makes`, ` made` and `, make` over ` make`
+  instead of applying ` makes` to `make` and doubling the space. Grammar conformance rises from
+  6017 to 6021 of 6038 rules ([#78](https://github.com/cmlarsen/writemorebetter/issues/78)).
 - **`scope="next"` exceptions see the readings LanguageTool 6.6 sees.** A token's next-token
   exception now checks only the next token's first reading (`UNKNOWN` for an untagged word), and
   is ignored (text exceptions included) when the previous pattern token has a `skip`; on a
