@@ -1,6 +1,6 @@
 use super::engine::composition::{GraphId, Group, MatchGraph, MatchSentence};
 use crate::builtin::en::{
-    indefinite_article, lowercase_first_char_if_capitalized, Article, ArticleData,
+    indefinite_article, lowercase_first_char_if_capitalized, spell_number, Article, ArticleData,
 };
 use crate::tokenizer::tag::Tagger;
 use crate::types::*;
@@ -108,6 +108,9 @@ pub struct PosReplacer {
     /// LanguageTool's English determiner extensions (`+DT`/`+INDT`), if this
     /// match uses one. `None` for a normal synthesis.
     pub(crate) determiner: Option<Determiner>,
+    /// LanguageTool's `_spell_number_` postag: the matched number is spelled
+    /// out in words instead of synthesized.
+    pub(crate) spell_number: bool,
 }
 
 /// LanguageTool's English synthesizer extensions that prepend an article.
@@ -191,6 +194,10 @@ impl PosReplacer {
         group_text: &str,
         articles: Option<&ArticleData>,
     ) -> Option<Vec<String>> {
+        if self.spell_number {
+            return spell_number(group_text).map(|words| vec![words]);
+        }
+
         let tagger = sentence.tagger();
 
         // `+DT`/`+INDT` without a regexp tag: LanguageTool's `EnglishSynthesizer`
