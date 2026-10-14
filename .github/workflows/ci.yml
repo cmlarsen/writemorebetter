@@ -102,8 +102,8 @@ jobs:
       - name: Grammar conformance
         env:
           RUST_LOG: WARN
-          GRAMMAR_PASSING: 5977
-          GRAMMAR_RUNNABLE: 6032
+          GRAMMAR_PASSING: 6040
+          GRAMMAR_RUNNABLE: 6052
         run: |
           # the binary exits 1 when any rule fails its examples; the floors below are the gate
           cargo run --release --all-features --bin test -- --tokenizer storage/en_tokenizer.bin --rules storage/en_rules.bin > storage/grammar_conformance.log 2>&1 || true

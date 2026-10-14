@@ -3,11 +3,10 @@
 //! LanguageTool runs a Java `RuleFilter` after a pattern rule has matched: it
 //! can veto the match, rewrite its suggestions, or adjust the matched range.
 //! This module is the on-device equivalent. Every filter the English rules use
-//! that needs no data beyond the tagger, the synthesizer and regular
-//! expressions has one variant; the filters that query the speller (it is in
-//! [`FilterContext`], but they are not ported yet), need LanguageTool's
-//! multitoken-speller data, or need example handling that another milestone
-//! owns stay compile errors that name the class (see `compile/impls.rs`).
+//! that needs no data beyond the tagger, the synthesizer, the speller (from
+//! [`FilterContext`]) and regular expressions has one variant; the filters that
+//! need LanguageTool's multitoken-speller data stay compile errors that name the
+//! class (see `compile/impls.rs`).
 //!
 //! Arguments follow LanguageTool's `RuleFilterEvaluator`: a value starting with
 //! a backslash is a reference to the text of that numbered pattern token
@@ -21,7 +20,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::rule::engine::composition::{GraphId, MatchGraph, MatchSentence};
 use crate::spell::Speller;
-use crate::types::{DefaultHashMap, Position, Span};
+use crate::types::{DefaultHashMap, DefaultHashSet, Position, Span};
 use crate::utils::regex::Regex;
 
 pub(crate) use date::Date;
@@ -79,7 +78,6 @@ pub(crate) struct FilterContext<'a> {
     /// test date).
     pub now: Option<Date>,
     /// `None` only when no spell variant is selected and the language has no default one.
-    #[allow(dead_code)]
     pub speller: Option<&'a Speller<'a>>,
 }
 
@@ -96,6 +94,9 @@ pub(crate) enum RuleFilter {
     DateCheck(DateCheck),
     YmdDateCheck(YmdDateCheck),
     NewYearDate(NewYearDate),
+    FindSuggestions(FindSuggestions),
+    SuppressMisspelledSuggestions(SuppressMisspelledSuggestions),
+    NumberInWord(NumberInWord),
 }
 
 impl RuleFilter {
@@ -108,6 +109,7 @@ impl RuleFilter {
         ctx: &FilterContext,
     ) -> Option<FilterMatch> {
         let now = ctx.now;
+        let speller = ctx.speller;
         match self {
             RuleFilter::UnderlineSpaces(f) => f.accept(m, sentence),
             RuleFilter::OrdinalSuffix => Some(ordinal_suffix(m)),
@@ -119,6 +121,9 @@ impl RuleFilter {
             RuleFilter::DateCheck(f) => f.accept(m, sentence, graph, now),
             RuleFilter::YmdDateCheck(f) => f.accept(m, sentence, graph, now),
             RuleFilter::NewYearDate(f) => f.accept(m, sentence, graph, now),
+            RuleFilter::FindSuggestions(f) => f.accept(m, sentence, graph, speller),
+            RuleFilter::SuppressMisspelledSuggestions(f) => f.accept(m, sentence, speller),
+            RuleFilter::NumberInWord(f) => f.accept(m, sentence, graph, speller),
         }
     }
 }
@@ -267,15 +272,11 @@ pub(crate) enum WordFrom {
     Marker,
 }
 
-impl ApostropheType {
-    fn accept<'t>(
-        &self,
-        m: FilterMatch,
-        sentence: &'t MatchSentence<'t>,
-        graph: &MatchGraph<'t>,
-    ) -> Option<FilterMatch> {
-        let index = match self.word_from {
-            WordFrom::Index(i) => i,
+impl WordFrom {
+    /// The 1-based pattern token index the argument names.
+    fn index(&self, m: &FilterMatch, graph: &MatchGraph) -> usize {
+        match self {
+            WordFrom::Index(i) => *i,
             WordFrom::Marker => {
                 // LanguageTool: skip tokens before the match, then step one
                 // further (the marker token itself).
@@ -288,7 +289,18 @@ impl ApostropheType {
                 }
                 pos + 1
             }
-        };
+        }
+    }
+}
+
+impl ApostropheType {
+    fn accept<'t>(
+        &self,
+        m: FilterMatch,
+        sentence: &'t MatchSentence<'t>,
+        graph: &MatchGraph<'t>,
+    ) -> Option<FilterMatch> {
+        let index = self.word_from.index(&m, graph);
 
         let text = token_text(sentence, graph, index)?;
         if is_typographical_apostrophe(&text) == self.has_typographical_apostrophe {
@@ -845,6 +857,229 @@ fn replace_substring(region: &str, outer: Span, inner: &Span, replacement: &str)
     out
 }
 
+// ---------------------------------------------------------------------------
+// speller filters
+// ---------------------------------------------------------------------------
+
+/// `AbstractFindSuggestionsFilter.MAX_SUGGESTIONS`.
+const MAX_SUGGESTIONS: usize = 10;
+
+/// `org.languagetool.rules.en.FindSuggestionsFilter`: replaces the
+/// `{suggestion}` placeholder (or, without one, appends) with the words one
+/// edit away from the chosen token whose tags match `desiredPostag`.
+/// LanguageTool searches its tagger dictionary; this searches the speller
+/// (see issue #135).
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub(crate) struct FindSuggestions {
+    pub word_from: WordFrom,
+    pub desired_postag: Regex,
+    pub priority_postag: Option<Regex>,
+    pub remove_suggestions: Option<Regex>,
+    pub suppress_match: bool,
+}
+
+impl FindSuggestions {
+    fn accept<'t>(
+        &self,
+        mut m: FilterMatch,
+        sentence: &'t MatchSentence<'t>,
+        graph: &MatchGraph<'t>,
+        speller: Option<&Speller>,
+    ) -> Option<FilterMatch> {
+        let word = token_text(sentence, graph, self.word_from.index(&m, graph))?;
+        let tagger = sentence.tagger();
+        let has_tag = |candidate: &str, regex: &Regex| {
+            tagger
+                .get_tags(candidate)
+                .any(|data| regex.is_match(data.pos().as_str()))
+        };
+        let is_capitalized = is_capitalized_word(&word);
+        let is_all_uppercase = !word.chars().any(char::is_lowercase);
+
+        let mut replacements: Vec<String> = Vec::new();
+        let mut priority_count = 0;
+        for candidate in speller.map_or_else(Vec::new, |speller| speller.similar(&word, 1)) {
+            if replacements.len() >= 2 * MAX_SUGGESTIONS {
+                break;
+            }
+            if candidate == word
+                || !has_tag(&candidate, &self.desired_postag)
+                || replacements.contains(&candidate)
+                || replacements.contains(&candidate.to_lowercase())
+                || self
+                    .remove_suggestions
+                    .as_ref()
+                    .is_some_and(|regex| regex.is_match(&candidate))
+            {
+                continue;
+            }
+            let mut replacement = candidate.clone();
+            if is_all_uppercase {
+                replacement = replacement.to_uppercase();
+            }
+            if is_capitalized {
+                replacement = uppercase_first(&replacement);
+            }
+            if self
+                .priority_postag
+                .as_ref()
+                .is_some_and(|regex| has_tag(&candidate, regex))
+            {
+                replacements.insert(priority_count, replacement);
+                priority_count += 1;
+            } else {
+                replacements.push(replacement);
+            }
+        }
+
+        let has_finished_suggestion = m
+            .replacements
+            .iter()
+            .any(|x| !x.to_lowercase().contains("{suggestion}"));
+        if replacements.is_empty() && self.suppress_match && !has_finished_suggestion {
+            return None;
+        }
+
+        let mut definitive: Vec<String> = Vec::new();
+        let mut placeholder_used = false;
+        for template in &m.replacements {
+            if template.contains("{suggestion}")
+                || template.contains("{Suggestion}")
+                || template.contains("{SUGGESTION}")
+            {
+                placeholder_used = true;
+                for replacement in &replacements {
+                    if definitive.len() >= MAX_SUGGESTIONS {
+                        break;
+                    }
+                    let (placeholder, value) = if template.contains("{suggestion}") {
+                        ("{suggestion}", replacement.clone())
+                    } else if template.contains("{Suggestion}") {
+                        ("{Suggestion}", uppercase_first(replacement))
+                    } else {
+                        ("{SUGGESTION}", replacement.to_uppercase())
+                    };
+                    if !definitive.contains(&value) {
+                        definitive.push(template.replace(placeholder, &value));
+                    }
+                }
+            } else if !definitive.contains(template) {
+                definitive.push(template.clone());
+            }
+        }
+        if !placeholder_used {
+            for replacement in replacements {
+                if definitive.len() >= MAX_SUGGESTIONS {
+                    break;
+                }
+                if !definitive.contains(&replacement) {
+                    definitive.push(replacement);
+                }
+            }
+        }
+
+        let mut seen = DefaultHashSet::default();
+        definitive.retain(|x| seen.insert(x.clone()));
+        m.replacements = definitive;
+        Some(m)
+    }
+}
+
+/// `org.languagetool.rules.en.EnglishSuppressMisspelledSuggestionsFilter`:
+/// drops the suggestions that contain a misspelled word (and, with
+/// `SuppressPostag`, those tagged with it), and the whole match when none is
+/// left and `suppressMatch` is not `false`.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub(crate) struct SuppressMisspelledSuggestions {
+    pub suppress_match: bool,
+    pub suppress_postag: Option<Regex>,
+}
+
+impl SuppressMisspelledSuggestions {
+    fn accept<'t>(
+        &self,
+        mut m: FilterMatch,
+        sentence: &'t MatchSentence<'t>,
+        speller: Option<&Speller>,
+    ) -> Option<FilterMatch> {
+        let tagger = sentence.tagger();
+        m.replacements.retain(|replacement| {
+            !speller.is_some_and(|speller| is_misspelled(speller, replacement))
+                && !self.suppress_postag.as_ref().is_some_and(|regex| {
+                    tagger
+                        .get_tags(replacement)
+                        .any(|data| regex.is_match(data.pos().as_str()))
+                })
+        });
+        if m.replacements.is_empty() && self.suppress_match {
+            None
+        } else {
+            Some(m)
+        }
+    }
+}
+
+/// `org.languagetool.rules.en.EnglishNumberInWordFilter`: suggests the word
+/// with `0` read as `o` and the word without its digits when the speller
+/// knows them, else the speller's suggestions for the word without its
+/// digits; vetoes the match when there is nothing to suggest.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub(crate) struct NumberInWord {
+    pub word: ArgValue,
+}
+
+impl NumberInWord {
+    fn accept<'t>(
+        &self,
+        mut m: FilterMatch,
+        sentence: &'t MatchSentence<'t>,
+        graph: &MatchGraph<'t>,
+        speller: Option<&Speller>,
+    ) -> Option<FilterMatch> {
+        let speller = speller?;
+        let word = self.word.resolve(sentence, graph);
+        let zero_as_o = word.replace('0', "o");
+        let without_digits: String = word.chars().filter(|c| !c.is_ascii_digit()).collect();
+
+        let mut replacements = Vec::new();
+        if zero_as_o != word && speller.is_correct(&zero_as_o) {
+            replacements.push(zero_as_o);
+        }
+        if speller.is_correct(&without_digits) {
+            replacements.push(without_digits.clone());
+        }
+        if replacements.is_empty() {
+            replacements = speller.suggest(&without_digits, usize::MAX);
+        }
+        if replacements.is_empty() {
+            return None;
+        }
+        m.replacements = replacements;
+        Some(m)
+    }
+}
+
+/// `AbstractSuppressMisspelledSuggestionsFilter.isMisspelled`: whether any
+/// word of `text` is misspelled. Words are separated by whitespace; the
+/// punctuation around a word is not part of it.
+fn is_misspelled(speller: &Speller, text: &str) -> bool {
+    text.split_whitespace()
+        .map(|word| word.trim_matches(|c: char| c.is_ascii_punctuation() && c != '-'))
+        .filter(|word| !word.is_empty())
+        .any(|word| !speller.is_correct(word))
+}
+
+/// `StringTools.isCapitalizedWord`: an uppercase first character followed by
+/// lowercase characters only.
+fn is_capitalized_word(word: &str) -> bool {
+    let mut chars = word.chars();
+    chars.next().is_some_and(char::is_uppercase) && chars.all(char::is_lowercase)
+}
+
+fn uppercase_first(word: &str) -> String {
+    crate::utils::apply_to_first(word, |c| c.to_uppercase().collect())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -898,5 +1133,21 @@ mod tests {
         assert_eq!(get_day_str_like_original("6", "7"), "6");
         assert_eq!(get_day_str_like_original("11", "12th"), "11th");
         assert_eq!(get_day_str_like_original("12", "12nd"), "12th");
+    }
+
+    #[test]
+    fn capitalized_word_is_one_uppercase_letter_then_lowercase() {
+        assert!(is_capitalized_word("Trait"));
+        assert!(is_capitalized_word("\u{c9}clair"));
+        assert!(is_capitalized_word("I"));
+        assert!(!is_capitalized_word("TRAIT"));
+        assert!(!is_capitalized_word("trait"));
+        assert!(!is_capitalized_word("O\u{2019}Brien"));
+        assert!(!is_capitalized_word("Wait\u{2014}no"));
+        assert!(!is_capitalized_word("So\u{2026}"));
+        assert!(!is_capitalized_word("A\u{2028}"));
+        assert!(!is_capitalized_word(""));
+        assert_eq!(uppercase_first("\u{e9}clair"), "\u{c9}clair");
+        assert_eq!(uppercase_first("\u{2019}tis"), "\u{2019}tis");
     }
 }

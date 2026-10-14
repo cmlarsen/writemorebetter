@@ -10,6 +10,16 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
 ### Added
 
+- **The speller-backed rule filters are ported, so nine more rules run.** `FindSuggestionsFilter`
+  (`PRP_MD_NN` [5] and [6], `A_INFINITIVE` [0] and [1]), `EnglishSuppressMisspelledSuggestionsFilter`
+  (`EN_SPLIT_WORDS_HYPHEN` [0]–[3]) and `EnglishNumberInWordFilter` (`NUMBERS_IN_WORDS`) now
+  compile and query the speller while a rule matches
+  ([#71](https://github.com/cmlarsen/writemorebetter/issues/71)), so "Go0d morning" suggests
+  "Good" and "The break- up" suggests "break-up". `FindSuggestionsFilter` searches the speller's
+  word list where LanguageTool searches its tagger dictionary, so some candidates differ
+  ([#135](https://github.com/cmlarsen/writemorebetter/issues/135)). The rules binary format
+  version is now 21.
+
 - **Rule filters can query the speller while a rule matches.** `Spell::speller()` returns a
   read-only `Speller` for the selected variant with `is_correct(word)` and `suggest(word, n)`,
   and the grammar-rule filters receive it alongside the rule match, ready for the speller-backed

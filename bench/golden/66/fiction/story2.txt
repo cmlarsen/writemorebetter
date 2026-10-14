@@ -14,6 +14,7 @@
 64 | SPELLCHECK/SINGLE | "Teodor" -> ["Theodor", "Tenor", "Tender", "Terror", "Vendor", "Theodore", "Tensor", "Tendon", "Tudor", "Theodora"] | Possibly misspelled word.
 81 | BUILTIN/COMMA_PARENTHESIS_WHITESPACE | ",and" -> [", and"] | Put a space after the comma.
 82 | PUNCTUATION/COMMA_COMPOUND_SENTENCE_2/3 | " and" -> [", and"] | Use a comma before "and" if it connects two independent clauses (unless they are closely connected and short).
+86 | GRAMMAR/A_INFINITIVE/1 | "the heal" -> ["to heal", "the Head", "the Leal", "the head", "the hemal", "the leal", "the real", "they heal"] | The verb 'heal' does not usually follow articles like 'the'. Check that 'heal' is spelled correctly; using 'heal' as a noun may be non-standard.
 89 | SPELLCHECK/SINGLE | "embarass" -> ["embarrass", "embarks", "embargos"] | Possibly misspelled word.
 90 | SPELLCHECK/SINGLE | "tomorow" -> ["tomorrow", "Comoros", "tomorrows"] | Possibly misspelled word.
 93 | GRAMMAR/MOST_COMPARATIVE/1 | "more better" -> ["better"] | Use only better (without 'more') when you use the comparative.
