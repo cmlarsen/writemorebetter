@@ -19,115 +19,504 @@
 278 | SPELLCHECK/SINGLE | "Pequod" -> ["Period", "Piqued", "Mequon"] | Possibly misspelled word.
 295 | SPELLCHECK/SINGLE | "etexts" -> ["texts"] | Possibly misspelled word.
 298 | SPELLCHECK/SINGLE | "etext" -> ["text"] | Possibly misspelled word.
+305 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+308 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+310 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+311 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+312 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+313 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+314 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+316 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+317 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+318 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 318 | SPELLCHECK/SINGLE | "maketh" -> ["make", "makes", "market", "makeup", "markets", "maker", "makers", "math", "Gareth", "Rakesh"] | Possibly misspelled word.
+319 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+320 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 320 | SPELLCHECK/SINGLE | "Hackluyt" -> ["Hakluyt"] | Possibly misspelled word.
+322 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 322 | SPELLCHECK/SINGLE | "hval" -> ["oval", "heal"] | Possibly misspelled word.
+323 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 323 | SPELLCHECK/SINGLE | "hvalt" -> ["halt"] | Possibly misspelled word.
+324 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+326 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 326 | SPELLCHECK/SINGLE | "Dut" -> ["But", "Out", "Due", "Cut", "Put", "Duty", "Duo", "Duet", "Dust", "Dot"] | Possibly misspelled word.
 326 | BUILTIN/UPPERCASE_SENTENCE_START | "and" -> ["And"] | This sentence does not start with an uppercase letter.
 326 | SPELLCHECK/SINGLE | "Wallen" -> ["Fallen", "Allen", "Walled", "Walden", "Waller", "Wallet"] | Possibly misspelled word.
+327 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 327 | SPELLCHECK/SINGLE | "Walw-ian" -> ["Walk-in"] | Possibly misspelled word.
+330 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 330 | SPELLCHECK/SINGLE | "חו" -> [] | Possibly misspelled word.
+330 | BUILTIN/WHITESPACE_RULE | "                " -> [" "] | Possible typo: you repeated a whitespace
+331 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 331 | SPELLCHECK/SINGLE | "ϰητος" -> [] | Possibly misspelled word.
+331 | BUILTIN/WHITESPACE_RULE | "             " -> [" "] | Possible typo: you repeated a whitespace
+332 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+332 | BUILTIN/WHITESPACE_RULE | "             " -> [" "] | Possible typo: you repeated a whitespace
+333 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 333 | SPELLCHECK/SINGLE | "WHŒL" -> ["WHEEL", "WHORL", "WHIRL"] | Possibly misspelled word.
+333 | BUILTIN/WHITESPACE_RULE | "              " -> [" "] | Possible typo: you repeated a whitespace
+334 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 334 | SPELLCHECK/SINGLE | "HVALT" -> ["HALT"] | Possibly misspelled word.
+334 | BUILTIN/WHITESPACE_RULE | "             " -> [" "] | Possible typo: you repeated a whitespace
+335 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+335 | BUILTIN/WHITESPACE_RULE | "               " -> [" "] | Possible typo: you repeated a whitespace
+336 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 336 | SPELLCHECK/SINGLE | "HWAL" -> ["HEAL", "HAL", "WAL"] | Possibly misspelled word.
+336 | BUILTIN/WHITESPACE_RULE | "              " -> [" "] | Possible typo: you repeated a whitespace
+337 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 337 | SPELLCHECK/SINGLE | "HVALUR" -> ["VALUE", "VALOR", "HEALER", "VALUER", "HALER"] | Possibly misspelled word.
+337 | BUILTIN/WHITESPACE_RULE | "            " -> [" "] | Possible typo: you repeated a whitespace
+338 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+338 | BUILTIN/WHITESPACE_RULE | "             " -> [" "] | Possible typo: you repeated a whitespace
+339 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 339 | SPELLCHECK/SINGLE | "BALEINE" -> ["ALPINE", "BASELINE", "SALINE", "BLAINE", "BALDING", "BALEEN", "BYLINE", "ALINE", "ALDINE", "BALING"] | Possibly misspelled word.
+339 | BUILTIN/WHITESPACE_RULE | "           " -> [" "] | Possible typo: you repeated a whitespace
+340 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 340 | SPELLCHECK/SINGLE | "BALLENA" -> ["FALLEN", "ALLEN", "BALLET", "BALLERINA", "BALLETS", "BALEEN", "GALENA", "BALLED", "BELLONA", "BALLING"] | Possibly misspelled word.
+340 | BUILTIN/WHITESPACE_RULE | "           " -> [" "] | Possible typo: you repeated a whitespace
+341 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 341 | SPELLCHECK/SINGLE | "PEKEE-NUEE-NUEE" -> [] | Possibly misspelled word.
+341 | BUILTIN/WHITESPACE_RULE | "   " -> [" "] | Possible typo: you repeated a whitespace
 341 | SPELLCHECK/SINGLE | "Fegee" -> ["Free", "Degree", "Feet", "Feel", "Fee", "Feed", "Fees", "Fewer", "Fence", "Fever"] | Possibly misspelled word.
+342 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 342 | SPELLCHECK/SINGLE | "PEHEE-NUEE-NUEE" -> [] | Possibly misspelled word.
+342 | BUILTIN/WHITESPACE_RULE | "   " -> [" "] | Possible typo: you repeated a whitespace
 342 | SPELLCHECK/SINGLE | "Erromangoan" -> [] | Possibly misspelled word.
+345 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+349 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+350 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+351 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 351 | SPELLCHECK/SINGLE | "Vaticans" -> ["Vatican"] | Possibly misspelled word.
+352 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 352 | STYLE/ANYWAYS/0 | "anyways" -> ["anyway"] | The word 'anyways' is informal American English. Did you mean anyway?
+353 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 353 | PUNCTUATION/SENT_START_CONJUNCTIVE_LINKING_ADVERB_COMMA/0 | "Therefore" -> ["Therefore,"] | A comma may be missing after the conjunctive/linking adverb 'Therefore'.
+354 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+355 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+356 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+357 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+358 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+359 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+360 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+362 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+363 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 363 | SPELLCHECK/SINGLE | "belongest" -> ["belonged", "belongs", "decongest", "blondest"] | Possibly misspelled word.
+364 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+365 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+366 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+367 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+368 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+369 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+370 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+371 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+372 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+373 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+374 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+375 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+376 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 376 | SPELLCHECK/SINGLE | "unsplinterable" -> [] | Possibly misspelled word.
+380 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+382 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 382 | SPELLCHECK/SINGLE | "maketh" -> ["make", "makes", "market", "makeup", "markets", "maker", "makers", "math", "Gareth", "Rakesh"] | Possibly misspelled word.
+383 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+385 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+386 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+388 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+389 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+391 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+392 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+393 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+394 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+396 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 396 | SPELLCHECK/SINGLE | "cometh" -> ["comet", "comets"] | Possibly misspelled word.
+397 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+398 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 398 | SPELLCHECK/SINGLE | "perisheth" -> ["perished", "perishes", "perisher", "perishers"] | Possibly misspelled word.
+399 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+401 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 401 | SPELLCHECK/SINGLE | "breedeth" -> ["breadth", "breeder", "breeders"] | Possibly misspelled word.
+402 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 402 | SPELLCHECK/SINGLE | "Whirlpooles" -> ["Whirlpools"] | Possibly misspelled word.
 402 | SPELLCHECK/SINGLE | "Balaene" -> ["Balance", "Blaine", "Baleen", "Blane", "Baleens", "Alkene"] | Possibly misspelled word.
+403 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 403 | SPELLCHECK/SINGLE | "arpens" -> ["aspens"] | Possibly misspelled word.
+405 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+406 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+407 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+408 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+409 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 409 | SPELLCHECK/SINGLE | "Tooke" -> ["Took", "Cooke", "Hooke", "Toke", "Toole"] | Possibly misspelled word.
+414 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+415 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+416 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 416 | SPELLCHECK/SINGLE | "catched" -> ["catches", "matched", "watched", "catcher", "hatched", "patched", "cached", "latched", "batched"] | Possibly misspelled word.
+417 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+418 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+419 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+420 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+422 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+423 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+424 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+425 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 425 | SPELLCHECK/SINGLE | "Raimond" -> ["Raymond"] | Possibly misspelled word.
+426 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 426 | SPELLCHECK/SINGLE | "Sebond" -> ["Second"] | Possibly misspelled word.
+428 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+429 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+430 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+432 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+434 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 434 | SPELLCHECK/SINGLE | "maketh" -> ["make", "makes", "market", "makeup", "markets", "maker", "makers", "math", "Gareth", "Rakesh"] | Possibly misspelled word.
+435 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+437 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 437 | SPELLCHECK/SINGLE | "ork" -> ["or", "work", "oak", "Cork", "fork", "pork", "cork", "ark", "orb", "Bork"] | Possibly misspelled word.
+438 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+439 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+440 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+445 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 445 | SPELLCHECK/SINGLE | "sovereignest" -> ["sovereigns"] | Possibly misspelled word.
 445 | SPELLCHECK/SINGLE | "parmacetti" -> [] | Possibly misspelled word.
+446 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+448 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+451 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 451 | SPELLCHECK/SINGLE | "availle" -> ["available", "avail", "availed", "avails", "faille", "Lacaille", "Saville"] | Possibly misspelled word.
+452 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 452 | SPELLCHECK/SINGLE | "returne" -> ["return", "returned", "returns", "returner", "returnee", "retune"] | Possibly misspelled word.
 452 | SPELLCHECK/SINGLE | "againe" -> ["again"] | Possibly misspelled word.
 452 | SPELLCHECK/SINGLE | "Dinting" -> ["Dining", "Hinting", "Minting", "Dieting", "Tinting", "Denting", "Dinning", "Dinging", "Linting", "Vinting"] | Possibly misspelled word.
+453 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 453 | SPELLCHECK/SINGLE | "paine" -> ["pain", "paint", "Maine", "pine", "pains", "Caine", "Paine", "pane", "Kaine", "Raine"] | Possibly misspelled word.
+454 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 454 | SPELLCHECK/SINGLE | "thro" -> ["throw", "thru", "taro", "throb", "throe", "tyro", "thio"] | Possibly misspelled word.
 454 | SPELLCHECK/SINGLE | "maine" -> ["main", "marine", "mine", "Maine", "maize", "mains", "Caine", "Paine", "mane", "Kaine"] | Possibly misspelled word.
 454 | SPELLCHECK/SINGLE | "Fairie" -> ["Fairies", "Faerie", "Fairlie", "Feirie"] | Possibly misspelled word.
+458 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+459 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 459 | SPELLCHECK/SINGLE | "Davenant" -> [] | Possibly misspelled word.
+460 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 460 | SPELLCHECK/SINGLE | "Gondibert" -> [] | Possibly misspelled word.
+462 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 462 | SPELLCHECK/SINGLE | "spermacetti" -> ["spermaceti"] | Possibly misspelled word.
+463 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 463 | SPELLCHECK/SINGLE | "Hosmannus" -> ["Hosannas"] | Possibly misspelled word.
 463 | SPELLCHECK/SINGLE | "Nescio" -> ["UNESCO", "Nuncio", "Nessie", "Enesco", "ENSCI", "Pesci", "Tesco"] | Possibly misspelled word.
+464 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 464 | SPELLCHECK/SINGLE | "Sperma" -> ["Sperm", "Sperms"] | Possibly misspelled word.
 464 | SPELLCHECK/SINGLE | "Ceti" -> ["CTI", "Yeti", "CEDI", "CEI", "CESI", "CET", "CETA", "CETE", "CETIM", "Ceto"] | Possibly misspelled word.
 464 | SPELLCHECK/SINGLE | "Sperma" -> ["Sperm", "Sperms"] | Possibly misspelled word.
 464 | SPELLCHECK/SINGLE | "Ceti" -> ["CTI", "Yeti", "CEDI", "CEI", "CESI", "CET", "CETA", "CETE", "CETIM", "Ceto"] | Possibly misspelled word.
+465 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+468 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+469 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 469 | SPELLCHECK/SINGLE | "jav" -> ["jaw", "jar", "av", "jab", "java", "jag", "jay", "jam", "Jav", "fav"] | Possibly misspelled word.
 469 | SPELLCHECK/SINGLE | "lins" -> ["line", "lies", "lines", "link", "links", "wins", "lens", "fins", "lions", "lips"] | Possibly misspelled word.
+470 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+471 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+475 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+476 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 476 | SPELLCHECK/SINGLE | "Civitas" -> ["Civets", "Civics", "Vitas"] | Possibly misspelled word.
+477 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+479 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 479 | SPELLCHECK/SINGLE | "Mansoul" -> ["Manson", "Manful", "Rantoul"] | Possibly misspelled word.
+480 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+483 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+484 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+486 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+487 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+488 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+492 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+493 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+496 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+497 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+498 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 498 | SPELLCHECK/SINGLE | "Annus" -> ["Angus", "Annul", "ANZUS", "Annuls", "Ainus", "Anus"] | Possibly misspelled word.
+502 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+503 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+504 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+505 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 505 | SPELLCHECK/SINGLE | "Spitzbergen" -> ["Spitsbergen"] | Possibly misspelled word.
+507 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+508 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+509 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+510 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+512 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+513 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+514 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 514 | SPELLCHECK/SINGLE | "Schouten" -> ["Shorten", "Shouted", "Scouted", "Scouter", "Shouter", "Schluter"] | Possibly misspelled word.
+516 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+517 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+518 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+519 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+520 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+521 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 521 | SPELLCHECK/SINGLE | "harpooneers" -> ["harpooners"] | Possibly misspelled word.
+522 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 522 | SPELLCHECK/SINGLE | "Spitzbergen" -> ["Spitsbergen"] | Possibly misspelled word.
+523 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+525 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 525 | SPELLCHECK/SINGLE | "Anno" -> ["Anna", "Anne", "Annoy", "Arno", "Anon", "Ann", "ANFO", "ANN", "ANO"] | Possibly misspelled word.
+526 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+527 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+528 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 528 | SPELLCHECK/SINGLE | "Pitferren" -> [] | Possibly misspelled word.
+529 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 529 | SPELLCHECK/SINGLE | "Sibbald" -> ["Sinbad", "Piebald", "Ribald"] | Possibly misspelled word.
+531 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+532 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 532 | SPELLCHECK/SINGLE | "Sperma-ceti" -> ["Spermaceti"] | Possibly misspelled word.
 532 | REDUNDANCY/OF_ANY_OF/0 | "of any of" -> ["of"] | Consider simply using of instead.
+533 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+534 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+535 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+537 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+539 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+540 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+541 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+542 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+544 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+545 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+546 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 546 | SPELLCHECK/SINGLE | "Ulloa" -> ["Alloa"] | Possibly misspelled word.
+549 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+550 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+551 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 551 | SPELLCHECK/SINGLE | "Tho" -> ["The", "To", "Who", "Two", "Too", "Thou", "WHO", "Thor", "Thy", "THC"] | Possibly misspelled word.
+552 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+556 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+557 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+558 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+559 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+561 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+562 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+564 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+565 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+566 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+567 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+568 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+570 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+571 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+572 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+573 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+574 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 574 | SPELLCHECK/SINGLE | "Uno" -> ["UNO", "No", "Unto", "Juno", "UNC", "USO", "Una", "Undo", "Uni", "UNB"] | Possibly misspelled word.
 574 | SPELLCHECK/SINGLE | "Troil" -> ["Trail", "Troll", "Toil", "Broil", "Roil"] | Possibly misspelled word.
+575 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+577 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 577 | SPELLCHECK/SINGLE | "Spermacetti" -> ["Spermaceti"] | Possibly misspelled word.
 577 | SPELLCHECK/SINGLE | "Nantuckois" -> [] | Possibly misspelled word.
+578 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+579 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+581 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+582 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+584 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+585 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+587 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+588 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+589 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+590 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+591 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+594 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 594 | SPELLCHECK/SINGLE | "Rodmond" -> ["Redmond"] | Possibly misspelled word.
+595 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+596 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+598 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+599 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+601 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+602 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+603 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+607 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+608 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+609 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+611 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+612 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+613 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+614 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+616 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+617 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+619 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 619 | SPELLCHECK/SINGLE | "Spermacetti" -> ["Spermaceti"] | Possibly misspelled word.
+620 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+621 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 621 | SPELLCHECK/SINGLE | "Colnett" -> ["Cornett"] | Possibly misspelled word.
+622 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+625 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+626 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 626 | SPELLCHECK/SINGLE | "chace" -> ["chance", "chase", "chafe", "chape"] | Possibly misspelled word.
 626 | SPELLCHECK/SINGLE | "colour" -> ["color"] | Possibly misspelled word.
+627 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+628 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+629 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+630 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+631 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+632 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+633 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+635 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 635 | BUILTIN/UPPERCASE_SENTENCE_START | "sing" -> ["Sing"] | This sentence does not start with an uppercase letter.
+636 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+637 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+638 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+642 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+643 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+644 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+645 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 645 | SPELLCHECK/SINGLE | "Obed" -> ["Bed", "Obey", "Owed", "Lobed", "Robed", "Abed", "Orbed", "BED", "BEd", "OBE"] | Possibly misspelled word.
+646 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+648 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+649 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+650 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+652 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+653 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+654 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+656 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+657 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+658 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 658 | SPELLCHECK/SINGLE | "raal" -> ["real", "rail", "Baal", "Waal", "kraal", "Taal", "Vaal", "ramal", "rial"] | Possibly misspelled word.
+660 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+661 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 661 | SPELLCHECK/SINGLE | "Eckermann" -> ["Ackerman", "Eckmann"] | Possibly misspelled word.
+662 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+664 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 664 | SPELLCHECK/SINGLE | "Chace" -> ["Chance", "Chase", "Chafe", "Chaco", "Chape"] | Possibly misspelled word.
+665 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+666 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+667 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 667 | SPELLCHECK/SINGLE | "Chace" -> ["Chance", "Chase", "Chafe", "Chaco", "Chape"] | Possibly misspelled word.
+668 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+671 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+672 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 672 | SPELLCHECK/SINGLE | "phospher" -> ["phosphor"] | Possibly misspelled word.
+673 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+674 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+678 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+679 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+680 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+682 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+683 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+684 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+686 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+687 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+688 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+689 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+690 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+691 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+692 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+693 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+694 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+695 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+696 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+697 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+698 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+700 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+701 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+702 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+703 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+704 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+705 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+706 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 706 | SPELLCHECK/SINGLE | "Debell" -> ["Bell", "Rebel", "Rebels", "Dwell", "Dell", "Newell", "Befell", "Jewell", "Resell", "Sewell"] | Possibly misspelled word.
+707 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+710 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+712 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+714 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+716 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+718 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+720 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+722 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 722 | SPELLCHECK/SINGLE | "Ay" -> ["A", "As", "At", "By", "An", "Any", "Day", "May", "My", "Way"] | Possibly misspelled word.
 722 | SPELLCHECK/SINGLE | "ay" -> ["a", "as", "at", "by", "an", "any", "day", "may", "my", "way"] | Possibly misspelled word.
+723 | BUILTIN/WHITESPACE_RULE | "    " -> [" "] | Possible typo: you repeated a whitespace
+725 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 725 | BUILTIN/UPPERCASE_SENTENCE_START | "sing" -> ["Sing"] | This sentence does not start with an uppercase letter.
+727 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 727 | SPELLCHECK/SINGLE | "Ay" -> ["A", "As", "At", "By", "An", "Any", "Day", "May", "My", "Way"] | Possibly misspelled word.
 727 | SPELLCHECK/SINGLE | "Ay" -> ["A", "As", "At", "By", "An", "Any", "Day", "May", "My", "Way"] | Possibly misspelled word.
 727 | BUILTIN/UPPERCASE_SENTENCE_START | "there" -> ["There"] | This sentence does not start with an uppercase letter.
 727 | SPELLCHECK/SINGLE | "thar" -> ["that", "than", "tear", "tar", "tsar", "char", "thaw", "Thar"] | Possibly misspelled word.
+728 | BUILTIN/WHITESPACE_RULE | "    " -> [" "] | Possible typo: you repeated a whitespace
 728 | SPELLCHECK/SINGLE | "bowes" -> ["bones", "boxes", "bowls", "owes", "bowed", "bowel", "bows", "Bowes", "bores", "bowels"] | Possibly misspelled word.
 728 | SPELLCHECK/SINGLE | "bo-o-os" -> ["bonobos"] | Possibly misspelled word.
+730 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+732 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+734 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 734 | BUILTIN/UPPERCASE_SENTENCE_START | "so" -> ["So"] | This sentence does not start with an uppercase letter.
+736 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 736 | SPELLCHECK/SINGLE | "Cruize" -> ["Cruise"] | Possibly misspelled word.
+739 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+740 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+741 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+742 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+744 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+745 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+746 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+747 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+748 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 748 | SPELLCHECK/SINGLE | "Tyerman" -> ["Thermal", "Thurman", "Yeoman", "Nyeman", "Terran", "Tyrian"] | Possibly misspelled word.
+750 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+751 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+752 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+753 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+754 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+755 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+756 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+758 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+759 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 759 | SPELLCHECK/SINGLE | "Whaleman" -> ["Whalen", "Walkman", "Waldman"] | Possibly misspelled word.
+760 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+761 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 761 | SPELLCHECK/SINGLE | "Cheever" -> ["Cheerer"] | Possibly misspelled word.
+763 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+764 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+765 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+766 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+768 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+769 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+770 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+771 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+773 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+774 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+775 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 775 | SPELLCHECK/SINGLE | "whalemen" -> ["whaleses"] | Possibly misspelled word.
+776 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+778 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+779 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+780 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+781 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+782 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+784 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+785 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+786 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 786 | REDUNDANCY/MIGHT_PERHAPS/0 | "may\r\n  perhaps" -> ["may", "perhaps"] | Consider using may, perhaps.
+788 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+790 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+791 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+792 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+793 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 793 | SPELLCHECK/SINGLE | "Hobomack" -> [] | Possibly misspelled word.
+795 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+796 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+797 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+799 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+800 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+801 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+803 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+804 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+805 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+806 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+808 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+809 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+810 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+811 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+813 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+814 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+815 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+816 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+818 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+819 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 819 | SPELLCHECK/SINGLE | "harpooneer" -> ["harpooner"] | Possibly misspelled word.
+822 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 822 | COMPOUNDING/MID_HYPHEN/0 | "mid storm" -> ["mid-storm"] | This word is normally spelled with a hyphen.
+823 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+824 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 830 | SPELLCHECK/SINGLE | "Loomings" -> ["Looming", "Boomings", "Gloomings", "Lookings", "Loopings", "Lootings"] | Possibly misspelled word.
 849 | SPELLCHECK/SINGLE | "Manhattoes" -> ["Manhattans"] | Possibly misspelled word.
 856 | SPELLCHECK/SINGLE | "Corlears" -> ["Corners", "Orleans", "Collars", "Clears", "Coolers", "Curlers", "Corneas", "Forbears", "Corers", "Corkers"] | Possibly misspelled word.
@@ -390,6 +779,19 @@
 2230 | SPELLCHECK/SINGLE | "Mapple" -> ["Apple", "Maple", "Marple", "Dapple"] | Possibly misspelled word.
 2231 | BUILTIN/UPPERCASE_SENTENCE_START | "side" -> ["Side"] | This sentence does not start with an uppercase letter.
 2232 | BUILTIN/UPPERCASE_SENTENCE_START | "midships" -> ["Midships"] | This sentence does not start with an uppercase letter.
+2249 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+2250 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+2251 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+2253 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+2254 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+2255 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+2257 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+2258 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+2259 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+2261 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+2262 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+2264 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+2265 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 2279 | SPELLCHECK/SINGLE | "sealine" -> ["sealing", "saline"] | Possibly misspelled word.
 2279 | BUILTIN/UPPERCASE_SENTENCE_START | "what" -> ["What"] | This sentence does not start with an uppercase letter.
 2282 | SPELLCHECK/SINGLE | "kelpy" -> ["kelp", "kelps", "kempy"] | Possibly misspelled word.

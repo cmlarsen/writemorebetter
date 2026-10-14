@@ -10,6 +10,20 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
 ### Added
 
+- **The Swift binding exposes the mother tongue.** `Checker.setMotherTongue(motherTongue:)` and
+  `Checker.motherTongues()` mirror the wasm `setMotherTongue` / `motherTongues`, so Swift apps
+  can opt in to the false-friend rules ([#138](https://github.com/cmlarsen/writemorebetter/issues/138)).
+- **Whitespace and double-punctuation checks.** Four more of LanguageTool's Java-coded rules run
+  as builtins ([#80](https://github.com/cmlarsen/writemorebetter/issues/80)):
+  `DOUBLE_PUNCTUATION` flags `..` and `,,` (ellipses, `?..`, `!..` and `…` next to a dot are
+  left alone), `WHITESPACE_RULE` flags repeated whitespace such as two spaces between words,
+  `SENTENCE_WHITESPACE` flags a sentence that follows the previous one without a space
+  (`world.This`), and `EMPTY_LINE` flags more than one empty line between paragraphs. As in
+  LanguageTool 6.6, `EMPTY_LINE` is off by default; enable it through `Rules::builtins_mut`. The
+  fiction profile keeps all four but stops `WHITESPACE_RULE` from flagging the spaces that indent
+  a paragraph or line, which LanguageTool flags whenever the previous paragraph ends a sentence.
+  A profile selector can now name a builtin case, as in `BUILTIN/WHITESPACE_RULE/INDENTATION`. The
+  rules binary format version is now 23.
 - **The speller-backed rule filters are ported, so nine more rules run.** `FindSuggestionsFilter`
   (`PRP_MD_NN` [5] and [6], `A_INFINITIVE` [0] and [1]), `EnglishSuppressMisspelledSuggestionsFilter`
   (`EN_SPLIT_WORDS_HYPHEN` [0]–[3]) and `EnglishNumberInWordFilter` (`NUMBERS_IN_WORDS`) now
@@ -18,7 +32,7 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   "Good" and "The break- up" suggests "break-up". `FindSuggestionsFilter` searches the speller's
   word list where LanguageTool searches its tagger dictionary, so some candidates differ
   ([#135](https://github.com/cmlarsen/writemorebetter/issues/135)). The rules binary format
-  version is now 21.
+  version is now 22.
 
 - **Rule filters can query the speller while a rule matches.** `Spell::speller()` returns a
   read-only `Speller` for the selected variant with `is_correct(word)` and `suggest(word, n)`,
@@ -50,6 +64,14 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   `Rules::suggest` keeps the raw tokens only while such a rule is enabled (a text-only
   `raw_pos` rule such as `TYPOS/CONTRACTION_CASE/0` does not count); `Tokenizer::pipe` always
   keeps them. Rules binaries move to format version 18 (`Rule::raw_pos`); recompile them.
+- **Grammar-rule suggestions can spell out numbers.** `<match postag="_spell_number_"/>` now
+  writes the matched number in English words as LanguageTool 6.6 does (`12` → `twelve`,
+  `1001` → `one thousand and one`, `100200` → `one hundred thousand, two hundred`, up to 45
+  digits, leading zeros ignored); anything other than plain ASCII digits is not spelled and the
+  match is dropped as before. The off-by-default `STYLE/SENT_START_NUM/0` now suggests
+  `Twelve` for `12 soldiers were killed!`
+  ([#163](https://github.com/cmlarsen/writemorebetter/issues/163)). Rules binaries move to
+  format version 24 (`PosReplacer::spell_number`); recompile them.
 
 ### Fixed
 
@@ -64,7 +86,7 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   are checked against the `scope="next"` exceptions of the pattern token before them, whether
   or not that token matched, as in LanguageTool 6.6
   ([#161](https://github.com/cmlarsen/writemorebetter/issues/161)). The rules binary format
-  version is now 23 and the tokenizer binary format version is now 16.
+  version is now 26 and the tokenizer binary format version is now 17.
 
 - **A `scope="next"` exception after an optional token depends on whether the token matched.**
   The exception checks the next word's first reading only when the last token that matched has
@@ -76,6 +98,21 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   word an antipattern immunized no longer trips a `scope="next"` exception inside a `skip`
   window ([#214](https://github.com/cmlarsen/writemorebetter/pull/214)).
 
+- **The apostrophe-style rules see a curly apostrophe, as in LanguageTool 6.6.** The opt-in
+  `TYPEWRITER_APOSTROPHE` rule now flags `’s` in `actress’s` and suggests `'s` (a straight
+  apostrophe in a suggestion is no longer made curly when that would repeat the flagged text),
+  and the opt-in `TYPOGRAPHICAL_APOSTROPHE` rule no longer flags a `’s` that is already curly:
+  their filter read the token after its curly apostrophe was normalized to a straight one. The
+  rules compiler also keeps a whitespace-only `<marker>` in rule examples, so `CONSECUTIVE_SPACES`
+  and `CONSECUTIVE_SPACES_SINGLE_CHAR` pass their examples. Checking output with the default rules
+  is unchanged on the golden texts ([#76](https://github.com/cmlarsen/writemorebetter/issues/76)).
+- **A `<token>` combining a `<match>` reference with literal text matches both, as in LanguageTool
+  6.6.** `<token><match no="0"/>s</token>` now matches the referenced token's text followed by
+  `s` instead of the referenced text alone, so `TYPO_OR_OF` (off by default) no longer flags
+  "the active couple or actives" ([#164](https://github.com/cmlarsen/writemorebetter/issues/164)).
+  Literal text around a reference that also carries `postag` or `regexp="yes"` is rejected at
+  compile time. `TOKENIZER_FORMAT_VERSION` is now 16 and `RULES_FORMAT_VERSION` 25, so binaries
+  built by earlier versions must be rebuilt.
 - **Spelling suggestions rank by edit distance, then frequency, as in LanguageTool 6.6.** A
   common word two edits away no longer outranks a rarer word one edit away, and only the
   candidates at the smallest edit distance found are suggested, so `Hecla` suggests `Hekla`

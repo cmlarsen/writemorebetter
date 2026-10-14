@@ -564,9 +564,22 @@ public protocol CheckerProtocol: AnyObject, Sendable {
     func clearWords() 
     
     /**
+     * Lists the mother tongues the rules binary has false-friend rules for, as sorted language
+     * codes.
+     */
+    func motherTongues()  -> [String]
+    
+    /**
      * Removes words from the user dictionary and returns how many were present.
      */
     func removeWords(words: [String])  -> UInt32
+    
+    /**
+     * Selects the writer's mother tongue (e.g. `"de"`) so the false-friend rules for speakers of
+     * that language run; pass `nil` (or an empty string) to turn them off again (the default).
+     * Changes apply to the next `check`.
+     */
+    func setMotherTongue(motherTongue: String?) 
     
     /**
      * Replaces the whole user dictionary and returns the number of entries now set.
@@ -709,6 +722,19 @@ open func clearWords()  {try! rustCall() {
 }
     
     /**
+     * Lists the mother tongues the rules binary has false-friend rules for, as sorted language
+     * codes.
+     */
+open func motherTongues() -> [String]  {
+    return try!  FfiConverterSequenceString.lift(try! rustCall() {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_method_checker_mother_tongues(
+            self.uniffiCloneHandle(),uniffiCallStatus
+    )
+})
+}
+    
+    /**
      * Removes words from the user dictionary and returns how many were present.
      */
 open func removeWords(words: [String]) -> UInt32  {
@@ -719,6 +745,20 @@ open func removeWords(words: [String]) -> UInt32  {
         FfiConverterSequenceString.lower(words),uniffiCallStatus
     )
 })
+}
+    
+    /**
+     * Selects the writer's mother tongue (e.g. `"de"`) so the false-friend rules for speakers of
+     * that language run; pass `nil` (or an empty string) to turn them off again (the default).
+     * Changes apply to the next `check`.
+     */
+open func setMotherTongue(motherTongue: String?)  {try! rustCall() {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_method_checker_set_mother_tongue(
+            self.uniffiCloneHandle(),
+        FfiConverterOptionString.lower(motherTongue),uniffiCallStatus
+    )
+}
 }
     
     /**
@@ -1141,7 +1181,13 @@ private let initializationResult: InitializationResult = {
     if (uniffi_writemorebetter_swift_checksum_method_checker_clear_words() != 32061) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_writemorebetter_swift_checksum_method_checker_mother_tongues() != 53045) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_writemorebetter_swift_checksum_method_checker_remove_words() != 27495) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_writemorebetter_swift_checksum_method_checker_set_mother_tongue() != 22149) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_method_checker_set_words() != 45047) {

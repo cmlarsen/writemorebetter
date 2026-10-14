@@ -443,11 +443,25 @@ fn apply_profile_reports_unmatched_selectors() {
         vec![
             "NO_SUCH_CATEGORY".to_owned(),
             "BUILTIN/NO_SUCH_BUILTIN".to_owned(),
+            "BUILTIN/WHITESPACE_RULE/NO_SUCH_CASE".to_owned(),
+            "BUILTIN/UPPERCASE_SENTENCE_START/INDENTATION".to_owned(),
         ],
     );
     let mut unmatched = rules.apply_profile(&profile);
     unmatched.sort();
-    assert_eq!(unmatched, ["BUILTIN/NO_SUCH_BUILTIN", "NO_SUCH_CATEGORY"]);
+    assert_eq!(
+        unmatched,
+        [
+            "BUILTIN/NO_SUCH_BUILTIN",
+            "BUILTIN/UPPERCASE_SENTENCE_START/INDENTATION",
+            "BUILTIN/WHITESPACE_RULE/NO_SUCH_CASE",
+            "NO_SUCH_CATEGORY"
+        ]
+    );
+    assert!(rules
+        .builtins()
+        .iter()
+        .all(|rule| rule.enabled() || rule.id() == "EMPTY_LINE"));
 }
 
 /// The `BUILTIN/` selector path disables a builtin rule by its id.
@@ -3326,6 +3340,49 @@ fn raw_pos_rule_matches_pre_disambiguation_tags() {
     }
 }
 
+fn sent_start_num_matches(rules: &Rules, text: &str) -> Vec<(std::ops::Range<usize>, Vec<String>)> {
+    rules
+        .suggest(text, &*TOKENIZER)
+        .into_iter()
+        .filter(|s| s.source().ends_with("SENT_START_NUM/0"))
+        .map(|s| (s.span().char().clone(), s.replacements().to_vec()))
+        .collect()
+}
+
+#[test]
+fn spell_number_synthesis_spells_out_a_sentence_start_number() {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    let selector: Selector = "style/sent_start_num".try_into().unwrap();
+    rules.select_mut(&selector).for_each(|x| x.enable());
+
+    for (text, expected) in [
+        ("12 soldiers were killed!", vec![(0..2, "Twelve")]),
+        (
+            "42 soldiers’ horses were killed!",
+            vec![(0..2, "Forty-two")],
+        ),
+        ("7 soldiers were killed—all of them!", vec![(0..1, "Seven")]),
+        (
+            "99 soldiers were killed\u{2028}yesterday!",
+            vec![(0..2, "Ninety-nine")],
+        ),
+        (
+            "She waited. 21 soldiers were killed!",
+            vec![(12..14, "Twenty-one")],
+        ),
+        ("“12 soldiers were killed!”", vec![]),
+        ("12 soldiers were killed…", vec![]),
+        ("05 soldiers were killed!", vec![]),
+        ("12 soldiers were killed in 1999!", vec![]),
+    ] {
+        let expected: Vec<_> = expected
+            .into_iter()
+            .map(|(span, replacement)| (span, vec![replacement.to_string()]))
+            .collect();
+        assert_eq!(sent_start_num_matches(&rules, text), expected, "{}", text);
+    }
+}
+
 #[test]
 fn pipe_keeps_the_raw_sentence() {
     let sentence = TOKENIZER
@@ -3965,4 +4022,522 @@ fn spellchecker_accepts_g_dropped_words() {
     ] {
         assert_eq!(spelling_errors(text), Vec::<&str>::new(), "{}", text);
     }
+}
+
+/// Runs the builtin rule `id` over `text` paragraph by paragraph, as
+/// [`Rules::suggest`] does, and returns the flagged text and all replacements
+/// of every suggestion.
+fn builtin_flags(id: &str, text: &str) -> Vec<(String, Vec<String>)> {
+    let rule = RULES
+        .builtins()
+        .iter()
+        .find(|rule| rule.id() == id)
+        .unwrap();
+    let chars: Vec<char> = text.chars().collect();
+
+    let mut paragraphs = vec![Vec::new()];
+    for sentence in TOKENIZER.pipe(text) {
+        let ends_paragraph = sentence.text().contains('\n');
+        paragraphs.last_mut().unwrap().push(sentence);
+        if ends_paragraph {
+            paragraphs.push(Vec::new());
+        }
+    }
+
+    let mut previous = None;
+    let mut suggestions = Vec::new();
+    for (i, paragraph) in paragraphs.iter().enumerate() {
+        let ends_text = paragraphs[i + 1..].iter().all(Vec::is_empty);
+        suggestions.extend(
+            rule.builtin()
+                .check_paragraph(paragraph, previous, ends_text),
+        );
+        previous = paragraph.last().or(previous);
+    }
+
+    suggestions
+        .into_iter()
+        .map(|suggestion| {
+            (
+                chars[suggestion.span().char().clone()].iter().collect(),
+                suggestion.replacements().to_vec(),
+            )
+        })
+        .collect()
+}
+
+fn flag(text: &str, replacements: &[&str]) -> (String, Vec<String>) {
+    (
+        text.to_string(),
+        replacements.iter().map(|x| x.to_string()).collect(),
+    )
+}
+
+#[test]
+fn builtin_double_punctuation_flags_two_dots_and_commas() {
+    assert_eq!(
+        builtin_flags("DOUBLE_PUNCTUATION", "He left.. Then he came back."),
+        vec![flag("..", &[".", "\u{2026}"])]
+    );
+    assert_eq!(
+        builtin_flags("DOUBLE_PUNCTUATION", "One ,, two ,,, three."),
+        vec![flag(",,", &[","])]
+    );
+}
+
+#[test]
+fn builtin_double_punctuation_ignores_ellipses() {
+    for text in [
+        "Wait... what? Wait\u{2026}. what?",
+        "Really?.. Yes. Stop!.. Now. And\u{2026}. then",
+        "\u{201c}Wait\u{2026}\u{201d} she said\u{2026}. \u{201c}Now?!\u{201d}",
+        "Path ../foo and ..\\bar here.",
+        "\u{201c}Go!\u{201d} \u{201c}Why?\u{201d} \u{2018}Fine,\u{2019} he said\u{2014}softly.",
+    ] {
+        assert_eq!(builtin_flags("DOUBLE_PUNCTUATION", text), vec![], "{text}");
+    }
+}
+
+#[test]
+fn builtin_double_punctuation_flags_fiction_punctuation() {
+    let dots = || vec![flag("..", &[".", "\u{2026}"])];
+    assert_eq!(
+        builtin_flags("DOUBLE_PUNCTUATION", "\u{201c}Wait..\u{201d} she said."),
+        dots()
+    );
+    assert_eq!(
+        builtin_flags(
+            "DOUBLE_PUNCTUATION",
+            "\u{201c}What?\u{201d} he asked.. Then."
+        ),
+        dots()
+    );
+    assert_eq!(
+        builtin_flags("DOUBLE_PUNCTUATION", "She paused\u{2014}.. then went on."),
+        dots()
+    );
+    assert_eq!(
+        builtin_flags("DOUBLE_PUNCTUATION", "It\u{2019}s fine,, isn\u{2019}t it?"),
+        vec![flag(",,", &[","])]
+    );
+}
+
+#[test]
+fn builtin_multiple_whitespace_flags_repeated_spaces() {
+    assert_eq!(
+        builtin_flags("WHITESPACE_RULE", "Two  spaces here."),
+        vec![flag("  ", &[" "])]
+    );
+    assert_eq!(
+        builtin_flags(
+            "WHITESPACE_RULE",
+            "Tab\there and tab \t there and \t  mixed."
+        ),
+        vec![flag("\t ", &["\t"]), flag("\t  ", &["\t"])]
+    );
+    assert_eq!(
+        builtin_flags("WHITESPACE_RULE", "Trailing spaces.   Then more."),
+        vec![flag("  ", &[" "])]
+    );
+}
+
+#[test]
+fn builtin_multiple_whitespace_handles_unicode_spaces() {
+    assert_eq!(
+        builtin_flags(
+            "WHITESPACE_RULE",
+            "NBSP\u{a0}\u{a0}twice and nbsp \u{a0}mixed."
+        ),
+        vec![flag("\u{a0}\u{a0}", &["\u{a0}"]), flag(" \u{a0}", &[" "])]
+    );
+    assert_eq!(
+        builtin_flags("WHITESPACE_RULE", "Line\u{2028}sep  here.\u{2028} Then."),
+        vec![flag("  ", &[" "]), flag("\u{2028} ", &["\u{2028}"])]
+    );
+    assert_eq!(
+        builtin_flags(
+            "WHITESPACE_RULE",
+            "Em\u{2003}\u{2003}spaces and thin\u{2009} \u{2009}ones."
+        ),
+        vec![
+            flag("\u{2003}\u{2003}", &["\u{2003}"]),
+            flag("\u{2009} \u{2009}", &["\u{2009}"])
+        ]
+    );
+    assert_eq!(
+        builtin_flags("WHITESPACE_RULE", "Zero\u{200b} width and \u{200b}  space."),
+        vec![flag("  ", &[" "])]
+    );
+    assert_eq!(
+        builtin_flags("WHITESPACE_RULE", "Unit\u{1f}\u{1f}separators here."),
+        vec![flag("\u{1f}\u{1f}", &["\u{1f}"])]
+    );
+    assert_eq!(
+        builtin_flags(
+            "WHITESPACE_RULE",
+            "A\u{2007}\u{2007}figure and A \u{202f} narrow."
+        ),
+        vec![flag(" \u{202f} ", &[" "])]
+    );
+}
+
+#[test]
+fn builtin_multiple_whitespace_in_fiction_prose() {
+    assert_eq!(
+        builtin_flags(
+            "WHITESPACE_RULE",
+            "\u{201c}Hi,\u{201d}  she said \u{2014}  softly\u{2026}  then left."
+        ),
+        vec![flag("  ", &[" "]), flag("  ", &[" "])]
+    );
+    assert_eq!(
+        builtin_flags("WHITESPACE_RULE", "Sentence one.  Sentence two."),
+        vec![]
+    );
+    assert_eq!(
+        builtin_flags("WHITESPACE_RULE", "Wait\u{2026} what\u{2026} ok."),
+        vec![]
+    );
+}
+
+#[test]
+fn builtin_sentence_whitespace_flags_missing_space() {
+    assert_eq!(
+        builtin_flags("SENTENCE_WHITESPACE", "Hello world.This is it."),
+        vec![flag("This", &[" This"])]
+    );
+    assert_eq!(
+        builtin_flags("SENTENCE_WHITESPACE", "Hello!How are you?Fine."),
+        vec![flag("How", &[" How"]), flag("Fine", &[" Fine"])]
+    );
+    assert_eq!(
+        builtin_flags(
+            "SENTENCE_WHITESPACE",
+            "He came.Then he left. It was 5.Then 6."
+        ),
+        vec![flag("Then", &[" Then"]), flag("Then", &[" Then"])]
+    );
+}
+
+#[test]
+fn builtin_sentence_whitespace_ignores_dialogue_punctuation() {
+    for text in [
+        "\u{201c}Wait!\u{201d}she said.",
+        "Done.\u{201c}Next,\u{201d} he said.",
+        "\u{201c}No!\u{201d} she said.\u{201c}Yes.\u{201d}",
+        "A sentence ends here.\u{2028}Next one.",
+        "One.\u{a0}Two.",
+        "Sentence one.  Sentence two.\n\nSentence three\u{2014}and four\u{2026}",
+    ] {
+        assert_eq!(builtin_flags("SENTENCE_WHITESPACE", text), vec![], "{text}");
+    }
+}
+
+#[test]
+fn builtin_empty_line_flags_extra_empty_lines() {
+    assert_eq!(
+        builtin_flags("EMPTY_LINE", "Para one.\n\n\n\nPara two."),
+        vec![flag(".", &[])]
+    );
+    assert_eq!(
+        builtin_flags(
+            "EMPTY_LINE",
+            "\u{201c}Para one\u{2026}\u{201d}\n\n\n\n\nPara two."
+        ),
+        vec![flag("\u{201d}", &[])]
+    );
+    assert_eq!(
+        builtin_flags("EMPTY_LINE", "Para one.\n\n\nPara two."),
+        vec![]
+    );
+    assert_eq!(
+        builtin_flags("EMPTY_LINE", "Para one.\n \n\n\nPara two."),
+        vec![]
+    );
+}
+
+#[test]
+fn builtin_empty_line_is_off_by_default() {
+    let enabled = |id: &str| {
+        RULES
+            .builtins()
+            .iter()
+            .find(|rule| rule.id() == id)
+            .unwrap()
+            .enabled()
+    };
+    assert!(!enabled("EMPTY_LINE"));
+    assert!(enabled("DOUBLE_PUNCTUATION"));
+    assert!(enabled("WHITESPACE_RULE"));
+    assert!(enabled("SENTENCE_WHITESPACE"));
+}
+
+#[test]
+fn builtin_multiple_whitespace_skips_indentation_after_a_line_break() {
+    assert_eq!(
+        builtin_flags("WHITESPACE_RULE", "Line one\n   indented line."),
+        vec![]
+    );
+    assert_eq!(
+        builtin_flags("WHITESPACE_RULE", "Line one\n\t  indented line."),
+        vec![flag("  ", &[" "])]
+    );
+    assert_eq!(
+        builtin_flags("WHITESPACE_RULE", "Line one\r\n   indented line."),
+        vec![flag("   ", &[" "])]
+    );
+    assert_eq!(
+        builtin_flags("WHITESPACE_RULE", "Line one.\n   Indented line."),
+        vec![flag("   ", &[" "])]
+    );
+    assert_eq!(
+        builtin_flags("WHITESPACE_RULE", "  Leading spaces here."),
+        vec![flag("  ", &[" "])]
+    );
+}
+
+#[test]
+fn builtin_sentence_whitespace_looks_across_paragraphs() {
+    assert_eq!(
+        builtin_flags("SENTENCE_WHITESPACE", "Line one\nLine two.Next one."),
+        vec![flag("Next", &[" Next"])]
+    );
+    assert_eq!(
+        builtin_flags("SENTENCE_WHITESPACE", "Wait!\u{201d}He left."),
+        vec![flag("He", &[" He"])]
+    );
+}
+
+#[test]
+fn builtin_empty_line_ignores_the_end_of_the_text() {
+    assert_eq!(builtin_flags("EMPTY_LINE", "Para one.\n\n\n\n"), vec![]);
+    assert_eq!(
+        builtin_flags("EMPTY_LINE", "Para one\n\n\n\nPara two.\n\n\n\nPara three."),
+        vec![flag("one", &[]), flag(".", &[])]
+    );
+}
+
+#[test]
+fn builtin_double_punctuation_at_sentence_end() {
+    let dots = || vec![flag("..", &[".", "\u{2026}"])];
+    assert_eq!(builtin_flags("DOUBLE_PUNCTUATION", "He left.."), dots());
+    assert_eq!(
+        builtin_flags("DOUBLE_PUNCTUATION", "He left..\u{201d} she said."),
+        dots()
+    );
+    assert_eq!(
+        builtin_flags("DOUBLE_PUNCTUATION", "He left..\u{2028}Then he came back."),
+        dots()
+    );
+    assert_eq!(builtin_flags("DOUBLE_PUNCTUATION", "Hey!.."), vec![]);
+}
+
+#[test]
+fn builtin_empty_line_runs_in_suggest_when_enabled() {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    for rule in rules.builtins_mut() {
+        if rule.id() == "EMPTY_LINE" {
+            rule.enable();
+        }
+    }
+    let empty_lines = |text: &str| {
+        rules
+            .suggest(text, &TOKENIZER)
+            .into_iter()
+            .filter(|suggestion| suggestion.source() == "BUILTIN/EMPTY_LINE")
+            .map(|suggestion| suggestion.span().char().clone())
+            .collect::<Vec<_>>()
+    };
+
+    assert_eq!(
+        empty_lines("\u{201c}Go.\u{201d}\n\n\n\nShe went\u{2014}slowly\u{2026}\n\n\n\n"),
+        vec![4..5]
+    );
+}
+
+/// Flags of `WHITESPACE_RULE` from [`Rules::suggest`] with the profile `name`. The grammar
+/// rules are off, because `TYPOGRAPHY/CONSECUTIVE_SPACES` claims some of the same spans.
+fn whitespace_flags(name: &str, text: &str) -> Vec<String> {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    assert!(rules
+        .apply_profile(&Profile::by_name(name).unwrap())
+        .is_empty());
+    rules.rules_mut().iter_mut().for_each(|rule| rule.disable());
+    let chars: Vec<char> = text.chars().collect();
+    rules
+        .suggest(text, &TOKENIZER)
+        .into_iter()
+        .filter(|suggestion| suggestion.source() == "BUILTIN/WHITESPACE_RULE")
+        .map(|suggestion| chars[suggestion.span().char().clone()].iter().collect())
+        .collect()
+}
+
+#[test]
+fn fiction_profile_skips_whitespace_indentation() {
+    let text = "    \u{201c}Go,\u{201d} she said.\n    He went\u{2014}slowly\u{2026}\n\n  \u{2018}Fine.\u{2019}\r\n    It\u{2019}s late.\n\t  Verse one,\u{2028}   verse two.  Then  stop.";
+
+    assert_eq!(
+        whitespace_flags("default", text),
+        vec!["    ", "    ", "  ", "    ", "\t  ", "\u{2028}   ", "  "]
+    );
+    assert_eq!(whitespace_flags("fiction", text), vec!["  "]);
+}
+
+#[test]
+fn fiction_profile_keeps_other_whitespace_flags() {
+    assert_eq!(
+        whitespace_flags(
+            "fiction",
+            "\u{201c}Hi,\u{201d}  she said \u{2014}  softly\u{2026}\n  Then\u{a0}\u{a0}left \u{2028}  here."
+        ),
+        vec!["  ", "  ", "\u{a0}\u{a0}"]
+    );
+}
+
+fn typo_or_of_matches(rules: &Rules, text: &str) -> Vec<(std::ops::Range<usize>, String)> {
+    rules
+        .suggest(text, &*TOKENIZER)
+        .into_iter()
+        .filter(|s| s.source() == "TYPOS/TYPO_OR_OF/1")
+        .map(|s| {
+            let chars: Vec<char> = text.chars().collect();
+            (
+                s.span().char().clone(),
+                chars[s.span().char().clone()].iter().collect(),
+            )
+        })
+        .collect()
+}
+
+#[test]
+fn reference_with_literal_suffix_matches_reference_plus_suffix() {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    let selector: Selector = "typos/typo_or_of".try_into().unwrap();
+    rules.select_mut(&selector).for_each(|x| x.enable());
+
+    for text in [
+        "The 1’s are the active couple or actives in the middle; the 2’s wait.",
+        "“The active couple or actives in the middle—wait…”\u{2028}She nodded.",
+        "The active couple or Actives in the middle wait.",
+        "The ACTIVE couple or actives in the middle wait.",
+    ] {
+        assert!(typo_or_of_matches(&rules, text).is_empty(), "{}", text);
+    }
+
+    for text in [
+        "Below is a list or guidelines on how to handle it.",
+        "“The active couple or dancers in the middle—wait…”\u{2028}She nodded.",
+    ] {
+        let matches = typo_or_of_matches(&rules, text);
+        assert_eq!(matches.len(), 1, "{}", text);
+        assert_eq!(matches[0].1, "or", "{}", text);
+    }
+}
+
+fn rule_matches(selector: &str, text: &str) -> Vec<(String, std::ops::Range<usize>, Vec<String>)> {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    let selector: Selector = selector.try_into().unwrap();
+    rules.rules_mut().iter_mut().for_each(|rule| rule.disable());
+    rules
+        .builtins_mut()
+        .iter_mut()
+        .for_each(|rule| rule.disable());
+    rules.select_mut(&selector).for_each(|x| x.enable());
+    rules
+        .suggest(text, &*TOKENIZER)
+        .into_iter()
+        .map(|s| {
+            (
+                s.source().to_string(),
+                s.span().char().clone(),
+                s.replacements().to_vec(),
+            )
+        })
+        .collect()
+}
+
+#[test]
+fn apostrophe_type_filter_reads_the_raw_apostrophe() {
+    let text = "An actress\u{2019}s role. An actress's role.\u{2028}\u{201c}She didn\u{2019}t \
+                know\u{2026},\u{201d} he said \u{2014} the old man\u{2019}s dog ran to the bank \
+                and \u{2018}that\u{2019}s that\u{2019} \u{2014} I can\u{2019}t.";
+    let spans = |selector: &str| -> Vec<(std::ops::Range<usize>, Vec<String>)> {
+        rule_matches(selector, text)
+            .into_iter()
+            .map(|(_, span, replacements)| (span, replacements))
+            .collect()
+    };
+
+    assert_eq!(
+        spans("typography/typewriter_apostrophe"),
+        vec![
+            (10..12, vec!["'s".to_string()]),
+            (79..81, vec!["'s".to_string()]),
+            (111..113, vec!["'s".to_string()]),
+        ]
+    );
+    assert_eq!(
+        spans("typography/typographical_apostrophe"),
+        vec![(29..31, vec!["\u{2019}s".to_string()])]
+    );
+}
+
+#[test]
+fn apostrophe_type_filter_on_fiction_clitics() {
+    let text = "\u{201c}Give \u{2019}em hell,\u{201d} said James\u{2019} brother\u{2014}rock \
+                \u{2019}n\u{2019} roll\u{2026}\u{2028}I\u{2019}ll go. Rock 'n' roll.";
+    let spans = |selector: &str| -> Vec<(std::ops::Range<usize>, Vec<String>)> {
+        rule_matches(selector, text)
+            .into_iter()
+            .map(|(_, span, replacements)| (span, replacements))
+            .collect()
+    };
+
+    assert_eq!(
+        spans("typography/typewriter_apostrophe"),
+        vec![
+            (42..45, vec!["'n'".to_string()]),
+            (53..56, vec!["'ll".to_string()]),
+        ]
+    );
+    assert_eq!(
+        spans("typography/typographical_apostrophe"),
+        vec![(66..69, vec!["\u{2019}n\u{2019}".to_string()])]
+    );
+}
+
+#[test]
+fn consecutive_spaces_match_like_languagetool() {
+    let spans = |selector: &str, text: &str| -> Vec<std::ops::Range<usize>> {
+        rule_matches(selector, text)
+            .into_iter()
+            .map(|(_, span, _)| span)
+            .collect()
+    };
+
+    assert_eq!(
+        spans(
+            "typography/consecutive_spaces",
+            "This is a  sentence with two spaces.  Next."
+        ),
+        vec![9..11]
+    );
+    assert_eq!(
+        spans("typography/consecutive_spaces", "This  is  a  test."),
+        vec![4..6, 8..10]
+    );
+    assert_eq!(
+        spans(
+            "typography/consecutive_spaces",
+            "\u{201c}Wait.\u{201d}  She left \u{2014} then  came back\u{2026}  \u{201c}Fine,\u{201d} he said.\u{2028}"
+        ),
+        vec![24..26]
+    );
+    assert_eq!(
+        spans(
+            "typography/consecutive_spaces_single_char",
+            "This  is  a  test."
+        ),
+        vec![11..13]
+    );
 }
