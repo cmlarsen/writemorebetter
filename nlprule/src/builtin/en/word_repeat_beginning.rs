@@ -129,9 +129,11 @@ impl WordRepeatBeginning {
 /// does so only for the last sentence of the text, whose last token is marked
 /// as the paragraph end.
 fn ends_in_whitespace(sentence: &Sentence) -> bool {
-    sentence.text().chars().last().is_some_and(|c| {
-        c.is_whitespace() || c == '\u{feff}' || c == '\u{200b}'
-    })
+    sentence
+        .text()
+        .chars()
+        .last()
+        .is_some_and(|c| c.is_whitespace() || c == '\u{feff}' || c == '\u{200b}')
 }
 
 /// Whether `token` can start a repetition: anything except a single
