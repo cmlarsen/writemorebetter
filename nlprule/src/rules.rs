@@ -14,7 +14,7 @@ use crate::{
 use fs_err::File;
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::{HashMap, VecDeque},
+    collections::HashMap,
     io::{BufReader, Read, Write},
     path::Path,
 };
@@ -476,7 +476,7 @@ struct SentenceMatches {
 #[derive(Default)]
 struct Repetitions {
     tokens: usize,
-    history: HashMap<Group, VecDeque<usize>>,
+    history: HashMap<Group, Vec<usize>>,
 }
 
 impl Repetitions {
@@ -521,10 +521,7 @@ impl Repetitions {
                     output.push((i, suggestion));
                 }
 
-                history.push_back(position);
-                if history.len() > repetition.min_prev_matches {
-                    history.pop_front();
-                }
+                history.push(position);
             }
         }
 
@@ -533,15 +530,12 @@ impl Repetitions {
 
     fn token_position(sentence: &Sentence, suggestion: &Suggestion) -> usize {
         let start = suggestion.span().char().start;
-        match sentence
+        let before = sentence
             .tokens()
             .iter()
             .take_while(|token| token.span().char().start < start)
-            .count()
-        {
-            0 => 0,
-            before => before + 1,
-        }
+            .count();
+        before + usize::from(start > sentence.span().char().start)
     }
 }
 

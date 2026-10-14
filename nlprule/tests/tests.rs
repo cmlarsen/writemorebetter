@@ -3902,6 +3902,53 @@ fn repetition_rule_handles_fiction_punctuation() {
 }
 
 #[test]
+fn repetition_rule_counts_sentence_start_when_whitespace_leads() {
+    let flags = |text: &str| repetition_flags(&RULES, "REP_THANK_YOU_FOR", text);
+    let filler = |words, end| format!("{}{}", vec!["Dogs"; words].join(" "), end);
+
+    assert_eq!(
+        flags(&format!(
+            "  Thank you for the tea. {}Thank you for the cake.",
+            filler(53, ". ")
+        )),
+        vec![291..304]
+    );
+    assert_eq!(
+        flags(&format!(
+            "Thank you for the tea. \u{2028}{}Thank you for the cake.",
+            filler(52, ". \u{2028}")
+        )),
+        Vec::<std::ops::Range<usize>>::new()
+    );
+    assert_eq!(
+        flags(&format!(
+            "Thank you for the tea. \u{2028}{}Thank you for the cake.",
+            filler(51, ". \u{2028}")
+        )),
+        vec![281..294]
+    );
+}
+
+#[test]
+fn repetition_rule_state_spans_batches() {
+    let text = format!(
+        "Thank you for the tea.\n\n{}Thank you for the cake.",
+        vec!["Dogs"; 52].join(" ") + ".\n\n"
+    );
+    let mut rules = RULES.clone();
+    rules.set_batch_size(1);
+
+    assert_eq!(
+        repetition_flags(&rules, "REP_THANK_YOU_FOR", &text),
+        vec![286..299]
+    );
+    assert_eq!(
+        repetition_flags(&RULES, "REP_THANK_YOU_FOR", &text),
+        vec![286..299]
+    );
+}
+
+#[test]
 fn repetition_rule_needs_min_prev_matches() {
     let mut rules = RULES.clone();
     rules
