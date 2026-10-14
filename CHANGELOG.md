@@ -10,6 +10,17 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
 ### Added
 
+- **Repetition style rules (`min_prev_matches` / `distance_tokens`).** Rules from LanguageTool
+  6.6 that fire only when a phrase recurs nearby now compile and run: the seven
+  `REPETITIONS_STYLE/REP_PASSIVE_VOICE` rules (a fifth passive within 80 tokens of four earlier
+  ones; `picky`, so off by default) and `REPETITIONS_STYLE/REP_THANK_YOU_FOR/0` (a second
+  "Thank you for" within 60 tokens; on by default)
+  ([#73](https://github.com/cmlarsen/writemorebetter/issues/73)). As in LanguageTool, every match
+  counts as a previous one whether or not it was reported, distance is measured in tokens across
+  sentence and paragraph boundaries, and the count starts from zero on every `Rules::suggest`
+  call, so an app that checks text incrementally sees repetitions only within the text it passes
+  (`Rules::apply` sees only its one sentence). The fiction profile turns `REP_THANK_YOU_FOR` off,
+  since dialogue repeats it on purpose. The rules binary format version is now 22.
 - **Rule filters can query the speller while a rule matches.** `Spell::speller()` returns a
   read-only `Speller` for the selected variant with `is_correct(word)` and `suggest(word, n)`,
   and the grammar-rule filters receive it alongside the rule match, ready for the speller-backed
