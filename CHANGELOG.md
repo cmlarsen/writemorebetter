@@ -10,6 +10,22 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
 ### Added
 
+- **Word-repetition statistics.** Four of LanguageTool's Java-coded style rules run as builtins,
+  all off by default as in LanguageTool 6.6 and enabled through `Rules::builtins_mut`
+  ([#83](https://github.com/cmlarsen/writemorebetter/issues/83)). `EN_REPEATEDWORDS` (`picky`)
+  flags a word from LanguageTool's synonym list (e.g. "nice", "definitely", "choose") that was
+  used in an earlier sentence within 150 words, reports it as `EN_REPEATEDWORDS_<WORD>` and
+  suggests inflected synonyms; it checks only sentences that end in `.`, `!` or `?`.
+  `TOO_OFTEN_USED_ADJECTIVE_EN`, `TOO_OFTEN_USED_NOUN_EN` and `TOO_OFTEN_USED_VERB_EN` flag every
+  use of a word that makes up 5% or more of the adjectives, nouns or verbs of a text with at
+  least 100 of them; they report once the whole text has been read, and give way to any
+  suggestion they overlap. Both kinds count within one `Rules::suggest` call and start from
+  zero on every call, so an app that checks text incrementally sees only the text it passes.
+  Disabling the new `DIRECT_SPEECH` case of a `TOO_OFTEN_USED_*` rule (e.g. the profile selector
+  `BUILTIN/TOO_OFTEN_USED_NOUN_EN/DIRECT_SPEECH`) leaves dialogue out of its counts and matches;
+  the fiction profile does this for all three. The synonym list is LanguageTool's `en/synonyms.txt`,
+  which `build/make_build_dir.py` now copies into the build directory. The rules binary format
+  version is now 27.
 - **Repetition style rules (`min_prev_matches` / `distance_tokens`).** Rules from LanguageTool
   6.6 that fire only when a phrase recurs nearby now compile and run: the seven
   `REPETITIONS_STYLE/REP_PASSIVE_VOICE` rules (a fifth passive within 80 tokens of four earlier

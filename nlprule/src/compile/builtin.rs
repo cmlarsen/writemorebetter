@@ -82,6 +82,20 @@ pub(crate) fn for_language(
             BuiltinRule::new(Builtin::MultipleWhitespace(MultipleWhitespace::new())),
             BuiltinRule::new(Builtin::SentenceWhitespace(SentenceWhitespace::new())),
             BuiltinRule::new_disabled(Builtin::EmptyLine(EmptyLine::new())),
+            BuiltinRule::new_disabled(Builtin::RepeatedWords(
+                RepeatedWords::new(
+                    &read_list(build_dir, "synonyms"),
+                    &read_list(build_dir, "repeated_words_antipatterns"),
+                )
+                .map_err(|reason| {
+                    Error::Unexpected(format!("builtin repeated words: {}", reason))
+                })?,
+            )),
+            BuiltinRule::new_disabled(Builtin::TooOftenUsed(TooOftenUsed::new(WordClass::Verb))),
+            BuiltinRule::new_disabled(Builtin::TooOftenUsed(TooOftenUsed::new(WordClass::Noun))),
+            BuiltinRule::new_disabled(Builtin::TooOftenUsed(TooOftenUsed::new(
+                WordClass::Adjective,
+            ))),
         ]),
         _ => Ok(Vec::new()),
     }

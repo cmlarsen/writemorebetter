@@ -17,8 +17,10 @@ asks for a profile.
 - a builtin rule id prefixed with `BUILTIN/`, e.g.
   `"BUILTIN/UPPERCASE_SENTENCE_START"`; or
 - a builtin rule id plus one of its cases, which disables only that case and keeps
-  the rule on (`BuiltinRule::disable_case`). The only case so far is
-  `"BUILTIN/WHITESPACE_RULE/INDENTATION"`.
+  the rule on (`BuiltinRule::disable_case`). The cases are
+  `"BUILTIN/WHITESPACE_RULE/INDENTATION"` and `DIRECT_SPEECH` of the three
+  `TOO_OFTEN_USED_*_EN` builtins, e.g.
+  `"BUILTIN/TOO_OFTEN_USED_NOUN_EN/DIRECT_SPEECH"`.
 
 `Profile::by_name` accepts `"default"` (disables nothing) and `"fiction"`.
 `Rules::apply_profile(&profile)` disables every matching grammar rule and builtin
@@ -55,6 +57,13 @@ Disables exactly these:
 | `GRAMMAR/YOU_GOOD` | verbless dialogue questions, "You okay?" (2) |
 | `REDUNDANCY` | stylistic redundancy advice, not errors (whole category) |
 | `BUILTIN/WHITESPACE_RULE/INDENTATION` | spaces that indent a paragraph or line; LT 6.6 flags them after a sentence end or a CRLF (403 on moby150k). Repeated spaces inside a line are still flagged. |
+| `BUILTIN/TOO_OFTEN_USED_ADJECTIVE_EN/DIRECT_SPEECH`, `…_NOUN_EN/…`, `…_VERB_EN/…` | these word-frequency hints are off by default, as in LT. Once an author enables them, words inside dialogue are neither counted nor flagged (LT's `setWithoutDirectSpeech`): characters repeat words on purpose, and the narration is what the hint is for. |
+
+`EN_REPEATEDWORDS` (synonyms for a word repeated within 150 words) needs no
+entry: it is off by default (`picky` in LT), and when enabled it already skips
+every sentence that does not end in `.`, `!` or `?`, which leaves out dialogue
+that ends in a closing quote. Its word list is short (about 40 words such as
+"nice", "amazing", "definitely"), so an author who turns it on gets few flags.
 
 Applying it to the compiled English rules disables 147 rules and reports 0
 unmatched selectors.

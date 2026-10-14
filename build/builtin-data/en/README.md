@@ -73,6 +73,13 @@ cp -r build/builtin-data/en/. data/en/builtin/
 - `uppercase_sentence_start_exceptions.txt` — tokens that may start a sentence
   in lowercase without being an error, taken from the exceptions of the
   corresponding capitalization rule. One token per line.
+- `repeated_words_antipatterns.txt` — the token sequences in which LanguageTool's
+  `EnglishRepeatedWordsRule` (`EN_REPEATEDWORDS`) ignores a repeated word
+  (e.g. `need to`, `more often than not`), copied from that class's
+  hard-coded antipatterns. One sequence per line, in a small token syntax
+  described at the top of the file. The rule's synonym list is LanguageTool's
+  `en/synonyms.txt`, which `build/make_build_dir.py` copies unchanged into
+  `<build_dir>/builtin/synonyms.txt`.
 - `adverb_adjective.txt` — adverb -> adjective pairs used by the English
   `AdverbFilter` rule filter (`org.languagetool.rules.en.AdverbFilter`), copied
   from that class's table. Tab separated `adverb<TAB>adjective`; loaded at

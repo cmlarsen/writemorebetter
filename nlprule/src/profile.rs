@@ -88,6 +88,11 @@ impl Profile {
                 // Indentation with spaces at the start of a paragraph or line, which
                 // LanguageTool flags after a sentence end or a CRLF (403 on moby150k).
                 "BUILTIN/WHITESPACE_RULE/INDENTATION",
+                // The off-by-default word-frequency hints skip dialogue once enabled: characters
+                // repeat words on purpose, and narration is what the author controls.
+                "BUILTIN/TOO_OFTEN_USED_ADJECTIVE_EN/DIRECT_SPEECH",
+                "BUILTIN/TOO_OFTEN_USED_NOUN_EN/DIRECT_SPEECH",
+                "BUILTIN/TOO_OFTEN_USED_VERB_EN/DIRECT_SPEECH",
             ]
             .iter()
             .map(|selector| (*selector).to_owned())
