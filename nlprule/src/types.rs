@@ -189,6 +189,10 @@ impl<'t> IncompleteSentence<'t> {
         self.tokens.iter_mut()
     }
 
+    pub(crate) fn tokens_mut(&mut self) -> &mut [IncompleteToken<'t>] {
+        &mut self.tokens
+    }
+
     /// Returns an iterator over tokens by reference.
     pub fn iter(&self) -> impl DoubleEndedIterator<Item = &IncompleteToken> {
         self.tokens.iter()
@@ -328,6 +332,17 @@ impl<'t> Sentence<'t> {
     /// Returns the span of this sentence.
     pub fn span(&self) -> &Span {
         &self.span
+    }
+
+    /// Replaces the tokens in `range` with the completed tokens at the same indices in `sentence`.
+    pub(crate) fn refresh_tokens(
+        &mut self,
+        sentence: &IncompleteSentence<'t>,
+        range: Range<usize>,
+    ) {
+        for i in range {
+            self.tokens[i] = sentence.tokens[i].clone().into_token();
+        }
     }
 }
 
