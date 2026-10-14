@@ -3787,8 +3787,10 @@ fn reference_with_literal_suffix_matches_reference_plus_suffix() {
     rules.select_mut(&selector).for_each(|x| x.enable());
 
     for text in [
-        "The 1’s are the active couple or actives; the other couple are 2’s.",
-        "“The active couple or actives—the others wait…”\u{2028}She nodded.",
+        "The 1’s are the active couple or actives in the middle; the 2’s wait.",
+        "“The active couple or actives in the middle—wait…”\u{2028}She nodded.",
+        "The active couple or Actives in the middle wait.",
+        "The ACTIVE couple or actives in the middle wait.",
     ] {
         assert!(typo_or_of_matches(&rules, text).is_empty(), "{}", text);
     }

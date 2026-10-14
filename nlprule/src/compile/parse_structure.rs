@@ -2115,6 +2115,34 @@ mod tests {
     }
 
     #[test]
+    fn literal_text_around_a_reference_with_postag_or_regexp_is_unimplemented() {
+        let pattern = |second: &str| {
+            format!(
+                "<pattern><token><text text=\"“active\"/></token>{}</pattern>",
+                second
+            )
+        };
+
+        assert!(is_unimplemented(try_compiled_mins(&pattern(
+            r#"<token><match no="0" postag="NNS"/><text text="’s—…"/></token>"#
+        ))));
+        assert!(is_unimplemented(try_compiled_mins(&pattern(
+            "<token regexp=\"yes\"><match no=\"0\"/><text text=\"s?\u{2028}x\"/></token>"
+        ))));
+
+        assert_eq!(
+            compiled_mins(&pattern(
+                r#"<token><match no="0"/><text text="’s—…"/></token>"#
+            )),
+            vec![1, 1]
+        );
+        assert_eq!(
+            compiled_mins(&pattern(r#"<token><match no="0" postag="NNS"/></token>"#)),
+            vec![1, 1]
+        );
+    }
+
+    #[test]
     fn raw_pos_applies_only_to_rules_that_read_readings() {
         let text_only = r#"<pattern case_sensitive="yes" raw_pos="yes"><token><text text="“I"/></token><token spacebefore="no"><text text="’"/></token><token><text text="Ve…"/></token></pattern>"#;
         let message = r#"<message><text text="Use "/><suggestion><match no="3" case_conversion="alllower"/></suggestion><text text="—check it."/></message>"#;
