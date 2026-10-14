@@ -1888,6 +1888,19 @@ mod tests {
     <pattern><token>sss</token></pattern>
     <disambig action="replace"><wd lemma="zz" pos="ZZ"/></disambig>
   </rule>
+  <rulegroup id="D_CASE_OWN" name="d">
+    <antipattern case_sensitive="yes"><token>Ttt</token></antipattern>
+    <rule>
+      <antipattern><token>uuu</token></antipattern>
+      <pattern><token>vvv</token></pattern>
+      <disambig action="replace"><wd lemma="zz" pos="ZZ"/></disambig>
+    </rule>
+    <rule>
+      <antipattern case_sensitive="yes"><token>Xxx</token></antipattern>
+      <pattern><token>yyy</token></pattern>
+      <disambig action="replace"><wd lemma="zz" pos="ZZ"/></disambig>
+    </rule>
+  </rulegroup>
 </rules>
 "#;
 
@@ -1912,6 +1925,13 @@ mod tests {
                 vec!["D_CASE_GROUP/1", "D_CASE", "D_CASE_RESET"],
             ),
             ("She left.\u{2028}Ppp sss.", vec!["D_CASE_RESET"]),
+            ("Then vvv yyy.", vec!["D_CASE_OWN/0", "D_CASE_OWN/1"]),
+            ("Then Vvv Yyy.", vec!["D_CASE_OWN/0"]),
+            ("THEN VVV YYY.", vec!["D_CASE_OWN/0"]),
+            (
+                "\u{201c}Vvv\u{2014}yyy\u{2026}\u{201d} she said.",
+                vec!["D_CASE_OWN/0", "D_CASE_OWN/1"],
+            ),
         ] {
             assert_eq!(
                 disambiguated(&tokenizer, &rules, &pool, text),
