@@ -1,7 +1,7 @@
 //! A dictionary-based tagger.
 
-use crate::types::*;
-use fst::{Map, Streamer};
+use crate::{spell::levenshtein::Levenshtein, types::*};
+use fst::{IntoStreamer, Map, Streamer};
 use log::error;
 use serde::{Deserialize, Serialize};
 use std::{borrow::Cow, fmt, iter::FusedIterator};
@@ -519,6 +519,26 @@ impl Tagger {
         out.sort_unstable();
         out.dedup();
         out
+    }
+
+    /// Every tagged word within `max_distance` edits of `word`, ignoring case, nearest first and
+    /// then in byte order, like Morfologik's `findSimilarWords` over the tagger dictionary.
+    pub(crate) fn similar(&self, word: &str, max_distance: usize) -> Vec<String> {
+        let query = Levenshtein::new(word, max_distance, 0).fold_case(true);
+        let mut out = Vec::new();
+        let mut stream = self.word_store_fst.search_with_state(query).into_stream();
+        while let Some((k, _, s)) = stream.next() {
+            let mut key = k.to_vec();
+            key.push(0);
+            if !self.tag_fst.contains_key(&key) {
+                continue;
+            }
+            let state = s.expect("matching levenshtein state is always `Some`.");
+            let term = String::from_utf8(k.to_vec()).expect("fst keys must be valid utf-8.");
+            out.push((state.dist(), term));
+        }
+        out.sort();
+        out.into_iter().map(|(_, term)| term).collect()
     }
 
     #[allow(dead_code)] // used in compile module

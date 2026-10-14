@@ -1776,7 +1776,7 @@ mod tests {
                     let id = rule.id.to_string();
                     let name = id.split('/').nth(1).unwrap().to_string();
                     flagged.extend(
-                        rule.apply(&pool, &sentence, None, None)
+                        rule.apply(&pool, &sentence, None, None, None)
                             .map(|suggestion| (name.clone(), suggestion.span().char().start)),
                     );
                 }

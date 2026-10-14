@@ -2412,7 +2412,11 @@ fn rule_synthesis_produces_inflected_forms() {
 }
 
 fn rule_flags(text: &str, rule: &str) -> Vec<(String, Vec<String>)> {
-    RULES
+    rule_flags_with(&RULES, text, rule)
+}
+
+fn rule_flags_with(rules: &Rules, text: &str, rule: &str) -> Vec<(String, Vec<String>)> {
+    rules
         .suggest(text, &*TOKENIZER)
         .into_iter()
         .filter(|suggestion| suggestion.source().starts_with(rule))
@@ -3856,6 +3860,43 @@ fn find_suggestions_filter_matches_languagetool_on_fiction_text() {
     );
     assert_eq!(
         rule_flags(
+            "\u{201c}Worth a send,\u{201d} she said\u{2026}",
+            "GRAMMAR/A_INFINITIVE/"
+        ),
+        vec![(
+            "a send".into(),
+            strings(&["a Sand", "a Seed", "a sand", "a seed", "a sent"])
+        )]
+    );
+}
+
+#[test]
+fn speller_backed_filters_consult_the_spellers_languagetool_uses() {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    rules.spell_mut().options_mut().variant = Some(rules.spell().variant("en_GB").unwrap());
+    assert_eq!(
+        rule_flags_with(
+            &rules,
+            "\u{201c}The c0lor faded\u{2014}slowly.\u{201d} \u{2018}Her h0nour\u{2026}\u{2019} he said.\u{2028}The flav0ur was odd.",
+            "TYPOS/NUMBERS_IN_WORDS/"
+        ),
+        vec![
+            ("c0lor".into(), strings(&["color"])),
+            ("h0nour".into(), strings(&["hour"])),
+            ("flav0ur".into(), strings(&["flavor"])),
+        ]
+    );
+    assert_eq!(
+        rule_flags_with(
+            &rules,
+            "\u{201c}I can trait,\u{201d} she said\u{2014}quietly.",
+            "GRAMMAR/PRP_MD_NN/"
+        ),
+        vec![("trait".into(), strings(&["trail", "train"]))]
+    );
+    assert_eq!(
+        rule_flags_with(
+            &rules,
             "\u{201c}Worth a send,\u{201d} she said\u{2026}",
             "GRAMMAR/A_INFINITIVE/"
         ),

@@ -26,10 +26,7 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   (`EN_SPLIT_WORDS_HYPHEN` [0]–[3]) and `EnglishNumberInWordFilter` (`NUMBERS_IN_WORDS`) now
   compile and query the speller while a rule matches
   ([#71](https://github.com/cmlarsen/writemorebetter/issues/71)), so "Go0d morning" suggests
-  "Good" and "The break- up" suggests "break-up". `FindSuggestionsFilter` searches the speller's
-  word list where LanguageTool searches its tagger dictionary, so some candidates differ
-  ([#135](https://github.com/cmlarsen/writemorebetter/issues/135)). The rules binary format
-  version is now 22.
+  "Good" and "The break- up" suggests "break-up". The rules binary format version is now 22.
 
 - **Rule filters can query the speller while a rule matches.** `Spell::speller()` returns a
   read-only `Speller` for the selected variant with `is_correct(word)` and `suggest(word, n)`,
@@ -75,6 +72,12 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   its dictionary entry whatever its letters (`ÉCLAIRR` → `ÉCLAIR`, `SØRENN` → `SØREN`, Greek and
   Cyrillic names too), and an accented letter counts as one edit, not two
   ([#144](https://github.com/cmlarsen/writemorebetter/issues/144)).
+- **Speller-backed rule filters use the speller LanguageTool 6.6 uses.** `NUMBERS_IN_WORDS` asks
+  the default variant's (`en_US`) speller whatever variant is selected, so with `en_GB` it
+  suggests `color` for `c0lor` as LanguageTool does, and `FindSuggestionsFilter` (`PRP_MD_NN`,
+  `A_INFINITIVE`) searches the tagger dictionary instead of the speller
+  ([#135](https://github.com/cmlarsen/writemorebetter/issues/135)). While a variant other than the
+  default one is selected, the default variant's checker is kept loaded as well.
 - **Spelling suggestions rank by edit distance, then frequency, as in LanguageTool 6.6.** A
   common word two edits away no longer outranks a rarer word one edit away, and only the
   candidates at the smallest edit distance found are suggested, so `Hecla` suggests `Hekla`
