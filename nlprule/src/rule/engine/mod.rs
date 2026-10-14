@@ -22,13 +22,21 @@ struct Blockers {
 }
 
 impl Blockers {
-    fn new(engine: &TokenEngine, pool: &PartPool, sentence: &MatchSentence) -> Self {
+    fn new(
+        engine: &TokenEngine,
+        pool: &PartPool,
+        sentence: &MatchSentence,
+        immunize: bool,
+    ) -> Self {
         let mut spans = Vec::new();
-        let mut immune = vec![false; sentence.len()];
+        let mut immune = vec![false; if immunize { sentence.len() } else { 0 }];
         for antipattern in &engine.antipatterns {
             for m in sentence.antipattern_matches(pool, *antipattern) {
-                immune[m.tokens.clone()].iter_mut().for_each(|x| *x = true);
-                spans.push((m.chars.start, m.chars.end));
+                if immunize {
+                    immune[m.tokens.clone()].fill(true);
+                } else {
+                    spans.push((m.chars.start, m.chars.end));
+                }
             }
         }
         Blockers {
@@ -88,7 +96,8 @@ impl TokenEngine {
             if !self.composition.may_match_immunized(pool, sentence, i) {
                 return None;
             }
-            let blockers = blockers.get_or_insert_with(|| Blockers::new(self, pool, sentence));
+            let blockers =
+                blockers.get_or_insert_with(|| Blockers::new(self, pool, sentence, true));
             return self
                 .composition
                 .apply_from(pool, sentence, i, Some(&blockers.immune))
@@ -97,7 +106,7 @@ impl TokenEngine {
 
         let (graph, _) = self.composition.apply_from(pool, sentence, i, None)?;
 
-        let blockers = blockers.get_or_insert_with(|| Blockers::new(self, pool, sentence));
+        let blockers = blockers.get_or_insert_with(|| Blockers::new(self, pool, sentence, false));
         let blocked = self
             .composition
             .parts
