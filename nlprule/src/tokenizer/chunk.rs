@@ -289,9 +289,11 @@ impl From<ModelFields> for Model {
         let ModelFields {
             outcome_labels,
             pmap,
-            outcomes,
-            parameters,
+            mut outcomes,
+            mut parameters,
         } = data;
+        outcomes.shrink_to_fit();
+        parameters.shrink_to_fit();
 
         Model {
             outcome_labels,
@@ -1315,5 +1317,26 @@ mod tests {
             .remove(0);
 
         assert_eq!(best.outcomes(), ["B", "A"]);
+    }
+
+    #[test]
+    fn loaded_model_arrays_have_no_spare_capacity() {
+        use super::{Model, Pmap};
+
+        let entries = 1_200;
+        let length = 250;
+        let len = entries * length;
+        let model = Model {
+            outcome_labels: vec!["A".into()],
+            outcomes: vec![0; len],
+            parameters: (0..len).map(|i| i as f32 * 1e-3).collect(),
+            pmap: Pmap::from_pairs((0..entries).map(|i| (i as u64, (i * length, length)))),
+        };
+        let bytes = bincode::serialize(&model).unwrap();
+        let loaded: Model = bincode::deserialize(&bytes).unwrap();
+
+        assert_eq!(loaded.parameters, model.parameters);
+        assert_eq!(loaded.parameters.capacity(), len);
+        assert_eq!(loaded.outcomes.capacity(), len);
     }
 }
