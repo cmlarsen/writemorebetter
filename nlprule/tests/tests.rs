@@ -3703,6 +3703,82 @@ fn multiword_entries_with_stray_whitespace_do_not_match() {
     );
 }
 
+fn strings(xs: &[&str]) -> Vec<String> {
+    xs.iter().map(|x| x.to_string()).collect()
+}
+
+#[test]
+fn number_in_word_filter_matches_languagetool_on_fiction_text() {
+    let rule = "TYPOS/NUMBERS_IN_WORDS/";
+    assert_eq!(
+        rule_flags("Go0d morning!", rule),
+        vec![("Go0d".into(), strings(&["Good", "God"]))]
+    );
+    assert_eq!(
+        rule_flags("\u{201c}The w0rld\u{2014}it ended.\u{201d}", rule),
+        vec![("w0rld".into(), strings(&["world"]))]
+    );
+    assert_eq!(
+        rule_flags("He was a g00d man.\u{2028}Then he was g0ne\u{2026}", rule),
+        vec![("g0ne".into(), strings(&["gone"]))]
+    );
+    let flagged = rule_flags("\u{201c}H3llo,\u{201d} she said\u{2026}", rule);
+    assert_eq!(flagged.len(), 1);
+    assert_eq!(flagged[0].1.first().map(String::as_str), Some("Hello"));
+}
+
+#[test]
+fn suppress_misspelled_filter_matches_languagetool_on_fiction_text() {
+    let rule = "TYPOS/EN_SPLIT_WORDS_HYPHEN/";
+    assert_eq!(
+        rule_flags("The pia- nist played\u{2014}badly\u{2026}", rule),
+        vec![("pia- nist".into(), strings(&["pianist"]))]
+    );
+    assert_eq!(
+        rule_flags(
+            "\u{2018}The seco- ndary school\u{2019}s gate.\u{2019}",
+            rule
+        ),
+        vec![("seco- ndary".into(), strings(&["secondary"]))]
+    );
+    assert!(rule_flags("Her ex- husband was there\u{2026}\u{2028}He smiled.", rule).is_empty());
+}
+
+#[test]
+fn find_suggestions_filter_matches_languagetool_on_fiction_text() {
+    assert_eq!(
+        rule_flags(
+            "\u{201c}I can trait,\u{201d} she said\u{2014}quietly.",
+            "GRAMMAR/PRP_MD_NN/"
+        ),
+        vec![("trait".into(), strings(&["trail", "train"]))]
+    );
+    assert_eq!(
+        rule_flags("I can cheeseburger\u{2026}", "GRAMMAR/PRP_MD_NN/"),
+        vec![("cheeseburger".into(), vec![])]
+    );
+    assert_eq!(
+        rule_flags(
+            "It was a compete disaster\u{2014}truly.",
+            "GRAMMAR/A_INFINITIVE/"
+        ),
+        vec![(
+            "a compete".into(),
+            strings(&["a competed", "a complete", "a compote"])
+        )]
+    );
+    assert_eq!(
+        rule_flags(
+            "\u{201c}Worth a send,\u{201d} she said\u{2026}",
+            "GRAMMAR/A_INFINITIVE/"
+        ),
+        vec![(
+            "a send".into(),
+            strings(&["a Sand", "a Seed", "a sand", "a seed", "a sent"])
+        )]
+    );
+}
+
 #[test]
 fn tokenizer_keeps_g_dropped_words_whole() {
     assert_eq!(

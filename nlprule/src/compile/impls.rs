@@ -1422,9 +1422,8 @@ pub(in crate::compile) mod filters {
 /// ([`crate::rule::filter::RuleFilter`]).
 ///
 /// Filters whose class needs resources the on-device engine does not have
-/// (LanguageTool's multitoken-speller data) or that query the speller and are
-/// not ported yet stay compile errors that name the class, so a rule can never
-/// silently ignore its filter.
+/// (LanguageTool's multitoken-speller data) stay compile errors that name the
+/// class, so a rule can never silently ignore its filter.
 pub(in crate::compile) mod rule_filters {
     use std::{collections::HashMap, path::Path};
 
@@ -1432,8 +1431,9 @@ pub(in crate::compile) mod rule_filters {
 
     use super::Error;
     use crate::rule::filter::{
-        Adverb, ApostropheType, ArgValue, DateCheck, DateCheckKind, DateRange, FutureDate,
-        NewYearDate, RegexAntiPattern, RuleFilter, UnderlineSpaces, WordFrom, YmdDateCheck,
+        Adverb, ApostropheType, ArgValue, DateCheck, DateCheckKind, DateRange, FindSuggestions,
+        FutureDate, NewYearDate, NumberInWord, RegexAntiPattern, RuleFilter,
+        SuppressMisspelledSuggestions, UnderlineSpaces, WordFrom, YmdDateCheck,
     };
     use crate::types::DefaultHashMap;
     use crate::utils::regex::Regex;
@@ -1477,6 +1477,27 @@ pub(in crate::compile) mod rule_filters {
             .map(|x| x.parse())
             .transpose()
             .map_err(Error::from)
+    }
+
+    /// A `wordFrom` argument: `marker` or a 1-based pattern token index.
+    fn word_from(value: &str) -> Result<WordFrom, std::num::ParseIntError> {
+        Ok(if value == "marker" {
+            WordFrom::Marker
+        } else {
+            WordFrom::Index(value.parse()?)
+        })
+    }
+
+    /// An optional regular expression argument, matched against the whole
+    /// string like Java's `Matcher.matches`.
+    fn optional_regex(
+        args: &HashMap<String, String>,
+        key: &str,
+    ) -> Result<Option<Regex>, Box<Error>> {
+        match args.get(key) {
+            Some(pattern) => Ok(Some(Regex::from_java_regex(pattern, true, true)?)),
+            None => Ok(None),
+        }
     }
 
     /// Reads the LanguageTool adverb -> adjective table used by `AdverbFilter`
@@ -1528,19 +1549,11 @@ pub(in crate::compile) mod rule_filters {
                 })
             }
             "OrdinalSuffixFilter" => RuleFilter::OrdinalSuffix,
-            "ApostropheTypeFilter" => {
-                let word_from = required(&args, "wordFrom")?;
-                let word_from = if word_from == "marker" {
-                    WordFrom::Marker
-                } else {
-                    WordFrom::Index(word_from.parse()?)
-                };
-                RuleFilter::ApostropheType(ApostropheType {
-                    word_from,
-                    has_typographical_apostrophe: required(&args, "hasTypographicalApostrophe")?
-                        .eq_ignore_ascii_case("true"),
-                })
-            }
+            "ApostropheTypeFilter" => RuleFilter::ApostropheType(ApostropheType {
+                word_from: word_from(required(&args, "wordFrom")?)?,
+                has_typographical_apostrophe: required(&args, "hasTypographicalApostrophe")?
+                    .eq_ignore_ascii_case("true"),
+            }),
             "RegexAntiPatternFilter" => {
                 let antipatterns = required(&args, "antipatterns")?;
                 let regexes = antipatterns
@@ -1607,14 +1620,39 @@ pub(in crate::compile) mod rule_filters {
                     class
                 )))
             }
-            "EnglishSuppressMisspelledSuggestionsFilter"
-            | "FindSuggestionsFilter"
-            | "EnglishNumberInWordFilter" => {
-                return Err(Error::Unimplemented(format!(
-                    "filter class '{}' needs the speller at match time and is not ported yet.",
-                    class
-                )))
+            "FindSuggestionsFilter" => {
+                let from = required(&args, "wordFrom")?;
+                if from == "inmarker" || args.contains_key("Mode") {
+                    return Err(Error::Unimplemented(format!(
+                        "filter class '{}' does not support 'wordFrom:inmarker' or 'Mode' yet.",
+                        class
+                    )));
+                }
+                RuleFilter::FindSuggestions(FindSuggestions {
+                    word_from: word_from(from)?,
+                    desired_postag: Regex::from_java_regex(
+                        required(&args, "desiredPostag")?,
+                        true,
+                        true,
+                    )?,
+                    priority_postag: optional_regex(&args, "priorityPostag").map_err(|e| *e)?,
+                    remove_suggestions: optional_regex(&args, "removeSuggestionsRegexp")
+                        .map_err(|e| *e)?,
+                    suppress_match: args
+                        .get("suppressMatch")
+                        .is_some_and(|x| x.eq_ignore_ascii_case("true")),
+                })
             }
+            "EnglishSuppressMisspelledSuggestionsFilter" => {
+                RuleFilter::SuppressMisspelledSuggestions(SuppressMisspelledSuggestions {
+                    suppress_match: !required(&args, "suppressMatch")?
+                        .eq_ignore_ascii_case("false"),
+                    suppress_postag: optional_regex(&args, "SuppressPostag").map_err(|e| *e)?,
+                })
+            }
+            "EnglishNumberInWordFilter" => RuleFilter::NumberInWord(NumberInWord {
+                word: to_arg_value(required(&args, "word")?, is_regex_rule),
+            }),
             _ => {
                 return Err(Error::Unexpected(format!(
                     "unsupported filter class '{}'",
