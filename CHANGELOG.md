@@ -10,6 +10,9 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
 ### Added
 
+- **The Swift binding exposes the mother tongue.** `Checker.setMotherTongue(motherTongue:)` and
+  `Checker.motherTongues()` mirror the wasm `setMotherTongue` / `motherTongues`, so Swift apps
+  can opt in to the false-friend rules ([#138](https://github.com/cmlarsen/writemorebetter/issues/138)).
 - **Whitespace and double-punctuation checks.** Four more of LanguageTool's Java-coded rules run
   as builtins ([#80](https://github.com/cmlarsen/writemorebetter/issues/80)):
   `DOUBLE_PUNCTUATION` flags `..` and `,,` (ellipses, `?..`, `!..` and `…` next to a dot are
@@ -65,7 +68,7 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   match is dropped as before. The off-by-default `STYLE/SENT_START_NUM/0` now suggests
   `Twelve` for `12 soldiers were killed!`
   ([#163](https://github.com/cmlarsen/writemorebetter/issues/163)). Rules binaries move to
-  format version 21 (`PosReplacer::spell_number`); recompile them.
+  format version 24 (`PosReplacer::spell_number`); recompile them.
 
 ### Fixed
 
@@ -88,6 +91,21 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   `A_INFINITIVE`) searches the tagger dictionary instead of the speller
   ([#135](https://github.com/cmlarsen/writemorebetter/issues/135)). While a variant other than the
   default one is selected, the default variant's checker is kept loaded as well.
+- **The apostrophe-style rules see a curly apostrophe, as in LanguageTool 6.6.** The opt-in
+  `TYPEWRITER_APOSTROPHE` rule now flags `’s` in `actress’s` and suggests `'s` (a straight
+  apostrophe in a suggestion is no longer made curly when that would repeat the flagged text),
+  and the opt-in `TYPOGRAPHICAL_APOSTROPHE` rule no longer flags a `’s` that is already curly:
+  their filter read the token after its curly apostrophe was normalized to a straight one. The
+  rules compiler also keeps a whitespace-only `<marker>` in rule examples, so `CONSECUTIVE_SPACES`
+  and `CONSECUTIVE_SPACES_SINGLE_CHAR` pass their examples. Checking output with the default rules
+  is unchanged on the golden texts ([#76](https://github.com/cmlarsen/writemorebetter/issues/76)).
+- **A `<token>` combining a `<match>` reference with literal text matches both, as in LanguageTool
+  6.6.** `<token><match no="0"/>s</token>` now matches the referenced token's text followed by
+  `s` instead of the referenced text alone, so `TYPO_OR_OF` (off by default) no longer flags
+  "the active couple or actives" ([#164](https://github.com/cmlarsen/writemorebetter/issues/164)).
+  Literal text around a reference that also carries `postag` or `regexp="yes"` is rejected at
+  compile time. `TOKENIZER_FORMAT_VERSION` is now 16 and `RULES_FORMAT_VERSION` 25, so binaries
+  built by earlier versions must be rebuilt.
 - **Spelling suggestions rank by edit distance, then frequency, as in LanguageTool 6.6.** A
   common word two edits away no longer outranks a rarer word one edit away, and only the
   candidates at the smallest edit distance found are suggested, so `Hecla` suggests `Hekla`
