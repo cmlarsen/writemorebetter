@@ -1,6 +1,7 @@
 7 | SPELLCHECK/SINGLE | "Aduke" -> ["Duke"] | Possibly misspelled word.
 10 | PUNCTUATION/COMMA_COMPOUND_SENTENCE_2/4 | " and" -> [", and"] | Use a comma before "and" if it connects two independent clauses (unless they are closely connected and short).
 13 | SPELLCHECK/SINGLE | "succesful" -> ["successful"] | Possibly misspelled word.
+14 | BUILTIN/ENGLISH_WORD_REPEAT_BEGINNING_RULE | "I" -> ["Furthermore, I", "Likewise, I", "Not only that, but I"] | Three successive sentences begin with the same word. Consider rewording the sentence or use a thesaurus to find a synonym.
 14 | SPELLCHECK/SINGLE | "Aduke" -> ["Duke"] | Possibly misspelled word.
 16 | SPELLCHECK/SINGLE | "truely" -> ["truly"] | Possibly misspelled word.
 20 | SPELLCHECK/SINGLE | "adress" -> ["address", "dress"] | Possibly misspelled word.
@@ -17,6 +18,7 @@
 48 | GRAMMAR/IT_IT/5 | "It it" -> ["It is", "If it", "It", "It, it"] | It seems you either mean it is, if it, it or there is a comma missing.
 54 | STYLE/MOST_EVERYONE/0 | "most anyone" -> ["almost anyone"] | Avoid the colloquial phrase 'most anyone' in formal writing. Use almost anyone instead.
 55 | SPELLCHECK/SINGLE | "Aduke" -> ["Duke"] | Possibly misspelled word.
+72 | BUILTIN/ENGLISH_WORD_REPEAT_BEGINNING_RULE | "To" -> [] | Three successive sentences begin with the same word. Consider rewording the sentence or use a thesaurus to find a synonym.
 78 | CONFUSED_WORDS/IS_US/0 | "is" -> ["us"] | Did you mean us?
 79 | SPELLCHECK/SINGLE | "Aduke" -> ["Duke"] | Possibly misspelled word.
 85 | SPELLCHECK/SINGLE | "Aduke" -> ["Duke"] | Possibly misspelled word.
