@@ -569,7 +569,7 @@ impl VariantChecker {
         let convert_case = all_caps || is_title_case(word);
         let query =
             levenshtein::Levenshtein::new(word, search_distance, self.options.prefix_length)
-                .fold_case(word.chars().any(char::is_uppercase));
+                .fold_case(true);
         let restore_case = |term: String| {
             if convert_case {
                 recase(term, all_caps)

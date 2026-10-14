@@ -5,7 +5,7 @@
 28 | SPELLCHECK/SINGLE | "foriegn" -> ["foreign"] | Possibly misspelled word.
 35 | SPELLCHECK/SINGLE | "gratefull" -> ["grateful", "gratefully"] | Possibly misspelled word.
 36 | SPELLCHECK/SINGLE | "hieght" -> ["height"] | Possibly misspelled word.
-39 | SPELLCHECK/SINGLE | "independant" -> ["independent"] | Possibly misspelled word.
+39 | SPELLCHECK/SINGLE | "independant" -> ["independent", "Independent"] | Possibly misspelled word.
 42 | TYPOS/A_WAS/0 | "was" -> ["way"] | Did you mean way?
 47 | PUNCTUATION/COMMA_COMPOUND_SENTENCE/0 | " and" -> [", and"] | Use a comma before 'and' if it connects two independent clauses (unless they are closely connected and short).
 50 | PUNCTUATION/NO_COMMA_BEFORE_INDIRECT_QUESTION/0 | ", which" -> [" which"] | If which starts an indirect question, you do not need to put a comma before it.

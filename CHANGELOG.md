@@ -79,7 +79,9 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   search compares characters instead of UTF-8 bytes, so a capitalized or all-caps word matches
   its dictionary entry whatever its letters (`ÉCLAIRR` → `ÉCLAIR`, `SØRENN` → `SØREN`, Greek and
   Cyrillic names too), and an accented letter counts as one edit, not two
-  ([#144](https://github.com/cmlarsen/writemorebetter/issues/144)).
+  ([#144](https://github.com/cmlarsen/writemorebetter/issues/144)). Lowercase words are searched
+  case-insensitively too, as LanguageTool 6.6's English spellers compare letters, so a lowercased
+  name suggests the name first (`søren` → `Søren`, `zoë` → `Zoë`, `paris` → `Paris`).
 - **Speller-backed rule filters use the speller LanguageTool 6.6 uses.** `NUMBERS_IN_WORDS` asks
   the default variant's (`en_US`) speller whatever variant is selected, so with `en_GB` it
   suggests `color` for `c0lor` as LanguageTool does, and `FindSuggestionsFilter` (`PRP_MD_NN`,

@@ -656,6 +656,43 @@ fn speller_folds_the_case_of_accented_letters() {
 }
 
 #[test]
+fn speller_suggests_the_name_first_for_a_lowercased_name() {
+    let speller = RULES.spell().speller().unwrap();
+    assert_eq!(
+        speller.suggest("s\u{f8}ren", 2),
+        vec!["S\u{f8}ren", "siren"]
+    );
+    assert_eq!(speller.suggest("ren\u{e9}e", 1), vec!["Ren\u{e9}e"]);
+    assert_eq!(
+        speller.suggest("nestl\u{e9}", 2),
+        vec!["Nestl\u{e9}", "nestle"]
+    );
+    assert_eq!(speller.suggest("paris", 2), vec!["Paris", "parts"]);
+
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    rules.spell_mut().options_mut().variant = Some(rules.spell().variant("en_US").unwrap());
+    let text = "\u{201c}Wait\u{2014}s\u{f8}ren?\u{201d}\u{2028}\u{2018}zo\u{eb}\u{2019}s coat\u{2026}\u{2019} she said.";
+    let flags: Vec<(&str, Vec<String>)> = rules
+        .suggest(text, &*TOKENIZER)
+        .into_iter()
+        .filter(|x| x.source().starts_with("SPELLCHECK"))
+        .map(|x| {
+            (
+                &text[x.span().byte().clone()],
+                x.replacements().iter().take(2).cloned().collect(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        flags,
+        vec![
+            ("s\u{f8}ren", strings(&["S\u{f8}ren", "siren"])),
+            ("zo\u{eb}", strings(&["Zo\u{eb}", "zoo"])),
+        ]
+    );
+}
+
+#[test]
 fn speller_suggests_dictionary_casing_for_mixed_case_words() {
     let speller = RULES.spell().speller().unwrap();
     assert_eq!(speller.suggest("iPHONE", 2), vec!["iPhone", "phone"]);
