@@ -43,6 +43,14 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
 ### Fixed
 
+- **The apostrophe-style rules see a curly apostrophe, as in LanguageTool 6.6.** The opt-in
+  `TYPEWRITER_APOSTROPHE` rule now flags `’s` in `actress’s` and suggests `'s` (a straight
+  apostrophe in a suggestion is no longer made curly when that would repeat the flagged text),
+  and the opt-in `TYPOGRAPHICAL_APOSTROPHE` rule no longer flags a `’s` that is already curly:
+  their filter read the token after its curly apostrophe was normalized to a straight one. The
+  rules compiler also keeps a whitespace-only `<marker>` in rule examples, so `CONSECUTIVE_SPACES`
+  and `CONSECUTIVE_SPACES_SINGLE_CHAR` pass their examples. Checking output with the default rules
+  is unchanged on the golden texts ([#76](https://github.com/cmlarsen/writemorebetter/issues/76)).
 - **G-dropped words like `doin'` stay one token tagged as the `-ing` form, as in LanguageTool
   6.6.** An unknown word ending in `in'` (or `in’`) is tagged like its `-ing` form (`doin'` as
   `do/VBG`, `nothin'` as `nothing`), so the tokenizer no longer splits off the apostrophe, the

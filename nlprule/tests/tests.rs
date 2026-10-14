@@ -3764,3 +3764,87 @@ fn spellchecker_accepts_g_dropped_words() {
         assert_eq!(spelling_errors(text), Vec::<&str>::new(), "{}", text);
     }
 }
+
+fn rule_matches(selector: &str, text: &str) -> Vec<(String, std::ops::Range<usize>, Vec<String>)> {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    let selector: Selector = selector.try_into().unwrap();
+    rules.rules_mut().iter_mut().for_each(|rule| rule.disable());
+    rules
+        .builtins_mut()
+        .iter_mut()
+        .for_each(|rule| rule.disable());
+    rules.select_mut(&selector).for_each(|x| x.enable());
+    rules
+        .suggest(text, &*TOKENIZER)
+        .into_iter()
+        .map(|s| {
+            (
+                s.source().to_string(),
+                s.span().char().clone(),
+                s.replacements().to_vec(),
+            )
+        })
+        .collect()
+}
+
+#[test]
+fn apostrophe_type_filter_reads_the_raw_apostrophe() {
+    let text = "An actress\u{2019}s role. An actress's role.\u{2028}\u{201c}She didn\u{2019}t \
+                know\u{2026},\u{201d} he said \u{2014} the old man\u{2019}s dog ran to the bank \
+                and \u{2018}that\u{2019}s that\u{2019} \u{2014} I can\u{2019}t.";
+    let spans = |selector: &str| -> Vec<(std::ops::Range<usize>, Vec<String>)> {
+        rule_matches(selector, text)
+            .into_iter()
+            .map(|(_, span, replacements)| (span, replacements))
+            .collect()
+    };
+
+    assert_eq!(
+        spans("typography/typewriter_apostrophe"),
+        vec![
+            (10..12, vec!["'s".to_string()]),
+            (79..81, vec!["'s".to_string()]),
+            (111..113, vec!["'s".to_string()]),
+        ]
+    );
+    assert_eq!(
+        spans("typography/typographical_apostrophe"),
+        vec![(29..31, vec!["\u{2019}s".to_string()])]
+    );
+}
+
+#[test]
+fn consecutive_spaces_match_like_languagetool() {
+    let spans = |selector: &str, text: &str| -> Vec<std::ops::Range<usize>> {
+        rule_matches(selector, text)
+            .into_iter()
+            .map(|(_, span, _)| span)
+            .collect()
+    };
+
+    assert_eq!(
+        spans(
+            "typography/consecutive_spaces",
+            "This is a  sentence with two spaces.  Next."
+        ),
+        vec![9..11]
+    );
+    assert_eq!(
+        spans("typography/consecutive_spaces", "This  is  a  test."),
+        vec![4..6, 8..10]
+    );
+    assert_eq!(
+        spans(
+            "typography/consecutive_spaces",
+            "\u{201c}Wait.\u{201d}  She left \u{2014} then  came back\u{2026}  \u{201c}Fine,\u{201d} he said.\u{2028}"
+        ),
+        vec![24..26]
+    );
+    assert_eq!(
+        spans(
+            "typography/consecutive_spaces_single_char",
+            "This  is  a  test."
+        ),
+        vec![11..13]
+    );
+}

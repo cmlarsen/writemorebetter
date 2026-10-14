@@ -150,6 +150,16 @@ fn token_text<'t>(
         .map(|token| token.word().as_str().to_string())
 }
 
+fn token_raw_text<'t>(
+    sentence: &'t MatchSentence<'t>,
+    graph: &MatchGraph<'t>,
+    n: usize,
+) -> Option<&'t str> {
+    group(graph, n)
+        .and_then(|g| g.tokens(sentence).last())
+        .map(|token| sentence.slice(token.span().clone()))
+}
+
 fn group_span<'t>(graph: &MatchGraph<'t>, n: usize) -> Option<Span> {
     group(graph, n).map(|g| g.span.clone())
 }
@@ -290,8 +300,8 @@ impl ApostropheType {
             }
         };
 
-        let text = token_text(sentence, graph, index)?;
-        if is_typographical_apostrophe(&text) == self.has_typographical_apostrophe {
+        let text = token_raw_text(sentence, graph, index)?;
+        if is_typographical_apostrophe(text) == self.has_typographical_apostrophe {
             Some(m)
         } else {
             None
