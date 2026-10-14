@@ -145,7 +145,9 @@ pub(crate) const RULES_MAGIC: &[u8; 8] = b"WMBRUL01";
 /// Version 9: `TaggerLangOptions::title_case_all_uppercase` was added.
 /// Version 10: `TokenizerLangOptions::word_chars` was added.
 /// Version 11: `MatcherKind::Synthesis` was added (`<match postag="…"/>` inside a `<token>`).
-pub const TOKENIZER_FORMAT_VERSION: u32 = 11;
+/// Version 12: `WordDataAtom::first_reading` was added (`scope="next"` exceptions see only the
+/// next token's first reading).
+pub const TOKENIZER_FORMAT_VERSION: u32 = 12;
 
 /// The on-disk format version of [Rules] binaries.
 ///
@@ -170,8 +172,9 @@ pub const TOKENIZER_FORMAT_VERSION: u32 = 11;
 /// Version 13: `Rule::suppress_misspelled` and `Synthesizer::suppress_misspelled` were added.
 /// Version 14: `MatcherKind::Synthesis` was added (`<match postag="…"/>` inside a `<token>`).
 /// Version 15: `SpellLangOptions::default_variant` was added.
-/// Version 16: `Rule::mother_tongue` was added.
-pub const RULES_FORMAT_VERSION: u32 = 16;
+/// Version 16: `WordDataAtom::first_reading` was added, as in tokenizer version 12.
+/// Version 17: `Rule::mother_tongue` was added.
+pub const RULES_FORMAT_VERSION: u32 = 17;
 
 /// The longest engine version string accepted in a binary header.
 const MAX_ENGINE_VERSION_LEN: usize = 256;
