@@ -32,6 +32,14 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   off. The rule test harness (`--bin test`, `Rules::test_rule`) therefore runs rule examples with
   an `en_US` speller ([#119](https://github.com/cmlarsen/writemorebetter/issues/119)). Rules
   binaries move to format version 15 (`SpellLangOptions::default_variant`); recompile them.
+- **`raw_pos` rules that read POS tags or chunks compile and match.** A rule whose
+  `<pattern raw_pos="yes">` tests tags or chunks now matches, as in LanguageTool, against the
+  sentence as tagged and chunked, before multiword tagging and disambiguation, which
+  `Sentence::raw()` exposes. That adds `TYPOS/LOOK_SLIKE/0` (`look sfor` → `looks for`), which
+  is off by default ([#130](https://github.com/cmlarsen/writemorebetter/issues/130)).
+  `Rules::suggest` keeps the raw tokens only while such a rule is enabled (a text-only
+  `raw_pos` rule such as `TYPOS/CONTRACTION_CASE/0` does not count); `Tokenizer::pipe` always
+  keeps them. Rules binaries move to format version 18 (`Rule::raw_pos`); recompile them.
 
 ### Fixed
 
