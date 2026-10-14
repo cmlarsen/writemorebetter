@@ -3417,6 +3417,49 @@ fn raw_pos_rule_matches_pre_disambiguation_tags() {
     }
 }
 
+fn sent_start_num_matches(rules: &Rules, text: &str) -> Vec<(std::ops::Range<usize>, Vec<String>)> {
+    rules
+        .suggest(text, &*TOKENIZER)
+        .into_iter()
+        .filter(|s| s.source().ends_with("SENT_START_NUM/0"))
+        .map(|s| (s.span().char().clone(), s.replacements().to_vec()))
+        .collect()
+}
+
+#[test]
+fn spell_number_synthesis_spells_out_a_sentence_start_number() {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    let selector: Selector = "style/sent_start_num".try_into().unwrap();
+    rules.select_mut(&selector).for_each(|x| x.enable());
+
+    for (text, expected) in [
+        ("12 soldiers were killed!", vec![(0..2, "Twelve")]),
+        (
+            "42 soldiers’ horses were killed!",
+            vec![(0..2, "Forty-two")],
+        ),
+        ("7 soldiers were killed—all of them!", vec![(0..1, "Seven")]),
+        (
+            "99 soldiers were killed\u{2028}yesterday!",
+            vec![(0..2, "Ninety-nine")],
+        ),
+        (
+            "She waited. 21 soldiers were killed!",
+            vec![(12..14, "Twenty-one")],
+        ),
+        ("“12 soldiers were killed!”", vec![]),
+        ("12 soldiers were killed…", vec![]),
+        ("05 soldiers were killed!", vec![]),
+        ("12 soldiers were killed in 1999!", vec![]),
+    ] {
+        let expected: Vec<_> = expected
+            .into_iter()
+            .map(|(span, replacement)| (span, vec![replacement.to_string()]))
+            .collect();
+        assert_eq!(sent_start_num_matches(&rules, text), expected, "{}", text);
+    }
+}
+
 #[test]
 fn pipe_keeps_the_raw_sentence() {
     let sentence = TOKENIZER
