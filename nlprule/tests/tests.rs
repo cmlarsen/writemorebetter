@@ -1,4 +1,7 @@
-use std::convert::{TryFrom, TryInto};
+use std::{
+    collections::HashSet,
+    convert::{TryFrom, TryInto},
+};
 
 use lazy_static::lazy_static;
 use nlprule::{
@@ -419,6 +422,76 @@ fn spellchecker_flags_misspellings_next_to_fiction_punctuation() {
     assert_eq!(
         spelling_errors("Nothing.\u{2028}Patenice\u{2014}always."),
         vec!["Patenice"]
+    );
+}
+
+#[test]
+fn spellchecker_accepts_all_caps_known_words() {
+    assert_eq!(
+        spelling_errors(
+            "\u{201c}THE END,\u{201d} she wrote\u{2026} He barked HELLO\u{2014}LOUDLY.\u{2028}\u{2018}DON\u{2019}T MOVE,\u{2019} said O\u{2019}BRIEN in PARIS."
+        ),
+        Vec::<&str>::new()
+    );
+    assert_eq!(
+        spelling_errors("\u{201c}THSI is WRONG\u{2014}TEH END\u{2026}\u{201d}\u{2028}"),
+        vec!["THSI", "TEH"]
+    );
+}
+
+#[test]
+fn speller_suggestions_restore_the_case_of_capitalized_words() {
+    let speller = RULES.spell().speller().unwrap();
+    assert_eq!(
+        speller.suggest("Teh", 5),
+        vec!["The", "Ten", "Tea", "Tech", "Ted"]
+    );
+    assert!(speller.is_correct("HELLO"));
+    assert!(speller.is_correct("PARIS"));
+    assert!(!speller.is_correct("TEH"));
+
+    let shouted = speller.suggest("TEDD", 5);
+    assert!(shouted.contains(&"TED".to_string()), "{:?}", shouted);
+    assert!(
+        shouted.iter().all(|x| x.to_uppercase() == *x),
+        "{:?}",
+        shouted
+    );
+
+    let shouted = speller.suggest("WHTA", 10);
+    assert_eq!(shouted.len(), 10, "{:?}", shouted);
+    assert!(shouted.contains(&"WHAT".to_string()), "{:?}", shouted);
+    assert_eq!(
+        shouted.iter().collect::<HashSet<_>>().len(),
+        shouted.len(),
+        "{:?}",
+        shouted
+    );
+
+    assert_eq!(speller.suggest("Iphone", 1), vec!["iPhone"]);
+    assert_eq!(speller.suggest("MCDONALD", 1), vec!["McDonald"]);
+    assert_eq!(speller.suggest("teh", 1), vec!["the"]);
+}
+
+#[test]
+fn spelling_suggestions_keep_the_case_of_shouted_dialogue() {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    rules.spell_mut().options_mut().variant = Some(rules.spell().variant("en_US").unwrap());
+    let text = "\u{201c}WHERE ARE YOU GOIGN?\u{201d} he shouted\u{2026}\u{2028}\u{2018}Teh END\u{2014}DON\u{2019}T BELEIVE IT.\u{2019}";
+
+    let first_replacements: Vec<(&str, String)> = rules
+        .suggest(text, &*TOKENIZER)
+        .into_iter()
+        .filter(|x| x.source().starts_with("SPELLCHECK"))
+        .map(|x| (&text[x.span().byte().clone()], x.replacements()[0].clone()))
+        .collect();
+    assert_eq!(
+        first_replacements,
+        vec![
+            ("GOIGN", "GOING".to_string()),
+            ("Teh", "The".to_string()),
+            ("BELEIVE", "BELIEVE".to_string()),
+        ]
     );
 }
 
@@ -2705,6 +2778,21 @@ fn long_unterminated_sentence_is_tagged_the_same_at_every_repeat() {
 }
 
 #[test]
+fn very_long_unterminated_sentence_tokenizes_in_near_linear_time() {
+    let snippet = "“We’re not going—not yet…” she said, and the dogs’ barks\u{2028}echoed across \
+                   the old man’s fields while they waited ";
+    let text = snippet.repeat(3000);
+
+    let start = std::time::Instant::now();
+    assert_eq!(TOKENIZER.pipe(&text).count(), 1);
+    assert!(
+        start.elapsed() < std::time::Duration::from_secs(15),
+        "tokenizing a 3,000-copy unterminated sentence took {:?}",
+        start.elapsed()
+    );
+}
+
+#[test]
 fn speller_falls_back_to_the_default_variant_while_spellchecking_is_off() {
     let mut rules = Rules::new(RULES_PATH).unwrap();
     assert!(rules.spell().options().variant.is_none());
@@ -2849,4 +2937,97 @@ fn speller_checks_tokens_not_contractions() {
     }
     assert!(!speller.is_correct("didn\u{2019}t"));
     assert!(speller.is_correct("did") && speller.is_correct("n\u{2019}t"));
+}
+
+/// A `scope="next"` exception on a token whose predecessor has no `skip` sees only the next
+/// token's first reading, as in LanguageTool 6.6. Expected flags checked against LanguageTool
+/// 6.6 (-l en-US).
+#[test]
+fn scope_next_exception_checks_only_the_first_reading() {
+    let gets = |text: &str| vec![(text.to_string(), vec!["gets".to_string()])];
+    for (text, flag) in [
+        (
+            "\u{201c}This vehicle get\u{2019}s used too much.\u{201d}",
+            "get\u{2019}s",
+        ),
+        ("This vehicle get's used\u{2014}too much.", "get's"),
+        ("The air get\u{2019}s colder\u{2026}", "get\u{2019}s"),
+        (
+            "She sighed.\u{2028}This vehicle get\u{2019}s used too much.",
+            "get\u{2019}s",
+        ),
+        (
+            "\u{2018}This vehicle get\u{2019}s broken again.\u{2019}",
+            "get\u{2019}s",
+        ),
+        ("This vehicle get\u{2019}s driven too much.", "get\u{2019}s"),
+    ] {
+        assert_eq!(
+            rule_flags(text, "TYPOS/VERB_APOSTROPHE_S/3"),
+            gets(flag),
+            "{:?}",
+            text
+        );
+    }
+    for text in [
+        "This vehicle get\u{2019}s are cold.",
+        "\u{2018}This vehicle get\u{2019}s fallen off.\u{2019}",
+        "This vehicle get\u{2019}s washed every day.",
+    ] {
+        assert!(
+            rule_flags(text, "TYPOS/VERB_APOSTROPHE_S/3").is_empty(),
+            "{:?}",
+            text
+        );
+    }
+}
+
+/// An untagged next token's first reading is `UNKNOWN`, not the empty reading every token
+/// carries. Expected flags checked against LanguageTool 6.6 (-l en-US).
+#[test]
+fn scope_next_exception_sees_unknown_as_the_first_reading() {
+    for text in [
+        "You can get the third-party Homeseer kit.",
+        "\u{201c}You can get the third-party Zorblax kit\u{2026}\u{201d}",
+        "The third-party left.\u{2028}The third-party Homeseer kit\u{2026}",
+    ] {
+        assert!(
+            rule_flags(text, "GRAMMAR/THE_THIRD_PARTY/").is_empty(),
+            "{:?}",
+            text
+        );
+    }
+    assert_eq!(
+        rule_flags(
+            "\u{201c}The third-party wasn\u{2019}t informed\u{2014}again.\u{201d}",
+            "GRAMMAR/THE_THIRD_PARTY/"
+        ),
+        vec![("third-party".to_string(), vec!["third party".to_string()])]
+    );
+}
+
+/// A `scope="next"` exception on a token whose predecessor has a `skip` is not checked, as in
+/// LanguageTool 6.6, so `TYPOGRAPHY/GERMAN_QUOTES/3` flags a closing quote even when a
+/// lowercase word follows it without a space. Expected flags checked against LanguageTool 6.6
+/// (-l en-US).
+#[test]
+fn scope_next_exception_after_a_skip_is_not_checked() {
+    for text in [
+        "\u{201e}Wait\u{2026}\u{201c}and then she ran.",
+        "\u{201e}Don\u{2019}t\u{2026}\u{201c}and then she ran.",
+        "\u{201e}Wait\u{2026}\u{201c}And then she ran.",
+        "She sighed.\u{2028}\u{201e}Wait\u{2026}\u{201c}and then she ran.",
+    ] {
+        assert_eq!(
+            rule_flags(text, "TYPOGRAPHY/GERMAN_QUOTES/3"),
+            vec![("\u{201c}".to_string(), vec!["\u{201d}".to_string()])],
+            "{:?}",
+            text
+        );
+    }
+    assert!(rule_flags(
+        "\u{201e}Wait\u{2014}\u{201c}and then she ran.",
+        "TYPOGRAPHY/GERMAN_QUOTES/3"
+    )
+    .is_empty());
 }
