@@ -2987,3 +2987,96 @@ fn pipe_keeps_the_raw_sentence() {
     assert!(!has_vb(&sentence));
     assert!(raw.raw().is_none());
 }
+
+/// A `scope="next"` exception on a token whose predecessor has no `skip` sees only the next
+/// token's first reading, as in LanguageTool 6.6. Expected flags checked against LanguageTool
+/// 6.6 (-l en-US).
+#[test]
+fn scope_next_exception_checks_only_the_first_reading() {
+    let gets = |text: &str| vec![(text.to_string(), vec!["gets".to_string()])];
+    for (text, flag) in [
+        (
+            "\u{201c}This vehicle get\u{2019}s used too much.\u{201d}",
+            "get\u{2019}s",
+        ),
+        ("This vehicle get's used\u{2014}too much.", "get's"),
+        ("The air get\u{2019}s colder\u{2026}", "get\u{2019}s"),
+        (
+            "She sighed.\u{2028}This vehicle get\u{2019}s used too much.",
+            "get\u{2019}s",
+        ),
+        (
+            "\u{2018}This vehicle get\u{2019}s broken again.\u{2019}",
+            "get\u{2019}s",
+        ),
+        ("This vehicle get\u{2019}s driven too much.", "get\u{2019}s"),
+    ] {
+        assert_eq!(
+            rule_flags(text, "TYPOS/VERB_APOSTROPHE_S/3"),
+            gets(flag),
+            "{:?}",
+            text
+        );
+    }
+    for text in [
+        "This vehicle get\u{2019}s are cold.",
+        "\u{2018}This vehicle get\u{2019}s fallen off.\u{2019}",
+        "This vehicle get\u{2019}s washed every day.",
+    ] {
+        assert!(
+            rule_flags(text, "TYPOS/VERB_APOSTROPHE_S/3").is_empty(),
+            "{:?}",
+            text
+        );
+    }
+}
+
+/// An untagged next token's first reading is `UNKNOWN`, not the empty reading every token
+/// carries. Expected flags checked against LanguageTool 6.6 (-l en-US).
+#[test]
+fn scope_next_exception_sees_unknown_as_the_first_reading() {
+    for text in [
+        "You can get the third-party Homeseer kit.",
+        "\u{201c}You can get the third-party Zorblax kit\u{2026}\u{201d}",
+        "The third-party left.\u{2028}The third-party Homeseer kit\u{2026}",
+    ] {
+        assert!(
+            rule_flags(text, "GRAMMAR/THE_THIRD_PARTY/").is_empty(),
+            "{:?}",
+            text
+        );
+    }
+    assert_eq!(
+        rule_flags(
+            "\u{201c}The third-party wasn\u{2019}t informed\u{2014}again.\u{201d}",
+            "GRAMMAR/THE_THIRD_PARTY/"
+        ),
+        vec![("third-party".to_string(), vec!["third party".to_string()])]
+    );
+}
+
+/// A `scope="next"` exception on a token whose predecessor has a `skip` is not checked, as in
+/// LanguageTool 6.6, so `TYPOGRAPHY/GERMAN_QUOTES/3` flags a closing quote even when a
+/// lowercase word follows it without a space. Expected flags checked against LanguageTool 6.6
+/// (-l en-US).
+#[test]
+fn scope_next_exception_after_a_skip_is_not_checked() {
+    for text in [
+        "\u{201e}Wait\u{2026}\u{201c}and then she ran.",
+        "\u{201e}Don\u{2019}t\u{2026}\u{201c}and then she ran.",
+        "\u{201e}Wait\u{2026}\u{201c}And then she ran.",
+        "She sighed.\u{2028}\u{201e}Wait\u{2026}\u{201c}and then she ran.",
+    ] {
+        assert_eq!(
+            rule_flags(text, "TYPOGRAPHY/GERMAN_QUOTES/3"),
+            vec![("\u{201c}".to_string(), vec!["\u{201d}".to_string()])],
+            "{:?}",
+            text
+        );
+    }
+    assert!(rule_flags(
+        "\u{201e}Wait\u{2014}\u{201c}and then she ran.",
+        "TYPOGRAPHY/GERMAN_QUOTES/3"
+    )
+    .is_empty());
+}
