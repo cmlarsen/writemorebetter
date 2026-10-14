@@ -608,9 +608,9 @@ fn user_dictionary_accepts_shouted_entries() {
     assert_eq!(
         spelling_errors_with_words(
             &words,
-            "\u{201c}XYLOPHONIZ!\u{201d}\u{2014}PORT ROYALE\u{2026}"
+            "\u{201c}XYLOPHONIZ!\u{201d}\u{2014}PORT ROYEL\u{2026}"
         ),
-        vec!["XYLOPHONIZ", "ROYALE"]
+        vec!["XYLOPHONIZ", "ROYEL"]
     );
 
     let mut rules = Rules::new(RULES_PATH).unwrap();
