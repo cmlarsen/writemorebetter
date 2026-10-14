@@ -503,7 +503,7 @@ impl Repetitions {
             while let Some((i, suggestion)) = matches.next() {
                 while matches
                     .peek()
-                    .map_or(false, |(_, next)| overlaps(&suggestion, next))
+                    .is_some_and(|(_, next)| overlaps(&suggestion, next))
                 {
                     matches.next();
                 }

@@ -696,10 +696,8 @@ const DEFAULT_REPETITION_DISTANCE_TOKENS: usize = 60;
 fn repetition(
     min_prev_matches: Option<&str>,
     distance_tokens: Option<&str>,
-) -> Result<Option<Repetition>, Error> {
-    let parse = |value: Option<&str>| -> Result<usize, Error> {
-        Ok(value.map_or(Ok(0), |x| x.trim().parse())?)
-    };
+) -> Result<Option<Repetition>, std::num::ParseIntError> {
+    let parse = |value: Option<&str>| value.map_or(Ok(0), |x| x.trim().parse::<usize>());
 
     let min_prev_matches = parse(min_prev_matches)?;
     if min_prev_matches == 0 {
@@ -755,7 +753,9 @@ fn rules_from_xml<P: AsRef<Path>>(
                 ) {
                     Ok(repetition) => repetition,
                     Err(x) => {
-                        *errors.entry(format!("[Rule] {}", x)).or_insert(0) += 1;
+                        *errors
+                            .entry(format!("[Rule] repetition attribute: {}", x))
+                            .or_insert(0) += 1;
                         return None;
                     }
                 };
