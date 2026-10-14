@@ -39,8 +39,10 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   longer match a token covered by one of the rule's antipatterns, and a `skip` continues past such
   a token to a later one, instead of the whole match being dropped when it overlaps an
   antipattern. `GERMAN_QUOTES` now flags the last `“` in `He said “a,“ b c“ d.`
-  ([#134](https://github.com/cmlarsen/writemorebetter/issues/134)). Disambiguation rules keep
-  the drop-on-overlap behaviour, and check time is unchanged.
+  ([#134](https://github.com/cmlarsen/writemorebetter/issues/134)). An antipattern with a
+  `<marker>` immunizes only the marked tokens, as LanguageTool does, instead of its whole match.
+  Disambiguation rules keep the drop-on-overlap behaviour, and check time is unchanged. The
+  tokenizer and rules binary format versions are now 13 and 18; recompile them.
 - **`scope="next"` exceptions see the readings LanguageTool 6.6 sees.** A token's next-token
   exception now checks only the next token's first reading (`UNKNOWN` for an untagged word), and
   is ignored (text exceptions included) when the previous pattern token has a `skip`; on a

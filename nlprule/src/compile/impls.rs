@@ -1506,6 +1506,107 @@ pub(in crate::compile) mod rule_filters {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::compile::parse_structure::RegexCache;
+    use crate::rule::engine::composition::MatchSentence;
+
+    const MARKER_ANTIPATTERNS: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
+<rules lang="en">
+<category id="PROBE" name="Probe">
+  <rule id="M_TRAIL" name="m">
+    <antipattern><token>aaa</token><marker><token skip="-1">bbb</token></marker><token>ddd</token></antipattern>
+    <pattern><token>ccc</token></pattern>
+    <message>m</message>
+  </rule>
+  <rule id="M_LEAD" name="m">
+    <antipattern><token skip="-1">bbb</token><marker><token>ddd</token></marker></antipattern>
+    <pattern><token>ccc</token></pattern>
+    <message>m</message>
+  </rule>
+  <rule id="M_INNER" name="m">
+    <antipattern><marker><token skip="-1">bbb</token><token>ddd</token></marker></antipattern>
+    <pattern><token>ccc</token></pattern>
+    <message>m</message>
+  </rule>
+  <rule id="M_AFTER" name="m">
+    <antipattern><marker><token>bbb</token></marker><token>ccc</token></antipattern>
+    <pattern><token>ccc</token></pattern>
+    <message>m</message>
+  </rule>
+  <rule id="M_TWO" name="m">
+    <antipattern><token skip="-1">www</token><marker><token skip="-1">iii</token></marker><token>qqq</token></antipattern>
+    <pattern><token>iii</token></pattern>
+    <message>m</message>
+  </rule>
+</category>
+</rules>
+"#;
+
+    #[test]
+    fn antipattern_marker_limits_the_immunized_tokens() {
+        let tokenizer = Tokenizer::new("../storage/en_tokenizer.bin").unwrap();
+        let path =
+            std::env::temp_dir().join(format!("wmb-antipattern-marker-{}.xml", std::process::id()));
+        std::fs::write(&path, MARKER_ANTIPATTERNS).unwrap();
+        let mut info = BuildInfo::new(
+            tokenizer.tagger().clone(),
+            RegexCache::new(0),
+            PathBuf::new(),
+        );
+        let mut pool = PartInterner::default();
+        let rules = rules_from_xml(
+            &path,
+            &mut info,
+            &RulesLangOptions::default(),
+            &mut pool,
+            &mut HashMap::new(),
+        );
+        std::fs::remove_file(&path).unwrap();
+        let pool = pool.into_pool();
+        assert_eq!(rules.len(), 5);
+
+        for (text, expected) in [
+            (
+                "\u{201c}bbb ccc\u{2026}\u{201d} she said.",
+                vec![
+                    ("M_AFTER", 5),
+                    ("M_INNER", 5),
+                    ("M_LEAD", 5),
+                    ("M_TRAIL", 5),
+                ],
+            ),
+            (
+                "\u{201c}www iii\u{2014}iii qqq,\u{201d} he said.",
+                vec![("M_TWO", 9)],
+            ),
+            (
+                "She left.\u{2028}aaa bbb ccc ddd.",
+                vec![("M_AFTER", 18), ("M_LEAD", 18), ("M_TRAIL", 18)],
+            ),
+            (
+                "\u{201c}aaa bbb ccc ddd\u{2019}\u{201d}",
+                vec![("M_AFTER", 9), ("M_LEAD", 9), ("M_TRAIL", 9)],
+            ),
+        ] {
+            let mut flagged = Vec::new();
+            for sentence in tokenizer.pipe(text) {
+                let sentence = MatchSentence::new(&sentence);
+                for rule in &rules {
+                    let id = rule.id.to_string();
+                    let name = id.split('/').nth(1).unwrap().to_string();
+                    flagged.extend(
+                        rule.apply(&pool, &sentence, None, None)
+                            .map(|suggestion| (name.clone(), suggestion.span().char().start)),
+                    );
+                }
+            }
+            flagged.sort();
+            let expected: Vec<_> = expected
+                .into_iter()
+                .map(|(name, start)| (name.to_string(), start))
+                .collect();
+            assert_eq!(flagged, expected, "{:?}", text);
+        }
+    }
 
     fn model_data(keys: &[String], capacity: usize) -> ModelData {
         let mut pmap = DefaultHashMap::with_capacity_and_hasher(capacity, Default::default());

@@ -794,6 +794,22 @@ fn parse_suggestion(
     })
 }
 
+#[allow(clippy::result_large_err)]
+fn parse_antipattern(
+    pattern: structure::Pattern,
+    info: &mut BuildInfo,
+    pool: &mut PartInterner,
+) -> Result<(Composition, Option<(GraphId, GraphId)>), Error> {
+    let has_marker = pattern
+        .parts
+        .iter()
+        .any(|part| matches!(part, structure::PatternPart::Marker(_)));
+    let (composition, start, end) = parse_pattern(pattern, info, pool)?;
+    let max_id = composition.id_to_idx.len() - 1;
+    let marker = has_marker.then(|| (GraphId(start.min(max_id)), GraphId(end.min(max_id))));
+    Ok((composition, marker))
+}
+
 fn get_last_id(parts: &[Part]) -> isize {
     parts.iter().fold(1, |a, x| a + x.visible as isize)
 }
@@ -1109,16 +1125,15 @@ impl Rule {
                 let antipatterns = if let Some(antipatterns) = data.antipatterns {
                     antipatterns
                         .into_iter()
-                        .map(|pattern| parse_pattern(pattern, info, pool).map(|x| x.0))
+                        .map(|pattern| parse_antipattern(pattern, info, pool))
                         .collect::<Result<Vec<_>, Error>>()?
                 } else {
                     Vec::new()
                 };
 
-                if antipatterns
-                    .iter()
-                    .any(|pattern| pattern.parts.iter().any(|id| pool.get(*id).unify.is_some()))
-                {
+                if antipatterns.iter().any(|(pattern, _)| {
+                    pattern.parts.iter().any(|id| pool.get(*id).unify.is_some())
+                }) {
                     return Err(Error::Unimplemented(
                         "`unify` in antipattern is not supported.".into(),
                     ));
@@ -1129,7 +1144,7 @@ impl Rule {
                         composition,
                         antipatterns: antipatterns
                             .into_iter()
-                            .map(|pattern| pool.intern_antipattern(pattern))
+                            .map(|(pattern, marker)| pool.intern_antipattern(pattern, marker))
                             .collect(),
                     }),
                     start,
@@ -1475,7 +1490,7 @@ impl DisambiguationRule {
         let antipatterns = if let Some(antipatterns) = data.antipatterns {
             antipatterns
                 .into_iter()
-                .map(|pattern| parse_pattern(pattern, info, pool).map(|x| x.0))
+                .map(|pattern| parse_antipattern(pattern, info, pool))
                 .collect::<Result<Vec<_>, Error>>()?
         } else {
             Vec::new()
@@ -1483,7 +1498,7 @@ impl DisambiguationRule {
 
         if antipatterns
             .iter()
-            .any(|pattern| pattern.parts.iter().any(|id| pool.get(*id).unify.is_some()))
+            .any(|(pattern, _)| pattern.parts.iter().any(|id| pool.get(*id).unify.is_some()))
         {
             return Err(Error::Unimplemented(
                 "`unify` in antipattern is not supported.".into(),
@@ -1494,7 +1509,7 @@ impl DisambiguationRule {
             composition,
             antipatterns: antipatterns
                 .into_iter()
-                .map(|pattern| pool.intern_antipattern(pattern))
+                .map(|(pattern, marker)| pool.intern_antipattern(pattern, marker))
                 .collect(),
         });
 

@@ -544,8 +544,23 @@ impl<'t> MatchSentence<'t> {
                     let (graph, end) = antipattern.apply_from(pool, self, i, None)?;
                     let start = graph.by_index(0).span.char().start;
                     let end_char = graph.by_index(graph.groups().len() - 1).span.char().end;
+                    let tokens = match pool.antipattern_marker(id) {
+                        Some((marker_start, marker_end)) => {
+                            let from = graph.by_id(marker_start).span.char().start;
+                            let to = graph.by_id(marker_end).span.char().end;
+                            let inside = |k: &usize| {
+                                let span = self.index(*k).span().char();
+                                !span.is_empty() && span.start >= from && span.end <= to
+                            };
+                            match (i..end).find(inside) {
+                                Some(first) => first..(i..end).rfind(inside).unwrap() + 1,
+                                None => i..i,
+                            }
+                        }
+                        None => i..end,
+                    };
                     Some(AntipatternMatch {
-                        tokens: i..end,
+                        tokens,
                         chars: start..end_char,
                     })
                 })
@@ -741,11 +756,16 @@ pub(crate) struct AntipatternId(u32);
 pub struct PartPool {
     parts: Vec<Part>,
     antipatterns: Vec<Composition>,
+    antipattern_markers: Vec<Option<(GraphId, GraphId)>>,
 }
 
 impl PartPool {
     pub(crate) fn antipattern(&self, id: AntipatternId) -> &Composition {
         &self.antipatterns[id.0 as usize]
+    }
+
+    pub(crate) fn antipattern_marker(&self, id: AntipatternId) -> Option<(GraphId, GraphId)> {
+        self.antipattern_markers[id.0 as usize]
     }
 
     pub(crate) fn antipatterns_mut(&mut self) -> &mut Vec<Composition> {
@@ -786,6 +806,7 @@ pub(crate) struct PartInterner {
     parts: Vec<Part>,
     seen_antipatterns: std::collections::HashMap<Vec<u8>, AntipatternId>,
     antipatterns: Vec<Composition>,
+    antipattern_markers: Vec<Option<(GraphId, GraphId)>>,
 }
 
 impl PartInterner {
@@ -804,8 +825,12 @@ impl PartInterner {
         &self.parts[id.0 as usize]
     }
 
-    pub(crate) fn intern_antipattern(&mut self, composition: Composition) -> AntipatternId {
-        let key = bincode::serialize(&composition).expect("composition serializes");
+    pub(crate) fn intern_antipattern(
+        &mut self,
+        composition: Composition,
+        marker: Option<(GraphId, GraphId)>,
+    ) -> AntipatternId {
+        let key = bincode::serialize(&(&composition, marker)).expect("composition serializes");
         if let Some(id) = self.seen_antipatterns.get(&key) {
             return *id;
         }
@@ -813,6 +838,7 @@ impl PartInterner {
             u32::try_from(self.antipatterns.len()).expect("antipattern pool index exhausted"),
         );
         self.antipatterns.push(composition);
+        self.antipattern_markers.push(marker);
         self.seen_antipatterns.insert(key, id);
         id
     }
@@ -821,6 +847,7 @@ impl PartInterner {
         PartPool {
             parts: self.parts,
             antipatterns: self.antipatterns,
+            antipattern_markers: self.antipattern_markers,
         }
     }
 }
