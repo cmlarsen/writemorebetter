@@ -27,6 +27,7 @@ pub struct Levenshtein<'a> {
     query: &'a [u8],
     distance: usize,
     prefix: usize,
+    fold_case: bool,
 }
 
 impl<'a> Levenshtein<'a> {
@@ -35,7 +36,17 @@ impl<'a> Levenshtein<'a> {
             query: query.as_bytes(),
             distance,
             prefix,
+            fold_case: false,
         }
+    }
+
+    pub fn fold_case(mut self, fold_case: bool) -> Self {
+        self.fold_case = fold_case;
+        self
+    }
+
+    fn equal(&self, a: u8, b: u8) -> bool {
+        a == b || (self.fold_case && a.eq_ignore_ascii_case(&b))
     }
 }
 
@@ -75,7 +86,7 @@ impl<'a> Automaton for Levenshtein<'a> {
             next_row[0] = state.n + 1;
 
             for i in 1..next_row.len() {
-                let mut cost = if byte == self.query[i - 1] {
+                let mut cost = if self.equal(byte, self.query[i - 1]) {
                     row[i - 1]
                 } else {
                     min(
@@ -130,5 +141,29 @@ impl<'a> Automaton for Levenshtein<'a> {
                 hash: next_hash,
             })
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn distance(query: &str, key: &str, fold_case: bool) -> Option<usize> {
+        let automaton = Levenshtein::new(query, 2, 0).fold_case(fold_case);
+        let mut state = automaton.start();
+        for byte in key.bytes() {
+            state = automaton.accept(&state, byte);
+        }
+        state.map(|state| state.dist())
+    }
+
+    #[test]
+    fn fold_case_matches_ascii_letters_case_insensitively() {
+        assert_eq!(distance("TEH", "ten", false), None);
+        assert_eq!(distance("TEH", "ten", true), Some(1));
+        assert_eq!(distance("Teh", "Ted", true), Some(1));
+        assert_eq!(distance("Teh", "the", true), Some(1));
+        assert_eq!(distance("Hte", "the", true), Some(2));
+        assert_eq!(distance("CAF\u{c9}", "caf\u{e9}", true), Some(1));
     }
 }

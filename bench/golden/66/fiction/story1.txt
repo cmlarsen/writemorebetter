@@ -1,4 +1,4 @@
-4 | SPELLCHECK/SINGLE | "Kerrow" -> ["Merrow", "terror", "Kerry", "Kerr", "regrow", "Kerri", "perron", "Kedron", "Fearow", "Ferrol"] | Possibly misspelled word.
+4 | SPELLCHECK/SINGLE | "Kerrow" -> ["Merrow", "Terror", "Kerry", "Kerr", "Regrow", "Kerri", "Perron", "Kedron", "Fearow", "Ferrol"] | Possibly misspelled word.
 5 | SPELLCHECK/SINGLE | "Bellhaven" -> ["Belhaven"] | Possibly misspelled word.
 13 | SPELLCHECK/SINGLE | "recieve" -> ["receive", "relieve", "received", "believe", "receiver", "receives", "retrieve", "relieved", "revive", "recipe"] | Possibly misspelled word.
 17 | SPELLCHECK/SINGLE | "untill" -> ["until", "uphill", "infill", "instill", "untold", "unwell", "untied", "unital", "untie", "untidy"] | Possibly misspelled word.
