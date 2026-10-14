@@ -139,6 +139,30 @@ final class CheckerTests: XCTestCase {
         XCTAssertFalse(checker.check(text: "Zxqvarn").isEmpty)
     }
 
+    func testMotherTongueSelectsFalseFriends() throws {
+        let checker = try Checker(
+            tokenizerPath: Self.dataPath("en_tokenizer.bin"),
+            rulesPath: Self.dataPath("en_rules.bin")
+        )
+        let text = "\u{201C}My handy is broken\u{2014}again\u{2026}\u{201D}\u{2028}It\u{2019}s the actual problem."
+        let falseFriends = {
+            checker.check(text: text).filter { $0.source.hasPrefix("FALSE_FRIENDS/") }
+        }
+
+        XCTAssertTrue(checker.motherTongues().contains("de"), "\(checker.motherTongues())")
+        XCTAssertTrue(falseFriends().isEmpty, "no mother tongue is selected by default")
+
+        checker.setMotherTongue(motherTongue: "de")
+        guard let handy = falseFriends().first(where: { $0.source == "FALSE_FRIENDS/HANDY/0" }) else {
+            return XCTFail("HANDY did not fire for a German speaker: \(falseFriends().map(\.source))")
+        }
+        XCTAssertEqual((text as NSString).substring(with: handy.nsRange), "handy")
+        XCTAssertTrue(handy.replacements.contains("cell phone"))
+
+        checker.setMotherTongue(motherTongue: nil)
+        XCTAssertTrue(falseFriends().isEmpty)
+    }
+
     func testUnknownProfileThrows() throws {
         let tokenizer = try Self.dataPath("en_tokenizer.bin")
         let rules = try Self.dataPath("en_rules.bin")

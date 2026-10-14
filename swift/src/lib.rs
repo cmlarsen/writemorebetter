@@ -203,6 +203,24 @@ impl Checker {
     pub fn words(&self) -> Vec<String> {
         self.read_rules().words()
     }
+
+    /// Selects the writer's mother tongue (e.g. `"de"`) so the false-friend rules for speakers of
+    /// that language run; pass `nil` (or an empty string) to turn them off again (the default).
+    /// Changes apply to the next `check`.
+    pub fn set_mother_tongue(&self, mother_tongue: Option<String>) {
+        self.write_rules()
+            .set_mother_tongue(mother_tongue.as_deref().filter(|code| !code.is_empty()));
+    }
+
+    /// Lists the mother tongues the rules binary has false-friend rules for, as sorted language
+    /// codes.
+    pub fn mother_tongues(&self) -> Vec<String> {
+        self.read_rules()
+            .mother_tongues()
+            .into_iter()
+            .map(str::to_string)
+            .collect()
+    }
 }
 
 /// Maps character indices in a string to UTF-16 code-unit indices.
@@ -237,7 +255,54 @@ impl Utf16Offsets {
 
 #[cfg(test)]
 mod tests {
-    use super::Utf16Offsets;
+    use super::{Checker, Utf16Offsets};
+
+    const FALSE_FRIEND_TEXT: &str =
+        "\u{201c}My handy is broken\u{2014}again\u{2026}\u{201d}\u{2028}It\u{2019}s the actual problem.";
+
+    fn checker() -> std::sync::Arc<Checker> {
+        Checker::new(
+            "../storage/en_tokenizer.bin".to_string(),
+            "../storage/en_rules.bin".to_string(),
+            None,
+            "fiction".to_string(),
+        )
+        .unwrap()
+    }
+
+    fn false_friends(checker: &Checker) -> Vec<(String, u32, u32)> {
+        checker
+            .check(FALSE_FRIEND_TEXT.to_string())
+            .into_iter()
+            .filter(|suggestion| suggestion.source.starts_with("FALSE_FRIENDS/"))
+            .map(|suggestion| (suggestion.source, suggestion.start, suggestion.end))
+            .collect()
+    }
+
+    #[test]
+    fn mother_tongue_selects_false_friends() {
+        let checker = checker();
+        assert!(checker.mother_tongues().contains(&"de".to_string()));
+        assert!(false_friends(&checker).is_empty());
+
+        checker.set_mother_tongue(Some("de".to_string()));
+        assert_eq!(
+            false_friends(&checker),
+            vec![
+                ("FALSE_FRIENDS/HANDY/0".to_string(), 4, 9),
+                ("FALSE_FRIENDS/ACTUAL/0".to_string(), 37, 43),
+            ]
+        );
+
+        checker.set_mother_tongue(Some(String::new()));
+        assert!(false_friends(&checker).is_empty());
+
+        checker.set_mother_tongue(Some("de-DE".to_string()));
+        assert_eq!(false_friends(&checker).len(), 2);
+
+        checker.set_mother_tongue(None);
+        assert!(false_friends(&checker).is_empty());
+    }
 
     #[test]
     fn offsets_count_utf16_code_units() {

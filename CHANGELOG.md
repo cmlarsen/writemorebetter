@@ -10,6 +10,9 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
 ### Added
 
+- **The Swift binding exposes the mother tongue.** `Checker.setMotherTongue(motherTongue:)` and
+  `Checker.motherTongues()` mirror the wasm `setMotherTongue` / `motherTongues`, so Swift apps
+  can opt in to the false-friend rules ([#138](https://github.com/cmlarsen/writemorebetter/issues/138)).
 - **Rule filters can query the speller while a rule matches.** `Spell::speller()` returns a
   read-only `Speller` for the selected variant with `is_correct(word)` and `suggest(word, n)`,
   and the grammar-rule filters receive it alongside the rule match, ready for the speller-backed
