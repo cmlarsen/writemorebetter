@@ -1,23 +1,23 @@
-7 | SPELLCHECK/SINGLE | "Aduke" -> ["Adult", "Abuse", "Acute", "Alike", "Azure", "Awake", "Adobe", "Awoke", "Adage", "Amuse"] | Possibly misspelled word.
+7 | SPELLCHECK/SINGLE | "Aduke" -> ["Duke"] | Possibly misspelled word.
 10 | PUNCTUATION/COMMA_COMPOUND_SENTENCE_2/4 | " and" -> [", and"] | Use a comma before "and" if it connects two independent clauses (unless they are closely connected and short).
 13 | SPELLCHECK/SINGLE | "succesful" -> ["successful"] | Possibly misspelled word.
-14 | SPELLCHECK/SINGLE | "Aduke" -> ["Adult", "Abuse", "Acute", "Alike", "Azure", "Awake", "Adobe", "Awoke", "Adage", "Amuse"] | Possibly misspelled word.
-16 | SPELLCHECK/SINGLE | "truely" -> ["truly", "true", "freely", "timely", "cruelty", "cruel", "cruelly", "truest", "trusty", "crudely"] | Possibly misspelled word.
-20 | SPELLCHECK/SINGLE | "adress" -> ["address", "areas", "across", "access", "actress", "arrest", "acres", "agrees", "assess", "arrests"] | Possibly misspelled word.
-23 | SPELLCHECK/SINGLE | "Aduke" -> ["Adult", "Abuse", "Acute", "Alike", "Azure", "Awake", "Adobe", "Awoke", "Adage", "Amuse"] | Possibly misspelled word.
-26 | SPELLCHECK/SINGLE | "begining" -> ["beginning", "defining", "beginnings", "reigning", "regaining", "begging", "refining", "feigning", "reining", "beguiling"] | Possibly misspelled word.
-30 | SPELLCHECK/SINGLE | "Aduke" -> ["Adult", "Abuse", "Acute", "Alike", "Azure", "Awake", "Adobe", "Awoke", "Adage", "Amuse"] | Possibly misspelled word.
-31 | SPELLCHECK/SINGLE | "familar" -> ["familiar", "family", "familial", "basilar", "laminar", "familiars", "Camila", "hamular", "facular", "Kamila"] | Possibly misspelled word.
+14 | SPELLCHECK/SINGLE | "Aduke" -> ["Duke"] | Possibly misspelled word.
+16 | SPELLCHECK/SINGLE | "truely" -> ["truly"] | Possibly misspelled word.
+20 | SPELLCHECK/SINGLE | "adress" -> ["address", "dress"] | Possibly misspelled word.
+23 | SPELLCHECK/SINGLE | "Aduke" -> ["Duke"] | Possibly misspelled word.
+26 | SPELLCHECK/SINGLE | "begining" -> ["beginning"] | Possibly misspelled word.
+30 | SPELLCHECK/SINGLE | "Aduke" -> ["Duke"] | Possibly misspelled word.
+31 | SPELLCHECK/SINGLE | "familar" -> ["familiar"] | Possibly misspelled word.
 33 | TYPOS/MODAL_OF/0 | "should of" -> ["should have", "should've"] | It's never correct to use 'of' after a modal verb. Use should have, or, in informal register, should've.
 34 | GRAMMAR/FEWER_LESS/1 | "Less" -> ["Fewer"] | Did you mean fewer? The noun "people" is countable.
-35 | SPELLCHECK/SINGLE | "concious" -> ["conscious", "copious", "concinnous", "monecious", "coccous"] | Possibly misspelled word.
+35 | SPELLCHECK/SINGLE | "concious" -> ["conscious"] | Possibly misspelled word.
 39 | BUILTIN/EN_A_VS_AN | "a apple" -> ["an"] | Use "an" instead of "a" if the following word starts with a vowel sound, e.g. "an article", "an hour".
-44 | SPELLCHECK/SINGLE | "Aduke" -> ["Adult", "Abuse", "Acute", "Alike", "Azure", "Awake", "Adobe", "Awoke", "Adage", "Amuse"] | Possibly misspelled word.
+44 | SPELLCHECK/SINGLE | "Aduke" -> ["Duke"] | Possibly misspelled word.
 46 | GRAMMAR/THE_WHETHER/0 | "The whether" -> ["Whether", "The weather"] | Possible error detected.
 48 | GRAMMAR/IT_IT/5 | "It it" -> ["It is", "If it", "It", "It, it"] | It seems you either mean it is, if it, it or there is a comma missing.
 54 | STYLE/MOST_EVERYONE/0 | "most anyone" -> ["almost anyone"] | Avoid the colloquial phrase 'most anyone' in formal writing. Use almost anyone instead.
-55 | SPELLCHECK/SINGLE | "Aduke" -> ["Adult", "Abuse", "Acute", "Alike", "Azure", "Awake", "Adobe", "Awoke", "Adage", "Amuse"] | Possibly misspelled word.
+55 | SPELLCHECK/SINGLE | "Aduke" -> ["Duke"] | Possibly misspelled word.
 78 | CONFUSED_WORDS/IS_US/0 | "is" -> ["us"] | Did you mean us?
-79 | SPELLCHECK/SINGLE | "Aduke" -> ["Adult", "Abuse", "Acute", "Alike", "Azure", "Awake", "Adobe", "Awoke", "Adage", "Amuse"] | Possibly misspelled word.
-85 | SPELLCHECK/SINGLE | "Aduke" -> ["Adult", "Abuse", "Acute", "Alike", "Azure", "Awake", "Adobe", "Awoke", "Adage", "Amuse"] | Possibly misspelled word.
+79 | SPELLCHECK/SINGLE | "Aduke" -> ["Duke"] | Possibly misspelled word.
+85 | SPELLCHECK/SINGLE | "Aduke" -> ["Duke"] | Possibly misspelled word.
 90 | BUILTIN/COMMA_PARENTHESIS_WHITESPACE | ",and" -> [", and"] | Put a space after the comma.
