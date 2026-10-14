@@ -10,6 +10,14 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
 ### Added
 
+- **Whitespace and double-punctuation checks.** Four more of LanguageTool's Java-coded rules run
+  as builtins ([#80](https://github.com/cmlarsen/writemorebetter/issues/80)):
+  `DOUBLE_PUNCTUATION` flags `..` and `,,` (ellipses, `?..`, `!..` and `…` next to a dot are
+  left alone), `WHITESPACE_RULE` flags repeated whitespace such as two spaces between words,
+  `SENTENCE_WHITESPACE` flags a sentence that follows the previous one without a space
+  (`world.This`), and `EMPTY_LINE` flags more than one empty line between paragraphs. As in
+  LanguageTool 6.6, `EMPTY_LINE` is off by default; enable it through `Rules::builtins_mut`. The
+  fiction profile keeps all four as they are. The rules binary format version is now 21.
 - **Rule filters can query the speller while a rule matches.** `Spell::speller()` returns a
   read-only `Speller` for the selected variant with `is_correct(word)` and `suggest(word, n)`,
   and the grammar-rule filters receive it alongside the rule match, ready for the speller-backed
