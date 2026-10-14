@@ -3,12 +3,18 @@
 use crate::types::*;
 use crate::utils::parallelism::MaybeParallelRefIterator;
 use crate::{
-    builtin::BuiltinRule, rule::id::Selector, rule::MatchSentence, rule::Rule, spell::Spell,
-    tokenizer::Tokenizer, BinaryKind, Error, RULES_FORMAT_VERSION,
+    builtin::BuiltinRule,
+    rule::id::{Group, Selector},
+    rule::MatchSentence,
+    rule::Rule,
+    spell::Spell,
+    tokenizer::Tokenizer,
+    BinaryKind, Error, RULES_FORMAT_VERSION,
 };
 use fs_err::File;
 use serde::{Deserialize, Serialize};
 use std::{
+    collections::HashMap,
     io::{BufReader, Read, Write},
     path::Path,
 };
@@ -236,10 +242,12 @@ impl Rules {
     /// Builtin rules that look across sentences only see this sentence; use [Rules::suggest] for full context.
     /// A rule with LanguageTool's `raw_pos` matches [Sentence::raw]; on a sentence that did not keep
     /// it (one not from [Tokenizer::pipe]) such a rule matches the disambiguated tokens instead.
+    /// Rules with LanguageTool's `min_prev_matches` only count earlier matches in this sentence.
     pub fn apply(&self, sentence: &Sentence) -> Vec<Suggestion> {
         let builtin_suggestions =
             self.builtin_suggestions(std::slice::from_ref(sentence), None, true);
-        self.apply_with(sentence, builtin_suggestions)
+        let matches = self.sentence_matches(sentence, builtin_suggestions, true);
+        self.resolve(sentence, matches, &mut Repetitions::default())
     }
 
     fn builtin_suggestions(
@@ -258,30 +266,24 @@ impl Rules {
             .collect()
     }
 
-    fn apply_with(
-        &self,
-        sentence: &Sentence,
-        builtin_suggestions: Vec<Suggestion>,
-    ) -> Vec<Suggestion> {
-        self.apply_with_impl(sentence, builtin_suggestions, true)
-    }
-
-    /// Like [`Rules::apply_with`], but with the rule loop forced serial (`parallel = false`). Used
-    /// when many sentences are already processed in parallel, so that parallelizing the rules of
-    /// each sentence as well would only add rayon dispatch overhead per sentence.
-    fn apply_with_impl(
+    /// Matches every active rule, the speller and `builtin_suggestions` against `sentence`, keeping
+    /// the matches of rules with a repetition attribute apart since they depend on earlier
+    /// sentences. `parallel = false` forces the rule loop serial, for when many sentences
+    /// are already processed in parallel and parallelizing the rules of each sentence as well would
+    /// only add rayon dispatch overhead per sentence.
+    fn sentence_matches(
         &self,
         sentence: &Sentence,
         builtin_suggestions: Vec<Suggestion>,
         parallel: bool,
-    ) -> Vec<Suggestion> {
+    ) -> SentenceMatches {
         let spell_suggestions = self.spell.suggest(sentence);
         let speller = self.spell.speller();
         let default_speller = self.spell.default_speller();
         let raw_sentence = sentence.raw().map(MatchSentence::new);
         let sentence = MatchSentence::new(sentence);
 
-        let mut output: Vec<(usize, Suggestion)> = self
+        let (repeated, mut output): (Vec<_>, Vec<_>) = self
             .rules
             .maybe_par_iter_cond(parallel)
             .enumerate()
@@ -307,10 +309,27 @@ impl Rules {
                 output
             })
             .flatten()
-            .collect();
+            .collect::<Vec<_>>()
+            .into_iter()
+            .partition(|(i, _)| self.rules[*i].repetition().is_some());
 
         output.extend(spell_suggestions.into_iter().map(|x| (0, x)));
         output.extend(builtin_suggestions.into_iter().map(|x| (0, x)));
+
+        SentenceMatches { output, repeated }
+    }
+
+    fn resolve(
+        &self,
+        sentence: &Sentence,
+        matches: SentenceMatches,
+        repetitions: &mut Repetitions,
+    ) -> Vec<Suggestion> {
+        let SentenceMatches {
+            mut output,
+            repeated,
+        } = matches;
+        repetitions.admit(&self.rules, sentence, repeated, &mut output);
 
         output.sort_by(|(ia, a), (ib, b)| {
             a.span()
@@ -345,6 +364,11 @@ impl Rules {
     }
 
     /// Compute the suggestions for a text by checking all rules.
+    ///
+    /// Rules with LanguageTool's `min_prev_matches` (e.g. `REPETITIONS_STYLE`) fire only after
+    /// enough earlier matches nearby. They count matches across sentence and paragraph boundaries
+    /// within `text` and start from zero on every call, so an app that checks text incrementally
+    /// should pass the surrounding paragraphs it wants those rules to see.
     pub fn suggest(&self, text: &str, tokenizer: &Tokenizer) -> Vec<Suggestion> {
         if text.is_empty() {
             return Vec::new();
@@ -357,6 +381,7 @@ impl Rules {
         // batch instead of one per sentence, which keeps the workers busy instead of repeatedly
         // waking for a single sentence's few thousand rules.
         let mut batch: Vec<(Sentence, Vec<Suggestion>)> = Vec::new();
+        let mut repetitions = Repetitions::default();
         // The last sentence of the previous paragraph, kept so that text-level
         // builtins (UppercaseSentenceStart) can use it as context.
         let mut previous: Option<Sentence> = None;
@@ -376,12 +401,12 @@ impl Rules {
                 previous =
                     self.extend_paragraph(&mut paragraph, previous.as_ref(), ends_text, &mut batch);
                 if batch.len() >= self.batch_size.unwrap_or(PARALLEL_BATCH) {
-                    self.flush_batch(&mut batch, &mut suggestions);
+                    self.flush_batch(&mut batch, &mut repetitions, &mut suggestions);
                 }
             }
         }
         self.extend_paragraph(&mut paragraph, previous.as_ref(), true, &mut batch);
-        self.flush_batch(&mut batch, &mut suggestions);
+        self.flush_batch(&mut batch, &mut repetitions, &mut suggestions);
 
         suggestions
     }
@@ -417,20 +442,20 @@ impl Rules {
     fn flush_batch<'t>(
         &self,
         batch: &mut Vec<(Sentence<'t>, Vec<Suggestion>)>,
+        repetitions: &mut Repetitions,
         out: &mut Vec<Suggestion>,
     ) {
         if batch.is_empty() {
             return;
         }
 
-        let results: Vec<Vec<Suggestion>> = batch
+        let results: Vec<SentenceMatches> = batch
             .maybe_par_iter()
-            .map(|(sentence, builtin)| self.apply_with_impl(sentence, builtin.clone(), false))
+            .map(|(sentence, builtin)| self.sentence_matches(sentence, builtin.clone(), false))
             .collect();
 
-        out.reserve(results.iter().map(Vec::len).sum());
-        for result in results {
-            out.extend(result);
+        for ((sentence, _), matches) in batch.iter().zip(results) {
+            out.extend(self.resolve(sentence, matches, repetitions));
         }
         batch.clear();
     }
@@ -454,6 +479,81 @@ impl Rules {
             self.spell.default_speller().as_ref(),
         )
     }
+}
+
+struct SentenceMatches {
+    output: Vec<(usize, Suggestion)>,
+    repeated: Vec<(usize, Suggestion)>,
+}
+
+#[derive(Default)]
+struct Repetitions {
+    tokens: usize,
+    history: HashMap<Group, Vec<usize>>,
+}
+
+impl Repetitions {
+    fn admit(
+        &mut self,
+        rules: &[Rule],
+        sentence: &Sentence,
+        mut repeated: Vec<(usize, Suggestion)>,
+        output: &mut Vec<(usize, Suggestion)>,
+    ) {
+        repeated.sort_by_key(|(i, suggestion)| (suggestion.span().char().start, *i));
+
+        let mut groups: Vec<(&Group, Vec<(usize, Suggestion)>)> = Vec::new();
+        for (i, suggestion) in repeated {
+            let group = rules[i].id().parent();
+            match groups.iter_mut().find(|(x, _)| *x == group) {
+                Some((_, matches)) => matches.push((i, suggestion)),
+                None => groups.push((group, vec![(i, suggestion)])),
+            }
+        }
+
+        for (group, matches) in groups {
+            let mut matches = matches.into_iter().peekable();
+            while let Some((i, suggestion)) = matches.next() {
+                while matches
+                    .peek()
+                    .is_some_and(|(_, next)| overlaps(&suggestion, next))
+                {
+                    matches.next();
+                }
+
+                let repetition = rules[i]
+                    .repetition()
+                    .expect("only repetition rules are admitted");
+                let position = self.tokens + Self::token_position(sentence, &suggestion);
+                let history = self.history.entry(group.clone()).or_default();
+
+                if history.len() >= repetition.min_prev_matches
+                    && position.saturating_sub(history[history.len() - repetition.min_prev_matches])
+                        < repetition.distance_tokens
+                {
+                    output.push((i, suggestion));
+                }
+
+                history.push(position);
+            }
+        }
+
+        self.tokens += sentence.tokens().len();
+    }
+
+    fn token_position(sentence: &Sentence, suggestion: &Suggestion) -> usize {
+        let start = suggestion.span().char().start;
+        let before = sentence
+            .tokens()
+            .iter()
+            .take_while(|token| token.span().char().start < start)
+            .count();
+        before + usize::from(start > sentence.span().char().start)
+    }
+}
+
+fn overlaps(a: &Suggestion, b: &Suggestion) -> bool {
+    a.span().char().start <= b.span().char().end && a.span().char().end >= b.span().char().start
 }
 
 /// Correct a text by applying suggestions to it.

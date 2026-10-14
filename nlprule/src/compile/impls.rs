@@ -22,7 +22,7 @@ use crate::{
             Engine,
         },
         id::Category,
-        DisambiguationRule, Rule,
+        DisambiguationRule, Repetition, Rule,
     },
     rules::{Rules, RulesLangOptions},
     spell::{Spell, SpellInt, SpellLangOptions},
@@ -713,6 +713,30 @@ fn has_picky_tag(tags: Option<&str>) -> bool {
     tags.map_or(false, |tags| tags.split_whitespace().any(|x| x == "picky"))
 }
 
+const DEFAULT_REPETITION_DISTANCE_TOKENS: usize = 60;
+
+fn repetition(
+    min_prev_matches: Option<&str>,
+    distance_tokens: Option<&str>,
+) -> Result<Option<Repetition>, std::num::ParseIntError> {
+    let parse = |value: Option<&str>| value.map_or(Ok(0), |x| x.trim().parse::<usize>());
+
+    let min_prev_matches = parse(min_prev_matches)?;
+    if min_prev_matches == 0 {
+        return Ok(None);
+    }
+
+    let distance_tokens = match parse(distance_tokens)? {
+        0 => DEFAULT_REPETITION_DISTANCE_TOKENS * min_prev_matches,
+        x => x,
+    };
+
+    Ok(Some(Repetition {
+        min_prev_matches,
+        distance_tokens,
+    }))
+}
+
 fn rules_from_xml<P: AsRef<Path>>(
     path: P,
     build_info: &mut BuildInfo,
@@ -739,25 +763,24 @@ fn rules_from_xml<P: AsRef<Path>>(
                     .join(0)
                 };
 
-                // LanguageTool's repetition experiment (`min_prev_matches` /
-                // `distance_tokens`) needs cross-match state, so reject it
-                // explicitly instead of compiling a rule that ignores the
-                // constraint.
-                if rule_structure.min_prev_matches.is_some()
-                    || rule_structure.distance_tokens.is_some()
-                    || group.as_ref().map_or(false, |g| {
-                        g.min_prev_matches.is_some() || g.distance_tokens.is_some()
-                    })
-                {
-                    *errors
-                        .entry(
-                            "[Rule] feature not implemented: repetition attributes \
-                             (min_prev_matches / distance_tokens) are not implemented."
-                                .into(),
-                        )
-                        .or_insert(0) += 1;
-                    return None;
-                }
+                let repetition = match repetition(
+                    rule_structure
+                        .min_prev_matches
+                        .as_deref()
+                        .or_else(|| group.as_ref().and_then(|g| g.min_prev_matches.as_deref())),
+                    rule_structure
+                        .distance_tokens
+                        .as_deref()
+                        .or_else(|| group.as_ref().and_then(|g| g.distance_tokens.as_deref())),
+                ) {
+                    Ok(repetition) => repetition,
+                    Err(x) => {
+                        *errors
+                            .entry(format!("[Rule] repetition attribute: {}", x))
+                            .or_insert(0) += 1;
+                        return None;
+                    }
+                };
 
                 let rule_on = match rule_structure.default.as_deref() {
                     Some("off") | Some("temp_off") => false,
@@ -805,6 +828,7 @@ fn rules_from_xml<P: AsRef<Path>>(
                             rule.category_name = category.name;
                             rule.category_type = category.kind;
                             rule.enabled = category_on && group_on && rule_on && !picky;
+                            rule.repetition = repetition;
                             Some(rule)
                         } else {
                             None
