@@ -300,6 +300,12 @@ mod tests {
         checker.set_mother_tongue(Some("de-DE".to_string()));
         assert_eq!(false_friends(&checker).len(), 2);
 
+        checker.set_mother_tongue(Some("xx".to_string()));
+        assert!(false_friends(&checker).is_empty());
+
+        checker.set_mother_tongue(Some("DE".to_string()));
+        assert_eq!(false_friends(&checker).len(), 2);
+
         checker.set_mother_tongue(None);
         assert!(false_friends(&checker).is_empty());
     }

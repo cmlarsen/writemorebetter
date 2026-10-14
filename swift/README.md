@@ -107,8 +107,9 @@ before `scripts/build-xcframework.sh` ran keeps the released-URL branch until `s
 `swift/Tests/WriteMoreBetterTests` loads the LT 6.6 binaries from `storage/66/` (the repository's
 per-rule-set storage convention; override with `WMB_DATA_DIR`), checks a sentence with a known error,
 asserts UTF-16 offsets on text that mixes an emoji, curly quotes, an em dash, a combining mark and
-U+2028, flags a German false friend only after `setMotherTongue`, edits the user dictionary from one thread while four others check and list it, and calls
-`check` concurrently from eight threads. Run them with:
+U+2028, flags a German false friend only after `setMotherTongue`, edits the user dictionary from one
+thread while four others check and list it, and calls `check` concurrently from eight threads. Run them
+with:
 
 ```sh
 cargo run --release --all-features --bin compile -- \
