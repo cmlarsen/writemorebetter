@@ -49,6 +49,18 @@ Matching rules (see `Spell::add_words` in `nlprule/src/spell/mod.rs`):
   apostrophe (`"Zar'khan"`).
 - Single-word entries are also spelling-suggestion candidates, so a near miss can suggest them.
 
+### Mother tongue
+
+Writers whose first language is not English can opt in to the false-friend rules for speakers of
+their language, compiled from LanguageTool's `false-friends.xml`. They are off until a mother
+tongue is selected, and only that language's rules run.
+
+```js
+JSON.parse(checker.motherTongues()); // -> ["ca", "de", "es", "fr", "ga", "gl", "it", ...]
+checker.setMotherTongue("de");       // flags e.g. "actual" for German speakers
+checker.setMotherTongue(undefined);  // back to the default: no false-friend rules
+```
+
 Run `node wasm/test.mjs` after building `wasm/pkg` to exercise the API.
 
 The two byte buffers are consumed by the constructor: wasm-bindgen copies them into wasm linear
