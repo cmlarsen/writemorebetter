@@ -1864,6 +1864,64 @@ mod tests {
         }
     }
 
+    const DISAMBIGUATION_ANTIPATTERN_CASE: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
+<rules lang="en">
+  <rulegroup id="D_CASE_GROUP" name="d">
+    <antipattern case_sensitive="yes"><token>Kkk</token><token>Lll</token></antipattern>
+    <rule>
+      <pattern><token>kkk</token></pattern>
+      <disambig action="replace"><wd lemma="zz" pos="ZZ"/></disambig>
+    </rule>
+    <rule>
+      <pattern><token>mmm</token></pattern>
+      <disambig action="replace"><wd lemma="zz" pos="ZZ"/></disambig>
+    </rule>
+  </rulegroup>
+  <rule id="D_CASE" name="d">
+    <antipattern case_sensitive="yes"><token>Nnn</token></antipattern>
+    <pattern><token>ppp</token></pattern>
+    <disambig action="replace"><wd lemma="zz" pos="ZZ"/></disambig>
+  </rule>
+  <rule id="D_CASE_RESET" name="d">
+    <antipattern case_sensitive="yes"><token>Nnn</token></antipattern>
+    <antipattern><token>qqq</token></antipattern>
+    <pattern><token>sss</token></pattern>
+    <disambig action="replace"><wd lemma="zz" pos="ZZ"/></disambig>
+  </rule>
+</rules>
+"#;
+
+    #[test]
+    fn case_sensitive_disambiguation_antipattern_makes_the_pattern_case_sensitive() {
+        let (tokenizer, rules, pool) = disambiguation_rules(DISAMBIGUATION_ANTIPATTERN_CASE);
+        for (text, expected) in [
+            (
+                "Then kkk mmm ppp sss.",
+                vec!["D_CASE_GROUP/0", "D_CASE_GROUP/1", "D_CASE", "D_CASE_RESET"],
+            ),
+            (
+                "Then Kkk Mmm Ppp Sss.",
+                vec!["D_CASE_GROUP/1", "D_CASE_RESET"],
+            ),
+            (
+                "THEN KKK MMM PPP SSS.",
+                vec!["D_CASE_GROUP/1", "D_CASE_RESET"],
+            ),
+            (
+                "\u{201c}Kkk\u{2014}mmm\u{2026}\u{201d} ppp\u{2019}s Sss.",
+                vec!["D_CASE_GROUP/1", "D_CASE", "D_CASE_RESET"],
+            ),
+            ("She left.\u{2028}Ppp sss.", vec!["D_CASE_RESET"]),
+        ] {
+            assert_eq!(
+                disambiguated(&tokenizer, &rules, &pool, text),
+                expected,
+                "{:?}",
+                text
+            );
+        }
+    }
+
     #[test]
     fn multiword_casing_variants_follow_the_chunker() {
         let options = TokenizerLangOptions {

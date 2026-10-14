@@ -666,6 +666,19 @@ pub struct DisambiguationRule {
     pub default: Option<String>,
 }
 
+impl DisambiguationRule {
+    fn inherit_antipattern_case(&mut self, preceding: Option<&[Pattern]>) {
+        let last = self
+            .antipatterns
+            .as_deref()
+            .and_then(<[_]>::last)
+            .or_else(|| preceding.and_then(<[_]>::last));
+        if last.is_some_and(|pattern| pattern.case_sensitive.as_deref() == Some("yes")) {
+            self.pattern.case_sensitive = Some("yes".to_owned());
+        }
+    }
+}
+
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct DisambiguationRuleGroup {
@@ -840,10 +853,15 @@ pub fn read_disambiguation_rules<P: AsRef<std::path::Path>>(
 
             out.extend(match deseralized {
                 Ok(rule_container) => match rule_container {
-                    DisambiguationRuleContainer::Rule(rule) => {
+                    DisambiguationRuleContainer::Rule(mut rule) => {
+                        rule.inherit_antipattern_case(None);
                         vec![Ok((rule, None, category))]
                     }
-                    DisambiguationRuleContainer::RuleGroup(rule_group) => {
+                    DisambiguationRuleContainer::RuleGroup(mut rule_group) => {
+                        for (i, rule) in rule_group.rules.iter_mut().enumerate() {
+                            let preceding = rule_group.antipatterns.as_deref().filter(|_| i == 0);
+                            rule.inherit_antipattern_case(preceding);
+                        }
                         flatten_group!(rule_group, category, None, None, None)
                             .into_iter()
                             .map(Ok)

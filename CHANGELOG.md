@@ -60,6 +60,11 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   Disambiguation rules keep dropping blocked matches rather than immunizing tokens as grammar
   rules do, which is what 6.6's `DisambiguationPatternRuleReplacer` does
   ([#170](https://github.com/cmlarsen/writemorebetter/issues/170)).
+- **A case-sensitive antipattern makes its disambiguation rule's pattern case-sensitive, as in
+  LanguageTool 6.6.** When the last antipattern before a disambiguation `<pattern>` has
+  `case_sensitive="yes"`, the pattern is compiled case-sensitive too, so `STATUS_QUO` tags only
+  lowercase `status quo`
+  ([#177](https://github.com/cmlarsen/writemorebetter/issues/177)).
 - **Spelling suggestions rank by edit distance, then frequency, as in LanguageTool 6.6.** A
   common word two edits away no longer outranks a rarer word one edit away, and only the
   candidates at the smallest edit distance found are suggested, so `Hecla` suggests `Hekla`
