@@ -2951,6 +2951,7 @@ fn raw_pos_rule_matches_pre_disambiguation_tags() {
             "The dog quickly look sfor the bone…",
             vec![(16..25, "looks for")],
         ),
+        ("This sound slike an error.", vec![(5..16, "sounds like")]),
         ("She’d never look sfor trouble—never.", vec![]),
         ("“This sound slike an error,” she said—quietly…", vec![]),
     ] {

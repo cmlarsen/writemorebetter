@@ -27,8 +27,9 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   sentence as tagged and chunked, before multiword tagging and disambiguation, which
   `Sentence::raw()` exposes. That adds `TYPOS/LOOK_SLIKE/0` (`look sfor` → `looks for`), which
   is off by default ([#130](https://github.com/cmlarsen/writemorebetter/issues/130)).
-  `Rules::suggest` keeps the raw tokens only while such a rule is enabled; `Tokenizer::pipe`
-  always keeps them. Rules binaries move to format version 17 (`Rule::raw_pos`); recompile them.
+  `Rules::suggest` keeps the raw tokens only while such a rule is enabled (a text-only
+  `raw_pos` rule such as `TYPOS/CONTRACTION_CASE/0` does not count); `Tokenizer::pipe` always
+  keeps them. Rules binaries move to format version 17 (`Rule::raw_pos`); recompile them.
 
 ### Fixed
 

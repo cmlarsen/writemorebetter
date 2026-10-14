@@ -191,6 +191,8 @@ impl Rules {
 
     /// Compute the suggestions for the given sentence by checking all rules.
     /// Builtin rules that look across sentences only see this sentence; use [Rules::suggest] for full context.
+    /// A rule with LanguageTool's `raw_pos` matches [Sentence::raw]; on a sentence that did not keep
+    /// it (one not from [Tokenizer::pipe]) such a rule matches the disambiguated tokens instead.
     pub fn apply(&self, sentence: &Sentence) -> Vec<Suggestion> {
         let builtin_suggestions = self.builtin_suggestions(std::slice::from_ref(sentence), None);
         self.apply_with(sentence, builtin_suggestions)

@@ -879,6 +879,74 @@ fn require_last_token_match(parts: &mut [Part]) {
     }
 }
 
+fn token_uses_readings(token: &structure::Token) -> bool {
+    token.postag.is_some()
+        || token.inflected.as_deref() == Some("yes")
+        || token.chunk.is_some()
+        || token.chunk_re.is_some()
+        || token.unify.is_some()
+        || token.parts.iter().flatten().any(|part| match part {
+            structure::TokenPart::Exception(exception) => {
+                exception.postag.is_some()
+                    || exception.inflected.as_deref() == Some("yes")
+                    || exception.chunk.is_some()
+                    || exception.chunk_re.is_some()
+            }
+            structure::TokenPart::Sub(sub) => sub.postag.is_some(),
+            structure::TokenPart::Text(_) => false,
+        })
+}
+
+fn pattern_uses_readings(pattern: &structure::Pattern) -> bool {
+    pattern.parts.iter().any(|part| match part {
+        structure::PatternPart::Token(token) => token_uses_readings(token),
+        structure::PatternPart::Marker(marker) => {
+            marker.tokens.iter().any(|combination| match combination {
+                structure::TokenCombination::Token(token) => token_uses_readings(token),
+                structure::TokenCombination::Or(tokens)
+                | structure::TokenCombination::And(tokens) => {
+                    tokens.tokens.iter().any(token_uses_readings)
+                }
+                structure::TokenCombination::Feature(_) => true,
+            })
+        }
+        structure::PatternPart::Or(tokens) | structure::PatternPart::And(tokens) => {
+            tokens.tokens.iter().any(token_uses_readings)
+        }
+        structure::PatternPart::Feature(_) => true,
+        structure::PatternPart::Example(_) | structure::PatternPart::Phraseref(_) => false,
+    })
+}
+
+fn rule_reads_readings_outside_pattern(rule: &structure::Rule) -> bool {
+    let synthesizes = |m: &structure::Match| m.postag.is_some();
+    let suggestion_synthesizes = |suggestion: &structure::Suggestion| {
+        suggestion.parts.iter().any(|part| match part {
+            structure::SuggestionPart::Match(m) => synthesizes(m),
+            structure::SuggestionPart::Text(_) => false,
+        })
+    };
+
+    rule.filter.is_some()
+        || rule.message.parts.iter().any(|part| match part {
+            structure::MessagePart::Suggestion(suggestion) => suggestion_synthesizes(suggestion),
+            structure::MessagePart::Match(m) => synthesizes(m),
+            structure::MessagePart::Text(_) => false,
+        })
+        || rule
+            .suggestions
+            .iter()
+            .flatten()
+            .any(suggestion_synthesizes)
+}
+
+fn reads_raw_readings(rule: &structure::Rule) -> bool {
+    rule.pattern.as_ref().is_some_and(|pattern| {
+        pattern.raw_pos.as_deref() == Some("yes")
+            && (pattern_uses_readings(pattern) || rule_reads_readings_outside_pattern(rule))
+    })
+}
+
 fn parse_pattern(
     pattern: structure::Pattern,
     info: &mut BuildInfo,
@@ -1014,10 +1082,7 @@ impl Rule {
     ) -> Result<Rule, Error> {
         let is_regex_rule = data.regex.is_some();
 
-        let raw_pos = data
-            .pattern
-            .as_ref()
-            .is_some_and(|pattern| pattern.raw_pos.as_deref() == Some("yes"));
+        let raw_pos = reads_raw_readings(&data);
 
         let (engine, start, end) = match (&data.pattern, data.regex) {
             (Some(_), Some(_)) => Err(Error::Unexpected(
@@ -1956,6 +2021,57 @@ mod tests {
             ),
             vec![vec![], vec![], vec![], vec![false]]
         );
+    }
+
+    fn rule(xml: &str) -> structure::Rule {
+        serde_xml_rs::from_str(&xml.replace(
+            "</rule>",
+            r#"<example><text text="“Maybe "/><marker><text text="I’Ve"/></marker><text text=" seen it…”"/></example></rule>"#,
+        ))
+        .unwrap()
+    }
+
+    #[test]
+    fn raw_pos_applies_only_to_rules_that_read_readings() {
+        let text_only = r#"<pattern case_sensitive="yes" raw_pos="yes"><token><text text="“I"/></token><token spacebefore="no"><text text="’"/></token><token><text text="Ve…"/></token></pattern>"#;
+        let message = r#"<message><text text="Use "/><suggestion><match no="3" case_conversion="alllower"/></suggestion><text text="—check it."/></message>"#;
+
+        assert!(!reads_raw_readings(&rule(&format!(
+            "<rule>{}{}</rule>",
+            text_only, message
+        ))));
+        assert!(!reads_raw_readings(&rule(&format!(
+            "<rule>{}{}</rule>",
+            r#"<pattern><token postag="VB"><text text="—"/></token></pattern>"#, message
+        ))));
+
+        for pattern in [
+            r#"<pattern raw_pos="yes"><token postag="VB"><text text="—"/></token></pattern>"#,
+            r#"<pattern raw_pos="yes"><token inflected="yes"><text text="it’s"/></token></pattern>"#,
+            r#"<pattern raw_pos="yes"><token chunk_re="B-NP"><text text="…"/></token></pattern>"#,
+            r#"<pattern raw_pos="yes"><token><text text="“I"/><exception postag="PRP"/></token></pattern>"#,
+            r#"<pattern raw_pos="yes"><or><token><text text="’"/></token><token postag="POS"><text text="'"/></token></or></pattern>"#,
+            "<pattern raw_pos=\"yes\"><marker><token chunk=\"I-VP\"><text text=\"\u{2028}\"/></token></marker></pattern>",
+        ] {
+            assert!(
+                reads_raw_readings(&rule(&format!("<rule>{}{}</rule>", pattern, message))),
+                "{}",
+                pattern
+            );
+        }
+
+        for tail in [
+            r#"<message><text text="Use "/><suggestion><match no="3" postag="VBP"/></suggestion><text text="—check it."/></message>"#,
+            r#"<message><text text="Is "/><match no="1" postag="PRP"/><text text=" right…"/></message>"#,
+            r#"<message><text text="Check it."/></message><suggestion><match no="3" postag="VBP"/></suggestion>"#,
+            r#"<message><text text="Check it."/></message><filter class="org.languagetool.rules.en.AdverbFilter" args="adverb:1"/>"#,
+        ] {
+            assert!(
+                reads_raw_readings(&rule(&format!("<rule>{}{}</rule>", text_only, tail))),
+                "{}",
+                tail
+            );
+        }
     }
 
     #[test]

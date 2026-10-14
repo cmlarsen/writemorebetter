@@ -631,7 +631,10 @@ pub struct Rule {
     /// rule.
     pub(crate) uses_articles: bool,
     /// LanguageTool's `<pattern raw_pos="yes">`: the rule matches the sentence as tagged and
-    /// chunked, before multiword tagging and disambiguation ([Sentence::raw]).
+    /// chunked, before multiword tagging and disambiguation ([Sentence::raw]). False for a
+    /// `raw_pos` rule that reads no POS tags, lemmas, chunks or filter, since it matches the
+    /// same either way and should not make [Rules::suggest][crate::Rules::suggest] keep the
+    /// raw tokens.
     pub(crate) raw_pos: bool,
     pub(crate) enabled: bool,
 }
