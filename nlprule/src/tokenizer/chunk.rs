@@ -562,8 +562,7 @@ impl MaxentTokenizer {
         for pre_token in text.split_whitespace() {
             let byte_offset = pre_token.as_ptr() as usize - text.as_ptr() as usize;
             let char_start = char_indices
-                .iter()
-                .position(|(i, _)| *i == byte_offset)
+                .binary_search_by_key(&byte_offset, |(i, _)| *i)
                 .unwrap();
             let byte_start = char_indices[char_start].0;
 
@@ -1126,19 +1125,19 @@ impl Chunker {
                 (*chunk, char_start..char_end)
             })
             .collect();
-        let has_nns = |char_span: &Range<usize>| {
-            sentence
-                .iter()
-                .find(|token| *token.span().char() == *char_span)
-                .map(|token| {
+        let mut token_nns: DefaultHashMap<Range<usize>, bool> = DefaultHashMap::default();
+        for token in sentence.iter() {
+            token_nns
+                .entry(token.span().char().clone())
+                .or_insert_with(|| {
                     token
                         .word()
                         .tags()
                         .iter()
                         .any(|tag| tag.pos().as_str() == "NNS")
-                })
-                .unwrap_or(false)
-        };
+                });
+        }
+        let has_nns = |char_span: &Range<usize>| token_nns.get(char_span).copied().unwrap_or(false);
 
         let mut chunks = Vec::new();
         let mut number = "singular";
@@ -1177,11 +1176,14 @@ impl Chunker {
         }
 
         // chunks with exactly the same char span as the input tokens get assigned to the token to match LT
+        let mut chunk_by_span: DefaultHashMap<&Range<usize>, &Vec<String>> =
+            DefaultHashMap::default();
+        for (chunk, (_, char_span)) in chunks.iter().zip(internal_chunks.iter()) {
+            chunk_by_span.insert(char_span, chunk);
+        }
         for token in sentence.iter_mut() {
-            for (chunk, (_, char_span)) in chunks.iter().zip(internal_chunks.iter()) {
-                if char_span == token.span().char() {
-                    *token.chunks_mut() = (*chunk).clone();
-                }
+            if let Some(chunk) = chunk_by_span.get(token.span().char()) {
+                *token.chunks_mut() = (*chunk).clone();
             }
         }
     }
