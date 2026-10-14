@@ -83,6 +83,8 @@ impl Profile {
                 "GRAMMAR/YOU_GOOD",
                 // Stylistic redundancy advice, e.g. some of the -> some (not errors).
                 "REDUNDANCY",
+                // Repeated "Thank you for" in nearby sentences; dialogue repeats it on purpose.
+                "REPETITIONS_STYLE/REP_THANK_YOU_FOR",
                 // Indentation with spaces at the start of a paragraph or line, which
                 // LanguageTool flags after a sentence end or a CRLF (403 on moby150k).
                 "BUILTIN/WHITESPACE_RULE/INDENTATION",

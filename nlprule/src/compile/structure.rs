@@ -554,8 +554,8 @@ pub struct Rule {
     /// The value may be a space separated list.
     pub tags: Option<String>,
     /// LanguageTool's repetition experiment: fire only after `min_prev_matches`
-    /// earlier matches within `distance_tokens` tokens. Requires cross-match
-    /// state, so it is rejected explicitly.
+    /// earlier matches within `distance_tokens` tokens. The state spans one
+    /// [`Rules::suggest`](crate::Rules::suggest) call.
     pub min_prev_matches: Option<String>,
     pub distance_tokens: Option<String>,
     pub filter: Option<Filter>,

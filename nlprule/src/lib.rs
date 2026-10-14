@@ -191,7 +191,8 @@ pub const TOKENIZER_FORMAT_VERSION: u32 = 16;
 /// builtins were added.
 /// Version 24: `PosReplacer::spell_number` was added (`<match postag="_spell_number_"/>`).
 /// Version 25: `MatcherKind::AffixedGraph` was added, as in tokenizer version 16.
-pub const RULES_FORMAT_VERSION: u32 = 25;
+/// Version 26: `Rule::repetition` was added.
+pub const RULES_FORMAT_VERSION: u32 = 26;
 
 /// The longest engine version string accepted in a binary header.
 const MAX_ENGINE_VERSION_LEN: usize = 256;
