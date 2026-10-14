@@ -755,9 +755,15 @@ impl<'t> MatchGraph<'t> {
 pub struct Part {
     pub atom: Atom,
     pub quantifier: Quantifier,
-    pub greedy: bool,
     pub visible: bool,
     pub unify: Option<bool>,
+    pub next_exception: Option<Box<NextExceptions>>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct NextExceptions {
+    pub all: Atom,
+    pub first: Atom,
 }
 
 struct Immunity<'a> {
@@ -894,7 +900,7 @@ pub struct Composition {
     /// `GraphId(k) -> group index`, as a `Vec` indexed by `k` (`u32::MAX` = absent). See
     /// [`GraphIndex`] for why this is not a map.
     pub(crate) id_to_idx: Vec<u32>,
-    pub(crate) can_stop_mask: Vec<bool>,
+    pub(crate) optional_count: u32,
     /// Literal token texts such that a match of this composition can only *start* at a token
     /// whose text is one of them. `None` when the first part is not a required literal (a regex,
     /// a POS constraint, an optional token, …). The matcher uses this to skip the whole position
@@ -979,121 +985,206 @@ impl Atom {
 }
 
 impl Composition {
-    fn next_can_match(
+    fn element_after(&self, pool: &PartPool, index: usize) -> (Option<usize>, usize) {
+        match self.parts.get(index + 1) {
+            Some(id) if !pool.get(*id).visible => (Some(index + 1), index + 2),
+            _ => (None, index + 1),
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn test_after(
         &self,
         pool: &PartPool,
         context: Context,
-        position: usize,
         index: usize,
+        position: usize,
+        prev: Option<usize>,
+        prev_skip: i64,
         immune: Option<&[bool]>,
+        excepted: &mut bool,
     ) -> bool {
-        let next_required_pos = match self.parts[index + 1..]
-            .iter()
-            .position(|x| pool.get(*x).quantifier.min > 0)
-        {
-            Some(pos) => index + 1 + pos + 1,
-            None => self.parts.len(),
-        };
-
-        self.parts[index + 1..next_required_pos].iter().any(|x| {
-            let part = pool.get(*x);
-            part.admits(position, immune) && part.atom.is_match(context, position)
-        })
+        let part = pool.get(self.parts[index]);
+        if !part.admits(position, immune) {
+            return false;
+        }
+        if !*excepted && prev_skip > 0 {
+            *excepted = prev
+                .and_then(|prev| pool.get(self.parts[prev]).next_exception.as_ref())
+                .is_some_and(|exception| exception.all.is_match(context, position));
+        }
+        if !*excepted && prev_skip == 0 && position + 1 < context.0.len() {
+            *excepted = part
+                .next_exception
+                .as_ref()
+                .is_some_and(|exception| exception.first.is_match(context, position + 1));
+        }
+        !*excepted && part.atom.is_match(context, position)
     }
 
-    fn apply_recursive<'t>(
+    #[allow(clippy::too_many_arguments)]
+    fn next_element_matches(
+        &self,
+        pool: &PartPool,
+        context: Context,
+        current: usize,
+        position: usize,
+        prev_skip: i64,
+        immune: Option<&[bool]>,
+        excepted: &mut bool,
+    ) -> bool {
+        let mut index = self.element_after(pool, current).1;
+        while index < self.parts.len() {
+            if self.test_after(
+                pool,
+                context,
+                index,
+                position,
+                Some(current),
+                prev_skip,
+                immune,
+                excepted,
+            ) {
+                return true;
+            }
+            if pool.get(self.parts[index]).quantifier.min > 0 {
+                return false;
+            }
+            index = self.element_after(pool, index).1;
+        }
+        false
+    }
+
+    fn match_elements<'t>(
         &'t self,
         pool: &'t PartPool,
         sentence: &'t MatchSentence,
-        mut position: usize,
-        mut cur_atom_idx: usize,
+        start: usize,
         mut graph: MatchGraph<'t>,
         immunity: &mut Immunity,
     ) -> Option<(MatchGraph<'t>, usize)> {
-        let mut cur_count = 0u32;
-        let is_match = loop {
-            if cur_atom_idx >= self.parts.len() {
-                break true;
+        let len = sentence.len() as i64;
+        let pattern_size = (self.id_to_idx.len() - 1) as i64;
+        let min_occur_correction = self.optional_count as i64;
+
+        let mut next_pos = start as i64;
+        let mut prev_skip = 0i64;
+        let mut prev_element: Option<usize> = None;
+        let mut prev_present_skip: Option<usize> = None;
+        let mut index = 0;
+        let mut k = 0i64;
+
+        while index < self.parts.len() {
+            let part = pool.get(self.parts[index]);
+            let (skip_index, next_index) = self.element_after(pool, index);
+
+            if prev_skip + next_pos >= len || prev_skip < 0 {
+                prev_skip = len - (next_pos + 1);
             }
+            let max_tok =
+                (next_pos + prev_skip).min(len - (pattern_size - k) + min_occur_correction);
 
-            let part = pool.get(self.parts[cur_atom_idx]);
-
-            if cur_count >= part.quantifier.max {
-                cur_atom_idx += 1;
-                cur_count = 0;
-                if cur_atom_idx >= self.parts.len() {
-                    break false;
-                }
-                continue;
-            }
-
-            if position >= sentence.len() {
-                break false;
-            }
-
-            if cur_count >= part.quantifier.min && cur_atom_idx + 1 < self.parts.len() {
-                if !part.greedy
-                    && self.next_can_match(
+            let mut found = None;
+            let mut excepted = false;
+            let mut m = next_pos;
+            while m <= max_tok {
+                let position = m as usize;
+                let matched = self.test_after(
+                    pool,
+                    (sentence, &graph),
+                    index,
+                    position,
+                    prev_element,
+                    prev_skip,
+                    immunity.immune,
+                    &mut excepted,
+                );
+                if part.quantifier.min == 0
+                    && self.next_element_matches(
                         pool,
                         (sentence, &graph),
+                        index,
                         position,
-                        cur_atom_idx,
+                        prev_skip,
                         immunity.immune,
+                        &mut excepted,
                     )
                 {
                     immunity.stopped = true;
-                    cur_atom_idx += 1;
-                    cur_count = 0;
-                    continue;
+                    break;
                 }
-                if part.greedy {
-                    if let Some(result) = self.apply_recursive(
+                if matched {
+                    immunity.stopped |= part.quantifier.min == 0 || m < max_tok;
+                    found = Some(position);
+                    break;
+                }
+                if excepted {
+                    return None;
+                }
+                m += 1;
+            }
+
+            if m > max_tok {
+                return None;
+            }
+
+            if let Some(first) = found {
+                let remaining = pattern_size - k - 1;
+                let mut last = first;
+                let mut count = 1;
+                while count < part.quantifier.max
+                    && (last as i64 + 1) < len - remaining
+                    && self.test_after(
                         pool,
-                        sentence,
-                        position,
-                        cur_atom_idx + 1,
-                        graph.clone(),
-                        immunity,
-                    ) {
-                        return Some(result);
+                        (sentence, &graph),
+                        index,
+                        last + 1,
+                        prev_element,
+                        prev_skip,
+                        immunity.immune,
+                        &mut excepted,
+                    )
+                {
+                    last += 1;
+                    count += 1;
+                }
+                if count < part.quantifier.min {
+                    return None;
+                }
+                immunity.stopped |= count > 1;
+
+                if first as i64 > next_pos {
+                    if let Some(skip) = prev_present_skip {
+                        let group = &mut graph.groups[skip + 1];
+                        group
+                            .span
+                            .set_start(sentence.index(next_pos as usize).span().start());
+                        group.span.set_end(sentence.index(first - 1).span().end());
                     }
                 }
+                let group = &mut graph.groups[index + 1];
+                group.span.set_start(sentence.index(first).span().start());
+                group.span.set_end(sentence.index(last).span().end());
+
+                prev_skip = skip_index.map_or(0, |skip| {
+                    let max = pool.get(self.parts[skip]).quantifier.max;
+                    if max == u32::MAX {
+                        -1
+                    } else {
+                        max as i64
+                    }
+                });
+                prev_present_skip = skip_index;
+                next_pos = last as i64 + 1;
             }
 
-            if part.admits(position, immunity.immune)
-                && part.atom.is_match((sentence, &graph), position)
-            {
-                let group = &mut graph.groups[cur_atom_idx + 1];
-
-                // set the group beginning if the char end was zero (i. e. the group was empty)
-                if group.span.char().end == 0 {
-                    group
-                        .span
-                        .set_start(sentence.index(position).span().start());
-                }
-                group.span.set_end(sentence.index(position).span().end());
-
-                position += 1;
-                cur_count += 1;
-            } else {
-                break false;
-            }
-        };
-
-        // edge case if the last atom is quantified and the minimum has been exceeded
-        // TODO to avoid further such undetected edge cases: revisit the entire composition logic
-        if cur_atom_idx < self.parts.len()
-            && cur_count >= pool.get(self.parts[cur_atom_idx]).quantifier.min
-        {
-            cur_atom_idx += 1;
+            prev_element = Some(index);
+            index = next_index;
+            k += 1;
         }
 
-        if is_match || cur_atom_idx == self.parts.len() || self.can_stop_mask[cur_atom_idx] {
-            graph.fill_empty(sentence);
-            Some((graph, position))
-        } else {
-            None
-        }
+        graph.fill_empty(sentence);
+        Some((graph, next_pos as usize))
     }
 
     pub fn apply<'t>(
@@ -1144,7 +1235,7 @@ impl Composition {
             immune,
             stopped: false,
         };
-        self.apply_recursive(pool, sentence, position, 0, graph, &mut immunity)
+        self.match_elements(pool, sentence, position, graph, &mut immunity)
     }
 
     pub(crate) fn may_match_immunized(
@@ -1161,7 +1252,7 @@ impl Composition {
             immune: None,
             stopped: false,
         };
-        self.apply_recursive(pool, sentence, start, 0, graph, &mut immunity)
+        self.match_elements(pool, sentence, start, graph, &mut immunity)
             .is_some()
             || immunity.stopped
     }

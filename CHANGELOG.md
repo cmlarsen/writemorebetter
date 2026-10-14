@@ -10,6 +10,17 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
 ### Added
 
+- **Repetition style rules (`min_prev_matches` / `distance_tokens`).** Rules from LanguageTool
+  6.6 that fire only when a phrase recurs nearby now compile and run: the seven
+  `REPETITIONS_STYLE/REP_PASSIVE_VOICE` rules (a fifth passive within 80 tokens of four earlier
+  ones; `picky`, so off by default) and `REPETITIONS_STYLE/REP_THANK_YOU_FOR/0` (a second
+  "Thank you for" within 60 tokens; on by default)
+  ([#73](https://github.com/cmlarsen/writemorebetter/issues/73)). As in LanguageTool, every match
+  counts as a previous one whether or not it was reported, distance is measured in tokens across
+  sentence and paragraph boundaries, and the count starts from zero on every `Rules::suggest`
+  call, so an app that checks text incrementally sees repetitions only within the text it passes
+  (`Rules::apply` sees only its one sentence). The fiction profile turns `REP_THANK_YOU_FOR` off,
+  since dialogue repeats it on purpose. The rules binary format version is now 26.
 - **The Swift binding exposes the mother tongue.** `Checker.setMotherTongue(motherTongue:)` and
   `Checker.motherTongues()` mirror the wasm `setMotherTongue` / `motherTongues`, so Swift apps
   can opt in to the false-friend rules ([#138](https://github.com/cmlarsen/writemorebetter/issues/138)).
@@ -24,6 +35,20 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   a paragraph or line, which LanguageTool flags whenever the previous paragraph ends a sentence.
   A profile selector can now name a builtin case, as in `BUILTIN/WHITESPACE_RULE/INDENTATION`. The
   rules binary format version is now 23.
+- **Sentence- and paragraph-level style rules from LanguageTool 6.6** run as builtins
+  ([#82](https://github.com/cmlarsen/writemorebetter/issues/82)), with LanguageTool's IDs,
+  messages, thresholds and spans:
+  - `ENGLISH_WORD_REPEAT_BEGINNING_RULE` flags the third of three sentences that begin with the
+    same word, or the second of two that begin with the same adverb (`Moreover`, `Indeed`, ...),
+    across paragraphs. It is on by default, as in LanguageTool, and the `fiction` profile
+    disables it.
+  - `TOO_LONG_SENTENCE` (over 40 words) and `TOO_LONG_PARAGRAPH` (over 225 words) are off by
+    default, because LanguageTool tags them picky; `Rules::builtins_mut` enables them. Like
+    LanguageTool, they give way to any other match that overlaps them.
+
+  Builtins now see the last two sentences before a paragraph and whether the paragraph ends the
+  text (`Builtin::check_paragraph`, which replaces `Builtin::check_text_with_previous`). The rules
+  binary format version is now 27.
 - **The speller-backed rule filters are ported, so nine more rules run.** `FindSuggestionsFilter`
   (`PRP_MD_NN` [5] and [6], `A_INFINITIVE` [0] and [1]), `EnglishSuppressMisspelledSuggestionsFilter`
   (`EN_SPLIT_WORDS_HYPHEN` [0]–[3]) and `EnglishNumberInWordFilter` (`NUMBERS_IN_WORDS`) now
@@ -75,6 +100,37 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
 ### Fixed
 
+- **Token patterns match like LanguageTool 6.6, without backtracking.** An optional token
+  (`min="0"`) is skipped whenever the pattern token after it matches the same word, a `skip`
+  window comes from the last token that matched, and a repeated token takes as many words as it
+  can ([#160](https://github.com/cmlarsen/writemorebetter/issues/160)). `COMMA_COMPOUND_SENTENCE`
+  now flags "They've acted irresponsibly and immorally and it has to stop.", and
+  `DO_XX_MD_VB` no longer flags "Would that I could".
+
+- **An absent optional token no longer applies its own `skip`.** The words in a `skip` window
+  are checked against the `scope="next"` exceptions of the pattern token before them, whether
+  or not that token matched, as in LanguageTool 6.6
+  ([#161](https://github.com/cmlarsen/writemorebetter/issues/161)). The rules binary format
+  version is now 28 and the tokenizer binary format version is now 17.
+
+- **A `scope="next"` exception after an optional token depends on whether the token matched.**
+  The exception checks the next word's first reading only when the last token that matched has
+  no `skip`, decided per match instead of once when the rule is compiled
+  ([#151](https://github.com/cmlarsen/writemorebetter/issues/151)).
+
+- **Repeated tokens follow LanguageTool 6.6's `min` and `max`.** `min="2"` without `max`
+  matches exactly two words instead of up to 20, `max="-1"` has no limit instead of 20, and a
+  word an antipattern immunized no longer trips a `scope="next"` exception inside a `skip`
+  window ([#214](https://github.com/cmlarsen/writemorebetter/pull/214)).
+
+- **"best" before a preposition is tagged as a superlative adjective, as in LanguageTool 6.6.**
+  The English tokenizer config no longer skips the `BEST_JJS` disambiguation rule, a leftover
+  from upstream nlprule, so `PRP_MD_NN` now flags "It may best to add this" and suggests "may be
+  best" ([#221](https://github.com/cmlarsen/writemorebetter/issues/221)). Two disambiguation
+  actions now behave as in LanguageTool 6.6: `<disambig postag="…">` without an action leaves one
+  reading (the last one with that tag, so "best" becomes `well/JJS` rather than `good/JJS` and
+  `well/JJS`), and `<disambig action="remove">` with a `<wd>` that has only a lemma removes every
+  reading with that lemma, so "installed" no longer keeps `instal` readings.
 - **The apostrophe-style rules see a curly apostrophe, as in LanguageTool 6.6.** The opt-in
   `TYPEWRITER_APOSTROPHE` rule now flags `’s` in `actress’s` and suggests `'s` (a straight
   apostrophe in a suggestion is no longer made curly when that would repeat the flagged text),
@@ -171,7 +227,7 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   [#154](https://github.com/cmlarsen/writemorebetter/issues/154)). The tokenizer binary grows
   by 1.9 MB (2.0 MB gzipped), peak RSS by 1.3–1.9 MiB and the tokenizer's loaded heap by
   1.0 MiB. The loaded parameter tables no longer keep the up-to-2× spare capacity that
-  deserialization left them with. The tokenizer binary format version is now 17.
+  deserialization left them with. The tokenizer binary format version is now 18.
 - **`scope="next"` exceptions see the readings LanguageTool 6.6 sees.** A token's next-token
   exception now checks only the next token's first reading (`UNKNOWN` for an untagged word), and
   is ignored (text exceptions included) when the previous pattern token has a `skip`; on a

@@ -35,6 +35,12 @@ use self::{
 /// A *Unification* makes an otherwise matching pattern invalid if no combination of its filters
 /// matches all tokens marked with "unify".
 /// Can also be negated.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]
+pub(crate) struct Repetition {
+    pub(crate) min_prev_matches: usize,
+    pub(crate) distance_tokens: usize,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub(crate) struct Unification {
     pub(crate) mask: Vec<Option<bool>>,
@@ -636,6 +642,7 @@ pub struct Rule {
     /// same either way and should not make [Rules::suggest][crate::Rules::suggest] keep the
     /// raw tokens.
     pub(crate) raw_pos: bool,
+    pub(crate) repetition: Option<Repetition>,
     pub(crate) mother_tongue: Option<String>,
     pub(crate) enabled: bool,
 }
@@ -760,6 +767,10 @@ impl Rule {
 
     pub(crate) fn raw_pos(&self) -> bool {
         self.raw_pos
+    }
+
+    pub(crate) fn repetition(&self) -> Option<Repetition> {
+        self.repetition
     }
 
     fn match_sentence<'s, 't>(&self, sentence: &'s Sentence<'t>) -> &'s Sentence<'t> {

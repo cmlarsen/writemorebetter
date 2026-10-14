@@ -82,6 +82,9 @@ pub(crate) fn for_language(
             BuiltinRule::new(Builtin::MultipleWhitespace(MultipleWhitespace::new())),
             BuiltinRule::new(Builtin::SentenceWhitespace(SentenceWhitespace::new())),
             BuiltinRule::new_disabled(Builtin::EmptyLine(EmptyLine::new())),
+            BuiltinRule::new_disabled(Builtin::LongSentence(LongSentence::new())),
+            BuiltinRule::new_disabled(Builtin::LongParagraph(LongParagraph::new())),
+            BuiltinRule::new(Builtin::WordRepeatBeginning(WordRepeatBeginning::new())),
         ]),
         _ => Ok(Vec::new()),
     }
