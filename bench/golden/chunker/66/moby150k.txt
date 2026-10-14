@@ -22769,8 +22769,7 @@
 6	10		pose
 11	14	B-NP-singular,E-NP-singular	you
 15	18	B-VP	are
-20	24		goin
-24	27		’
+20	27	I-VP	goin'
 28	36		a-whalin
 36	39		’
 39	40	O	,
@@ -27366,8 +27365,7 @@
 136	141	B-VP	hears
 142	145	B-NP-singular,E-NP-singular	you
 146	147	B-NP-singular,E-NP-singular	a
-149	158		slanderin
-158	161		’
+149	161	B-PP	slanderin'
 162	165	B-NP-singular	his
 166	170	E-NP-singular	head
 170	171	O	.
@@ -28185,8 +28183,7 @@
 44	45	B-NP-singular,E-NP-singular	I
 46	50	B-VP	have
 51	55	I-VP	been
-56	62		tellin
-62	65		’
+56	65	I-VP	tellin'
 66	69	B-NP-singular,E-NP-singular	you
 70	72	B-ADVP	of
 73	76	B-VP	has
@@ -28250,8 +28247,7 @@
 325	327	I-VP	do
 328	330	I-VP	to
 331	333	I-VP	be
-334	340		sellin
-340	343		’
+334	343	I-VP	sellin'
 344	349	B-NP-plural	human
 350	355	E-NP-plural	heads
 356	361	B-PP	about
@@ -28260,8 +28256,7 @@
 374	378	B-PP	when
 379	384	B-NP-plural,E-NP-plural	folks
 385	387	B-VP	is
-389	393		goin
-393	396		’
+389	396	I-VP	goin'
 397	399	B-PP	to
 400	408	B-NP-plural,E-NP-plural	churches
 408	409	O	.
@@ -28320,8 +28315,7 @@
 50	52	B-SBAR	as
 54	56	B-NP-singular,E-NP-singular	he
 57	60	B-VP	was
-61	65		goin
-65	68		’
+61	68	I-VP	goin'
 69	72	B-ADVP	out
 73	75	B-PP	of
 76	79	B-NP-singular	the
@@ -33981,8 +33975,7 @@
 51	53	B-NP-singular,E-NP-singular	he
 54	57	B-VP	was
 58	59	B-NP-plural	a
-60	67		peddlin
-67	70		’
+60	70	I-NP-plural	peddlin'
 71	76	E-NP-plural	heads
 78	84	B-PP	around
 85	89	B-NP-singular,E-NP-singular	town

@@ -100,23 +100,23 @@ mod spell_int {
 
 pub(crate) use spell_int::SpellInt;
 
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 struct Candidate {
-    score: f32,
     distance: usize,
     freq: usize,
     term: String,
 }
-impl Eq for Candidate {}
 impl PartialOrd for Candidate {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        // higher score => lower order such that sorting puts highest scores first
-        other.score.partial_cmp(&self.score)
+        Some(self.cmp(other))
     }
 }
 impl Ord for Candidate {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.partial_cmp(other).expect("scores are never NaN")
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.distance
+            .cmp(&other.distance)
+            .then_with(|| other.freq.cmp(&self.freq))
+            .then_with(|| self.term.cmp(&other.term))
     }
 }
 
@@ -130,10 +130,9 @@ pub struct SpellOptions {
     pub max_distance: usize,
     /// A fixed prefix length for which to consider only edits with a distance of 1. This speeds up the search by pruning the tree early.
     pub prefix_length: usize,
-    /// How high to weigh the frequency of a word compared to the edit distance when ranking correction candidates.
-    /// Setting this to `x` makes the frequency make a difference of at most `x` edit distance.
-    pub freq_weight: f32,
-    /// The maximum number of correction candidates to return.
+    /// The maximum number of correction candidates to return. Candidates are ranked by edit
+    /// distance, then by word frequency, and only those at the smallest distance found are kept,
+    /// unless the best candidate differs from the word only in case.
     pub top_n: usize,
     /// A set of words to ignore. Can also contain phrases delimited by a space.
     #[serde(serialize_with = "crate::types::sorted::set")]
@@ -185,7 +184,6 @@ impl Default for SpellOptions {
             variant: None,
             max_distance: 2,
             prefix_length: 2,
-            freq_weight: 2.,
             top_n: 10,
             whitelist: DefaultHashSet::default(),
         }
@@ -434,7 +432,6 @@ fn recase(term: String, all_caps: bool) -> String {
 pub(crate) struct VariantChecker {
     variant: Variant,
     variant_index: usize,
-    max_freq: usize,
     multiwords: DefaultHashMap<String, Vec<Vec<String>>>,
     map: DefaultHashMap<String, String>,
     lang_options: SpellLangOptions,
@@ -564,8 +561,12 @@ impl VariantChecker {
 
         let all_caps = is_all_caps(word);
         let convert_case = all_caps || is_title_case(word);
-        let query = levenshtein::Levenshtein::new(word, self.options.max_distance, 2)
-            .fold_case(word.chars().any(char::is_uppercase));
+        let query = levenshtein::Levenshtein::new(
+            word,
+            self.options.max_distance,
+            self.options.prefix_length,
+        )
+        .fold_case(word.chars().any(char::is_uppercase));
         let restore_case = |term: String| {
             if convert_case {
                 recase(term, all_caps)
@@ -583,7 +584,15 @@ impl VariantChecker {
             self.push_candidates(&mut out, &user_map, &query, &restore_case);
         }
 
-        out.into_sorted_vec().into_iter().map(|x| x.term).collect()
+        let out = out.into_sorted_vec();
+        let max_distance = match out.first() {
+            Some(x) if x.distance > 0 => x.distance,
+            _ => self.options.max_distance,
+        };
+        out.into_iter()
+            .take_while(|x| x.distance <= max_distance)
+            .map(|x| x.term)
+            .collect()
     }
 
     /// Every word of this variant within `max_distance` edits of `word`, ignoring ASCII case,
@@ -625,20 +634,18 @@ impl VariantChecker {
 
             let term =
                 recase(String::from_utf8(k.to_vec()).expect("fst keys must be valid utf-8."));
-            let score = (self.options.max_distance - state.dist()) as f32
-                + id.freq() as f32 / self.max_freq as f32 * self.options.freq_weight;
-            if let Some(existing) = out.iter().find(|x| x.term == term) {
-                if existing.score >= score {
-                    continue;
-                }
-                out.retain(|x| x.term != term);
-            }
-            out.push(Candidate {
+            let candidate = Candidate {
                 distance: state.dist(),
                 freq: id.freq(),
                 term,
-                score,
-            });
+            };
+            if let Some(existing) = out.iter().find(|x| x.term == candidate.term) {
+                if *existing <= candidate {
+                    continue;
+                }
+                out.retain(|x| x.term != candidate.term);
+            }
+            out.push(candidate);
             if out.len() > self.options.top_n {
                 out.pop();
             }
@@ -742,7 +749,6 @@ impl Spell {
                 variant_index,
                 multiwords: DefaultHashMap::default(),
                 map: self.map.clone(),
-                max_freq: self.max_freq,
                 options: self.options.clone(),
                 lang_options: self.lang_options.clone(),
                 user: UserMatcher::default(),

@@ -1,20 +1,19 @@
 4 | SPELLCHECK/SINGLE | "Aldermere" -> ["Aldermen"] | Possibly misspelled word.
 11 | PUNCTUATION/COMMA_COMPOUND_SENTENCE_2/3 | " and" -> [", and"] | Use a comma before "and" if it connects two independent clauses (unless they are closely connected and short).
 11 | PUNCTUATION/COMMA_COMPOUND_SENTENCE_2/3 | " and" -> [", and"] | Use a comma before "and" if it connects two independent clauses (unless they are closely connected and short).
-13 | SPELLCHECK/SINGLE | "occured" -> ["occurred", "occurs", "occur", "occupied", "accused", "obscured", "accrued", "scoured", "occluded", "accursed"] | Possibly misspelled word.
+13 | SPELLCHECK/SINGLE | "occured" -> ["occurred"] | Possibly misspelled word.
 16 | SPELLCHECK/SINGLE | "neccessary" -> ["necessary"] | Possibly misspelled word.
 21 | PUNCTUATION/COMMA_COMPOUND_SENTENCE_2/3 | " and" -> [", and"] | Use a comma before "and" if it connects two independent clauses (unless they are closely connected and short).
 22 | PUNCTUATION/PRP_COMMA/0 | "us" -> ["us,"] | Consider adding a comma here to clarify the structure of the sentence.
-23 | SPELLCHECK/SINGLE | "accomodate" -> ["accommodate", "accommodates", "accommodated"] | Possibly misspelled word.
+23 | SPELLCHECK/SINGLE | "accomodate" -> ["accommodate"] | Possibly misspelled word.
 25 | BUILTIN/ENGLISH_WORD_REPEAT_RULE | "was was" -> ["was"] | Possible typo: you repeated a word.
-29 | SPELLCHECK/SINGLE | "arguement" -> ["argument", "agreement", "arguments", "argumenta"] | Possibly misspelled word.
+29 | SPELLCHECK/SINGLE | "arguement" -> ["argument"] | Possibly misspelled word.
 33 | BUILTIN/ENGLISH_WORD_REPEAT_RULE | "on on" -> ["on"] | Possible typo: you repeated a word.
 38 | GRAMMAR/MISSING_TO_BEFORE_A_VERB/3 | "like take" -> ["like to take"] | The verb "take" needs to be in the to-infinitive form.
 42 | GRAMMAR/IS_VBZ/2 | "is seems" -> ["is seeming", "it seems", "seems"] | The verb form seems incorrect.
-64 | SPELLCHECK/SINGLE | "Teodor" -> ["Theodor", "Tenor", "Tender", "Terror", "Vendor", "Theodore", "Tensor", "Tendon", "Tudor", "Theodora"] | Possibly misspelled word.
+64 | SPELLCHECK/SINGLE | "Teodor" -> ["Theodor"] | Possibly misspelled word.
 81 | BUILTIN/COMMA_PARENTHESIS_WHITESPACE | ",and" -> [", and"] | Put a space after the comma.
 82 | PUNCTUATION/COMMA_COMPOUND_SENTENCE_2/3 | " and" -> [", and"] | Use a comma before "and" if it connects two independent clauses (unless they are closely connected and short).
-86 | GRAMMAR/A_INFINITIVE/1 | "the heal" -> ["to heal", "the Head", "the Leal", "the head", "the hemal", "the leal", "the real", "they heal"] | The verb 'heal' does not usually follow articles like 'the'. Check that 'heal' is spelled correctly; using 'heal' as a noun may be non-standard.
-89 | SPELLCHECK/SINGLE | "embarass" -> ["embarrass", "embarks", "embargos"] | Possibly misspelled word.
-90 | SPELLCHECK/SINGLE | "tomorow" -> ["tomorrow", "Comoros", "tomorrows"] | Possibly misspelled word.
+89 | SPELLCHECK/SINGLE | "embarass" -> ["embarrass"] | Possibly misspelled word.
+90 | SPELLCHECK/SINGLE | "tomorow" -> ["tomorrow"] | Possibly misspelled word.
 93 | GRAMMAR/MOST_COMPARATIVE/1 | "more better" -> ["better"] | Use only better (without 'more') when you use the comparative.
