@@ -46,6 +46,14 @@ pub enum Builtin {
     UnpairedQuotes(en::UnpairedQuotes),
     /// Flags a word whose spelling variant was already used earlier in the text.
     WordCoherency(en::WordCoherency),
+    /// Flags two consecutive dots or commas, e.g. `"He left.."`.
+    DoublePunctuation(en::DoublePunctuation),
+    /// Flags a run of repeated whitespace, e.g. two spaces between words.
+    MultipleWhitespace(en::MultipleWhitespace),
+    /// Flags a sentence that directly follows the previous one without a space.
+    SentenceWhitespace(en::SentenceWhitespace),
+    /// Flags more than one empty line between paragraphs.
+    EmptyLine(en::EmptyLine),
     /// Flags a sentence with more than a maximum number of words.
     LongSentence(en::LongSentence),
     /// Flags a paragraph with more than a maximum number of words.
@@ -68,6 +76,10 @@ impl Builtin {
             Builtin::UnpairedBrackets(rule) => rule.id(),
             Builtin::UnpairedQuotes(rule) => rule.id(),
             Builtin::WordCoherency(rule) => rule.id(),
+            Builtin::DoublePunctuation(rule) => rule.id(),
+            Builtin::MultipleWhitespace(rule) => rule.id(),
+            Builtin::SentenceWhitespace(rule) => rule.id(),
+            Builtin::EmptyLine(rule) => rule.id(),
             Builtin::LongSentence(rule) => rule.id(),
             Builtin::LongParagraph(rule) => rule.id(),
             Builtin::WordRepeatBeginning(rule) => rule.id(),
@@ -82,25 +94,17 @@ impl Builtin {
     /// Runs this rule on consecutive sentences of one paragraph. Rules that need context beyond one sentence
     /// (e.g. quotes spanning sentences) see all of them; sentence-level rules check each one separately.
     pub fn check_text(&self, sentences: &[Sentence]) -> Vec<Suggestion> {
-        self.check_text_with_previous(sentences, None)
+        self.check_paragraph(sentences, &[], true)
     }
 
-    /// Like [`Builtin::check_text`], but for a paragraph that follows `previous`,
-    /// the last sentence of the preceding paragraph. Only rules that are
-    /// text-level in LanguageTool (and therefore look across paragraphs) use it.
-    pub fn check_text_with_previous(
-        &self,
-        sentences: &[Sentence],
-        previous: Option<&Sentence>,
-    ) -> Vec<Suggestion> {
-        self.check_paragraph(sentences, previous.map_or(&[], std::slice::from_ref), true)
-    }
-
-    /// Like [`Builtin::check_text_with_previous`], with `previous` holding the
-    /// sentences before the paragraph, oldest first, and `ends_text` telling
-    /// whether the paragraph is the end of the text. Rules that compare
-    /// successive sentences (`ENGLISH_WORD_REPEAT_BEGINNING_RULE`) use the last
-    /// two previous sentences; the others use at most the last one.
+    /// Like [`Builtin::check_text`], for a paragraph that follows `previous`,
+    /// the sentences before it, oldest first, and that is followed by more
+    /// text unless `ends_text` is set. Only rules that are text-level in
+    /// LanguageTool look at `previous`: `ENGLISH_WORD_REPEAT_BEGINNING_RULE`
+    /// uses the last two sentences, the others at most the last one. Only
+    /// rules that look at the end of the text (`EMPTY_LINE`,
+    /// `TOO_LONG_PARAGRAPH`, `ENGLISH_WORD_REPEAT_BEGINNING_RULE`) use
+    /// `ends_text`.
     pub fn check_paragraph(
         &self,
         sentences: &[Sentence],
@@ -126,6 +130,16 @@ impl Builtin {
             Builtin::WordRepeatBeginning(rule) => {
                 rule.check_with_previous(sentences, previous, ends_text)
             }
+            Builtin::DoublePunctuation(rule) => {
+                sentences.iter().flat_map(|x| rule.check(x)).collect()
+            }
+            Builtin::MultipleWhitespace(rule) => {
+                rule.check_with_previous(sentences, previous.last())
+            }
+            Builtin::SentenceWhitespace(rule) => {
+                rule.check_with_previous(sentences, previous.last())
+            }
+            Builtin::EmptyLine(rule) => rule.check_text(sentences, ends_text),
         }
     }
 }
@@ -178,5 +192,19 @@ impl BuiltinRule {
     /// Disables this rule.
     pub fn disable(&mut self) {
         self.enabled = false;
+    }
+
+    /// Stops this rule from reporting one of its cases, named `case`, while it
+    /// keeps reporting the others. Returns whether the rule has such a case.
+    /// The only case so far is `INDENTATION` of `WHITESPACE_RULE`, see
+    /// [`en::MultipleWhitespace::skip_indentation`].
+    pub fn disable_case(&mut self, case: &str) -> bool {
+        match (&mut self.builtin, case) {
+            (Builtin::MultipleWhitespace(rule), "INDENTATION") => {
+                rule.skip_indentation();
+                true
+            }
+            _ => false,
+        }
     }
 }

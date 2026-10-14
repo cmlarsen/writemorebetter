@@ -15,7 +15,10 @@ asks for a profile.
   `"TYPOGRAPHY/EN_QUOTES"`, `"PUNCTUATION/DASH_RULE"`, or a whole category such as
   `"REDUNDANCY"`; or
 - a builtin rule id prefixed with `BUILTIN/`, e.g.
-  `"BUILTIN/UPPERCASE_SENTENCE_START"`.
+  `"BUILTIN/UPPERCASE_SENTENCE_START"`; or
+- a builtin rule id plus one of its cases, which disables only that case and keeps
+  the rule on (`BuiltinRule::disable_case`). The only case so far is
+  `"BUILTIN/WHITESPACE_RULE/INDENTATION"`.
 
 `Profile::by_name` accepts `"default"` (disables nothing) and `"fiction"`.
 `Rules::apply_profile(&profile)` disables every matching grammar rule and builtin
@@ -51,6 +54,7 @@ Disables exactly these:
 | `STYLE/WANNA` | dialogue informality (1) |
 | `GRAMMAR/YOU_GOOD` | verbless dialogue questions, "You okay?" (2) |
 | `REDUNDANCY` | stylistic redundancy advice, not errors (whole category) |
+| `BUILTIN/WHITESPACE_RULE/INDENTATION` | spaces that indent a paragraph or line; LT 6.6 flags them after a sentence end or a CRLF (403 on moby150k). Repeated spaces inside a line are still flagged. |
 | `BUILTIN/ENGLISH_WORD_REPEAT_BEGINNING_RULE` | three sentences in a row that begin with the same word ("He waited. He listened. He...") are a deliberate rhythm in fiction |
 
 Applying it to the compiled English rules disables 162 rules and reports 0

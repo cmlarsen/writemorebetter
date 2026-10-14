@@ -185,7 +185,8 @@ pub const TOKENIZER_FORMAT_VERSION: u32 = 15;
 /// Version 21: `SpellOptions::freq_weight` was removed.
 /// Version 22: `RuleFilter` gained the `FindSuggestions`, `SuppressMisspelledSuggestions` and
 /// `NumberInWord` filters.
-/// Version 23: the `LongSentence`, `LongParagraph` and `WordRepeatBeginning` builtins were added.
+/// Version 23: the `DoublePunctuation`, `MultipleWhitespace`, `SentenceWhitespace` and `EmptyLine`
+/// builtins were added.
 pub const RULES_FORMAT_VERSION: u32 = 23;
 
 /// The longest engine version string accepted in a binary header.
