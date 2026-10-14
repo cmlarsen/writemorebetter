@@ -240,6 +240,7 @@ fn sentencizer_keeps_honorifics_like_languagetool() {
         "I had known Mr. Aduke for eleven years and did not know his first name.",
         "I saw Mrs. Okafor, Ms. Lin and Dr. Patel in St. Louis.",
         "I saw Prof. Hale, Sgt. Ross and Capt. Lee.",
+        "He met Rev. Hale and Gen. Lee and Gov. Ray.",
         "I saw Mr. and Mrs. A. Okafor at the market.",
         "I saw Messrs. Aduke and Okafor.",
         "He met John Hale Jr. Then he left.",
@@ -260,6 +261,10 @@ fn sentencizer_keeps_honorifics_like_languagetool() {
     assert_eq!(
         segments("Well\u{2026} Mr. Aduke came anyway."),
         vec!["Well\u{2026} ", "Mr. Aduke came anyway."]
+    );
+    assert_eq!(
+        segments("I saw Mr.\u{201d} Aduke laughed."),
+        vec!["I saw Mr.\u{201d} ", "Aduke laughed."]
     );
     assert_eq!(
         segments("I saw mr. Aduke. MR. ADUKE came early."),
