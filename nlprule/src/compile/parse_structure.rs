@@ -379,6 +379,7 @@ fn get_exceptions(
 fn parse_token(
     token: &structure::Token,
     prev_skip: bool,
+    last: bool,
     case_sensitive: bool,
     info: &mut BuildInfo,
 ) -> Result<Vec<Part>, Error> {
@@ -491,7 +492,7 @@ fn parse_token(
         reference_synthesis,
         info,
     )?;
-    let next_exception = if has_skip(token) {
+    let next_exception = if has_skip(token) && !last {
         NextException::AllReadings
     } else if prev_skip {
         NextException::Ignored
@@ -801,14 +802,15 @@ fn parse_parallel_tokens(
     tokens: &[structure::Token],
     combine: fn(Vec<Atom>) -> Atom,
     prev_skip: bool,
+    last: bool,
     case_sensitive: bool,
     info: &mut BuildInfo,
 ) -> Result<Vec<Part>, Error> {
-    let mut parts = parse_token(&tokens[0], prev_skip, case_sensitive, info)?;
+    let mut parts = parse_token(&tokens[0], prev_skip, last, case_sensitive, info)?;
     let mut atoms = vec![std::mem::replace(&mut parts[0].atom, (TrueAtom {}).into())];
 
     for token in &tokens[1..] {
-        let mut parsed = parse_token(token, prev_skip, case_sensitive, info)?;
+        let mut parsed = parse_token(token, prev_skip, last, case_sensitive, info)?;
 
         if parsed.len() != 1 || parsed[0].quantifier.min != 1 || parsed[0].quantifier.max != 1 {
             return Err(Error::Unimplemented(
@@ -826,31 +828,42 @@ fn parse_parallel_tokens(
 fn parse_tokens(
     tokens: &[structure::TokenCombination],
     prev_skip: bool,
+    last: bool,
     case_sensitive: bool,
     info: &mut BuildInfo,
 ) -> Result<Vec<Part>, Error> {
     let mut out = Vec::new();
+    let last_index = tokens
+        .iter()
+        .rposition(|x| !matches!(x, structure::TokenCombination::Feature(_)));
 
-    for token_combination in tokens {
+    for (i, token_combination) in tokens.iter().enumerate() {
         let prev_skip = if out.is_empty() {
             prev_skip
         } else {
             ends_with_skip(&out)
         };
+        let last = last && Some(i) == last_index;
         out.extend(match token_combination {
             structure::TokenCombination::Token(token) => {
-                parse_token(token, prev_skip, case_sensitive, info)?
+                parse_token(token, prev_skip, last, case_sensitive, info)?
             }
             structure::TokenCombination::And(tokens) => parse_parallel_tokens(
                 &tokens.tokens,
                 AndAtom::and,
                 prev_skip,
+                last,
                 case_sensitive,
                 info,
             )?,
-            structure::TokenCombination::Or(tokens) => {
-                parse_parallel_tokens(&tokens.tokens, OrAtom::or, prev_skip, case_sensitive, info)?
-            }
+            structure::TokenCombination::Or(tokens) => parse_parallel_tokens(
+                &tokens.tokens,
+                OrAtom::or,
+                prev_skip,
+                last,
+                case_sensitive,
+                info,
+            )?,
             structure::TokenCombination::Feature(_) => Vec::new(),
         });
     }
@@ -951,11 +964,22 @@ fn parse_pattern(
         None => false,
     };
 
-    for part in &pattern.parts {
+    let last_index = pattern.parts.iter().rposition(|x| {
+        matches!(
+            x,
+            structure::PatternPart::Token(_)
+                | structure::PatternPart::Marker(_)
+                | structure::PatternPart::And(_)
+                | structure::PatternPart::Or(_)
+        )
+    });
+
+    for (i, part) in pattern.parts.iter().enumerate() {
         let prev_skip = ends_with_skip(&composition_parts);
+        let last = Some(i) == last_index;
         match part {
             structure::PatternPart::Token(token) => {
-                composition_parts.extend(parse_token(token, prev_skip, case_sensitive, info)?)
+                composition_parts.extend(parse_token(token, prev_skip, last, case_sensitive, info)?)
             }
             structure::PatternPart::Marker(marker) => {
                 start = Some(get_last_id(&composition_parts));
@@ -963,6 +987,7 @@ fn parse_pattern(
                 composition_parts.extend(parse_tokens(
                     &marker.tokens,
                     prev_skip,
+                    last,
                     case_sensitive,
                     info,
                 )?);
@@ -973,6 +998,7 @@ fn parse_pattern(
                 &tokens.tokens,
                 AndAtom::and,
                 prev_skip,
+                last,
                 case_sensitive,
                 info,
             )?),
@@ -980,6 +1006,7 @@ fn parse_pattern(
                 &tokens.tokens,
                 OrAtom::or,
                 prev_skip,
+                last,
                 case_sensitive,
                 info,
             )?),
@@ -1989,6 +2016,22 @@ mod tests {
                 r#"<pattern><token skip="2"><text text="“It’s"/><exception postag="VBN" scope="next"/></token><token><text text="…"/></token></pattern>"#
             ),
             vec![vec![false], vec![false], vec![]]
+        );
+    }
+
+    #[test]
+    fn scope_next_exception_on_a_skipping_last_token_ignores_its_skip() {
+        assert_eq!(
+            compiled_next_exceptions(
+                r#"<pattern><token><text text="“So"/></token><token skip="2"><text text="it’s"/><exception postag="VBN" scope="next"/></token></pattern>"#
+            ),
+            vec![vec![], vec![true], vec![false]]
+        );
+        assert_eq!(
+            compiled_next_exceptions(
+                "<pattern><token skip=\"1\"><text text=\"—so\"/></token><marker><token skip=\"2\"><text text=\"\u{2028}it…\"/><exception postag=\"VBN\" scope=\"next\"/></token></marker></pattern>"
+            ),
+            vec![vec![], vec![], vec![], vec![false]]
         );
     }
 

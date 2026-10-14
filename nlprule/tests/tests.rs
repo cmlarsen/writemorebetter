@@ -2889,3 +2889,29 @@ fn scope_next_exception_sees_unknown_as_the_first_reading() {
         vec![("third-party".to_string(), vec!["third party".to_string()])]
     );
 }
+
+/// A `scope="next"` exception on a token whose predecessor has a `skip` is not checked, as in
+/// LanguageTool 6.6, so `TYPOGRAPHY/GERMAN_QUOTES/3` flags a closing quote even when a
+/// lowercase word follows it without a space. Expected flags checked against LanguageTool 6.6
+/// (-l en-US).
+#[test]
+fn scope_next_exception_after_a_skip_is_not_checked() {
+    for text in [
+        "\u{201e}Wait\u{2026}\u{201c}and then she ran.",
+        "\u{201e}Don\u{2019}t\u{2026}\u{201c}and then she ran.",
+        "\u{201e}Wait\u{2026}\u{201c}And then she ran.",
+        "She sighed.\u{2028}\u{201e}Wait\u{2026}\u{201c}and then she ran.",
+    ] {
+        assert_eq!(
+            rule_flags(text, "TYPOGRAPHY/GERMAN_QUOTES/3"),
+            vec![("\u{201c}".to_string(), vec!["\u{201d}".to_string()])],
+            "{:?}",
+            text
+        );
+    }
+    assert!(rule_flags(
+        "\u{201e}Wait\u{2014}\u{201c}and then she ran.",
+        "TYPOGRAPHY/GERMAN_QUOTES/3"
+    )
+    .is_empty());
+}
