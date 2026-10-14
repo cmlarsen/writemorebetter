@@ -27,6 +27,30 @@ pub enum Error {
     SRXError { reason: String },
 }
 
+/// Replaces `\s` and `\S` with the ASCII whitespace set they denote in Java regexes, which SRX
+/// patterns are written in. In this crate's regex engines they also match Unicode whitespace
+/// such as U+00A0 and U+2028.
+fn java_whitespace(pattern: &str) -> String {
+    let mut out = String::with_capacity(pattern.len());
+    let mut chars = pattern.chars();
+    while let Some(c) = chars.next() {
+        if c != '\\' {
+            out.push(c);
+            continue;
+        }
+        match chars.next() {
+            Some('s') => out.push_str(r"[\t\n\x0B\x0C\r ]"),
+            Some('S') => out.push_str(r"[^\t\n\x0B\x0C\r ]"),
+            Some(escaped) => {
+                out.push('\\');
+                out.push(escaped);
+            }
+            None => out.push('\\'),
+        }
+    }
+    out
+}
+
 impl Rule {
     /// Creates a new ruel.
     ///
@@ -46,8 +70,8 @@ impl Rule {
         }
 
         let regex_str = super::rule_pattern(
-            before_break.as_ref().map_or("", |x| x.as_ref()),
-            after_break.as_ref().map_or("", |x| x.as_ref()),
+            &java_whitespace(before_break.as_ref().map_or("", |x| x.as_ref())),
+            &java_whitespace(after_break.as_ref().map_or("", |x| x.as_ref())),
         );
 
         Rule::from_pattern(regex_str, do_break).map_err(|error| Error::from(*error))
@@ -264,6 +288,27 @@ mod schema {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn whitespace_classes_are_ascii_like_java() {
+        assert_eq!(
+            java_whitespace(r"[\.!?][\s\u00A0]\\s\S*@"),
+            r"[\.!?][[\t\n\x0B\x0C\r ]\u00A0]\\s[^\t\n\x0B\x0C\r ]*@"
+        );
+
+        let rules = Rule::new(Some(r"\.\s"), None::<&str>, true).expect("valid rule");
+        let rules = super::super::Rules { rules: vec![rules] };
+        assert_eq!(
+            rules
+                .split("It\u{2019}s late.\u{2028}She left.\u{00A0}Fine\u{2026} \u{201c}Go.\u{201d} Now\u{2014}yes. Done.\tGone.")
+                .collect::<Vec<_>>(),
+            vec![
+                "It\u{2019}s late.\u{2028}She left.\u{00A0}Fine\u{2026} \u{201c}Go.\u{201d} Now\u{2014}yes. ",
+                "Done.\t",
+                "Gone."
+            ]
+        );
+    }
 
     #[test]
     fn pattern_whitespace_is_kept() {

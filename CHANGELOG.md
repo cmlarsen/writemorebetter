@@ -51,6 +51,14 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   `<marker>` immunizes only the marked tokens, as LanguageTool does, instead of its whole match.
   Disambiguation rules keep the drop-on-overlap behaviour, and check time is unchanged. The
   tokenizer and rules binary format versions are now 14 and 20; recompile them.
+- **U+2028 and other non-ASCII spaces after a period no longer end a sentence on their own.**
+  LanguageTool's SRX rules are Java regexes, where `\s` and `\S` match only ASCII whitespace;
+  they also matched U+2028, U+00A0, U+2003 and other Unicode spaces here, so `Good.` + U+2028 +
+  `bad start` was two sentences instead of LanguageTool 6.6's one. U+00A0 still ends a sentence
+  where LanguageTool's rules list it explicitly, as in `The end.` + U+00A0 + `The`. Sentence-level rules such as
+  `UPPERCASE_SENTENCE_START` and `EN_A_VS_AN` now see the same sentences as LanguageTool across
+  a soft line break ([#171](https://github.com/cmlarsen/writemorebetter/issues/171)). Rebuild the
+  tokenizer binary to pick up the change; its format is unchanged.
 - **Sentences are split as in LanguageTool 6.6.** The SRX sentencizer dropped or misplaced
   rules: trailing spaces in a pattern were trimmed (so `… and` started a new sentence), a capture
   group in a `beforebreak` moved the split (`Mr. Bush` and `Dr. Doe` were split after the
