@@ -170,7 +170,8 @@ pub const TOKENIZER_FORMAT_VERSION: u32 = 11;
 /// Version 13: `Rule::suppress_misspelled` and `Synthesizer::suppress_misspelled` were added.
 /// Version 14: `MatcherKind::Synthesis` was added (`<match postag="…"/>` inside a `<token>`).
 /// Version 15: `SpellLangOptions::default_variant` was added.
-pub const RULES_FORMAT_VERSION: u32 = 15;
+/// Version 16: `Spell::phrases` was added.
+pub const RULES_FORMAT_VERSION: u32 = 16;
 
 /// The longest engine version string accepted in a binary header.
 const MAX_ENGINE_VERSION_LEN: usize = 256;

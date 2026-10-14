@@ -404,6 +404,11 @@ Only needed if the language requires a chunker (e. g. English).
         args.lang_code,
     )
 
+    with ZipFile(args.lt_dir / "libs" / "languagetool-core.jar") as core:
+        (args.out_dir / "spell" / "spelling_global.txt").write_bytes(
+            core.read("org/languagetool/resource/spelling_global.txt")
+        )
+
     with open(args.out_dir / "spell" / "map.txt", "w") as f:
         for path in args.spell_map_path or []:
             for line in open(path):

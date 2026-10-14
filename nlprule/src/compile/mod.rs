@@ -43,6 +43,7 @@ struct BuildFilePaths {
     spell_dir_path: PathBuf,
     spell_map_path: PathBuf,
     spell_extra_path: PathBuf,
+    spell_global_path: PathBuf,
     /// Optional per-build-directory tokenizer overrides.
     tokenizer_options_path: PathBuf,
 }
@@ -64,6 +65,7 @@ impl BuildFilePaths {
             spell_dir_path: p.join("spell"),
             spell_map_path: p.join("spell/map.txt"),
             spell_extra_path: p.join("spell/spelling.txt"),
+            spell_global_path: p.join("spell/spelling_global.txt"),
             tokenizer_options_path: p.join("tokenizer_options.json"),
         }
     }
@@ -256,6 +258,7 @@ pub fn compile(
             &paths.spell_dir_path,
             &paths.spell_map_path,
             &paths.spell_extra_path,
+            &paths.spell_global_path,
             spellchecker_lang_options,
             &tokenizer,
         )?

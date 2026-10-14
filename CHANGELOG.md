@@ -31,8 +31,19 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   re-cased to match (`Teh` suggests `The`, `TEDD` suggests `TED`; mixed-case words such as
   `iPhone` keep their case), matching LanguageTool 6.6's case conversion
   ([#121](https://github.com/cmlarsen/writemorebetter/issues/121)). Applies to spelling
-  suggestions and to `Speller::is_correct`/`suggest`. User-dictionary entries are still not
-  accepted in all caps ([#143](https://github.com/cmlarsen/writemorebetter/issues/143)).
+  suggestions and to `Speller::is_correct`/`suggest`.
+- **User-dictionary words and LanguageTool's global name list are accepted in all caps.** A
+  user-dictionary entry now also accepts its all-caps form and that form's possessive
+  (`Zorvath` accepts `ZORVATH` and `ZORVATH’S`), so a shouted character name is not flagged
+  ([#143](https://github.com/cmlarsen/writemorebetter/issues/143)). The English build data now
+  includes LanguageTool's `spelling_global.txt`, whose entries are accepted as written, with the
+  first letter capitalized and in all caps unless camel case, as LanguageTool 6.6's multiword
+  chunker accepts them: `MCCARTHY`, `MCKINLEY’S`, `MCDONALD’S`, `YOUTUBE` and `POWERPOINT` are no
+  longer flagged, while names missing from that list (`MCDONALD`, `MACARTHUR`) and camel-case
+  ones (`EBAY`) still are. A mixed-case token such as `iPHONE` or `McKINLEY` is now searched
+  case-insensitively, so it gets suggestions in the dictionary's case (`iPhone`, `McKinley`)
+  ([#148](https://github.com/cmlarsen/writemorebetter/issues/148)). Rules binaries move to format
+  version 16 (`Spell::phrases`); rebuild the data with `scripts/build-data.sh` to pick up the list.
 - **Contractions, apostrophes and hyphens are handled as in LanguageTool 6.6.** Hyphens at either
   end of a word are now tokens of their own (`didn't-->` is `didn ' t - - >`, `Go-` is `Go -`),
   and a mixed-case contraction such as `don'T` is split at its apostrophe because the tagger,
