@@ -149,6 +149,8 @@ pub mod owned {
 pub struct IncompleteSentence<'t> {
     text: &'t str,
     tokens: Vec<IncompleteToken<'t>>,
+    #[derivative(Debug = "ignore")]
+    raw: Option<Vec<IncompleteToken<'t>>>,
     #[derivative(Debug = "ignore", PartialEq = "ignore")]
     tagger: &'t Tagger,
     span: Span,
@@ -171,6 +173,7 @@ impl<'t> IncompleteSentence<'t> {
         IncompleteSentence {
             text,
             tokens,
+            raw: None,
             tagger,
             span: Span::new(0..text.len(), 0..text.chars().count()),
         }
@@ -201,18 +204,46 @@ impl<'t> IncompleteSentence<'t> {
         self.tagger
     }
 
+    /// Records the current tokens as this sentence's raw tokens (see [Sentence::raw]).
+    pub(crate) fn keep_raw(&mut self) {
+        self.raw = Some(self.tokens.clone());
+    }
+
+    pub(crate) fn take_raw(&mut self) -> Option<Vec<IncompleteToken<'t>>> {
+        self.raw.take()
+    }
+
+    pub(crate) fn set_raw(&mut self, raw: Option<Vec<IncompleteToken<'t>>>) {
+        self.raw = raw;
+    }
+
     /// Converts this incomplete sentence into a [Sentence].
     pub fn into_sentence(self) -> Sentence<'t> {
         let tagger = self.tagger();
+        let text = self.text;
+        let span = self.span.clone();
+        let raw = self.raw.map(|tokens| {
+            Box::new(
+                IncompleteSentence {
+                    text,
+                    tokens,
+                    raw: None,
+                    tagger,
+                    span,
+                }
+                .into_sentence(),
+            )
+        });
 
         Sentence {
-            text: self.text(),
+            text,
             tagger,
             tokens: self
                 .tokens
                 .into_iter()
                 .map(|token| token.into_token())
                 .collect(),
+            raw,
             span: self.span,
         }
     }
@@ -230,6 +261,9 @@ impl<'t> IncompleteSentence<'t> {
             .into_iter()
             .map(|x| x.rshift(position))
             .collect();
+        self.raw = self
+            .raw
+            .map(|tokens| tokens.into_iter().map(|x| x.rshift(position)).collect());
         self
     }
 }
@@ -241,6 +275,8 @@ impl<'t> IncompleteSentence<'t> {
 pub struct Sentence<'t> {
     text: &'t str,
     tokens: Vec<Token<'t>>,
+    #[derivative(Debug = "ignore")]
+    raw: Option<Box<Sentence<'t>>>,
     #[derivative(Debug = "ignore", PartialEq = "ignore")]
     tagger: &'t Tagger,
     span: Span,
@@ -281,6 +317,12 @@ impl<'t> Sentence<'t> {
     /// Gets the tagger associated with this sentence.
     pub fn tagger(&self) -> &'t Tagger {
         self.tagger
+    }
+
+    /// The same sentence as tagged and chunked, before multiword tagging and disambiguation,
+    /// if it was kept. Grammar rules with LanguageTool's `raw_pos="yes"` match against it.
+    pub fn raw(&self) -> Option<&Sentence<'t>> {
+        self.raw.as_deref()
     }
 
     /// Returns the span of this sentence.

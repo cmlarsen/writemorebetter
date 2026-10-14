@@ -2822,3 +2822,80 @@ fn speller_checks_tokens_not_contractions() {
     assert!(!speller.is_correct("didn\u{2019}t"));
     assert!(speller.is_correct("did") && speller.is_correct("n\u{2019}t"));
 }
+
+fn look_slike_matches(rules: &Rules, text: &str) -> Vec<(std::ops::Range<usize>, Vec<String>)> {
+    rules
+        .suggest(text, &*TOKENIZER)
+        .into_iter()
+        .filter(|s| s.source().ends_with("LOOK_SLIKE/0"))
+        .map(|s| (s.span().char().clone(), s.replacements().to_vec()))
+        .collect()
+}
+
+#[test]
+fn raw_pos_rule_matches_pre_disambiguation_tags() {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    let selector: Selector = "typos/look_slike".try_into().unwrap();
+    rules
+        .rules_mut()
+        .iter_mut()
+        .filter(|rule| !selector.is_match(rule.id()))
+        .for_each(|rule| rule.disable());
+    rules
+        .builtins_mut()
+        .iter_mut()
+        .for_each(|rule| rule.disable());
+
+    assert!(look_slike_matches(&rules, "He always look sfor challenges. It’s fine.").is_empty());
+
+    rules.select_mut(&selector).for_each(|x| x.enable());
+
+    for (text, expected) in [
+        (
+            "He always look sfor challenges. It’s fine.",
+            vec![(10..19, "looks for")],
+        ),
+        (
+            "Dogs always look sfor food.\u{2028}Cats don’t.",
+            vec![(12..21, "looks for")],
+        ),
+        (
+            "The dog quickly look sfor the bone…",
+            vec![(16..25, "looks for")],
+        ),
+        ("She’d never look sfor trouble—never.", vec![]),
+        ("“This sound slike an error,” she said—quietly…", vec![]),
+    ] {
+        let expected: Vec<_> = expected
+            .into_iter()
+            .map(|(span, replacement)| (span, vec![replacement.to_string()]))
+            .collect();
+        assert_eq!(look_slike_matches(&rules, text), expected, "{}", text);
+    }
+}
+
+#[test]
+fn pipe_keeps_the_raw_sentence() {
+    let sentence = TOKENIZER
+        .pipe("“This sound slike an error,” she said—quietly…")
+        .next()
+        .unwrap();
+    let raw = sentence.raw().unwrap();
+    let has_vb = |sentence: &nlprule::types::Sentence| {
+        sentence
+            .tokens()
+            .iter()
+            .find(|token| token.word().text().as_str() == "sound")
+            .unwrap()
+            .word()
+            .tags()
+            .iter()
+            .any(|data| data.pos().as_str() == "VB")
+    };
+
+    assert_eq!(raw.tokens().len(), sentence.tokens().len());
+    assert_eq!(raw.span(), sentence.span());
+    assert!(has_vb(raw));
+    assert!(!has_vb(&sentence));
+    assert!(raw.raw().is_none());
+}

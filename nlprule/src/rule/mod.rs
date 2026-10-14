@@ -611,6 +611,9 @@ pub struct Rule {
     /// compile time, and stored once per [Rules][crate::Rules] instead of once per
     /// rule.
     pub(crate) uses_articles: bool,
+    /// LanguageTool's `<pattern raw_pos="yes">`: the rule matches the sentence as tagged and
+    /// chunked, before multiword tagging and disambiguation ([Sentence::raw]).
+    pub(crate) raw_pos: bool,
     pub(crate) enabled: bool,
 }
 
@@ -725,6 +728,17 @@ impl Rule {
         self.category_type.as_deref()
     }
 
+    pub(crate) fn raw_pos(&self) -> bool {
+        self.raw_pos
+    }
+
+    fn match_sentence<'s, 't>(&self, sentence: &'s Sentence<'t>) -> &'s Sentence<'t> {
+        match sentence.raw() {
+            Some(raw) if self.raw_pos => raw,
+            _ => sentence,
+        }
+    }
+
     pub(crate) fn apply<'a, 't>(
         &'a self,
         pool: &'a PartPool,
@@ -785,7 +799,7 @@ impl Rule {
             let sentence = tokenizer
                 .disambiguate(
                     tokenizer
-                        .tokenize(&test.text())
+                        .tokenize_with_raw(&test.text(), self.raw_pos)
                         .expect("test text must not be empty."),
                 )
                 .rshift(shift_delta)
@@ -795,7 +809,7 @@ impl Rule {
             let suggestions: Vec<_> = self
                 .apply_with_context(
                     pool,
-                    &MatchSentence::new(&sentence),
+                    &MatchSentence::new(self.match_sentence(&sentence)),
                     articles,
                     filter::FilterContext {
                         now: Some(filter::test_date()),

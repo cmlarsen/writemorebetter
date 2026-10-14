@@ -227,6 +227,7 @@ impl Rules {
     ) -> Vec<Suggestion> {
         let spell_suggestions = self.spell.suggest(sentence);
         let speller = self.spell.speller();
+        let raw_sentence = sentence.raw().map(MatchSentence::new);
         let sentence = MatchSentence::new(sentence);
 
         let mut output: Vec<(usize, Suggestion)> = self
@@ -237,9 +238,14 @@ impl Rules {
             .map(|(i, rule)| {
                 let mut output = Vec::new();
 
+                let match_sentence = match &raw_sentence {
+                    Some(raw) if rule.raw_pos() => raw,
+                    _ => &sentence,
+                };
+
                 for suggestion in rule.apply(
                     &self.parts,
-                    &sentence,
+                    match_sentence,
                     self.articles.as_ref(),
                     speller.as_ref(),
                 ) {
@@ -303,7 +309,12 @@ impl Rules {
         // builtins (UppercaseSentenceStart) can use it as context.
         let mut previous: Option<Sentence> = None;
 
-        for sentence in tokenizer.pipe(text) {
+        let keep_raw = self
+            .rules
+            .iter()
+            .any(|rule| rule.enabled() && rule.raw_pos());
+
+        for sentence in tokenizer.pipe_with_raw(text, keep_raw) {
             let ends_paragraph = sentence.text().contains('\n');
             paragraph.push(sentence);
 
