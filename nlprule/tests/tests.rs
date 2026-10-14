@@ -3341,6 +3341,49 @@ fn raw_pos_rule_matches_pre_disambiguation_tags() {
     }
 }
 
+fn sent_start_num_matches(rules: &Rules, text: &str) -> Vec<(std::ops::Range<usize>, Vec<String>)> {
+    rules
+        .suggest(text, &*TOKENIZER)
+        .into_iter()
+        .filter(|s| s.source().ends_with("SENT_START_NUM/0"))
+        .map(|s| (s.span().char().clone(), s.replacements().to_vec()))
+        .collect()
+}
+
+#[test]
+fn spell_number_synthesis_spells_out_a_sentence_start_number() {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    let selector: Selector = "style/sent_start_num".try_into().unwrap();
+    rules.select_mut(&selector).for_each(|x| x.enable());
+
+    for (text, expected) in [
+        ("12 soldiers were killed!", vec![(0..2, "Twelve")]),
+        (
+            "42 soldiers’ horses were killed!",
+            vec![(0..2, "Forty-two")],
+        ),
+        ("7 soldiers were killed—all of them!", vec![(0..1, "Seven")]),
+        (
+            "99 soldiers were killed\u{2028}yesterday!",
+            vec![(0..2, "Ninety-nine")],
+        ),
+        (
+            "She waited. 21 soldiers were killed!",
+            vec![(12..14, "Twenty-one")],
+        ),
+        ("“12 soldiers were killed!”", vec![]),
+        ("12 soldiers were killed…", vec![]),
+        ("05 soldiers were killed!", vec![]),
+        ("12 soldiers were killed in 1999!", vec![]),
+    ] {
+        let expected: Vec<_> = expected
+            .into_iter()
+            .map(|(span, replacement)| (span, vec![replacement.to_string()]))
+            .collect();
+        assert_eq!(sent_start_num_matches(&rules, text), expected, "{}", text);
+    }
+}
+
 #[test]
 fn pipe_keeps_the_raw_sentence() {
     let sentence = TOKENIZER
@@ -4676,5 +4719,320 @@ fn fiction_profile_keeps_other_whitespace_flags() {
             "\u{201c}Hi,\u{201d}  she said \u{2014}  softly\u{2026}\n  Then\u{a0}\u{a0}left \u{2028}  here."
         ),
         vec!["  ", "  ", "\u{a0}\u{a0}"]
+    );
+}
+
+fn typo_or_of_matches(rules: &Rules, text: &str) -> Vec<(std::ops::Range<usize>, String)> {
+    rules
+        .suggest(text, &*TOKENIZER)
+        .into_iter()
+        .filter(|s| s.source() == "TYPOS/TYPO_OR_OF/1")
+        .map(|s| {
+            let chars: Vec<char> = text.chars().collect();
+            (
+                s.span().char().clone(),
+                chars[s.span().char().clone()].iter().collect(),
+            )
+        })
+        .collect()
+}
+
+#[test]
+fn reference_with_literal_suffix_matches_reference_plus_suffix() {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    let selector: Selector = "typos/typo_or_of".try_into().unwrap();
+    rules.select_mut(&selector).for_each(|x| x.enable());
+
+    for text in [
+        "The 1’s are the active couple or actives in the middle; the 2’s wait.",
+        "“The active couple or actives in the middle—wait…”\u{2028}She nodded.",
+        "The active couple or Actives in the middle wait.",
+        "The ACTIVE couple or actives in the middle wait.",
+    ] {
+        assert!(typo_or_of_matches(&rules, text).is_empty(), "{}", text);
+    }
+
+    for text in [
+        "Below is a list or guidelines on how to handle it.",
+        "“The active couple or dancers in the middle—wait…”\u{2028}She nodded.",
+    ] {
+        let matches = typo_or_of_matches(&rules, text);
+        assert_eq!(matches.len(), 1, "{}", text);
+        assert_eq!(matches[0].1, "or", "{}", text);
+    }
+}
+
+fn rule_matches(selector: &str, text: &str) -> Vec<(String, std::ops::Range<usize>, Vec<String>)> {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    let selector: Selector = selector.try_into().unwrap();
+    rules.rules_mut().iter_mut().for_each(|rule| rule.disable());
+    rules
+        .builtins_mut()
+        .iter_mut()
+        .for_each(|rule| rule.disable());
+    rules.select_mut(&selector).for_each(|x| x.enable());
+    rules
+        .suggest(text, &*TOKENIZER)
+        .into_iter()
+        .map(|s| {
+            (
+                s.source().to_string(),
+                s.span().char().clone(),
+                s.replacements().to_vec(),
+            )
+        })
+        .collect()
+}
+
+#[test]
+fn apostrophe_type_filter_reads_the_raw_apostrophe() {
+    let text = "An actress\u{2019}s role. An actress's role.\u{2028}\u{201c}She didn\u{2019}t \
+                know\u{2026},\u{201d} he said \u{2014} the old man\u{2019}s dog ran to the bank \
+                and \u{2018}that\u{2019}s that\u{2019} \u{2014} I can\u{2019}t.";
+    let spans = |selector: &str| -> Vec<(std::ops::Range<usize>, Vec<String>)> {
+        rule_matches(selector, text)
+            .into_iter()
+            .map(|(_, span, replacements)| (span, replacements))
+            .collect()
+    };
+
+    assert_eq!(
+        spans("typography/typewriter_apostrophe"),
+        vec![
+            (10..12, vec!["'s".to_string()]),
+            (79..81, vec!["'s".to_string()]),
+            (111..113, vec!["'s".to_string()]),
+        ]
+    );
+    assert_eq!(
+        spans("typography/typographical_apostrophe"),
+        vec![(29..31, vec!["\u{2019}s".to_string()])]
+    );
+}
+
+#[test]
+fn apostrophe_type_filter_on_fiction_clitics() {
+    let text = "\u{201c}Give \u{2019}em hell,\u{201d} said James\u{2019} brother\u{2014}rock \
+                \u{2019}n\u{2019} roll\u{2026}\u{2028}I\u{2019}ll go. Rock 'n' roll.";
+    let spans = |selector: &str| -> Vec<(std::ops::Range<usize>, Vec<String>)> {
+        rule_matches(selector, text)
+            .into_iter()
+            .map(|(_, span, replacements)| (span, replacements))
+            .collect()
+    };
+
+    assert_eq!(
+        spans("typography/typewriter_apostrophe"),
+        vec![
+            (42..45, vec!["'n'".to_string()]),
+            (53..56, vec!["'ll".to_string()]),
+        ]
+    );
+    assert_eq!(
+        spans("typography/typographical_apostrophe"),
+        vec![(66..69, vec!["\u{2019}n\u{2019}".to_string()])]
+    );
+}
+
+#[test]
+fn consecutive_spaces_match_like_languagetool() {
+    let spans = |selector: &str, text: &str| -> Vec<std::ops::Range<usize>> {
+        rule_matches(selector, text)
+            .into_iter()
+            .map(|(_, span, _)| span)
+            .collect()
+    };
+
+    assert_eq!(
+        spans(
+            "typography/consecutive_spaces",
+            "This is a  sentence with two spaces.  Next."
+        ),
+        vec![9..11]
+    );
+    assert_eq!(
+        spans("typography/consecutive_spaces", "This  is  a  test."),
+        vec![4..6, 8..10]
+    );
+    assert_eq!(
+        spans(
+            "typography/consecutive_spaces",
+            "\u{201c}Wait.\u{201d}  She left \u{2014} then  came back\u{2026}  \u{201c}Fine,\u{201d} he said.\u{2028}"
+        ),
+        vec![24..26]
+    );
+    assert_eq!(
+        spans(
+            "typography/consecutive_spaces_single_char",
+            "This  is  a  test."
+        ),
+        vec![11..13]
+    );
+}
+
+fn repetition_flags(rules: &Rules, group: &str, text: &str) -> Vec<std::ops::Range<usize>> {
+    let group = format!("REPETITIONS_STYLE/{}/", group);
+    rules
+        .suggest(text, &*TOKENIZER)
+        .into_iter()
+        .filter(|suggestion| suggestion.source().starts_with(&group))
+        .map(|suggestion| suggestion.span().char().clone())
+        .collect()
+}
+
+#[test]
+fn repetition_rule_needs_a_previous_match() {
+    let flags = |text: &str| repetition_flags(&RULES, "REP_THANK_YOU_FOR", text);
+
+    assert_eq!(
+        flags("Thank you for the tea."),
+        Vec::<std::ops::Range<usize>>::new()
+    );
+    assert_eq!(
+        flags("Thank you for the tea. Thank you for the cake."),
+        vec![23..36]
+    );
+    assert_eq!(
+        flags("Thank you for the tea.\n\nThank you for the cake."),
+        vec![24..37]
+    );
+}
+
+#[test]
+fn repetition_rule_counts_tokens_between_matches() {
+    let flags = |text: &str| repetition_flags(&RULES, "REP_THANK_YOU_FOR", text);
+    let filler = |words| format!("{}. ", vec!["Dogs"; words].join(" "));
+
+    assert_eq!(
+        flags(&format!(
+            "Thank you for the tea. {}Thank you for the cake.",
+            filler(52)
+        )),
+        vec![284..297]
+    );
+    assert_eq!(
+        flags(&format!(
+            "Thank you for the tea. {}Thank you for the cake.",
+            filler(53)
+        )),
+        Vec::<std::ops::Range<usize>>::new()
+    );
+    assert_eq!(
+        flags(&format!(
+            "Thank you for the tea. {}Thank you for the cake. Thank you for the pie.",
+            filler(53)
+        )),
+        vec![313..326]
+    );
+}
+
+#[test]
+fn repetition_rule_state_is_per_suggest_call() {
+    let flags = |text: &str| repetition_flags(&RULES, "REP_THANK_YOU_FOR", text);
+
+    assert_eq!(
+        flags("Thank you for the tea."),
+        Vec::<std::ops::Range<usize>>::new()
+    );
+    assert_eq!(
+        flags("Thank you for the cake."),
+        Vec::<std::ops::Range<usize>>::new()
+    );
+}
+
+#[test]
+fn repetition_rule_handles_fiction_punctuation() {
+    let flags = |text: &str| repetition_flags(&RULES, "REP_THANK_YOU_FOR", text);
+
+    assert_eq!(
+        flags(
+            "Thank you for the tea\u{2026} Thank you for the cake.\u{2028}Thank you for the pie."
+        ),
+        vec![23..36, 47..60]
+    );
+    assert_eq!(
+        flags("Thank you for the tea. It\u{2019}s late. Thank you for the cake."),
+        vec![34..47]
+    );
+    assert_eq!(
+        flags("\u{201c}Thank you for the tea.\u{201d} \u{201c}Thank you for the cake.\u{201d}"),
+        Vec::<std::ops::Range<usize>>::new()
+    );
+    assert_eq!(
+        flags("Thank you for the tea\u{2014}thank you for the cake."),
+        Vec::<std::ops::Range<usize>>::new()
+    );
+}
+
+#[test]
+fn repetition_rule_counts_sentence_start_when_whitespace_leads() {
+    let flags = |text: &str| repetition_flags(&RULES, "REP_THANK_YOU_FOR", text);
+    let filler = |words, end| format!("{}{}", vec!["Dogs"; words].join(" "), end);
+
+    assert_eq!(
+        flags(&format!(
+            "  Thank you for the tea. {}Thank you for the cake.",
+            filler(53, ". ")
+        )),
+        vec![291..304]
+    );
+    assert_eq!(
+        flags(&format!(
+            "Thank you for the tea. \u{2028}{}Thank you for the cake.",
+            filler(52, ". \u{2028}")
+        )),
+        Vec::<std::ops::Range<usize>>::new()
+    );
+    assert_eq!(
+        flags(&format!(
+            "Thank you for the tea. \u{2028}{}Thank you for the cake.",
+            filler(51, ". \u{2028}")
+        )),
+        vec![281..294]
+    );
+}
+
+#[test]
+fn repetition_rule_state_spans_batches() {
+    let text = format!(
+        "Thank you for the tea.\n\n{}Thank you for the cake.",
+        vec!["Dogs"; 52].join(" ") + ".\n\n"
+    );
+    let mut rules = RULES.clone();
+    rules.set_batch_size(1);
+
+    assert_eq!(
+        repetition_flags(&rules, "REP_THANK_YOU_FOR", &text),
+        vec![286..299]
+    );
+    assert_eq!(
+        repetition_flags(&RULES, "REP_THANK_YOU_FOR", &text),
+        vec![286..299]
+    );
+}
+
+#[test]
+fn repetition_rule_needs_min_prev_matches() {
+    let mut rules = RULES.clone();
+    rules
+        .select_mut(&"repetitions_style/rep_passive_voice".try_into().unwrap())
+        .for_each(|rule| rule.enable());
+    let sentence = "It is also thought that tests are satisfactory. ";
+
+    assert_eq!(
+        repetition_flags(&rules, "REP_PASSIVE_VOICE", &sentence.repeat(4)),
+        Vec::<std::ops::Range<usize>>::new()
+    );
+    assert_eq!(
+        repetition_flags(&rules, "REP_PASSIVE_VOICE", &sentence.repeat(5)),
+        vec![195..210]
+    );
+    assert_eq!(
+        repetition_flags(
+            &rules,
+            "REP_PASSIVE_VOICE",
+            &"It was announced that we won. ".repeat(5)
+        ),
+        vec![123..136]
     );
 }
