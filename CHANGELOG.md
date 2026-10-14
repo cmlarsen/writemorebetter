@@ -25,14 +25,13 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
 ### Fixed
 
-- **Sentences are split as in LanguageTool 6.6.** The SRX sentencizer kept dropping or
-  misplacing rules: trailing spaces in a pattern were trimmed (so `… and` started a new
-  sentence), a capture group in a `beforebreak` moved the split (`Mr. Bush` and `Dr. Doe` were
-  split after the title), overlapping matches were missed (`et. al. 2001`), the one English rule
-  with a look-ahead (`8 a.m. on`, `i. e.,`) failed to compile and was dropped, and `\s` also
-  matched non-ASCII whitespace, so U+00A0 and U+2028 after a period ended a sentence. The
-  splits now match LanguageTool's on all 23,595 English rule examples. Rule examples are now
-  checked one sentence at a time like LanguageTool's test harness
+- **Sentences are split as in LanguageTool 6.6.** The SRX sentencizer dropped or misplaced
+  rules: trailing spaces in a pattern were trimmed (so `… and` started a new sentence), a capture
+  group in a `beforebreak` moved the split (`Mr. Bush` and `Dr. Doe` were split after the
+  title), overlapping matches were missed (`et. al. 2001`), and the one English rule with a
+  look-ahead (`8 a.m. on`, `i. e.,`) failed to compile and was dropped. The splits now match
+  LanguageTool's on all 23,595 English rule examples, and rule examples are checked one
+  sentence at a time like LanguageTool's test harness
   ([#124](https://github.com/cmlarsen/writemorebetter/issues/124)). Rebuild the tokenizer
   binary to pick up the new rules.
 - **`scope="next"` exceptions see the readings LanguageTool 6.6 sees.** A token's next-token

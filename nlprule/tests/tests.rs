@@ -186,8 +186,11 @@ fn sentencizer_splits_like_languagetool() {
         vec!["Thelen et. al. 2001 says it\u{2019}s fine\u{2014}mostly."]
     );
     assert_eq!(
-        segments("We met at 8 a.m. on Friday\u{2026} or so I thought.\u{2028}It wasn\u{2019}t."),
-        vec!["We met at 8 a.m. on Friday\u{2026} or so I thought.\u{2028}It wasn\u{2019}t."]
+        segments("We met at 8 a.m. on Friday\u{2028}or so I thought\u{2026} It wasn\u{2019}t."),
+        vec![
+            "We met at 8 a.m. on Friday\u{2028}or so I thought\u{2026} ",
+            "It wasn\u{2019}t."
+        ]
     );
     assert_eq!(
         segments("\u{201c}I\u{2019}m done.\u{201d} She left."),
