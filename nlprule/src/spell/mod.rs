@@ -1,5 +1,8 @@
 //! Structures and implementations related to spellchecking.
-use fst::{IntoStreamer, Map, Streamer};
+use fst::{
+    raw::{Fst, Node},
+    IntoStreamer, Map, Streamer,
+};
 use serde::{Deserialize, Serialize};
 use std::{
     borrow::Cow,
@@ -294,7 +297,7 @@ fn continuation_variants(pieces: &[String]) -> Vec<Vec<String>> {
 #[derive(Debug, Clone, Default)]
 pub(crate) struct UserMatcher {
     /// Canonical forms a token may equal, including the sentence-initial capitalized form of a
-    /// lowercase entry and possessive forms.
+    /// lowercase entry, the all-caps form and possessive forms.
     accepted: HashSet<String>,
     /// Continuations of a multi-token entry, keyed by its first token (same shape as
     /// [`Spell::multiwords`]).
@@ -320,17 +323,26 @@ impl UserMatcher {
         let freq = freq.as_u64();
 
         for entry in &user.entries {
-            // A lowercase entry also accepts its sentence-initial capitalized form; a
-            // capitalized entry deliberately does not make the lowercase form valid.
+            // A lowercase entry also accepts its sentence-initial capitalized form and every
+            // entry its all-caps form; a capitalized entry deliberately does not make the
+            // lowercase form valid.
             let mut forms = vec![entry.clone()];
             if entry.chars().next().is_some_and(char::is_lowercase) {
                 forms.push(apply_to_first(entry, |c| c.to_uppercase().collect()));
             }
+            let suggested = forms.len();
+            let all_caps = entry.to_uppercase();
+            if !forms.contains(&all_caps) {
+                forms.push(all_caps);
+            }
 
-            for form in forms {
+            for (i, form) in forms.into_iter().enumerate() {
                 accepted.insert(form.clone());
                 accepted.insert(format!("{form}'s"));
-                if form.ends_with(['s', 'z', 'x']) {
+                if is_all_caps(&form) {
+                    accepted.insert(format!("{form}'S"));
+                }
+                if form.ends_with(['s', 'z', 'x', 'S', 'Z', 'X']) {
                     accepted.insert(format!("{form}'"));
                 }
 
@@ -342,7 +354,7 @@ impl UserMatcher {
                             .or_default()
                             .push(variant[1..].to_vec());
                     }
-                } else {
+                } else if i < suggested {
                     suggestion_terms.push((form, freq));
                 }
             }
@@ -372,6 +384,31 @@ impl UserMatcher {
         self.accepted.contains(word)
             || (word.contains('\u{2019}') && self.accepted.contains(&word.replace('\u{2019}', "'")))
     }
+}
+
+fn phrase_len(phrases: &Fst<&[u8]>, tokens: &[Token]) -> usize {
+    let step = |node: Node, byte: u8| {
+        node.find_input(byte)
+            .map(|i| phrases.node(node.transition(i).addr))
+    };
+
+    let mut node = phrases.root();
+    let mut len = 0;
+    for (i, token) in tokens.iter().enumerate() {
+        let separator = if i == 0 { None } else { Some(b' ') };
+        let next = separator
+            .into_iter()
+            .chain(token.word().text().as_str().bytes())
+            .try_fold(node, step);
+        match next {
+            Some(next) => node = next,
+            None => break,
+        }
+        if node.is_final() {
+            len = i + 1;
+        }
+    }
+    len
 }
 
 fn is_all_caps(word: &str) -> bool {
@@ -528,7 +565,7 @@ impl VariantChecker {
         let all_caps = is_all_caps(word);
         let convert_case = all_caps || is_title_case(word);
         let query = levenshtein::Levenshtein::new(word, self.options.max_distance, 2)
-            .fold_case(convert_case);
+            .fold_case(word.chars().any(char::is_uppercase));
         let restore_case = |term: String| {
             if convert_case {
                 recase(term, all_caps)
@@ -599,6 +636,7 @@ pub struct Spell {
     /// Known *multiwords* i. e. phrases. Can also validly contain single words if they should not be part of the FST (e.g. words in the whitelist).
     #[serde(serialize_with = "crate::types::sorted::map")]
     pub(crate) multiwords: DefaultHashMap<String, Vec<(Vec<String>, SpellInt)>>,
+    pub(crate) phrases: Vec<u8>,
     ///  The maximum occured word frequency. Used to normalize.
     pub(crate) max_freq: usize,
     /// A map of `wrong->right`. `wrong` must always be exactly one token.
@@ -772,10 +810,11 @@ impl Spell {
     /// Adds words to the user dictionary and returns how many were new. An entry is matched the
     /// way the speller tokenizes: a single word, a whitespace-separated phrase (`"Port Royal"`),
     /// or a word with an internal apostrophe. Matching is case-sensitive except that a lowercase
-    /// entry also accepts its sentence-initial capitalized form; a capitalized entry does not
-    /// make the lowercase form valid. Entries also accept a possessive (`'s` after a straight or
-    /// curly apostrophe) and curly/straight apostrophes interchangeably. Changes apply to the
-    /// next [`Spell::suggest`] call; no binary recompilation is needed.
+    /// entry also accepts its sentence-initial capitalized form and every entry accepts its
+    /// all-caps form (`ZORVATH` for `Zorvath`); a capitalized entry does not make the lowercase
+    /// form valid. Entries also accept a possessive (`'s` after a straight or curly apostrophe,
+    /// `'S` for the all-caps form) and curly/straight apostrophes interchangeably. Changes apply
+    /// to the next [`Spell::suggest`] call; no binary recompilation is needed.
     pub fn add_words<I, S>(&mut self, words: I) -> usize
     where
         I: IntoIterator<Item = S>,
@@ -861,6 +900,9 @@ impl Spell {
 
         // Share the FST with the checker instead of materializing a per-variant copy.
         let fst = Map::new(self.fst.as_slice()).expect("serialized fst must be valid.");
+        let phrases = (!self.phrases.is_empty()).then(|| {
+            Fst::new(self.phrases.as_slice()).expect("serialized phrase fst must be valid.")
+        });
 
         let mut suggestions = Vec::new();
         let mut correct_mask = vec![false; tokens.len()];
@@ -868,6 +910,11 @@ impl Spell {
         for (i, token) in tokens.iter().enumerate() {
             let text = token.word().text().as_str();
 
+            if let Some(phrases) = &phrases {
+                correct_mask[i..i + phrase_len(phrases, &tokens[i..])]
+                    .iter_mut()
+                    .for_each(|x| *x = true);
+            }
             if !correct_mask[i] {
                 variant_checker.check(&fst, &tokens[i..], &mut correct_mask[i..]);
             }

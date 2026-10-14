@@ -6,7 +6,7 @@ use log::warn;
 use serde::{Deserialize, Serialize};
 use std::{
     cmp,
-    collections::{HashMap, HashSet},
+    collections::{BTreeSet, HashMap, HashSet},
     hash::{Hash, Hasher},
     io::{self, BufRead, BufReader},
     iter::once,
@@ -33,7 +33,7 @@ use crate::{
         Tokenizer, TokenizerLangOptions,
     },
     types::*,
-    utils::{parallelism::MaybeParallelIterator, regex::Regex},
+    utils::{apply_to_first, parallelism::MaybeParallelIterator, regex::Regex},
 };
 
 use super::{parse_structure::BuildInfo, Error};
@@ -42,6 +42,7 @@ impl Spell {
     fn new(
         fst: Vec<u8>,
         multiwords: DefaultHashMap<String, Vec<(Vec<String>, SpellInt)>>,
+        phrases: Vec<u8>,
         max_freq: usize,
         map: DefaultHashMap<String, String>,
         lang_options: SpellLangOptions,
@@ -49,6 +50,7 @@ impl Spell {
         let mut spell = Spell {
             fst,
             multiwords,
+            phrases,
             max_freq,
             map,
             lang_options,
@@ -106,10 +108,63 @@ impl Spell {
         }
     }
 
+    fn casing_variants(entry: &str) -> Vec<String> {
+        let is_camel_case = {
+            let rest = entry.trim_start_matches(|c: char| c.is_ascii_lowercase());
+            let mut chars = rest.chars();
+            rest.len() < entry.len()
+                && chars.next().is_some_and(|c| c.is_ascii_uppercase())
+                && !chars.as_str().is_empty()
+                && chars.all(|c| c.is_ascii_alphabetic())
+        };
+
+        let mut variants = vec![entry.to_owned()];
+        let mut push = |variant: String| {
+            if !variants.contains(&variant) {
+                variants.push(variant);
+            }
+        };
+        if !is_camel_case {
+            push(entry.to_uppercase());
+        }
+        push(apply_to_first(entry, |c| c.to_uppercase().collect()));
+        variants
+    }
+
+    fn global_phrases(path: &Path, tokenizer: &Tokenizer) -> io::Result<Vec<u8>> {
+        let mut phrases = BTreeSet::new();
+
+        let reader = BufReader::new(File::open(path)?);
+        for line in reader.lines() {
+            let line = line?;
+            let line = line.trim();
+            if line.starts_with('#') {
+                continue;
+            }
+            let entry = line[..line.find('#').unwrap_or(line.len())].trim();
+            if entry.is_empty() {
+                continue;
+            }
+
+            for variant in Spell::casing_variants(entry) {
+                let tokens = tokenizer.get_token_strs(&variant);
+                if !tokens.is_empty() {
+                    phrases.insert(tokens.join(" "));
+                }
+            }
+        }
+
+        Ok(fst::Set::from_iter(phrases)
+            .expect("phrases are lexicographically sorted.")
+            .into_fst()
+            .to_vec())
+    }
+
     pub(in crate::compile) fn from_dumps(
         spell_dir_path: impl AsRef<Path>,
         map_path: impl AsRef<Path>,
         global_word_path: impl AsRef<Path>,
+        global_phrase_path: impl AsRef<Path>,
         lang_options: SpellLangOptions,
         tokenizer: &Tokenizer,
     ) -> io::Result<Self> {
@@ -206,9 +261,16 @@ impl Spell {
             assert!(parts.next().is_none());
         }
 
+        let phrases = if global_phrase_path.as_ref().exists() {
+            Spell::global_phrases(global_phrase_path.as_ref(), tokenizer)?
+        } else {
+            Vec::new()
+        };
+
         Ok(Spell::new(
             fst.into_fst().to_vec(),
             multiwords,
+            phrases,
             max_freq,
             map,
             lang_options,
@@ -1637,12 +1699,35 @@ mod tests {
             "missing",
             "missing",
             "missing",
+            "missing",
             lang_options,
             &Tokenizer::default(),
         )
         .unwrap_err();
         assert_eq!(error.kind(), io::ErrorKind::InvalidData);
         assert!(error.to_string().contains("en_\u{2019}NZ"));
+    }
+
+    #[test]
+    fn global_phrase_casing_variants_follow_the_multiword_chunker() {
+        assert_eq!(
+            Spell::casing_variants("McCarthy"),
+            vec!["McCarthy", "MCCARTHY"]
+        );
+        assert_eq!(Spell::casing_variants("eBay"), vec!["eBay", "EBay"]);
+        assert_eq!(
+            Spell::casing_variants("iPhone4"),
+            vec!["iPhone4", "IPHONE4", "IPhone4"]
+        );
+        assert_eq!(
+            Spell::casing_variants("McDonald\u{2019}s"),
+            vec!["McDonald\u{2019}s", "MCDONALD\u{2019}S"]
+        );
+        assert_eq!(
+            Spell::casing_variants("\u{e9}clair"),
+            vec!["\u{e9}clair", "\u{c9}CLAIR", "\u{c9}clair"]
+        );
+        assert_eq!(Spell::casing_variants("NASA"), vec!["NASA"]);
     }
 
     #[test]

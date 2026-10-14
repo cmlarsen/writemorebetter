@@ -177,7 +177,8 @@ pub const TOKENIZER_FORMAT_VERSION: u32 = 13;
 /// Version 16: `WordDataAtom::first_reading` was added, as in tokenizer version 12.
 /// Version 17: `Rule::mother_tongue` was added.
 /// Version 18: `Rule::raw_pos` was added.
-pub const RULES_FORMAT_VERSION: u32 = 18;
+/// Version 19: `Spell::phrases` was added.
+pub const RULES_FORMAT_VERSION: u32 = 19;
 
 /// The longest engine version string accepted in a binary header.
 const MAX_ENGINE_VERSION_LEN: usize = 256;

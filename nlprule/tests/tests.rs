@@ -440,6 +440,55 @@ fn spellchecker_accepts_all_caps_known_words() {
 }
 
 #[test]
+fn spellchecker_accepts_all_caps_names_from_the_global_list() {
+    assert_eq!(
+        spelling_errors(
+            "\u{201c}MCCARTHY!\u{201d} he roared\u{2014}MCKINLEY\u{2019}S men ran\u{2026}\u{2028}\u{2018}MCDONALD\u{2019}S, YOUTUBE, POWERPOINT,\u{2019} she said."
+        ),
+        Vec::<&str>::new()
+    );
+    assert_eq!(
+        spelling_errors(
+            "\u{201c}MCDONALD!\u{201d} MACARTHUR\u{2014}EBAY\u{2026}\u{2028}\u{2018}MCCARTNEY.\u{2019}"
+        ),
+        vec!["MCDONALD", "MACARTHUR", "EBAY", "MCCARTNEY"]
+    );
+    assert_eq!(
+        spelling_errors(
+            "\u{201c}JOSQUIN DES PR\u{c9}S\u{2026}\u{201d} Josquin des Pr\u{e9}s sang\u{2014}DES PR\u{c9}S.\u{2028}Pr\u{e9}s."
+        ),
+        vec!["PR\u{c9}S", "Pr\u{e9}s"]
+    );
+}
+
+#[test]
+fn speller_suggests_dictionary_casing_for_mixed_case_words() {
+    let speller = RULES.spell().speller().unwrap();
+    assert_eq!(speller.suggest("iPHONE", 2), vec!["iPhone", "iPhones"]);
+    assert_eq!(
+        speller.suggest("McKINLEY", 5),
+        vec!["McKinley", "McKinney", "McKinsey", "McGinley", "Mckinney"]
+    );
+
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    rules.spell_mut().options_mut().variant = Some(rules.spell().variant("en_US").unwrap());
+    let text = "\u{201c}My iPHONE\u{2014}gone\u{2026}\u{201d}\u{2028}\u{2018}McKINLEY\u{2019}s fault.\u{2019}";
+    let first_replacements: Vec<(&str, String)> = rules
+        .suggest(text, &*TOKENIZER)
+        .into_iter()
+        .filter(|x| x.source().starts_with("SPELLCHECK"))
+        .map(|x| (&text[x.span().byte().clone()], x.replacements()[0].clone()))
+        .collect();
+    assert_eq!(
+        first_replacements,
+        vec![
+            ("iPHONE", "iPhone".to_string()),
+            ("McKINLEY", "McKinley".to_string()),
+        ]
+    );
+}
+
+#[test]
 fn speller_suggestions_restore_the_case_of_capitalized_words() {
     let speller = RULES.spell().speller().unwrap();
     assert_eq!(
@@ -528,11 +577,61 @@ fn user_dictionary_case_handling() {
         spelling_errors_with_words(&["Xylophonix"], "the xylophonix"),
         vec!["xylophonix"]
     );
-    // Nor does it accept an all-caps form.
+    // Every entry accepts its all-caps form.
+    assert!(spelling_errors_with_words(&["Xylophonix"], "the XYLOPHONIX").is_empty());
+    assert!(spelling_errors_with_words(&["xylophonix"], "the XYLOPHONIX").is_empty());
+    // A partly uppercased form is still flagged.
     assert_eq!(
-        spelling_errors_with_words(&["Xylophonix"], "the XYLOPHONIX"),
+        spelling_errors_with_words(&["Xylophonix"], "the XYLOPHONiX"),
+        vec!["XYLOPHONiX"]
+    );
+}
+
+#[test]
+fn user_dictionary_accepts_shouted_entries() {
+    let words = ["Xylophonix", "James", "Port Royal", "Zar'khan"];
+    for text in [
+        "\u{201c}XYLOPHONIX!\u{201d} she screamed.",
+        "XYLOPHONIX\u{2019}S wand\u{2014}gone\u{2026}",
+        "Nothing.\u{2028}XYLOPHONIX'S wand. XYLOPHONIX's wand.",
+        "\u{2018}JAMES\u{2019} coat,\u{2019} he said. JAMES' coat.",
+        "\u{201c}PORT ROYAL burns!\u{201d}",
+        "\u{201c}ZAR\u{2019}KHAN\u{2026}\u{201d} ZAR'KHAN\u{2014}",
+    ] {
+        assert!(
+            spelling_errors_with_words(&words, text).is_empty(),
+            "{}",
+            text
+        );
+    }
+
+    assert_eq!(
+        spelling_errors_with_words(
+            &words,
+            "\u{201c}XYLOPHONIZ!\u{201d}\u{2014}PORT ROYEL\u{2026}"
+        ),
+        vec!["XYLOPHONIZ", "ROYEL"]
+    );
+
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    rules.spell_mut().options_mut().variant = Some(rules.spell().variant("en_US").unwrap());
+    rules.add_words(words);
+    assert_eq!(
+        rules.spell().speller().unwrap().suggest("XYLOPHONIZ", 1),
         vec!["XYLOPHONIX"]
     );
+
+    assert!(spelling_errors_with_words(
+        &["Zorvath Josquin"],
+        "Zorvath Josquin des Pr\u{e9}s sang\u{2014}\u{201c}ZORVATH JOSQUIN DES PR\u{c9}S\u{2026}\u{201d}\u{2028}"
+    )
+    .is_empty());
+
+    rules.add_words(["NASA"]);
+    let speller = rules.spell().speller().unwrap();
+    for word in ["XYLOPHONIX\u{2019}S", "NASA'S", "NASA\u{2019}S", "NASA's"] {
+        assert!(speller.is_correct(word), "{}", word);
+    }
 }
 
 #[test]
