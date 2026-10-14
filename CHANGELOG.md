@@ -32,6 +32,14 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   off. The rule test harness (`--bin test`, `Rules::test_rule`) therefore runs rule examples with
   an `en_US` speller ([#119](https://github.com/cmlarsen/writemorebetter/issues/119)). Rules
   binaries move to format version 15 (`SpellLangOptions::default_variant`); recompile them.
+- **`raw_pos` rules that read POS tags or chunks compile and match.** A rule whose
+  `<pattern raw_pos="yes">` tests tags or chunks now matches, as in LanguageTool, against the
+  sentence as tagged and chunked, before multiword tagging and disambiguation, which
+  `Sentence::raw()` exposes. That adds `TYPOS/LOOK_SLIKE/0` (`look sfor` → `looks for`), which
+  is off by default ([#130](https://github.com/cmlarsen/writemorebetter/issues/130)).
+  `Rules::suggest` keeps the raw tokens only while such a rule is enabled (a text-only
+  `raw_pos` rule such as `TYPOS/CONTRACTION_CASE/0` does not count); `Tokenizer::pipe` always
+  keeps them. Rules binaries move to format version 18 (`Rule::raw_pos`); recompile them.
 
 ### Fixed
 
@@ -40,6 +48,16 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   not only when all of them do. `Tim make` offers ` makes`, ` made` and `, make` over ` make`
   instead of applying ` makes` to `make` and doubling the space. Grammar conformance rises from
   6017 to 6021 of 6038 rules ([#78](https://github.com/cmlarsen/writemorebetter/issues/78)).
+- **The chunker's beam search follows OpenNLP 1.9.4, as LanguageTool 6.6 runs it.** The POS
+  tagger and chunker no longer drop candidate tags below probability 0.1, the "advance every
+  valid tag" fallback extends the best sequence first instead of an arbitrary one, a chunk can no
+  longer continue (`I-`) after an `O` tag, tags tied with the last tag a beam keeps also advance,
+  and the chunker's beam is 10 wide instead of 7. On the public texts this removes 36 of 43
+  POS-tag and 42 of 58 chunk-tag differences from LanguageTool 6.6's chunker; the rest are
+  near-ties that half-precision model weights cannot break. Six more rules pass their own
+  examples, among them `TYPOS/VERB_APOSTROPHE_S/5` (`that just go's`)
+  ([#123](https://github.com/cmlarsen/writemorebetter/issues/123)). The fuller beam costs about
+  4% more instructions per check (see `docs/PERF.md`).
 - **`scope="next"` exceptions see the readings LanguageTool 6.6 sees.** A token's next-token
   exception now checks only the next token's first reading (`UNKNOWN` for an untagged word), and
   is ignored (text exceptions included) when the previous pattern token has a `skip`; on a
@@ -49,14 +67,34 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   `GRAMMAR/ONE_PLURAL/0` passes too
   ([#122](https://github.com/cmlarsen/writemorebetter/issues/122)). Tokenizer binaries move to
   format version 12 and rules binaries to 16 (`WordDataAtom::first_reading`); recompile them.
+- **All-caps names with apostrophes get their proper-noun reading.** The multiword tagger now
+  works like LanguageTool 6.6's English multiword chunker: it also matches each phrase in all
+  caps and with its first letter capitalized, matches phrases the tokenizer split into adjacent
+  tokens (`O'BRIEN` is `O` `'` `BRIEN`), and gives every token of a multi-token phrase only the
+  phrase's reading. `O'BRIEN`, `O’BRIEN` and `L'ORÉAL` are now tagged `O'Brien/NNP`,
+  `O’Brien/NNP` and `L'Oréal/NNP`, and `STANLEY KUBRICK` matches like `Stanley Kubrick`.
+  Multiword readings are no longer protected from disambiguation rules, and `DM'D` stays one
+  token like `CC'D` ([#116](https://github.com/cmlarsen/writemorebetter/issues/116)). Tokenizer
+  binaries move to format version 13; recompile them.
 - **The speller accepts all-caps words and restores case in suggestions.** An all-caps token
   (`THE END`, shouted `HELLO`) is no longer flagged when its lowercase or capitalized form is
   known, and a capitalized or all-caps token is searched case-insensitively with the candidates
   re-cased to match (`Teh` suggests `The`, `TEDD` suggests `TED`; mixed-case words such as
   `iPhone` keep their case), matching LanguageTool 6.6's case conversion
   ([#121](https://github.com/cmlarsen/writemorebetter/issues/121)). Applies to spelling
-  suggestions and to `Speller::is_correct`/`suggest`. User-dictionary entries are still not
-  accepted in all caps ([#143](https://github.com/cmlarsen/writemorebetter/issues/143)).
+  suggestions and to `Speller::is_correct`/`suggest`.
+- **User-dictionary words and LanguageTool's global name list are accepted in all caps.** A
+  user-dictionary entry now also accepts its all-caps form and that form's possessive
+  (`Zorvath` accepts `ZORVATH` and `ZORVATH’S`), so a shouted character name is not flagged
+  ([#143](https://github.com/cmlarsen/writemorebetter/issues/143)). The English build data now
+  includes LanguageTool's `spelling_global.txt`, whose entries are accepted as written, with the
+  first letter capitalized and in all caps unless camel case, as LanguageTool 6.6's multiword
+  chunker accepts them: `MCCARTHY`, `MCKINLEY’S`, `MCDONALD’S`, `YOUTUBE` and `POWERPOINT` are no
+  longer flagged, while names missing from that list (`MCDONALD`, `MACARTHUR`) and camel-case
+  ones (`EBAY`) still are. A mixed-case token such as `iPHONE` or `McKINLEY` is now searched
+  case-insensitively, so it gets suggestions in the dictionary's case (`iPhone`, `McKinley`)
+  ([#148](https://github.com/cmlarsen/writemorebetter/issues/148)). Rules binaries move to format
+  version 19 (`Spell::phrases`); rebuild the data with `scripts/build-data.sh` to pick up the list.
 - **Contractions, apostrophes and hyphens are handled as in LanguageTool 6.6.** Hyphens at either
   end of a word are now tokens of their own (`didn't-->` is `didn ' t - - >`, `Go-` is `Go -`),
   and a mixed-case contraction such as `don'T` is split at its apostrophe because the tagger,

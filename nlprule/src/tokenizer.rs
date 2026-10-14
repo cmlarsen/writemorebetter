@@ -111,7 +111,7 @@ fn is_contraction_whole_word(s: &str) -> bool {
             | "cc's"
             | "dj'd"
             | "pm'd"
-            | "pd'd"
+            | "dm'd"
             | "rsvp'd"
     )
 }
@@ -278,6 +278,16 @@ pub(crate) struct TokenizerLangOptions {
     /// behavior) and is switched on per build directory.
     #[serde(default)]
     pub chunk_number_from_last_token: bool,
+    /// Also match multiword phrases with their first character uppercased.
+    #[serde(default)]
+    pub multiword_first_capitalized: bool,
+    /// Also match multiword phrases written in all uppercase, unless the phrase is camel case
+    /// (`iPad`).
+    #[serde(default)]
+    pub multiword_all_uppercase: bool,
+    /// Give every token of a multiword phrase spanning several tokens only the phrase's tag.
+    #[serde(default)]
+    pub multiword_remove_previous_tags: bool,
 }
 
 impl Default for TokenizerLangOptions {
@@ -292,6 +302,9 @@ impl Default for TokenizerLangOptions {
             extra_join_regexes: Vec::new(),
             split_contractions: false,
             chunk_number_from_last_token: false,
+            multiword_first_capitalized: false,
+            multiword_all_uppercase: false,
+            multiword_remove_previous_tags: false,
         }
     }
 }
@@ -303,6 +316,7 @@ pub struct IncompleteSentenceIter<'t> {
     tokenizer: &'t Tokenizer,
     index: usize,
     position: Position,
+    keep_raw: bool,
 }
 
 impl<'t> Iterator for IncompleteSentenceIter<'t> {
@@ -326,7 +340,7 @@ impl<'t> Iterator for IncompleteSentenceIter<'t> {
 
         let sentence = self
             .tokenizer
-            .tokenize(&self.text[range.clone()])
+            .tokenize_with_raw(&self.text[range.clone()], self.keep_raw)
             .map(|x| x.rshift(self.position));
 
         self.position += Position {
@@ -432,6 +446,7 @@ impl Tokenizer {
         mut sentence: IncompleteSentence<'t>,
         id: Option<&Index>,
     ) -> IncompleteSentence<'t> {
+        let raw = sentence.take_raw();
         let n = id.map_or(self.rules.len(), |id| {
             self.rules.iter().position(|x| x.id == *id).unwrap()
         });
@@ -467,6 +482,7 @@ impl Tokenizer {
             }
         }
 
+        sentence.set_raw(raw);
         sentence
     }
 
@@ -651,6 +667,37 @@ impl Tokenizer {
     /// Tokenize the given sentence. This applies chunking and tagging, but does not do disambiguation.
     // NB: this is not public because it could be easily misused by passing a text instead of one sentence.
     pub(crate) fn tokenize<'t>(&'t self, sentence: &'t str) -> Option<IncompleteSentence<'t>> {
+        self.tokenize_with_raw(sentence, false)
+    }
+
+    /// Like [Tokenizer::tokenize], but with `keep_raw` also keeps the tokens as tagged and
+    /// chunked, before multiword tagging, for the `raw_pos` grammar rules (see [Sentence::raw]).
+    pub(crate) fn tokenize_with_raw<'t>(
+        &'t self,
+        sentence: &'t str,
+        keep_raw: bool,
+    ) -> Option<IncompleteSentence<'t>> {
+        let mut sentence = self.tokenize_no_multiword(sentence)?;
+
+        if keep_raw {
+            sentence.keep_raw();
+        }
+
+        if let Some(multiword_tagger) = &self.multiword_tagger {
+            multiword_tagger.apply(
+                &mut sentence,
+                self.lang_options.multiword_remove_previous_tags,
+            );
+        }
+
+        Some(sentence)
+    }
+
+    /// Tokenize, tag and chunk the given sentence, stopping before multiword tagging.
+    pub(crate) fn tokenize_no_multiword<'t>(
+        &'t self,
+        sentence: &'t str,
+    ) -> Option<IncompleteSentence<'t>> {
         let mut sentence = self.tokenize_no_chunk(sentence)?;
 
         if let Some(chunker) = &self.chunker {
@@ -658,10 +705,6 @@ impl Tokenizer {
                 &mut sentence,
                 self.lang_options.chunk_number_from_last_token,
             );
-        }
-
-        if let Some(multiword_tagger) = &self.multiword_tagger {
-            multiword_tagger.apply(&mut sentence);
         }
 
         Some(sentence)
@@ -735,19 +778,35 @@ impl Tokenizer {
 
     /// Splits the text into sentences and tokenizes each sentence.
     pub fn sentencize<'t>(&'t self, text: &'t str) -> IncompleteSentenceIter<'t> {
+        self.sentencize_with_raw(text, false)
+    }
+
+    fn sentencize_with_raw<'t>(
+        &'t self,
+        text: &'t str,
+        keep_raw: bool,
+    ) -> IncompleteSentenceIter<'t> {
         IncompleteSentenceIter {
             text,
             splits: self.sentencizer.split_ranges(text),
             tokenizer: &self,
             index: 0,
             position: Position::default(),
+            keep_raw,
         }
     }
 
     /// Applies the entire tokenization pipeline including sentencization, tagging, chunking and disambiguation.
+    /// Each sentence keeps its [raw][Sentence::raw] tokens.
     pub fn pipe<'t>(&'t self, text: &'t str) -> SentenceIter<'t> {
+        self.pipe_with_raw(text, true)
+    }
+
+    /// Like [Tokenizer::pipe], but keeps each sentence's [raw][Sentence::raw] tokens only with
+    /// `keep_raw`.
+    pub(crate) fn pipe_with_raw<'t>(&'t self, text: &'t str, keep_raw: bool) -> SentenceIter<'t> {
         SentenceIter {
-            inner: self.sentencize(text),
+            inner: self.sentencize_with_raw(text, keep_raw),
             tokenizer: &self,
         }
     }
@@ -843,6 +902,9 @@ mod tests {
     #[test]
     fn whole_words_and_t_was() {
         assert!(is_contraction_whole_word("fo’c’sle"));
+        assert!(is_contraction_whole_word("DM'D"));
+        assert!(is_contraction_whole_word("dm’d"));
+        assert!(!is_contraction_whole_word("pd'd"));
         assert_eq!(t_was_parts("'twas"), Some(vec!["'t", "was"]));
         assert_eq!(t_was_parts("’tis"), Some(vec!["’t", "is"]));
         assert_eq!(t_was_parts("'nope"), None);
