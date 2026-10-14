@@ -723,7 +723,13 @@ pub struct Part {
     pub greedy: bool,
     pub visible: bool,
     pub unify: Option<bool>,
-    pub next_exception: Option<Box<Atom>>,
+    pub next_exception: Option<Box<NextExceptions>>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct NextExceptions {
+    pub all: Atom,
+    pub first: Atom,
 }
 
 struct Immunity<'a> {
@@ -979,7 +985,14 @@ impl Composition {
         if !*excepted && prev_skip > 0 {
             *excepted = prev
                 .and_then(|prev| pool.get(self.parts[prev]).next_exception.as_ref())
-                .is_some_and(|exception| exception.is_match(context, position));
+                .is_some_and(|exception| exception.all.is_match(context, position));
+        }
+        if !*excepted && prev_skip == 0 && position + 1 < context.0.len() {
+            *excepted = pool
+                .get(self.parts[index])
+                .next_exception
+                .as_ref()
+                .is_some_and(|exception| exception.first.is_match(context, position + 1));
         }
         !*excepted && self.test(pool, context, index, position, immune)
     }

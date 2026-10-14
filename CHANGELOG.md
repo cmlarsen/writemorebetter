@@ -66,6 +66,11 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   ([#161](https://github.com/cmlarsen/writemorebetter/issues/161)). The rules binary format
   version is now 23 and the tokenizer binary format version is now 16.
 
+- **A `scope="next"` exception after an optional token depends on whether the token matched.**
+  The exception checks the next word's first reading only when the last token that matched has
+  no `skip`, decided per match instead of once when the rule is compiled
+  ([#151](https://github.com/cmlarsen/writemorebetter/issues/151)).
+
 - **Spelling suggestions rank by edit distance, then frequency, as in LanguageTool 6.6.** A
   common word two edits away no longer outranks a rarer word one edit away, and only the
   candidates at the smallest edit distance found are suggested, so `Hecla` suggests `Hekla`

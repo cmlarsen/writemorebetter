@@ -1822,6 +1822,45 @@ mod tests {
         );
     }
 
+    const NEXT_EXCEPTIONS: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
+<rules lang="en">
+<category id="PROBE" name="Probe">
+  <rule id="AFTER_SKIP" name="m">
+    <pattern><token skip="2">it</token><token min="0">really</token><token>was<exception postag="VBN" scope="next"/></token></pattern>
+    <message>m</message>
+  </rule>
+  <rule id="AFTER_OPTIONAL_SKIP" name="m">
+    <pattern><token>it</token><token min="0" skip="1">really</token><token>was<exception postag="VBN" scope="next"/></token></pattern>
+    <message>m</message>
+  </rule>
+</category>
+</rules>
+"#;
+
+    #[test]
+    fn scope_next_exception_depends_on_the_last_matched_skip() {
+        assert_flag_starts(
+            "next-exceptions",
+            NEXT_EXCEPTIONS,
+            vec![
+                ("It was eaten today.", vec![("AFTER_SKIP", 0)]),
+                ("It was eaten.\u{2028}Fine.", vec![("AFTER_SKIP", 0)]),
+                ("It\u{2019}s\u{2026} it was eaten.", vec![("AFTER_SKIP", 6)]),
+                ("It then was eaten.", vec![("AFTER_SKIP", 0)]),
+                (
+                    "\u{201c}It really was eaten today\u{2026}\u{201d}",
+                    vec![("AFTER_OPTIONAL_SKIP", 1)],
+                ),
+                ("It really was eaten.", vec![("AFTER_OPTIONAL_SKIP", 0)]),
+                (
+                    "It really then was eaten.",
+                    vec![("AFTER_OPTIONAL_SKIP", 0)],
+                ),
+                ("It\u{2014} really was eaten.", vec![]),
+            ],
+        );
+    }
+
     #[test]
     fn absent_optional_token_uses_the_previous_skip_window() {
         assert_flag_starts(
