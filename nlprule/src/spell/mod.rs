@@ -19,6 +19,8 @@ use crate::{
 };
 
 mod levenshtein;
+pub(crate) mod multitoken;
+use multitoken::MultitokenSpeller;
 mod spell_int {
     use std::cmp;
 
@@ -669,6 +671,8 @@ pub struct Spell {
     pub(crate) map: DefaultHashMap<String, String>,
     pub(crate) lang_options: SpellLangOptions,
     pub(crate) options: SpellOptions,
+    /// Known multi-word names and phrases for the multitoken spelling rules.
+    pub(crate) multitoken: MultitokenSpeller,
     /// The structure containing the actual spellchecking logic. Computed based on the selected variant.
     #[serde(skip)]
     pub(crate) variant_checker: Option<VariantChecker>,
@@ -910,6 +914,7 @@ impl Spell {
         Some(Speller {
             checker,
             fst: Map::new(self.fst.as_slice()).expect("serialized fst must be valid."),
+            multitoken: &self.multitoken,
         })
     }
 
@@ -964,6 +969,7 @@ impl Spell {
 pub struct Speller<'a> {
     checker: &'a VariantChecker,
     fst: Map<&'a [u8]>,
+    multitoken: &'a MultitokenSpeller,
 }
 
 impl<'a> Speller<'a> {
@@ -1007,6 +1013,10 @@ impl<'a> Speller<'a> {
             return Vec::new();
         }
         self.checker.similar(&self.fst, &word, max_distance)
+    }
+
+    pub(crate) fn multitoken(&self) -> &'a MultitokenSpeller {
+        self.multitoken
     }
 
     fn normalize(word: &str) -> Cow<'_, str> {

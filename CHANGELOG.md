@@ -10,6 +10,16 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
 ### Added
 
+- **Misspelled multi-word names and phrases are caught.** The 14 `MULTITOKEN_SPELLING` rules
+  (`EN_MULTITOKEN_SPELLING_TWO`, `_THREE` and `_FOUR`) now compile: `MultitokenSpellerFilter` is
+  ported from LanguageTool 6.6, so "Yuval Noha Harari" suggests "Yuval Noah Harari" and "Rocki
+  Mountains National Park" suggests "Rocky Mountain National Park"
+  ([#72](https://github.com/cmlarsen/writemorebetter/issues/72)). `build/make_build_dir.py`
+  writes LanguageTool's phrase lists (`en/multiwords.txt` and `spelling_global.txt`, nouns and
+  adjectives only, as LanguageTool reads them) to `spell/multitoken.txt`, and the compiler stores
+  them in the rules binary; a build directory without that file leaves the rules uncompiled.
+  The rules stay on in the fiction profile: they flagged nothing in `bench/public`. The rules
+  binary format version is now 23.
 - **The speller-backed rule filters are ported, so nine more rules run.** `FindSuggestionsFilter`
   (`PRP_MD_NN` [5] and [6], `A_INFINITIVE` [0] and [1]), `EnglishSuppressMisspelledSuggestionsFilter`
   (`EN_SPLIT_WORDS_HYPHEN` [0]–[3]) and `EnglishNumberInWordFilter` (`NUMBERS_IN_WORDS`) now

@@ -25,7 +25,10 @@ use crate::{
         DisambiguationRule, Rule,
     },
     rules::{Rules, RulesLangOptions},
-    spell::{Spell, SpellInt, SpellLangOptions},
+    spell::{
+        multitoken::{normalize_key, MultitokenSpeller},
+        Spell, SpellInt, SpellLangOptions,
+    },
     tokenizer::{
         chunk,
         multiword::{MultiwordTagger, MultiwordTaggerFields},
@@ -276,6 +279,72 @@ impl Spell {
             lang_options,
         ))
     }
+}
+
+impl MultitokenSpeller {
+    /// Reads the phrase list (one spelling per line), as `MultitokenSpeller.initMultitokenSpeller`
+    /// does after `prepareLineForSpeller`. Single-word keys are skipped.
+    pub(in crate::compile) fn from_file(path: impl AsRef<Path>) -> io::Result<Self> {
+        let mut by_first_char: DefaultHashMap<char, Vec<(String, Vec<String>)>> =
+            DefaultHashMap::default();
+        let mut key_indices: DefaultHashMap<String, usize> = DefaultHashMap::default();
+        let mut by_key_without_spaces: DefaultHashMap<String, Vec<String>> =
+            DefaultHashMap::default();
+
+        let push_unique = |spellings: &mut Vec<String>, line: &str| {
+            if !spellings.iter().any(|x| x == line) {
+                spellings.push(line.to_owned());
+            }
+        };
+
+        for line in BufReader::new(File::open(path.as_ref())?).lines() {
+            let line = line?;
+            let key = normalize_key(&line);
+            if !key.contains(' ') {
+                continue;
+            }
+            let first = key.chars().next().expect("key contains a space");
+            let entries = by_first_char.entry(first).or_default();
+            let index = *key_indices.entry(key.clone()).or_insert_with(|| {
+                entries.push((key.clone(), Vec::new()));
+                entries.len() - 1
+            });
+            push_unique(&mut entries[index].1, &line);
+            push_unique(
+                by_key_without_spaces
+                    .entry(key.replace(' ', ""))
+                    .or_default(),
+                &line,
+            );
+        }
+
+        for entries in by_first_char.values_mut() {
+            let mask = java_hash_map_capacity(entries.len()) - 1;
+            entries.sort_by_key(|(key, _)| java_hash_map_hash(key) & mask);
+        }
+
+        Ok(MultitokenSpeller {
+            by_first_char,
+            by_key_without_spaces,
+        })
+    }
+}
+
+/// `HashMap.hash(key)` for a Java `String` key: `String.hashCode` with its high half folded in.
+fn java_hash_map_hash(key: &str) -> u32 {
+    let hash = key
+        .encode_utf16()
+        .fold(0u32, |hash, c| hash.wrapping_mul(31).wrapping_add(c as u32));
+    hash ^ (hash >> 16)
+}
+
+/// The table size of a Java `HashMap` after `len` insertions at the default load factor.
+fn java_hash_map_capacity(len: usize) -> u32 {
+    let mut capacity = 16;
+    while len > capacity * 3 / 4 {
+        capacity *= 2;
+    }
+    capacity as u32
 }
 
 impl Tagger {
@@ -1614,11 +1683,14 @@ pub(in crate::compile) mod rule_filters {
                 date: Some(to_arg_value(required(&args, "date")?, is_regex_rule)),
             }),
             "MultitokenSpellerFilter" => {
-                return Err(Error::Unimplemented(format!(
-                    "filter class '{}' needs LanguageTool's multitoken-speller data, \
-                     which is not available to the on-device engine.",
-                    class
-                )))
+                if !build_dir.join("spell").join("multitoken.txt").exists() {
+                    return Err(Error::Unimplemented(format!(
+                        "filter class '{}' needs the multitoken spelling list \
+                         (spell/multitoken.txt), which this build directory does not have.",
+                        class
+                    )));
+                }
+                RuleFilter::MultitokenSpeller
             }
             "FindSuggestionsFilter" => {
                 let from = required(&args, "wordFrom")?;

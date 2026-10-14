@@ -3,10 +3,10 @@
 //! LanguageTool runs a Java `RuleFilter` after a pattern rule has matched: it
 //! can veto the match, rewrite its suggestions, or adjust the matched range.
 //! This module is the on-device equivalent. Every filter the English rules use
-//! that needs no data beyond the tagger, the synthesizer, the speller (from
-//! [`FilterContext`]) and regular expressions has one variant; the filters that
-//! need LanguageTool's multitoken-speller data stay compile errors that name the
-//! class (see `compile/impls.rs`).
+//! that needs no data beyond the tagger, the synthesizer, the speller and its
+//! multitoken phrase list (from [`FilterContext`]) and regular expressions has
+//! one variant; a filter whose data the build directory lacks stays a compile
+//! error that names the class (see `compile/impls.rs`).
 //!
 //! Arguments follow LanguageTool's `RuleFilterEvaluator`: a value starting with
 //! a backslash is a reference to the text of that numbered pattern token
@@ -15,6 +15,7 @@
 //! receive their arguments verbatim; see [`ArgValue::Static`].
 
 pub(crate) mod date;
+mod multitoken;
 
 use serde::{Deserialize, Serialize};
 
@@ -97,6 +98,7 @@ pub(crate) enum RuleFilter {
     FindSuggestions(FindSuggestions),
     SuppressMisspelledSuggestions(SuppressMisspelledSuggestions),
     NumberInWord(NumberInWord),
+    MultitokenSpeller,
 }
 
 impl RuleFilter {
@@ -124,6 +126,7 @@ impl RuleFilter {
             RuleFilter::FindSuggestions(f) => f.accept(m, sentence, graph, speller),
             RuleFilter::SuppressMisspelledSuggestions(f) => f.accept(m, sentence, speller),
             RuleFilter::NumberInWord(f) => f.accept(m, sentence, graph, speller),
+            RuleFilter::MultitokenSpeller => multitoken::accept(m, sentence, graph, speller),
         }
     }
 }

@@ -185,7 +185,9 @@ pub const TOKENIZER_FORMAT_VERSION: u32 = 15;
 /// Version 21: `SpellOptions::freq_weight` was removed.
 /// Version 22: `RuleFilter` gained the `FindSuggestions`, `SuppressMisspelledSuggestions` and
 /// `NumberInWord` filters.
-pub const RULES_FORMAT_VERSION: u32 = 22;
+/// Version 23: `Spell::multitoken` (the multitoken phrase list) and the `MultitokenSpeller` rule
+/// filter were added.
+pub const RULES_FORMAT_VERSION: u32 = 23;
 
 /// The longest engine version string accepted in a binary header.
 const MAX_ENGINE_VERSION_LEN: usize = 256;

@@ -14,7 +14,7 @@ use std::{
 
 use crate::{
     rules::Rules,
-    spell::Spell,
+    spell::{multitoken::MultitokenSpeller, Spell},
     tokenizer::{chunk::Chunker, multiword::MultiwordTagger, tag::Tagger, Tokenizer},
     types::DefaultHasher,
 };
@@ -45,6 +45,7 @@ struct BuildFilePaths {
     spell_map_path: PathBuf,
     spell_extra_path: PathBuf,
     spell_global_path: PathBuf,
+    spell_multitoken_path: PathBuf,
     /// Optional per-build-directory tokenizer overrides.
     tokenizer_options_path: PathBuf,
 }
@@ -68,6 +69,7 @@ impl BuildFilePaths {
             spell_map_path: p.join("spell/map.txt"),
             spell_extra_path: p.join("spell/spelling.txt"),
             spell_global_path: p.join("spell/spelling_global.txt"),
+            spell_multitoken_path: p.join("spell/multitoken.txt"),
             tokenizer_options_path: p.join("tokenizer_options.json"),
         }
     }
@@ -257,14 +259,18 @@ pub fn compile(
 
     let spell = if paths.spell_dir_path.exists() {
         info!("Creating spellchecker.");
-        Spell::from_dumps(
+        let mut spell = Spell::from_dumps(
             &paths.spell_dir_path,
             &paths.spell_map_path,
             &paths.spell_extra_path,
             &paths.spell_global_path,
             spellchecker_lang_options,
             &tokenizer,
-        )?
+        )?;
+        if paths.spell_multitoken_path.exists() {
+            spell.multitoken = MultitokenSpeller::from_file(&paths.spell_multitoken_path)?;
+        }
+        spell
     } else {
         info!(
             "{} does not exist. Not building spellchecker.",
