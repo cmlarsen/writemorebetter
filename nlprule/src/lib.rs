@@ -147,8 +147,10 @@ pub(crate) const RULES_MAGIC: &[u8; 8] = b"WMBRUL01";
 /// Version 11: `MatcherKind::Synthesis` was added (`<match postag="…"/>` inside a `<token>`).
 /// Version 12: `WordDataAtom::first_reading` was added (`scope="next"` exceptions see only the
 /// next token's first reading).
-/// Version 13: the part pool stores each antipattern's `<marker>` range.
-pub const TOKENIZER_FORMAT_VERSION: u32 = 13;
+/// Version 13: multiword entries carry their lemma, and `TokenizerLangOptions` gained the
+/// `multiword_*` casing and tag-replacement options.
+/// Version 14: the part pool stores each antipattern's `<marker>` range.
+pub const TOKENIZER_FORMAT_VERSION: u32 = 14;
 
 /// The on-disk format version of [Rules] binaries.
 ///
@@ -175,9 +177,11 @@ pub const TOKENIZER_FORMAT_VERSION: u32 = 13;
 /// Version 15: `SpellLangOptions::default_variant` was added.
 /// Version 16: `WordDataAtom::first_reading` was added, as in tokenizer version 12.
 /// Version 17: `Rule::mother_tongue` was added.
-/// Version 18: the part pool stores each antipattern's `<marker>` range, as in tokenizer
-/// version 13.
-pub const RULES_FORMAT_VERSION: u32 = 18;
+/// Version 18: `Rule::raw_pos` was added.
+/// Version 19: `Spell::phrases` was added.
+/// Version 20: the part pool stores each antipattern's `<marker>` range, as in tokenizer
+/// version 14.
+pub const RULES_FORMAT_VERSION: u32 = 20;
 
 /// The longest engine version string accepted in a binary header.
 const MAX_ENGINE_VERSION_LEN: usize = 256;

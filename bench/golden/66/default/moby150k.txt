@@ -21,7 +21,6 @@
 298 | SPELLCHECK/SINGLE | "etext" -> ["text", "event", "next", "test", "extent", "texts", "detect", "elect", "tent", "erect"] | Possibly misspelled word.
 318 | SPELLCHECK/SINGLE | "maketh" -> ["make", "market", "makes", "makeup", "markets", "maker", "math", "makers", "Gareth", "daleth"] | Possibly misspelled word.
 320 | SPELLCHECK/SINGLE | "Hackluyt" -> ["Hakluyt", "Hackly"] | Possibly misspelled word.
-322 | BUILTIN/UPPERCASE_SENTENCE_START | "and" -> ["And"] | This sentence does not start with an uppercase letter.
 322 | SPELLCHECK/SINGLE | "hval" -> ["oval", "heal", "has", "had", "have", "half", "head", "hear", "hill", "heat"] | Possibly misspelled word.
 323 | SPELLCHECK/SINGLE | "hvalt" -> ["halt", "half", "heart", "health", "heat", "hall", "hat", "oval", "shalt", "heal"] | Possibly misspelled word.
 326 | SPELLCHECK/SINGLE | "Dut" -> ["But", "Out", "Due", "Cut", "Put", "Duty", "Duo", "Dust", "Duet", "Dot"] | Possibly misspelled word.

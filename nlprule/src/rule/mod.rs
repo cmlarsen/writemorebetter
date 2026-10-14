@@ -237,7 +237,7 @@ impl DisambiguationRule {
             // by convention examples are always considered as one sentence even if the sentencizer would split
             let sentence_before = tokenizer.disambiguate_up_to_id(
                 tokenizer
-                    .tokenize(text)
+                    .tokenize_no_multiword(text)
                     .expect("test text must not be empty"),
                 Some(&self.id),
             );
@@ -374,7 +374,7 @@ impl<'a, 't> Iterator for Suggestions<'a, 't> {
             let start = if !replacements.is_empty()
                 && replacements
                     .iter()
-                    .all(|x| utils::no_space_chars().chars().any(|c| x.starts_with(c)))
+                    .any(|x| utils::no_space_chars().chars().any(|c| x.starts_with(c)))
             {
                 let first_token = graph.groups()[graph.get_index(start)..]
                     .iter()
@@ -630,6 +630,12 @@ pub struct Rule {
     /// compile time, and stored once per [Rules][crate::Rules] instead of once per
     /// rule.
     pub(crate) uses_articles: bool,
+    /// LanguageTool's `<pattern raw_pos="yes">`: the rule matches the sentence as tagged and
+    /// chunked, before multiword tagging and disambiguation ([Sentence::raw]). False for a
+    /// `raw_pos` rule that reads no POS tags, lemmas, chunks or filter, since it matches the
+    /// same either way and should not make [Rules::suggest][crate::Rules::suggest] keep the
+    /// raw tokens.
+    pub(crate) raw_pos: bool,
     pub(crate) mother_tongue: Option<String>,
     pub(crate) enabled: bool,
 }
@@ -752,6 +758,17 @@ impl Rule {
         self.mother_tongue.as_deref()
     }
 
+    pub(crate) fn raw_pos(&self) -> bool {
+        self.raw_pos
+    }
+
+    fn match_sentence<'s, 't>(&self, sentence: &'s Sentence<'t>) -> &'s Sentence<'t> {
+        match sentence.raw() {
+            Some(raw) if self.raw_pos => raw,
+            _ => sentence,
+        }
+    }
+
     pub(crate) fn apply<'a, 't>(
         &'a self,
         pool: &'a PartPool,
@@ -808,28 +825,33 @@ impl Rule {
         let shift_delta = Position { byte: 1, char: 1 };
 
         for (index, test) in self.examples.get().iter().enumerate() {
-            // by convention examples are always considered as one sentence even if the sentencizer would split
-            let sentence = tokenizer
-                .disambiguate(
+            let text = test.text();
+            let sentences: Vec<_> = tokenizer
+                .sentencize_with_raw(text, self.raw_pos)
+                .map(|sentence| {
                     tokenizer
-                        .tokenize(&test.text())
-                        .expect("test text must not be empty."),
-                )
-                .rshift(shift_delta)
-                .into_sentence();
+                        .disambiguate(sentence)
+                        .rshift(shift_delta)
+                        .into_sentence()
+                })
+                .collect();
 
-            info!("Sentence: {:#?}", sentence);
-            let suggestions: Vec<_> = self
-                .apply_with_context(
-                    pool,
-                    &MatchSentence::new(&sentence),
-                    articles,
-                    filter::FilterContext {
-                        now: Some(filter::test_date()),
-                        speller,
-                    },
-                )
-                .map(|s| s.lshift(shift_delta))
+            info!("Sentences: {:#?}", sentences);
+            let suggestions: Vec<_> = sentences
+                .iter()
+                .flat_map(|sentence| {
+                    self.apply_with_context(
+                        pool,
+                        &MatchSentence::new(self.match_sentence(sentence)),
+                        articles,
+                        filter::FilterContext {
+                            now: Some(filter::test_date()),
+                            speller,
+                        },
+                    )
+                    .map(|s| s.lshift(shift_delta))
+                    .collect::<Vec<_>>()
+                })
                 .collect();
 
             let pass = match test.kind() {
