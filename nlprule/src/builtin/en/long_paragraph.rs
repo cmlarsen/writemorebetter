@@ -44,7 +44,7 @@ impl LongParagraph {
         ends_text: bool,
     ) -> Vec<Suggestion> {
         let mut suggestions = Vec::new();
-        let mut has_line_breaks = previous.last().map_or(false, |x| {
+        let mut has_line_breaks = previous.last().is_some_and(|x| {
             !ends_with_blank_line(x.text()) && has_line_break(x)
         });
         let mut words = 0;

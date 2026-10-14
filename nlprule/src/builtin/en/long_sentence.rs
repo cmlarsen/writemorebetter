@@ -137,7 +137,7 @@ fn with_line_breaks<'a, 't>(sentence: &'a Sentence<'t>) -> Vec<Option<&'a Token<
 fn is_word(text: &str) -> bool {
     text.chars()
         .next()
-        .map_or(false, |c| c.is_alphabetic() && (c as u32) <= 0xffff)
+        .is_some_and(|c| c.is_alphabetic() && (c as u32) <= 0xffff)
 }
 
 /// The end of the last word of the sentence, or of the `.`, `?` or `!` that

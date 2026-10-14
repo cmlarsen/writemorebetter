@@ -97,7 +97,7 @@ impl WordRepeatBeginning {
                     && !is_exception(token)
                     && !is_exception(tokens[1].word().text().as_str())
                     && !is_exception(third)
-                    && previous_sentence.map_or(false, ends_like_sentence)
+                    && previous_sentence.is_some_and(ends_like_sentence)
                 {
                     let message = if is_adverb(token) {
                         Some(ADVERB_MESSAGE)
@@ -129,7 +129,7 @@ impl WordRepeatBeginning {
 /// does so only for the last sentence of the text, whose last token is marked
 /// as the paragraph end.
 fn ends_in_whitespace(sentence: &Sentence) -> bool {
-    sentence.text().chars().last().map_or(false, |c| {
+    sentence.text().chars().last().is_some_and(|c| {
         c.is_whitespace() || c == '\u{feff}' || c == '\u{200b}'
     })
 }
