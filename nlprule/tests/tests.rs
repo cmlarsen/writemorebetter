@@ -2145,6 +2145,96 @@ fn chunker_marks_noun_phrase_from_last_token() {
     assert_eq!(chunks("paper"), vec!["E-NP-singular".to_string()]);
 }
 
+/// Chunk tags LanguageTool 6.6 assigns to these sentences. The chunker's beam search
+/// must keep low-probability tags (`right/NN`, `that/WDT` here), extend the best
+/// sequence first when no top tag is valid (`her/PRP`), and never continue a chunk
+/// after `O` (the closing quote).
+#[test]
+fn chunker_matches_languagetool_beam_search() {
+    let chunk_tags = |text: &str| -> Vec<(String, String)> {
+        TOKENIZER
+            .pipe(text)
+            .flat_map(|sentence| sentence.into_iter())
+            .filter(|token| !token.word().as_str().trim().is_empty())
+            .map(|token| (token.word().as_str().to_string(), token.chunks().join("|")))
+            .collect()
+    };
+    let expected = |pairs: &[(&str, &str)]| -> Vec<(String, String)> {
+        pairs
+            .iter()
+            .map(|(word, chunks)| (word.to_string(), chunks.to_string()))
+            .collect()
+    };
+    let phrase = [
+        ("I", "B-NP-singular|E-NP-singular"),
+        ("miss", "B-VP"),
+        ("the", "B-NP-singular"),
+        ("button", "E-NP-singular"),
+        ("on", "B-PP"),
+        ("the", "B-NP-singular"),
+        ("bottom", "I-NP-singular"),
+        ("right", "E-NP-singular"),
+        ("that", "B-NP-singular|E-NP-singular"),
+        ("just", "B-ADVP"),
+        ("go", "B-VP"),
+    ];
+    let errors = [
+        ("'s", "B-NP-singular|E-NP-singular"),
+        ("over", "B-PP"),
+        ("all", "B-NP-plural"),
+        ("the", "I-NP-plural"),
+        ("errors", "E-NP-plural"),
+    ];
+
+    let mut straight = expected(&phrase);
+    straight.extend(expected(&errors));
+    straight.push((".".to_string(), "O".to_string()));
+    assert_eq!(
+        chunk_tags("I miss the button on the bottom right that just go's over all the errors."),
+        straight
+    );
+
+    let mut quoted = expected(&[("\u{201c}", "B-ADVP")]);
+    quoted.extend(expected(&phrase));
+    quoted.extend(expected(&errors));
+    quoted.extend(expected(&[
+        ("\u{2026}", "B-PP"),
+        ("\u{201d}", "B-NP-singular|E-NP-singular"),
+        ("she", "B-NP-singular|E-NP-singular"),
+        ("said", "B-VP"),
+        (".", "O"),
+    ]));
+    assert_eq!(
+        chunk_tags(
+            "\u{201c}I miss the button on the bottom right that just go\u{2019}s over all the errors\u{2026}\u{201d} she said.\u{2028}"
+        ),
+        quoted
+    );
+
+    let told = chunk_tags(
+        "I did not tell her that his recipe, or a version of it, was still in the till, because some gifts are for keeping.",
+    );
+    assert_eq!(
+        told[3..6],
+        expected(&[
+            ("tell", "I-VP"),
+            ("her", "B-NP-singular|E-NP-singular"),
+            ("that", "B-PP"),
+        ])[..]
+    );
+
+    let spain =
+        chunk_tags("\u{201c}Spain\u{2014}a great whale stranded on the shores of Europe.\u{201d}");
+    assert_eq!(
+        spain[spain.len() - 3..],
+        expected(&[
+            ("Europe", "B-NP-singular|E-NP-singular"),
+            (".", "O"),
+            ("\u{201d}", "B-NP-singular|E-NP-singular"),
+        ])[..]
+    );
+}
+
 /// A suggestion that references a token with `min="0"` which did not take part
 /// in the match must not keep the space that separated it from the next token.
 /// 5.2's A_NNS rule suggests `\2 \3`, where token 2 is an optional adjective,

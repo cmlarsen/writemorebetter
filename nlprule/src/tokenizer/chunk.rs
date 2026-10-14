@@ -330,12 +330,10 @@ impl Model {
     }
 
     fn eval(&self, context: &[u64]) -> Vec<f32> {
-        self.eval_with_resolved(&[], context)
+        self.eval_with_prior(self.resolved_prior(&[]), context)
     }
 
-    /// Like [`Model::eval`], but the entries of `resolved` (already-looked-up `(offset, length)`
-    /// pairs) are applied without a binary search. The keys in `context` are still looked up.
-    fn eval_with_resolved(&self, resolved: &[(u32, u8)], context: &[u64]) -> Vec<f32> {
+    fn resolved_prior(&self, resolved: &[(u32, u8)]) -> Vec<f32> {
         let mut prior =
             vec![(1. / (self.outcome_labels.len() as f32)).ln(); self.outcome_labels.len()];
 
@@ -343,6 +341,13 @@ impl Model {
             self.add_entry(&mut prior, offset, length);
         }
 
+        prior
+    }
+
+    /// Like [`Model::eval`], but starts from `prior`, the [`Model::resolved_prior`] of
+    /// already-looked-up `(offset, length)` pairs, so their entries are applied without a binary
+    /// search. The keys in `context` are still looked up.
+    fn eval_with_prior(&self, mut prior: Vec<f32>, context: &[u64]) -> Vec<f32> {
         for (offset, length) in context.iter().filter_map(|x| self.pmap.get(*x)) {
             self.add_entry(&mut prior, offset, length);
         }
@@ -392,11 +397,10 @@ impl Model {
         let mut cache: DefaultHashMap<u64, Vec<f32>> = DefaultHashMap::default();
 
         for i in 0..tokens.len() {
-            while prev.len() > size {
-                prev.pop();
-            }
+            let mut current = std::mem::take(&mut prev).into_sorted_vec();
+            current.truncate(size);
 
-            for seq in prev.iter() {
+            for seq in current.iter() {
                 let mut window = [""; 2];
                 let mut len = 0;
                 let mut node = seq.node;
@@ -414,7 +418,7 @@ impl Model {
                     cache.insert(hash, eval_fn(&context, i));
                 }
                 let scores = cache.get(&hash).unwrap();
-                let top_n = self.get_top_n(&scores, size, 1e-1);
+                let top_n = self.get_top_n(&scores, size, 0.);
 
                 for (j, p, pred) in top_n {
                     if valid_fn(tokens, outcomes, i, pred) {
@@ -852,7 +856,7 @@ impl MaxentChunker {
         if outcome.starts_with("I-") {
             if let Some(prev_outcome) = outcomes.iter().next_back() {
                 // can byte index here because "I, B, E, -" are all 1 byte
-                *prev_outcome == "O" || prev_outcome[2..] == outcome[2..]
+                *prev_outcome != "O" && prev_outcome[2..] == outcome[2..]
             } else {
                 false
             }
@@ -924,7 +928,8 @@ impl MaxentChunker {
 
     /// The 22 features that involve a predicted outcome (3 pred, 12 pred+tag, 7 pred+word).
     /// The 19 word/tag features are [`static_context`](Self::static_context); the model resolves
-    /// them (and this context) through [`Model::eval_with_resolved`].
+    /// them once into a [`Model::resolved_prior`] and this context through
+    /// [`Model::eval_with_prior`].
     fn pred_context(input: &[(&str, &str)], preds: &[&str], i: usize) -> Vec<u64> {
         let n = input.len();
         let tok = |j: usize| input[j].0;
@@ -987,25 +992,27 @@ impl MaxentChunker {
     }
 
     fn chunk(&self, input: &[(&str, &str)]) -> Sequence {
-        // The word/tag features are position-invariant, so resolve their pmap entries once
-        // instead of binary-searching them for every beam entry. The feature hashes themselves
+        // The word/tag features are position-invariant, so resolve their pmap entries and sum
+        // their parameters once instead of for every beam entry. The feature hashes themselves
         // are only needed to resolve the entries, so they never leave the stack.
-        let resolved: Vec<Vec<(u32, u8)>> = (0..input.len())
+        let priors: Vec<Vec<f32>> = (0..input.len())
             .map(|i| {
-                Self::static_context(input, i)
+                let resolved: Vec<(u32, u8)> = Self::static_context(input, i)
                     .iter()
                     .filter_map(|key| self.model.pmap.get(*key))
-                    .collect()
+                    .collect();
+                self.model.resolved_prior(&resolved)
             })
             .collect();
-        let eval = |context: &[u64], i: usize| self.model.eval_with_resolved(&resolved[i], context);
+        let eval =
+            |context: &[u64], i: usize| self.model.eval_with_prior(priors[i].clone(), context);
         self.model
             .beam_search(
                 input,
                 Self::pred_context,
                 Self::hash,
                 |a, b, c, d| self.valid(a, b, c, d),
-                7,
+                10,
                 eval,
             )
             .remove(0)

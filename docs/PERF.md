@@ -710,9 +710,9 @@ the joined strings are never built. `hash_str(s) == hash_parts(&[s])` and
 terminator), so every feature hash is unchanged.
 
 The chunk model's 19 word/tag features do not depend on the predicted outcomes. They are now
-computed once per position (`static_context`) and their `pmap` entries resolved once
-(`Model::eval_with_resolved`), instead of re-hashing and binary-searching them for every beam
-entry. The 22 outcome-dependent features (`pred_context`) are looked up as before. `beam_search`
+computed once per position (`static_context`) and their `pmap` entries resolved and summed once
+(`Model::resolved_prior`, applied by `Model::eval_with_prior`), instead of re-hashing,
+binary-searching and re-adding them for every beam entry. The 22 outcome-dependent features (`pred_context`) are looked up as before. `beam_search`
 takes the eval step as a closure so the POS tagger keeps the plain `Model::eval`, and it swaps
 its two beam heaps instead of deep-cloning the live sequences each token.
 
