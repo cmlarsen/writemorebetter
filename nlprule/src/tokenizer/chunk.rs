@@ -31,7 +31,8 @@ struct Node {
 
 struct Beam {
     log_prob: f32,
-    node: Option<usize>,
+    parent: Option<usize>,
+    outcome: usize,
 }
 
 impl Eq for Beam {}
@@ -330,27 +331,22 @@ impl Model {
     }
 
     fn eval(&self, context: &[u64]) -> Vec<f32> {
-        self.eval_with_prior(self.resolved_prior(&[]), context)
+        self.eval_with_prior(self.prior(&[]), context)
     }
 
-    fn resolve(&self, keys: &[u64]) -> Vec<(u32, u8)> {
-        keys.iter().filter_map(|key| self.pmap.get(*key)).collect()
-    }
-
-    fn resolved_prior(&self, resolved: &[(u32, u8)]) -> Vec<f32> {
+    fn prior(&self, keys: &[u64]) -> Vec<f32> {
         let mut prior =
             vec![(1. / (self.outcome_labels.len() as f32)).ln(); self.outcome_labels.len()];
 
-        for &(offset, length) in resolved {
+        for (offset, length) in keys.iter().filter_map(|key| self.pmap.get(*key)) {
             self.add_entry(&mut prior, offset, length);
         }
 
         prior
     }
 
-    /// Like [`Model::eval`], but starts from `prior`, the [`Model::resolved_prior`] of
-    /// already-looked-up `(offset, length)` pairs, so their entries are applied without a binary
-    /// search. The keys in `context` are still looked up.
+    /// Like [`Model::eval`], but starts from `prior`, the [`Model::prior`] of features that were
+    /// looked up and summed earlier. The keys in `context` are still looked up.
     fn eval_with_prior(&self, mut prior: Vec<f32>, context: &[u64]) -> Vec<f32> {
         for (offset, length) in context.iter().filter_map(|x| self.pmap.get(*x)) {
             self.add_entry(&mut prior, offset, length);
@@ -389,24 +385,38 @@ impl Model {
         size: usize,
         mut eval_fn: E,
     ) -> Vec<Sequence<'m>> {
+        if tokens.is_empty() {
+            return vec![Sequence {
+                outcomes: Vec::new(),
+            }];
+        }
+
         let mut nodes: Vec<Node> = Vec::new();
+        let mut current: Vec<(f32, Option<usize>)> = vec![(0., None)];
         let mut prev: BinaryHeap<Beam> = BinaryHeap::new();
         let mut next: BinaryHeap<Beam> = BinaryHeap::new();
-        prev.push(Beam {
-            log_prob: 0.,
-            node: None,
-        });
 
         let mut cache: DefaultHashMap<u64, (Vec<f32>, Vec<usize>)> = DefaultHashMap::default();
 
         for i in 0..tokens.len() {
-            let mut current = std::mem::take(&mut prev).into_sorted_vec();
-            current.truncate(size);
+            if i > 0 {
+                let mut best = std::mem::take(&mut prev).into_sorted_vec();
+                best.truncate(size);
+                current.clear();
+                for beam in best.drain(..) {
+                    nodes.push(Node {
+                        outcome: beam.outcome,
+                        parent: beam.parent,
+                    });
+                    current.push((beam.log_prob, Some(nodes.len() - 1)));
+                }
+                prev = BinaryHeap::from(best);
+            }
 
-            for seq in current.iter() {
+            for &(log_prob, seq_node) in current.iter() {
                 let mut window: [&'m str; 2] = [""; 2];
                 let mut len = 0;
-                let mut node = seq.node;
+                let mut node = seq_node;
                 while let (true, Some(idx)) = (len < window.len(), node) {
                     window[window.len() - 1 - len] =
                         self.outcome_labels[nodes[idx].outcome].as_str();
@@ -425,16 +435,12 @@ impl Model {
                 });
 
                 for &j in top_n {
-                    let p = scores[j];
                     let pred = self.outcome_labels[j].as_str();
                     if valid_fn(tokens, outcomes, i, pred) {
-                        nodes.push(Node {
-                            outcome: j,
-                            parent: seq.node,
-                        });
                         next.push(Beam {
-                            log_prob: seq.log_prob + p.ln(),
-                            node: Some(nodes.len() - 1),
+                            log_prob: log_prob + scores[j].ln(),
+                            parent: seq_node,
+                            outcome: j,
                         });
                     }
                 }
@@ -444,13 +450,10 @@ impl Model {
                     for (j, p) in scores.iter().enumerate() {
                         let pred = self.outcome_labels[j].as_str();
                         if valid_fn(tokens, outcomes, i, pred) {
-                            nodes.push(Node {
-                                outcome: j,
-                                parent: seq.node,
-                            });
                             next.push(Beam {
-                                log_prob: seq.log_prob + p.ln(),
-                                node: Some(nodes.len() - 1),
+                                log_prob: log_prob + p.ln(),
+                                parent: seq_node,
+                                outcome: j,
                             });
                         }
                     }
@@ -465,8 +468,8 @@ impl Model {
         out.sort();
         out.into_iter()
             .map(|beam| {
-                let mut outcomes = Vec::new();
-                let mut node = beam.node;
+                let mut outcomes = vec![self.outcome_labels[beam.outcome].as_str()];
+                let mut node = beam.parent;
                 while let Some(idx) = node {
                     outcomes.push(self.outcome_labels[nodes[idx].outcome].as_str());
                     node = nodes[idx].parent;
@@ -823,8 +826,8 @@ impl MaxentPosTagger {
         context
     }
 
-    fn valid(&self, tokens: &[&str], _outcomes: &[&str], i: usize, outcome: &str) -> bool {
-        if let Some(allowed) = self.tagdict.get(tokens[i]) {
+    fn valid(&self, allowed: Option<&[u16]>, outcome: &str) -> bool {
+        if let Some(allowed) = allowed {
             match self.tagdict.tag_id(outcome) {
                 Some(id) => allowed.contains(&id),
                 None => false,
@@ -835,17 +838,15 @@ impl MaxentPosTagger {
     }
 
     fn tag(&self, tokens: &[&str]) -> Sequence {
+        let allowed: Vec<Option<&[u16]>> = tokens.iter().map(|t| self.tagdict.get(t)).collect();
         let priors: Vec<Vec<f32>> = (0..tokens.len())
-            .map(|i| {
-                self.model
-                    .resolved_prior(&self.model.resolve(&Self::static_context(tokens, i)))
-            })
+            .map(|i| self.model.prior(&Self::static_context(tokens, i)))
             .collect();
         self.model
             .beam_search(
                 tokens,
                 Self::hash,
-                |a, b, c, d| self.valid(a, b, c, d),
+                |_, _, i, outcome| self.valid(allowed[i], outcome),
                 3,
                 |tags, i| {
                     self.model
@@ -1012,10 +1013,7 @@ impl MaxentChunker {
         // their parameters once instead of for every beam entry. The feature hashes themselves
         // are only needed to resolve the entries, so they never leave the stack.
         let priors: Vec<Vec<f32>> = (0..input.len())
-            .map(|i| {
-                self.model
-                    .resolved_prior(&self.model.resolve(&Self::static_context(input, i)))
-            })
+            .map(|i| self.model.prior(&Self::static_context(input, i)))
             .collect();
         let mut pred1: Vec<Vec<(&str, [Option<(u32, u8)>; 20])>> = vec![Vec::new(); input.len()];
         let model = &self.model;
@@ -1028,7 +1026,7 @@ impl MaxentChunker {
                 |preds, i| {
                     let pm1v = if i < 1 { "bos" } else { preds[preds.len() - 1] };
                     let cached = &mut pred1[i];
-                    let entries = match cached.iter().position(|(p, _)| *p == pm1v) {
+                    let entries = match cached.iter().position(|(p, _)| std::ptr::eq(*p, pm1v)) {
                         Some(k) => &cached[k].1,
                         None => {
                             let keys = Self::pred1_context(input, pm1v, i);
