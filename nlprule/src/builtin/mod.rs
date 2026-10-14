@@ -11,6 +11,16 @@ use serde::{Deserialize, Serialize};
 
 pub mod en;
 
+/// Whether a suggestion from `source` is dropped when it overlaps another
+/// suggestion. LanguageTool tags `TOO_LONG_SENTENCE` and `TOO_LONG_PARAGRAPH`
+/// as picky, which gives them the lowest priority when matches overlap.
+pub(crate) fn yields_to_overlaps(source: &str) -> bool {
+    matches!(
+        source,
+        "BUILTIN/TOO_LONG_SENTENCE" | "BUILTIN/TOO_LONG_PARAGRAPH"
+    )
+}
+
 /// A rule whose logic is implemented in Rust rather than parsed from rule XML.
 ///
 /// One variant is added per builtin rule; the variant carries the rule's
@@ -36,6 +46,12 @@ pub enum Builtin {
     UnpairedQuotes(en::UnpairedQuotes),
     /// Flags a word whose spelling variant was already used earlier in the text.
     WordCoherency(en::WordCoherency),
+    /// Flags a sentence with more than a maximum number of words.
+    LongSentence(en::LongSentence),
+    /// Flags a paragraph with more than a maximum number of words.
+    LongParagraph(en::LongParagraph),
+    /// Flags successive sentences that begin with the same word.
+    WordRepeatBeginning(en::WordRepeatBeginning),
 }
 
 impl Builtin {
@@ -52,6 +68,9 @@ impl Builtin {
             Builtin::UnpairedBrackets(rule) => rule.id(),
             Builtin::UnpairedQuotes(rule) => rule.id(),
             Builtin::WordCoherency(rule) => rule.id(),
+            Builtin::LongSentence(rule) => rule.id(),
+            Builtin::LongParagraph(rule) => rule.id(),
+            Builtin::WordRepeatBeginning(rule) => rule.id(),
         }
     }
 
@@ -74,16 +93,39 @@ impl Builtin {
         sentences: &[Sentence],
         previous: Option<&Sentence>,
     ) -> Vec<Suggestion> {
+        self.check_paragraph(sentences, previous.map_or(&[], std::slice::from_ref), true)
+    }
+
+    /// Like [`Builtin::check_text_with_previous`], with `previous` holding the
+    /// sentences before the paragraph, oldest first, and `ends_text` telling
+    /// whether the paragraph is the end of the text. Rules that compare
+    /// successive sentences (`ENGLISH_WORD_REPEAT_BEGINNING_RULE`) use the last
+    /// two previous sentences; the others use at most the last one.
+    pub fn check_paragraph(
+        &self,
+        sentences: &[Sentence],
+        previous: &[Sentence],
+        ends_text: bool,
+    ) -> Vec<Suggestion> {
         match self {
             Builtin::CommaParenthesisWhitespace(rule) => rule.check_sentences(sentences),
             Builtin::AVsAn(rule) => sentences.iter().flat_map(|x| rule.check(x)).collect(),
             Builtin::WordRepeat(rule) => sentences.iter().flat_map(|x| rule.check(x)).collect(),
             Builtin::SimpleReplace(rule) => sentences.iter().flat_map(|x| rule.check(x)).collect(),
             Builtin::WrongWordInContext(rule) => rule.check_sentences(sentences),
-            Builtin::UppercaseSentenceStart(rule) => rule.check_with_previous(sentences, previous),
+            Builtin::UppercaseSentenceStart(rule) => {
+                rule.check_with_previous(sentences, previous.last())
+            }
             Builtin::UnpairedBrackets(rule) => rule.check(sentences),
             Builtin::UnpairedQuotes(rule) => rule.check(sentences),
             Builtin::WordCoherency(rule) => rule.check_text(sentences),
+            Builtin::LongSentence(rule) => sentences.iter().flat_map(|x| rule.check(x)).collect(),
+            Builtin::LongParagraph(rule) => {
+                rule.check_with_previous(sentences, previous, ends_text)
+            }
+            Builtin::WordRepeatBeginning(rule) => {
+                rule.check_with_previous(sentences, previous, ends_text)
+            }
         }
     }
 }
@@ -101,6 +143,15 @@ impl BuiltinRule {
         BuiltinRule {
             builtin,
             enabled: true,
+        }
+    }
+
+    /// Creates a new builtin rule that is disabled until enabled, like a
+    /// LanguageTool rule that is off by default.
+    pub fn new_disabled(builtin: Builtin) -> Self {
+        BuiltinRule {
+            builtin,
+            enabled: false,
         }
     }
 

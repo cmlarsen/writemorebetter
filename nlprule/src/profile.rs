@@ -80,6 +80,9 @@ impl Profile {
                 "GRAMMAR/YOU_GOOD",
                 // Stylistic redundancy advice, e.g. some of the -> some (not errors).
                 "REDUNDANCY",
+                // Successive sentences that begin with the same word, which fiction
+                // uses for rhythm ("He waited. He listened. He...").
+                "BUILTIN/ENGLISH_WORD_REPEAT_BEGINNING_RULE",
             ]
             .iter()
             .map(|selector| (*selector).to_owned())

@@ -51,8 +51,9 @@ Disables exactly these:
 | `STYLE/WANNA` | dialogue informality (1) |
 | `GRAMMAR/YOU_GOOD` | verbless dialogue questions, "You okay?" (2) |
 | `REDUNDANCY` | stylistic redundancy advice, not errors (whole category) |
+| `BUILTIN/ENGLISH_WORD_REPEAT_BEGINNING_RULE` | three sentences in a row that begin with the same word ("He waited. He listened. He...") are a deliberate rhythm in fiction |
 
-Applying it to the compiled English rules disables 147 rules and reports 0
+Applying it to the compiled English rules disables 162 rules and reports 0
 unmatched selectors.
 
 ### Rules found while searching `data/en/grammar.xml`
@@ -68,7 +69,9 @@ unmatched selectors.
   rule ids and names in `data/en/grammar.xml` for repeat/repetition/beginning/same
   word turns up only `PHRASE_REPETITION` ("at the at the"),
   `ADVERB_VERB_ADVERB_REPETITION`, and `REPEAT_AGAIN` — none is the progressive
-  word-repeat rule. Nothing was added for it.
+  word-repeat rule. Nothing was added for it then; it is now a builtin
+  ([#82](https://github.com/cmlarsen/writemorebetter/issues/82)) that the fiction
+  profile disables.
 
 ## Measurements
 

@@ -78,6 +78,9 @@ pub(crate) fn for_language(
                 build_dir,
             ))),
             BuiltinRule::new(Builtin::WordCoherency(word_coherency(build_dir))),
+            BuiltinRule::new_disabled(Builtin::LongSentence(LongSentence::new())),
+            BuiltinRule::new_disabled(Builtin::LongParagraph(LongParagraph::new())),
+            BuiltinRule::new(Builtin::WordRepeatBeginning(WordRepeatBeginning::new())),
         ]),
         _ => Ok(Vec::new()),
     }
