@@ -1378,6 +1378,7 @@ impl Rule {
             suppress_misspelled,
             uses_articles,
             raw_pos,
+            repetition: None,
             url: data.url.map(|x| x.to_string()),
             short: data.short.map(|x| x.to_string()),
             // fields below need information from rule group / category, so are set later
