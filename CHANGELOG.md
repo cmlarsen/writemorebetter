@@ -61,6 +61,14 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   `Rules::suggest` keeps the raw tokens only while such a rule is enabled (a text-only
   `raw_pos` rule such as `TYPOS/CONTRACTION_CASE/0` does not count); `Tokenizer::pipe` always
   keeps them. Rules binaries move to format version 18 (`Rule::raw_pos`); recompile them.
+- **Grammar-rule suggestions can spell out numbers.** `<match postag="_spell_number_"/>` now
+  writes the matched number in English words as LanguageTool 6.6 does (`12` → `twelve`,
+  `1001` → `one thousand and one`, `100200` → `one hundred thousand, two hundred`, up to 45
+  digits, leading zeros ignored); anything other than plain ASCII digits is not spelled and the
+  match is dropped as before. The off-by-default `STYLE/SENT_START_NUM/0` now suggests
+  `Twelve` for `12 soldiers were killed!`
+  ([#163](https://github.com/cmlarsen/writemorebetter/issues/163)). Rules binaries move to
+  format version 21 (`PosReplacer::spell_number`); recompile them.
 
 ### Fixed
 
