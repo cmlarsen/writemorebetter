@@ -529,28 +529,24 @@ impl VariantChecker {
         let convert_case = all_caps || is_title_case(word);
         let query = levenshtein::Levenshtein::new(word, self.options.max_distance, 2)
             .fold_case(convert_case);
+        let restore_case = |term: String| {
+            if convert_case {
+                recase(term, all_caps)
+            } else {
+                term
+            }
+        };
 
         let mut out = BinaryHeap::with_capacity(self.options.top_n);
-        self.push_candidates(&mut out, fst, &query);
+        self.push_candidates(&mut out, fst, &query, &restore_case);
 
         if !self.user.suggestion_fst.is_empty() {
             let user_map = Map::new(self.user.suggestion_fst.as_slice())
                 .expect("serialized user suggestion fst must be valid.");
-            self.push_candidates(&mut out, &user_map, &query);
+            self.push_candidates(&mut out, &user_map, &query, &restore_case);
         }
 
-        let mut seen = HashSet::new();
-        out.into_sorted_vec()
-            .into_iter()
-            .map(|x| {
-                if convert_case {
-                    recase(x.term, all_caps)
-                } else {
-                    x.term
-                }
-            })
-            .filter(|term| seen.insert(term.clone()))
-            .collect()
+        out.into_sorted_vec().into_iter().map(|x| x.term).collect()
     }
 
     /// Pushes the candidates of one speller FST into `out`, capping it at `top_n`.
@@ -559,6 +555,7 @@ impl VariantChecker {
         out: &mut BinaryHeap<Candidate>,
         fst: &Map<&[u8]>,
         query: &levenshtein::Levenshtein,
+        recase: &dyn Fn(String) -> String,
     ) {
         let mut stream = fst.search_with_state(query.clone()).into_stream();
         while let Some((k, v, s)) = stream.next() {
@@ -571,13 +568,21 @@ impl VariantChecker {
 
             let state = s.expect("matching levenshtein state is always `Some`.");
 
-            let term = String::from_utf8(k.to_vec()).expect("fst keys must be valid utf-8.");
+            let term =
+                recase(String::from_utf8(k.to_vec()).expect("fst keys must be valid utf-8."));
+            let score = (self.options.max_distance - state.dist()) as f32
+                + id.freq() as f32 / self.max_freq as f32 * self.options.freq_weight;
+            if let Some(existing) = out.iter().find(|x| x.term == term) {
+                if existing.score >= score {
+                    continue;
+                }
+                out.retain(|x| x.term != term);
+            }
             out.push(Candidate {
                 distance: state.dist(),
                 freq: id.freq(),
                 term,
-                score: (self.options.max_distance - state.dist()) as f32
-                    + id.freq() as f32 / self.max_freq as f32 * self.options.freq_weight,
+                score,
             });
             if out.len() > self.options.top_n {
                 out.pop();
