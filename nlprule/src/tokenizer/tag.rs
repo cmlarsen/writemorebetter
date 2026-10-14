@@ -163,6 +163,12 @@ pub(crate) struct TaggerLangOptions {
     /// Whether to look up an all-uppercase word in title case (e.g. `FRANCE` as `France`) if no
     /// tags are found for it otherwise.
     pub title_case_all_uppercase: bool,
+    /// Whether to tag an unknown word ending in `in'` as its `-ing` form (`doin'` as `doing`),
+    /// as LanguageTool 6.6's English tagger does. Unlike LanguageTool, the fallback is skipped
+    /// when the word without its apostrophe is known (`sin'`, `robin'`), so a closing single
+    /// quote after such a word stays a token of its own.
+    #[serde(default)]
+    pub tag_g_dropped_ing: bool,
     /// Used part-of-speech tags which are not in the tagger dictionary.
     pub extra_tags: Vec<String>,
     /// Whether to retain the last tag if disambiguation leads to an empty tag.
@@ -176,6 +182,7 @@ impl Default for TaggerLangOptions {
             use_compound_split_heuristic: false,
             always_add_lower_tags: false,
             title_case_all_uppercase: false,
+            tag_g_dropped_ing: false,
             extra_tags: Vec::new(),
             retain_last: false,
         }
@@ -561,10 +568,59 @@ impl Tagger {
             lower_tag_iter
         };
 
+        if self.lang_options.tag_g_dropped_ing
+            && !matches!(add_lower, AddLower::Never)
+            && tag_iter.len() == 0
+            && lower_tag_iter.as_ref().is_none_or(|iter| iter.len() == 0)
+        {
+            if let Some(iter) = self.get_g_dropped_tags(word) {
+                return iter;
+            }
+        }
+
         StrictTagIter {
             tag_iter,
             lower_tag_iter,
         }
+    }
+
+    fn get_g_dropped_tags(&self, word: &str) -> Option<StrictTagIter<'_>> {
+        let stem = word.strip_suffix('\'')?;
+        let lower_stem = stem.to_lowercase();
+        if !lower_stem.ends_with("in") {
+            return None;
+        }
+
+        let has_lower = stem != lower_stem
+            && (crate::utils::is_title_case(stem) || crate::utils::is_uppercase(stem));
+        if self.get_raw(stem).len() > 0 || (has_lower && self.get_raw(&lower_stem).len() > 0) {
+            return None;
+        }
+
+        let corrected = format!(
+            "{}{}",
+            stem,
+            if crate::utils::is_uppercase(stem) {
+                "G"
+            } else {
+                "g"
+            }
+        );
+        let tag_iter = self.get_raw(&corrected);
+        let lower_tag_iter = if has_lower {
+            Some(self.get_raw(&corrected.to_lowercase()))
+        } else {
+            None
+        };
+
+        if tag_iter.len() == 0 && lower_tag_iter.as_ref().is_none_or(|iter| iter.len() == 0) {
+            return None;
+        }
+
+        Some(StrictTagIter {
+            tag_iter,
+            lower_tag_iter,
+        })
     }
 
     #[allow(dead_code)] // used by compile module

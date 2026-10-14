@@ -180,7 +180,6 @@
 1250 | SPELLCHECK/SINGLE | "skrimshander" -> [] | Possibly misspelled word.
 1253 | SPELLCHECK/SINGLE | "haint" -> ["paint", "saint", "faint", "haunt", "hint", "taint", "wait", "having", "main", "want"] | Possibly misspelled word.
 1254 | SPELLCHECK/SINGLE | "harpooneer" -> ["harpooner", "harpooned", "harpooners"] | Possibly misspelled word.
-1255 | SPELLCHECK/SINGLE | "goin" -> ["going", "join", "gain", "coin", "gin", "groin", "gown", "loin", "grin", "goon"] | Possibly misspelled word.
 1255 | SPELLCHECK/SINGLE | "a-whalin" -> [] | Possibly misspelled word.
 1258 | GRAMMAR/IN_WHO/0 | "who" -> ["whom"] | Did you mean whom?
 1258 | SPELLCHECK/SINGLE | "harpooneer" -> ["harpooner", "harpooned", "harpooners"] | Possibly misspelled word.
@@ -228,7 +227,6 @@
 1433 | SPELLCHECK/SINGLE | "harpooneer" -> ["harpooner", "harpooned", "harpooners"] | Possibly misspelled word.
 1448 | SPELLCHECK/SINGLE | "rayther" -> ["rather", "father", "farther", "Father", "gather", "Rather", "rancher", "raster", "panther", "Mather"] | Possibly misspelled word.
 1448 | SPELLCHECK/SINGLE | "harpooneer" -> ["harpooner", "harpooned", "harpooners"] | Possibly misspelled word.
-1449 | SPELLCHECK/SINGLE | "slanderin" -> ["slandering", "slander", "slandered", "slanders", "slanderer"] | Possibly misspelled word.
 1458 | SPELLCHECK/SINGLE | "Sartain" -> ["Captain", "Martin", "Strain", "Sustain", "Satan", "Bargain", "Martian", "Tartan", "Spartan", "Sprain"] | Possibly misspelled word.
 1460 | SPELLCHECK/SINGLE | "Hecla" -> ["Held", "Help", "Hekla", "Hello", "Hell", "Helm", "Heal", "Heel", "Sheila", "Mecca"] | Possibly misspelled word.
 1464 | SPELLCHECK/SINGLE | "harpooneer" -> ["harpooner", "harpooned", "harpooners"] | Possibly misspelled word.
@@ -240,12 +238,8 @@
 1478 | SPELLCHECK/SINGLE | "purty" -> ["party", "purity", "putty", "part", "parts", "put", "port", "duty", "jury", "pursy"] | Possibly misspelled word.
 1479 | SPELLCHECK/SINGLE | "sarmon" -> ["sermon", "salmon", "Harmon", "carbon", "harmony", "Baron", "Marion", "summon", "sermons", "pardon"] | Possibly misspelled word.
 1480 | SPELLCHECK/SINGLE | "harpooneer" -> ["harpooner", "harpooned", "harpooners"] | Possibly misspelled word.
-1480 | SPELLCHECK/SINGLE | "tellin" -> ["telling", "tells", "selling", "tell", "Berlin", "yelling", "teller", "Merlin", "Mellon", "Kelvin"] | Possibly misspelled word.
 1481 | SPELLCHECK/SINGLE | "balmed" -> ["blamed", "calmed", "balked", "balled", "called", "based", "named", "baled", "palmed", "banned"] | Possibly misspelled word.
-1484 | SPELLCHECK/SINGLE | "sellin" -> ["selling", "sell", "Berlin", "telling", "sells", "spelling", "sealing", "slain", "seller", "yelling"] | Possibly misspelled word.
 1484 | GRAMMAR/AGREEMENT_SENT_START/35 | "is" -> ["'m", "'re", "am", "are"] | Possible agreement error. You should probably use: 'm.|Possible agreement error. You should probably use: 're.|Possible agreement error. You should probably use: am.|Possible agreement error. You should probably use: are.
-1485 | SPELLCHECK/SINGLE | "goin" -> ["going", "join", "gain", "coin", "gin", "groin", "gown", "loin", "grin", "goon"] | Possibly misspelled word.
-1486 | SPELLCHECK/SINGLE | "goin" -> ["going", "join", "gain", "coin", "gin", "groin", "gown", "loin", "grin", "goon"] | Possibly misspelled word.
 1487 | SPELLCHECK/SINGLE | "airth" -> ["birth", "with", "girth", "mirth", "firth", "air", "art", "fifth", "aired", "sixth"] | Possibly misspelled word.
 1487 | SPELLCHECK/SINGLE | "inions" -> ["unions", "minions", "onions", "Unions", "anions", "pinions", "Union", "union", "Onions", "ions"] | Possibly misspelled word.
 1491 | SPELLCHECK/SINGLE | "harpooneer" -> ["harpooner", "harpooned", "harpooners"] | Possibly misspelled word.
@@ -289,7 +283,7 @@
 1694 | SPELLCHECK/SINGLE | "flourishings" -> ["flourishing", "flourishingly"] | Possibly misspelled word.
 1699 | SPELLCHECK/SINGLE | "Queequeg" -> [] | Possibly misspelled word.
 1703 | SPELLCHECK/SINGLE | "harpooneer" -> ["harpooner", "harpooned", "harpooners"] | Possibly misspelled word.
-1705 | SPELLCHECK/SINGLE | "peddlin" -> ["peddling", "meddling", "paddling", "peddler", "puddling", "pedaling", "peddled", "peddle", "peddles", "piddling"] | Possibly misspelled word.
+1705 | GRAMMAR/A_NNS/1 | "a peddlin’ heads" -> ["a peddlin’ head"] | The plural noun "heads" cannot be used with the article "a". Did you mean a peddlin' head?
 1706 | SPELLCHECK/SINGLE | "Queequeg" -> [] | Possibly misspelled word.
 1707 | SPELLCHECK/SINGLE | "sabbee" -> ["stabbed", "sable", "saber", "tabbed", "rabble", "dabble", "subbed", "saree", "babble", "cabbie"] | Possibly misspelled word.
 1707 | SPELLCHECK/SINGLE | "sabbee" -> ["stabbed", "sable", "saber", "tabbed", "rabble", "dabble", "subbed", "saree", "babble", "cabbie"] | Possibly misspelled word.
