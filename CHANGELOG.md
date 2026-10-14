@@ -25,6 +25,15 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
 ### Fixed
 
+- **`scope="next"` exceptions see the readings LanguageTool 6.6 sees.** A token's next-token
+  exception now checks only the next token's first reading (`UNKNOWN` for an untagged word), and
+  is ignored (text exceptions included) when the previous pattern token has a `skip`; on a
+  token with its own `skip` it still checks every reading, unless that token is the last
+  pattern token. `This vehicle get’s used too much.` is now flagged
+  (`TYPOS/VERB_APOSTROPHE_S/3`), `„Wait…“and` is flagged by `TYPOGRAPHY/GERMAN_QUOTES/3`, and
+  `GRAMMAR/ONE_PLURAL/0` passes too
+  ([#122](https://github.com/cmlarsen/writemorebetter/issues/122)). Tokenizer binaries move to
+  format version 12 and rules binaries to 16 (`WordDataAtom::first_reading`); recompile them.
 - **The speller accepts all-caps words and restores case in suggestions.** An all-caps token
   (`THE END`, shouted `HELLO`) is no longer flagged when its lowercase or capitalized form is
   known, and a capitalized or all-caps token is searched case-insensitively with the candidates

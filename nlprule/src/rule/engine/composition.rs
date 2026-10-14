@@ -233,6 +233,7 @@ pub enum Atom {
 
 pub mod concrete {
     use super::{Atomable, Context, Matcher, TextMatcher, WordDataMatcher};
+    use crate::types::SpecialPos;
     use serde::{Deserialize, Serialize};
 
     #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -280,12 +281,20 @@ pub mod concrete {
     pub struct WordDataAtom {
         pub(crate) matcher: WordDataMatcher,
         pub(crate) case_sensitive: bool,
+        pub(crate) first_reading: bool,
     }
 
     impl Atomable for WordDataAtom {
         fn is_match(&self, context: Context, position: usize) -> bool {
             let (sentence, _) = context;
-            let tags = &sentence.index(position).word().tags();
+            let tags = sentence.index(position).word().tags();
+            let tags = if self.first_reading {
+                tags.iter()
+                    .position(|x| x.pos().id().value() != SpecialPos::None as u16)
+                    .map_or(&tags[..0], |i| &tags[i..i + 1])
+            } else {
+                tags
+            };
 
             self.matcher
                 .is_match(&tags, Some(context), Some(self.case_sensitive))
