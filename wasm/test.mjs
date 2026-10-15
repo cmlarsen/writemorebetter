@@ -225,6 +225,9 @@ const namesTokens = namesDoc.paragraphs.flatMap(p => p.sentences.flatMap(s => s.
 check(namesTokens.find(t => t.text === "Will").is_skipped, "capitalized name skipped");
 check(!namesTokens.find(t => t.text === "will").is_skipped, "modal will retained");
 check(namesTokens.filter(t => ["'s", "’s", "'", "’"].includes(t.text)).every(t => t.is_skipped), "name possessives skipped");
+const detached = JSON.parse(checker.analyzeDocument("Anna 's hat.", JSON.stringify({skipNames: ["Anna"]})));
+eq(detached.word_count, 2, "detached clitic stays in denominator");
+check(detached.paragraphs.flatMap(p => p.sentences.flatMap(s => s.tokens)).filter(t => t.is_whitespace || t.text === "'s").every(t => !t.is_skipped), "detached clitic and trailing whitespace retained");
 const compact = JSON.parse(checker.analyzeDocument(documentText, JSON.stringify({skipNames: ["Zoë", "O'Brien"], includeTokenDetails: false})));
 eq(compact.word_count, document.word_count, "compact counts unchanged");
 eq(compact.lemma_index, document.lemma_index, "compact index unchanged");

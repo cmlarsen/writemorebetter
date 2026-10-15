@@ -233,6 +233,17 @@ fn names_preserve_case_and_skip_adjacent_possessives() {
             "{text}"
         );
     }
+    let detached = analyze_document(
+        &tokenizer,
+        "Anna 's hat.",
+        &DocumentOptions::new().with_skip_names(vec!["Anna".into()]),
+    );
+    assert_eq!(detached.word_count, 2);
+    assert!(detached.paragraphs[0].sentences[0]
+        .tokens
+        .iter()
+        .filter(|token| token.is_whitespace || token.text == "'s")
+        .all(|token| !token.is_skipped));
 }
 
 #[test]

@@ -156,7 +156,7 @@ fn skipped_tokens(
             if key.len() > max_length {
                 break;
             }
-            if names.contains(&key) {
+            if !token.is_whitespace && names.contains(&key) {
                 skipped[start..=end].fill(true);
                 if let Some(clitic) = tokens.get(end + 1) {
                     if clitic.span.byte.start == token.span.byte.end
