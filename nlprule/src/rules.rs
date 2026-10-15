@@ -3,7 +3,7 @@
 use crate::types::*;
 use crate::utils::parallelism::MaybeParallelRefIterator;
 use crate::{
-    builtin::BuiltinRule,
+    builtin::{BuiltinRule, TextState},
     rule::id::{Group, Selector},
     rule::MatchSentence,
     rule::Rule,
@@ -247,7 +247,9 @@ impl Rules {
         let builtin_suggestions =
             self.builtin_suggestions(std::slice::from_ref(sentence), &[], true);
         let matches = self.sentence_matches(sentence, builtin_suggestions, true);
-        self.resolve(sentence, matches, &mut Repetitions::default())
+        let mut repetitions = Repetitions::default();
+        let suggestions = self.resolve(sentence, matches, &mut repetitions, true);
+        self.finish(suggestions, &repetitions)
     }
 
     fn builtin_suggestions(
@@ -332,6 +334,7 @@ impl Rules {
         sentence: &Sentence,
         matches: SentenceMatches,
         repetitions: &mut Repetitions,
+        ends_text: bool,
     ) -> Vec<Suggestion> {
         let SentenceMatches {
             mut output,
@@ -339,6 +342,13 @@ impl Rules {
             picky,
         } = matches;
         repetitions.admit(&self.rules, sentence, repeated, &mut output);
+        output.extend(
+            repetitions
+                .builtins
+                .check_sentence(&self.builtins, sentence, ends_text)
+                .into_iter()
+                .map(|x| (0, x)),
+        );
 
         output.sort_by(|(ia, a), (ib, b)| {
             a.span()
@@ -385,6 +395,11 @@ impl Rules {
     /// enough earlier matches nearby. They count matches across sentence and paragraph boundaries
     /// within `text` and start from zero on every call, so an app that checks text incrementally
     /// should pass the surrounding paragraphs it wants those rules to see.
+    ///
+    /// The same holds for the builtins that count words across a text: `EN_REPEATEDWORDS` sees
+    /// words used up to 150 words earlier in `text`, and the `TOO_OFTEN_USED_*` rules compute each
+    /// word's share of `text` and report only after reading all of it. Their matches give way to
+    /// any other suggestion they overlap.
     pub fn suggest(&self, text: &str, tokenizer: &Tokenizer) -> Vec<Suggestion> {
         if text.is_empty() {
             return Vec::new();
@@ -416,13 +431,41 @@ impl Rules {
                 let ends_text = sentences.peek().is_none();
                 self.extend_paragraph(&mut paragraph, &mut previous, ends_text, &mut batch);
                 if batch.len() >= self.batch_size.unwrap_or(PARALLEL_BATCH) {
-                    self.flush_batch(&mut batch, &mut repetitions, &mut suggestions);
+                    self.flush_batch(&mut batch, &mut repetitions, &mut suggestions, ends_text);
                 }
             }
         }
         self.extend_paragraph(&mut paragraph, &mut previous, true, &mut batch);
-        self.flush_batch(&mut batch, &mut repetitions, &mut suggestions);
+        self.flush_batch(&mut batch, &mut repetitions, &mut suggestions, true);
 
+        self.finish(suggestions, &repetitions)
+    }
+
+    /// Adds the suggestions of the builtins that report only after reading the whole text,
+    /// leaving out any that overlaps a suggestion already made.
+    fn finish(
+        &self,
+        mut suggestions: Vec<Suggestion>,
+        repetitions: &Repetitions,
+    ) -> Vec<Suggestion> {
+        let finished: Vec<Suggestion> = repetitions
+            .builtins
+            .finish(&self.builtins)
+            .into_iter()
+            .filter(|suggestion| {
+                let span = suggestion.span().char();
+                let next =
+                    suggestions.partition_point(|other| other.span().char().end <= span.start);
+                suggestions
+                    .get(next)
+                    .is_none_or(|other| other.span().char().start >= span.end)
+            })
+            .collect();
+
+        if !finished.is_empty() {
+            suggestions.extend(finished);
+            suggestions.sort_by_key(|suggestion| suggestion.span().char().start);
+        }
         suggestions
     }
 
@@ -455,12 +498,14 @@ impl Rules {
     }
 
     /// Runs the pending batch in parallel (rules serial within a sentence) and appends the
-    /// per-sentence results to `out` in order.
+    /// per-sentence results to `out` in order. `ends_text` tells whether the batch's last sentence
+    /// is the last of the text.
     fn flush_batch<'t>(
         &self,
         batch: &mut Vec<(Sentence<'t>, Vec<Suggestion>)>,
         repetitions: &mut Repetitions,
         out: &mut Vec<Suggestion>,
+        ends_text: bool,
     ) {
         if batch.is_empty() {
             return;
@@ -471,8 +516,9 @@ impl Rules {
             .map(|(sentence, builtin)| self.sentence_matches(sentence, builtin.clone(), false))
             .collect();
 
-        for ((sentence, _), matches) in batch.iter().zip(results) {
-            out.extend(self.resolve(sentence, matches, repetitions));
+        let last = batch.len() - 1;
+        for (i, ((sentence, _), matches)) in batch.iter().zip(results).enumerate() {
+            out.extend(self.resolve(sentence, matches, repetitions, ends_text && i == last));
         }
         batch.clear();
     }
@@ -508,6 +554,7 @@ struct SentenceMatches {
 struct Repetitions {
     tokens: usize,
     history: HashMap<Group, Vec<usize>>,
+    builtins: TextState,
 }
 
 impl Repetitions {

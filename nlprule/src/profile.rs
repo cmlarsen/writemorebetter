@@ -91,6 +91,11 @@ impl Profile {
                 // Successive sentences that begin with the same word, which fiction
                 // uses for rhythm ("He waited. He listened. He...").
                 "BUILTIN/ENGLISH_WORD_REPEAT_BEGINNING_RULE",
+                // The off-by-default word-frequency hints skip dialogue once enabled: characters
+                // repeat words on purpose, and narration is what the author controls.
+                "BUILTIN/TOO_OFTEN_USED_ADJECTIVE_EN/DIRECT_SPEECH",
+                "BUILTIN/TOO_OFTEN_USED_NOUN_EN/DIRECT_SPEECH",
+                "BUILTIN/TOO_OFTEN_USED_VERB_EN/DIRECT_SPEECH",
             ]
             .iter()
             .map(|selector| (*selector).to_owned())

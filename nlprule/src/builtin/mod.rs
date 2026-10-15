@@ -63,6 +63,10 @@ pub enum Builtin {
     LongParagraph(en::LongParagraph),
     /// Flags successive sentences that begin with the same word.
     WordRepeatBeginning(en::WordRepeatBeginning),
+    /// Flags a word that was already used in a preceding sentence and suggests synonyms.
+    RepeatedWords(en::RepeatedWords),
+    /// Flags an adjective, noun or verb that makes up too large a share of its kind in a text.
+    TooOftenUsed(en::TooOftenUsed),
     /// Flags a multi-word proper noun with the wrong capitalization, e.g.
     /// `"Harry potter"`.
     SpecificCase(en::SpecificCase),
@@ -93,6 +97,8 @@ impl Builtin {
             Builtin::LongSentence(rule) => rule.id(),
             Builtin::LongParagraph(rule) => rule.id(),
             Builtin::WordRepeatBeginning(rule) => rule.id(),
+            Builtin::RepeatedWords(rule) => rule.id(),
+            Builtin::TooOftenUsed(rule) => rule.id(),
             Builtin::SpecificCase(rule) => rule.id(),
             Builtin::Dash(rule) => rule.id(),
             Builtin::Compounds(rule) => rule.id(),
@@ -106,8 +112,24 @@ impl Builtin {
 
     /// Runs this rule on consecutive sentences of one paragraph. Rules that need context beyond one sentence
     /// (e.g. quotes spanning sentences) see all of them; sentence-level rules check each one separately.
+    /// The rules that count words across a text (`EN_REPEATEDWORDS`, `TOO_OFTEN_USED_*`) take
+    /// `sentences` as the whole text.
     pub fn check_text(&self, sentences: &[Sentence]) -> Vec<Suggestion> {
-        self.check_paragraph(sentences, &[], true, None)
+        match self {
+            Builtin::RepeatedWords(_) | Builtin::TooOftenUsed(_) => {
+                let mut state = RuleState::default();
+                let mut suggestions: Vec<Suggestion> = sentences
+                    .iter()
+                    .enumerate()
+                    .flat_map(|(i, sentence)| {
+                        self.check_in_text(sentence, i + 1 == sentences.len(), &mut state)
+                    })
+                    .collect();
+                suggestions.extend(self.finish_text(&state));
+                suggestions
+            }
+            _ => self.check_paragraph(sentences, &[], true, None),
+        }
     }
 
     /// Like [`Builtin::check_text`], for a paragraph that follows `previous`,
@@ -119,6 +141,8 @@ impl Builtin {
     /// `TOO_LONG_PARAGRAPH`, `ENGLISH_WORD_REPEAT_BEGINNING_RULE`) use
     /// `ends_text`. Rules that check their suggestions against the speller
     /// (`EN_COMPOUNDS`) use `speller`; without one they keep every suggestion.
+    /// The rules that count words across a text return nothing here:
+    /// [`Rules::suggest`](crate::Rules::suggest) runs them on the whole text.
     pub fn check_paragraph(
         &self,
         sentences: &[Sentence],
@@ -155,6 +179,7 @@ impl Builtin {
                 rule.check_with_previous(sentences, previous.last())
             }
             Builtin::EmptyLine(rule) => rule.check_text(sentences, ends_text),
+            Builtin::RepeatedWords(_) | Builtin::TooOftenUsed(_) => Vec::new(),
             Builtin::SpecificCase(rule) => sentences.iter().flat_map(|x| rule.check(x)).collect(),
             Builtin::Dash(rule) => sentences.iter().flat_map(|x| rule.check(x)).collect(),
             Builtin::Compounds(rule) => sentences
@@ -162,6 +187,76 @@ impl Builtin {
                 .flat_map(|x| rule.check(x, speller))
                 .collect(),
         }
+    }
+
+    /// Runs the rules that look at a whole text on one sentence of it, in text order. `state`
+    /// keeps what this rule remembers of the earlier sentences, and `ends_text` tells whether no
+    /// sentence follows.
+    fn check_in_text(
+        &self,
+        sentence: &Sentence,
+        ends_text: bool,
+        state: &mut RuleState,
+    ) -> Vec<Suggestion> {
+        match self {
+            Builtin::RepeatedWords(rule) => {
+                rule.check(sentence, ends_text, &mut state.repeated_words)
+            }
+            Builtin::TooOftenUsed(rule) => {
+                rule.count(sentence, &mut state.too_often_used);
+                Vec::new()
+            }
+            _ => Vec::new(),
+        }
+    }
+
+    /// The suggestions of the rules that need to read a whole text before they can report.
+    fn finish_text(&self, state: &RuleState) -> Vec<Suggestion> {
+        match self {
+            Builtin::TooOftenUsed(rule) => rule.finish(&state.too_often_used),
+            _ => Vec::new(),
+        }
+    }
+}
+
+#[derive(Debug, Default)]
+struct RuleState {
+    repeated_words: en::RepeatedWordsState,
+    too_often_used: en::TooOftenUsedState,
+}
+
+/// What the builtins that count words across a text (`EN_REPEATEDWORDS`, `TOO_OFTEN_USED_*`)
+/// remember during one check. It starts empty for every text.
+#[derive(Debug, Default)]
+pub(crate) struct TextState {
+    rules: Vec<RuleState>,
+}
+
+impl TextState {
+    /// Checks the next sentence of the text with every enabled rule of `rules`.
+    pub(crate) fn check_sentence(
+        &mut self,
+        rules: &[BuiltinRule],
+        sentence: &Sentence,
+        ends_text: bool,
+    ) -> Vec<Suggestion> {
+        self.rules.resize_with(rules.len(), RuleState::default);
+        rules
+            .iter()
+            .zip(self.rules.iter_mut())
+            .filter(|(rule, _)| rule.enabled())
+            .flat_map(|(rule, state)| rule.builtin().check_in_text(sentence, ends_text, state))
+            .collect()
+    }
+
+    /// The suggestions that are only known once every sentence of the text was checked.
+    pub(crate) fn finish(&self, rules: &[BuiltinRule]) -> Vec<Suggestion> {
+        rules
+            .iter()
+            .zip(self.rules.iter())
+            .filter(|(rule, _)| rule.enabled())
+            .flat_map(|(rule, state)| rule.builtin().finish_text(state))
+            .collect()
     }
 }
 
@@ -217,12 +312,17 @@ impl BuiltinRule {
 
     /// Stops this rule from reporting one of its cases, named `case`, while it
     /// keeps reporting the others. Returns whether the rule has such a case.
-    /// The only case so far is `INDENTATION` of `WHITESPACE_RULE`, see
-    /// [`en::MultipleWhitespace::skip_indentation`].
+    /// The cases are `INDENTATION` of `WHITESPACE_RULE`, see
+    /// [`en::MultipleWhitespace::skip_indentation`], and `DIRECT_SPEECH` of the
+    /// `TOO_OFTEN_USED_*` rules, see [`en::TooOftenUsed::skip_direct_speech`].
     pub fn disable_case(&mut self, case: &str) -> bool {
         match (&mut self.builtin, case) {
             (Builtin::MultipleWhitespace(rule), "INDENTATION") => {
                 rule.skip_indentation();
+                true
+            }
+            (Builtin::TooOftenUsed(rule), "DIRECT_SPEECH") => {
+                rule.skip_direct_speech();
                 true
             }
             _ => false,

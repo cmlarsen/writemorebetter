@@ -205,7 +205,8 @@ pub const TOKENIZER_FORMAT_VERSION: u32 = 18;
 /// gained `has_suggestions`.
 /// Version 30: `Spell::multitoken` (the multitoken phrase list) and the `MultitokenSpeller` rule
 /// filter were added.
-pub const RULES_FORMAT_VERSION: u32 = 30;
+/// Version 31: the `RepeatedWords` and `TooOftenUsed` builtins were added.
+pub const RULES_FORMAT_VERSION: u32 = 31;
 
 /// The longest engine version string accepted in a binary header.
 const MAX_ENGINE_VERSION_LEN: usize = 256;

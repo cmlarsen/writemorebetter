@@ -70,6 +70,7 @@ BUILTIN_LT_FILES = {
         ("rules/en/replace_profanity.txt", "simple_replace_profanity.txt"),
         ("resource/en/specific_case.txt", "specific_case.txt"),
         ("resource/en/compounds.txt", "compounds.txt"),
+        ("rules/en/synonyms.txt", "synonyms.txt"),
     ],
 }
 
