@@ -9,7 +9,7 @@ PUNCTUATION_CLASSES = {
     '{': '-LRB-', '}': '-RRB-', '“': '``', '‘': '``', '”': "''", '’': "''",
     '"': "''", "'": "''", '-': 'HYPH', '—': 'HYPH', '/': 'NFP', '$': '$', '#': '#',
 }
-LEMMA_CANONICAL = {'could': 'can', 'would': 'will', 'these': 'this'}
+LEMMA_CANONICAL = {'could': 'can', 'would': 'will', 'these': 'this', 'those': 'that'}
 PENN = {}
 for universal, tags in {
     'ADJ': 'JJ JJR JJS', 'ADP': 'IN', 'ADV': 'RB RBR RBS WRB', 'CONJ': 'CC',

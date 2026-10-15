@@ -133,6 +133,7 @@ class BenchTests(unittest.TestCase):
         self.assertEqual(normalize_pos('PCT', ';'), ':')
         self.assertEqual(normalize_lemma('Could'), normalize_lemma('can'))
         self.assertEqual(normalize_lemma('These'), normalize_lemma('this'))
+        self.assertEqual(normalize_lemma('those'), normalize_lemma('that'))
         token = {'text': 'Water', 'is_whitespace': False,
                  'readings': [{'pos': p} for p in ('NN:UN', 'VB', 'VBP')]}
         candidates = start_candidates([token])
@@ -151,6 +152,8 @@ class BenchTests(unittest.TestCase):
         self.assertEqual(score([grouped, other], [reversed_group], {'test'}, report='echoes')['patterns']['echo']['f1'], 1)
         with self.assertRaises(ValueError):
             score(rows, [{**rows[0], 'file': 'typo'}], {'test'})
+        with self.assertRaisesRegex(ValueError, 'report field'):
+            score([grouped], [{k: v for k, v in grouped.items() if k != 'report'}], {'test'}, report='echoes')
 
     def test_litbank_original_mapping_and_paragraph_start(self):
         original = '“Hello,” she said.\n\n“More.”\n\nUnannotated remainder.'
@@ -172,9 +175,12 @@ class BenchTests(unittest.TestCase):
 
     def test_accuracy_ambiguity_and_bias_gates(self):
         ewt = {'normalized_tag_any': .9, 'single_normalized_correct': .6,
-               'sentence_starts': {'per_tag': {'NOUN': {'absolute_fractional_bias_pp': 1}}}}
+               'mean_distinct_normalized_tags_known': 1.7,
+               'sentence_starts': {'total_absolute_bias_pp': 21.5,
+                                   'per_tag': {'ADJ': {'absolute_fractional_bias_pp': .003}}}}
         baseline = {'minimum': {'ewt/normalized_tag_any': .9, 'ewt/single_normalized_correct': .6},
-                    'maximum': {'ewt/sentence_starts/per_tag/NOUN/absolute_fractional_bias_pp': 1}}
+                    'maximum': {'ewt/mean_distinct_normalized_tags_known': 1.7,
+                                'ewt/sentence_starts/total_absolute_bias_pp': 22.5}}
         with tempfile.TemporaryDirectory() as directory:
             here = Path(directory)
             (here / 'tier1-baseline.json').write_text(json.dumps(baseline))
@@ -186,10 +192,19 @@ class BenchTests(unittest.TestCase):
                 with patch.object(tier1, 'score_ewt', return_value=ambiguous):
                     with self.assertRaisesRegex(ValueError, 'single_normalized_correct'):
                         tier1.run(None, 'test', gate=True)
+                already_ambiguous = {**ewt, 'normalized_tag_any': .95, 'mean_distinct_normalized_tags_known': 2.1}
+                with patch.object(tier1, 'score_ewt', return_value=already_ambiguous):
+                    with self.assertRaisesRegex(ValueError, 'mean_distinct_normalized_tags_known'):
+                        tier1.run(None, 'test', gate=True)
+                improved = copy.deepcopy(ewt)
+                improved['sentence_starts']['per_tag']['ADJ']['absolute_fractional_bias_pp'] = .05
+                improved['sentence_starts']['total_absolute_bias_pp'] = 21.6
+                with patch.object(tier1, 'score_ewt', return_value=improved):
+                    tier1.run(None, 'test', gate=True)
                 biased = copy.deepcopy(ewt)
-                biased['sentence_starts']['per_tag']['NOUN']['absolute_fractional_bias_pp'] = 1.1
+                biased['sentence_starts']['total_absolute_bias_pp'] = 22.6
                 with patch.object(tier1, 'score_ewt', return_value=biased):
-                    with self.assertRaisesRegex(ValueError, 'absolute_fractional_bias_pp'):
+                    with self.assertRaisesRegex(ValueError, 'total_absolute_bias_pp'):
                         tier1.run(None, 'test', gate=True)
 
 

@@ -10,24 +10,13 @@
     "ewt/aligned_fraction": 0.9604686379214155,
     "ewt/normalized_tag_any": 0.9067676289635589,
     "ewt/single_normalized_correct": 0.6223379081874113,
-    "ewt/normalized_lemma_any": 0.9539517274017983,
+    "ewt/normalized_lemma_any": 0.9545196403218174,
     "ewt/terminal_boundary_recall": 0.995880535530381,
-    "ewt/punctuation_flag_accuracy": 0.9788781163434903,
     "ewt/sentence_starts/with_candidates": 1833
   },
   "maximum": {
     "ewt/no_reading_share": 0.03525973413783351,
-    "ewt/sentence_starts/per_tag/ADJ/absolute_fractional_bias_pp": 0.0030836788025485617,
-    "ewt/sentence_starts/per_tag/ADP/absolute_fractional_bias_pp": 2.6564850982228734,
-    "ewt/sentence_starts/per_tag/ADV/absolute_fractional_bias_pp": 1.4025174446301527,
-    "ewt/sentence_starts/per_tag/CONJ/absolute_fractional_bias_pp": 2.6512086103456642,
-    "ewt/sentence_starts/per_tag/DET/absolute_fractional_bias_pp": 0.7935504183673139,
-    "ewt/sentence_starts/per_tag/NOUN/absolute_fractional_bias_pp": 0.43795287154670604,
-    "ewt/sentence_starts/per_tag/NUM/absolute_fractional_bias_pp": 0.27122933806058946,
-    "ewt/sentence_starts/per_tag/PRON/absolute_fractional_bias_pp": 1.836831102394168,
-    "ewt/sentence_starts/per_tag/PRT/absolute_fractional_bias_pp": 0.6647547332762305,
-    "ewt/sentence_starts/per_tag/VERB/absolute_fractional_bias_pp": 2.9898713146339233,
-    "ewt/sentence_starts/per_tag/./absolute_fractional_bias_pp": 3.8967298558156895,
-    "ewt/sentence_starts/per_tag/X/absolute_fractional_bias_pp": 3.955325881897552
+    "ewt/mean_distinct_normalized_tags_known": 1.5810255406595557,
+    "ewt/sentence_starts/total_absolute_bias_pp": 22.559540347993412
   }
 }

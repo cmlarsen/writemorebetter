@@ -85,9 +85,9 @@ be reviewed before changing a baseline.
 |---|---|
 | M1 POS normalization | `NN:* → NN`, `PRP_* → PRP`, `PRP$_* → PRP$`, `RB_SENT → RB` |
 | M1 punctuation | `PCT` maps by surface to Penn punctuation (`.!? → .`, `;: → :`, comma, quote, bracket, hyphen and symbol classes); default `.` |
-| Lemma conventions | Unicode case folding, then `could → can`, `would → will`, `these → this` on both gold and candidate lemmas |
+| Lemma conventions | Unicode case folding, then `could → can`, `would → will`, `these → this`, `those → that` on both gold and candidate lemmas |
 | Unsupported gold XPOS | `ADD GW AFX XX FW LS` excluded from lexical scoring and counted |
-| Punctuation/symbols | Gold UPOS `PUNCT`/`SYM` excluded from lexical tag/lemma scoring; `is_punctuation` agreement reported separately (expected true for PUNCT, false for SYM), including per-class counts/accuracy |
+| Punctuation/symbols | Gold UPOS `PUNCT`/`SYM` excluded from lexical tag/lemma scoring; `is_punctuation` agreement reported separately (expected true for PUNCT, false for SYM), including per-class counts/agreement |
 | Lexical conventions (diagnostic only) | gold subordinator (`UPOS=SCONJ`, XPOS IN) vs CC/DT/WDT/WP; WDT↔WP; NNPS↔NNS; RBR↔JJR |
 
 `normalized_tag_any` is gold XPOS membership among distinct M1-normalized readings on aligned lexical
@@ -97,14 +97,21 @@ membership and first-reading equality over **all** aligned tokens remain diagnos
 Neither reading order nor priority is promised by `analyze()`, so first-reading accuracy is not gated.
 Tag/lemma membership is tested independently, not as a paired reading match.
 
-Adding readings can inflate any-reading accuracy. The gate therefore also requires
-`single_normalized_correct` (exactly one distinct normalized POS string, equal to gold) not to drop.
-This guards ambiguity without capping the mean number of tags, which could penalize a legitimate
-new reading on a previously unknown token. Mean distinct normalized tags is still printed; it includes
-all normalized POS strings, even internal strings without a Penn mapping, and gives unknowns zero.
+Adding readings can inflate any-reading accuracy. The gate requires `single_normalized_correct`
+(exactly one distinct normalized POS string, equal to gold) not to drop, and caps
+`mean_distinct_normalized_tags_known`, computed only over lexical tokens with at least one reading.
+The latter catches net ambiguity growth on already-ambiguous or wrong tokens even when any-reading
+accuracy rises. A previously unknown token gaining one tag lowers this conditional mean, rather than
+being penalized for moving from zero to one. The all-token mean remains diagnostic. Both means count
+all distinct M1-normalized POS strings, including internal strings without a Penn mapping.
 Lexical convention matches are printed as additional counts per pair and an inclusive accuracy, but
 **never folded into the gated accuracy**. The no-reading share covers all aligned non-PUNCT/SYM tokens,
 including unsupported gold tags, and has an upper bound gate.
+
+`punctuation_flag_accuracy` is a **tokenization/convention diagnostic**, not model accuracy and not a
+minimum gate: the flag is a pure function of Unicode punctuation classes. All 61 test disagreements
+are Unicode-vs-UD conventions: `/`, `#`, `-` are UD SYM but Unicode punctuation; `<`, `>`, `~` are UD
+PUNCT but Unicode symbols. Its value can change when tokenization changes.
 
 ### Sentence-start bias check
 
@@ -117,9 +124,11 @@ Gold shares cover all gold sentences, including starts for which the prediction 
 so the diagnostic includes selection bias from unknowns as well as ambiguity.
 
 Output reports gold, resolved-only and fractional shares, both biases in percentage points, and the
-resolution rate within each gold tag. The gate caps **each tag's absolute fractional bias**, and floors
-the number of starts with candidates. This exposes the resolved-subset selection effect before any
-Ngram comparison; it does not make the EWT web distribution a fiction baseline.
+resolution rate within each gold tag. Per-tag biases remain diagnostics. The gate caps **total absolute bias** (sum of absolute per-tag
+fractional biases), with an explicit 1 percentage point of slack above the measured 21.55954035 pp:
+**22.55954035 pp**. It also floors the number of starts with candidates. This is a selection-effect
+tripwire, not a per-tag ratchet: small redistributions or newly known starts can pass, and the bound
+is not automatically tightened when results improve. It does not make EWT a fiction baseline.
 
 ### LitBank original prose
 
@@ -147,12 +156,14 @@ python3 bench/style/run.py tier2 score --gold bench/style/out/answers.jsonl \
 ```
 
 The smoke run does all three steps. From each pinned book it skips at least the first 2,500 chapter
-words, beyond LitBank's annotated opening excerpts, then selects 60 chapter paragraphs with at least
+words in numeric chapter order, beyond LitBank's annotated opening excerpts, then selects 60 chapter paragraphs with at least
 20 words and no adjacent repeated words. It repeats the eighth word in 40 of them and
 leaves 20 untouched. These 120 passages are clean only with respect to the toy predicate, not adjudicated
 for every future report. Output includes the answer key, source manifest, modified texts and predictions
 under ignored `out/`. The toy detector flags adjacent case-insensitive exact repeated words separated
-by whitespace. The smoke gate requires P/R/F1 = 1 across 80 injections and 40 untouched controls.
+by whitespace. The smoke gate requires P/R/F1 = 1 across 80 injections and 40 untouched controls. All 120 clean source
+passages were checked against the two LitBank annotated excerpts after numeric chapter ordering:
+zero passages share a case-folded, letter-only six-gram with those excerpts.
 
 Every answer or prediction is one JSONL object:
 
@@ -165,7 +176,9 @@ Offsets are zero-based, half-open and refer to the **final injected text**, not 
 UTF-16 counts code units and bytes count UTF-8. Pass `--manifest PATH` to select the document manifest;
 the default is `documents.jsonl` beside the gold file. Gold and prediction files must belong to that
 manifest, including untouched controls; unknown file identifiers are rejected before filtering.
-`--report NAME` selects records with that report field; `--pattern NAME` selects a single pattern.
+`--report NAME` filters both gold and predictions by that report field, and **rejects every prediction
+missing a nonempty string `report`** when the filter is supplied; predictions are never silently lost
+because they omit the field. `--pattern NAME` selects a single pattern on both sides.
 The scorer accepts any detector with this format, counts
 extra flags on untouched text as false positives, treats duplicate predictions as extra false positives,
 and rejects duplicate gold spans. It reports micro P/R/F1 per pattern and an exact-span confusion matrix
@@ -262,10 +275,11 @@ measurement, **not an engine improvement**:
 | EWT gold XPOS among readings | 80.9639% raw over all aligned | **90.6768%** M1-normalized over lexical tokens |
 | EWT single normalized tag and correct | not measured | **62.2338%** (second tag gate) |
 | EWT normalized tags per lexical token | not measured | 1.52925 (diagnostic) |
+| EWT normalized tags per lexical token with readings | not measured | **1.58103** (upper-bound gate) |
 | EWT lexical-convention inclusive accuracy | not measured | 92.1439% (diagnostic; not gated) |
-| EWT gold lemma among readings | 91.6326% raw over all aligned | **95.3952%** normalized over lexical tokens |
+| EWT gold lemma among readings | 91.6326% raw over all aligned | **95.4520%** normalized over lexical tokens |
 | EWT no readings / aligned non-punctuation | not separated | 748 / 21,214 = **3.5260%** |
-| EWT punctuation/symbol flag agreement | not separated | 97.8878% (2,888 tokens; per-class detail in JSON) |
+| EWT punctuation/symbol flag agreement | not separated | 97.8878% (2,888 tokens; Unicode-vs-UD conventions, diagnostic only) |
 | EWT raw tag any / first (current cohort) | 80.9639 / 69.4530% on old cohort | 81.2879 / 70.0357% (diagnostic) |
 | EWT raw lemma any / first (current cohort) | 91.6326 / 89.2973% on old cohort | 91.6438 / 89.3785% (diagnostic) |
 | LitBank quote-span precision / recall / F1 | 84.6154 / 82.7252 / 83.6596% (tokenized lines) | **84.9962 / 83.0975 / 84.0361%** (original annotated prefixes) |
@@ -273,8 +287,8 @@ measurement, **not an engine improvement**:
 | Tier 2 smoke P/R/F1 | 100 / 100 / 100% | **100 / 100 / 100%**, after the 2,500-word exclusion |
 
 Current EWT start-share comparison (all 2,077 gold sentences; 1,833 starts have candidates, 1,304 are
-resolved). Values are percentages; biases are percentage points. Every absolute fractional bias below
-has its own upper-bound gate.
+resolved). Values are percentages; biases are percentage points. The per-tag values below are
+diagnostic; the aggregate total absolute bias is 21.55954035 pp and the fixed gate is 22.55954035 pp.
 
 | Tag | Gold | Resolved-only | Fractional | Fractional bias |
 |---|---:|---:|---:|---:|
@@ -292,9 +306,10 @@ has its own upper-bound gate.
 | X | 5.8739 | 0.5368 | 1.9185 | -3.9553 |
 
 `tier1-baseline.json` stores full-precision lower bounds for boundary/quote P/R/F1, terminal recall,
-alignment count/fraction, normalized tag/lemma accuracy, single-tag correctness, punctuation agreement
-and candidate-start coverage; upper bounds cover no-reading share and every tag's absolute fractional
-start bias. Raw and lexical-convention metrics are diagnostic only. The tolerance is 1e-12 for floating
+alignment count/fraction, normalized tag/lemma accuracy, single-tag correctness and candidate-start
+coverage; upper bounds cover no-reading share, conditional known-token mean tag count, and total
+absolute fractional start bias with explicit 1 pp slack. Per-tag biases and punctuation agreement
+are diagnostic only. Raw and lexical-convention metrics are diagnostic only. The tolerance is 1e-12 for floating
 arithmetic; thresholds are never rounded or automatically rewritten. A rebaseline needs review of the
 metric definitions, exclusions, alignment coverage, ambiguity and per-category differences, not only
 headline scores. The README retains the initial numbers above to make this review change explicit.

@@ -114,6 +114,7 @@ def self_test(analyzer, baseline):
         assert result['sentence_length']['without_punctuation']['percentiles']['50'] == 3
         assert result['sentence_length']['with_punctuation']['mean'] > 3
         assert abs(sum(s['measured_percent'] for s in result['sentence_start']['fractional'].values()) - 100) < 1e-9
+        assert result['sentence_start']['resolved_only']['VERB']['measured_percent'] == 0
         ambiguous = [{'text': 'Water', 'is_whitespace': False,
                       'readings': [{'pos': 'NN:UN'}, {'pos': 'VB'}, {'pos': 'VBP'}]}]
         candidates = start_candidates(ambiguous)

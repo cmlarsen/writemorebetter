@@ -25,9 +25,9 @@ def public_passages():
     for book in ('pride', 'moby'):
         count = source_words = 0
         with tarfile.open(fetch(book)) as archive:
-            for member in sorted(archive.getmembers(), key=lambda m: m.name):
-                if '/src/epub/text/chapter-' not in member.name or not member.name.endswith('.xhtml'):
-                    continue
+            chapters = [m for m in archive.getmembers() if '/src/epub/text/chapter-' in m.name
+                        and m.name.endswith('.xhtml')]
+            for member in sorted(chapters, key=lambda m: int(Path(m.name).stem.removeprefix('chapter-'))):
                 root = ET.fromstring(archive.extractfile(member).read())
                 for paragraph in root.iter('{http://www.w3.org/1999/xhtml}p'):
                     text = ''.join(paragraph.itertext()).strip()
@@ -90,10 +90,12 @@ def score(gold, predictions, files, report=None, pattern=None):
     for row in [*gold, *predictions]:
         if row['file'] not in files:
             raise ValueError('record file is absent from the manifest')
-    def selected(row):
+    if report is not None and any(not isinstance(row.get('report'), str) or not row['report'] for row in predictions):
+        raise ValueError('--report requires a report field on every prediction')
+    def matches_filter(row):
         return (report is None or row.get('report') == report) and (pattern is None or row['pattern'] == pattern)
-    gold = [row for row in gold if selected(row)]
-    predictions = [row for row in predictions if selected(row)]
+    gold = [row for row in gold if matches_filter(row)]
+    predictions = [row for row in predictions if matches_filter(row)]
     expected = {}
     for row in gold:
         key = identity(row)
@@ -112,10 +114,10 @@ def score(gold, predictions, files, report=None, pattern=None):
     for key, labels in by_span.items():
         actual = expected.get(key, '__none__')
         if actual != '__none__':
-            selected = actual if labels[actual] else sorted(labels)[0]
-            matrix[actual][selected] += 1
-            counts[actual]['tp'] += selected == actual
-            labels[selected] -= 1
+            matched_label = actual if labels[actual] else sorted(labels)[0]
+            matrix[actual][matched_label] += 1
+            counts[actual]['tp'] += matched_label == actual
+            labels[matched_label] -= 1
         for label, count in labels.items():
             if count:
                 matrix['__none__'][label] += count

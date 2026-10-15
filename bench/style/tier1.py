@@ -96,7 +96,9 @@ def start_share_check(analyzer, paragraphs):
                         if total_by_gold[tag] else None}
     return {'sentences': sum(gold.values()), 'with_candidates': known,
             'resolved': sum(resolved.values()), 'unknown': sum(gold.values()) - known,
-            'ambiguous': known - sum(resolved.values()), 'per_tag': per_tag}
+            'ambiguous': known - sum(resolved.values()),
+            'total_absolute_bias_pp': sum(v['absolute_fractional_bias_pp'] for v in per_tag.values()),
+            'per_tag': per_tag}
 
 
 def score_ewt(analyzer, split):
@@ -156,6 +158,7 @@ def score_ewt(analyzer, split):
                     counts['excluded_xpos_tokens'] += 1
                     continue
                 counts['lexical_tokens'] += 1
+                counts['lexical_tokens_with_readings'] += bool(readings)
                 tags = {normalize_pos(r['pos'], token['text']) for r in readings}
                 correct = gold['pos'] in tags
                 counts['normalized_tag_any'] += correct
@@ -182,6 +185,8 @@ def score_ewt(analyzer, split):
             **{key: counts[key] / lexical for key in ('normalized_tag_any', 'single_normalized_correct',
                                                      'normalized_lemma_any', 'with_lexical_conventions')},
             'mean_distinct_normalized_tags': counts['distinct_normalized_tags'] / lexical,
+            'lexical_tokens_with_readings': counts['lexical_tokens_with_readings'],
+            'mean_distinct_normalized_tags_known': counts['distinct_normalized_tags'] / counts['lexical_tokens_with_readings'],
             'lexical_convention_additional': dict(lexical_pairs),
             'no_reading_share': counts['no_reading_tokens'] / counts['non_punctuation_tokens'],
             'punctuation_flag_accuracy': counts['punctuation_agreement'] / counts['punctuation_tokens'],
