@@ -1732,7 +1732,7 @@ pub(in crate::compile) mod rule_filters {
 mod tests {
     use super::*;
     use crate::compile::parse_structure::RegexCache;
-    use crate::rule::engine::composition::MatchSentence;
+    use crate::rule::engine::composition::{MatchSentence, PartPool};
 
     const MARKER_ANTIPATTERNS: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 <rules lang="en">
@@ -1806,6 +1806,180 @@ mod tests {
                 .map(|(name, start)| (name.to_string(), start))
                 .collect();
             assert_eq!(flagged, expected, "{:?}", text);
+        }
+    }
+
+    const DISAMBIGUATION_ANTIPATTERNS: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
+<rules lang="en">
+  <rule id="D_SKIP" name="d">
+    <antipattern><token>bbb</token></antipattern>
+    <pattern><marker><token skip="-1">aaa</token></marker><token regexp="yes">bbb|ccc</token></pattern>
+    <disambig action="replace"><wd lemma="zz" pos="ZZ"/></disambig>
+  </rule>
+  <rule id="D_GAP" name="d">
+    <antipattern><token>ggg</token></antipattern>
+    <pattern><marker><token skip="-1">fff</token></marker><token>hhh</token></pattern>
+    <disambig action="replace"><wd lemma="zz" pos="ZZ"/></disambig>
+  </rule>
+  <rule id="D_TOUCH" name="d">
+    <antipattern><token>“</token></antipattern>
+    <antipattern><token>—</token></antipattern>
+    <antipattern><token>…</token></antipattern>
+    <pattern><token>ddd</token></pattern>
+    <disambig action="replace"><wd lemma="zz" pos="ZZ"/></disambig>
+  </rule>
+</rules>
+"#;
+
+    fn disambiguation_rules(xml: &str) -> (Tokenizer, Vec<(String, DisambiguationRule)>, PartPool) {
+        let tokenizer = Tokenizer::new("../storage/en_tokenizer.bin").unwrap();
+        let path = std::env::temp_dir().join(format!(
+            "wmb-disambiguation-{}-{}.xml",
+            std::process::id(),
+            xml.len()
+        ));
+        std::fs::write(&path, xml).unwrap();
+        let mut info = BuildInfo::new(
+            tokenizer.tagger().clone(),
+            RegexCache::new(0),
+            PathBuf::new(),
+        );
+        let mut pool = PartInterner::default();
+        let rules = crate::compile::parse_structure::read_disambiguation_rules(&path)
+            .into_iter()
+            .map(|result| {
+                let (rule, group, _) = result.unwrap();
+                let id = match group {
+                    Some(group) => format!("{}/{}", group.id, group.n),
+                    None => rule.id.clone().unwrap(),
+                };
+                let rule =
+                    DisambiguationRule::from_rule_structure(rule, &mut info, &mut pool).unwrap();
+                (id, rule)
+            })
+            .collect();
+        std::fs::remove_file(&path).unwrap();
+        (tokenizer, rules, pool.into_pool())
+    }
+
+    fn disambiguated(
+        tokenizer: &Tokenizer,
+        rules: &[(String, DisambiguationRule)],
+        pool: &PartPool,
+        text: &str,
+    ) -> Vec<String> {
+        let mut fired = Vec::new();
+        for sentence in tokenizer.pipe(text) {
+            let sentence = MatchSentence::new(&sentence);
+            for (id, rule) in rules {
+                if !rule.apply(pool, &sentence).is_empty() {
+                    fired.push(id.clone());
+                }
+            }
+        }
+        fired
+    }
+
+    #[test]
+    fn disambiguation_antipatterns_block_the_whole_match_span_like_languagetool() {
+        let (tokenizer, rules, pool) = disambiguation_rules(DISAMBIGUATION_ANTIPATTERNS);
+        for (text, expected) in [
+            ("Then aaa bbb ccc.", vec![]),
+            ("Then aaa eee ccc.", vec!["D_SKIP"]),
+            ("Then fff ggg hhh.", vec![]),
+            ("Then fff eee hhh.", vec!["D_GAP"]),
+            ("\u{201c}ddd,\u{201d} she said.", vec![]),
+            ("Then eee\u{2014}ddd.", vec![]),
+            ("Then ddd\u{2026} eee.", vec![]),
+            ("\u{201c}Then eee ddd,\u{201d} she said.", vec!["D_TOUCH"]),
+            ("Then eee \u{2014} ddd.", vec!["D_TOUCH"]),
+            ("She left.\u{2028}ddd eee.", vec!["D_TOUCH"]),
+            ("Then eee\u{2019}s ddd.", vec!["D_TOUCH"]),
+        ] {
+            assert_eq!(
+                disambiguated(&tokenizer, &rules, &pool, text),
+                expected,
+                "{:?}",
+                text
+            );
+        }
+    }
+
+    const DISAMBIGUATION_ANTIPATTERN_CASE: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
+<rules lang="en">
+  <rulegroup id="D_CASE_GROUP" name="d">
+    <antipattern case_sensitive="yes"><token>Kkk</token><token>Lll</token></antipattern>
+    <rule>
+      <pattern><token>kkk</token></pattern>
+      <disambig action="replace"><wd lemma="zz" pos="ZZ"/></disambig>
+    </rule>
+    <rule>
+      <pattern><token>mmm</token></pattern>
+      <disambig action="replace"><wd lemma="zz" pos="ZZ"/></disambig>
+    </rule>
+  </rulegroup>
+  <rule id="D_CASE" name="d">
+    <antipattern case_sensitive="yes"><token>Nnn</token></antipattern>
+    <pattern><token>ppp</token></pattern>
+    <disambig action="replace"><wd lemma="zz" pos="ZZ"/></disambig>
+  </rule>
+  <rule id="D_CASE_RESET" name="d">
+    <antipattern case_sensitive="yes"><token>Nnn</token></antipattern>
+    <antipattern><token>qqq</token></antipattern>
+    <pattern><token>sss</token></pattern>
+    <disambig action="replace"><wd lemma="zz" pos="ZZ"/></disambig>
+  </rule>
+  <rulegroup id="D_CASE_OWN" name="d">
+    <antipattern case_sensitive="yes"><token>Ttt</token></antipattern>
+    <rule>
+      <antipattern><token>uuu</token></antipattern>
+      <pattern><token>vvv</token></pattern>
+      <disambig action="replace"><wd lemma="zz" pos="ZZ"/></disambig>
+    </rule>
+    <rule>
+      <antipattern case_sensitive="yes"><token>Xxx</token></antipattern>
+      <pattern><token>yyy</token></pattern>
+      <disambig action="replace"><wd lemma="zz" pos="ZZ"/></disambig>
+    </rule>
+  </rulegroup>
+</rules>
+"#;
+
+    #[test]
+    fn case_sensitive_disambiguation_antipattern_makes_the_pattern_case_sensitive() {
+        let (tokenizer, rules, pool) = disambiguation_rules(DISAMBIGUATION_ANTIPATTERN_CASE);
+        for (text, expected) in [
+            (
+                "Then kkk mmm ppp sss.",
+                vec!["D_CASE_GROUP/0", "D_CASE_GROUP/1", "D_CASE", "D_CASE_RESET"],
+            ),
+            (
+                "Then Kkk Mmm Ppp Sss.",
+                vec!["D_CASE_GROUP/1", "D_CASE_RESET"],
+            ),
+            (
+                "THEN KKK MMM PPP SSS.",
+                vec!["D_CASE_GROUP/1", "D_CASE_RESET"],
+            ),
+            (
+                "\u{201c}Kkk\u{2014}mmm\u{2026}\u{201d} ppp\u{2019}s Sss.",
+                vec!["D_CASE_GROUP/1", "D_CASE", "D_CASE_RESET"],
+            ),
+            ("She left.\u{2028}Ppp sss.", vec!["D_CASE_RESET"]),
+            ("Then vvv yyy.", vec!["D_CASE_OWN/0", "D_CASE_OWN/1"]),
+            ("Then Vvv Yyy.", vec!["D_CASE_OWN/0"]),
+            ("THEN VVV YYY.", vec!["D_CASE_OWN/0"]),
+            (
+                "\u{201c}Vvv\u{2014}yyy\u{2026}\u{201d} she said.",
+                vec!["D_CASE_OWN/0", "D_CASE_OWN/1"],
+            ),
+        ] {
+            assert_eq!(
+                disambiguated(&tokenizer, &rules, &pool, text),
+                expected,
+                "{:?}",
+                text
+            );
         }
     }
 

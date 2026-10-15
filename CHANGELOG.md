@@ -29,6 +29,18 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   `A_INFINITIVE`) searches the tagger dictionary instead of the speller
   ([#135](https://github.com/cmlarsen/writemorebetter/issues/135)). While a variant other than the
   default one is selected, the default variant's checker is kept loaded as well.
+- **Disambiguation antipatterns block a match the way LanguageTool 6.6 does.** A
+  disambiguation rule is skipped when one of its antipatterns touches or overlaps any part of
+  the match from its first token to its last, including tokens a `skip` passed over, so an
+  antipattern on the word right before or after the match (no space between) also blocks it.
+  Disambiguation rules keep dropping blocked matches rather than immunizing tokens as grammar
+  rules do, which is what 6.6's `DisambiguationPatternRuleReplacer` does
+  ([#170](https://github.com/cmlarsen/writemorebetter/issues/170)).
+- **A case-sensitive antipattern makes its disambiguation rule's pattern case-sensitive, as in
+  LanguageTool 6.6.** When the last antipattern before a disambiguation `<pattern>` has
+  `case_sensitive="yes"`, the pattern is compiled case-sensitive too, so `STATUS_QUO` tags only
+  lowercase `status quo`
+  ([#177](https://github.com/cmlarsen/writemorebetter/issues/177)).
 
 # 0.8.0 (2026-10-14)
 
