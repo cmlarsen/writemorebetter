@@ -245,7 +245,7 @@ impl Rules {
     /// Rules with LanguageTool's `min_prev_matches` only count earlier matches in this sentence.
     pub fn apply(&self, sentence: &Sentence) -> Vec<Suggestion> {
         let builtin_suggestions =
-            self.builtin_suggestions(std::slice::from_ref(sentence), None, true);
+            self.builtin_suggestions(std::slice::from_ref(sentence), &[], true);
         let matches = self.sentence_matches(sentence, builtin_suggestions, true);
         self.resolve(sentence, matches, &mut Repetitions::default())
     }
@@ -253,7 +253,7 @@ impl Rules {
     fn builtin_suggestions(
         &self,
         sentences: &[Sentence],
-        previous: Option<&Sentence>,
+        previous: &[Sentence],
         ends_text: bool,
     ) -> Vec<Suggestion> {
         self.builtins
@@ -312,9 +312,16 @@ impl Rules {
             .partition(|(i, _)| self.rules[*i].repetition().is_some());
 
         output.extend(spell_suggestions.into_iter().map(|x| (0, x)));
+        let (picky, builtin_suggestions): (Vec<_>, Vec<_>) = builtin_suggestions
+            .into_iter()
+            .partition(|x| crate::builtin::yields_to_overlaps(x.source()));
         output.extend(builtin_suggestions.into_iter().map(|x| (0, x)));
 
-        SentenceMatches { output, repeated }
+        SentenceMatches {
+            output,
+            repeated,
+            picky,
+        }
     }
 
     fn resolve(
@@ -326,6 +333,7 @@ impl Rules {
         let SentenceMatches {
             mut output,
             repeated,
+            picky,
         } = matches;
         repetitions.admit(&self.rules, sentence, repeated, &mut output);
 
@@ -338,9 +346,12 @@ impl Rules {
         });
 
         let mut mask = vec![false; sentence.text().chars().count()];
+        let has_picky = !picky.is_empty();
+        let picky = picky.into_iter().map(|x| (0, x));
 
-        output
+        let mut kept: Vec<Suggestion> = output
             .into_iter()
+            .chain(picky)
             .filter_map(|(_, suggestion)| {
                 let span = suggestion.span().clone().lshift(sentence.span().start());
                 let range = span.char().start.min(mask.len())..span.char().end.min(mask.len());
@@ -358,7 +369,11 @@ impl Rules {
                     None
                 }
             })
-            .collect()
+            .collect();
+        if has_picky {
+            kept.sort_by_key(|x| x.span().char().start);
+        }
+        kept
     }
 
     /// Compute the suggestions for a text by checking all rules.
@@ -380,9 +395,9 @@ impl Rules {
         // waking for a single sentence's few thousand rules.
         let mut batch: Vec<(Sentence, Vec<Suggestion>)> = Vec::new();
         let mut repetitions = Repetitions::default();
-        // The last sentence of the previous paragraph, kept so that text-level
-        // builtins (UppercaseSentenceStart) can use it as context.
-        let mut previous: Option<Sentence> = None;
+        // The last sentences before the current paragraph, kept so that text-level
+        // builtins (UppercaseSentenceStart) can use them as context.
+        let mut previous: Vec<Sentence> = Vec::new();
 
         let keep_raw = self
             .rules
@@ -396,32 +411,35 @@ impl Rules {
 
             if ends_paragraph {
                 let ends_text = sentences.peek().is_none();
-                previous =
-                    self.extend_paragraph(&mut paragraph, previous.as_ref(), ends_text, &mut batch);
+                self.extend_paragraph(&mut paragraph, &mut previous, ends_text, &mut batch);
                 if batch.len() >= self.batch_size.unwrap_or(PARALLEL_BATCH) {
                     self.flush_batch(&mut batch, &mut repetitions, &mut suggestions);
                 }
             }
         }
-        self.extend_paragraph(&mut paragraph, previous.as_ref(), true, &mut batch);
+        self.extend_paragraph(&mut paragraph, &mut previous, true, &mut batch);
         self.flush_batch(&mut batch, &mut repetitions, &mut suggestions);
 
         suggestions
     }
 
     /// Adds one paragraph's `(sentence, builtin suggestions)` pairs to the pending batch. `previous`
-    /// is the last sentence of the preceding paragraph, if any, and `ends_text` tells whether no
-    /// sentence follows. Returns the paragraph's last sentence so the caller can pass it on as
-    /// context.
+    /// holds the last two sentences before the paragraph, oldest first, and is updated to the last
+    /// two sentences after it; `ends_text` tells whether no sentence follows.
     fn extend_paragraph<'t>(
         &self,
         paragraph: &mut Vec<Sentence<'t>>,
-        previous: Option<&Sentence<'t>>,
+        previous: &mut Vec<Sentence<'t>>,
         ends_text: bool,
         batch: &mut Vec<(Sentence<'t>, Vec<Suggestion>)>,
-    ) -> Option<Sentence<'t>> {
+    ) {
+        if paragraph.is_empty() {
+            return;
+        }
         let mut builtin_suggestions = self.builtin_suggestions(paragraph, previous, ends_text);
-        let last = paragraph.last().cloned();
+        previous.extend(paragraph.iter().rev().take(2).rev().cloned());
+        let excess = previous.len().saturating_sub(2);
+        previous.drain(..excess);
 
         for sentence in paragraph.drain(..) {
             let end = sentence.span().char().end;
@@ -431,8 +449,6 @@ impl Rules {
             builtin_suggestions = rest;
             batch.push((sentence, own));
         }
-
-        last
     }
 
     /// Runs the pending batch in parallel (rules serial within a sentence) and appends the
@@ -481,6 +497,7 @@ impl Rules {
 struct SentenceMatches {
     output: Vec<(usize, Suggestion)>,
     repeated: Vec<(usize, Suggestion)>,
+    picky: Vec<Suggestion>,
 }
 
 #[derive(Default)]

@@ -1,7 +1,6 @@
 use bimap::BiMap;
 use fs_err::File;
 use fst::Map;
-use half::bf16;
 use log::warn;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -990,7 +989,7 @@ pub(in crate::compile) struct ContextData {
 impl From<ModelData> for chunk::Model {
     fn from(data: ModelData) -> Self {
         let mut outcomes: Vec<u8> = Vec::new();
-        let mut parameters: Vec<bf16> = Vec::new();
+        let mut parameters: Vec<f32> = Vec::new();
 
         let mut contexts: Vec<_> = data.pmap.into_iter().collect();
         contexts.sort_unstable_by(|a, b| a.0.cmp(&b.0));
@@ -1005,7 +1004,7 @@ impl From<ModelData> for chunk::Model {
                 assert!(outcome <= u8::MAX as usize);
                 outcome as u8
             }));
-            parameters.extend(value.parameters.into_iter().map(bf16::from_f32));
+            parameters.extend(value.parameters);
 
             (chunk::hash::hash_str(&key), (offset, length))
         });
@@ -1360,9 +1359,10 @@ mod composition {
                 }
             }
 
-            let can_stop_mask = (0..parts.len())
-                .map(|i| parts[i..].iter().all(|x| x.quantifier.min == 0))
-                .collect();
+            let optional_count = parts
+                .iter()
+                .filter(|part| part.visible && part.quantifier.min == 0)
+                .count() as u32;
 
             for (i, part) in parts.iter_mut().enumerate() {
                 for id in part.atom.mut_graph_ids() {
@@ -1388,7 +1388,7 @@ mod composition {
             Ok(Composition {
                 parts: parts.into_iter().map(|part| pool.intern(part)).collect(),
                 id_to_idx,
-                can_stop_mask,
+                optional_count,
                 start_keys,
                 required_key,
             })
@@ -1744,12 +1744,10 @@ mod tests {
 </rules>
 "#;
 
-    #[test]
-    fn antipattern_marker_limits_the_immunized_tokens() {
+    fn assert_flag_starts(name: &str, xml: &str, cases: Vec<(&str, Vec<(&str, usize)>)>) {
         let tokenizer = Tokenizer::new("../storage/en_tokenizer.bin").unwrap();
-        let path =
-            std::env::temp_dir().join(format!("wmb-antipattern-marker-{}.xml", std::process::id()));
-        std::fs::write(&path, MARKER_ANTIPATTERNS).unwrap();
+        let path = std::env::temp_dir().join(format!("wmb-{}-{}.xml", name, std::process::id()));
+        std::fs::write(&path, xml).unwrap();
         let mut info = BuildInfo::new(
             tokenizer.tagger().clone(),
             RegexCache::new(0),
@@ -1765,31 +1763,9 @@ mod tests {
         );
         std::fs::remove_file(&path).unwrap();
         let pool = pool.into_pool();
-        assert_eq!(rules.len(), 5);
+        assert_eq!(rules.len(), xml.matches("<rule ").count());
 
-        for (text, expected) in [
-            (
-                "\u{201c}bbb ccc\u{2026}\u{201d} she said.",
-                vec![
-                    ("M_AFTER", 5),
-                    ("M_INNER", 5),
-                    ("M_LEAD", 5),
-                    ("M_TRAIL", 5),
-                ],
-            ),
-            (
-                "\u{201c}www iii\u{2014}iii qqq,\u{201d} he said.",
-                vec![("M_TWO", 9)],
-            ),
-            (
-                "She left.\u{2028}aaa bbb ccc ddd.",
-                vec![("M_AFTER", 18), ("M_LEAD", 18), ("M_TRAIL", 18)],
-            ),
-            (
-                "\u{201c}aaa bbb ccc ddd\u{2019}\u{201d}",
-                vec![("M_AFTER", 9), ("M_LEAD", 9), ("M_TRAIL", 9)],
-            ),
-        ] {
+        for (text, expected) in cases {
             let mut flagged = Vec::new();
             for sentence in tokenizer.pipe(text) {
                 let sentence = MatchSentence::new(&sentence);
@@ -1983,6 +1959,206 @@ mod tests {
                 text
             );
         }
+    }
+
+    #[test]
+    fn antipattern_marker_limits_the_immunized_tokens() {
+        assert_flag_starts(
+            "antipattern-marker",
+            MARKER_ANTIPATTERNS,
+            vec![
+                (
+                    "\u{201c}bbb ccc\u{2026}\u{201d} she said.",
+                    vec![
+                        ("M_AFTER", 5),
+                        ("M_INNER", 5),
+                        ("M_LEAD", 5),
+                        ("M_TRAIL", 5),
+                    ],
+                ),
+                (
+                    "\u{201c}www iii\u{2014}iii qqq,\u{201d} he said.",
+                    vec![("M_TWO", 9)],
+                ),
+                (
+                    "She left.\u{2028}aaa bbb ccc ddd.",
+                    vec![("M_AFTER", 18), ("M_LEAD", 18), ("M_TRAIL", 18)],
+                ),
+                (
+                    "\u{201c}aaa bbb ccc ddd\u{2019}\u{201d}",
+                    vec![("M_AFTER", 9), ("M_LEAD", 9), ("M_TRAIL", 9)],
+                ),
+            ],
+        );
+    }
+
+    const OPTIONAL_TOKENS: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
+<rules lang="en">
+<category id="PROBE" name="Probe">
+  <rule id="LAZY" name="m">
+    <pattern><token>we</token><token min="0" regexp="yes">really|truly</token><token regexp="yes">truly|left</token><token>early</token></pattern>
+    <message>m</message>
+  </rule>
+  <rule id="COMPOUND" name="m">
+    <pattern><token>and</token><token min="0" postag="RB"/><token postag="NNPS?|PRP_S.*" postag_regexp="yes"/><token inflected="yes" min="0" regexp="yes">be|do|have</token><token min="0" postag="RB|TO" postag_regexp="yes"/><token min="0" postag="VB[DPZ]?" postag_regexp="yes"><exception regexp="yes">are|be|do|have</exception></token><token min="0" postag="RB"/><token postag="SENT_END"/></pattern>
+    <message>m</message>
+  </rule>
+  <rule id="SKIPPED" name="m">
+    <pattern><token skip="-1">was<exception scope="next">did</exception></token><token min="0" skip="-1">not<exception scope="next">so</exception></token><token>it</token></pattern>
+    <message>m</message>
+  </rule>
+</category>
+</rules>
+"#;
+
+    #[test]
+    fn optional_token_is_absent_when_the_next_token_matches_too() {
+        assert_flag_starts(
+            "optional-tokens",
+            OPTIONAL_TOKENS,
+            vec![
+                ("We left and it has to stop.", vec![]),
+                (
+                    "\u{201c}We left and it has to stop,\u{201d} she said.",
+                    vec![],
+                ),
+                ("We left and it is to stop.", vec![]),
+                ("We left \u{2014} and it has not.", vec![("COMPOUND", 10)]),
+                ("We left\u{2026} and it stops.", vec![("COMPOUND", 9)]),
+                ("We truly left early.", vec![]),
+                (
+                    "We\u{2019}d left.\u{2028}We truly left early\u{2026}",
+                    vec![],
+                ),
+                (
+                    "\u{201c}We really left early,\u{201d} she said.",
+                    vec![("LAZY", 1)],
+                ),
+                ("We truly early \u{2014} or so.", vec![("LAZY", 0)]),
+            ],
+        );
+    }
+
+    const NEXT_EXCEPTIONS: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
+<rules lang="en">
+<category id="PROBE" name="Probe">
+  <rule id="AFTER_SKIP" name="m">
+    <pattern><token skip="2">it</token><token min="0">really</token><token>was<exception postag="VBN" scope="next"/></token></pattern>
+    <message>m</message>
+  </rule>
+  <rule id="AFTER_OPTIONAL_SKIP" name="m">
+    <pattern><token>it</token><token min="0" skip="1">really</token><token>was<exception postag="VBN" scope="next"/></token></pattern>
+    <message>m</message>
+  </rule>
+</category>
+</rules>
+"#;
+
+    #[test]
+    fn scope_next_exception_depends_on_the_last_matched_skip() {
+        assert_flag_starts(
+            "next-exceptions",
+            NEXT_EXCEPTIONS,
+            vec![
+                ("It was eaten today.", vec![("AFTER_SKIP", 0)]),
+                ("It was eaten.\u{2028}Fine.", vec![("AFTER_SKIP", 0)]),
+                ("It\u{2019}s\u{2026} it was eaten.", vec![("AFTER_SKIP", 6)]),
+                ("It then was eaten.", vec![("AFTER_SKIP", 0)]),
+                (
+                    "\u{201c}It really was eaten today\u{2026}\u{201d}",
+                    vec![("AFTER_OPTIONAL_SKIP", 1)],
+                ),
+                ("It really was eaten.", vec![("AFTER_OPTIONAL_SKIP", 0)]),
+                (
+                    "It really then was eaten.",
+                    vec![("AFTER_OPTIONAL_SKIP", 0)],
+                ),
+                ("It\u{2014} really was eaten.", vec![]),
+            ],
+        );
+    }
+
+    #[test]
+    fn absent_optional_token_uses_the_previous_skip_window() {
+        assert_flag_starts(
+            "optional-skip",
+            OPTIONAL_TOKENS,
+            vec![
+                ("It was then did it go\u{2026}", vec![]),
+                ("\u{201c}It was then so it went.\u{201d}", vec![]),
+                ("It was then it went.", vec![("SKIPPED", 3)]),
+                ("It was not then it went \u{2014} oh.", vec![("SKIPPED", 3)]),
+                ("It was so it went.\u{2028}Done.", vec![]),
+                ("It was not so it went.", vec![]),
+                ("It was not did it go.", vec![("SKIPPED", 3)]),
+            ],
+        );
+    }
+
+    const IMMUNIZED_AND_REPEATED: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
+<rules lang="en">
+<category id="PROBE" name="Probe">
+  <rule id="IMMUNE_EXCEPTION" name="m">
+    <antipattern><token>was</token><token>then</token></antipattern>
+    <pattern><token skip="4">it<exception scope="next">then</exception></token><token>was</token></pattern>
+    <message>m</message>
+  </rule>
+  <rule id="MIN_TWO" name="m">
+    <pattern><token>saw</token><token case_sensitive="yes" min="2" regexp="yes">[A-Z].*</token></pattern>
+    <message>m</message>
+  </rule>
+  <rule id="MIN_TWO_NEXT" name="m">
+    <pattern><token>saw</token><token case_sensitive="yes" min="2" regexp="yes">[A-Z].*</token><token>plant</token></pattern>
+    <message>m</message>
+  </rule>
+  <rule id="MAX_ANY" name="m">
+    <pattern><token>said</token><token max="-1">no</token><token>more</token></pattern>
+    <message>m</message>
+  </rule>
+</category>
+</rules>
+"#;
+
+    #[test]
+    fn immunized_tokens_skip_next_exceptions_and_repeats_follow_min_and_max() {
+        let many_noes = format!("She said {} more\u{2014}again.", vec!["no"; 25].join(" "));
+        assert_flag_starts(
+            "immunized-repeated",
+            IMMUNIZED_AND_REPEATED,
+            vec![
+                ("It soon was then was gone.", vec![("IMMUNE_EXCEPTION", 0)]),
+                (
+                    "\u{201c}It soon was then was gone\u{2026}\u{201d}",
+                    vec![("IMMUNE_EXCEPTION", 1)],
+                ),
+                (
+                    "It soon was\u{2014}then was gone.",
+                    vec![("IMMUNE_EXCEPTION", 0)],
+                ),
+                ("It soon then was gone.", vec![]),
+                (
+                    "It\u{2019}s odd.\u{2028}It soon was then was gone.",
+                    vec![("IMMUNE_EXCEPTION", 10)],
+                ),
+                (
+                    "\u{201c}We saw Nine Mile Nuclear Power plant\u{2026}\u{201d}",
+                    vec![("MIN_TWO", 4)],
+                ),
+                (
+                    "We saw Nine Mile plant\u{2014}today.",
+                    vec![("MIN_TWO", 3), ("MIN_TWO_NEXT", 3)],
+                ),
+                (
+                    "We\u{2019}d saw Nine Mile Nuclear today.",
+                    vec![("MIN_TWO", 5)],
+                ),
+                (&many_noes, vec![("MAX_ANY", 4)]),
+                (
+                    "\u{201c}She said no no more,\u{201d} he said.\u{2028}Fine.",
+                    vec![("MAX_ANY", 5)],
+                ),
+            ],
+        );
     }
 
     #[test]
