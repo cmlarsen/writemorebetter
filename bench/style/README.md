@@ -351,8 +351,8 @@ python3 bench/style/echoes.py --gate --probe bench/tools/wmb-document/target/rel
 
 The report's probe is `wmb-echoes`, a second binary of `bench/tools/wmb-document`. It reads JSONL
 `{"file", "text"}` lines (`--hard-wrapped`, `--min-content-words N` optional) and writes one record per
-echo (`report: "echoes"`, `pattern: "echo"`, `key`, two spans) and per repeated phrase
-(`report: "repeated_phrases"`, `pattern: "repeated_phrase"`, `keys`, every occurrence span), in the
+echo (`report: "echoes"`, `pattern: "echo"`, `key`, `label`, two spans) and per repeated phrase
+(`report: "repeated_phrases"`, `pattern: "repeated_phrase"`, `keys`, `labels`, every occurrence span), in the
 grouped-span format above. `--benchmark` times the document pass and both reports.
 
 `echoes.py` takes 40 passages from each pinned Standard Ebooks book: paragraphs of at least 110

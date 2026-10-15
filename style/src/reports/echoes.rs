@@ -65,6 +65,7 @@ impl EchoOptions {
 #[non_exhaustive]
 pub struct Echo {
     pub key: String,
+    pub label: String,
     pub earlier: Span,
     pub later: Span,
     pub distance: usize,
@@ -134,10 +135,12 @@ impl Lexicon {
             entry.occurrences += 1;
             let mut content = token.readings.is_empty();
             for reading in &token.readings {
-                if CONTENT_TAGS.iter().any(|tag| reading.pos.starts_with(tag)) {
+                if CONTENT_TAGS.iter().any(|tag| reading.pos.starts_with(tag))
+                    && !listed(&fold(&reading.lemma))
+                {
                     content = true;
                 }
-                if reading.pos.starts_with("CD") || listed(&fold(&reading.lemma)) {
+                if reading.pos.starts_with("CD") {
                     entry.function = true;
                 }
             }
@@ -225,7 +228,7 @@ impl Lexicon {
                     .or_else(|| shared.iter().next())
                     .cloned()
             })
-            .unwrap_or_else(|| self.family(tokens[0]))
+            .unwrap_or_else(|| spellings[0].clone())
     }
 }
 
@@ -246,11 +249,12 @@ pub fn echoes(document: &Document, options: &EchoOptions) -> EchoReport {
             let distance = index - earlier;
             if distance <= options.window {
                 echoes.push(Echo {
-                    key: if options.match_forms {
+                    label: if options.match_forms {
                         lexicon.label([*previous, token])
                     } else {
                         family.clone()
                     },
+                    key: family.clone(),
                     earlier: previous.span.clone(),
                     later: token.span.clone(),
                     distance,

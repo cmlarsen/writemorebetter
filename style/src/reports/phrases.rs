@@ -46,6 +46,7 @@ impl PhraseOptions {
 #[non_exhaustive]
 pub struct RepeatedPhrase {
     pub keys: Vec<String>,
+    pub labels: Vec<String>,
     pub count: usize,
     pub spans: Vec<Span>,
 }
@@ -73,6 +74,7 @@ fn close_segment(units: &mut [Unit], segment: &mut usize) {
 pub fn repeated_phrases(document: &Document, options: &PhraseOptions) -> PhraseReport {
     let lexicon = Lexicon::new(document);
     let mut ids: HashMap<String, u32> = HashMap::new();
+    let mut names = Vec::new();
     let mut keys = Vec::new();
     let mut units: Vec<Unit> = Vec::new();
     let mut segment = 0;
@@ -92,8 +94,11 @@ pub fn repeated_phrases(document: &Document, options: &PhraseOptions) -> PhraseR
             } else {
                 lexicon.family(token)
             };
-            let next = ids.len() as u32;
-            keys.push(*ids.entry(key).or_insert(next));
+            let id = *ids.entry(key).or_insert_with_key(|key| {
+                names.push(key.clone());
+                names.len() as u32 - 1
+            });
+            keys.push(id);
             units.push(Unit {
                 token,
                 function,
@@ -104,9 +109,14 @@ pub fn repeated_phrases(document: &Document, options: &PhraseOptions) -> PhraseR
     }
 
     let min_length = options.min_length.max(1);
+    let longest = (0..units.len())
+        .map(|start| units[start].end - start)
+        .max()
+        .unwrap_or(0);
+    let max_length = options.max_length.min(longest);
     let mut phrases: Vec<(usize, RepeatedPhrase)> = Vec::new();
     let mut longer: HashSet<usize> = HashSet::new();
-    for length in (min_length..=options.max_length).rev() {
+    for length in (min_length..=max_length).rev() {
         let mut grams: HashMap<&[u32], (usize, Vec<usize>)> = HashMap::new();
         for start in 0..units.len() {
             let end = start + length;
@@ -124,7 +134,7 @@ pub fn repeated_phrases(document: &Document, options: &PhraseOptions) -> PhraseR
             }
         }
         let mut repeated = HashSet::new();
-        for (first, later) in grams.into_values() {
+        for (gram, (first, later)) in grams {
             if later.is_empty() {
                 continue;
             }
@@ -147,7 +157,7 @@ pub fn repeated_phrases(document: &Document, options: &PhraseOptions) -> PhraseR
                     }
                 })
                 .collect();
-            let keys = (0..length)
+            let labels = (0..length)
                 .map(|offset| {
                     if units[first + offset].function {
                         fold(&units[first + offset].token.text)
@@ -159,7 +169,8 @@ pub fn repeated_phrases(document: &Document, options: &PhraseOptions) -> PhraseR
             phrases.push((
                 first,
                 RepeatedPhrase {
-                    keys,
+                    keys: gram.iter().map(|id| names[*id as usize].clone()).collect(),
+                    labels,
                     count: spans.len(),
                     spans,
                 },

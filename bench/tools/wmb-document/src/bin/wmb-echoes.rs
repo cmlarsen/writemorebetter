@@ -115,6 +115,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             "report": "echoes",
                             "pattern": "echo",
                             "key": echo.key,
+                            "label": echo.label,
                             "spans": [span(&echo.earlier), span(&echo.later)]
                         }),
                     )?;
@@ -128,6 +129,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             "report": "repeated_phrases",
                             "pattern": "repeated_phrase",
                             "keys": phrase.keys,
+                            "labels": phrase.labels,
                             "spans": phrase.spans.iter().map(span).collect::<Vec<_>>()
                         }),
                     )?;

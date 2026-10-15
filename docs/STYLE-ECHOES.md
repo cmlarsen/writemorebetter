@@ -16,7 +16,8 @@ let phrase_report = repeated_phrases(&document, &PhraseOptions::new());
 
 `EchoOptions` has `window` (default 50 words) and `match_forms` (default true; JSON alias
 `matchForms`). `PhraseOptions` has `min_length` and `max_length` (default 2 and 5; set both with
-`with_length`) and `min_content_words` (default 2), with camelCase JSON aliases. Both reports need the document's token readings, which the default
+`with_length`) and `min_content_words` (default 2), with camelCase JSON aliases. A `max_length`
+beyond the document's longest sentence is clamped to it, so any value, `usize::MAX` included, is safe. Both reports need the document's token readings, which the default
 `include_token_details: true` keeps. With compact documents, function words are recognized only by
 the built-in list and words match by spelling. Swift and WASM bindings land in a follow-up.
 
@@ -32,17 +33,23 @@ word if:
 
 - it is on the crate's list of 198 closed-class words, auxiliaries and light adverbs (pronouns,
   determiners, prepositions such as `through` and `over`, conjunctions, `be`, `have`, `do`, `not`,
-  `very`, `then`, `still`, indefinites such as `nothing`, …), or any of its lemmas is (`being` → `be`);
+  `very`, `then`, `still`, indefinites such as `nothing`, …);
 - any of its readings is a number (`CD`): `two`, `hundred`; or
-- most of its occurrences have no noun, verb, adjective or adverb reading (`NN*`, `VB*`, `JJ*`,
-  `RB*`). An occurrence with any such reading, or with no readings at all, counts as content.
+- most of its occurrences have no **content reading**: a noun, verb, adjective or adverb reading
+  (`NN*`, `VB*`, `JJ*`, `RB*`) whose lemma is not on the list. An occurrence with a content reading,
+  or with no readings at all, counts as content.
+
+A listed lemma therefore excludes a word only when it is the word's only content reading. `being`
+(`be/VBG`), `others` (`other/NNS`), `’d` (`have/VBD`, `will/MD`) and `’ve` are function words, while
+`evening` (`evening/NN`, `even/VBG`) and `willing` (`willing/JJ`, `will/VBG`) are content words and
+echo.
 
 The list was written for this crate; nothing comes from LanguageTool's resources. The per-occurrence
 majority keeps frequent words whose tags include a stray function reading: `need` (`MD`), `come`
 (`UH`), and the particles `up`, `down`, `out`, `back` and `away` (`IN`, `RP`) are content words and
 echo. An earlier rule excluded any word with one non-content reading, which dropped 1,351 such tokens
 on the Moby-Dick excerpt and classified `heads` differently from sentence to sentence. With the
-current rule, function words are 14,002 of the excerpt's 25,743 words. Closed-class words that carry
+current rule, function words are 13,999 of the excerpt's 25,743 words. Closed-class words that carry
 a content reading (`his` has `hi/NNS`, `if` has `if/NN`) stay out through the list.
 
 ## Keys and ambiguous tokens
@@ -65,18 +72,26 @@ readings, and two ambiguous tokens produce at most one echo. Function words matc
 7 spellings (`lie`, `lay`, `laid`, `lain`, `lies`, `lying`, `laying`), followed by the `go`, `wind`
 (with `wound`, `wounds`, `wounded`), `mean` and `see`/`saw` families.
 
-**Labels.** An echo's `key`, and each position of a phrase's `keys`, is a lemma that every matched
-word carries in its readings. If one of those lemmas is the spelling of a matched word, it is
-preferred, so `wound` … `wounds` is labelled `wound` and `fell` … `fell` is labelled `fell`.
-Otherwise the label is the alphabetically first shared lemma (`walked` … `walking` → `walk`). If the
-readings share no lemma, a shared spelling is used: `thought` tagged as a verb, then as a noun, is
-labelled `thought`. Failing that, the label is the family's alphabetically first reading lemma.
+**Keys and labels.** Every echo and every phrase position carries two strings:
+
+- `key` (phrases: `keys`) is the family's name: its alphabetically first reading lemma, or the
+  spelling when no member has a reading. It is the same for every match in the family, so it is the
+  field to group or count by. Function words in phrases are keyed by spelling.
+- `label` (phrases: `labels`) is the display form, and it always names the matched words. It is a
+  lemma that every matched word carries in its readings, preferring one that is itself the spelling
+  of a matched word: `wound` … `wounds` → `wound`, `fell` … `fell` → `fell`, `walked` … `walking` →
+  `walk`. If the readings share no lemma, a shared spelling is used (`thought` tagged as a verb, then
+  as a noun → `thought`). Failing that, the label is the earlier word's spelling. A third family
+  member never becomes the label, so `good` … `well` is labelled `good`, not `best`.
 
 The trade-offs:
 
 - Homographs merge when the tagger gives one spelling both lemmas. `He wound the clock` puts
   `wound` in the `wind` family, so a later `wind` echoes it, labelled `wind`. On the Moby excerpt the
   `wind` family holds both senses. `left` (the side) can echo `leave` the same way.
+- Families can chain through a third spelling. `better` carries both `good` and `well`, so `good`
+  … `well` echo even though they share no lemma; on the Moby excerpt the PR #265 re-review counted 9 such
+  chains among 1,168 echoes. The label then names the earlier word.
 - A family can change when text elsewhere in the document adds a reading. Repeats of the same
   spelling always match each other regardless.
 
@@ -92,7 +107,7 @@ Each echo links the later word to the **nearest** earlier occurrence of its key,
 `rain` close together produce two echoes, not three. `match_forms: false` keys words by spelling
 only, so `walked` no longer echoes `walking`.
 
-`EchoReport` returns every echo (`key`, the `earlier` and `later` spans, `distance`), the
+`EchoReport` returns every echo (`key`, `label`, the `earlier` and `later` spans, `distance`), the
 `word_count` and `density_per_1000 = echoes × 1000 / word_count`. Empty documents report 0.
 
 ## Repeated phrases
@@ -110,7 +125,7 @@ it occurs at least twice in the document. The report drops:
 
 A repeat longer than `max_length` appears as overlapping phrases of that length. Each span runs from
 the first word's start to the last word's end, including the punctuation between them. `PhraseReport`
-lists `keys` (labels as above), `count` and every span, ordered by count, then length, then first
+lists `keys` and `labels` (as above), `count` and every span, ordered by count, then length, then first
 occurrence.
 
 **Two content words by default.** #245 drops only phrases made entirely of function words. Under

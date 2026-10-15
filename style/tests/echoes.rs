@@ -42,7 +42,7 @@ fn echo_pairs(text: &str, report: &EchoReport) -> Vec<(String, String, String)> 
         .iter()
         .map(|echo| {
             (
-                echo.key.clone(),
+                echo.label.clone(),
                 slice(text, &echo.earlier),
                 slice(text, &echo.later),
             )
@@ -65,7 +65,7 @@ fn phrase_texts(text: &str, report: &PhraseReport) -> Vec<(String, Vec<String>)>
         .map(|phrase| {
             assert_eq!(phrase.count, phrase.spans.len());
             (
-                phrase.keys.join(" "),
+                phrase.labels.join(" "),
                 phrase.spans.iter().map(|span| slice(text, span)).collect(),
             )
         })
@@ -484,5 +484,83 @@ fn one_spelling_gets_one_function_word_decision_per_document() {
                 .any(|(key, ..)| ["two", "through", "nothing"].contains(&key.as_str())),
             "{text}: {pairs:?}"
         );
+    }
+}
+
+#[test]
+fn words_with_a_listed_lemma_reading_still_echo_when_their_content_reading_is_unlisted() {
+    for (text, word) in [
+        (
+            "The evening was cold. Every evening she walked. That evening he slept.",
+            "evening",
+        ),
+        (
+            "She was willing. He was willing too. They were willing.",
+            "willing",
+        ),
+    ] {
+        let pairs = echo_text(text, &[], &EchoOptions::new());
+        assert_eq!(
+            pairs
+                .iter()
+                .filter(|(_, earlier, later)| earlier.to_lowercase() == word && later == word)
+                .count(),
+            2,
+            "{text}: {pairs:?}"
+        );
+    }
+    for text in ["He’d, she’d, we’d.", "Being late, being tired."] {
+        assert!(echo_text(text, &[], &EchoOptions::new()).is_empty());
+    }
+}
+
+#[test]
+fn oversized_phrase_lengths_are_clamped_to_the_longest_sentence() {
+    let text = "The old grey house stood. The old grey house stood.";
+    let default = phrases_of(text, &[]);
+    for max_length in [6, 1_000_000, usize::MAX] {
+        let options = PhraseOptions::new().with_length(2, max_length);
+        assert_eq!(phrases_with(text, &[], &options), default);
+    }
+    let options = PhraseOptions::new().with_length(usize::MAX, usize::MAX);
+    assert!(phrases_with(text, &[], &options).is_empty());
+}
+
+#[test]
+fn keys_name_the_family_and_labels_name_the_matched_words() {
+    let text = "He wound the clock. The wind rose. Her wounds healed.";
+    let report = echoes(&document(text, &[]), &EchoOptions::new());
+    assert!(report.echoes.len() >= 2, "{:?}", report.echoes);
+    assert!(report
+        .echoes
+        .iter()
+        .all(|echo| echo.key == report.echoes[0].key));
+    for echo in &report.echoes {
+        let earlier = slice(text, &echo.earlier).to_lowercase();
+        let later = slice(text, &echo.later).to_lowercase();
+        assert!(
+            echo.label == earlier
+                || echo.label == later
+                || ["wind", "wound"].contains(&echo.label.as_str()),
+            "{echo:?}"
+        );
+    }
+
+    let text = "It was good. He did well. It was better. It was good.";
+    let document = document(text, &[]);
+    let report = echoes(&document, &EchoOptions::new());
+    for echo in &report.echoes {
+        let earlier = slice(text, &echo.earlier).to_lowercase();
+        let later = slice(text, &echo.later).to_lowercase();
+        if earlier != later {
+            assert!(
+                echo.label == earlier || echo.label == later,
+                "label must name a matched word: {echo:?}"
+            );
+        }
+    }
+    let phrases = repeated_phrases(&document, &PhraseOptions::new().with_min_content_words(1));
+    for phrase in &phrases.phrases {
+        assert_eq!(phrase.keys.len(), phrase.labels.len());
     }
 }
