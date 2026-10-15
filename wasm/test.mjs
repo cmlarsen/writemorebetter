@@ -144,6 +144,39 @@ if (grammarHit) {
     "check offsets remain Unicode scalar values");
 }
 
+// check() also returns UTF-16 offsets (`start16`/`end16`) alongside the scalar fields.
+// Both conventions must describe the same flagged text, including after astral characters.
+function checkSpans(text) {
+  const chars = [...text];
+  return JSON.parse(checker.check(text)).map((item) => {
+    const flagged = chars.slice(item.start, item.end).join("");
+    check(flagged.length > 0, "flagged span is not empty");
+    eq(text.slice(item.start16, item.end16), flagged, "start16/end16 match the scalar span");
+    return { ...item, flagged };
+  });
+}
+
+// 😀 adds 1 UTF-16 unit, 👩👩👧 adds 3 and 🇺🇸 adds 2, so every later span shifts by 6.
+const utf16Text = "😀👩👩👧🇺🇸 “She was not been—again…”\u2028He was not been too…";
+const utf16Spans = checkSpans(utf16Text);
+const utf16Grammar = utf16Spans.filter((item) => item.flagged === "was not been");
+eq(utf16Grammar.length, 2, "both grammar errors are flagged");
+for (const item of utf16Grammar) {
+  eq(item.start16, item.start + 6, "astral characters shift the UTF-16 start by their extra units");
+  eq(item.end16, item.end + 6, "astral characters shift the UTF-16 end by their extra units");
+}
+check(utf16Grammar[1].start16 > utf16Grammar[0].end16,
+  "a later span sits after an em dash, an ellipsis and U+2028");
+
+// A flagged span can itself contain a non-ASCII character (here, a curly apostrophe).
+const contractionSpans = checkSpans("😀 was’nt here—again…\u2028ok.");
+const contraction = contractionSpans.find((item) => item.source.startsWith("TYPOS/INCORRECT_CONTRACTIONS"));
+check(Boolean(contraction), "curly-apostrophe contraction is flagged");
+if (contraction) {
+  eq(contraction.flagged, "was’nt", "flagged span keeps its curly apostrophe");
+  eq(contraction.start16, contraction.start + 1, "one astral character shifts the span by one unit");
+}
+
 const documentText = "😀 “Zoë’s goin’—again…”\u2028She stayed.\r\n\r\nZoë walked with O’Brien.";
 const documentOptions = JSON.stringify({ skip_names: ["Zoë", "O'Brien"] });
 const document = JSON.parse(checker.analyzeDocument(documentText, documentOptions));

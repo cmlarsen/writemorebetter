@@ -6,6 +6,7 @@
 //!
 //! The engine is built with the pure-Rust `regex-fancy` backend so it runs on `wasm32-unknown-unknown`.
 
+use std::collections::HashMap;
 use std::io::Cursor;
 
 use nlprule::{Rules, Tokenizer};
@@ -19,6 +20,10 @@ struct Item {
     start: usize,
     /// End of the flagged span, in characters.
     end: usize,
+    /// Start of the flagged span, in UTF-16 code units, for `String.prototype.slice`.
+    start16: usize,
+    /// End of the flagged span (exclusive), in UTF-16 code units.
+    end16: usize,
     source: String,
     message: String,
     replacements: Vec<String>,
@@ -184,6 +189,32 @@ impl From<writemorebetter_style::Document> for Document {
     }
 }
 
+/// Maps each Unicode scalar offset in `wanted` to its UTF-16 offset with one pass over `text`.
+///
+/// Resolving each scalar offset with `text.chars().take(n)` would rescan the text once per
+/// suggestion; this walks it once and records only the boundaries the suggestions need.
+fn utf16_offsets(text: &str, mut wanted: Vec<usize>) -> HashMap<usize, usize> {
+    wanted.sort_unstable();
+    wanted.dedup();
+    let mut offsets = HashMap::with_capacity(wanted.len());
+    let mut pending = wanted.into_iter().peekable();
+    let mut chars = 0;
+    let mut units = 0;
+    for ch in text.chars() {
+        while pending.peek() == Some(&chars) {
+            offsets.insert(chars, units);
+            pending.next();
+        }
+        chars += 1;
+        units += ch.len_utf16();
+    }
+    while pending.peek() == Some(&chars) {
+        offsets.insert(chars, units);
+        pending.next();
+    }
+    offsets
+}
+
 /// A grammar and spelling checker over a pre-loaded tokenizer and rule set.
 #[wasm_bindgen]
 pub struct Checker {
@@ -238,10 +269,24 @@ impl Checker {
 
     /// Checks `text` and returns a JSON array of suggestions.
     ///
-    /// Each element is `{"start": <char offset>, "end": <char offset>, "source": "...",
-    /// "message": "...", "replacements": [...]}`.
+    /// Each element is `{"start": <char offset>, "end": <char offset>, "start16": <UTF-16 offset>,
+    /// "end16": <UTF-16 offset>, "source": "...", "message": "...", "replacements": [...]}`.
+    ///
+    /// `start`/`end` count Unicode scalar values (the older convention, to be deprecated); the
+    /// additive `start16`/`end16` count UTF-16 code units and match `analyze()` and
+    /// `String.prototype.slice`.
     pub fn check(&self, text: &str) -> Result<String, JsValue> {
         let suggestions = self.rules.suggest(text, &self.tokenizer);
+        let utf16 = utf16_offsets(
+            text,
+            suggestions
+                .iter()
+                .flat_map(|suggestion| {
+                    let span = suggestion.span().char();
+                    [span.start, span.end]
+                })
+                .collect(),
+        );
         let items: Vec<Item> = suggestions
             .iter()
             .map(|suggestion| {
@@ -249,6 +294,8 @@ impl Checker {
                 Item {
                     start: span.start,
                     end: span.end,
+                    start16: utf16.get(&span.start).copied().unwrap_or(span.start),
+                    end16: utf16.get(&span.end).copied().unwrap_or(span.end),
                     source: suggestion.source().to_string(),
                     message: suggestion.message().to_string(),
                     replacements: suggestion.replacements().to_vec(),
