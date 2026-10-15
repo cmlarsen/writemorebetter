@@ -191,9 +191,8 @@ impl From<writemorebetter_style::Document> for Document {
 
 /// Maps each Unicode scalar offset in `wanted` to its UTF-16 offset with one pass over `text`.
 ///
-/// Resolving each scalar offset with `text.chars().take(n)` would rescan the text once per
-/// suggestion; this walks it once and records only the boundaries the suggestions need.
-fn utf16_offsets(text: &str, mut wanted: Vec<usize>) -> HashMap<usize, usize> {
+/// Returns the offsets and the text's total UTF-16 length.
+fn utf16_offsets(text: &str, mut wanted: Vec<usize>) -> (HashMap<usize, usize>, usize) {
     wanted.sort_unstable();
     wanted.dedup();
     let mut offsets = HashMap::with_capacity(wanted.len());
@@ -212,7 +211,7 @@ fn utf16_offsets(text: &str, mut wanted: Vec<usize>) -> HashMap<usize, usize> {
         offsets.insert(chars, units);
         pending.next();
     }
-    offsets
+    (offsets, units)
 }
 
 /// A grammar and spelling checker over a pre-loaded tokenizer and rule set.
@@ -277,7 +276,7 @@ impl Checker {
     /// `String.prototype.slice`.
     pub fn check(&self, text: &str) -> Result<String, JsValue> {
         let suggestions = self.rules.suggest(text, &self.tokenizer);
-        let utf16 = utf16_offsets(
+        let (utf16, total16) = utf16_offsets(
             text,
             suggestions
                 .iter()
@@ -294,8 +293,8 @@ impl Checker {
                 Item {
                     start: span.start,
                     end: span.end,
-                    start16: utf16.get(&span.start).copied().unwrap_or(span.start),
-                    end16: utf16.get(&span.end).copied().unwrap_or(span.end),
+                    start16: utf16.get(&span.start).copied().unwrap_or(total16),
+                    end16: utf16.get(&span.end).copied().unwrap_or(total16),
                     source: suggestion.source().to_string(),
                     message: suggestion.message().to_string(),
                     replacements: suggestion.replacements().to_vec(),
