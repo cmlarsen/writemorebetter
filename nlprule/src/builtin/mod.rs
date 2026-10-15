@@ -6,7 +6,10 @@
 //! enabled flag. Builtin rules are stored alongside the XML rules in
 //! [`Rules`](crate::rules::Rules).
 
-use crate::types::{Sentence, Suggestion};
+use crate::{
+    spell::Speller,
+    types::{Sentence, Suggestion},
+};
 use serde::{Deserialize, Serialize};
 
 pub mod en;
@@ -60,6 +63,13 @@ pub enum Builtin {
     LongParagraph(en::LongParagraph),
     /// Flags successive sentences that begin with the same word.
     WordRepeatBeginning(en::WordRepeatBeginning),
+    /// Flags a multi-word proper noun with the wrong capitalization, e.g.
+    /// `"Harry potter"`.
+    SpecificCase(en::SpecificCase),
+    /// Flags a hyphenated compound written with a dash, e.g. `"T—shirt"`.
+    Dash(en::Dash),
+    /// Flags a compound written as separate words, e.g. `"part time"`.
+    Compounds(en::Compounds),
 }
 
 impl Builtin {
@@ -83,6 +93,9 @@ impl Builtin {
             Builtin::LongSentence(rule) => rule.id(),
             Builtin::LongParagraph(rule) => rule.id(),
             Builtin::WordRepeatBeginning(rule) => rule.id(),
+            Builtin::SpecificCase(rule) => rule.id(),
+            Builtin::Dash(rule) => rule.id(),
+            Builtin::Compounds(rule) => rule.id(),
         }
     }
 
@@ -94,7 +107,7 @@ impl Builtin {
     /// Runs this rule on consecutive sentences of one paragraph. Rules that need context beyond one sentence
     /// (e.g. quotes spanning sentences) see all of them; sentence-level rules check each one separately.
     pub fn check_text(&self, sentences: &[Sentence]) -> Vec<Suggestion> {
-        self.check_paragraph(sentences, &[], true)
+        self.check_paragraph(sentences, &[], true, None)
     }
 
     /// Like [`Builtin::check_text`], for a paragraph that follows `previous`,
@@ -104,12 +117,14 @@ impl Builtin {
     /// uses the last two sentences, the others at most the last one. Only
     /// rules that look at the end of the text (`EMPTY_LINE`,
     /// `TOO_LONG_PARAGRAPH`, `ENGLISH_WORD_REPEAT_BEGINNING_RULE`) use
-    /// `ends_text`.
+    /// `ends_text`. Rules that check their suggestions against the speller
+    /// (`EN_COMPOUNDS`) use `speller`; without one they keep every suggestion.
     pub fn check_paragraph(
         &self,
         sentences: &[Sentence],
         previous: &[Sentence],
         ends_text: bool,
+        speller: Option<&Speller>,
     ) -> Vec<Suggestion> {
         match self {
             Builtin::CommaParenthesisWhitespace(rule) => rule.check_sentences(sentences),
@@ -140,6 +155,12 @@ impl Builtin {
                 rule.check_with_previous(sentences, previous.last())
             }
             Builtin::EmptyLine(rule) => rule.check_text(sentences, ends_text),
+            Builtin::SpecificCase(rule) => sentences.iter().flat_map(|x| rule.check(x)).collect(),
+            Builtin::Dash(rule) => sentences.iter().flat_map(|x| rule.check(x)).collect(),
+            Builtin::Compounds(rule) => sentences
+                .iter()
+                .flat_map(|x| rule.check(x, speller))
+                .collect(),
         }
     }
 }

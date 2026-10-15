@@ -10,6 +10,20 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
 ### Added
 
+- **Compound, proper-noun, dash, wordiness, redundancy and profanity checks.** Six more of
+  LanguageTool's Java-coded English rules run as builtins
+  ([#81](https://github.com/cmlarsen/writemorebetter/issues/81)): `EN_COMPOUNDS` flags compounds
+  written as separate words (`part time` → `part-time`, `back fire` → `backfire`) and reports
+  LanguageTool's sub-rule ids such as `EN_COMPOUNDS_PART_TIME`; `EN_SPECIFIC_CASE` flags proper
+  nouns with the wrong capitalization (`Harry potter` → `Harry Potter`); `EN_DASH_RULE` flags a
+  compound written with a dash (`T—shirt` → `T-shirt`); `EN_PLAIN_ENGLISH_REPLACE` and
+  `EN_REDUNDANCY_REPLACE` suggest plainer wording (`in close proximity to` → `near`) and drop
+  redundant words (`tuna fish` → `tuna`); `PROFANITY` flags offensive terms without a suggestion.
+  As in LanguageTool 6.6, only `EN_COMPOUNDS` and `EN_SPECIFIC_CASE` are on by default; the
+  other four are off (LanguageTool marks them default-off or picky) and can be enabled through
+  `Rules::builtins_mut`. Their word lists are copied from LanguageTool by
+  `build/make_build_dir.py`, so a build directory needs regenerating. `Builtin::check_paragraph`
+  takes the speller as a new last argument. The rules binary format version is now 29.
 - **Misspelled multi-word names and phrases are caught.** The 14 `MULTITOKEN_SPELLING` rules
   (`EN_MULTITOKEN_SPELLING_TWO`, `_THREE` and `_FOUR`) now compile: `MultitokenSpellerFilter` is
   ported from LanguageTool 6.6, so "Yuval Noha Harari" suggests "Yuval Noah Harari" and "Rocki

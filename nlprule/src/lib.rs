@@ -200,6 +200,8 @@ pub const TOKENIZER_FORMAT_VERSION: u32 = 18;
 /// Version 28: `Part` gained `next_exception`, the token's `scope="next"` exceptions, checked
 /// while matching instead of in the token's atom, and lost `greedy`; `Composition::can_stop_mask`
 /// was replaced by `optional_count`.
+/// Version 29: the `SpecificCase`, `Dash` and `Compounds` builtins were added, and `SimpleReplace`
+/// gained `has_suggestions`.
 /// Version 30: `Spell::multitoken` (the multitoken phrase list) and the `MultitokenSpeller` rule
 /// filter were added.
 pub const RULES_FORMAT_VERSION: u32 = 30;

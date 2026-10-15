@@ -63,6 +63,29 @@ def merge_style_rules(out_dir, lt_rule_dir):
     logging.info(f"Merged {style_path.name} categories into grammar.xml.")
 
 
+BUILTIN_LT_FILES = {
+    "en": [
+        ("rules/en/wordiness.txt", "simple_replace_plain_english.txt"),
+        ("rules/en/redundancies.txt", "simple_replace_redundancy.txt"),
+        ("rules/en/replace_profanity.txt", "simple_replace_profanity.txt"),
+        ("resource/en/specific_case.txt", "specific_case.txt"),
+        ("resource/en/compounds.txt", "compounds.txt"),
+    ],
+}
+
+
+def copy_builtin_lt_files(out_dir, lt_dir, lang_code):
+    builtin_dir = out_dir / "builtin"
+    builtin_dir.mkdir(exist_ok=True)
+
+    for source, name in BUILTIN_LT_FILES.get(lang_code, []):
+        source = lt_dir / "org" / "languagetool" / source
+        if source.exists():
+            copyfile(source, builtin_dir / name)
+        else:
+            logging.warning(f"{source} does not exist.")
+
+
 def copy_lt_files(out_dir, lt_dir, lang_code):
     tag_dir = out_dir / "tags"
     tag_dir.mkdir()
@@ -398,6 +421,7 @@ Only needed if the language requires a chunker (e. g. English).
 
     write_freqlist(open(args.out_dir / "common.txt", "w"), args.lang_code)
     copy_lt_files(args.out_dir, args.lt_dir, args.lang_code)
+    copy_builtin_lt_files(args.out_dir, args.lt_dir, args.lang_code)
     write_false_friends(args.out_dir, args.lt_dir, args.lang_code)
 
     # tagger dictionary

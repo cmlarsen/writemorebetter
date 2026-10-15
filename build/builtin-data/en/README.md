@@ -73,7 +73,29 @@ cp -r build/builtin-data/en/. data/en/builtin/
 - `uppercase_sentence_start_exceptions.txt` — tokens that may start a sentence
   in lowercase without being an error, taken from the exceptions of the
   corresponding capitalization rule. One token per line.
+- `compounds_antipatterns.txt` — the token sequences LanguageTool's
+  `CompoundRule` (`EN_COMPOUNDS`) skips, copied from that class's antipatterns.
+  One antipattern per line; a plain token matches case-insensitively, `re:`
+  introduces a regular expression for the token text and `pos:` one for a
+  part-of-speech tag.
 - `adverb_adjective.txt` — adverb -> adjective pairs used by the English
   `AdverbFilter` rule filter (`org.languagetool.rules.en.AdverbFilter`), copied
   from that class's table. Tab separated `adverb<TAB>adjective`; loaded at
   compile time when a rule with that filter is built.
+
+## Lists copied from LanguageTool by `make_build_dir.py`
+
+These lists are not committed here: `build/make_build_dir.py` copies them from
+the LanguageTool release into `<build_dir>/builtin/` unchanged, so they always
+match the LanguageTool version of the build directory.
+
+- `compounds.txt` — `resource/en/compounds.txt`, read by `EN_COMPOUNDS` and
+  `EN_DASH_RULE`.
+- `specific_case.txt` — `resource/en/specific_case.txt`, read by
+  `EN_SPECIFIC_CASE`.
+- `simple_replace_plain_english.txt` — `rules/en/wordiness.txt`, read by
+  `EN_PLAIN_ENGLISH_REPLACE`.
+- `simple_replace_redundancy.txt` — `rules/en/redundancies.txt`, read by
+  `EN_REDUNDANCY_REPLACE`.
+- `simple_replace_profanity.txt` — `rules/en/replace_profanity.txt`, read by
+  `PROFANITY`.

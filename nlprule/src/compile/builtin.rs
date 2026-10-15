@@ -85,6 +85,34 @@ pub(crate) fn for_language(
             BuiltinRule::new_disabled(Builtin::LongSentence(LongSentence::new())),
             BuiltinRule::new_disabled(Builtin::LongParagraph(LongParagraph::new())),
             BuiltinRule::new(Builtin::WordRepeatBeginning(WordRepeatBeginning::new())),
+            BuiltinRule::new(Builtin::SpecificCase(specific_case(build_dir))),
+            BuiltinRule::new_disabled(Builtin::Dash(Dash::new(read_lines(build_dir, "compounds")))),
+            BuiltinRule::new_disabled(Builtin::SimpleReplace(simple_replace(
+                build_dir,
+                "simple_replace_plain_english",
+                "EN_PLAIN_ENGLISH_REPLACE",
+                MatchMode::Phrase,
+                false,
+                "'$match' is a wordy or complex expression. In some cases, it might be preferable \
+                 to use $suggestions.",
+                " or ",
+            ))),
+            BuiltinRule::new_disabled(Builtin::SimpleReplace(simple_replace(
+                build_dir,
+                "simple_replace_redundancy",
+                "EN_REDUNDANCY_REPLACE",
+                MatchMode::Phrase,
+                false,
+                "'$match' is a redundancy. In some cases, it might be preferable to use \
+                 $suggestions",
+                " or ",
+            ))),
+            BuiltinRule::new(Builtin::Compounds(compounds(build_dir))),
+            BuiltinRule::new_disabled(Builtin::SimpleReplace(SimpleReplace::without_suggestions(
+                "PROFANITY",
+                "This expression can be considered offensive.",
+                read_list(build_dir, "simple_replace_profanity"),
+            ))),
         ]),
         _ => Ok(Vec::new()),
     }
@@ -92,6 +120,56 @@ pub(crate) fn for_language(
 
 fn uppercase_sentence_start(build_dir: &Path) -> UppercaseSentenceStart {
     UppercaseSentenceStart::new(read_list(build_dir, "uppercase_sentence_start_exceptions"))
+}
+
+/// Reads the phrases with a specific capitalization. As in LanguageTool, a
+/// `#` starts a comment anywhere on a line.
+fn specific_case(build_dir: &Path) -> SpecificCase {
+    SpecificCase::new(
+        read_list(build_dir, "specific_case")
+            .into_iter()
+            .map(|line| line.split('#').next().unwrap_or("").trim().to_owned())
+            .collect(),
+    )
+}
+
+/// Reads the compounds list and the antipatterns of the compound rule. An
+/// antipattern token is its text, `re:` and a regular expression for the text
+/// or `pos:` and one for a part-of-speech tag; the expressions must match
+/// whole. Lines with an invalid expression are skipped with a warning.
+fn compounds(build_dir: &Path) -> Compounds {
+    let antipatterns = read_list(build_dir, "compounds_antipatterns")
+        .into_iter()
+        .filter_map(|line| {
+            let tokens: Result<Vec<_>, _> = line
+                .split(' ')
+                .map(|token| {
+                    let (regex, kind): (_, fn(Regex) -> PatternToken) =
+                        if let Some(regex) = token.strip_prefix("re:") {
+                            (format!("(?i)^(?:{})$", regex), PatternToken::TextRegex)
+                        } else if let Some(regex) = token.strip_prefix("pos:") {
+                            (format!("^(?:{})$", regex), PatternToken::PosRegex)
+                        } else {
+                            return Ok(PatternToken::Text(token.to_lowercase()));
+                        };
+                    let regex = Regex::new(regex);
+                    regex.try_compile().map(|_| kind(regex))
+                })
+                .collect();
+            match tokens {
+                Ok(tokens) => Some(tokens),
+                Err(error) => {
+                    warn!("Ignoring compound antipattern {:?}: {}", line, error);
+                    None
+                }
+            }
+        })
+        .collect();
+
+    Compounds::new(
+        CompoundData::new(read_lines(build_dir, "compounds")),
+        antipatterns,
+    )
 }
 
 fn comma_parenthesis_whitespace(build_dir: &Path) -> CommaParenthesisWhitespace {
@@ -214,6 +292,23 @@ fn read_list(build_dir: &Path, name: &str) -> Vec<String> {
             .filter(|line| !line.is_empty() && !line.starts_with('#'))
             .map(str::to_owned)
             .collect(),
+        Err(_) => {
+            warn!(
+                "Builtin data file {} does not exist. Using an empty list.",
+                path.display()
+            );
+            Vec::new()
+        }
+    }
+}
+
+/// Reads the lines of `<build_dir>/builtin/<name>.txt` as they are, for lists
+/// whose upstream loader neither trims nor skips anything. A missing file
+/// yields no lines and a warning.
+fn read_lines(build_dir: &Path, name: &str) -> Vec<String> {
+    let path = build_dir.join("builtin").join(format!("{}.txt", name));
+    match fs::read_to_string(&path) {
+        Ok(content) => content.lines().map(str::to_owned).collect(),
         Err(_) => {
             warn!(
                 "Builtin data file {} does not exist. Using an empty list.",
