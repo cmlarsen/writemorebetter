@@ -31,9 +31,9 @@ scare quotes that would have been false positives. The corrected detector drops 
 span at a paragraph boundary unless the next paragraph repeats the same opener. An unfinished final
 paragraph is dropped too. Common leading elisions, including `'em`, `'tis`, `'twas`, `'n'`, `'cause`,
 `'90s` and `'eighties`, are apostrophes. Every adversarial review probe row has a checked-in fixture.
-Malformed straight-quote parity can still be wrong within a paragraph; it can leak at most into the
-next paragraph when it opens with the same mark. Single closers still require preceding speech punctuation; unpunctuated fragments and
-British punctuation-outside forms can be missed.
+Malformed straight-quote parity can still be wrong within a paragraph; it can leak into following
+paragraphs only while each one opens with the same mark. Single closers still require preceding speech
+punctuation; unpunctuated fragments and British punctuation-outside forms can be missed.
 
 **The initial detector revision was triggered by a test-split result:** initial test precision missed
 the Python floor, after which the punctuated-single policy was justified with dev diagnostics and
@@ -57,21 +57,29 @@ Every old dialogue fixture still passes, and every issue row is now a fixture. T
 `"Reply,"` row deliberately retains the continued double-quote span: without a closing mark there is
 no way to distinguish unrelated paragraphs from the standard multi-paragraph speech convention.
 Straight single openers before a word are now tentative, as are listed elisions following a curly
-left quote. They require a punctuated closer in the same paragraph and yield to a later opener;
-ordinary curly-left single and double openers retain paragraph continuation.
+left quote. They require a punctuated closer in the same paragraph. A double opener takes precedence;
+a same-mark single opener before a word replaces them unless it begins a listed elision. If a double
+closes and the original single later closes in the same paragraph, the outer single span replaces
+its covered inner spans. Ordinary curly-left single and double openers retain paragraph continuation.
 
 | Detector / split | Documents | Exact matches | Predicted | Gold | Precision | Recall | F1 |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|
+|---|---:|---:|---:|---:|---:|---:|---:|
 | Before #261 / dev | 20 | 411 | 475 | 422 | 86.5263% | 97.3934% | 91.6388% |
 | Tentative openers / dev | 20 | 411 | 475 | 422 | 86.5263% | 97.3934% | 91.6388% |
 | Before #261 / test | 80 | 1,234 | 1,447 | 1,343 | 85.2799% | 91.8838% | 88.4588% |
-| Tentative openers / test | 80 | 1,237 | 1,451 | 1,343 | 85.2516% | 92.1072% | 88.5469% |
+| Initial #261 / test | 80 | 1,237 | 1,451 | 1,343 | 85.2516% | 92.1072% | 88.5469% |
+| After review / dev | 20 | 411 | 475 | 422 | 86.5263% | 97.3934% | 91.6388% |
+| After review / test | 80 | 1,238 | 1,451 | 1,343 | 85.3205% | 92.1817% | 88.6185% |
 
-Dev is unchanged. Test adds three exact matches and one false positive: precision moves by
-−0.0283 percentage points, recall by +0.2234 pp, and F1 by +0.0881 pp. Only the three LitBank floors
-in `tier1-baseline.json` are reset to the new full-precision values; EWT floors are unchanged.
-The test measurement is a regression check after the issue's specified parser changes, not a tuning
-set. The earlier #243 evaluation history above still applies.
+Dev is unchanged. Relative to main, the reviewed detector adds four exact matches with the same
+false-positive count: precision moves by +0.0406 percentage points, recall by +0.2978 pp, and F1 by
++0.1597 pp. Review found that listed elisions within speech truncated outer single spans and nested
+double openers lost British outer single spans. Both generic fixes were measured on dev before
+re-running test; the reviewer had independently measured them on test as a diagnostic. Relative to
+the initial #261 detector, review adds one exact match without adding predictions.
+Only the three moved LitBank floors in `tier1-baseline.json` are reset to the new full-precision
+values; EWT floors are unchanged. The test measurements are regression checks, not untouched held-out
+evaluation. The earlier #243 evaluation history above still applies.
 
 ## Reproduce accuracy and native timing
 

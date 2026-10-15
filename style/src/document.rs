@@ -413,6 +413,7 @@ fn leading_elision(after: &str) -> bool {
 fn detect_dialogue(text: &str, paragraphs: &[Span]) -> Vec<Span> {
     let mut spans = Vec::new();
     let mut open: Option<(char, usize, usize, usize, bool)> = None;
+    let mut outer = None;
     for (paragraph_index, paragraph) in paragraphs.iter().enumerate() {
         let surface = text.get(paragraph.byte.clone()).unwrap();
         let chars: Vec<_> = surface.char_indices().collect();
@@ -437,12 +438,20 @@ fn detect_dialogue(text: &str, paragraphs: &[Span]) -> Vec<Span> {
                             && next.is_some_and(char::is_alphanumeric)));
                 if opener
                     && open.is_none_or(|(kind, _, _, _, tentative)| {
-                        tentative && (!single || ch == kind)
+                        tentative
+                            && (!single
+                                || (ch == kind
+                                    && !leading_elision(
+                                        surface.get(local_byte + ch.len_utf8()..).unwrap(),
+                                    )))
                     })
                 {
                     let tentative = single
                         && (ch == '\''
                             || leading_elision(surface.get(local_byte + ch.len_utf8()..).unwrap()));
+                    if !single && open.is_some() {
+                        outer = open;
+                    }
                     open = Some((ch, byte, scalar, utf16, tentative));
                 } else if let Some((kind, start_byte, start_char, start_utf16, _)) = open {
                     let closer = match kind {
@@ -457,12 +466,18 @@ fn detect_dialogue(text: &str, paragraphs: &[Span]) -> Vec<Span> {
                                 matches!(ch, '.' | '!' | '?' | ',' | ':' | ';' | '—' | '…')
                             }))
                     {
+                        while spans
+                            .last()
+                            .is_some_and(|span: &Span| span.byte.start > start_byte)
+                        {
+                            spans.pop();
+                        }
                         spans.push(Span {
                             byte: start_byte..byte + ch.len_utf8(),
                             char: start_char..scalar + 1,
                             utf16: start_utf16..utf16 + ch.len_utf16(),
                         });
-                        open = None;
+                        open = outer.take();
                     }
                 }
             }
@@ -471,6 +486,7 @@ fn detect_dialogue(text: &str, paragraphs: &[Span]) -> Vec<Span> {
             }
             utf16 += ch.len_utf16();
         }
+        outer = None;
         if let Some((kind, _, _, _, tentative)) = open {
             let continued = !tentative
                 && paragraphs

@@ -325,6 +325,31 @@ fn multiword_lemmas_retain_surfaces_and_count_occurrences() {
 }
 
 #[test]
+fn review_name_lemma_case_split() {
+    let rows: Vec<serde_json::Value> =
+        serde_json::from_str(include_str!("fixtures/review-lemmas.json")).unwrap();
+    let tokenizer = tokenizer();
+    for row in rows {
+        let text = row["text"].as_str().unwrap();
+        let document = analyze_document(&tokenizer, text, &DocumentOptions::new());
+        for (lemma, count) in row["lemma_counts"].as_object().unwrap() {
+            assert_eq!(
+                document.lemma_index[lemma].len(),
+                count.as_u64().unwrap() as usize,
+                "{text}: {lemma}"
+            );
+        }
+        let melville_count: usize = document
+            .lemma_index
+            .iter()
+            .filter(|(lemma, _)| lemma.to_lowercase() == "melville")
+            .map(|(_, positions)| positions.len())
+            .sum();
+        assert_eq!(melville_count, 2);
+    }
+}
+
+#[test]
 fn hard_wrapped_paragraphs_preserve_offsets() {
     let text = "😀 “First wrapped\r\nline.”\r\n\r\nSecond paragraph.";
     let options = DocumentOptions::new().with_hard_wrapped(true);

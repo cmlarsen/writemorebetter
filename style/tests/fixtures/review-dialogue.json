@@ -187,5 +187,91 @@
     "dialogue": [
       "'She said ‘No!’ yesterday.'"
     ]
+  },
+  {
+    "text": "'Give 'em hell,' he said.",
+    "dialogue": [
+      "'Give 'em hell,'"
+    ]
+  },
+  {
+    "text": "'Rock 'n' roll,' he said.",
+    "dialogue": [
+      "'Rock 'n' roll,'"
+    ]
+  },
+  {
+    "text": "'You 'n' me,' she said.",
+    "dialogue": [
+      "'You 'n' me,'"
+    ]
+  },
+  {
+    "text": "'I'll be there 'round six,' she said.",
+    "dialogue": [
+      "'I'll be there 'round six,'"
+    ]
+  },
+  {
+    "text": "'The '90s were wild,' he said.",
+    "dialogue": [
+      "'The '90s were wild,'"
+    ]
+  },
+  {
+    "text": "'Fish 'n' chips,' he said, 'and 'em peas.'",
+    "dialogue": [
+      "'Fish 'n' chips,'",
+      "'and 'em peas.'"
+    ]
+  },
+  {
+    "text": "'He said \"no,\" then left,' she said.",
+    "dialogue": [
+      "'He said \"no,\" then left,'"
+    ]
+  },
+  {
+    "text": "'I said \"stop\" twice,' she said.",
+    "dialogue": [
+      "'I said \"stop\" twice,'"
+    ]
+  },
+  {
+    "text": "'Tell 'im I said so,'",
+    "dialogue": [
+      "'im I said so,'"
+    ]
+  },
+  {
+    "text": "He wrote \"Unclosed\n\n\"Also unclosed\n\n\"Third,\" he said.",
+    "dialogue": [
+      "\"Unclosed\n\n\"Also unclosed\n\n\"Third,\""
+    ]
+  },
+  {
+    "text": "She saw 'im go. 'Stop,' she said.",
+    "dialogue": [
+      "'Stop,'"
+    ]
+  },
+  {
+    "text": "'He said \"no,\" then \"go,\" and left,' she said.",
+    "dialogue": [
+      "'He said \"no,\" then \"go,\" and left,'"
+    ]
+  },
+  {
+    "text": "'He said \"no,\"\n'Stop,' she said.",
+    "dialogue": [
+      "\"no,\"",
+      "'Stop,'"
+    ]
+  },
+  {
+    "text": "😀 'Give 'em hell—again… Go,' he said.",
+    "dialogue": [
+      "'Give 'em hell—again… Go,'"
+    ]
   }
 ]
