@@ -83,9 +83,11 @@ jobs:
       - name: Style benchmark accuracy gates
         run: |
           cargo fmt --manifest-path bench/tools/wmb-analyze/Cargo.toml -- --check
+          cargo fmt --manifest-path bench/tools/wmb-document/Cargo.toml -- --check
           cargo build --release --manifest-path bench/tools/wmb-analyze/Cargo.toml
+          cargo build --release --manifest-path bench/tools/wmb-document/Cargo.toml
           python3 -m unittest discover -s bench/style -p 'test_*.py'
-          python3 bench/style/run.py tier1 --gate --analyzer bench/tools/wmb-analyze/target/release/wmb-analyze
+          python3 bench/style/run.py tier1 --gate --analyzer bench/tools/wmb-analyze/target/release/wmb-analyze --document-probe bench/tools/wmb-document/target/release/wmb-document
           python3 bench/style/run.py tier2 smoke
           python3 bench/style/run.py tier3 --self-test --analyzer bench/tools/wmb-analyze/target/release/wmb-analyze
 

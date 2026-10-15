@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 import sys
 
-from common import Analyzer, ROOT
+from common import Analyzer, DocumentProbe, ROOT
 
 
 def main():
@@ -16,6 +16,7 @@ def main():
     one.add_argument('--split', choices=['dev', 'test'], default='test')
     one.add_argument('--gate', action='store_true')
     one.add_argument('--output', type=Path)
+    one.add_argument('--document-probe', type=Path)
     two = sub.add_parser('tier2')
     two.add_argument('action', choices=['smoke', 'generate', 'score'])
     two.add_argument('--out', type=Path, default=ROOT / 'bench/style/out')
@@ -44,7 +45,8 @@ def main():
     try:
         if args.tier == 'tier1':
             import tier1
-            result = tier1.run(analyzer, args.split, args.gate)
+            result = tier1.run(analyzer, args.split, args.gate,
+                               DocumentProbe(args.document_probe))
             if args.output:
                 args.output.write_text(json.dumps(result, indent=2) + '\n')
         else:

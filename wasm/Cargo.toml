@@ -10,6 +10,7 @@ publish = false
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+writemorebetter-style = { path = "../style", default-features = false, features = ["regex-fancy"] }
 nlprule = { path = "../nlprule", default-features = false, features = ["regex-fancy"] }
 wasm-bindgen = "0.2.129"
 serde = { version = "1", features = ["derive"] }

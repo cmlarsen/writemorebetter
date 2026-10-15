@@ -54,6 +54,22 @@ class Analyzer:
             raise RuntimeError('analysis probe failed')
 
 
+class DocumentProbe:
+    def __init__(self, executable=None):
+        tool = ROOT / 'bench/tools/wmb-document'
+        if executable is None:
+            subprocess.run(['cargo', 'build', '--release', '--manifest-path',
+                            str(tool / 'Cargo.toml')], check=True, stdout=subprocess.DEVNULL)
+            executable = tool / 'target/release/wmb-document'
+        self.executable = executable
+
+    def dialogue(self, documents):
+        result = subprocess.run([str(self.executable), '--dialogue'],
+                                input=''.join(json.dumps(row) + '\n' for row in documents),
+                                capture_output=True, text=True, encoding='utf-8', check=True)
+        return [json.loads(line) for line in result.stdout.splitlines() if line.strip()]
+
+
 def prf(tp, predicted, gold):
     precision = tp / predicted if predicted else float(not gold)
     recall = tp / gold if gold else float(not predicted)

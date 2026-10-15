@@ -4,6 +4,7 @@ members = [
     "build",
     "python",
     "srx",
+    "style",
     "swift",
     "wasm"
 ]

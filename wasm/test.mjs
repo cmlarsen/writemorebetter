@@ -144,6 +144,100 @@ if (grammarHit) {
     "check offsets remain Unicode scalar values");
 }
 
+const documentText = "😀 “Zoë’s goin’—again…”\u2028She stayed.\r\n\r\nZoë walked with O’Brien.";
+const documentOptions = JSON.stringify({ skip_names: ["Zoë", "O'Brien"] });
+const document = JSON.parse(checker.analyzeDocument(documentText, documentOptions));
+const unskipped = JSON.parse(checker.analyzeDocument(documentText));
+eq(JSON.parse(checker.analyzeDocument(documentText, "{}")), unskipped, "empty document options use defaults");
+eq(document.paragraphs.length, 2, "document paragraph boundaries");
+eq(document.dialogue.map((span) => documentText.slice(span.start, span.end)),
+  ["“Zoë’s goin’—again…”"], "dialogue UTF-16 span");
+const documentTokens = document.paragraphs.flatMap((paragraph) => paragraph.sentences.flatMap((sentence) => sentence.tokens));
+for (const paragraph of document.paragraphs) {
+  eq(documentText.slice(paragraph.start, paragraph.end), paragraph.text, "paragraph UTF-16 span");
+  const projected = paragraph.sentences.map((sentence) => ({
+    text: sentence.text, start: sentence.start - paragraph.start, end: sentence.end - paragraph.start,
+    tokens: sentence.tokens.map(({ is_word, is_skipped, ...token }) => ({
+      ...token, start: token.start - paragraph.start, end: token.end - paragraph.start,
+    })),
+  }));
+  eq(projected, JSON.parse(checker.analyze(paragraph.text)), "document retains every analysis field");
+  for (const sentence of paragraph.sentences) {
+    eq(documentText.slice(sentence.start, sentence.end), sentence.text, "document sentence UTF-16 span");
+    eq(sentence.tokens.map((token) => token.text).join(""), sentence.text, "document tokens partition sentence");
+    for (const token of sentence.tokens) {
+      eq(documentText.slice(token.start, token.end), token.text, "document token UTF-16 span");
+      check(Array.isArray(token.chunks) && Array.isArray(token.readings), "document exposes chunks and readings");
+      eq(token.is_word, /[\p{L}\p{N}]/u.test(token.text), "document word flag");
+    }
+  }
+}
+const skippedTokens = documentTokens.filter((token) => token.is_skipped);
+check(skippedTokens.some((token) => token.text === "Zoë"), "skip names preserve entered case");
+check(skippedTokens.some((token) => token.text === "O’Brien"), "skip names normalize apostrophes");
+eq(document.word_count, documentTokens.filter((token) => token.is_word && !token.is_skipped).length,
+  "word count excludes skipped names");
+eq(unskipped.word_count - document.word_count, skippedTokens.filter((token) => token.is_word).length,
+  "skip names reduce denominator");
+check(documentTokens.some((token) => token.is_whitespace), "document whitespace exposed");
+check(documentTokens.find((token) => token.text === "—").is_punctuation, "document punctuation exposed");
+check(documentTokens.find((token) => token.text === "goin’").readings.some((reading) =>
+  reading.lemma === "go" && reading.pos === "VBG"), "document preserves tagged readings");
+check(Object.keys(document.lemma_index).length > 0, "document lemma index populated");
+for (const [lemma, positions] of Object.entries(document.lemma_index)) {
+  for (const position of positions) {
+    const token = document.paragraphs[position.paragraph].sentences[position.sentence].tokens[position.token];
+    check(token.is_word && !token.is_skipped, "lemma positions exclude skipped names");
+    check((token.readings.some((reading) => reading.lemma === lemma) || (!token.readings.length && lemma === token.text.toLowerCase())), "lemma position resolves to a reading or surface fallback");
+  }
+}
+for (const [paragraphIndex, paragraph] of document.paragraphs.entries()) {
+  for (const [sentenceIndex, sentence] of paragraph.sentences.entries()) {
+    for (const [tokenIndex, token] of sentence.tokens.entries()) {
+      if (!token.is_word || token.is_skipped) continue;
+      for (const lemma of new Set(token.readings.length ? token.readings.map((reading) => reading.lemma) : [token.text.toLowerCase()])) {
+        const occurrences = document.lemma_index[lemma].filter((position) =>
+          position.paragraph === paragraphIndex && position.sentence === sentenceIndex && position.token === tokenIndex);
+        eq(occurrences.length, 1, "each eligible lemma position appears exactly once");
+      }
+    }
+  }
+}
+eq(JSON.parse(checker.analyzeDocument(" \n\u2028")),
+  { paragraphs: [], dialogue: [], lemma_index: {}, word_count: 0 }, "empty document");
+const phraseDocument = JSON.parse(checker.analyzeDocument("Port Royal met Port.",
+  JSON.stringify({ skip_names: ["Port Royal"] })));
+const phraseTokens = phraseDocument.paragraphs.flatMap((paragraph) => paragraph.sentences.flatMap((sentence) => sentence.tokens));
+eq(phraseTokens.filter((token) => token.is_word && token.is_skipped).map((token) => token.text),
+  ["Port", "Royal"], "multi-token names excluded without skipping partial matches");
+eq(phraseDocument.word_count, 2, "multi-token names excluded from denominator");
+let invalidDocumentOptions = false;
+try { checker.analyzeDocument("text", "invalid"); } catch { invalidDocumentOptions = true; }
+check(invalidDocumentOptions, "invalid document options throw");
+check(JSON.parse(checker.check("The the dog barked.")).length > 0, "check works after document analysis");
+eq(JSON.parse(checker.analyze(prose)), analysis, "document analysis preserves tokenizer analysis");
+eq(JSON.parse(checker.analyzeDocument(documentText, documentOptions)), document,
+  "check and analyze preserve document analysis");
+
+const namesText = "Will said he will go. Anna's hat. Anna’s coat. Charles' car.";
+const namesDoc = JSON.parse(checker.analyzeDocument(namesText, JSON.stringify({skipNames: ["Will", "Anna", "Charles"]})));
+const namesTokens = namesDoc.paragraphs.flatMap(p => p.sentences.flatMap(s => s.tokens));
+check(namesTokens.find(t => t.text === "Will").is_skipped, "capitalized name skipped");
+check(!namesTokens.find(t => t.text === "will").is_skipped, "modal will retained");
+check(namesTokens.filter(t => ["'s", "’s", "'", "’"].includes(t.text)).every(t => t.is_skipped), "name possessives skipped");
+const detached = JSON.parse(checker.analyzeDocument("Anna 's hat.", JSON.stringify({skipNames: ["Anna"]})));
+eq(detached.word_count, 2, "detached clitic stays in denominator");
+check(detached.paragraphs.flatMap(p => p.sentences.flatMap(s => s.tokens)).filter(t => t.is_whitespace || t.text === "'s").every(t => !t.is_skipped), "detached clitic and trailing whitespace retained");
+const compact = JSON.parse(checker.analyzeDocument(documentText, JSON.stringify({skipNames: ["Zoë", "O'Brien"], includeTokenDetails: false})));
+eq(compact.word_count, document.word_count, "compact counts unchanged");
+eq(compact.lemma_index, document.lemma_index, "compact index unchanged");
+check(compact.paragraphs.flatMap(p => p.sentences.flatMap(s => s.tokens)).every(t => !("readings" in t) && !("chunks" in t)), "compact output omits token details");
+let unknownOption = false;
+try { checker.analyzeDocument("text", '{"skpi_names":[]}'); } catch { unknownOption = true; }
+check(unknownOption, "unknown document options rejected");
+const unknownDocument = JSON.parse(checker.analyzeDocument("Zzqvorth sang. Zzqvorth sang."));
+eq(unknownDocument.lemma_index.zzqvorth.length, 2, "unknown surface indexed");
+
 if (failures > 0) {
   console.error(`\n${failures} assertion(s) failed`);
   process.exit(1);

@@ -13,11 +13,15 @@ python3 bench/style/run.py tier3 --self-test
 python3 -m unittest discover -s bench/style -p 'test_*.py'
 ```
 
-`--tokenizer PATH` and `--analyzer PATH` select the data and an already-built probe for tiers 1/3.
+`--tokenizer PATH` and `--analyzer PATH` select the data and an already-built analysis probe for tiers 1/3.
 Without `--analyzer`, the entry point builds `bench/tools/wmb-analyze` automatically. The probe accepts
 one JSON string per stdin line and emits one JSON array of owned analysis sentences per stdout line,
 using Rust's byte, Unicode scalar (`char`) and UTF-16 span fields unchanged. A persistent process reuses
-one tokenizer across all inputs. `--output PATH` saves tier 1's aggregate JSON.
+one tokenizer across all inputs. Tier 1 also builds `bench/tools/wmb-document` to score product dialogue
+spans; `--document-probe PATH` selects an already-built document probe. Its `--dialogue` mode accepts
+JSONL objects with `file` and `text`, and emits one JSONL object per detected span with `file`, `byte`,
+`utf16`, and `pattern: "dialogue"`. This mode needs no tokenizer. `--output PATH` saves tier 1's
+aggregate JSON. See [document measurements](../../docs/STYLE-DOCUMENT-BENCHMARKS.md) for native timing.
 
 ## Download provenance and splits
 
@@ -138,13 +142,17 @@ Validate annotation text against its TSV tokens. The originals contain whole pub
 **only the prefix through the last annotated token is scored**, so unannotated later speech cannot
 become a false positive. Original spacing, wrapped lines and paragraph breaks are retained.
 
-The bench-only baseline handles curly/straight **double** quotes, carries open quotes across
-paragraphs, and treats a repeated opening quote at an actual paragraph start (blank-line separator)
-as continuation. A wrapped line is not a paragraph boundary. Unclosed quotes are discarded.
-Delimiters are included; a true positive requires the complete span to match exactly. Counts are
-micro-aggregated over documents, including those with no quotations. Scare quotes can be false
-positives; single-quote and dash speech are missed. There is no speaker attribution. Until #243/#249
-replace this baseline, its floor guards the harness rather than product dialogue accuracy.
+The Rust document probe calls `writemorebetter_style::dialogue_spans_with_options` on these original prefixes
+with hard-wrapped paragraph mode.
+Delimiters are included; a true positive requires all byte and UTF-16 endpoints to match exactly.
+The tier 2 scorer validates file identifiers and counts duplicate predictions as extra false positives.
+Counts are micro-aggregated over documents, including those with no quotations. These procedural
+paired-quotation spans have no speaker attribution; scare quotes can be false positives and dash speech
+is missed. The historical Python `quote_spans` helper remains for baseline fixture tests only. Its
+measured baseline and the Rust comparison are recorded in the document measurements. The final
+corrected Rust test floors are precision **85.2799%**, recall **91.8838%**, and F1 **88.4588%**
+(1,234 exact matches, 1,447 predictions, 1,343 gold), above the historical Python floors.
+These supersede the inflated pre-recovery floors; the review correction is explained below. EWT floors are unchanged.
 
 ## Tier 2 framework
 
@@ -313,3 +321,15 @@ are diagnostic only. Raw and lexical-convention metrics are diagnostic only. The
 arithmetic; thresholds are never rounded or automatically rewritten. A rebaseline needs review of the
 metric definitions, exclusions, alignment coverage, ambiguity and per-category differences, not only
 headline scores. The README retains the initial numbers above to make this review change explicit.
+
+## Current document detector after #243 review
+
+The historical table above records #259's Python baseline. Current product-detector test floors are
+precision **85.2799%**, recall **91.8838%**, F1 **88.4588%** (1,234 / 1,447 / 1,343 TP/predicted/gold).
+The probe uses the crate's hard-wrapped paragraph mode for original LitBank text. Open quotes are
+dropped at paragraph boundaries unless the next paragraph repeats the same opener; known leading
+elisions do not open quotes. The earlier 86.8887% precision claim was partly an artifact of lost
+predictions after unclosed single quotes. The initial detector revision was triggered by a test-split
+precision failure, then evaluated on dev; the subsequent recovery fix was prompted by review that
+included test-split diagnostics. Full before/after results and revised floors are documented in
+[STYLE-DOCUMENT-BENCHMARKS.md](../../docs/STYLE-DOCUMENT-BENCHMARKS.md).

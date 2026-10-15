@@ -1,0 +1,65 @@
+[
+  {
+    "text": "I told 'em to go. \"Hello,\" she said. \"Bye,\" he said.",
+    "dialogue": [
+      "\"Hello,\"",
+      "\"Bye,\""
+    ]
+  },
+  {
+    "text": "We played rock 'n' roll all night. \"Loud,\" she said.",
+    "dialogue": [
+      "\"Loud,\""
+    ]
+  },
+  {
+    "text": "'Tis late. \"Come,\" she said.",
+    "dialogue": [
+      "\"Come,\""
+    ]
+  },
+  {
+    "text": "The '90s were fine. \"Sure,\" he said.",
+    "dialogue": [
+      "\"Sure,\""
+    ]
+  },
+  {
+    "text": "‘Hello’, she said.\nHe left the room.\n“Wait,” she called.",
+    "dialogue": [
+      "“Wait,”"
+    ]
+  },
+  {
+    "text": "\"Hi, he said. \"Come here.\"\nNarration one.\nNarration \"two\" ends.",
+    "dialogue": [
+      "\"Hi, he said. \"",
+      "\"two\""
+    ]
+  },
+  {
+    "text": "“Unclosed speech…\nNarration line.\nMore narration with “quote,” here.",
+    "dialogue": [
+      "“quote,”"
+    ]
+  },
+  {
+    "text": "\"Paragraph one\n\n\"Paragraph two\n\nNarration.\n\n\"Later,\" he said.",
+    "dialogue": [
+      "\"Later,\""
+    ]
+  },
+  {
+    "text": "'twas late, 'cause the 'eighties had ended. \"Go,\" she said.",
+    "dialogue": [
+      "\"Go,\""
+    ]
+  },
+  {
+    "text": "'Unfinished speech\n'Tis late. 'Enough!'\n\"Later.\"",
+    "dialogue": [
+      "'Enough!'",
+      "\"Later.\""
+    ]
+  }
+]

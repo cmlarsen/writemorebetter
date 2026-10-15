@@ -10,6 +10,7 @@ publish = false
 crate-type = ["cdylib", "lib"]
 
 [dependencies]
+writemorebetter-style = { path = "../style" }
 nlprule = { path = "../nlprule" }
 thiserror = "1"
 uniffi = "0.32.2"

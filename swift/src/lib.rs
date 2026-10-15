@@ -116,6 +116,149 @@ impl From<nlprule::analysis::AnalysisSentence> for AnalysisSentence {
     }
 }
 
+#[derive(Debug, Clone, uniffi::Record)]
+pub struct DocumentOptions {
+    #[uniffi(default)]
+    pub skip_names: Vec<String>,
+    #[uniffi(default = true)]
+    pub include_token_details: bool,
+    #[uniffi(default)]
+    pub hard_wrapped: bool,
+}
+
+impl Default for DocumentOptions {
+    fn default() -> Self {
+        Self {
+            skip_names: Vec::new(),
+            include_token_details: true,
+            hard_wrapped: false,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct DocumentSpan {
+    pub start: u32,
+    pub end: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct DocumentToken {
+    pub text: String,
+    pub start: u32,
+    pub end: u32,
+    pub readings: Vec<AnalysisReading>,
+    pub chunks: Vec<String>,
+    pub is_whitespace: bool,
+    pub is_punctuation: bool,
+    pub is_word: bool,
+    pub is_skipped: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct DocumentSentence {
+    pub text: String,
+    pub start: u32,
+    pub end: u32,
+    pub tokens: Vec<DocumentToken>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct DocumentParagraph {
+    pub text: String,
+    pub start: u32,
+    pub end: u32,
+    pub sentences: Vec<DocumentSentence>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct TokenPosition {
+    pub paragraph: u32,
+    pub sentence: u32,
+    pub token: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct Document {
+    pub paragraphs: Vec<DocumentParagraph>,
+    pub dialogue: Vec<DocumentSpan>,
+    pub lemma_index: std::collections::HashMap<String, Vec<TokenPosition>>,
+    pub word_count: u32,
+}
+
+impl From<writemorebetter_style::Document> for Document {
+    fn from(document: writemorebetter_style::Document) -> Self {
+        Self {
+            paragraphs: document
+                .paragraphs
+                .into_iter()
+                .map(|paragraph| DocumentParagraph {
+                    text: paragraph.text,
+                    start: paragraph.span.utf16.start as u32,
+                    end: paragraph.span.utf16.end as u32,
+                    sentences: paragraph
+                        .sentences
+                        .into_iter()
+                        .map(|sentence| DocumentSentence {
+                            text: sentence.text,
+                            start: sentence.span.utf16.start as u32,
+                            end: sentence.span.utf16.end as u32,
+                            tokens: sentence
+                                .tokens
+                                .into_iter()
+                                .map(|token| DocumentToken {
+                                    text: token.text,
+                                    start: token.span.utf16.start as u32,
+                                    end: token.span.utf16.end as u32,
+                                    readings: token
+                                        .readings
+                                        .into_iter()
+                                        .map(|reading| AnalysisReading {
+                                            lemma: reading.lemma,
+                                            pos: reading.pos,
+                                        })
+                                        .collect(),
+                                    chunks: token.chunks,
+                                    is_whitespace: token.is_whitespace,
+                                    is_punctuation: token.is_punctuation,
+                                    is_word: token.is_word,
+                                    is_skipped: token.is_skipped,
+                                })
+                                .collect(),
+                        })
+                        .collect(),
+                })
+                .collect(),
+            dialogue: document
+                .dialogue
+                .into_iter()
+                .map(|span| DocumentSpan {
+                    start: span.utf16.start as u32,
+                    end: span.utf16.end as u32,
+                })
+                .collect(),
+            lemma_index: document
+                .lemma_index
+                .into_iter()
+                .map(|(lemma, positions)| {
+                    (
+                        lemma,
+                        positions
+                            .into_iter()
+                            .map(|position| TokenPosition {
+                                paragraph: position.paragraph as u32,
+                                sentence: position.sentence as u32,
+                                token: position.token as u32,
+                            })
+                            .collect(),
+                    )
+                })
+                .collect(),
+            word_count: document.word_count as u32,
+        }
+    }
+}
+
 /// A grammar and spelling checker over a pre-loaded tokenizer and rule set.
 ///
 /// The checker is thread-safe (`Send + Sync`), but loading it deserializes two multi-megabyte
@@ -238,6 +381,15 @@ impl Checker {
             .into_iter()
             .map(AnalysisSentence::from)
             .collect()
+    }
+
+    pub fn analyze_document(&self, text: String, options: Option<DocumentOptions>) -> Document {
+        let options = options.unwrap_or_default();
+        let options = writemorebetter_style::DocumentOptions::new()
+            .with_skip_names(options.skip_names)
+            .with_token_details(options.include_token_details)
+            .with_hard_wrapped(options.hard_wrapped);
+        writemorebetter_style::analyze_document(&self.tokenizer, &text, &options).into()
     }
 
     /// Adds words to the user dictionary and returns how many were new.

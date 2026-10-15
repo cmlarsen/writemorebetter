@@ -8,12 +8,14 @@ on:
       - "nlprule/src/**"
       - "nlprule/tests/**"
       - "nlprule/fuzz/**"
+      - "Cargo.toml"
       - ".github/workflows/fuzz.yml"
   pull_request:
     paths:
       - "nlprule/src/**"
       - "nlprule/tests/**"
       - "nlprule/fuzz/**"
+      - "Cargo.toml"
       - ".github/workflows/fuzz.yml"
 
 # Deterministic crash replay on stable Rust. A seeded generator produces a few
