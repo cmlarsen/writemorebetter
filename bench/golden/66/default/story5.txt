@@ -5,12 +5,13 @@
 28 | SPELLCHECK/SINGLE | "foriegn" -> ["foreign"] | Possibly misspelled word.
 35 | SPELLCHECK/SINGLE | "gratefull" -> ["grateful", "gratefully"] | Possibly misspelled word.
 36 | SPELLCHECK/SINGLE | "hieght" -> ["height"] | Possibly misspelled word.
-39 | SPELLCHECK/SINGLE | "independant" -> ["independent"] | Possibly misspelled word.
+39 | SPELLCHECK/SINGLE | "independant" -> ["independent", "Independent"] | Possibly misspelled word.
 42 | TYPOS/A_WAS/0 | "was" -> ["way"] | Did you mean way?
 47 | PUNCTUATION/COMMA_COMPOUND_SENTENCE/0 | " and" -> [", and"] | Use a comma before 'and' if it connects two independent clauses (unless they are closely connected and short).
 50 | PUNCTUATION/NO_COMMA_BEFORE_INDIRECT_QUESTION/0 | ", which" -> [" which"] | If which starts an indirect question, you do not need to put a comma before it.
 53 | PUNCTUATION/COMMA_COMPOUND_SENTENCE_2/3 | " and" -> [", and"] | Use a comma before "and" if it connects two independent clauses (unless they are closely connected and short).
 56 | GRAMMAR/BEEN_PART_AGREEMENT/8 | "get" -> ["got", "gotten", "getting"] | Consider using either the past participle got or the present participle getting here.|Consider using either the past participle gotten or the present participle getting here.
+64 | BUILTIN/ENGLISH_WORD_REPEAT_BEGINNING_RULE | "It" -> ["Furthermore, it", "Likewise, it", "Not only that, but it"] | Three successive sentences begin with the same word. Consider rewording the sentence or use a thesaurus to find a synonym.
 78 | BUILTIN/ENGLISH_WORD_REPEAT_RULE | "She she" -> ["She"] | Possible typo: you repeated a word.
 80 | STYLE/ADVERB_WORD_ORDER/7 | "write sometimes" -> ["sometimes write"] | The adverb 'sometimes' is usually put before the verb 'write'.
 85 | PUNCTUATION/COMMA_COMPOUND_SENTENCE/0 | " and" -> [", and"] | Use a comma before 'and' if it connects two independent clauses (unless they are closely connected and short).

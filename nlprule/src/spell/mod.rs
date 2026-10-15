@@ -18,7 +18,7 @@ use crate::{
     Error,
 };
 
-mod levenshtein;
+pub(crate) mod levenshtein;
 pub(crate) mod multitoken;
 use multitoken::MultitokenSpeller;
 mod spell_int {
@@ -557,18 +557,21 @@ impl VariantChecker {
         // run of characters with no word break (a token far longer than any word) is
         // not worth correcting, so skip the search rather than let it dominate a check.
         const MAX_SEARCH_LEN: usize = 64;
-        if word.chars().count() > MAX_SEARCH_LEN {
+        let len = word.chars().count();
+        if len > MAX_SEARCH_LEN {
             return Vec::new();
         }
+        let search_distance = if len <= self.options.max_distance {
+            len.saturating_sub(1)
+        } else {
+            self.options.max_distance
+        };
 
         let all_caps = is_all_caps(word);
         let convert_case = all_caps || is_title_case(word);
-        let query = levenshtein::Levenshtein::new(
-            word,
-            self.options.max_distance,
-            self.options.prefix_length,
-        )
-        .fold_case(word.chars().any(char::is_uppercase));
+        let query =
+            levenshtein::Levenshtein::new(word, search_distance, self.options.prefix_length)
+                .fold_case(true);
         let restore_case = |term: String| {
             if convert_case {
                 recase(term, all_caps)
@@ -589,30 +592,12 @@ impl VariantChecker {
         let out = out.into_sorted_vec();
         let max_distance = match out.first() {
             Some(x) if x.distance > 0 => x.distance,
-            _ => self.options.max_distance,
+            _ => search_distance,
         };
         out.into_iter()
             .take_while(|x| x.distance <= max_distance)
             .map(|x| x.term)
             .collect()
-    }
-
-    /// Every word of this variant within `max_distance` edits of `word`, ignoring ASCII case,
-    /// nearest first and then in byte order, spelled as the speller stores it.
-    fn similar(&self, fst: &Map<&[u8]>, word: &str, max_distance: usize) -> Vec<String> {
-        let query = levenshtein::Levenshtein::new(word, max_distance, 0).fold_case(true);
-        let mut out = Vec::new();
-        let mut stream = fst.search_with_state(query).into_stream();
-        while let Some((k, v, s)) = stream.next() {
-            if !SpellInt(v).contains_variant(self.variant_index) {
-                continue;
-            }
-            let state = s.expect("matching levenshtein state is always `Some`.");
-            let term = String::from_utf8(k.to_vec()).expect("fst keys must be valid utf-8.");
-            out.push((state.dist(), term));
-        }
-        out.sort();
-        out.into_iter().map(|(_, term)| term).collect()
     }
 
     /// Pushes the candidates of one speller FST into `out`, capping it at `top_n`.
@@ -676,8 +661,9 @@ pub struct Spell {
     /// The structure containing the actual spellchecking logic. Computed based on the selected variant.
     #[serde(skip)]
     pub(crate) variant_checker: Option<VariantChecker>,
-    /// The checker for [SpellLangOptions::default_variant], built only while no variant is
-    /// selected. Serves [Spell::speller], never [Spell::suggest].
+    /// The checker for [SpellLangOptions::default_variant], built while another variant or none
+    /// is selected. Serves [Spell::speller] while none is selected and
+    /// [Spell::default_speller], never [Spell::suggest].
     #[serde(skip)]
     pub(crate) default_checker: Option<VariantChecker>,
     /// The runtime user dictionary. Never serialized: the caller persists it and re-adds it.
@@ -723,16 +709,30 @@ impl Spell {
     }
 
     pub(crate) fn ingest_options(&mut self) {
-        let existing = self.variant_checker.take().or(self.default_checker.take());
-        if let Some(variant) = self.options.variant.clone() {
-            self.variant_checker = Some(self.build_checker(variant, existing));
-        } else {
-            self.default_checker = self
-                .lang_options
-                .default_variant
-                .clone()
-                .map(|variant| self.build_checker(variant, existing));
-        }
+        let mut existing: Vec<VariantChecker> = self
+            .variant_checker
+            .take()
+            .into_iter()
+            .chain(self.default_checker.take())
+            .collect();
+        let mut take = |variant: &Variant| {
+            existing
+                .iter()
+                .position(|checker| checker.variant == *variant)
+                .map(|i| existing.swap_remove(i))
+        };
+
+        let selected = self.options.variant.clone();
+        let default = self
+            .lang_options
+            .default_variant
+            .clone()
+            .filter(|variant| selected.as_ref() != Some(variant));
+        let selected_existing = selected.as_ref().and_then(&mut take);
+        let default_existing = default.as_ref().and_then(&mut take);
+        self.variant_checker =
+            selected.map(|variant| self.build_checker(variant, selected_existing));
+        self.default_checker = default.map(|variant| self.build_checker(variant, default_existing));
     }
 
     fn build_checker(&self, variant: Variant, existing: Option<VariantChecker>) -> VariantChecker {
@@ -821,11 +821,11 @@ impl Spell {
     /// Rebuilds only the user-dictionary view of the variant checker, leaving the (much more
     /// expensive) multiword filtering alone. Used when the user dictionary changes.
     fn rebuild_user(&mut self) {
-        let checker = self
+        for checker in self
             .variant_checker
-            .as_mut()
-            .or(self.default_checker.as_mut());
-        if let Some(checker) = checker {
+            .iter_mut()
+            .chain(self.default_checker.iter_mut())
+        {
             checker.user = UserMatcher::new(
                 &self.user,
                 self.max_freq,
@@ -918,6 +918,22 @@ impl Spell {
         })
     }
 
+    /// A read-only view of the speller for [SpellLangOptions::default_variant] (`en_US` for
+    /// English) whatever variant is selected, for the rule filters LanguageTool pins to it.
+    /// `None` only when the language has no default variant.
+    pub(crate) fn default_speller(&self) -> Option<Speller<'_>> {
+        self.lang_options.default_variant.as_ref()?;
+        let checker = self
+            .default_checker
+            .as_ref()
+            .or(self.variant_checker.as_ref())?;
+        Some(Speller {
+            checker,
+            fst: Map::new(self.fst.as_slice()).expect("serialized fst must be valid."),
+            multitoken: &self.multitoken,
+        })
+    }
+
     /// Runs the spellchecking algorithm on all tokens and returns suggestions.
     pub fn suggest(&self, sentence: &Sentence) -> Vec<Suggestion> {
         let tokens = sentence.tokens();
@@ -1002,17 +1018,6 @@ impl<'a> Speller<'a> {
         let mut suggestions = self.checker.search(&self.fst, &word);
         suggestions.truncate(n);
         suggestions
-    }
-
-    /// Every known word within `max_distance` edits of `word`, ignoring ASCII case, nearest first
-    /// and then in byte order, like Morfologik's `findSimilarWords`. Unlike [`Speller::suggest`]
-    /// it is not capped, not ranked by frequency, and does not consult the user dictionary.
-    pub(crate) fn similar(&self, word: &str, max_distance: usize) -> Vec<String> {
-        let word = Self::normalize(word);
-        if word.is_empty() {
-            return Vec::new();
-        }
-        self.checker.similar(&self.fst, &word, max_distance)
     }
 
     pub(crate) fn multitoken(&self) -> &'a MultitokenSpeller {

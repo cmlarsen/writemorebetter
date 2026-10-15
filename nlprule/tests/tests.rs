@@ -542,10 +542,11 @@ fn apply_profile_reports_unmatched_selectors() {
             "NO_SUCH_CATEGORY"
         ]
     );
-    assert!(rules
-        .builtins()
-        .iter()
-        .all(|rule| rule.enabled() || rule.id() == "EMPTY_LINE"));
+    assert!(rules.builtins().iter().all(|rule| rule.enabled()
+        || matches!(
+            rule.id(),
+            "EMPTY_LINE" | "TOO_LONG_SENTENCE" | "TOO_LONG_PARAGRAPH"
+        )));
 }
 
 /// The `BUILTIN/` selector path disables a builtin rule by its id.
@@ -663,6 +664,116 @@ fn spellchecker_accepts_all_caps_names_from_the_global_list() {
             "\u{201c}JOSQUIN DES PR\u{c9}S\u{2026}\u{201d} Josquin des Pr\u{e9}s sang\u{2014}DES PR\u{c9}S.\u{2028}Pr\u{e9}s."
         ),
         vec!["PR\u{c9}S", "Pr\u{e9}s"]
+    );
+}
+
+#[test]
+fn speller_accepts_and_suggests_words_from_the_global_list() {
+    let speller = RULES.spell().speller().unwrap();
+    for word in ["Josquin", "JOSQUIN", "fit4work", "Nestl\u{e9}"] {
+        assert!(speller.is_correct(word), "{}", word);
+    }
+    assert!(!speller.is_correct("Pr\u{e9}s"));
+    assert_eq!(speller.suggest("Josquinn", 5), vec!["Josquin"]);
+    let nescio = speller.suggest("Nescio", 10);
+    assert_eq!(
+        nescio.last().map(String::as_str),
+        Some("ESCO"),
+        "{:?}",
+        nescio
+    );
+
+    for variant in ["en_US", "en_GB"] {
+        let mut rules = Rules::new(RULES_PATH).unwrap();
+        rules.spell_mut().options_mut().variant = Some(rules.spell().variant(variant).unwrap());
+        let text = "\u{201c}Josquinn\u{2014}again\u{2026}\u{201d}\u{2028}\u{2018}Josquin\u{2019}s motet, fit4work, Nestl\u{e9},\u{2019} she said.";
+        let flags: Vec<(&str, Vec<String>)> = rules
+            .suggest(text, &*TOKENIZER)
+            .into_iter()
+            .filter(|x| x.source().starts_with("SPELLCHECK"))
+            .map(|x| (&text[x.span().byte().clone()], x.replacements().to_vec()))
+            .collect();
+        assert_eq!(flags, vec![("Josquinn", vec!["Josquin".to_string()])]);
+    }
+}
+
+#[test]
+fn speller_folds_the_case_of_accented_letters() {
+    let speller = RULES.spell().speller().unwrap();
+    assert_eq!(
+        speller.suggest("\u{c9}CLAIRR", 5),
+        vec!["\u{c9}CLAIR", "\u{c9}CLAIRS"]
+    );
+    assert_eq!(
+        speller.suggest("\u{c9}clairr", 5),
+        vec!["\u{c9}clair", "\u{c9}clairs"]
+    );
+    assert_eq!(speller.suggest("NA\u{cf}VEE", 1), vec!["NA\u{cf}VE"]);
+    assert_eq!(speller.suggest("S\u{d8}RENN", 5), vec!["S\u{d8}REN"]);
+    assert_eq!(
+        speller.suggest("WH\u{152}L", 5),
+        vec!["WHO", "WELL", "WHEN", "WHAT", "WHILE"]
+    );
+    assert!(speller
+        .suggest("\u{5d7}\u{5d5}", 10)
+        .iter()
+        .all(|x| x.chars().count() > 1));
+    let qx = speller.suggest("qx", 50);
+    assert!(qx.contains(&"ox".to_string()), "{:?}", qx);
+    assert!(!qx.contains(&"a".to_string()), "{:?}", qx);
+
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    rules.spell_mut().options_mut().variant = Some(rules.spell().variant("en_US").unwrap());
+    let text = "\u{201c}S\u{d8}RENN\u{2014}wait\u{2026}\u{201d}\u{2028}\u{2018}Zo\u{eb} ate the \u{c9}clairr\u{2019}s icing,\u{2019} she said.";
+    let first_replacements: Vec<(&str, String)> = rules
+        .suggest(text, &*TOKENIZER)
+        .into_iter()
+        .filter(|x| x.source().starts_with("SPELLCHECK"))
+        .map(|x| (&text[x.span().byte().clone()], x.replacements()[0].clone()))
+        .collect();
+    assert_eq!(
+        first_replacements,
+        vec![
+            ("S\u{d8}RENN", "S\u{d8}REN".to_string()),
+            ("\u{c9}clairr", "\u{c9}clair".to_string()),
+        ]
+    );
+}
+
+#[test]
+fn speller_suggests_the_name_first_for_a_lowercased_name() {
+    let speller = RULES.spell().speller().unwrap();
+    assert_eq!(
+        speller.suggest("s\u{f8}ren", 2),
+        vec!["S\u{f8}ren", "siren"]
+    );
+    assert_eq!(speller.suggest("ren\u{e9}e", 1), vec!["Ren\u{e9}e"]);
+    assert_eq!(
+        speller.suggest("nestl\u{e9}", 2),
+        vec!["Nestl\u{e9}", "nestle"]
+    );
+    assert_eq!(speller.suggest("paris", 2), vec!["Paris", "parts"]);
+
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    rules.spell_mut().options_mut().variant = Some(rules.spell().variant("en_US").unwrap());
+    let text = "\u{201c}Wait\u{2014}s\u{f8}ren?\u{201d}\u{2028}\u{2018}zo\u{eb}\u{2019}s coat\u{2026}\u{2019} she said.";
+    let flags: Vec<(&str, Vec<String>)> = rules
+        .suggest(text, &*TOKENIZER)
+        .into_iter()
+        .filter(|x| x.source().starts_with("SPELLCHECK"))
+        .map(|x| {
+            (
+                &text[x.span().byte().clone()],
+                x.replacements().iter().take(2).cloned().collect(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        flags,
+        vec![
+            ("s\u{f8}ren", strings(&["S\u{f8}ren", "siren"])),
+            ("zo\u{eb}", strings(&["Zo\u{eb}", "zoo"])),
+        ]
     );
 }
 
@@ -2423,7 +2534,11 @@ fn rule_synthesis_produces_inflected_forms() {
 }
 
 fn rule_flags(text: &str, rule: &str) -> Vec<(String, Vec<String>)> {
-    RULES
+    rule_flags_with(&RULES, text, rule)
+}
+
+fn rule_flags_with(rules: &Rules, text: &str, rule: &str) -> Vec<(String, Vec<String>)> {
+    rules
         .suggest(text, &*TOKENIZER)
         .into_iter()
         .filter(|suggestion| suggestion.source().starts_with(rule))
@@ -2676,6 +2791,151 @@ fn chunker_matches_languagetool_beam_search() {
             (".", "O"),
             ("\u{201d}", "B-NP-singular|E-NP-singular"),
         ])[..]
+    );
+}
+
+/// Chunk tags LanguageTool 6.6 assigns where its top two sequences are within 0.005
+/// log-probability of each other (`nginx ,` and `fast/JJ` here), and where its tokenizer
+/// keeps an opening quote attached to the next word (`‘No`, `“The`). Breaking these ties
+/// like OpenNLP needs the models' parameters at full `f32` precision.
+#[test]
+fn chunker_breaks_near_ties_like_languagetool() {
+    let chunk_tags = |text: &str| -> Vec<(String, String)> {
+        TOKENIZER
+            .pipe(text)
+            .flat_map(|sentence| sentence.into_iter())
+            .filter(|token| !token.word().as_str().trim().is_empty())
+            .map(|token| (token.word().as_str().to_string(), token.chunks().join("|")))
+            .collect()
+    };
+    let expected = |pairs: &[(&str, &str)]| -> Vec<(String, String)> {
+        pairs
+            .iter()
+            .map(|(word, chunks)| (word.to_string(), chunks.to_string()))
+            .collect()
+    };
+
+    assert_eq!(
+        chunk_tags("I have checked nginx, php, and mysql error logs and this error isn't there."),
+        expected(&[
+            ("I", "B-NP-singular|E-NP-singular"),
+            ("have", "B-VP"),
+            ("checked", "I-VP"),
+            ("nginx", "B-NP-singular|E-NP-singular"),
+            (",", "O"),
+            ("php", "B-NP-singular|E-NP-singular"),
+            (",", "O"),
+            ("and", "O"),
+            ("mysql", "B-NP-plural"),
+            ("error", "I-NP-plural"),
+            ("logs", "E-NP-plural"),
+            ("and", "O"),
+            ("this", "B-NP-singular"),
+            ("error", "E-NP-singular"),
+            ("is", "B-VP"),
+            ("n't", "O"),
+            ("there", "B-ADVP"),
+            (".", "O"),
+        ])
+    );
+
+    assert_eq!(
+        chunk_tags(
+            "\u{201c}I\u{2019}ve checked nginx, php, and mysql error logs\u{2014}and this error isn\u{2019}t there\u{2026}\u{201d}\u{2028}"
+        ),
+        expected(&[
+            ("\u{201c}", "B-NP-singular|E-NP-singular"),
+            ("I", "B-NP-singular|E-NP-singular"),
+            ("'ve", "B-VP"),
+            ("checked", "I-VP"),
+            ("nginx", "B-NP-singular|E-NP-singular"),
+            (",", "O"),
+            ("php", "B-NP-singular|E-NP-singular"),
+            (",", "O"),
+            ("and", "O"),
+            ("mysql", "B-NP-singular"),
+            ("error", "E-NP-singular"),
+            ("logs", ""),
+            ("\u{2014}", ""),
+            ("and", ""),
+            ("this", "B-NP-singular"),
+            ("error", "E-NP-singular"),
+            ("is", "B-VP"),
+            ("n't", "I-VP"),
+            ("there", "I-VP"),
+            ("\u{2026}", "I-VP"),
+            ("\u{201d}", "B-NP-singular|E-NP-singular"),
+        ])
+    );
+
+    assert_eq!(
+        chunk_tags("The car is special, fast and nice to look at."),
+        expected(&[
+            ("The", "B-NP-singular"),
+            ("car", "E-NP-singular"),
+            ("is", "B-VP"),
+            ("special", "B-ADJP"),
+            (",", "O"),
+            ("fast", "B-ADJP"),
+            ("and", "I-ADJP"),
+            ("nice", "I-ADJP"),
+            ("to", "B-VP"),
+            ("look", "I-VP"),
+            ("at", "B-PP"),
+            (".", "O"),
+        ])
+    );
+
+    assert_eq!(
+        chunk_tags("\u{201c}The car is special, fast and nice to look at\u{2026}\u{201d} she said.\u{2028}"),
+        expected(&[
+            ("\u{201c}", ""),
+            ("The", ""),
+            ("car", "E-NP-singular"),
+            ("is", "B-VP"),
+            ("special", "B-ADJP"),
+            (",", "O"),
+            ("fast", "B-ADJP"),
+            ("and", "I-ADJP"),
+            ("nice", "I-ADJP"),
+            ("to", "B-VP"),
+            ("look", "I-VP"),
+            ("at", ""),
+            ("\u{2026}", ""),
+            ("\u{201d}", "B-NP-singular|E-NP-singular"),
+            ("she", "B-NP-singular|E-NP-singular"),
+            ("said", "B-VP"),
+            (".", "O"),
+        ])
+    );
+
+    assert_eq!(
+        chunk_tags(
+            "\u{2018}No sooner, sir?\u{2019}\u{2014}\u{2018}Soon enough for any honest man that goes a passenger.\u{2019}"
+        ),
+        expected(&[
+            ("\u{2018}", ""),
+            ("No", ""),
+            ("sooner", "I-NP-singular"),
+            (",", "I-NP-singular"),
+            ("sir", "E-NP-singular"),
+            ("?", "O"),
+            ("\u{2019}", ""),
+            ("\u{2014}", ""),
+            ("\u{2018}", ""),
+            ("Soon", ""),
+            ("enough", "B-ADVP"),
+            ("for", "B-PP"),
+            ("any", "B-NP-singular"),
+            ("honest", "I-NP-singular"),
+            ("man", "E-NP-singular"),
+            ("that", "B-NP-singular|E-NP-singular"),
+            ("goes", "B-VP"),
+            ("a", "B-NP-singular"),
+            ("passenger", "E-NP-singular"),
+            (".", "O"),
+            ("\u{2019}", "O"),
+        ])
     );
 }
 
@@ -3921,6 +4181,43 @@ fn find_suggestions_filter_matches_languagetool_on_fiction_text() {
 }
 
 #[test]
+fn speller_backed_filters_consult_the_spellers_languagetool_uses() {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    rules.spell_mut().options_mut().variant = Some(rules.spell().variant("en_GB").unwrap());
+    assert_eq!(
+        rule_flags_with(
+            &rules,
+            "\u{201c}The c0lor faded\u{2014}slowly.\u{201d} \u{2018}Her h0nour\u{2026}\u{2019} he said.\u{2028}The flav0ur was odd.",
+            "TYPOS/NUMBERS_IN_WORDS/"
+        ),
+        vec![
+            ("c0lor".into(), strings(&["color"])),
+            ("h0nour".into(), strings(&["hour"])),
+            ("flav0ur".into(), strings(&["flavor"])),
+        ]
+    );
+    assert_eq!(
+        rule_flags_with(
+            &rules,
+            "\u{201c}I can trait,\u{201d} she said\u{2014}quietly.",
+            "GRAMMAR/PRP_MD_NN/"
+        ),
+        vec![("trait".into(), strings(&["trail", "train"]))]
+    );
+    assert_eq!(
+        rule_flags_with(
+            &rules,
+            "\u{201c}Worth a send,\u{201d} she said\u{2026}",
+            "GRAMMAR/A_INFINITIVE/"
+        ),
+        vec![(
+            "a send".into(),
+            strings(&["a Sand", "a Seed", "a sand", "a seed", "a sent"])
+        )]
+    );
+}
+
+#[test]
 fn tokenizer_keeps_g_dropped_words_whole() {
     assert_eq!(
         token_texts("\u{201c}How you doin\u{2019}?\u{201d} he asked\u{2026}\u{2028}\u{201c}Nothin\u{2019}\u{2014}just somethin' I was goin' on about.\u{201d}"),
@@ -4108,6 +4405,36 @@ fn spellchecker_accepts_g_dropped_words() {
     }
 }
 
+lazy_static! {
+    static ref PICKY_RULES: Rules = {
+        let mut rules = Rules::new(RULES_PATH).unwrap();
+        for rule in rules.builtins_mut() {
+            if matches!(rule.id(), "TOO_LONG_SENTENCE" | "TOO_LONG_PARAGRAPH") {
+                rule.enable();
+            }
+        }
+        rules
+    };
+}
+
+/// Checks `text` with `rules` and returns the flagged text and replacements of
+/// every suggestion from the builtin `id`.
+fn suggest_flags(rules: &Rules, id: &str, text: &str) -> Vec<(String, Vec<String>)> {
+    let chars: Vec<char> = text.chars().collect();
+    let source = format!("BUILTIN/{}", id);
+    rules
+        .suggest(text, &*TOKENIZER)
+        .into_iter()
+        .filter(|suggestion| suggestion.source() == source)
+        .map(|suggestion| {
+            (
+                chars[suggestion.span().char().clone()].iter().collect(),
+                suggestion.replacements().to_vec(),
+            )
+        })
+        .collect()
+}
+
 /// Runs the builtin rule `id` over `text` paragraph by paragraph, as
 /// [`Rules::suggest`] does, and returns the flagged text and all replacements
 /// of every suggestion.
@@ -4119,24 +4446,19 @@ fn builtin_flags(id: &str, text: &str) -> Vec<(String, Vec<String>)> {
         .unwrap();
     let chars: Vec<char> = text.chars().collect();
 
-    let mut paragraphs = vec![Vec::new()];
-    for sentence in TOKENIZER.pipe(text) {
-        let ends_paragraph = sentence.text().contains('\n');
-        paragraphs.last_mut().unwrap().push(sentence);
-        if ends_paragraph {
-            paragraphs.push(Vec::new());
-        }
-    }
-
-    let mut previous = None;
+    let sentences: Vec<_> = TOKENIZER.pipe(text).collect();
     let mut suggestions = Vec::new();
-    for (i, paragraph) in paragraphs.iter().enumerate() {
-        let ends_text = paragraphs[i + 1..].iter().all(Vec::is_empty);
-        suggestions.extend(
-            rule.builtin()
-                .check_paragraph(paragraph, previous, ends_text),
-        );
-        previous = paragraph.last().or(previous);
+    let mut start = 0;
+    for (i, sentence) in sentences.iter().enumerate() {
+        let ends_text = i + 1 == sentences.len();
+        if sentence.text().contains('\n') || ends_text {
+            suggestions.extend(rule.builtin().check_paragraph(
+                &sentences[start..=i],
+                &sentences[start.saturating_sub(2)..start],
+                ends_text,
+            ));
+            start = i + 1;
+        }
     }
 
     suggestions
@@ -4454,6 +4776,308 @@ fn whitespace_flags(name: &str, text: &str) -> Vec<String> {
         .filter(|suggestion| suggestion.source() == "BUILTIN/WHITESPACE_RULE")
         .map(|suggestion| chars[suggestion.span().char().clone()].iter().collect())
         .collect()
+}
+
+/// Runs the long-sentence builtin directly, so that no other rule's
+/// overlapping match hides it, and returns the flagged texts.
+fn long_sentence_flags(text: &str) -> Vec<String> {
+    builtin_flags("TOO_LONG_SENTENCE", text)
+        .into_iter()
+        .map(|(flagged, _)| flagged)
+        .collect()
+}
+
+/// `n` distinct words, so that no repeated-word rule matches.
+fn distinct_words(n: usize) -> String {
+    (0..n)
+        .map(|i| format!("k{}", i))
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn pronoun_flag(word: &str, pronoun: &str) -> (String, Vec<String>) {
+    (
+        word.to_owned(),
+        vec![
+            format!("Furthermore, {}", pronoun),
+            format!("Likewise, {}", pronoun),
+            format!("Not only that, but {}", pronoun),
+        ],
+    )
+}
+
+#[test]
+fn word_repeat_beginning_flags_the_third_sentence() {
+    let flags = |text| suggest_flags(&RULES, "ENGLISH_WORD_REPEAT_BEGINNING_RULE", text);
+    assert_eq!(
+        flags("He ran home. He sat down. He left the room."),
+        vec![pronoun_flag("He", "he")]
+    );
+    assert_eq!(
+        flags("I ran home. I sat down. I left the room."),
+        vec![pronoun_flag("I", "I")]
+    );
+    assert_eq!(
+        flags("Then we ran. Then we sat. Then we left."),
+        vec![("Then".to_owned(), vec![])]
+    );
+    assert_eq!(
+        flags("She ran home. She sat down.\nShe left the room. She slept well."),
+        vec![pronoun_flag("She", "she"), pronoun_flag("She", "she")]
+    );
+    assert_eq!(
+        flags("He\u{2019}s here now. He\u{2019}s there now. He\u{2019}s gone now."),
+        vec![pronoun_flag("He", "he")]
+    );
+}
+
+#[test]
+fn word_repeat_beginning_looks_across_paragraphs() {
+    assert_eq!(
+        suggest_flags(
+            &RULES,
+            "ENGLISH_WORD_REPEAT_BEGINNING_RULE",
+            "He ran home.\n\nHe sat down.\n\nHe left the room."
+        ),
+        vec![pronoun_flag("He", "he")]
+    );
+    for paragraph in ["He ran home.", "He sat down.", "He left the room."] {
+        assert!(suggest_flags(&RULES, "ENGLISH_WORD_REPEAT_BEGINNING_RULE", paragraph).is_empty());
+    }
+}
+
+#[test]
+fn word_repeat_beginning_counts_sentences_after_a_line_separator() {
+    let text = "He ran home.\u{2028}He sat down. He left the room. He slept.";
+    let flags = suggest_flags(&RULES, "ENGLISH_WORD_REPEAT_BEGINNING_RULE", text);
+    assert_eq!(flags, vec![pronoun_flag("He", "he")]);
+    let start = RULES
+        .suggest(text, &*TOKENIZER)
+        .into_iter()
+        .find(|x| x.source() == "BUILTIN/ENGLISH_WORD_REPEAT_BEGINNING_RULE")
+        .unwrap()
+        .span()
+        .char()
+        .start;
+    assert_eq!(start, text.chars().count() - "He slept.".len());
+}
+
+#[test]
+fn word_repeat_beginning_flags_a_repeated_adverb() {
+    assert_eq!(
+        suggest_flags(
+            &RULES,
+            "ENGLISH_WORD_REPEAT_BEGINNING_RULE",
+            "Moreover, the street is residential. Moreover, it was named after a poet."
+        ),
+        vec![(
+            "Moreover".to_owned(),
+            [
+                "Besides",
+                "Also",
+                "Additionally",
+                "Furthermore",
+                "In addition",
+                "As well as"
+            ]
+            .iter()
+            .map(|x| x.to_string())
+            .collect()
+        )]
+    );
+}
+
+#[test]
+fn word_repeat_beginning_counts_the_final_whitespace_of_the_text() {
+    let flags = |text| suggest_flags(&RULES, "ENGLISH_WORD_REPEAT_BEGINNING_RULE", text);
+    assert!(flags("He ran. He sat. He.").is_empty());
+    assert_eq!(
+        flags("He ran. He sat. He. "),
+        vec![pronoun_flag("He", "he")]
+    );
+}
+
+#[test]
+fn word_repeat_beginning_ignores_fiction_punctuation_and_articles() {
+    for text in [
+        "\u{201c}He ran home.\u{201d} He sat down. He left the room.",
+        "\u{201c}He ran home,\u{201d} she said. \u{201c}He sat down,\u{201d} she said. \u{201c}He left,\u{201d} she said.",
+        "He ran home. He sat\u{2028}down. He left the room.",
+        "He \u{2014} sat down. He \u{2014} ran off. He \u{2014} left us.",
+        "We ran home\u{2026} We sat down\u{2026} We left the room.",
+        "The cat sat. The dog ran. The bird flew.",
+    ] {
+        assert_eq!(
+            suggest_flags(&RULES, "ENGLISH_WORD_REPEAT_BEGINNING_RULE", text),
+            vec![],
+            "{}",
+            text
+        );
+    }
+}
+
+#[test]
+fn fiction_profile_disables_word_repeat_beginning() {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    rules.apply_profile(&Profile::fiction());
+    assert!(suggest_flags(
+        &rules,
+        "ENGLISH_WORD_REPEAT_BEGINNING_RULE",
+        "He ran home. He sat down. He left the room."
+    )
+    .is_empty());
+}
+
+#[test]
+fn fiction_profile_keeps_long_sentence_and_paragraph_off() {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    rules.apply_profile(&Profile::fiction());
+    for rule in rules.builtins() {
+        if matches!(rule.id(), "TOO_LONG_SENTENCE" | "TOO_LONG_PARAGRAPH") {
+            assert!(!rule.enabled(), "{}", rule.id());
+        }
+    }
+}
+
+#[test]
+fn long_sentence_and_paragraph_are_off_by_default() {
+    let text = format!("The {} sat.", distinct_words(250));
+    assert!(suggest_flags(&RULES, "TOO_LONG_SENTENCE", &text).is_empty());
+    assert!(suggest_flags(&RULES, "TOO_LONG_PARAGRAPH", &text).is_empty());
+}
+
+#[test]
+fn long_sentence_flags_more_than_forty_words() {
+    let text = format!("The {} sat.", distinct_words(39));
+    assert_eq!(long_sentence_flags(&text), vec![text.clone()]);
+    assert!(long_sentence_flags(&format!("The {} sat.", distinct_words(38))).is_empty());
+
+    let text = format!("The {} sat\u{2026}", distinct_words(39));
+    assert_eq!(
+        long_sentence_flags(&text),
+        vec![text.trim_end_matches('\u{2026}').to_owned()]
+    );
+}
+
+#[test]
+fn long_sentence_reports_a_sentence_once() {
+    let text = format!("The {} sat.", distinct_words(90));
+    assert_eq!(long_sentence_flags(&text), vec![text.clone()]);
+}
+
+#[test]
+fn long_sentence_counts_words_between_separators() {
+    let words = distinct_words(39);
+    let (first, rest) = words.split_at(words.find(" k20").unwrap());
+    for (separator, flagged) in [(":", false), ("\n", false), ("\u{2028}", true), (" ", true)] {
+        let text = format!("The {}{}{} sat.", first, separator, rest.trim_start());
+        assert_eq!(
+            long_sentence_flags(&text).len(),
+            usize::from(flagged),
+            "{:?}",
+            text
+        );
+    }
+}
+
+#[test]
+fn long_sentence_skips_quoted_words_and_asides() {
+    let quoted = |open: &str, close: &str, before: usize| {
+        format!(
+            "The {} {}q1 q2{} {} sat.",
+            distinct_words(before),
+            open,
+            close,
+            distinct_words(19)
+        )
+    };
+    assert!(long_sentence_flags(&quoted("\u{201c}", "\u{201d}", 19)).is_empty());
+    assert_eq!(
+        long_sentence_flags(&quoted("\u{201c}", "\u{201d}", 20)).len(),
+        1
+    );
+    assert!(long_sentence_flags(&quoted("\u{2014} ", " \u{2014}", 19)).is_empty());
+    assert!(long_sentence_flags(&quoted("(", ")", 19)).is_empty());
+    assert!(long_sentence_flags(&format!("The {} 12 sat.", distinct_words(38))).is_empty());
+    assert_eq!(
+        long_sentence_flags(&format!("The {} don\u{2019}t sat.", distinct_words(37))).len(),
+        1
+    );
+}
+
+#[test]
+fn long_sentence_skips_dialogue() {
+    assert!(long_sentence_flags(&format!("The {} sat!\u{201d}", distinct_words(45))).is_empty());
+    assert!(long_sentence_flags(&format!(
+        "She asked \u{201c}why?\u{201d} and the {} sat.",
+        distinct_words(45)
+    ))
+    .is_empty());
+}
+
+#[test]
+fn long_sentence_yields_to_an_overlapping_match() {
+    let text = format!("The {} sat.", distinct_words(39));
+    assert_eq!(
+        suggest_flags(&PICKY_RULES, "TOO_LONG_SENTENCE", &text).len(),
+        1
+    );
+    let text = format!("The the {} sat.", distinct_words(39));
+    assert!(suggest_flags(&PICKY_RULES, "TOO_LONG_SENTENCE", &text).is_empty());
+}
+
+/// `n` words in sentences of ten, numbered from `w0`.
+fn paragraph_of(n: usize) -> String {
+    (0..n)
+        .collect::<Vec<_>>()
+        .chunks(10)
+        .map(|chunk| {
+            let words: Vec<String> = chunk.iter().map(|i| format!("w{}", i)).collect();
+            format!("A{}.", words.join(" "))
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+#[test]
+fn long_paragraph_flags_more_than_225_words() {
+    let flags = |text: &str| suggest_flags(&PICKY_RULES, "TOO_LONG_PARAGRAPH", text);
+    let flagged = vec![("w218 w219".to_owned(), vec![])];
+    assert_eq!(flags(&paragraph_of(226)), flagged);
+    assert!(flags(&paragraph_of(225)).is_empty());
+    assert_eq!(
+        flags(&format!(
+            "Short para.\n\n{}\n\nShort para.",
+            paragraph_of(230)
+        )),
+        flagged
+    );
+    assert_eq!(
+        flags(&format!("{}\r\n\r\nShort para.", paragraph_of(230))),
+        flagged
+    );
+    assert_eq!(
+        flags(&format!("{}\u{2028}{}", paragraph_of(230), paragraph_of(5))),
+        flagged
+    );
+}
+
+#[test]
+fn long_paragraph_skips_paragraphs_with_line_breaks() {
+    let flags = |text: &str| suggest_flags(&PICKY_RULES, "TOO_LONG_PARAGRAPH", text);
+    assert!(flags(&format!("{}\nNext line.", paragraph_of(230))).is_empty());
+    assert!(flags(&format!("Intro line.\n{}", paragraph_of(230))).is_empty());
+}
+
+#[test]
+fn long_paragraph_does_not_count_fiction_punctuation() {
+    let flags = |text: &str| suggest_flags(&PICKY_RULES, "TOO_LONG_PARAGRAPH", text);
+    let dialogue = " She said, \u{201c}hi\u{201d} \u{2014} then\u{2026} don\u{2019}t.";
+    assert!(flags(&format!("{}{}", paragraph_of(219), dialogue)).is_empty());
+    assert_eq!(
+        flags(&format!("{}{}", paragraph_of(220), dialogue)),
+        vec![("w218 w219".to_owned(), vec![])]
+    );
 }
 
 #[test]

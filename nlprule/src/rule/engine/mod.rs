@@ -65,13 +65,8 @@ impl Blockers {
     }
 
     fn overlaps(&self, start: usize, end: usize) -> bool {
-        let n = if start < end {
-            self.starts.partition_point(|anti_start| *anti_start < end)
-        } else {
-            self.starts
-                .partition_point(|anti_start| *anti_start <= start)
-        };
-        n > 0 && self.max_ends[n - 1] > start
+        let n = self.starts.partition_point(|anti_start| *anti_start <= end);
+        n > 0 && self.max_ends[n - 1] >= start
     }
 }
 
@@ -107,18 +102,18 @@ impl TokenEngine {
         let (graph, _) = self.composition.apply_from(pool, sentence, i, None)?;
 
         let blockers = blockers.get_or_insert_with(|| Blockers::new(self, pool, sentence, false));
-        let blocked = self
+        let (start, end) = self
             .composition
             .parts
             .iter()
             .enumerate()
             .filter(|(_, part)| pool.get(**part).visible)
-            .any(|(idx, _)| {
-                let span = graph.by_index(idx + 1).span.char();
-                (span.start < span.end || idx == 0) && blockers.overlaps(span.start, span.end)
+            .map(|(idx, _)| graph.by_index(idx + 1).span.char())
+            .fold((usize::MAX, 0), |(start, end), span| {
+                (start.min(span.start), end.max(span.end))
             });
 
-        if blocked {
+        if blockers.overlaps(start, end) {
             None
         } else {
             Some(graph)
@@ -374,23 +369,20 @@ mod tests {
             .map(|(a, b)| (a.min(b) as usize, a.max(b) as usize))
             .collect();
         let (start, end) = (start as usize, start as usize + len as usize);
-        let expected = spans.iter().any(|(anti_start, anti_end)| {
-            if start < end {
-                *anti_start < end && start < *anti_end
-            } else {
-                *anti_start <= start && start < *anti_end
-            }
-        });
+        let expected = spans
+            .iter()
+            .any(|(anti_start, anti_end)| *anti_start <= end && start <= *anti_end);
 
         Blockers::from_spans(spans).overlaps(start, end) == expected
     }
 
     #[test]
-    fn adjacent_blockers_do_not_overlap() {
+    fn touching_blockers_overlap() {
         let blockers = Blockers::from_spans(vec![(0, 1), (10, 11)]);
-        assert!(!blockers.overlaps(1, 4));
-        assert!(!blockers.overlaps(5, 10));
-        assert!(!blockers.overlaps(1, 1));
+        assert!(blockers.overlaps(1, 4));
+        assert!(blockers.overlaps(5, 10));
+        assert!(blockers.overlaps(1, 1));
+        assert!(!blockers.overlaps(2, 9));
         assert!(blockers.overlaps(0, 4));
         assert!(blockers.overlaps(5, 11));
         assert!(blockers.overlaps(0, 0));
