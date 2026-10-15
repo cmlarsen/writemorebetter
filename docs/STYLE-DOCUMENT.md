@@ -40,7 +40,9 @@ same convention; those published baselines are not interchangeable denominators.
 
 Names match case-sensitively and accept their ALL-CAPS form. A lowercase entry also accepts the form
 with its first character capitalized, following the user dictionary: `Will` skips `Will`/`WILL` but
-keeps the modal `will`; `will` accepts all three. Curly/straight apostrophes and whitespace in names
+keeps lowercase `will`; `will` accepts all three. Matching uses spelling and case, not POS: with
+`skip_names: ["Will"]`, sentence-initial `Will you come?` and shouted `I WILL NOT GO` also skip the
+modal. A tagger-aware distinction is deferred. Curly/straight apostrophes and whitespace in names
 are normalized. Multi-token names, including possessive entries with no spaces, match contiguous
 whole token sequences within a sentence. An immediately adjacent possessive clitic (`'s`, `’s`,
 `'`, `’`) following a skipped name is also skipped. No Unicode canonical normalization is implied.
@@ -49,14 +51,23 @@ Skipped tokens remain with `is_skipped`, but contribute neither to `word_count` 
 The index maps each distinct lemma to paragraph/sentence/token coordinates, including whitespace
 in token indices. Duplicate readings of one lemma contribute one token position; different possible
 lemmas each receive that position. Summing across ambiguous lemma keys would double-count words.
-Unknown word tokens are indexed under their lowercase surface form and still count in the denominator.
-This fallback is document statistics, not an added linguistic reading or an EWT accuracy convention.
+Unknown word tokens and tokens whose readings all have whitespace-containing lemmas are also indexed
+under their lowercase surface form and still count in the denominator. This fallback is document
+statistics, not an added linguistic reading or an EWT accuracy convention. A multiword lemma is indexed
+once per occurrence, at the first token carrying that reading, rather than once per covered token.
+Thus `By the way` retains `by`/`the`/`way` surface entries, and `Herman Melville` retains
+`herman`/`melville` alongside one `Herman Melville` phrase entry. Standalone proper-noun readings
+can keep their original case: `Melville wrote. Herman Melville wrote. Herman spoke.` indexes standalone
+`Melville`/`Herman` separately from covered-token `melville`/`herman`. Reports combining these name
+frequencies must explicitly merge case variants; the index does not unify them. Such merging can
+also conflate homographs, so each report must choose its convention.
 
-Known engine gap #153 remains explicit: in `as soon as possible`, both `as` tokens can retain only the
-phrase lemma `as soon as possible` instead of ordinary `as` readings. The index preserves those
-readings; reports needing exact word-form frequencies must use token surfaces for this case. Selecting
-a primary lemma/POS for ambiguous tokens is deferred to the report issues, not determined by reading
-order here.
+Known engine gap #153 remains explicit: in `as soon as possible`, both `as` tokens have no readings;
+`soon` and `possible` carry only the phrase lemma `as soon as possible`. Their surface fallbacks
+preserve both `as` occurrences and the `soon`/`possible` entries. The phrase entry currently points to
+`soon`, its first reading-bearing token; it will point to the leading `as` if #153 restores that
+reading. Original token readings remain unchanged. Selecting a primary lemma/POS for ambiguous tokens
+is deferred to the report issues, not determined by reading order here.
 
 ## Dialogue
 
@@ -64,13 +75,27 @@ Dialogue spans include delimiters and cover outer quoted regions. Nested quotes 
 region, without overlapping extra spans or speaker attribution. Curly/straight double quotes and
 punctuated single-quoted speech are recognized. A single closer requires preceding speech punctuation
 (`.!?,:;—…`), so unpunctuated single-quoted fragments and British punctuation-outside forms can be
-missed. Internal/trailing apostrophes and common leading elisions (`'em`, `'tis`, `'twas`, `'n'`,
-`'cause`, decade forms such as `'90s`/`'eighties`) do not open speech or serve as repeated
-opening marks for a continued quote.
+missed. Internal/trailing apostrophes do not open speech. Straight single openers before a word are
+tentative, including listed and unlisted elisions (`'em`, `'tis`, `'twas`, `'n'`, `'cause`, `'im`, `'90s`).
+A tentative opener produces a span only with a punctuated single closer in the same paragraph.
+A later double opener takes precedence, but the tentative single outer is recovered if its
+punctuated closer follows later in that paragraph; the outer span then replaces the inner double
+spans it covers. This preserves British-style `'He said "no," then left,'` while still recovering
+`"Stop,"` after `She saw 'im go.` when no single closer follows.
+A later same-mark single opener before a word replaces the tentative opener unless the new mark
+begins a listed elision. Thus `'Give 'em hell,'` retains its outer span, and `She saw 'im go. 'Stop,'`
+recovers `'Stop,'`. Unlisted elisions inside speech remain ambiguous: `'Tell 'im I said so,'` is
+truncated to `'im I said so,'` by this recovery rule. Directional left single quotes are ordinary
+openers unless their first word is a listed elision (for example `‘Tis`). Tentative openers, including
+those temporarily superseded by a double opener, never continue into another paragraph. Consequently,
+straight-single speech continued across paragraphs loses its unfinished prefix; only the final
+closed paragraph is detected.
 
 At each paragraph boundary, an unfinished quote continues only if the next nonempty paragraph begins
-with the same opening mark. Otherwise the **entire unfinished span is dropped**, including any carried
-prefix; the final unterminated paragraph is dropped too. Later paragraphs start with fresh state.
+with the same opening mark (excluding listed elisions). This accepts the standard continued-speech
+convention, but can join unrelated paragraphs after a missing closer, as in `"Unclosed⏎"Reply," he said.`
+Otherwise the **entire unfinished span is dropped**, including any carried prefix; the final
+unterminated paragraph is dropped too. Later paragraphs start with fresh state.
 A malformed straight quote can still confuse pairing within its own paragraph. Scare quotes can
 count as dialogue; dash-led speech is outside this detector's scope. All adversarial review probe rows
 are checked in as invented fixtures under `style/tests/fixtures/review-dialogue.json`.

@@ -209,6 +209,35 @@ pub fn paragraph_spans(text: &str) -> Vec<Span> {
     spans
 }
 
+fn multiword_end(tokens: &[nlprule::analysis::AnalysisToken], start: usize, lemma: &str) -> usize {
+    let normalized_lemma = name_key(lemma).to_lowercase();
+    for (offset, _) in normalized_lemma.char_indices().filter(|(offset, _)| {
+        *offset == 0 || normalized_lemma.get(..*offset).unwrap().ends_with(' ')
+    }) {
+        let suffix = normalized_lemma.get(offset..).unwrap();
+        let mut surface = String::new();
+        for (end, token) in tokens.iter().enumerate().skip(start) {
+            surface.push_str(&token.text);
+            let normalized = name_key(&surface).to_lowercase();
+            if normalized == suffix {
+                return end;
+            }
+            if !suffix.starts_with(&normalized) {
+                break;
+            }
+        }
+    }
+    tokens
+        .iter()
+        .enumerate()
+        .skip(start + 1)
+        .take_while(|(_, token)| {
+            token.is_whitespace || token.readings.iter().any(|reading| reading.lemma == lemma)
+        })
+        .last()
+        .map_or(start, |(end, _)| end)
+}
+
 pub fn analyze_document(tokenizer: &Tokenizer, text: &str, options: &DocumentOptions) -> Document {
     let skipped = name_forms(&options.skip_names);
     let paragraphs = paragraph_spans_mode(text, options.hard_wrapped);
@@ -226,20 +255,48 @@ pub fn analyze_document(tokenizer: &Tokenizer, text: &str, options: &DocumentOpt
         {
             let mut tokens = Vec::new();
             let skipped = skipped_tokens(&sentence.tokens, &skipped);
+            let mut multiword_ends = BTreeMap::new();
+            let mut indexed_lemmas = Vec::new();
+            for (token_index, token) in sentence.tokens.iter().enumerate() {
+                if !is_word(&token.text) || skipped[token_index] {
+                    indexed_lemmas.push(BTreeSet::new());
+                    continue;
+                }
+                let mut lemmas: BTreeSet<_> = token
+                    .readings
+                    .iter()
+                    .map(|reading| reading.lemma.clone())
+                    .collect();
+                if lemmas
+                    .iter()
+                    .all(|lemma| lemma.contains(char::is_whitespace))
+                {
+                    lemmas.insert(token.text.to_lowercase());
+                }
+                lemmas.retain(|lemma| {
+                    if !lemma.contains(char::is_whitespace) {
+                        return true;
+                    }
+                    if multiword_ends
+                        .get(lemma)
+                        .is_some_and(|end| token_index <= *end)
+                    {
+                        return false;
+                    }
+                    multiword_ends.insert(
+                        lemma.clone(),
+                        multiword_end(&sentence.tokens, token_index, lemma),
+                    );
+                    true
+                });
+                indexed_lemmas.push(lemmas);
+            }
             for (token_index, token) in sentence.tokens.into_iter().enumerate() {
                 let word = is_word(&token.text);
                 let is_skipped = skipped[token_index];
                 if word && !is_skipped {
                     document.word_count += 1;
-                    let mut lemmas: BTreeSet<_> = token
-                        .readings
-                        .iter()
-                        .map(|reading| reading.lemma.clone())
-                        .collect();
-                    if lemmas.is_empty() {
-                        lemmas.insert(token.text.to_lowercase());
-                    }
-                    for lemma in lemmas {
+                    for lemma in &indexed_lemmas[token_index] {
                         document
                             .lemma_index
                             .entry(lemma.to_owned())
@@ -355,7 +412,8 @@ fn leading_elision(after: &str) -> bool {
 
 fn detect_dialogue(text: &str, paragraphs: &[Span]) -> Vec<Span> {
     let mut spans = Vec::new();
-    let mut open: Option<(char, usize, usize, usize)> = None;
+    let mut open: Option<(char, usize, usize, usize, bool)> = None;
+    let mut outer = None;
     for (paragraph_index, paragraph) in paragraphs.iter().enumerate() {
         let surface = text.get(paragraph.byte.clone()).unwrap();
         let chars: Vec<_> = surface.char_indices().collect();
@@ -374,7 +432,28 @@ fn detect_dialogue(text: &str, paragraphs: &[Span]) -> Vec<Span> {
                             .as_ref()
                             .is_none_or(|(kind, ..)| *kind != '\'' && *kind != '‘')));
             if !apostrophe {
-                if let Some((kind, start_byte, start_char, start_utf16)) = open {
+                let opener = matches!(ch, '“' | '"' | '‘' | '\'')
+                    && (!single
+                        || (!previous.is_some_and(char::is_alphanumeric)
+                            && next.is_some_and(char::is_alphanumeric)));
+                if opener
+                    && open.is_none_or(|(kind, _, _, _, tentative)| {
+                        tentative
+                            && (!single
+                                || (ch == kind
+                                    && !leading_elision(
+                                        surface.get(local_byte + ch.len_utf8()..).unwrap(),
+                                    )))
+                    })
+                {
+                    let tentative = single
+                        && (ch == '\''
+                            || leading_elision(surface.get(local_byte + ch.len_utf8()..).unwrap()));
+                    if !single && open.is_some() {
+                        outer = open;
+                    }
+                    open = Some((ch, byte, scalar, utf16, tentative));
+                } else if let Some((kind, start_byte, start_char, start_utf16, _)) = open {
                     let closer = match kind {
                         '“' => '”',
                         '‘' => '’',
@@ -387,22 +466,19 @@ fn detect_dialogue(text: &str, paragraphs: &[Span]) -> Vec<Span> {
                                 matches!(ch, '.' | '!' | '?' | ',' | ':' | ';' | '—' | '…')
                             }))
                     {
+                        while spans
+                            .last()
+                            .is_some_and(|span: &Span| span.byte.start > start_byte)
+                        {
+                            spans.pop();
+                        }
                         spans.push(Span {
                             byte: start_byte..byte + ch.len_utf8(),
                             char: start_char..scalar + 1,
                             utf16: start_utf16..utf16 + ch.len_utf16(),
                         });
-                        open = None;
+                        open = outer.take();
                     }
-                } else if matches!(ch, '“' | '"' | '‘' | '\'')
-                    && (!single
-                        || (!previous.is_some_and(char::is_alphanumeric)
-                            && next.is_some_and(char::is_alphanumeric)
-                            && !leading_elision(
-                                surface.get(local_byte + ch.len_utf8()..).unwrap(),
-                            )))
-                {
-                    open = Some((ch, byte, scalar, utf16));
                 }
             }
             if !ch.is_whitespace() {
@@ -410,16 +486,18 @@ fn detect_dialogue(text: &str, paragraphs: &[Span]) -> Vec<Span> {
             }
             utf16 += ch.len_utf16();
         }
-        if let Some((kind, ..)) = open {
-            let continued = paragraphs
-                .get(paragraph_index + 1)
-                .and_then(|next| text.get(next.byte.clone()))
-                .is_some_and(|next| {
-                    let next = next.trim_start();
-                    next.starts_with(kind)
-                        && (!matches!(kind, '\'' | '‘')
-                            || !leading_elision(next.get(kind.len_utf8()..).unwrap()))
-                });
+        outer = None;
+        if let Some((kind, _, _, _, tentative)) = open {
+            let continued = !tentative
+                && paragraphs
+                    .get(paragraph_index + 1)
+                    .and_then(|next| text.get(next.byte.clone()))
+                    .is_some_and(|next| {
+                        let next = next.trim_start();
+                        next.starts_with(kind)
+                            && (!matches!(kind, '\'' | '‘')
+                                || !leading_elision(next.get(kind.len_utf8()..).unwrap()))
+                    });
             if !continued {
                 open = None;
             }

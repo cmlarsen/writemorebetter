@@ -1,0 +1,12 @@
+[
+  {
+    "text": "Melville wrote. Herman Melville wrote. Herman spoke.",
+    "lemma_counts": {
+      "Melville": 1,
+      "Herman": 1,
+      "Herman Melville": 1,
+      "herman": 1,
+      "melville": 1
+    }
+  }
+]

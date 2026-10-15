@@ -275,6 +275,81 @@ fn unknown_words_and_compact_documents_retain_counts() {
 }
 
 #[test]
+fn multiword_lemmas_retain_surfaces_and_count_occurrences() {
+    let tokenizer = tokenizer();
+    for (text, phrase, surfaces) in [
+        (
+            "By the way by the way.",
+            "by the way",
+            vec![("by", 2), ("the", 2), ("way", 2)],
+        ),
+        (
+            "as soon as possible as soon as possible.",
+            "as soon as possible",
+            vec![("as", 4), ("soon", 2), ("possible", 2)],
+        ),
+        (
+            "Herman Melville Herman Melville.",
+            "Herman Melville",
+            vec![("herman", 2), ("melville", 2)],
+        ),
+        (
+            "“By the way,” Herman Melville’s ‘as soon as possible’—again…\u{2028}By the way.",
+            "by the way",
+            vec![("by", 2), ("the", 2), ("way", 2)],
+        ),
+    ] {
+        let document = analyze_document(&tokenizer, text, &DocumentOptions::new());
+        let positions = &document.lemma_index[phrase];
+        assert_eq!(positions.len(), 2, "{text}");
+        for position in positions {
+            let token = &document.paragraphs[position.paragraph].sentences[position.sentence]
+                .tokens[position.token];
+            assert!(token.readings.iter().any(|reading| reading.lemma == phrase));
+        }
+        for (surface, count) in surfaces {
+            assert_eq!(
+                document.lemma_index[surface].len(),
+                count,
+                "{text}: {surface}"
+            );
+        }
+        let compact = analyze_document(
+            &tokenizer,
+            text,
+            &DocumentOptions::new().with_token_details(false),
+        );
+        assert_eq!(document.lemma_index, compact.lemma_index);
+        assert_eq!(document.word_count, compact.word_count);
+    }
+}
+
+#[test]
+fn review_name_lemma_case_split() {
+    let rows: Vec<serde_json::Value> =
+        serde_json::from_str(include_str!("fixtures/review-lemmas.json")).unwrap();
+    let tokenizer = tokenizer();
+    for row in rows {
+        let text = row["text"].as_str().unwrap();
+        let document = analyze_document(&tokenizer, text, &DocumentOptions::new());
+        for (lemma, count) in row["lemma_counts"].as_object().unwrap() {
+            assert_eq!(
+                document.lemma_index[lemma].len(),
+                count.as_u64().unwrap() as usize,
+                "{text}: {lemma}"
+            );
+        }
+        let melville_count: usize = document
+            .lemma_index
+            .iter()
+            .filter(|(lemma, _)| lemma.to_lowercase() == "melville")
+            .map(|(_, positions)| positions.len())
+            .sum();
+        assert_eq!(melville_count, 2);
+    }
+}
+
+#[test]
 fn hard_wrapped_paragraphs_preserve_offsets() {
     let text = "😀 “First wrapped\r\nline.”\r\n\r\nSecond paragraph.";
     let options = DocumentOptions::new().with_hard_wrapped(true);
