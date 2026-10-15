@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "nlprule",
+    "style",
     "build",
     "python",
     "srx",
@@ -11,6 +12,7 @@ exclude = [
     "bench/tools/probe",
     "bench/tools/wmb-probe",
     "bench/tools/wmb-chunkbench",
+    "bench/tools/wmb-style",
     "nlprule/fuzz",
 ]
 

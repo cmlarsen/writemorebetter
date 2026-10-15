@@ -481,6 +481,30 @@ fileprivate struct FfiConverterUInt32: FfiConverterPrimitive {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterBool : FfiConverter {
+    typealias FfiType = Int8
+    typealias SwiftType = Bool
+
+    public static func lift(_ value: Int8) throws -> Bool {
+        return value != 0
+    }
+
+    public static func lower(_ value: Bool) -> Int8 {
+        return value ? 1 : 0
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Bool {
+        return try lift(readInt(&buf))
+    }
+
+    public static func write(_ value: Bool, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(value))
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterString: FfiConverter {
     typealias SwiftType = String
     typealias FfiType = RustBuffer
@@ -554,6 +578,19 @@ public protocol CheckerProtocol: AnyObject, Sendable {
     func addWords(words: [String])  -> UInt32
     
     /**
+     * Analyzes text with the loaded tokenizer, without grammar or spelling checks.
+     * Tokens preserve original surface text and include whitespace. Offsets count UTF-16
+     * code units into the input, as in [`Suggestion`]. No rules lock is needed.
+     */
+    func analyze(text: String)  -> [AnalysisSentence]
+    
+    /**
+     * Builds a fresh document snapshot from caller-defined paragraphs, joined by one LF.
+     * Reuses this checker's tokenizer. All returned spans index `DocumentAnalysis.text`.
+     */
+    func analyzeDocument(paragraphs: [String])  -> DocumentAnalysis
+    
+    /**
      * Checks `text` and returns every flagged span. See [`Suggestion`] for the offset units.
      */
     func check(text: String)  -> [Suggestion]
@@ -573,6 +610,13 @@ public protocol CheckerProtocol: AnyObject, Sendable {
      * Removes words from the user dictionary and returns how many were present.
      */
     func removeWords(words: [String])  -> UInt32
+    
+    /**
+     * Returns JSON sentence-length and sentence-start reports over caller paragraphs.
+     * Options are optional JSON; spans expose `byte`, `char`, and `utf16` ranges into
+     * the paragraphs joined with LF. Use `span.utf16` for NSRange conversion.
+     */
+    func sentenceReports(paragraphs: [String], optionsJson: String?) throws  -> String
     
     /**
      * Selects the writer's mother tongue (e.g. `"de"`) so the false-friend rules for speakers of
@@ -698,6 +742,35 @@ open func addWords(words: [String]) -> UInt32  {
 }
     
     /**
+     * Analyzes text with the loaded tokenizer, without grammar or spelling checks.
+     * Tokens preserve original surface text and include whitespace. Offsets count UTF-16
+     * code units into the input, as in [`Suggestion`]. No rules lock is needed.
+     */
+open func analyze(text: String) -> [AnalysisSentence]  {
+    return try!  FfiConverterSequenceTypeAnalysisSentence.lift(try! rustCall() {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_method_checker_analyze(
+            self.uniffiCloneHandle(),
+        FfiConverterString.lower(text),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * Builds a fresh document snapshot from caller-defined paragraphs, joined by one LF.
+     * Reuses this checker's tokenizer. All returned spans index `DocumentAnalysis.text`.
+     */
+open func analyzeDocument(paragraphs: [String]) -> DocumentAnalysis  {
+    return try!  FfiConverterTypeDocumentAnalysis_lift(try! rustCall() {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_method_checker_analyze_document(
+            self.uniffiCloneHandle(),
+        FfiConverterSequenceString.lower(paragraphs),uniffiCallStatus
+    )
+})
+}
+    
+    /**
      * Checks `text` and returns every flagged span. See [`Suggestion`] for the offset units.
      */
 open func check(text: String) -> [Suggestion]  {
@@ -743,6 +816,22 @@ open func removeWords(words: [String]) -> UInt32  {
     uniffi_writemorebetter_swift_fn_method_checker_remove_words(
             self.uniffiCloneHandle(),
         FfiConverterSequenceString.lower(words),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * Returns JSON sentence-length and sentence-start reports over caller paragraphs.
+     * Options are optional JSON; spans expose `byte`, `char`, and `utf16` ranges into
+     * the paragraphs joined with LF. Use `span.utf16` for NSRange conversion.
+     */
+open func sentenceReports(paragraphs: [String], optionsJson: String?)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_method_checker_sentence_reports(
+            self.uniffiCloneHandle(),
+        FfiConverterSequenceString.lower(paragraphs),
+        FfiConverterOptionString.lower(optionsJson),uniffiCallStatus
     )
 })
 }
@@ -832,6 +921,449 @@ public func FfiConverterTypeChecker_lower(_ value: Checker) -> UInt64 {
 }
 
 
+
+
+/**
+ * One caller-supplied paragraph, excluding its separator.
+ */
+public struct AnalysisParagraph: Equatable, Hashable {
+    public var start: UInt32
+    public var end: UInt32
+    public var sentences: [AnalysisSentence]
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(start: UInt32, end: UInt32, sentences: [AnalysisSentence]) {
+        self.start = start
+        self.end = end
+        self.sentences = sentences
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension AnalysisParagraph: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeAnalysisParagraph: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> AnalysisParagraph {
+        return
+            try AnalysisParagraph(
+                start: FfiConverterUInt32.read(from: &buf), 
+                end: FfiConverterUInt32.read(from: &buf), 
+                sentences: FfiConverterSequenceTypeAnalysisSentence.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: AnalysisParagraph, into buf: inout [UInt8]) {
+        FfiConverterUInt32.write(value.start, into: &buf)
+        FfiConverterUInt32.write(value.end, into: &buf)
+        FfiConverterSequenceTypeAnalysisSentence.write(value.sentences, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeAnalysisParagraph_lift(_ buf: RustBuffer) throws -> AnalysisParagraph {
+    return try FfiConverterTypeAnalysisParagraph.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeAnalysisParagraph_lower(_ value: AnalysisParagraph) -> RustBuffer {
+    return FfiConverterTypeAnalysisParagraph.lower(value)
+}
+
+
+/**
+ * A paired lemma and POS reading after disambiguation.
+ */
+public struct AnalysisReading: Equatable, Hashable {
+    public var lemma: String
+    public var pos: String
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(lemma: String, pos: String) {
+        self.lemma = lemma
+        self.pos = pos
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension AnalysisReading: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeAnalysisReading: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> AnalysisReading {
+        return
+            try AnalysisReading(
+                lemma: FfiConverterString.read(from: &buf), 
+                pos: FfiConverterString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: AnalysisReading, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.lemma, into: &buf)
+        FfiConverterString.write(value.pos, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeAnalysisReading_lift(_ buf: RustBuffer) throws -> AnalysisReading {
+    return try FfiConverterTypeAnalysisReading.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeAnalysisReading_lower(_ value: AnalysisReading) -> RustBuffer {
+    return FfiConverterTypeAnalysisReading.lower(value)
+}
+
+
+/**
+ * An owned sentence, including whitespace, with absolute UTF-16 offsets.
+ */
+public struct AnalysisSentence: Equatable, Hashable {
+    public var text: String
+    public var start: UInt32
+    public var end: UInt32
+    public var tokens: [AnalysisToken]
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(text: String, start: UInt32, end: UInt32, tokens: [AnalysisToken]) {
+        self.text = text
+        self.start = start
+        self.end = end
+        self.tokens = tokens
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension AnalysisSentence: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeAnalysisSentence: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> AnalysisSentence {
+        return
+            try AnalysisSentence(
+                text: FfiConverterString.read(from: &buf), 
+                start: FfiConverterUInt32.read(from: &buf), 
+                end: FfiConverterUInt32.read(from: &buf), 
+                tokens: FfiConverterSequenceTypeAnalysisToken.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: AnalysisSentence, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.text, into: &buf)
+        FfiConverterUInt32.write(value.start, into: &buf)
+        FfiConverterUInt32.write(value.end, into: &buf)
+        FfiConverterSequenceTypeAnalysisToken.write(value.tokens, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeAnalysisSentence_lift(_ buf: RustBuffer) throws -> AnalysisSentence {
+    return try FfiConverterTypeAnalysisSentence.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeAnalysisSentence_lower(_ value: AnalysisSentence) -> RustBuffer {
+    return FfiConverterTypeAnalysisSentence.lower(value)
+}
+
+
+/**
+ * An absolute, half-open UTF-16 range into the document's text.
+ */
+public struct AnalysisSpan: Equatable, Hashable {
+    public var start: UInt32
+    public var end: UInt32
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(start: UInt32, end: UInt32) {
+        self.start = start
+        self.end = end
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension AnalysisSpan: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeAnalysisSpan: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> AnalysisSpan {
+        return
+            try AnalysisSpan(
+                start: FfiConverterUInt32.read(from: &buf), 
+                end: FfiConverterUInt32.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: AnalysisSpan, into buf: inout [UInt8]) {
+        FfiConverterUInt32.write(value.start, into: &buf)
+        FfiConverterUInt32.write(value.end, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeAnalysisSpan_lift(_ buf: RustBuffer) throws -> AnalysisSpan {
+    return try FfiConverterTypeAnalysisSpan.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeAnalysisSpan_lower(_ value: AnalysisSpan) -> RustBuffer {
+    return FfiConverterTypeAnalysisSpan.lower(value)
+}
+
+
+/**
+ * An original-surface token, with absolute, exclusive-end UTF-16 offsets.
+ */
+public struct AnalysisToken: Equatable, Hashable {
+    public var text: String
+    public var start: UInt32
+    public var end: UInt32
+    public var readings: [AnalysisReading]
+    public var chunks: [String]
+    public var isWhitespace: Bool
+    public var isPunctuation: Bool
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(text: String, start: UInt32, end: UInt32, readings: [AnalysisReading], chunks: [String], isWhitespace: Bool, isPunctuation: Bool) {
+        self.text = text
+        self.start = start
+        self.end = end
+        self.readings = readings
+        self.chunks = chunks
+        self.isWhitespace = isWhitespace
+        self.isPunctuation = isPunctuation
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension AnalysisToken: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeAnalysisToken: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> AnalysisToken {
+        return
+            try AnalysisToken(
+                text: FfiConverterString.read(from: &buf), 
+                start: FfiConverterUInt32.read(from: &buf), 
+                end: FfiConverterUInt32.read(from: &buf), 
+                readings: FfiConverterSequenceTypeAnalysisReading.read(from: &buf), 
+                chunks: FfiConverterSequenceString.read(from: &buf), 
+                isWhitespace: FfiConverterBool.read(from: &buf), 
+                isPunctuation: FfiConverterBool.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: AnalysisToken, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.text, into: &buf)
+        FfiConverterUInt32.write(value.start, into: &buf)
+        FfiConverterUInt32.write(value.end, into: &buf)
+        FfiConverterSequenceTypeAnalysisReading.write(value.readings, into: &buf)
+        FfiConverterSequenceString.write(value.chunks, into: &buf)
+        FfiConverterBool.write(value.isWhitespace, into: &buf)
+        FfiConverterBool.write(value.isPunctuation, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeAnalysisToken_lift(_ buf: RustBuffer) throws -> AnalysisToken {
+    return try FfiConverterTypeAnalysisToken.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeAnalysisToken_lower(_ value: AnalysisToken) -> RustBuffer {
+    return FfiConverterTypeAnalysisToken.lower(value)
+}
+
+
+/**
+ * Zero-based paragraph, sentence and token indices in a document snapshot.
+ */
+public struct AnalysisTokenPosition: Equatable, Hashable {
+    public var paragraph: UInt32
+    public var sentence: UInt32
+    public var token: UInt32
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(paragraph: UInt32, sentence: UInt32, token: UInt32) {
+        self.paragraph = paragraph
+        self.sentence = sentence
+        self.token = token
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension AnalysisTokenPosition: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeAnalysisTokenPosition: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> AnalysisTokenPosition {
+        return
+            try AnalysisTokenPosition(
+                paragraph: FfiConverterUInt32.read(from: &buf), 
+                sentence: FfiConverterUInt32.read(from: &buf), 
+                token: FfiConverterUInt32.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: AnalysisTokenPosition, into buf: inout [UInt8]) {
+        FfiConverterUInt32.write(value.paragraph, into: &buf)
+        FfiConverterUInt32.write(value.sentence, into: &buf)
+        FfiConverterUInt32.write(value.token, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeAnalysisTokenPosition_lift(_ buf: RustBuffer) throws -> AnalysisTokenPosition {
+    return try FfiConverterTypeAnalysisTokenPosition.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeAnalysisTokenPosition_lower(_ value: AnalysisTokenPosition) -> RustBuffer {
+    return FfiConverterTypeAnalysisTokenPosition.lower(value)
+}
+
+
+/**
+ * An owned whole-document snapshot for prose reports. All offsets are UTF-16.
+ */
+public struct DocumentAnalysis: Equatable, Hashable {
+    public var text: String
+    public var paragraphs: [AnalysisParagraph]
+    public var dialogueSpans: [AnalysisSpan]
+    public var lemmaIndex: [String: [AnalysisTokenPosition]]
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(text: String, paragraphs: [AnalysisParagraph], dialogueSpans: [AnalysisSpan], lemmaIndex: [String: [AnalysisTokenPosition]]) {
+        self.text = text
+        self.paragraphs = paragraphs
+        self.dialogueSpans = dialogueSpans
+        self.lemmaIndex = lemmaIndex
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension DocumentAnalysis: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeDocumentAnalysis: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> DocumentAnalysis {
+        return
+            try DocumentAnalysis(
+                text: FfiConverterString.read(from: &buf), 
+                paragraphs: FfiConverterSequenceTypeAnalysisParagraph.read(from: &buf), 
+                dialogueSpans: FfiConverterSequenceTypeAnalysisSpan.read(from: &buf), 
+                lemmaIndex: FfiConverterDictionaryStringSequenceTypeAnalysisTokenPosition.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: DocumentAnalysis, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.text, into: &buf)
+        FfiConverterSequenceTypeAnalysisParagraph.write(value.paragraphs, into: &buf)
+        FfiConverterSequenceTypeAnalysisSpan.write(value.dialogueSpans, into: &buf)
+        FfiConverterDictionaryStringSequenceTypeAnalysisTokenPosition.write(value.lemmaIndex, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeDocumentAnalysis_lift(_ buf: RustBuffer) throws -> DocumentAnalysis {
+    return try FfiConverterTypeDocumentAnalysis.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeDocumentAnalysis_lower(_ value: DocumentAnalysis) -> RustBuffer {
+    return FfiConverterTypeDocumentAnalysis.lower(value)
+}
 
 
 /**
@@ -976,6 +1508,11 @@ enum CheckError: Swift.Error, Equatable, Hashable, Foundation.LocalizedError {
      */
     case UnknownSpellVariant(message: String
     )
+    /**
+     * Report options were invalid, or a report could not be serialized.
+     */
+    case Report(message: String
+    )
 
     
 
@@ -1023,6 +1560,9 @@ public struct FfiConverterTypeCheckError: FfiConverterRustBuffer {
         case 6: return .UnknownSpellVariant(
             message: try FfiConverterString.read(from: &buf)
             )
+        case 7: return .Report(
+            message: try FfiConverterString.read(from: &buf)
+            )
 
          default: throw UniffiInternalError.unexpectedEnumCase
         }
@@ -1062,6 +1602,11 @@ public struct FfiConverterTypeCheckError: FfiConverterRustBuffer {
         
         case let .UnknownSpellVariant(message):
             writeInt(&buf, Int32(6))
+            FfiConverterString.write(message, into: &buf)
+            
+        
+        case let .Report(message):
+            writeInt(&buf, Int32(7))
             FfiConverterString.write(message, into: &buf)
             
         }
@@ -1135,6 +1680,156 @@ fileprivate struct FfiConverterSequenceString: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterSequenceTypeAnalysisParagraph: FfiConverterRustBuffer {
+    typealias SwiftType = [AnalysisParagraph]
+
+    public static func write(_ value: [AnalysisParagraph], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeAnalysisParagraph.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [AnalysisParagraph] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [AnalysisParagraph]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeAnalysisParagraph.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeAnalysisReading: FfiConverterRustBuffer {
+    typealias SwiftType = [AnalysisReading]
+
+    public static func write(_ value: [AnalysisReading], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeAnalysisReading.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [AnalysisReading] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [AnalysisReading]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeAnalysisReading.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeAnalysisSentence: FfiConverterRustBuffer {
+    typealias SwiftType = [AnalysisSentence]
+
+    public static func write(_ value: [AnalysisSentence], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeAnalysisSentence.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [AnalysisSentence] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [AnalysisSentence]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeAnalysisSentence.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeAnalysisSpan: FfiConverterRustBuffer {
+    typealias SwiftType = [AnalysisSpan]
+
+    public static func write(_ value: [AnalysisSpan], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeAnalysisSpan.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [AnalysisSpan] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [AnalysisSpan]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeAnalysisSpan.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeAnalysisToken: FfiConverterRustBuffer {
+    typealias SwiftType = [AnalysisToken]
+
+    public static func write(_ value: [AnalysisToken], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeAnalysisToken.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [AnalysisToken] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [AnalysisToken]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeAnalysisToken.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeAnalysisTokenPosition: FfiConverterRustBuffer {
+    typealias SwiftType = [AnalysisTokenPosition]
+
+    public static func write(_ value: [AnalysisTokenPosition], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeAnalysisTokenPosition.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [AnalysisTokenPosition] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [AnalysisTokenPosition]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeAnalysisTokenPosition.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterSequenceTypeSuggestion: FfiConverterRustBuffer {
     typealias SwiftType = [Suggestion]
 
@@ -1157,6 +1852,32 @@ fileprivate struct FfiConverterSequenceTypeSuggestion: FfiConverterRustBuffer {
     }
 }
 
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterDictionaryStringSequenceTypeAnalysisTokenPosition: FfiConverterRustBuffer {
+    public static func write(_ value: [String: [AnalysisTokenPosition]], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for (key, value) in value {
+            FfiConverterString.write(key, into: &buf)
+            FfiConverterSequenceTypeAnalysisTokenPosition.write(value, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [String: [AnalysisTokenPosition]] {
+        let len: Int32 = try readInt(&buf)
+        var dict = [String: [AnalysisTokenPosition]]()
+        dict.reserveCapacity(Int(len))
+        for _ in 0..<len {
+            let key = try FfiConverterString.read(from: &buf)
+            let value = try FfiConverterSequenceTypeAnalysisTokenPosition.read(from: &buf)
+            dict[key] = value
+        }
+        return dict
+    }
+}
+
 private enum InitializationResult {
     case ok
     case contractVersionMismatch
@@ -1175,6 +1896,12 @@ private let initializationResult: InitializationResult = {
     if (uniffi_writemorebetter_swift_checksum_method_checker_add_words() != 62584) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_writemorebetter_swift_checksum_method_checker_analyze() != 33163) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_writemorebetter_swift_checksum_method_checker_analyze_document() != 35994) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_writemorebetter_swift_checksum_method_checker_check() != 47217) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -1185,6 +1912,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_method_checker_remove_words() != 27495) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_writemorebetter_swift_checksum_method_checker_sentence_reports() != 5146) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_method_checker_set_mother_tongue() != 22149) {

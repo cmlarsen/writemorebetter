@@ -1,0 +1,1170 @@
+{
+  "fixture_sha256": "69b636444446cf677560eed3d6376b961a401c413cbcf0ef3b81d440680ed240",
+  "booknlp_commit": "3d900fc2224e55960c3363826ae28539b77b4204",
+  "tools": {
+    "wmb": {
+      "cases": [
+        {
+          "analysis_seconds": [
+            0.001849125,
+            0.000243625,
+            0.000179459
+          ],
+          "id": "plain",
+          "quote_count": 0,
+          "sentence_count": 2,
+          "token_count": 11,
+          "first_seconds": 0.001849125,
+          "warm_median_seconds": 0.000211542
+        },
+        {
+          "analysis_seconds": [
+            0.001377,
+            0.000245791,
+            0.000199792
+          ],
+          "id": "abbreviation",
+          "quote_count": 0,
+          "sentence_count": 2,
+          "token_count": 14,
+          "first_seconds": 0.001377,
+          "warm_median_seconds": 0.00022279149999999997
+        },
+        {
+          "analysis_seconds": [
+            0.000285458,
+            0.000164833,
+            0.000358333
+          ],
+          "id": "fragment",
+          "quote_count": 0,
+          "sentence_count": 2,
+          "token_count": 9,
+          "first_seconds": 0.000285458,
+          "warm_median_seconds": 0.000261583
+        },
+        {
+          "analysis_seconds": [
+            0.001109041,
+            0.000322625,
+            0.000258375
+          ],
+          "id": "curly",
+          "quote_count": 1,
+          "sentence_count": 2,
+          "token_count": 14,
+          "first_seconds": 0.001109041,
+          "warm_median_seconds": 0.00029049999999999996
+        },
+        {
+          "analysis_seconds": [
+            0.000572333,
+            0.000336292,
+            0.000299666
+          ],
+          "id": "nested",
+          "quote_count": 1,
+          "sentence_count": 2,
+          "token_count": 18,
+          "first_seconds": 0.000572333,
+          "warm_median_seconds": 0.000317979
+        },
+        {
+          "analysis_seconds": [
+            0.000361083,
+            0.000230042,
+            0.000208625
+          ],
+          "id": "straight",
+          "quote_count": 2,
+          "sentence_count": 2,
+          "token_count": 14,
+          "first_seconds": 0.000361083,
+          "warm_median_seconds": 0.0002193335
+        },
+        {
+          "analysis_seconds": [
+            0.000289083,
+            0.000230292,
+            0.000212042
+          ],
+          "id": "single",
+          "quote_count": 2,
+          "sentence_count": 2,
+          "token_count": 14,
+          "first_seconds": 0.000289083,
+          "warm_median_seconds": 0.00022116699999999998
+        },
+        {
+          "analysis_seconds": [
+            0.000430541,
+            0.0002865,
+            0.000263458
+          ],
+          "id": "mixed-styles",
+          "quote_count": 2,
+          "sentence_count": 2,
+          "token_count": 16,
+          "first_seconds": 0.000430541,
+          "warm_median_seconds": 0.000274979
+        },
+        {
+          "analysis_seconds": [
+            0.00057925,
+            0.000432917,
+            0.000348959
+          ],
+          "id": "continuation",
+          "quote_count": 1,
+          "sentence_count": 3,
+          "token_count": 16,
+          "first_seconds": 0.00057925,
+          "warm_median_seconds": 0.00039093799999999996
+        },
+        {
+          "analysis_seconds": [
+            0.000320083,
+            0.000192084,
+            0.000176792
+          ],
+          "id": "unclosed",
+          "quote_count": 1,
+          "sentence_count": 1,
+          "token_count": 10,
+          "first_seconds": 0.000320083,
+          "warm_median_seconds": 0.00018443799999999998
+        },
+        {
+          "analysis_seconds": [
+            0.000970375,
+            0.000471958,
+            0.00040225
+          ],
+          "id": "possessives",
+          "quote_count": 0,
+          "sentence_count": 2,
+          "token_count": 26,
+          "first_seconds": 0.000970375,
+          "warm_median_seconds": 0.000437104
+        },
+        {
+          "analysis_seconds": [
+            0.000515709,
+            0.000322292,
+            0.000258334
+          ],
+          "id": "g-drop",
+          "quote_count": 0,
+          "sentence_count": 2,
+          "token_count": 13,
+          "first_seconds": 0.000515709,
+          "warm_median_seconds": 0.000290313
+        },
+        {
+          "analysis_seconds": [
+            0.000520583,
+            0.000325834,
+            0.00029275
+          ],
+          "id": "unicode",
+          "quote_count": 1,
+          "sentence_count": 1,
+          "token_count": 16,
+          "first_seconds": 0.000520583,
+          "warm_median_seconds": 0.00030929199999999997
+        },
+        {
+          "analysis_seconds": [
+            0.000479167,
+            0.000280083,
+            0.0002485
+          ],
+          "id": "combining",
+          "quote_count": 0,
+          "sentence_count": 2,
+          "token_count": 17,
+          "first_seconds": 0.000479167,
+          "warm_median_seconds": 0.0002642915
+        },
+        {
+          "analysis_seconds": [
+            0.00011675,
+            7.9333e-05,
+            7.5458e-05
+          ],
+          "id": "empty",
+          "quote_count": 0,
+          "sentence_count": 1,
+          "token_count": 4,
+          "first_seconds": 0.00011675,
+          "warm_median_seconds": 7.73955e-05
+        },
+        {
+          "analysis_seconds": [
+            0.000286834,
+            0.000141042,
+            0.000126667
+          ],
+          "id": "multiword",
+          "quote_count": 0,
+          "sentence_count": 1,
+          "token_count": 10,
+          "first_seconds": 0.000286834,
+          "warm_median_seconds": 0.0001338545
+        }
+      ],
+      "load_seconds": 0.069205042,
+      "tool": "writemorebetter-document",
+      "version": "0.8.0",
+      "process_seconds": 0.26736908400198445,
+      "peak_rss_mib": 39.46875,
+      "accuracy": {
+        "sentence_spans": {
+          "tp": 28,
+          "predicted": 29,
+          "expected": 30,
+          "precision": 0.9655172413793104,
+          "recall": 0.9333333333333333,
+          "f1": 0.9491525423728815
+        },
+        "sentence_ends": {
+          "tp": 29,
+          "predicted": 29,
+          "expected": 30,
+          "precision": 1.0,
+          "recall": 0.9666666666666667,
+          "f1": 0.983050847457627
+        },
+        "quote_spans": {
+          "tp": 11,
+          "predicted": 11,
+          "expected": 11,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "quote_bytes": {
+          "tp": 187,
+          "predicted": 187,
+          "expected": 187,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "selected_reading_coverage": {
+          "hits": 9,
+          "expected": 9,
+          "share": 1.0
+        },
+        "differences": [
+          {
+            "case": "unicode",
+            "metric": "sentence_spans",
+            "predicted": [
+              [
+                0,
+                48
+              ]
+            ],
+            "expected": [
+              [
+                0,
+                37
+              ],
+              [
+                40,
+                48
+              ]
+            ]
+          }
+        ]
+      }
+    },
+    "spacy": {
+      "tool": "spacy",
+      "version": "3.8.11",
+      "model": "3.8.0",
+      "components": [
+        "tok2vec",
+        "tagger",
+        "parser",
+        "attribute_ruler",
+        "lemmatizer"
+      ],
+      "load_seconds": 0.12290979200042784,
+      "cases": [
+        {
+          "id": "plain",
+          "sentence_count": 2,
+          "token_count": 7,
+          "quote_count": 0,
+          "analysis_seconds": [
+            0.00513691600644961,
+            0.0011099580442532897,
+            0.0009865000029094517
+          ],
+          "first_seconds": 0.00513691600644961,
+          "warm_median_seconds": 0.0010482290235813707
+        },
+        {
+          "id": "abbreviation",
+          "sentence_count": 2,
+          "token_count": 8,
+          "quote_count": 0,
+          "analysis_seconds": [
+            0.0012225830578245223,
+            0.0010197499650530517,
+            0.0010069169802591205
+          ],
+          "first_seconds": 0.0012225830578245223,
+          "warm_median_seconds": 0.001013333472656086
+        },
+        {
+          "id": "fragment",
+          "sentence_count": 2,
+          "token_count": 6,
+          "quote_count": 0,
+          "analysis_seconds": [
+            0.0012888340279459953,
+            0.001134041987825185,
+            0.0011132499785162508
+          ],
+          "first_seconds": 0.0012888340279459953,
+          "warm_median_seconds": 0.001123645983170718
+        },
+        {
+          "id": "curly",
+          "sentence_count": 3,
+          "token_count": 10,
+          "quote_count": 0,
+          "analysis_seconds": [
+            0.0014576669782400131,
+            0.0012178749893791974,
+            0.0012022499577142298
+          ],
+          "first_seconds": 0.0014576669782400131,
+          "warm_median_seconds": 0.0012100624735467136
+        },
+        {
+          "id": "nested",
+          "sentence_count": 2,
+          "token_count": 13,
+          "quote_count": 0,
+          "analysis_seconds": [
+            0.0015964999911375344,
+            0.0014473329647444189,
+            0.0013634590432047844
+          ],
+          "first_seconds": 0.0015964999911375344,
+          "warm_median_seconds": 0.0014053960039746016
+        },
+        {
+          "id": "straight",
+          "sentence_count": 2,
+          "token_count": 11,
+          "quote_count": 0,
+          "analysis_seconds": [
+            0.0013696670066565275,
+            0.0015130829997360706,
+            0.0015130420215427876
+          ],
+          "first_seconds": 0.0013696670066565275,
+          "warm_median_seconds": 0.001513062510639429
+        },
+        {
+          "id": "single",
+          "sentence_count": 2,
+          "token_count": 11,
+          "quote_count": 0,
+          "analysis_seconds": [
+            0.001364166964776814,
+            0.0012567919911816716,
+            0.0012325840070843697
+          ],
+          "first_seconds": 0.001364166964776814,
+          "warm_median_seconds": 0.0012446879991330206
+        },
+        {
+          "id": "mixed-styles",
+          "sentence_count": 2,
+          "token_count": 12,
+          "quote_count": 0,
+          "analysis_seconds": [
+            0.0013925409875810146,
+            0.0012530829990282655,
+            0.0012160420301370323
+          ],
+          "first_seconds": 0.0013925409875810146,
+          "warm_median_seconds": 0.0012345625145826489
+        },
+        {
+          "id": "continuation",
+          "sentence_count": 3,
+          "token_count": 12,
+          "quote_count": 0,
+          "analysis_seconds": [
+            0.0013800000306218863,
+            0.0013591249589808285,
+            0.0012826249585486948
+          ],
+          "first_seconds": 0.0013800000306218863,
+          "warm_median_seconds": 0.0013208749587647617
+        },
+        {
+          "id": "unclosed",
+          "sentence_count": 1,
+          "token_count": 7,
+          "quote_count": 0,
+          "analysis_seconds": [
+            0.001110083016101271,
+            0.0011357920011505485,
+            0.0012080839951522648
+          ],
+          "first_seconds": 0.001110083016101271,
+          "warm_median_seconds": 0.0011719379981514066
+        },
+        {
+          "id": "possessives",
+          "sentence_count": 2,
+          "token_count": 16,
+          "quote_count": 0,
+          "analysis_seconds": [
+            0.002042250009253621,
+            0.0016406250069849193,
+            0.001523124985396862
+          ],
+          "first_seconds": 0.002042250009253621,
+          "warm_median_seconds": 0.0015818749961908907
+        },
+        {
+          "id": "g-drop",
+          "sentence_count": 2,
+          "token_count": 10,
+          "quote_count": 0,
+          "analysis_seconds": [
+            0.0013078339979983866,
+            0.0012019590358249843,
+            0.0011879579978995025
+          ],
+          "first_seconds": 0.0013078339979983866,
+          "warm_median_seconds": 0.0011949585168622434
+        },
+        {
+          "id": "unicode",
+          "sentence_count": 1,
+          "token_count": 13,
+          "quote_count": 0,
+          "analysis_seconds": [
+            0.0015901250299066305,
+            0.0014013750478625298,
+            0.001375459018163383
+          ],
+          "first_seconds": 0.0015901250299066305,
+          "warm_median_seconds": 0.0013884170330129564
+        },
+        {
+          "id": "combining",
+          "sentence_count": 2,
+          "token_count": 10,
+          "quote_count": 0,
+          "analysis_seconds": [
+            0.0014837919734418392,
+            0.0013187499716877937,
+            0.0013146669953130186
+          ],
+          "first_seconds": 0.0014837919734418392,
+          "warm_median_seconds": 0.0013167084835004061
+        },
+        {
+          "id": "empty",
+          "sentence_count": 2,
+          "token_count": 4,
+          "quote_count": 0,
+          "analysis_seconds": [
+            0.001016082998830825,
+            0.0009792500059120357,
+            0.0009321669931523502
+          ],
+          "first_seconds": 0.001016082998830825,
+          "warm_median_seconds": 0.0009557084995321929
+        },
+        {
+          "id": "multiword",
+          "sentence_count": 1,
+          "token_count": 5,
+          "quote_count": 0,
+          "analysis_seconds": [
+            0.0010711249778978527,
+            0.0009670419967733324,
+            0.0009390840423293412
+          ],
+          "first_seconds": 0.0010711249778978527,
+          "warm_median_seconds": 0.0009530630195513368
+        }
+      ],
+      "process_seconds": 0.666983416012954,
+      "peak_rss_mib": 130.65625,
+      "accuracy": {
+        "sentence_spans": {
+          "tp": 27,
+          "predicted": 30,
+          "expected": 30,
+          "precision": 0.9,
+          "recall": 0.9,
+          "f1": 0.9
+        },
+        "sentence_ends": {
+          "tp": 29,
+          "predicted": 30,
+          "expected": 30,
+          "precision": 0.9666666666666667,
+          "recall": 0.9666666666666667,
+          "f1": 0.9666666666666667
+        },
+        "selected_reading_coverage": {
+          "hits": 7,
+          "expected": 9,
+          "share": 0.7777777777777778
+        },
+        "differences": [
+          {
+            "case": "curly",
+            "metric": "sentence_spans",
+            "predicted": [
+              [
+                0,
+                11
+              ],
+              [
+                12,
+                21
+              ],
+              [
+                22,
+                33
+              ]
+            ],
+            "expected": [
+              [
+                0,
+                21
+              ],
+              [
+                22,
+                33
+              ]
+            ]
+          },
+          {
+            "case": "g-drop",
+            "metric": "expected_reading",
+            "span": [
+              4,
+              9
+            ],
+            "lemma": "go",
+            "pos": "VBG"
+          },
+          {
+            "case": "g-drop",
+            "metric": "expected_reading",
+            "span": [
+              22,
+              31
+            ],
+            "lemma": "wait",
+            "pos": "VBG"
+          },
+          {
+            "case": "unicode",
+            "metric": "sentence_spans",
+            "predicted": [
+              [
+                0,
+                48
+              ]
+            ],
+            "expected": [
+              [
+                0,
+                37
+              ],
+              [
+                40,
+                48
+              ]
+            ]
+          }
+        ]
+      }
+    },
+    "booknlp-quotes": {
+      "tool": "booknlp-quotes",
+      "version": "3.8.11",
+      "model": "3.8.0",
+      "components": [
+        "tok2vec",
+        "tagger",
+        "parser",
+        "attribute_ruler",
+        "lemmatizer"
+      ],
+      "load_seconds": 0.11297345900675282,
+      "cases": [
+        {
+          "id": "plain",
+          "sentence_count": 2,
+          "token_count": 7,
+          "quote_count": 0,
+          "analysis_seconds": [
+            0.001885749981738627,
+            0.0011861250386573374,
+            0.0010555420303717256
+          ],
+          "first_seconds": 0.001885749981738627,
+          "warm_median_seconds": 0.0011208335345145315
+        },
+        {
+          "id": "abbreviation",
+          "sentence_count": 2,
+          "token_count": 8,
+          "quote_count": 0,
+          "analysis_seconds": [
+            0.0012847500038333237,
+            0.0010995829943567514,
+            0.0011220000451430678
+          ],
+          "first_seconds": 0.0012847500038333237,
+          "warm_median_seconds": 0.0011107915197499096
+        },
+        {
+          "id": "fragment",
+          "sentence_count": 2,
+          "token_count": 6,
+          "quote_count": 0,
+          "analysis_seconds": [
+            0.0011850829469040036,
+            0.0011372920125722885,
+            0.0011493340134620667
+          ],
+          "first_seconds": 0.0011850829469040036,
+          "warm_median_seconds": 0.0011433130130171776
+        },
+        {
+          "id": "curly",
+          "sentence_count": 3,
+          "token_count": 10,
+          "quote_count": 1,
+          "analysis_seconds": [
+            0.0016040829941630363,
+            0.0013383750338107347,
+            0.0013050840352661908
+          ],
+          "first_seconds": 0.0016040829941630363,
+          "warm_median_seconds": 0.0013217295345384628
+        },
+        {
+          "id": "nested",
+          "sentence_count": 2,
+          "token_count": 13,
+          "quote_count": 1,
+          "analysis_seconds": [
+            0.0016964999958872795,
+            0.0015011670184321702,
+            0.0014445409760810435
+          ],
+          "first_seconds": 0.0016964999958872795,
+          "warm_median_seconds": 0.0014728539972566068
+        },
+        {
+          "id": "straight",
+          "sentence_count": 2,
+          "token_count": 11,
+          "quote_count": 2,
+          "analysis_seconds": [
+            0.0012866250472143292,
+            0.0012077090214006603,
+            0.001194500015117228
+          ],
+          "first_seconds": 0.0012866250472143292,
+          "warm_median_seconds": 0.0012011045182589442
+        },
+        {
+          "id": "single",
+          "sentence_count": 2,
+          "token_count": 11,
+          "quote_count": 2,
+          "analysis_seconds": [
+            0.0012325000134296715,
+            0.0012049159849993885,
+            0.001215459022205323
+          ],
+          "first_seconds": 0.0012325000134296715,
+          "warm_median_seconds": 0.0012101875036023557
+        },
+        {
+          "id": "mixed-styles",
+          "sentence_count": 2,
+          "token_count": 12,
+          "quote_count": 2,
+          "analysis_seconds": [
+            0.0013118339702486992,
+            0.0012587500386871397,
+            0.0012912919628433883
+          ],
+          "first_seconds": 0.0013118339702486992,
+          "warm_median_seconds": 0.001275021000765264
+        },
+        {
+          "id": "continuation",
+          "sentence_count": 3,
+          "token_count": 12,
+          "quote_count": 2,
+          "analysis_seconds": [
+            0.0014656249550171196,
+            0.0013382919714786112,
+            0.0012897919514216483
+          ],
+          "first_seconds": 0.0014656249550171196,
+          "warm_median_seconds": 0.0013140419614501297
+        },
+        {
+          "id": "unclosed",
+          "sentence_count": 1,
+          "token_count": 7,
+          "quote_count": 0,
+          "analysis_seconds": [
+            0.0010204169666394591,
+            0.0009604999795556068,
+            0.0009932920220308006
+          ],
+          "first_seconds": 0.0010204169666394591,
+          "warm_median_seconds": 0.0009768960007932037
+        },
+        {
+          "id": "possessives",
+          "sentence_count": 2,
+          "token_count": 16,
+          "quote_count": 1,
+          "analysis_seconds": [
+            0.0017965839942917228,
+            0.0014842499513179064,
+            0.0014770000125281513
+          ],
+          "first_seconds": 0.0017965839942917228,
+          "warm_median_seconds": 0.0014806249819230288
+        },
+        {
+          "id": "g-drop",
+          "sentence_count": 2,
+          "token_count": 10,
+          "quote_count": 1,
+          "analysis_seconds": [
+            0.0012454590178094804,
+            0.0011620000004768372,
+            0.001174875011201948
+          ],
+          "first_seconds": 0.0012454590178094804,
+          "warm_median_seconds": 0.0011684375058393925
+        },
+        {
+          "id": "unicode",
+          "sentence_count": 1,
+          "token_count": 13,
+          "quote_count": 1,
+          "analysis_seconds": [
+            0.001655917032621801,
+            0.0014435829943977296,
+            0.0014122920110821724
+          ],
+          "first_seconds": 0.001655917032621801,
+          "warm_median_seconds": 0.001427937502739951
+        },
+        {
+          "id": "combining",
+          "sentence_count": 2,
+          "token_count": 10,
+          "quote_count": 0,
+          "analysis_seconds": [
+            0.0013323340099304914,
+            0.0011750829871743917,
+            0.0011686670477502048
+          ],
+          "first_seconds": 0.0013323340099304914,
+          "warm_median_seconds": 0.0011718750174622983
+        },
+        {
+          "id": "empty",
+          "sentence_count": 2,
+          "token_count": 4,
+          "quote_count": 0,
+          "analysis_seconds": [
+            0.0008738330216147006,
+            0.0008928750175982714,
+            0.0008959170081652701
+          ],
+          "first_seconds": 0.0008738330216147006,
+          "warm_median_seconds": 0.0008943960128817707
+        },
+        {
+          "id": "multiword",
+          "sentence_count": 1,
+          "token_count": 5,
+          "quote_count": 0,
+          "analysis_seconds": [
+            0.0010370409581810236,
+            0.0010009999969042838,
+            0.0010755840339697897
+          ],
+          "first_seconds": 0.0010370409581810236,
+          "warm_median_seconds": 0.0010382920154370368
+        }
+      ],
+      "process_seconds": 0.4693294169846922,
+      "peak_rss_mib": 130.796875,
+      "accuracy": {
+        "sentence_spans": {
+          "tp": 27,
+          "predicted": 30,
+          "expected": 30,
+          "precision": 0.9,
+          "recall": 0.9,
+          "f1": 0.9
+        },
+        "sentence_ends": {
+          "tp": 29,
+          "predicted": 30,
+          "expected": 30,
+          "precision": 0.9666666666666667,
+          "recall": 0.9666666666666667,
+          "f1": 0.9666666666666667
+        },
+        "quote_spans": {
+          "tp": 9,
+          "predicted": 13,
+          "expected": 11,
+          "precision": 0.6923076923076923,
+          "recall": 0.8181818181818182,
+          "f1": 0.7500000000000001
+        },
+        "quote_bytes": {
+          "tp": 171,
+          "predicted": 220,
+          "expected": 187,
+          "precision": 0.7772727272727272,
+          "recall": 0.9144385026737968,
+          "f1": 0.8402948402948404
+        },
+        "selected_reading_coverage": {
+          "hits": 7,
+          "expected": 9,
+          "share": 0.7777777777777778
+        },
+        "differences": [
+          {
+            "case": "curly",
+            "metric": "sentence_spans",
+            "predicted": [
+              [
+                0,
+                11
+              ],
+              [
+                12,
+                21
+              ],
+              [
+                22,
+                33
+              ]
+            ],
+            "expected": [
+              [
+                0,
+                21
+              ],
+              [
+                22,
+                33
+              ]
+            ]
+          },
+          {
+            "case": "continuation",
+            "metric": "quote_spans",
+            "predicted": [
+              [
+                0,
+                19
+              ],
+              [
+                20,
+                43
+              ]
+            ],
+            "expected": [
+              [
+                0,
+                43
+              ]
+            ]
+          },
+          {
+            "case": "unclosed",
+            "metric": "quote_spans",
+            "predicted": [],
+            "expected": [
+              [
+                10,
+                25
+              ]
+            ]
+          },
+          {
+            "case": "possessives",
+            "metric": "quote_spans",
+            "predicted": [
+              [
+                8,
+                27
+              ]
+            ],
+            "expected": []
+          },
+          {
+            "case": "g-drop",
+            "metric": "quote_spans",
+            "predicted": [
+              [
+                1,
+                31
+              ]
+            ],
+            "expected": []
+          },
+          {
+            "case": "g-drop",
+            "metric": "expected_reading",
+            "span": [
+              4,
+              9
+            ],
+            "lemma": "go",
+            "pos": "VBG"
+          },
+          {
+            "case": "g-drop",
+            "metric": "expected_reading",
+            "span": [
+              22,
+              31
+            ],
+            "lemma": "wait",
+            "pos": "VBG"
+          },
+          {
+            "case": "unicode",
+            "metric": "sentence_spans",
+            "predicted": [
+              [
+                0,
+                48
+              ]
+            ],
+            "expected": [
+              [
+                0,
+                37
+              ],
+              [
+                40,
+                48
+              ]
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "performance": {
+    "moby-1": {
+      "bytes": 147687,
+      "tools": {
+        "wmb": {
+          "cases": [
+            {
+              "analysis_seconds": [
+                0.896926583,
+                0.864344209,
+                0.888050875
+              ],
+              "id": "moby-1",
+              "quote_count": 176,
+              "sentence_count": 1408,
+              "token_count": 55766,
+              "first_seconds": 0.896926583,
+              "warm_median_seconds": 0.876197542
+            }
+          ],
+          "load_seconds": 0.056279167,
+          "tool": "writemorebetter-document",
+          "version": "0.8.0",
+          "process_seconds": 2.722695374977775,
+          "peak_rss_mib": 62.484375
+        },
+        "spacy": {
+          "tool": "spacy",
+          "version": "3.8.11",
+          "model": "3.8.0",
+          "components": [
+            "tok2vec",
+            "tagger",
+            "parser",
+            "attribute_ruler",
+            "lemmatizer"
+          ],
+          "load_seconds": 0.1426305419881828,
+          "cases": [
+            {
+              "id": "moby-1",
+              "sentence_count": 1478,
+              "token_count": 33020,
+              "quote_count": 0,
+              "analysis_seconds": [
+                2.17346208402887,
+                1.840999708045274,
+                1.833736458036583
+              ],
+              "first_seconds": 2.17346208402887,
+              "warm_median_seconds": 1.8373680830409285
+            }
+          ],
+          "process_seconds": 6.306606207974255,
+          "peak_rss_mib": 271.640625
+        },
+        "booknlp-quotes": {
+          "tool": "booknlp-quotes",
+          "version": "3.8.11",
+          "model": "3.8.0",
+          "components": [
+            "tok2vec",
+            "tagger",
+            "parser",
+            "attribute_ruler",
+            "lemmatizer"
+          ],
+          "load_seconds": 0.1149189579882659,
+          "cases": [
+            {
+              "id": "moby-1",
+              "sentence_count": 1478,
+              "token_count": 33020,
+              "quote_count": 213,
+              "analysis_seconds": [
+                2.141620290989522,
+                1.8332429169677198,
+                1.8254972920403816
+              ],
+              "first_seconds": 2.141620290989522,
+              "warm_median_seconds": 1.8293701045040507
+            }
+          ],
+          "process_seconds": 6.224152083974332,
+          "peak_rss_mib": 306.203125
+        }
+      }
+    },
+    "moby-10": {
+      "bytes": 1476879,
+      "tools": {
+        "wmb": {
+          "cases": [
+            {
+              "analysis_seconds": [
+                8.279436792,
+                8.333734417,
+                8.323856208
+              ],
+              "id": "moby-10",
+              "quote_count": 176,
+              "sentence_count": 14080,
+              "token_count": 557660,
+              "first_seconds": 8.279436792,
+              "warm_median_seconds": 8.3287953125
+            }
+          ],
+          "load_seconds": 0.061073916,
+          "tool": "writemorebetter-document",
+          "version": "0.8.0",
+          "process_seconds": 25.136062457982916,
+          "peak_rss_mib": 245.0625
+        },
+        "spacy": {
+          "tool": "spacy",
+          "version": "3.8.11",
+          "model": "3.8.0",
+          "components": [
+            "tok2vec",
+            "tagger",
+            "parser",
+            "attribute_ruler",
+            "lemmatizer"
+          ],
+          "load_seconds": 0.12481050001224503,
+          "cases": [
+            {
+              "id": "moby-10",
+              "sentence_count": 14780,
+              "token_count": 330200,
+              "quote_count": 0,
+              "analysis_seconds": [
+                18.52306374994805,
+                18.88015074998839,
+                18.67247537500225
+              ],
+              "first_seconds": 18.52306374994805,
+              "warm_median_seconds": 18.77631306249532
+            }
+          ],
+          "process_seconds": 56.7291303750244,
+          "peak_rss_mib": 586.796875
+        },
+        "booknlp-quotes": {
+          "tool": "booknlp-quotes",
+          "version": "3.8.11",
+          "model": "3.8.0",
+          "components": [
+            "tok2vec",
+            "tagger",
+            "parser",
+            "attribute_ruler",
+            "lemmatizer"
+          ],
+          "load_seconds": 0.12080479203723371,
+          "cases": [
+            {
+              "id": "moby-10",
+              "sentence_count": 14780,
+              "token_count": 330200,
+              "quote_count": 2130,
+              "analysis_seconds": [
+                19.68190362502355,
+                18.980457708006725,
+                18.790283542010002
+              ],
+              "first_seconds": 19.68190362502355,
+              "warm_median_seconds": 18.885370625008363
+            }
+          ],
+          "process_seconds": 58.09813229198335,
+          "peak_rss_mib": 716.078125
+        }
+      }
+    }
+  },
+  "measured_utc": "2026-10-15T04:05:21.589982+00:00",
+  "hardware": "Apple M5 Pro",
+  "python": "Python 3.11.15",
+  "tokenizer_sha256": "35d79c1414614e836735879c6777428828e1d7c9907caabfaa4bc36252514a66",
+  "pipeline_notes": "WMB owned document including lemma index/chunks; spaCy en_core_web_sm with NER excluded; BookNLP QuoteTagger component over spaCy tokens with caller paragraph IDs, not the full neural pipeline. One CPU process; common thread env caps. First analysis then median of two warm analyses."
+}

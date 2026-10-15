@@ -8,8 +8,8 @@
 //! and call [`Checker::check`] off the main thread — on iOS/macOS the natural shape is one checker
 //! per app, kept by a single owner and queried from a background queue.
 
-use std::io::Cursor;
 use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
+use std::{collections::HashMap, io::Cursor};
 
 use nlprule::{Rules, Tokenizer};
 
@@ -38,6 +38,9 @@ pub enum CheckError {
     /// `spell_variant` named a speller dictionary that is not part of the loaded rules.
     #[error("unknown spell variant: {message}")]
     UnknownSpellVariant { message: String },
+    /// Report options were invalid, or a report could not be serialized.
+    #[error("sentence report: {message}")]
+    Report { message: String },
 }
 
 /// A single flagged span.
@@ -56,6 +59,96 @@ pub struct Suggestion {
     pub message: String,
     /// Suggested replacements, possibly empty.
     pub replacements: Vec<String>,
+}
+
+/// A paired lemma and POS reading after disambiguation.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct AnalysisReading {
+    pub lemma: String,
+    pub pos: String,
+}
+
+/// An original-surface token, with absolute, exclusive-end UTF-16 offsets.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct AnalysisToken {
+    pub text: String,
+    pub start: u32,
+    pub end: u32,
+    pub readings: Vec<AnalysisReading>,
+    pub chunks: Vec<String>,
+    pub is_whitespace: bool,
+    pub is_punctuation: bool,
+}
+
+/// An owned sentence, including whitespace, with absolute UTF-16 offsets.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct AnalysisSentence {
+    pub text: String,
+    pub start: u32,
+    pub end: u32,
+    pub tokens: Vec<AnalysisToken>,
+}
+
+impl From<nlprule::analysis::AnalysisSentence> for AnalysisSentence {
+    fn from(sentence: nlprule::analysis::AnalysisSentence) -> Self {
+        Self {
+            text: sentence.text,
+            start: sentence.span.utf16.start as u32,
+            end: sentence.span.utf16.end as u32,
+            tokens: sentence
+                .tokens
+                .into_iter()
+                .map(|token| AnalysisToken {
+                    text: token.text,
+                    start: token.span.utf16.start as u32,
+                    end: token.span.utf16.end as u32,
+                    readings: token
+                        .readings
+                        .into_iter()
+                        .map(|reading| AnalysisReading {
+                            lemma: reading.lemma,
+                            pos: reading.pos,
+                        })
+                        .collect(),
+                    chunks: token.chunks,
+                    is_whitespace: token.is_whitespace,
+                    is_punctuation: token.is_punctuation,
+                })
+                .collect(),
+        }
+    }
+}
+
+/// An absolute, half-open UTF-16 range into the document's text.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct AnalysisSpan {
+    pub start: u32,
+    pub end: u32,
+}
+
+/// One caller-supplied paragraph, excluding its separator.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct AnalysisParagraph {
+    pub start: u32,
+    pub end: u32,
+    pub sentences: Vec<AnalysisSentence>,
+}
+
+/// Zero-based paragraph, sentence and token indices in a document snapshot.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct AnalysisTokenPosition {
+    pub paragraph: u32,
+    pub sentence: u32,
+    pub token: u32,
+}
+
+/// An owned whole-document snapshot for prose reports. All offsets are UTF-16.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct DocumentAnalysis {
+    pub text: String,
+    pub paragraphs: Vec<AnalysisParagraph>,
+    pub dialogue_spans: Vec<AnalysisSpan>,
+    pub lemma_index: HashMap<String, Vec<AnalysisTokenPosition>>,
 }
 
 /// A grammar and spelling checker over a pre-loaded tokenizer and rule set.
@@ -169,6 +262,85 @@ impl Checker {
                 }
             })
             .collect()
+    }
+
+    /// Analyzes text with the loaded tokenizer, without grammar or spelling checks.
+    /// Tokens preserve original surface text and include whitespace. Offsets count UTF-16
+    /// code units into the input, as in [`Suggestion`]. No rules lock is needed.
+    pub fn analyze(&self, text: String) -> Vec<AnalysisSentence> {
+        self.tokenizer
+            .analyze(&text)
+            .into_iter()
+            .map(AnalysisSentence::from)
+            .collect()
+    }
+
+    /// Builds a fresh document snapshot from caller-defined paragraphs, joined by one LF.
+    /// Reuses this checker's tokenizer. All returned spans index `DocumentAnalysis.text`.
+    pub fn analyze_document(&self, paragraphs: Vec<String>) -> DocumentAnalysis {
+        let paragraphs: Vec<_> = paragraphs.iter().map(String::as_str).collect();
+        let document = writemorebetter_style::analyze_document(&self.tokenizer, &paragraphs);
+        DocumentAnalysis {
+            text: document.text,
+            paragraphs: document
+                .paragraphs
+                .into_iter()
+                .map(|paragraph| AnalysisParagraph {
+                    start: paragraph.span.utf16.start as u32,
+                    end: paragraph.span.utf16.end as u32,
+                    sentences: paragraph
+                        .sentences
+                        .into_iter()
+                        .map(AnalysisSentence::from)
+                        .collect(),
+                })
+                .collect(),
+            dialogue_spans: document
+                .dialogue_spans
+                .into_iter()
+                .map(|span| AnalysisSpan {
+                    start: span.utf16.start as u32,
+                    end: span.utf16.end as u32,
+                })
+                .collect(),
+            lemma_index: document
+                .lemma_index
+                .into_iter()
+                .map(|(lemma, positions)| {
+                    (
+                        lemma,
+                        positions
+                            .into_iter()
+                            .map(|position| AnalysisTokenPosition {
+                                paragraph: position.paragraph as u32,
+                                sentence: position.sentence as u32,
+                                token: position.token as u32,
+                            })
+                            .collect(),
+                    )
+                })
+                .collect(),
+        }
+    }
+
+    /// Returns JSON sentence-length and sentence-start reports over caller paragraphs.
+    /// Options are optional JSON; spans expose `byte`, `char`, and `utf16` ranges into
+    /// the paragraphs joined with LF. Use `span.utf16` for NSRange conversion.
+    pub fn sentence_reports(
+        &self,
+        paragraphs: Vec<String>,
+        options_json: Option<String>,
+    ) -> Result<String, CheckError> {
+        use writemorebetter_style::reports::sentences::{report, Options};
+        let error = |message: String| CheckError::Report { message };
+        let options: Options = match options_json.filter(|json| !json.is_empty()) {
+            Some(json) => serde_json::from_str(&json).map_err(|err| error(err.to_string()))?,
+            None => Options::default(),
+        };
+        let paragraphs: Vec<_> = paragraphs.iter().map(String::as_str).collect();
+        let document = writemorebetter_style::analyze_document(&self.tokenizer, &paragraphs);
+        let reports = report(&document, &options).map_err(|err| error(err.to_string()))?;
+        serde_json::to_string(&reports).map_err(|err| error(err.to_string()))
     }
 
     /// Adds words to the user dictionary and returns how many were new.

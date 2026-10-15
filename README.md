@@ -121,6 +121,19 @@ That snippet is [`nlprule/examples/check.rs`](nlprule/examples/check.rs), which 
 dictionary. `Rules::suggest` is parallel by default (rayon); set `NLPRULE_PARALLELISM=off` for one
 thread.
 
+### Tokenizer analysis
+
+`tokenizer.analyze(text)` returns owned sentences and tokens with original surface text, lemma/POS
+readings, chunk tags, whitespace/punctuation flags, and byte, character and UTF-16 spans. Swift's
+`checker.analyze(text:)` and WASM's `checker.analyze(text)` use the same loaded tokenizer and return
+UTF-16 offsets. See [`docs/ANALYSIS.md`](docs/ANALYSIS.md) for the data contract and reference tests.
+
+For whole-document prose reports, `writemorebetter_style::analyze_document(&tokenizer, &paragraphs)`
+builds paragraph structure, quoted-dialogue spans and a lemma index. Swift and WASM expose it as
+`checker.analyzeDocument`. See [`style/README.md`](style/README.md) for offsets and quotation heuristics.
+Sentence-length and sentence-start reports are available through `reports::sentences::report` in Rust
+and `checker.sentenceReports` in Swift/WASM, with caller-supplied baselines and separate dialogue statistics.
+
 ## Data files and licensing
 
 The checker needs two compiled data files, `en_tokenizer.bin` and `en_rules.bin`, from the
@@ -162,6 +175,7 @@ caller owns persistence — the words are not written into a binary.
 ## Repository layout
 
 - `nlprule/` — the engine crate: tokenizer, tagger, disambiguation, grammar rules, speller, builtins.
+- `style/` — whole-document analysis for prose reports, separate from grammar suggestions.
 - `build/` — the binary builder and the scripts that generate a LanguageTool build directory; `srx/`
   — vendored sentence segmentation.
 - `swift/` — UniFFI bindings and the Swift package; `wasm/` — the WebAssembly package.

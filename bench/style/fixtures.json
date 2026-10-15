@@ -1,0 +1,305 @@
+[
+  {
+    "id": "plain",
+    "paragraphs": [
+      "She walked home. He stayed."
+    ],
+    "expected_sentences": [
+      [
+        "She walked home.",
+        "He stayed."
+      ]
+    ],
+    "expected_quotes": [],
+    "expected_readings": [
+      {
+        "surface": "walked",
+        "lemma": "walk",
+        "pos": "VBD"
+      },
+      {
+        "surface": "stayed",
+        "lemma": "stay",
+        "pos": "VBD"
+      }
+    ]
+  },
+  {
+    "id": "abbreviation",
+    "paragraphs": [
+      "Dr. Vale waited. Then she left."
+    ],
+    "expected_sentences": [
+      [
+        "Dr. Vale waited.",
+        "Then she left."
+      ]
+    ],
+    "expected_quotes": [],
+    "expected_readings": [
+      {
+        "surface": "waited",
+        "lemma": "wait",
+        "pos": "VBD"
+      }
+    ]
+  },
+  {
+    "id": "fragment",
+    "paragraphs": [
+      "A locked door",
+      "She waited."
+    ],
+    "expected_sentences": [
+      [
+        "A locked door"
+      ],
+      [
+        "She waited."
+      ]
+    ],
+    "expected_quotes": [],
+    "expected_readings": []
+  },
+  {
+    "id": "curly",
+    "paragraphs": [
+      "“Wait!” she said. He stopped."
+    ],
+    "expected_sentences": [
+      [
+        "“Wait!” she said.",
+        "He stopped."
+      ]
+    ],
+    "expected_quotes": [
+      "“Wait!”"
+    ],
+    "expected_readings": [
+      {
+        "surface": "said",
+        "lemma": "say",
+        "pos": "VBD"
+      }
+    ]
+  },
+  {
+    "id": "nested",
+    "paragraphs": [
+      "“She said, ‘Come home.’” He nodded."
+    ],
+    "expected_sentences": [
+      [
+        "“She said, ‘Come home.’”",
+        "He nodded."
+      ]
+    ],
+    "expected_quotes": [
+      "“She said, ‘Come home.’”"
+    ],
+    "expected_readings": [
+      {
+        "surface": "nodded",
+        "lemma": "nod",
+        "pos": "VBD"
+      }
+    ]
+  },
+  {
+    "id": "straight",
+    "paragraphs": [
+      "\"Wait,\" she said. \"Why?\""
+    ],
+    "expected_sentences": [
+      [
+        "\"Wait,\" she said.",
+        "\"Why?\""
+      ]
+    ],
+    "expected_quotes": [
+      "\"Wait,\"",
+      "\"Why?\""
+    ],
+    "expected_readings": []
+  },
+  {
+    "id": "single",
+    "paragraphs": [
+      "'Wait,' she said. 'Why?'"
+    ],
+    "expected_sentences": [
+      [
+        "'Wait,' she said.",
+        "'Why?'"
+      ]
+    ],
+    "expected_quotes": [
+      "'Wait,'",
+      "'Why?'"
+    ],
+    "expected_readings": []
+  },
+  {
+    "id": "mixed-styles",
+    "paragraphs": [
+      "“Come home.” Then: \"Stay here.\""
+    ],
+    "expected_sentences": [
+      [
+        "“Come home.”",
+        "Then: \"Stay here.\""
+      ]
+    ],
+    "expected_quotes": [
+      "“Come home.”",
+      "\"Stay here.\""
+    ],
+    "expected_readings": []
+  },
+  {
+    "id": "continuation",
+    "paragraphs": [
+      "“First paragraph.",
+      "“Second paragraph.” She left."
+    ],
+    "expected_sentences": [
+      [
+        "“First paragraph."
+      ],
+      [
+        "“Second paragraph.”",
+        "She left."
+      ]
+    ],
+    "expected_quotes": [
+      "“First paragraph.\n“Second paragraph.”"
+    ],
+    "expected_readings": []
+  },
+  {
+    "id": "unclosed",
+    "paragraphs": [
+      "She said, “Stay here…"
+    ],
+    "expected_sentences": [
+      [
+        "She said, “Stay here…"
+      ]
+    ],
+    "expected_quotes": [
+      "“Stay here…"
+    ],
+    "expected_readings": []
+  },
+  {
+    "id": "possessives",
+    "paragraphs": [
+      "The dogs’ bowls and cats' beds were empty. It's five o'clock."
+    ],
+    "expected_sentences": [
+      [
+        "The dogs’ bowls and cats' beds were empty.",
+        "It's five o'clock."
+      ]
+    ],
+    "expected_quotes": [],
+    "expected_readings": []
+  },
+  {
+    "id": "g-drop",
+    "paragraphs": [
+      "I'm goin' home. She's waitin’."
+    ],
+    "expected_sentences": [
+      [
+        "I'm goin' home.",
+        "She's waitin’."
+      ]
+    ],
+    "expected_quotes": [],
+    "expected_readings": [
+      {
+        "surface": "goin'",
+        "lemma": "go",
+        "pos": "VBG"
+      },
+      {
+        "surface": "waitin’",
+        "lemma": "wait",
+        "pos": "VBG"
+      }
+    ]
+  },
+  {
+    "id": "unicode",
+    "paragraphs": [
+      "😀 “She’s waiting—again…” He left."
+    ],
+    "expected_sentences": [
+      [
+        "😀 “She’s waiting—again…”",
+        "He left."
+      ]
+    ],
+    "expected_quotes": [
+      "“She’s waiting—again…”"
+    ],
+    "expected_readings": [
+      {
+        "surface": "waiting",
+        "lemma": "wait",
+        "pos": "VBG"
+      }
+    ]
+  },
+  {
+    "id": "combining",
+    "paragraphs": [
+      "Zoë saw é on the wall. She frowned."
+    ],
+    "expected_sentences": [
+      [
+        "Zoë saw é on the wall.",
+        "She frowned."
+      ]
+    ],
+    "expected_quotes": [],
+    "expected_readings": [
+      {
+        "surface": "saw",
+        "lemma": "see",
+        "pos": "VBD"
+      }
+    ]
+  },
+  {
+    "id": "empty",
+    "paragraphs": [
+      "",
+      "  ",
+      "He stayed."
+    ],
+    "expected_sentences": [
+      [],
+      [],
+      [
+        "He stayed."
+      ]
+    ],
+    "expected_quotes": [],
+    "expected_readings": []
+  },
+  {
+    "id": "multiword",
+    "paragraphs": [
+      "I met O'BRIEN today."
+    ],
+    "expected_sentences": [
+      [
+        "I met O'BRIEN today."
+      ]
+    ],
+    "expected_quotes": [],
+    "expected_readings": []
+  }
+]

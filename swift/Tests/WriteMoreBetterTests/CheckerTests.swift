@@ -58,6 +58,81 @@ final class CheckerTests: XCTestCase {
         )
     }
 
+    func testAnalysisPreservesSurfacesWithUTF16Offsets() throws {
+        let checker = try checker()
+        let text = "😀 “She’s goin’—again…”\u{2028}\n\nHe stayed."
+        let sentences = checker.analyze(text: text)
+        XCTAssertFalse(sentences.isEmpty)
+        for sentence in sentences {
+            let range = NSRange(location: Int(sentence.start), length: Int(sentence.end - sentence.start))
+            XCTAssertEqual((text as NSString).substring(with: range), sentence.text)
+            XCTAssertEqual(sentence.tokens.map(\.text).joined(), sentence.text)
+            var cursor = sentence.start
+            for token in sentence.tokens {
+                XCTAssertEqual(token.start, cursor)
+                XCTAssertGreaterThan(token.end, token.start)
+                let range = NSRange(location: Int(token.start), length: Int(token.end - token.start))
+                XCTAssertEqual((text as NSString).substring(with: range), token.text)
+                cursor = token.end
+            }
+            XCTAssertEqual(cursor, sentence.end)
+        }
+        let tokens = sentences.flatMap(\.tokens)
+        XCTAssertTrue(tokens.contains { $0.isWhitespace })
+        XCTAssertTrue(tokens.first { $0.text == "—" }!.isPunctuation)
+        let dropped = try XCTUnwrap(tokens.first { $0.text == "goin’" })
+        XCTAssertEqual(dropped.readings.map(\.lemma), ["go"])
+        XCTAssertEqual(dropped.readings.map(\.pos), ["VBG"])
+        XCTAssertTrue(checker.analyze(text: " \n\u{2028}").isEmpty)
+        XCTAssertFalse(checker.check(text: "The the dog barked.").isEmpty)
+        XCTAssertEqual(checker.analyze(text: text), sentences)
+    }
+
+    func testWholeDocumentAnalysis() throws {
+        let paragraphs = ["😀 Heading", "", "“I’m goin’ home.", "“I walked—twice…” Narration."]
+        let document = try checker().analyzeDocument(paragraphs: paragraphs)
+        XCTAssertEqual(document.text, paragraphs.joined(separator: "\n"))
+        XCTAssertEqual(document.paragraphs.count, paragraphs.count)
+        for (index, paragraph) in document.paragraphs.enumerated() {
+            let range = NSRange(location: Int(paragraph.start), length: Int(paragraph.end - paragraph.start))
+            XCTAssertEqual((document.text as NSString).substring(with: range), paragraphs[index])
+            for sentence in paragraph.sentences {
+                for token in sentence.tokens {
+                    let range = NSRange(location: Int(token.start), length: Int(token.end - token.start))
+                    XCTAssertEqual((document.text as NSString).substring(with: range), token.text)
+                }
+            }
+        }
+        let quoted = document.dialogueSpans.map { span in
+            (document.text as NSString).substring(with: NSRange(location: Int(span.start), length: Int(span.end - span.start)))
+        }
+        XCTAssertEqual(quoted, ["“I’m goin’ home.\n“I walked—twice…”"])
+        let position = try XCTUnwrap(document.lemmaIndex["walk"]?.first)
+        XCTAssertEqual(document.paragraphs[Int(position.paragraph)].sentences[Int(position.sentence)].tokens[Int(position.token)].text, "walked")
+        XCTAssertTrue(try checker().analyzeDocument(paragraphs: []).text.isEmpty)
+    }
+
+    func testSentenceReportsAndOptions() throws {
+        let paragraphs = ["😀 She waited.", "“He stayed.”"]
+        let options = #"{"minimum_sentences":1,"start_baseline":{"narration":{"subject":0.5},"dialogue":{"subject":0.25}}}"#
+        let json = try checker().sentenceReports(paragraphs: paragraphs, optionsJson: options)
+        let report = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any])
+        let starts = try XCTUnwrap(report["starts"] as? [String: Any])
+        let narration = try XCTUnwrap(starts["narration"] as? [String: Any])
+        let categories = try XCTUnwrap(narration["categories"] as? [String: Any])
+        let subject = try XCTUnwrap(categories["subject"] as? [String: Any])
+        let distribution = try XCTUnwrap(subject["distribution"] as? [String: Any])
+        XCTAssertEqual(distribution["difference"] as? Double, 0.5)
+        let sentences = try XCTUnwrap(report["sentences"] as? [[String: Any]])
+        let span = try XCTUnwrap(sentences[1]["span"] as? [String: Any])
+        let utf16 = try XCTUnwrap(span["utf16"] as? [String: Int])
+        let start = try XCTUnwrap(utf16["start"])
+        let end = try XCTUnwrap(utf16["end"])
+        XCTAssertEqual((paragraphs.joined(separator: "\n") as NSString).substring(with: NSRange(location: start, length: end - start)), "“He stayed.”")
+        XCTAssertThrowsError(try checker().sentenceReports(paragraphs: paragraphs, optionsJson: #"{"long_sentence_words":0}"#))
+        XCTAssertThrowsError(try checker().sentenceReports(paragraphs: paragraphs, optionsJson: #"{"typo":true}"#))
+    }
+
     func testOffsetsAreUTF16CodeUnits() throws {
         let prefix = "😀 “I’m fine” — e\u{301}\u{2028}"
         let text = prefix + "She was not been here since Monday."

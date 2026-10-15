@@ -69,6 +69,24 @@ memory, and the module does not need the JS copies afterwards. **Do not keep `to
 process RSS when retained, and the wasm heap cannot give back the memory it used to read them
 (see `memory.mjs` and REPORT.md).
 
+## Tokenizer analysis
+
+`JSON.parse(checker.analyze(text))` returns sentences and tokens with original text, paired
+lemma/POS readings, chunk tags, and `is_whitespace` / `is_punctuation` flags. Sentence and token
+`start` / `end` count UTF-16 code units; use `text.slice(start, end)` to recover the surface.
+This differs from `check()`'s existing Unicode scalar offsets. Analysis reuses the loaded
+tokenizer without running grammar or spelling checks. See [the analysis contract](../docs/ANALYSIS.md).
+
+`JSON.parse(checker.analyzeDocument(paragraphs))` adds paragraph boundaries, quoted-dialogue
+spans and a lemma index. All offsets index the returned `text` (paragraphs joined with one LF).
+See [the document contract](../style/README.md).
+
+`JSON.parse(checker.sentenceReports(paragraphs, undefined))` returns sentence-length and
+sentence-start reports. Pass an optional JSON string to configure thresholds and independent
+narration/dialogue baselines. Report ranges retain all three offset conventions: use
+`text.slice(span.utf16.start, span.utf16.end)` on the LF-joined input paragraphs.
+See [sentence-report options and conventions](../style/README.md#sentence-reports-244).
+
 ## Prerequisites
 
 ```sh

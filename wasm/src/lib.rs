@@ -6,7 +6,7 @@
 //!
 //! The engine is built with the pure-Rust `regex-fancy` backend so it runs on `wasm32-unknown-unknown`.
 
-use std::io::Cursor;
+use std::{collections::BTreeMap, io::Cursor};
 
 use nlprule::{Rules, Tokenizer};
 use serde::Serialize;
@@ -22,6 +22,69 @@ struct Item {
     source: String,
     message: String,
     replacements: Vec<String>,
+}
+
+#[derive(Serialize)]
+struct AnalysisSentence {
+    text: String,
+    start: usize,
+    end: usize,
+    tokens: Vec<AnalysisToken>,
+}
+
+#[derive(Serialize)]
+struct AnalysisToken {
+    text: String,
+    start: usize,
+    end: usize,
+    readings: Vec<nlprule::analysis::AnalysisReading>,
+    chunks: Vec<String>,
+    is_whitespace: bool,
+    is_punctuation: bool,
+}
+
+impl From<nlprule::analysis::AnalysisSentence> for AnalysisSentence {
+    fn from(sentence: nlprule::analysis::AnalysisSentence) -> Self {
+        Self {
+            text: sentence.text,
+            start: sentence.span.utf16.start,
+            end: sentence.span.utf16.end,
+            tokens: sentence
+                .tokens
+                .into_iter()
+                .map(|token| AnalysisToken {
+                    text: token.text,
+                    start: token.span.utf16.start,
+                    end: token.span.utf16.end,
+                    readings: token.readings,
+                    chunks: token.chunks,
+                    is_whitespace: token.is_whitespace,
+                    is_punctuation: token.is_punctuation,
+                })
+                .collect(),
+        }
+    }
+}
+
+#[derive(Serialize)]
+struct AnalysisSpan {
+    start: usize,
+    end: usize,
+}
+
+#[derive(Serialize)]
+struct AnalysisParagraph {
+    start: usize,
+    end: usize,
+    sentences: Vec<AnalysisSentence>,
+}
+
+#[derive(Serialize)]
+struct DocumentAnalysis {
+    text: String,
+    paragraphs: Vec<AnalysisParagraph>,
+    dialogue_spans: Vec<AnalysisSpan>,
+    lemma_index: BTreeMap<String, Vec<writemorebetter_style::TokenPosition>>,
 }
 
 /// A grammar and spelling checker over a pre-loaded tokenizer and rule set.
@@ -98,6 +161,76 @@ impl Checker {
 
         serde_json::to_string(&items)
             .map_err(|err| JsValue::from_str(&format!("failed to serialize suggestions: {err}")))
+    }
+
+    /// Returns JSON sentences and tagged tokens, including whitespace, from one analysis pass.
+    /// Surface text is preserved. `start` and exclusive `end` count UTF-16 code units in
+    /// the original input, suitable for `text.slice(start, end)`.
+    pub fn analyze(&self, text: &str) -> Result<String, JsValue> {
+        let sentences: Vec<_> = self
+            .tokenizer
+            .analyze(text)
+            .into_iter()
+            .map(AnalysisSentence::from)
+            .collect();
+        serde_json::to_string(&sentences)
+            .map_err(|err| JsValue::from_str(&format!("failed to serialize analysis: {err}")))
+    }
+
+    /// Returns a whole-document snapshot as JSON, from paragraphs joined with one LF.
+    /// All sentence, token, paragraph and dialogue offsets are UTF-16 into `text`.
+    #[wasm_bindgen(js_name = analyzeDocument)]
+    pub fn analyze_document(&self, paragraphs: Vec<String>) -> Result<String, JsValue> {
+        let paragraphs: Vec<_> = paragraphs.iter().map(String::as_str).collect();
+        let document = writemorebetter_style::analyze_document(&self.tokenizer, &paragraphs);
+        let result = DocumentAnalysis {
+            text: document.text,
+            paragraphs: document
+                .paragraphs
+                .into_iter()
+                .map(|paragraph| AnalysisParagraph {
+                    start: paragraph.span.utf16.start,
+                    end: paragraph.span.utf16.end,
+                    sentences: paragraph
+                        .sentences
+                        .into_iter()
+                        .map(AnalysisSentence::from)
+                        .collect(),
+                })
+                .collect(),
+            dialogue_spans: document
+                .dialogue_spans
+                .into_iter()
+                .map(|span| AnalysisSpan {
+                    start: span.utf16.start,
+                    end: span.utf16.end,
+                })
+                .collect(),
+            lemma_index: document.lemma_index,
+        };
+        serde_json::to_string(&result)
+            .map_err(|err| JsValue::from_str(&format!("failed to serialize document: {err}")))
+    }
+
+    /// Returns JSON sentence-length and sentence-start reports over caller paragraphs.
+    /// Options are optional JSON. Use `span.utf16.start/end` with String.slice; all
+    /// ranges index the paragraphs joined with LF, without a terminal LF.
+    #[wasm_bindgen(js_name = sentenceReports)]
+    pub fn sentence_reports(
+        &self,
+        paragraphs: Vec<String>,
+        options_json: Option<String>,
+    ) -> Result<String, JsValue> {
+        use writemorebetter_style::reports::sentences::{report, Options};
+        let error = |message: String| JsValue::from_str(&format!("sentence report: {message}"));
+        let options: Options = match options_json.filter(|json| !json.is_empty()) {
+            Some(json) => serde_json::from_str(&json).map_err(|err| error(err.to_string()))?,
+            None => Options::default(),
+        };
+        let paragraphs: Vec<_> = paragraphs.iter().map(String::as_str).collect();
+        let document = writemorebetter_style::analyze_document(&self.tokenizer, &paragraphs);
+        let reports = report(&document, &options).map_err(|err| error(err.to_string()))?;
+        serde_json::to_string(&reports).map_err(|err| error(err.to_string()))
     }
 
     /// Adds words to the user dictionary and returns how many were new.

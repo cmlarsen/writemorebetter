@@ -115,6 +115,22 @@ SwiftPM caches evaluated manifests by manifest contents, not by the filesystem. 
 before `scripts/build-xcframework.sh` ran keeps the released-URL branch until `swift package purge-cache`
 (or a fresh clone) refreshes it.
 
+## Tokenizer analysis
+
+`checker.analyze(text: text)` returns owned sentences and tokens, with original text, paired
+lemma/POS readings, chunk tags, and `isWhitespace` / `isPunctuation` flags. Sentence and token
+`start` / `end` are absolute UTF-16 offsets, with exclusive ends, just like suggestions. It reuses
+the loaded tokenizer and does not run grammar or spelling rules. See [the analysis contract](../docs/ANALYSIS.md).
+
+`checker.analyzeDocument(paragraphs: paragraphs)` builds a document snapshot with paragraph
+boundaries, quoted-dialogue spans and a lemma index. All offsets index the returned document's
+`text` (the input paragraphs joined with one LF). See [the document contract](../style/README.md).
+
+`try checker.sentenceReports(paragraphs: paragraphs, optionsJson: nil)` returns JSON sentence-length
+and sentence-start reports. Optional JSON configures thresholds and narration/dialogue baselines.
+Report spans retain byte, scalar and UTF-16 ranges; use `span.utf16` for `NSRange`.
+See [sentence-report options and conventions](../style/README.md#sentence-reports-244).
+
 ## Tests
 
 `swift/Tests/WriteMoreBetterTests` loads the LT 6.6 binaries from `storage/66/` (the repository's

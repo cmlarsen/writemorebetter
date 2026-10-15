@@ -11,8 +11,10 @@ crate-type = ["cdylib", "lib"]
 
 [dependencies]
 nlprule = { path = "../nlprule" }
+writemorebetter-style = { path = "../style" }
 thiserror = "1"
 uniffi = "0.32.2"
+serde_json = "1"
 
 [features]
 # Builds the `uniffi-bindgen` bin that scripts/build-xcframework.sh uses to emit the
