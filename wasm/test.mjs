@@ -109,6 +109,41 @@ checker.setMotherTongue("de");
 checker.setMotherTongue(undefined);
 eq(falseFriends(actual), [], "undefined clears the selection");
 
+// Analysis uses UTF-16 offsets directly with String.slice, including after emoji.
+const prose = "😀 “She’s goin’—again…”\u2028\n\nHe stayed.";
+const analysis = JSON.parse(checker.analyze(prose));
+check(analysis.length > 0, "analysis has sentences");
+for (const sentence of analysis) {
+  eq(prose.slice(sentence.start, sentence.end), sentence.text, "sentence UTF-16 span");
+  eq(sentence.tokens.map((token) => token.text).join(""), sentence.text, "tokens partition sentence");
+  let cursor = sentence.start;
+  for (const token of sentence.tokens) {
+    eq(token.start, cursor, "tokens are contiguous");
+    check(token.end > token.start, "no synthetic empty tokens");
+    eq(prose.slice(token.start, token.end), token.text, "token UTF-16 span");
+    cursor = token.end;
+  }
+  eq(cursor, sentence.end, "tokens cover sentence");
+}
+const analyzedTokens = analysis.flatMap((sentence) => sentence.tokens);
+check(analyzedTokens.some((token) => token.is_whitespace), "whitespace is exposed");
+check(analyzedTokens.find((token) => token.text === "—").is_punctuation, "punctuation is exposed");
+eq(analyzedTokens.find((token) => token.text === "goin’").readings,
+  [{ lemma: "go", pos: "VBG" }], "original g-dropped surface, LT66 reading");
+eq(JSON.parse(checker.analyze(" \n\u2028")), [], "whitespace-only analysis");
+check(JSON.parse(checker.check("The the dog barked.")).length > 0, "check works after analysis");
+eq(JSON.parse(checker.analyze(prose)), analysis, "check does not mutate analysis");
+
+// check() keeps its existing Unicode scalar convention, independently of analyze().
+const checkProbe = "😀 She was not been here since Monday.";
+const grammarHit = JSON.parse(checker.check(checkProbe)).find((item) =>
+  item.replacements.includes("has not been"));
+check(Boolean(grammarHit), "check still finds the reference grammar error");
+if (grammarHit) {
+  eq([...checkProbe].slice(grammarHit.start, grammarHit.end).join(""), "was not been",
+    "check offsets remain Unicode scalar values");
+}
+
 if (failures > 0) {
   console.error(`\n${failures} assertion(s) failed`);
   process.exit(1);

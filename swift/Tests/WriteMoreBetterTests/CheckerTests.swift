@@ -58,6 +58,36 @@ final class CheckerTests: XCTestCase {
         )
     }
 
+    func testAnalysisPreservesSurfacesWithUTF16Offsets() throws {
+        let checker = try checker()
+        let text = "😀 “She’s goin’—again…”\u{2028}\n\nHe stayed."
+        let sentences = checker.analyze(text: text)
+        XCTAssertFalse(sentences.isEmpty)
+        for sentence in sentences {
+            let range = NSRange(location: Int(sentence.start), length: Int(sentence.end - sentence.start))
+            XCTAssertEqual((text as NSString).substring(with: range), sentence.text)
+            XCTAssertEqual(sentence.tokens.map(\.text).joined(), sentence.text)
+            var cursor = sentence.start
+            for token in sentence.tokens {
+                XCTAssertEqual(token.start, cursor)
+                XCTAssertGreaterThan(token.end, token.start)
+                let range = NSRange(location: Int(token.start), length: Int(token.end - token.start))
+                XCTAssertEqual((text as NSString).substring(with: range), token.text)
+                cursor = token.end
+            }
+            XCTAssertEqual(cursor, sentence.end)
+        }
+        let tokens = sentences.flatMap(\.tokens)
+        XCTAssertTrue(tokens.contains { $0.isWhitespace })
+        XCTAssertTrue(tokens.first { $0.text == "—" }!.isPunctuation)
+        let dropped = try XCTUnwrap(tokens.first { $0.text == "goin’" })
+        XCTAssertEqual(dropped.readings.map(\.lemma), ["go"])
+        XCTAssertEqual(dropped.readings.map(\.pos), ["VBG"])
+        XCTAssertTrue(checker.analyze(text: " \n\u{2028}").isEmpty)
+        XCTAssertFalse(checker.check(text: "The the dog barked.").isEmpty)
+        XCTAssertEqual(checker.analyze(text: text), sentences)
+    }
+
     func testOffsetsAreUTF16CodeUnits() throws {
         let prefix = "😀 “I’m fine” — e\u{301}\u{2028}"
         let text = prefix + "She was not been here since Monday."

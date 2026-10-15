@@ -58,6 +58,64 @@ pub struct Suggestion {
     pub replacements: Vec<String>,
 }
 
+/// A paired lemma and POS reading after disambiguation.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct AnalysisReading {
+    pub lemma: String,
+    pub pos: String,
+}
+
+/// An original-surface token, with absolute, exclusive-end UTF-16 offsets.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct AnalysisToken {
+    pub text: String,
+    pub start: u32,
+    pub end: u32,
+    pub readings: Vec<AnalysisReading>,
+    pub chunks: Vec<String>,
+    pub is_whitespace: bool,
+    pub is_punctuation: bool,
+}
+
+/// An owned sentence, including whitespace, with absolute UTF-16 offsets.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct AnalysisSentence {
+    pub text: String,
+    pub start: u32,
+    pub end: u32,
+    pub tokens: Vec<AnalysisToken>,
+}
+
+impl From<nlprule::analysis::AnalysisSentence> for AnalysisSentence {
+    fn from(sentence: nlprule::analysis::AnalysisSentence) -> Self {
+        Self {
+            text: sentence.text,
+            start: sentence.span.utf16.start as u32,
+            end: sentence.span.utf16.end as u32,
+            tokens: sentence
+                .tokens
+                .into_iter()
+                .map(|token| AnalysisToken {
+                    text: token.text,
+                    start: token.span.utf16.start as u32,
+                    end: token.span.utf16.end as u32,
+                    readings: token
+                        .readings
+                        .into_iter()
+                        .map(|reading| AnalysisReading {
+                            lemma: reading.lemma,
+                            pos: reading.pos,
+                        })
+                        .collect(),
+                    chunks: token.chunks,
+                    is_whitespace: token.is_whitespace,
+                    is_punctuation: token.is_punctuation,
+                })
+                .collect(),
+        }
+    }
+}
+
 /// A grammar and spelling checker over a pre-loaded tokenizer and rule set.
 ///
 /// The checker is thread-safe (`Send + Sync`), but loading it deserializes two multi-megabyte
@@ -168,6 +226,17 @@ impl Checker {
                     replacements: suggestion.replacements().to_vec(),
                 }
             })
+            .collect()
+    }
+
+    /// Analyzes text with the loaded tokenizer, without grammar or spelling checks.
+    /// Tokens preserve original surface text and include whitespace. Offsets count UTF-16
+    /// code units into the input, as in [`Suggestion`]. No rules lock is needed.
+    pub fn analyze(&self, text: String) -> Vec<AnalysisSentence> {
+        self.tokenizer
+            .analyze(&text)
+            .into_iter()
+            .map(AnalysisSentence::from)
             .collect()
     }
 

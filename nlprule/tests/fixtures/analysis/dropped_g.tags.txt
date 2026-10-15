@@ -1,0 +1,1 @@
+<S> I[I/PRP,I/PRP_S1S,B-NP-singular|E-NP-singular]'m[be/VBP,B-VP] goin'[go/VBG,I-VP] home[home/JJ,home/NN:UN,home/RB,home/VB,home/VBP,B-NP-singular|E-NP-singular].[./.,</S>./PCT,O]
