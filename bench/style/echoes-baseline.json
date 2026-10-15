@@ -1,0 +1,7 @@
+{
+  "source": "bench/style/echoes.py on pinned Standard Ebooks Pride and Prejudice and Moby-Dick passages; English 6.6 tokenizer; measured 2026-10-15",
+  "floors": {
+    "echo": {"precision": 1.0, "recall": 1.0, "true_positive": 51},
+    "repeated_phrase": {"precision": 1.0, "recall": 1.0, "true_positive": 80}
+  }
+}

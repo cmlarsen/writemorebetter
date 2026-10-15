@@ -341,3 +341,47 @@ included test-split diagnostics. The #261 dev measurement was unchanged (411 / 4
 (85.2516 / 92.1072 / 88.5469%) to the current floors after the elision/nesting review fixes.
 Full before/after results and revised floors are documented in
 [STYLE-DOCUMENT-BENCHMARKS.md](../../docs/STYLE-DOCUMENT-BENCHMARKS.md).
+
+## Echoes and repeated phrases (#245)
+
+```sh
+cargo build --release --manifest-path bench/tools/wmb-document/Cargo.toml
+python3 bench/style/echoes.py --gate --probe bench/tools/wmb-document/target/release/wmb-echoes
+```
+
+The report's probe is `wmb-echoes`, a second binary of `bench/tools/wmb-document`. It reads JSONL
+`{"file", "text"}` lines and writes one record per echo (`report: "echoes"`, `pattern: "echo"`, two
+spans) and per repeated phrase (`report: "repeated_phrases"`, `pattern: "repeated_phrase"`, every
+occurrence span), in the grouped-span format above. `--benchmark` times the document pass and both
+reports.
+
+`echoes.py` takes 40 passages from each pinned Standard Ebooks book: paragraphs of at least 110
+words, after the first 2,500 chapter words, with at least four sentence boundaries (`Mr.` and similar
+abbreviations excluded). Each clean passage gets two injected copies, written to the ignored
+`out/echoes/`:
+
+- **echo:** two inserted sentences carry one word each, in different forms (`It was the lantern.` …
+  `There were lanterns.`, or `He knelt.` … `They were kneeling.`), in plain, curly-quote/em-dash and
+  ellipsis variants. One passage in three places them at least 70 words apart as a **far control**
+  with no gold record; the rest place them 12–35 words apart.
+- **phrase:** the same four- or five-word phrase is inserted twice as its own sentence, varied by
+  plural noun, an inserted comma, or curly quotes (`The miller’s silver thimble.` … `“The miller’s
+  silver thimble!”`).
+
+The inserted words are absent from the passage (checked by stem), and their other words are function
+words, so nothing inserted can echo or repeat natural text. **Precision is scored only on flags that
+appear in the injected copy and not in its clean passage.** Clean flags are shifted by the inserted
+lengths and matched by exact span set; the remaining injected flags go to the tier 2 scorer with
+`--report echoes` or `--report repeated_phrases`. Natural flags in the clean passages and clean flags
+lost after injection (an insertion can push a natural pair beyond the window) are printed as
+diagnostics, not scored.
+
+Result (English 6.6 tokenizer, 2026-10-15): 239 documents. Echoes: 51/51 injected pairs, 51
+predicted new flags, precision/recall/F1 1.0; 0 flags on 28 far controls; 488 natural echoes in the
+clean passages; 12 lost after injection. Repeated phrases: 80/80, 80 predicted new flags, 1.0; 222
+natural repeats in the clean passages; 0 lost. `echoes-baseline.json` sets these as floors, and the
+gate also fails on any far-control flag. The first run scored repeated phrases at 0.714 precision /
+0.8125 recall. Two causes: the suite split sentences after `Mr.`, and per-token keys split
+participial adjectives (`crooked` → `crook` in one context, `crooked` in another). The fixes were
+abbreviation-aware boundaries and per-spelling keys
+([STYLE-ECHOES.md](../../docs/STYLE-ECHOES.md#keys-and-ambiguous-tokens)).
