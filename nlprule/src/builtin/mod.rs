@@ -11,6 +11,16 @@ use serde::{Deserialize, Serialize};
 
 pub mod en;
 
+/// Whether a suggestion from `source` is dropped when it overlaps another
+/// suggestion. LanguageTool tags `TOO_LONG_SENTENCE` and `TOO_LONG_PARAGRAPH`
+/// as picky, which gives them the lowest priority when matches overlap.
+pub(crate) fn yields_to_overlaps(source: &str) -> bool {
+    matches!(
+        source,
+        "BUILTIN/TOO_LONG_SENTENCE" | "BUILTIN/TOO_LONG_PARAGRAPH"
+    )
+}
+
 /// A rule whose logic is implemented in Rust rather than parsed from rule XML.
 ///
 /// One variant is added per builtin rule; the variant carries the rule's
@@ -44,6 +54,12 @@ pub enum Builtin {
     SentenceWhitespace(en::SentenceWhitespace),
     /// Flags more than one empty line between paragraphs.
     EmptyLine(en::EmptyLine),
+    /// Flags a sentence with more than a maximum number of words.
+    LongSentence(en::LongSentence),
+    /// Flags a paragraph with more than a maximum number of words.
+    LongParagraph(en::LongParagraph),
+    /// Flags successive sentences that begin with the same word.
+    WordRepeatBeginning(en::WordRepeatBeginning),
     /// Flags a word that was already used in a preceding sentence and suggests synonyms.
     RepeatedWords(en::RepeatedWords),
     /// Flags an adjective, noun or verb that makes up too large a share of its kind in a text.
@@ -68,6 +84,9 @@ impl Builtin {
             Builtin::MultipleWhitespace(rule) => rule.id(),
             Builtin::SentenceWhitespace(rule) => rule.id(),
             Builtin::EmptyLine(rule) => rule.id(),
+            Builtin::LongSentence(rule) => rule.id(),
+            Builtin::LongParagraph(rule) => rule.id(),
+            Builtin::WordRepeatBeginning(rule) => rule.id(),
             Builtin::RepeatedWords(rule) => rule.id(),
             Builtin::TooOftenUsed(rule) => rule.id(),
         }
@@ -80,20 +99,9 @@ impl Builtin {
 
     /// Runs this rule on consecutive sentences of one paragraph. Rules that need context beyond one sentence
     /// (e.g. quotes spanning sentences) see all of them; sentence-level rules check each one separately.
+    /// The rules that count words across a text (`EN_REPEATEDWORDS`, `TOO_OFTEN_USED_*`) take
+    /// `sentences` as the whole text.
     pub fn check_text(&self, sentences: &[Sentence]) -> Vec<Suggestion> {
-        self.check_text_with_previous(sentences, None)
-    }
-
-    /// Like [`Builtin::check_text`], but for a paragraph that follows `previous`,
-    /// the last sentence of the preceding paragraph. Only rules that are
-    /// text-level in LanguageTool (and therefore look across paragraphs) use it.
-    /// The rules that count words across a text (`EN_REPEATEDWORDS`,
-    /// `TOO_OFTEN_USED_*`) take `sentences` as the whole text.
-    pub fn check_text_with_previous(
-        &self,
-        sentences: &[Sentence],
-        previous: Option<&Sentence>,
-    ) -> Vec<Suggestion> {
         match self {
             Builtin::RepeatedWords(_) | Builtin::TooOftenUsed(_) => {
                 let mut state = RuleState::default();
@@ -107,19 +115,24 @@ impl Builtin {
                 suggestions.extend(self.finish_text(&state));
                 suggestions
             }
-            _ => self.check_paragraph(sentences, previous, true),
+            _ => self.check_paragraph(sentences, &[], true),
         }
     }
 
-    /// Like [`Builtin::check_text_with_previous`], for a paragraph that is
-    /// followed by more text unless `ends_text` is set. Only rules that look at
-    /// the end of the text (`EMPTY_LINE`) use `ends_text`. The rules that count
-    /// words across a text return nothing here: [`Rules::suggest`](crate::Rules::suggest)
-    /// runs them on the whole text.
+    /// Like [`Builtin::check_text`], for a paragraph that follows `previous`,
+    /// the sentences before it, oldest first, and that is followed by more
+    /// text unless `ends_text` is set. Only rules that are text-level in
+    /// LanguageTool look at `previous`: `ENGLISH_WORD_REPEAT_BEGINNING_RULE`
+    /// uses the last two sentences, the others at most the last one. Only
+    /// rules that look at the end of the text (`EMPTY_LINE`,
+    /// `TOO_LONG_PARAGRAPH`, `ENGLISH_WORD_REPEAT_BEGINNING_RULE`) use
+    /// `ends_text`. The rules that count words across a text return nothing
+    /// here: [`Rules::suggest`](crate::Rules::suggest) runs them on the whole
+    /// text.
     pub fn check_paragraph(
         &self,
         sentences: &[Sentence],
-        previous: Option<&Sentence>,
+        previous: &[Sentence],
         ends_text: bool,
     ) -> Vec<Suggestion> {
         match self {
@@ -128,15 +141,28 @@ impl Builtin {
             Builtin::WordRepeat(rule) => sentences.iter().flat_map(|x| rule.check(x)).collect(),
             Builtin::SimpleReplace(rule) => sentences.iter().flat_map(|x| rule.check(x)).collect(),
             Builtin::WrongWordInContext(rule) => rule.check_sentences(sentences),
-            Builtin::UppercaseSentenceStart(rule) => rule.check_with_previous(sentences, previous),
+            Builtin::UppercaseSentenceStart(rule) => {
+                rule.check_with_previous(sentences, previous.last())
+            }
             Builtin::UnpairedBrackets(rule) => rule.check(sentences),
             Builtin::UnpairedQuotes(rule) => rule.check(sentences),
             Builtin::WordCoherency(rule) => rule.check_text(sentences),
+            Builtin::LongSentence(rule) => sentences.iter().flat_map(|x| rule.check(x)).collect(),
+            Builtin::LongParagraph(rule) => {
+                rule.check_with_previous(sentences, previous, ends_text)
+            }
+            Builtin::WordRepeatBeginning(rule) => {
+                rule.check_with_previous(sentences, previous, ends_text)
+            }
             Builtin::DoublePunctuation(rule) => {
                 sentences.iter().flat_map(|x| rule.check(x)).collect()
             }
-            Builtin::MultipleWhitespace(rule) => rule.check_with_previous(sentences, previous),
-            Builtin::SentenceWhitespace(rule) => rule.check_with_previous(sentences, previous),
+            Builtin::MultipleWhitespace(rule) => {
+                rule.check_with_previous(sentences, previous.last())
+            }
+            Builtin::SentenceWhitespace(rule) => {
+                rule.check_with_previous(sentences, previous.last())
+            }
             Builtin::EmptyLine(rule) => rule.check_text(sentences, ends_text),
             Builtin::RepeatedWords(_) | Builtin::TooOftenUsed(_) => Vec::new(),
         }

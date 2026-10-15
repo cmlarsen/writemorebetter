@@ -786,12 +786,17 @@ impl Rule {
         sentence: &'t MatchSentence<'t>,
         articles: Option<&'a ArticleData>,
         speller: Option<&'a Speller<'a>>,
+        default_speller: Option<&'a Speller<'a>>,
     ) -> Suggestions<'a, 't> {
         self.apply_with_context(
             pool,
             sentence,
             articles,
-            filter::FilterContext { now: None, speller },
+            filter::FilterContext {
+                now: None,
+                speller,
+                default_speller,
+            },
         )
     }
 
@@ -818,8 +823,9 @@ impl Rule {
     /// Grammar rules always have at least one example associated with them.
     /// This method checks whether the correct action is taken in the examples.
     ///
-    /// `articles` are the rule set's shared article word lists and `speller` its
-    /// speller ([`Spell::speller`][crate::spell::Spell::speller]); use
+    /// `articles` are the rule set's shared article word lists, `speller` its
+    /// speller ([`Spell::speller`][crate::spell::Spell::speller]) and
+    /// `default_speller` its default variant's; use
     /// [`Rules::test_rule`][crate::Rules::test_rule] to supply them.
     pub(crate) fn test(
         &self,
@@ -827,6 +833,7 @@ impl Rule {
         pool: &PartPool,
         articles: Option<&ArticleData>,
         speller: Option<&Speller>,
+        default_speller: Option<&Speller>,
     ) -> bool {
         let mut passes = Vec::new();
 
@@ -858,6 +865,7 @@ impl Rule {
                         filter::FilterContext {
                             now: Some(filter::test_date()),
                             speller,
+                            default_speller,
                         },
                     )
                     .map(|s| s.lshift(shift_delta))

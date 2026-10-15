@@ -61,10 +61,14 @@ impl Disambiguation {
                     for token in group.into_iter() {
                         match data_or_filter {
                             either::Left(data) => {
+                                let any_pos = data.pos.as_ref().is_empty();
+                                let any_lemma = data.lemma.as_ref().is_empty();
+
                                 token.word_mut().retain(|x| {
-                                    !(*x.pos() == data.pos.as_ref_id()
-                                        && (data.lemma.as_ref().is_empty()
-                                            || *x.lemma() == data.lemma.as_ref_id()))
+                                    let matches = (any_pos || *x.pos() == data.pos.as_ref_id())
+                                        && (any_lemma || *x.lemma() == data.lemma.as_ref_id());
+
+                                    any_pos && any_lemma || !matches
                                 });
                             }
                             either::Right(filter) => {
@@ -85,11 +89,21 @@ impl Disambiguation {
                                         |x| x.lemma().clone(),
                                     );
 
-                                    token
-                                        .word_mut()
-                                        .retain(|x| *x.pos() == limit.pos.as_ref_id());
+                                    let kept = token
+                                        .word()
+                                        .tags()
+                                        .iter()
+                                        .rposition(|x| *x.pos() == limit.pos.as_ref_id());
 
-                                    if token.word().tags().is_empty() {
+                                    if let Some(kept) = kept {
+                                        let mut index = 0;
+                                        token.word_mut().retain(|_| {
+                                            index += 1;
+                                            index - 1 == kept
+                                        });
+                                    } else {
+                                        token.word_mut().clear();
+
                                         if *retain_last {
                                             token
                                                 .word_mut()

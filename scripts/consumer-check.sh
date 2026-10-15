@@ -9,7 +9,9 @@
 #      is the only way to catch a manifest that reads a sibling file,
 #   2. this run's url and checksum staged into that checkout,
 #   3. a tiny consumer package that depends on that repository, imports WriteMoreBetter,
-#      loads the English data and calls check.
+#      loads the English data and calls check. It also links a second Rust static library
+#      (std plus regex-automata, packaged the way other UniFFI XCFrameworks are), so a
+#      framework that leaks Rust symbols or a top-level module.modulemap fails to build.
 #
 # SwiftPM accepts only `https` for a binary target URL (file:// and http are rejected at
 # manifest load), so the zip is served over a throwaway local HTTPS server. That means the
@@ -94,6 +96,26 @@ echo "artifact: $(basename "$zip_path")"
 echo "checksum: $checksum"
 echo "sha256:   $(shasum -a 256 "$zip_path" | awk '{print $1}')"
 
+unzipped="$work_dir/unzipped"
+mkdir -p "$unzipped"
+unzip -q "$zip_path" -d "$unzipped"
+slices=0
+for slice in "$unzipped"/WriteMoreBetterFFI.xcframework/*/; do
+    binary="${slice}WriteMoreBetterFFI.framework/WriteMoreBetterFFI"
+    if [ ! -f "$binary" ]; then
+        echo "error: $(basename "$slice") is not a dynamic WriteMoreBetterFFI.framework" >&2
+        exit 1
+    fi
+    exported=$(nm -gUj "$binary")
+    leaked=$(printf '%s\n' "$exported" | grep -cE '^__(R|ZN)' || true)
+    if [ "$leaked" -ne 0 ]; then
+        echo "error: $(basename "$slice") exports $leaked Rust symbols" >&2
+        exit 1
+    fi
+    slices=$((slices + 1))
+done
+echo "slices:   $slices dynamic frameworks, no exported Rust symbols"
+
 # --- a checkout without dist/, served as a git dependency ---------------------
 # The consumer clone has to be a git repository so the dependency looks like the real
 # one; a sibling release.json would be readable on disk and hide the manifest-load bug.
@@ -172,28 +194,80 @@ for attempt in $(seq 1 30); do
     sleep 1
 done
 
+companion="$work_dir/companion"
+mkdir -p "$companion/src" "$companion/headers"
+cat > "$companion/Cargo.toml" <<'EOF'
+[package]
+name = "companion"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["staticlib"]
+
+[dependencies]
+regex-automata = "0.4"
+
+[workspace]
+EOF
+cat > "$companion/src/lib.rs" <<'EOF'
+use regex_automata::meta::Regex;
+
+#[no_mangle]
+pub extern "C" fn companion_count_words(text: *const u8, len: usize) -> u32 {
+    let bytes = unsafe { std::slice::from_raw_parts(text, len) };
+    let text = String::from_utf8_lossy(bytes);
+    let regex = Regex::new(r"\w+").unwrap();
+    regex.find_iter(text.as_bytes()).count() as u32
+}
+EOF
+cat > "$companion/headers/companion.h" <<'EOF'
+#include <stddef.h>
+#include <stdint.h>
+
+uint32_t companion_count_words(const uint8_t *text, size_t len);
+EOF
+cat > "$companion/headers/module.modulemap" <<'EOF'
+module CompanionFFI {
+    header "companion.h"
+    export *
+}
+EOF
+
+echo "==> building a companion Rust static library"
+MACOSX_DEPLOYMENT_TARGET=12.0 cargo build --release --manifest-path "$companion/Cargo.toml"
+xcodebuild -create-xcframework \
+    -library "$companion/target/release/libcompanion.a" -headers "$companion/headers" \
+    -output "$companion/CompanionFFI.xcframework" >/dev/null
+
 # --- a tiny consumer package -------------------------------------------------
 consumer="$work_dir/consumer"
 mkdir -p "$consumer/Sources/wmb-consumer"
+cp -R "$companion/CompanionFFI.xcframework" "$consumer/CompanionFFI.xcframework"
 cat > "$consumer/Package.swift" <<EOF
 // swift-tools-version:5.9
 import PackageDescription
 
 let package = Package(
     name: "wmb-consumer",
-    platforms: [.macOS(.v13)],
+    platforms: [.macOS(.v12)],
     dependencies: [.package(url: "file://$pkg", exact: "$version")],
     targets: [
         .executableTarget(
             name: "wmb-consumer",
             // The dependency's identity is its URL's last path component, not the name in
             // its manifest.
-            dependencies: [.product(name: "WriteMoreBetter", package: "writemorebetter")]
+            dependencies: [
+                .product(name: "WriteMoreBetter", package: "writemorebetter"),
+                "CompanionFFI",
+            ]
         ),
+        .binaryTarget(name: "CompanionFFI", path: "CompanionFFI.xcframework"),
     ]
 )
 EOF
 cat > "$consumer/Sources/wmb-consumer/main.swift" <<'SWIFT'
+import CompanionFFI
 import Foundation
 import WriteMoreBetter
 
@@ -212,7 +286,12 @@ guard let hit = suggestions.first(where: { $0.replacements.contains("has not bee
     )
     exit(1)
 }
-print("consumer check OK: \(hit.source) at \(hit.nsRange), \(suggestions.count) suggestions")
+let words = Array(text.utf8).withUnsafeBufferPointer { companion_count_words($0.baseAddress, $0.count) }
+guard words == 7 else {
+    FileHandle.standardError.write(Data("consumer check failed: the companion library counted \(words) words\n".utf8))
+    exit(1)
+}
+print("consumer check OK: \(hit.source) at \(hit.nsRange), \(suggestions.count) suggestions, companion counted \(words) words")
 SWIFT
 
 echo "==> resolving and building the consumer package"

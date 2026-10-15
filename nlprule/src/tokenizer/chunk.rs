@@ -1,6 +1,5 @@
 //! A Chunker ported from [OpenNLP](https://opennlp.apache.org/).
 
-use half::bf16;
 use serde::{Deserialize, Serialize};
 use std::hash::{Hash, Hasher};
 use std::ops::Range;
@@ -155,7 +154,7 @@ struct ModelFields {
     outcome_labels: Vec<String>,
     pmap: Vec<(u64, u8)>,
     outcomes: Vec<u8>,
-    parameters: Vec<bf16>,
+    parameters: Vec<f32>,
 }
 
 /// One entry of a [Pmap]. `offset` addresses the flat `outcomes`/`parameters` arrays and fits in
@@ -290,9 +289,11 @@ impl From<ModelFields> for Model {
         let ModelFields {
             outcome_labels,
             pmap,
-            outcomes,
-            parameters,
+            mut outcomes,
+            mut parameters,
         } = data;
+        outcomes.shrink_to_fit();
+        parameters.shrink_to_fit();
 
         Model {
             outcome_labels,
@@ -310,9 +311,7 @@ pub(crate) struct Model {
     /// Outcome indices into `outcome_labels`; the on-disk type is `u8` and the label count is
     /// asserted to fit it at load.
     pub(crate) outcomes: Vec<u8>,
-    /// Kept in the on-disk half-precision type and widened to `f32` at use. Widening is exact,
-    /// so this is bit-identical to converting at load.
-    pub(crate) parameters: Vec<bf16>,
+    pub(crate) parameters: Vec<f32>,
     pub(crate) pmap: Pmap,
 }
 
@@ -326,7 +325,7 @@ impl Model {
         let parameters = &self.parameters[start..end];
 
         for (idx, param) in outcomes.iter().zip(parameters.iter()) {
-            prior[*idx as usize] += param.to_f32();
+            prior[*idx as usize] += param;
         }
     }
 
@@ -1318,5 +1317,26 @@ mod tests {
             .remove(0);
 
         assert_eq!(best.outcomes(), ["B", "A"]);
+    }
+
+    #[test]
+    fn loaded_model_arrays_have_no_spare_capacity() {
+        use super::{Model, Pmap};
+
+        let entries = 1_200;
+        let length = 250;
+        let len = entries * length;
+        let model = Model {
+            outcome_labels: vec!["A".into()],
+            outcomes: vec![0; len],
+            parameters: (0..len).map(|i| i as f32 * 1e-3).collect(),
+            pmap: Pmap::from_pairs((0..entries).map(|i| (i as u64, (i * length, length)))),
+        };
+        let bytes = bincode::serialize(&model).unwrap();
+        let loaded: Model = bincode::deserialize(&bytes).unwrap();
+
+        assert_eq!(loaded.parameters, model.parameters);
+        assert_eq!(loaded.parameters.capacity(), len);
+        assert_eq!(loaded.outcomes.capacity(), len);
     }
 }
