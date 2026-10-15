@@ -8,6 +8,30 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
 # Unreleased
 
+### Fixed
+
+- **Names from LanguageTool's global spelling list are accepted by `Speller::is_correct` and
+  suggested.** Single-word entries of `spelling_global.txt` (`Josquin`, `fit4work`, `Nestlé`) are
+  now speller words for every variant, as in LanguageTool 6.6, so `Josquinn` suggests `Josquin`
+  and the speller-backed rule filters stop treating them as misspelled
+  ([#167](https://github.com/cmlarsen/writemorebetter/issues/167)). Recompile rules binaries to
+  pick up the words; the format is unchanged.
+- **Spelling suggestions ignore the case of accented and non-Latin letters.** The suggestion
+  search compares characters instead of UTF-8 bytes, so a capitalized or all-caps word matches
+  its dictionary entry whatever its letters (`ÉCLAIRR` → `ÉCLAIR`, `SØRENN` → `SØREN`, Greek and
+  Cyrillic names too), and an accented letter counts as one edit, not two
+  ([#144](https://github.com/cmlarsen/writemorebetter/issues/144)). Lowercase words are searched
+  case-insensitively too, as LanguageTool 6.6's English spellers compare letters, so a lowercased
+  name suggests the name first (`søren` → `Søren`, `zoë` → `Zoë`, `paris` → `Paris`).
+- **Speller-backed rule filters use the speller LanguageTool 6.6 uses.** `NUMBERS_IN_WORDS` asks
+  the default variant's (`en_US`) speller whatever variant is selected, so with `en_GB` it
+  suggests `color` for `c0lor` as LanguageTool does, and `FindSuggestionsFilter` (`PRP_MD_NN`,
+  `A_INFINITIVE`) searches the tagger dictionary instead of the speller
+  ([#135](https://github.com/cmlarsen/writemorebetter/issues/135)). While a variant other than the
+  default one is selected, the default variant's checker is kept loaded as well.
+
+# 0.8.0 (2026-10-14)
+
 ### Added
 
 - **Repetition style rules (`min_prev_matches` / `distance_tokens`).** Rules from LanguageTool
@@ -54,7 +78,10 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   (`EN_SPLIT_WORDS_HYPHEN` [0]–[3]) and `EnglishNumberInWordFilter` (`NUMBERS_IN_WORDS`) now
   compile and query the speller while a rule matches
   ([#71](https://github.com/cmlarsen/writemorebetter/issues/71)), so "Go0d morning" suggests
-  "Good" and "The break- up" suggests "break-up". The rules binary format version is now 22.
+  "Good" and "The break- up" suggests "break-up". `FindSuggestionsFilter` searches the speller's
+  word list where LanguageTool searches its tagger dictionary, so some candidates differ
+  ([#135](https://github.com/cmlarsen/writemorebetter/issues/135)). The rules binary format
+  version is now 22.
 
 - **Rule filters can query the speller while a rule matches.** `Spell::speller()` returns a
   read-only `Speller` for the selected variant with `is_correct(word)` and `suggest(word, n)`,
@@ -95,27 +122,27 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   ([#163](https://github.com/cmlarsen/writemorebetter/issues/163)). Rules binaries move to
   format version 24 (`PosReplacer::spell_number`); recompile them.
 
+### Changed
+
+- **The Swift package ships a dynamic framework and supports macOS 12.** `WriteMoreBetterFFI.xcframework`
+  now holds a `WriteMoreBetterFFI.framework` per slice instead of a static library, so an app can link it
+  next to another Rust/UniFFI XCFramework: only the UniFFI C functions are exported, so Rust's `std` and
+  shared crates no longer collide, and the module map sits inside the framework instead of a top-level
+  `Headers/module.modulemap` that Xcode copies to `include/`. `Package.swift` declares macOS 12 (was 13) and
+  every object, including the Oniguruma C code, targets macOS 12.0 and iOS 16.0. The generated Swift API is
+  unchanged. The release consumer check now links a second Rust static library and rejects a framework that
+  exports Rust symbols ([#239](https://github.com/cmlarsen/writemorebetter/issues/239)).
+
 ### Fixed
 
-- **Names from LanguageTool's global spelling list are accepted by `Speller::is_correct` and
-  suggested.** Single-word entries of `spelling_global.txt` (`Josquin`, `fit4work`, `Nestlé`) are
-  now speller words for every variant, as in LanguageTool 6.6, so `Josquinn` suggests `Josquin`
-  and the speller-backed rule filters stop treating them as misspelled
-  ([#167](https://github.com/cmlarsen/writemorebetter/issues/167)). Recompile rules binaries to
-  pick up the words; the format is unchanged.
-- **Spelling suggestions ignore the case of accented and non-Latin letters.** The suggestion
-  search compares characters instead of UTF-8 bytes, so a capitalized or all-caps word matches
-  its dictionary entry whatever its letters (`ÉCLAIRR` → `ÉCLAIR`, `SØRENN` → `SØREN`, Greek and
-  Cyrillic names too), and an accented letter counts as one edit, not two
-  ([#144](https://github.com/cmlarsen/writemorebetter/issues/144)). Lowercase words are searched
-  case-insensitively too, as LanguageTool 6.6's English spellers compare letters, so a lowercased
-  name suggests the name first (`søren` → `Søren`, `zoë` → `Zoë`, `paris` → `Paris`).
-- **Speller-backed rule filters use the speller LanguageTool 6.6 uses.** `NUMBERS_IN_WORDS` asks
-  the default variant's (`en_US`) speller whatever variant is selected, so with `en_GB` it
-  suggests `color` for `c0lor` as LanguageTool does, and `FindSuggestionsFilter` (`PRP_MD_NN`,
-  `A_INFINITIVE`) searches the tagger dictionary instead of the speller
-  ([#135](https://github.com/cmlarsen/writemorebetter/issues/135)). While a variant other than the
-  default one is selected, the default variant's checker is kept loaded as well.
+- **The Swift package no longer segfaults when built with Xcode 27.** `build-xcframework.sh` ran Xcode's
+  `strip -S` over the static library, and Xcode 27's `strip` drops the `.llvm.<hash>` suffixes that keep
+  LLVM's promoted local functions apart. Two different `<char as Pattern>::is_contained_in` copies (a general
+  one and one specialized for U+2019 with a different calling convention) ended up with one name, so calls
+  landed in the wrong function and crashed in the tokenizer and speller. The framework is now linked as a
+  dylib with the linker dropping local symbols and debug info, and `build-xcframework.sh` never runs `strip`
+  ([#238](https://github.com/cmlarsen/writemorebetter/issues/238)).
+
 - **Token patterns match like LanguageTool 6.6, without backtracking.** An optional token
   (`min="0"`) is skipped whenever the pattern token after it matches the same word, a `skip`
   window comes from the last token that matched, and a repeated token takes as many words as it

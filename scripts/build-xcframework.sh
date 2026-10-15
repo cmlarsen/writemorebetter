@@ -17,7 +17,7 @@ cd "$(dirname "$0")/.."
 PROFILE="release"
 case "${1:-}" in
     "") ;;
-    --debug) PROFILE="debug" ;;
+    --debug) PROFILE="dev" ;;
     --help)
         sed -n '2,12p' "$0"
         exit 0
@@ -34,12 +34,14 @@ else
     PROFILE_DIR="debug"
 fi
 
+export MACOSX_DEPLOYMENT_TARGET="12.0"
+export IPHONEOS_DEPLOYMENT_TARGET="16.0"
+
 CRATE="writemorebetter-swift"
-LIB_NAME="libwritemorebetter_swift.a"
+LIB_NAME="libwritemorebetter_swift.dylib"
 FFI_NAME="WriteMoreBetterFFI"
-# The library inside each slice keeps the `lib` prefix: SwiftPM derives a `-l<name>` link flag from
-# the file name and rejects anything that does not start with `lib` ("unexpected binary framework").
-FFI_LIB="lib${FFI_NAME}.a"
+BUNDLE_ID="com.github.cmlarsen.${FFI_NAME}"
+VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' swift/Cargo.toml | head -n1)
 OUT="dist"
 GENERATED="${OUT}/generated"
 BINDINGS_OUT="swift/Sources/WriteMoreBetter/Generated"
@@ -49,11 +51,73 @@ BINDINGS_OUT="swift/Sources/WriteMoreBetter/Generated"
 BACKEND="regex-onig (native)"
 
 build_slice() {
-    cargo build --profile "$PROFILE" -p "$CRATE" --target "$1"
+    cargo rustc --profile "$PROFILE" -p "$CRATE" --lib --target "$1" -- \
+        -C strip=none \
+        -C "link-arg=-Wl,-install_name,@rpath/${FFI_NAME}.framework/${FFI_NAME}" \
+        -C "link-arg=-Wl,-x" -C "link-arg=-Wl,-S"
 }
 
 slice_lib() {
     echo "target/${1}/${PROFILE_DIR}/${LIB_NAME}"
+}
+
+info_plist() {
+    cat <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>en</string>
+    <key>CFBundleExecutable</key>
+    <string>${FFI_NAME}</string>
+    <key>CFBundleIdentifier</key>
+    <string>${BUNDLE_ID}</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundleName</key>
+    <string>${FFI_NAME}</string>
+    <key>CFBundlePackageType</key>
+    <string>FMWK</string>
+    <key>CFBundleShortVersionString</key>
+    <string>${VERSION}</string>
+    <key>CFBundleVersion</key>
+    <string>${VERSION}</string>
+    <key>CFBundleSupportedPlatforms</key>
+    <array>
+        <string>$1</string>
+    </array>
+    <key>$2</key>
+    <string>$3</string>
+</dict>
+</plist>
+EOF
+}
+
+make_framework() {
+    local dir=$1 platform=$2
+    shift 2
+    local framework="${OUT}/tmp/${dir}/${FFI_NAME}.framework"
+    local contents="$framework"
+    if [ "$platform" = "MacOSX" ]; then
+        contents="${framework}/Versions/A"
+        mkdir -p "${contents}/Resources"
+        info_plist "$platform" LSMinimumSystemVersion "$MACOSX_DEPLOYMENT_TARGET" \
+            > "${contents}/Resources/Info.plist"
+        ln -s A "${framework}/Versions/Current"
+        for entry in "$FFI_NAME" Headers Modules Resources; do
+            ln -s "Versions/Current/${entry}" "${framework}/${entry}"
+        done
+    else
+        mkdir -p "$contents"
+        info_plist "$platform" MinimumOSVersion "$IPHONEOS_DEPLOYMENT_TARGET" \
+            > "${contents}/Info.plist"
+    fi
+    mkdir -p "${contents}/Headers" "${contents}/Modules"
+    cp "${GENERATED}/${FFI_NAME}.h" "${contents}/Headers/"
+    cp "${GENERATED}/module.modulemap" "${contents}/Modules/"
+    lipo -create "$@" -output "${contents}/${FFI_NAME}"
+    codesign --force --sign - --timestamp=none "$framework" >/dev/null
 }
 
 rm -rf "$OUT" "$BINDINGS_OUT"
@@ -62,43 +126,31 @@ mkdir -p "$OUT" "$GENERATED" "$BINDINGS_OUT"
 echo "==> building macOS slices (aarch64-apple-darwin, x86_64-apple-darwin)"
 build_slice aarch64-apple-darwin
 build_slice x86_64-apple-darwin
-mkdir -p "${OUT}/tmp/macos"
-lipo -create "$(slice_lib aarch64-apple-darwin)" "$(slice_lib x86_64-apple-darwin)" \
-    -output "${OUT}/tmp/macos/${FFI_LIB}"
 
 echo "==> building iOS device slice (aarch64-apple-ios)"
 build_slice aarch64-apple-ios
-mkdir -p "${OUT}/tmp/ios"
-cp "$(slice_lib aarch64-apple-ios)" "${OUT}/tmp/ios/${FFI_LIB}"
 
 echo "==> building iOS simulator slices (aarch64-apple-ios-sim, x86_64-apple-ios)"
 build_slice aarch64-apple-ios-sim
 build_slice x86_64-apple-ios
-mkdir -p "${OUT}/tmp/ios-simulator"
-lipo -create "$(slice_lib aarch64-apple-ios-sim)" "$(slice_lib x86_64-apple-ios)" \
-    -output "${OUT}/tmp/ios-simulator/${FFI_LIB}"
 
 echo "==> generating Swift bindings and modulemap"
-# No --xcframework: that makes uniffi emit `framework module WriteMoreBetterFFI`, which clang
-# rejects for a static-library slice (a framework module cannot live outside a .framework), so
-# SwiftPM silently compiles without the FFI module. The slices here are static libraries with the
-# modulemap in Headers/, where a plain `module` is correct.
 cargo run --profile "$PROFILE" -p "$CRATE" --features cli --bin uniffi-bindgen -- \
     "$(slice_lib aarch64-apple-darwin)" "$GENERATED" \
-    --swift-sources --headers --modulemap \
+    --swift-sources --headers --modulemap --xcframework \
     --module-name "$FFI_NAME" --modulemap-filename module.modulemap
 
 echo "==> assembling ${OUT}/${FFI_NAME}.xcframework"
-# Bindgen has already read the metadata symbols out of the macOS slice, so the shipped archives can
-# lose their debug info: 26 MB per slice becomes 11 MB. `strip` warns once per object that is
-# already free of debug info; the noise is not worth reading.
-strip -S "${OUT}/tmp/macos/${FFI_LIB}" 2>/dev/null
-strip -S "${OUT}/tmp/ios/${FFI_LIB}" 2>/dev/null
-strip -S "${OUT}/tmp/ios-simulator/${FFI_LIB}" 2>/dev/null
+make_framework macos MacOSX \
+    "$(slice_lib aarch64-apple-darwin)" "$(slice_lib x86_64-apple-darwin)"
+make_framework ios iPhoneOS \
+    "$(slice_lib aarch64-apple-ios)"
+make_framework ios-simulator iPhoneSimulator \
+    "$(slice_lib aarch64-apple-ios-sim)" "$(slice_lib x86_64-apple-ios)"
 xcodebuild -create-xcframework \
-    -library "${OUT}/tmp/macos/${FFI_LIB}" -headers "$GENERATED" \
-    -library "${OUT}/tmp/ios/${FFI_LIB}" -headers "$GENERATED" \
-    -library "${OUT}/tmp/ios-simulator/${FFI_LIB}" -headers "$GENERATED" \
+    -framework "${OUT}/tmp/macos/${FFI_NAME}.framework" \
+    -framework "${OUT}/tmp/ios/${FFI_NAME}.framework" \
+    -framework "${OUT}/tmp/ios-simulator/${FFI_NAME}.framework" \
     -output "${OUT}/${FFI_NAME}.xcframework"
 rm -rf "${OUT}/tmp"
 
