@@ -58,24 +58,25 @@ swift/, wasm/       one binding each, exposing check() + analyze() + the reports
 ## Baselines
 
 A baseline is the expected value in published fiction: category shares, rates per 1,000 words, or word
-frequencies. **The `style` crate takes baselines as input and ships none.** The caller (Subplot) supplies
-them. Where the numbers come from:
+frequencies. **Every report takes its baseline as an input**, so a caller can swap in a genre-specific one.
+Default baseline files may ship in `style/data/baselines/`, each listing its sources and license. Where
+the numbers come from:
 
 1. **Derived, openly licensed datasets (preferred).** These are counts, not text, and they cover modern
    in-copyright fiction:
-   - *Google Books Ngram, English Fiction (2019 release).* POS-tagged n-grams with a `_START_`
-     sentence marker; n-grams don't cross sentence boundaries. Gives sentence-start shares and word
-     frequency by year. Filter to 1990 onward. Confirm the license on the download page before use.
+   - *Google Books Ngram, English Fiction (2020 release, "v3")*, CC BY 3.0. POS-tagged n-grams with a
+     `_START_` sentence marker; n-grams don't cross sentence boundaries. Gives sentence-start shares and
+     word frequency by year. Filter to 1990 onward.
    - *HathiTrust Research Center Extracted Features 2.0* (CC BY 4.0) joined with *NovelTM*
-     English-fiction metadata (Underwood, Kimutis and Witte, 2020). Per-page counts with Penn Treebank
+     English-fiction metadata (Underwood, Kimutis and Witte, 2020; CC0). Per-page counts with Penn Treebank
      POS tags and sentence counts, for fiction up to 2009. Gives per-book and per-author mean sentence
      length, POS rates and word counts, which allows per-author weighting.
 
    Baselines computed from these may be committed with attribution, under the source's license.
 2. **A private corpus**, for what needs running text: per-sentence length distributions, the
    narration/dialogue split, dialogue tags, pacing calibration. It is built from legally obtained,
-   DRM-free fiction and is never committed here. Numbers derived from it stay out of this repo until
-   their publication has been cleared.
+   DRM-free fiction. The text is never committed anywhere; aggregate numbers derived from it may be
+   published.
 
 Build rules for any baseline:
 - Use fiction first published in or after 1990. Dates in these datasets are often edition dates.
@@ -97,7 +98,8 @@ Build rules for any baseline:
 | Date | Decision | Why |
 |---|---|---|
 | 2026-10-14 | Reports live in a `style/` crate in this repo, consuming `analyze()` | One linked library and one tokenizer per app (#239); keeps `nlprule` a faithful port |
-| 2026-10-14 | Baselines are caller-supplied; the crate ships no corpus-derived numbers | Licensing of derived numbers differs by source |
+| 2026-10-14 | Every report takes its baseline as an input | Callers can swap in genre-specific baselines |
 | 2026-10-14 | No pirated or scraped corpora | Legal exposure, and the reason for *Bartz v. Anthropic* (2025) |
 | 2026-10-14 | Audiobook transcription rejected as a text source | Speech-to-text loses the author's punctuation, so sentence and dialogue statistics would measure the STT model |
+| 2026-10-15 | Aggregate numbers derived from any source, the private corpus included, may be published; text never | Aggregates aren't the text; attribution follows each dataset's license |
 | 2026-10-15 | Prefer derived datasets (Ngram, HTRC EF) over building a corpus | They already cover modern fiction at scale, openly licensed; a private corpus is only needed for running-text statistics |
