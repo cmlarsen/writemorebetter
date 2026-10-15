@@ -1,9 +1,9 @@
 # writemorebetter-swift
 
 Swift bindings for the writemorebetter checker (English), generated with [UniFFI](https://mozilla.github.io/uniffi-rs/)
-proc-macros. The crate builds a static library; `scripts/build-xcframework.sh` packages the four Apple slices
-into `dist/WriteMoreBetterFFI.xcframework` and regenerates the Swift sources under
-`swift/Sources/WriteMoreBetter/Generated/`.
+proc-macros. The crate builds a dynamic library; `scripts/build-xcframework.sh` wraps the Apple slices in
+`WriteMoreBetterFFI.framework` bundles inside `dist/WriteMoreBetterFFI.xcframework` and regenerates the Swift
+sources under `swift/Sources/WriteMoreBetter/Generated/`. The package supports macOS 12 and iOS 16.
 
 The compiled rule and dictionary binaries (`en_tokenizer.bin`, `en_rules.bin`) are LGPL-2.1 resources derived
 from LanguageTool's data. They are **not** part of the XCFramework — the crate never embeds them — so the app
@@ -52,6 +52,21 @@ Matching is case-sensitive except that a lowercase entry also accepts its senten
 straight apostrophes match each other, and an entry may be a whitespace-separated phrase or contain an internal
 apostrophe.
 
+## Mother tongue
+
+False-friend rules (compiled from LanguageTool's `false-friends.xml`) flag English words that a speaker of
+another language is likely to misuse, such as "handy" for a German speaker. They run only while a mother tongue
+is selected; none is selected by default.
+
+```swift
+checker.motherTongues()                     // -> ["ca", "de", "es", "fr", "ga", "gl", "it", ...]
+checker.setMotherTongue(motherTongue: "de") // flags e.g. "handy" and "actual" for German speakers
+checker.setMotherTongue(motherTongue: nil)  // back to the default: no false-friend rules (so does "")
+```
+
+A region suffix is ignored (`"de-DE"` selects `"de"`). The change applies to the next `check`, and like the
+dictionary calls it is safe while other threads are checking.
+
 ## Building the XCFramework
 
 ```sh
@@ -61,9 +76,22 @@ rustup target add aarch64-apple-darwin x86_64-apple-darwin aarch64-apple-ios x86
 
 The script builds `aarch64-apple-darwin` + `x86_64-apple-darwin` (lipo'd into one `macos-arm64_x86_64` slice),
 `aarch64-apple-ios`, and `aarch64-apple-ios-sim` + `x86_64-apple-ios` (one `ios-arm64_x86_64-simulator` slice),
-all with nlprule's native `regex-onig` backend. It then runs `uniffi-bindgen-swift` in library mode and calls
-`xcodebuild -create-xcframework`. Everything lands in `dist/` (git-ignored) plus the generated Swift sources,
-which are committed so the package always has a source target.
+all with nlprule's native `regex-onig` backend and with `MACOSX_DEPLOYMENT_TARGET=12.0` /
+`IPHONEOS_DEPLOYMENT_TARGET=16.0`, the minimums `Package.swift` declares. It then runs `uniffi-bindgen-swift` in
+library mode and calls `xcodebuild -create-xcframework`. Everything lands in `dist/` (git-ignored) plus the
+generated Swift sources, which are committed so the package always has a source target.
+
+Each slice is a dynamic framework (`Headers/`, `Modules/module.modulemap`, `Info.plist`; macOS uses the
+versioned bundle layout) whose binary exports only the UniFFI C functions. That lets an app link it next to
+another Rust library: a Rust static library carries its own copy of `std` and of shared crates, so two of them
+in one app collide on duplicate symbols, and two static XCFrameworks with a top-level `module.modulemap` collide
+in Xcode's `include/` directory. An app embeds the framework the way it embeds any SwiftPM binary framework.
+
+The build never runs Xcode's `strip`: the linker drops local symbols and debug info itself (`-Wl,-x -Wl,-S`,
+with rustc's own `strip` off), so an app's own strip during archiving finds nothing left to remove. The `strip` in Xcode 27 removes the `.llvm.<hash>` suffixes
+LLVM gives promoted local functions, which merged two different functions into one symbol in the old static
+library ([#238](https://github.com/cmlarsen/writemorebetter/issues/238)), and it leaves a dylib that `ld`
+rejects with "mis-aligned LINKEDIT string pool".
 
 ## The Swift package
 
@@ -92,8 +120,9 @@ before `scripts/build-xcframework.sh` ran keeps the released-URL branch until `s
 `swift/Tests/WriteMoreBetterTests` loads the LT 6.6 binaries from `storage/66/` (the repository's
 per-rule-set storage convention; override with `WMB_DATA_DIR`), checks a sentence with a known error,
 asserts UTF-16 offsets on text that mixes an emoji, curly quotes, an em dash, a combining mark and
-U+2028, edits the user dictionary from one thread while four others check and list it, and calls
-`check` concurrently from eight threads. Run them with:
+U+2028, flags a German false friend only after `setMotherTongue`, edits the user dictionary from one
+thread while four others check and list it, and calls `check` concurrently from eight threads. Run them
+with:
 
 ```sh
 cargo run --release --all-features --bin compile -- \

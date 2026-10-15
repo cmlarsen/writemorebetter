@@ -1,7 +1,6 @@
 use bimap::BiMap;
 use fs_err::File;
 use fst::Map;
-use half::bf16;
 use log::warn;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -22,7 +21,7 @@ use crate::{
             Engine,
         },
         id::Category,
-        DisambiguationRule, Rule,
+        DisambiguationRule, Repetition, Rule,
     },
     rules::{Rules, RulesLangOptions},
     spell::{Spell, SpellInt, SpellLangOptions},
@@ -131,8 +130,8 @@ impl Spell {
         variants
     }
 
-    fn global_phrases(path: &Path, tokenizer: &Tokenizer) -> io::Result<Vec<u8>> {
-        let mut phrases = BTreeSet::new();
+    fn global_entries(path: &Path) -> io::Result<Vec<String>> {
+        let mut entries = Vec::new();
 
         let reader = BufReader::new(File::open(path)?);
         for line in reader.lines() {
@@ -142,10 +141,18 @@ impl Spell {
                 continue;
             }
             let entry = line[..line.find('#').unwrap_or(line.len())].trim();
-            if entry.is_empty() {
-                continue;
+            if !entry.is_empty() {
+                entries.push(entry.to_owned());
             }
+        }
 
+        Ok(entries)
+    }
+
+    fn global_phrases(entries: &[String], tokenizer: &Tokenizer) -> Vec<u8> {
+        let mut phrases = BTreeSet::new();
+
+        for entry in entries {
             for variant in Spell::casing_variants(entry) {
                 let tokens = tokenizer.get_token_strs(&variant);
                 if !tokens.is_empty() {
@@ -154,10 +161,10 @@ impl Spell {
             }
         }
 
-        Ok(fst::Set::from_iter(phrases)
+        fst::Set::from_iter(phrases)
             .expect("phrases are lexicographically sorted.")
             .into_fst()
-            .to_vec())
+            .to_vec()
     }
 
     pub(in crate::compile) fn from_dumps(
@@ -186,6 +193,18 @@ impl Spell {
             }
         }
 
+        let global_entries = if global_phrase_path.as_ref().exists() {
+            Some(Spell::global_entries(global_phrase_path.as_ref())?)
+        } else {
+            None
+        };
+        let global_words: Vec<&str> = global_entries
+            .iter()
+            .flatten()
+            .map(String::as_str)
+            .filter(|entry| tokenizer.get_token_strs(entry).len() == 1)
+            .collect();
+
         for (i, variant) in lang_options.variants.iter().enumerate() {
             let spell_path = spell_dir_path
                 .as_ref()
@@ -202,7 +221,7 @@ impl Spell {
                 {
                     [freq, word] => {
                         // frequency is denoted as letters from A to Z in LanguageTool where A is the least frequent.
-                        let freq = freq.chars().next().expect("freq must have one char - would not have been yielded by split_whitespace otherwise.") as usize - 'A' as usize;
+                        let freq = freq.chars().next().expect("freq must have one char - would not have been yielded by split_whitespace otherwise.") as usize - 'A' as usize + 1;
 
                         Spell::add_line(
                             word,
@@ -228,6 +247,10 @@ impl Spell {
                 let word = line.trim();
 
                 Spell::add_line(word, 0, &mut words, &mut multiwords, i, true, tokenizer);
+            }
+
+            for word in &global_words {
+                Spell::add_line(word, 0, &mut words, &mut multiwords, i, false, tokenizer);
             }
         }
         let mut words: Vec<_> = words
@@ -261,11 +284,9 @@ impl Spell {
             assert!(parts.next().is_none());
         }
 
-        let phrases = if global_phrase_path.as_ref().exists() {
-            Spell::global_phrases(global_phrase_path.as_ref(), tokenizer)?
-        } else {
-            Vec::new()
-        };
+        let phrases = global_entries
+            .map(|entries| Spell::global_phrases(&entries, tokenizer))
+            .unwrap_or_default();
 
         Ok(Spell::new(
             fst.into_fst().to_vec(),
@@ -691,6 +712,30 @@ fn has_picky_tag(tags: Option<&str>) -> bool {
     tags.map_or(false, |tags| tags.split_whitespace().any(|x| x == "picky"))
 }
 
+const DEFAULT_REPETITION_DISTANCE_TOKENS: usize = 60;
+
+fn repetition(
+    min_prev_matches: Option<&str>,
+    distance_tokens: Option<&str>,
+) -> Result<Option<Repetition>, std::num::ParseIntError> {
+    let parse = |value: Option<&str>| value.map_or(Ok(0), |x| x.trim().parse::<usize>());
+
+    let min_prev_matches = parse(min_prev_matches)?;
+    if min_prev_matches == 0 {
+        return Ok(None);
+    }
+
+    let distance_tokens = match parse(distance_tokens)? {
+        0 => DEFAULT_REPETITION_DISTANCE_TOKENS * min_prev_matches,
+        x => x,
+    };
+
+    Ok(Some(Repetition {
+        min_prev_matches,
+        distance_tokens,
+    }))
+}
+
 fn rules_from_xml<P: AsRef<Path>>(
     path: P,
     build_info: &mut BuildInfo,
@@ -717,25 +762,24 @@ fn rules_from_xml<P: AsRef<Path>>(
                     .join(0)
                 };
 
-                // LanguageTool's repetition experiment (`min_prev_matches` /
-                // `distance_tokens`) needs cross-match state, so reject it
-                // explicitly instead of compiling a rule that ignores the
-                // constraint.
-                if rule_structure.min_prev_matches.is_some()
-                    || rule_structure.distance_tokens.is_some()
-                    || group.as_ref().map_or(false, |g| {
-                        g.min_prev_matches.is_some() || g.distance_tokens.is_some()
-                    })
-                {
-                    *errors
-                        .entry(
-                            "[Rule] feature not implemented: repetition attributes \
-                             (min_prev_matches / distance_tokens) are not implemented."
-                                .into(),
-                        )
-                        .or_insert(0) += 1;
-                    return None;
-                }
+                let repetition = match repetition(
+                    rule_structure
+                        .min_prev_matches
+                        .as_deref()
+                        .or_else(|| group.as_ref().and_then(|g| g.min_prev_matches.as_deref())),
+                    rule_structure
+                        .distance_tokens
+                        .as_deref()
+                        .or_else(|| group.as_ref().and_then(|g| g.distance_tokens.as_deref())),
+                ) {
+                    Ok(repetition) => repetition,
+                    Err(x) => {
+                        *errors
+                            .entry(format!("[Rule] repetition attribute: {}", x))
+                            .or_insert(0) += 1;
+                        return None;
+                    }
+                };
 
                 let rule_on = match rule_structure.default.as_deref() {
                     Some("off") | Some("temp_off") => false,
@@ -783,6 +827,7 @@ fn rules_from_xml<P: AsRef<Path>>(
                             rule.category_name = category.name;
                             rule.category_type = category.kind;
                             rule.enabled = category_on && group_on && rule_on && !picky;
+                            rule.repetition = repetition;
                             Some(rule)
                         } else {
                             None
@@ -966,7 +1011,7 @@ pub(in crate::compile) struct ContextData {
 impl From<ModelData> for chunk::Model {
     fn from(data: ModelData) -> Self {
         let mut outcomes: Vec<u8> = Vec::new();
-        let mut parameters: Vec<bf16> = Vec::new();
+        let mut parameters: Vec<f32> = Vec::new();
 
         let mut contexts: Vec<_> = data.pmap.into_iter().collect();
         contexts.sort_unstable_by(|a, b| a.0.cmp(&b.0));
@@ -981,7 +1026,7 @@ impl From<ModelData> for chunk::Model {
                 assert!(outcome <= u8::MAX as usize);
                 outcome as u8
             }));
-            parameters.extend(value.parameters.into_iter().map(bf16::from_f32));
+            parameters.extend(value.parameters);
 
             (chunk::hash::hash_str(&key), (offset, length))
         });
@@ -1336,9 +1381,10 @@ mod composition {
                 }
             }
 
-            let can_stop_mask = (0..parts.len())
-                .map(|i| parts[i..].iter().all(|x| x.quantifier.min == 0))
-                .collect();
+            let optional_count = parts
+                .iter()
+                .filter(|part| part.visible && part.quantifier.min == 0)
+                .count() as u32;
 
             for (i, part) in parts.iter_mut().enumerate() {
                 for id in part.atom.mut_graph_ids() {
@@ -1364,7 +1410,7 @@ mod composition {
             Ok(Composition {
                 parts: parts.into_iter().map(|part| pool.intern(part)).collect(),
                 id_to_idx,
-                can_stop_mask,
+                optional_count,
                 start_keys,
                 required_key,
             })
@@ -1686,7 +1732,7 @@ pub(in crate::compile) mod rule_filters {
 mod tests {
     use super::*;
     use crate::compile::parse_structure::RegexCache;
-    use crate::rule::engine::composition::MatchSentence;
+    use crate::rule::engine::composition::{MatchSentence, PartPool};
 
     const MARKER_ANTIPATTERNS: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 <rules lang="en">
@@ -1720,12 +1766,10 @@ mod tests {
 </rules>
 "#;
 
-    #[test]
-    fn antipattern_marker_limits_the_immunized_tokens() {
+    fn assert_flag_starts(name: &str, xml: &str, cases: Vec<(&str, Vec<(&str, usize)>)>) {
         let tokenizer = Tokenizer::new("../storage/en_tokenizer.bin").unwrap();
-        let path =
-            std::env::temp_dir().join(format!("wmb-antipattern-marker-{}.xml", std::process::id()));
-        std::fs::write(&path, MARKER_ANTIPATTERNS).unwrap();
+        let path = std::env::temp_dir().join(format!("wmb-{}-{}.xml", name, std::process::id()));
+        std::fs::write(&path, xml).unwrap();
         let mut info = BuildInfo::new(
             tokenizer.tagger().clone(),
             RegexCache::new(0),
@@ -1741,31 +1785,9 @@ mod tests {
         );
         std::fs::remove_file(&path).unwrap();
         let pool = pool.into_pool();
-        assert_eq!(rules.len(), 5);
+        assert_eq!(rules.len(), xml.matches("<rule ").count());
 
-        for (text, expected) in [
-            (
-                "\u{201c}bbb ccc\u{2026}\u{201d} she said.",
-                vec![
-                    ("M_AFTER", 5),
-                    ("M_INNER", 5),
-                    ("M_LEAD", 5),
-                    ("M_TRAIL", 5),
-                ],
-            ),
-            (
-                "\u{201c}www iii\u{2014}iii qqq,\u{201d} he said.",
-                vec![("M_TWO", 9)],
-            ),
-            (
-                "She left.\u{2028}aaa bbb ccc ddd.",
-                vec![("M_AFTER", 18), ("M_LEAD", 18), ("M_TRAIL", 18)],
-            ),
-            (
-                "\u{201c}aaa bbb ccc ddd\u{2019}\u{201d}",
-                vec![("M_AFTER", 9), ("M_LEAD", 9), ("M_TRAIL", 9)],
-            ),
-        ] {
+        for (text, expected) in cases {
             let mut flagged = Vec::new();
             for sentence in tokenizer.pipe(text) {
                 let sentence = MatchSentence::new(&sentence);
@@ -1773,7 +1795,7 @@ mod tests {
                     let id = rule.id.to_string();
                     let name = id.split('/').nth(1).unwrap().to_string();
                     flagged.extend(
-                        rule.apply(&pool, &sentence, None, None)
+                        rule.apply(&pool, &sentence, None, None, None)
                             .map(|suggestion| (name.clone(), suggestion.span().char().start)),
                     );
                 }
@@ -1785,6 +1807,380 @@ mod tests {
                 .collect();
             assert_eq!(flagged, expected, "{:?}", text);
         }
+    }
+
+    const DISAMBIGUATION_ANTIPATTERNS: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
+<rules lang="en">
+  <rule id="D_SKIP" name="d">
+    <antipattern><token>bbb</token></antipattern>
+    <pattern><marker><token skip="-1">aaa</token></marker><token regexp="yes">bbb|ccc</token></pattern>
+    <disambig action="replace"><wd lemma="zz" pos="ZZ"/></disambig>
+  </rule>
+  <rule id="D_GAP" name="d">
+    <antipattern><token>ggg</token></antipattern>
+    <pattern><marker><token skip="-1">fff</token></marker><token>hhh</token></pattern>
+    <disambig action="replace"><wd lemma="zz" pos="ZZ"/></disambig>
+  </rule>
+  <rule id="D_TOUCH" name="d">
+    <antipattern><token>“</token></antipattern>
+    <antipattern><token>—</token></antipattern>
+    <antipattern><token>…</token></antipattern>
+    <pattern><token>ddd</token></pattern>
+    <disambig action="replace"><wd lemma="zz" pos="ZZ"/></disambig>
+  </rule>
+</rules>
+"#;
+
+    fn disambiguation_rules(xml: &str) -> (Tokenizer, Vec<(String, DisambiguationRule)>, PartPool) {
+        let tokenizer = Tokenizer::new("../storage/en_tokenizer.bin").unwrap();
+        let path = std::env::temp_dir().join(format!(
+            "wmb-disambiguation-{}-{}.xml",
+            std::process::id(),
+            xml.len()
+        ));
+        std::fs::write(&path, xml).unwrap();
+        let mut info = BuildInfo::new(
+            tokenizer.tagger().clone(),
+            RegexCache::new(0),
+            PathBuf::new(),
+        );
+        let mut pool = PartInterner::default();
+        let rules = crate::compile::parse_structure::read_disambiguation_rules(&path)
+            .into_iter()
+            .map(|result| {
+                let (rule, group, _) = result.unwrap();
+                let id = match group {
+                    Some(group) => format!("{}/{}", group.id, group.n),
+                    None => rule.id.clone().unwrap(),
+                };
+                let rule =
+                    DisambiguationRule::from_rule_structure(rule, &mut info, &mut pool).unwrap();
+                (id, rule)
+            })
+            .collect();
+        std::fs::remove_file(&path).unwrap();
+        (tokenizer, rules, pool.into_pool())
+    }
+
+    fn disambiguated(
+        tokenizer: &Tokenizer,
+        rules: &[(String, DisambiguationRule)],
+        pool: &PartPool,
+        text: &str,
+    ) -> Vec<String> {
+        let mut fired = Vec::new();
+        for sentence in tokenizer.pipe(text) {
+            let sentence = MatchSentence::new(&sentence);
+            for (id, rule) in rules {
+                if !rule.apply(pool, &sentence).is_empty() {
+                    fired.push(id.clone());
+                }
+            }
+        }
+        fired
+    }
+
+    #[test]
+    fn disambiguation_antipatterns_block_the_whole_match_span_like_languagetool() {
+        let (tokenizer, rules, pool) = disambiguation_rules(DISAMBIGUATION_ANTIPATTERNS);
+        for (text, expected) in [
+            ("Then aaa bbb ccc.", vec![]),
+            ("Then aaa eee ccc.", vec!["D_SKIP"]),
+            ("Then fff ggg hhh.", vec![]),
+            ("Then fff eee hhh.", vec!["D_GAP"]),
+            ("\u{201c}ddd,\u{201d} she said.", vec![]),
+            ("Then eee\u{2014}ddd.", vec![]),
+            ("Then ddd\u{2026} eee.", vec![]),
+            ("\u{201c}Then eee ddd,\u{201d} she said.", vec!["D_TOUCH"]),
+            ("Then eee \u{2014} ddd.", vec!["D_TOUCH"]),
+            ("She left.\u{2028}ddd eee.", vec!["D_TOUCH"]),
+            ("Then eee\u{2019}s ddd.", vec!["D_TOUCH"]),
+        ] {
+            assert_eq!(
+                disambiguated(&tokenizer, &rules, &pool, text),
+                expected,
+                "{:?}",
+                text
+            );
+        }
+    }
+
+    const DISAMBIGUATION_ANTIPATTERN_CASE: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
+<rules lang="en">
+  <rulegroup id="D_CASE_GROUP" name="d">
+    <antipattern case_sensitive="yes"><token>Kkk</token><token>Lll</token></antipattern>
+    <rule>
+      <pattern><token>kkk</token></pattern>
+      <disambig action="replace"><wd lemma="zz" pos="ZZ"/></disambig>
+    </rule>
+    <rule>
+      <pattern><token>mmm</token></pattern>
+      <disambig action="replace"><wd lemma="zz" pos="ZZ"/></disambig>
+    </rule>
+  </rulegroup>
+  <rule id="D_CASE" name="d">
+    <antipattern case_sensitive="yes"><token>Nnn</token></antipattern>
+    <pattern><token>ppp</token></pattern>
+    <disambig action="replace"><wd lemma="zz" pos="ZZ"/></disambig>
+  </rule>
+  <rule id="D_CASE_RESET" name="d">
+    <antipattern case_sensitive="yes"><token>Nnn</token></antipattern>
+    <antipattern><token>qqq</token></antipattern>
+    <pattern><token>sss</token></pattern>
+    <disambig action="replace"><wd lemma="zz" pos="ZZ"/></disambig>
+  </rule>
+  <rulegroup id="D_CASE_OWN" name="d">
+    <antipattern case_sensitive="yes"><token>Ttt</token></antipattern>
+    <rule>
+      <antipattern><token>uuu</token></antipattern>
+      <pattern><token>vvv</token></pattern>
+      <disambig action="replace"><wd lemma="zz" pos="ZZ"/></disambig>
+    </rule>
+    <rule>
+      <antipattern case_sensitive="yes"><token>Xxx</token></antipattern>
+      <pattern><token>yyy</token></pattern>
+      <disambig action="replace"><wd lemma="zz" pos="ZZ"/></disambig>
+    </rule>
+  </rulegroup>
+</rules>
+"#;
+
+    #[test]
+    fn case_sensitive_disambiguation_antipattern_makes_the_pattern_case_sensitive() {
+        let (tokenizer, rules, pool) = disambiguation_rules(DISAMBIGUATION_ANTIPATTERN_CASE);
+        for (text, expected) in [
+            (
+                "Then kkk mmm ppp sss.",
+                vec!["D_CASE_GROUP/0", "D_CASE_GROUP/1", "D_CASE", "D_CASE_RESET"],
+            ),
+            (
+                "Then Kkk Mmm Ppp Sss.",
+                vec!["D_CASE_GROUP/1", "D_CASE_RESET"],
+            ),
+            (
+                "THEN KKK MMM PPP SSS.",
+                vec!["D_CASE_GROUP/1", "D_CASE_RESET"],
+            ),
+            (
+                "\u{201c}Kkk\u{2014}mmm\u{2026}\u{201d} ppp\u{2019}s Sss.",
+                vec!["D_CASE_GROUP/1", "D_CASE", "D_CASE_RESET"],
+            ),
+            ("She left.\u{2028}Ppp sss.", vec!["D_CASE_RESET"]),
+            ("Then vvv yyy.", vec!["D_CASE_OWN/0", "D_CASE_OWN/1"]),
+            ("Then Vvv Yyy.", vec!["D_CASE_OWN/0"]),
+            ("THEN VVV YYY.", vec!["D_CASE_OWN/0"]),
+            (
+                "\u{201c}Vvv\u{2014}yyy\u{2026}\u{201d} she said.",
+                vec!["D_CASE_OWN/0", "D_CASE_OWN/1"],
+            ),
+        ] {
+            assert_eq!(
+                disambiguated(&tokenizer, &rules, &pool, text),
+                expected,
+                "{:?}",
+                text
+            );
+        }
+    }
+
+    #[test]
+    fn antipattern_marker_limits_the_immunized_tokens() {
+        assert_flag_starts(
+            "antipattern-marker",
+            MARKER_ANTIPATTERNS,
+            vec![
+                (
+                    "\u{201c}bbb ccc\u{2026}\u{201d} she said.",
+                    vec![
+                        ("M_AFTER", 5),
+                        ("M_INNER", 5),
+                        ("M_LEAD", 5),
+                        ("M_TRAIL", 5),
+                    ],
+                ),
+                (
+                    "\u{201c}www iii\u{2014}iii qqq,\u{201d} he said.",
+                    vec![("M_TWO", 9)],
+                ),
+                (
+                    "She left.\u{2028}aaa bbb ccc ddd.",
+                    vec![("M_AFTER", 18), ("M_LEAD", 18), ("M_TRAIL", 18)],
+                ),
+                (
+                    "\u{201c}aaa bbb ccc ddd\u{2019}\u{201d}",
+                    vec![("M_AFTER", 9), ("M_LEAD", 9), ("M_TRAIL", 9)],
+                ),
+            ],
+        );
+    }
+
+    const OPTIONAL_TOKENS: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
+<rules lang="en">
+<category id="PROBE" name="Probe">
+  <rule id="LAZY" name="m">
+    <pattern><token>we</token><token min="0" regexp="yes">really|truly</token><token regexp="yes">truly|left</token><token>early</token></pattern>
+    <message>m</message>
+  </rule>
+  <rule id="COMPOUND" name="m">
+    <pattern><token>and</token><token min="0" postag="RB"/><token postag="NNPS?|PRP_S.*" postag_regexp="yes"/><token inflected="yes" min="0" regexp="yes">be|do|have</token><token min="0" postag="RB|TO" postag_regexp="yes"/><token min="0" postag="VB[DPZ]?" postag_regexp="yes"><exception regexp="yes">are|be|do|have</exception></token><token min="0" postag="RB"/><token postag="SENT_END"/></pattern>
+    <message>m</message>
+  </rule>
+  <rule id="SKIPPED" name="m">
+    <pattern><token skip="-1">was<exception scope="next">did</exception></token><token min="0" skip="-1">not<exception scope="next">so</exception></token><token>it</token></pattern>
+    <message>m</message>
+  </rule>
+</category>
+</rules>
+"#;
+
+    #[test]
+    fn optional_token_is_absent_when_the_next_token_matches_too() {
+        assert_flag_starts(
+            "optional-tokens",
+            OPTIONAL_TOKENS,
+            vec![
+                ("We left and it has to stop.", vec![]),
+                (
+                    "\u{201c}We left and it has to stop,\u{201d} she said.",
+                    vec![],
+                ),
+                ("We left and it is to stop.", vec![]),
+                ("We left \u{2014} and it has not.", vec![("COMPOUND", 10)]),
+                ("We left\u{2026} and it stops.", vec![("COMPOUND", 9)]),
+                ("We truly left early.", vec![]),
+                (
+                    "We\u{2019}d left.\u{2028}We truly left early\u{2026}",
+                    vec![],
+                ),
+                (
+                    "\u{201c}We really left early,\u{201d} she said.",
+                    vec![("LAZY", 1)],
+                ),
+                ("We truly early \u{2014} or so.", vec![("LAZY", 0)]),
+            ],
+        );
+    }
+
+    const NEXT_EXCEPTIONS: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
+<rules lang="en">
+<category id="PROBE" name="Probe">
+  <rule id="AFTER_SKIP" name="m">
+    <pattern><token skip="2">it</token><token min="0">really</token><token>was<exception postag="VBN" scope="next"/></token></pattern>
+    <message>m</message>
+  </rule>
+  <rule id="AFTER_OPTIONAL_SKIP" name="m">
+    <pattern><token>it</token><token min="0" skip="1">really</token><token>was<exception postag="VBN" scope="next"/></token></pattern>
+    <message>m</message>
+  </rule>
+</category>
+</rules>
+"#;
+
+    #[test]
+    fn scope_next_exception_depends_on_the_last_matched_skip() {
+        assert_flag_starts(
+            "next-exceptions",
+            NEXT_EXCEPTIONS,
+            vec![
+                ("It was eaten today.", vec![("AFTER_SKIP", 0)]),
+                ("It was eaten.\u{2028}Fine.", vec![("AFTER_SKIP", 0)]),
+                ("It\u{2019}s\u{2026} it was eaten.", vec![("AFTER_SKIP", 6)]),
+                ("It then was eaten.", vec![("AFTER_SKIP", 0)]),
+                (
+                    "\u{201c}It really was eaten today\u{2026}\u{201d}",
+                    vec![("AFTER_OPTIONAL_SKIP", 1)],
+                ),
+                ("It really was eaten.", vec![("AFTER_OPTIONAL_SKIP", 0)]),
+                (
+                    "It really then was eaten.",
+                    vec![("AFTER_OPTIONAL_SKIP", 0)],
+                ),
+                ("It\u{2014} really was eaten.", vec![]),
+            ],
+        );
+    }
+
+    #[test]
+    fn absent_optional_token_uses_the_previous_skip_window() {
+        assert_flag_starts(
+            "optional-skip",
+            OPTIONAL_TOKENS,
+            vec![
+                ("It was then did it go\u{2026}", vec![]),
+                ("\u{201c}It was then so it went.\u{201d}", vec![]),
+                ("It was then it went.", vec![("SKIPPED", 3)]),
+                ("It was not then it went \u{2014} oh.", vec![("SKIPPED", 3)]),
+                ("It was so it went.\u{2028}Done.", vec![]),
+                ("It was not so it went.", vec![]),
+                ("It was not did it go.", vec![("SKIPPED", 3)]),
+            ],
+        );
+    }
+
+    const IMMUNIZED_AND_REPEATED: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
+<rules lang="en">
+<category id="PROBE" name="Probe">
+  <rule id="IMMUNE_EXCEPTION" name="m">
+    <antipattern><token>was</token><token>then</token></antipattern>
+    <pattern><token skip="4">it<exception scope="next">then</exception></token><token>was</token></pattern>
+    <message>m</message>
+  </rule>
+  <rule id="MIN_TWO" name="m">
+    <pattern><token>saw</token><token case_sensitive="yes" min="2" regexp="yes">[A-Z].*</token></pattern>
+    <message>m</message>
+  </rule>
+  <rule id="MIN_TWO_NEXT" name="m">
+    <pattern><token>saw</token><token case_sensitive="yes" min="2" regexp="yes">[A-Z].*</token><token>plant</token></pattern>
+    <message>m</message>
+  </rule>
+  <rule id="MAX_ANY" name="m">
+    <pattern><token>said</token><token max="-1">no</token><token>more</token></pattern>
+    <message>m</message>
+  </rule>
+</category>
+</rules>
+"#;
+
+    #[test]
+    fn immunized_tokens_skip_next_exceptions_and_repeats_follow_min_and_max() {
+        let many_noes = format!("She said {} more\u{2014}again.", vec!["no"; 25].join(" "));
+        assert_flag_starts(
+            "immunized-repeated",
+            IMMUNIZED_AND_REPEATED,
+            vec![
+                ("It soon was then was gone.", vec![("IMMUNE_EXCEPTION", 0)]),
+                (
+                    "\u{201c}It soon was then was gone\u{2026}\u{201d}",
+                    vec![("IMMUNE_EXCEPTION", 1)],
+                ),
+                (
+                    "It soon was\u{2014}then was gone.",
+                    vec![("IMMUNE_EXCEPTION", 0)],
+                ),
+                ("It soon then was gone.", vec![]),
+                (
+                    "It\u{2019}s odd.\u{2028}It soon was then was gone.",
+                    vec![("IMMUNE_EXCEPTION", 10)],
+                ),
+                (
+                    "\u{201c}We saw Nine Mile Nuclear Power plant\u{2026}\u{201d}",
+                    vec![("MIN_TWO", 4)],
+                ),
+                (
+                    "We saw Nine Mile plant\u{2014}today.",
+                    vec![("MIN_TWO", 3), ("MIN_TWO_NEXT", 3)],
+                ),
+                (
+                    "We\u{2019}d saw Nine Mile Nuclear today.",
+                    vec![("MIN_TWO", 5)],
+                ),
+                (&many_noes, vec![("MAX_ANY", 4)]),
+                (
+                    "\u{201c}She said no no more,\u{201d} he said.\u{2028}Fine.",
+                    vec![("MAX_ANY", 5)],
+                ),
+            ],
+        );
     }
 
     #[test]

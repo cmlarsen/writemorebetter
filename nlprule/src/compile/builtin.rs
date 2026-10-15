@@ -82,6 +82,9 @@ pub(crate) fn for_language(
             BuiltinRule::new(Builtin::MultipleWhitespace(MultipleWhitespace::new())),
             BuiltinRule::new(Builtin::SentenceWhitespace(SentenceWhitespace::new())),
             BuiltinRule::new_disabled(Builtin::EmptyLine(EmptyLine::new())),
+            BuiltinRule::new_disabled(Builtin::LongSentence(LongSentence::new())),
+            BuiltinRule::new_disabled(Builtin::LongParagraph(LongParagraph::new())),
+            BuiltinRule::new(Builtin::WordRepeatBeginning(WordRepeatBeginning::new())),
             BuiltinRule::new(Builtin::SpecificCase(specific_case(build_dir))),
             BuiltinRule::new_disabled(Builtin::Dash(Dash::new(read_lines(build_dir, "compounds")))),
             BuiltinRule::new_disabled(Builtin::SimpleReplace(simple_replace(
