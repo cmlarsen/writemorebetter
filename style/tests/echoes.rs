@@ -2,7 +2,7 @@ use std::sync::OnceLock;
 
 use nlprule::Tokenizer;
 use writemorebetter_style::reports::echoes::{echoes, EchoOptions, EchoReport};
-use writemorebetter_style::reports::phrases::{repeated_phrases, PhraseReport};
+use writemorebetter_style::reports::phrases::{repeated_phrases, PhraseOptions, PhraseReport};
 use writemorebetter_style::{analyze_document, Document, DocumentOptions, Span};
 
 fn tokenizer() -> &'static Tokenizer {
@@ -42,7 +42,7 @@ fn echo_pairs(text: &str, report: &EchoReport) -> Vec<(String, String, String)> 
         .iter()
         .map(|echo| {
             (
-                echo.lemma.clone(),
+                echo.key.clone(),
                 slice(text, &echo.earlier),
                 slice(text, &echo.later),
             )
@@ -65,15 +65,19 @@ fn phrase_texts(text: &str, report: &PhraseReport) -> Vec<(String, Vec<String>)>
         .map(|phrase| {
             assert_eq!(phrase.count, phrase.spans.len());
             (
-                phrase.lemmas.join(" "),
+                phrase.keys.join(" "),
                 phrase.spans.iter().map(|span| slice(text, span)).collect(),
             )
         })
         .collect()
 }
 
+fn phrases_with(text: &str, names: &[&str], options: &PhraseOptions) -> Vec<(String, Vec<String>)> {
+    phrase_texts(text, &repeated_phrases(&document(text, names), options))
+}
+
 fn phrases_of(text: &str, names: &[&str]) -> Vec<(String, Vec<String>)> {
-    phrase_texts(text, &repeated_phrases(&document(text, names)))
+    phrases_with(text, names, &PhraseOptions::new())
 }
 
 #[test]
@@ -135,7 +139,11 @@ fn function_words_and_auxiliaries_do_not_echo() {
     let text = "She was not there, and she was not here. It is his, and it was his. \
                 The one he had was the one she had. They would do it, and they did.";
     assert!(echo_text(text, &[], &EchoOptions::new()).is_empty());
-    assert!(repeated_phrases(&document(text, &[])).phrases.is_empty());
+    assert!(
+        repeated_phrases(&document(text, &[]), &PhraseOptions::new())
+            .phrases
+            .is_empty()
+    );
 }
 
 #[test]
@@ -148,7 +156,7 @@ fn each_echo_links_to_the_nearest_earlier_occurrence() {
         echo_pairs(text, &report),
         vec![
             triple("rain", "Rain", "Rain"),
-            triple("fall", "fell", "fell"),
+            triple("fell", "fell", "fell"),
             triple("rain", "Rain", "Rain"),
         ]
     );
@@ -209,7 +217,9 @@ fn empty_document_has_zero_density() {
     assert!(report.echoes.is_empty());
     assert_eq!(report.word_count, 0);
     assert_eq!(report.density_per_1000, 0.0);
-    assert!(repeated_phrases(&document("…", &[])).phrases.is_empty());
+    assert!(repeated_phrases(&document("…", &[]), &PhraseOptions::new())
+        .phrases
+        .is_empty());
 }
 
 #[test]
@@ -270,7 +280,7 @@ fn phrases_are_capped_at_five_tokens_and_stay_inside_sentences() {
     );
     let text = "The ship sank. Fast. The ship. Sank fast.";
     assert_eq!(
-        phrases_of(text, &[]),
+        phrases_with(text, &[], &PhraseOptions::new().with_min_content_words(1)),
         vec![(
             "the ship".into(),
             vec!["The ship".into(), "The ship".into()]
@@ -282,7 +292,8 @@ fn phrases_are_capped_at_five_tokens_and_stay_inside_sentences() {
 fn stopword_only_ngrams_are_dropped() {
     assert!(phrases_of("It was in the morning. It was in the night.", &[]).is_empty());
     let text = "It was in the end of the day. It was in the end of the night.";
-    let phrases = phrases_of(text, &[]);
+    assert!(phrases_of(text, &[]).is_empty());
+    let phrases = phrases_with(text, &[], &PhraseOptions::new().with_min_content_words(1));
     assert_eq!(
         phrases,
         vec![
@@ -351,8 +362,127 @@ fn one_spelling_keeps_one_key_when_context_changes_its_readings() {
         "fixture needs context-dependent readings: {lemma_sets:?}"
     );
     let pairs = echo_pairs(text, &echoes(&document, &EchoOptions::new()));
-    assert!(pairs.contains(&triple("think", "thought", "thought")));
+    assert!(pairs.contains(&triple("thought", "thought", "thought")));
     assert!(pairs
         .iter()
         .any(|(_, earlier, later)| earlier == "crooked" && later == "crooked"));
+}
+
+#[test]
+fn phrases_need_two_content_words_by_default() {
+    let text = "The door opened. She shut the door. An open door, an open door.";
+    assert_eq!(
+        phrases_of(text, &[]),
+        vec![(
+            "an open door".into(),
+            vec!["An open door".into(), "an open door".into()]
+        )]
+    );
+    let issue_definition = PhraseOptions::new().with_min_content_words(1);
+    let phrases = phrases_with(text, &[], &issue_definition);
+    assert!(phrases.contains(&(
+        "the door".into(),
+        vec!["The door".into(), "the door".into()]
+    )));
+    let lengths = PhraseOptions::new().with_length(2, 2);
+    let text = "The old grey house stood. The old grey house fell.";
+    assert_eq!(
+        phrases_with(text, &[], &lengths),
+        vec![
+            (
+                "old grey".into(),
+                vec!["old grey".into(), "old grey".into()]
+            ),
+            (
+                "grey house".into(),
+                vec!["grey house".into(), "grey house".into()]
+            ),
+        ]
+    );
+    assert!(phrases_with(text, &[], &PhraseOptions::new().with_length(3, 2)).is_empty());
+}
+
+#[test]
+fn noun_plurals_echo_even_when_the_singular_is_also_a_verb_form() {
+    let cases = [
+        (
+            "I thought so. A thought struck him. His thoughts wandered.",
+            "thought",
+            "thoughts",
+            "thought",
+        ),
+        (
+            "She was feeling ill. A strange feeling. Her feelings were hurt.",
+            "feeling",
+            "feelings",
+            "feeling",
+        ),
+        (
+            "The wound bled. Her wounds healed.",
+            "wound",
+            "wounds",
+            "wound",
+        ),
+        (
+            "He thought hard. His thoughts wandered.",
+            "thought",
+            "thoughts",
+            "thought",
+        ),
+        (
+            "He wound the clock. Her wounds healed.",
+            "wound",
+            "wounds",
+            "wound",
+        ),
+    ];
+    for (text, earlier, later, key) in cases {
+        let pairs = echo_text(text, &[], &EchoOptions::new());
+        assert!(
+            pairs.contains(&triple(key, earlier, later)),
+            "{text}: {pairs:?}"
+        );
+    }
+}
+
+#[test]
+fn frequent_content_words_with_stray_function_readings_still_echo() {
+    for (text, word) in [
+        ("I need water. You need rest.", "need"),
+        ("He will come back. They come and go.", "come"),
+        ("They looked up. She looked up.", "up"),
+        ("He came back. She stepped back.", "back"),
+        ("The last train left. The last bus.", "last"),
+    ] {
+        let pairs = echo_text(text, &[], &EchoOptions::new());
+        assert!(
+            pairs
+                .iter()
+                .any(|(_, earlier, later)| earlier.to_lowercase() == word && later == word),
+            "{text}: {pairs:?}"
+        );
+    }
+}
+
+#[test]
+fn one_spelling_gets_one_function_word_decision_per_document() {
+    let text = "The heads turned. Two heads nodded.";
+    let pairs = echo_text(text, &[], &EchoOptions::new());
+    assert!(
+        pairs.contains(&triple("head", "heads", "heads")),
+        "{pairs:?}"
+    );
+    for text in [
+        "Two men came. Two boats sailed.",
+        "Through the door, through the window.",
+        "Nothing moved. Nothing at all.",
+    ] {
+        let pairs = echo_text(text, &[], &EchoOptions::new());
+        assert!(
+            !pairs
+                .iter()
+                .any(|(key, ..)| ["two", "through", "nothing"].contains(&key.as_str())),
+            "{text}: {pairs:?}"
+        );
+    }
 }

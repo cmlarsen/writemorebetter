@@ -61,6 +61,10 @@ struct PatternToken {
 /// The rule remembers words across sentences and paragraphs within one
 /// [`Rules::suggest`](crate::Rules::suggest) call and starts from zero on
 /// every call.
+///
+/// For whole-document echoes with a configurable window, lemma matching and
+/// caller-supplied names, see the `writemorebetter-style` echoes report; how
+/// it differs from this rule is in `docs/STYLE-ECHOES.md`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RepeatedWords {
     #[serde(serialize_with = "crate::types::sorted::map")]

@@ -1,7 +1,15 @@
 {
-  "source": "bench/style/echoes.py on pinned Standard Ebooks Pride and Prejudice and Moby-Dick passages; English 6.6 tokenizer; measured 2026-10-15",
+  "source": "bench/style/echoes.py on pinned Standard Ebooks Pride and Prejudice and Moby-Dick passages; English 6.6 tokenizer; measured 2026-10-15 after the PR #265 review (union-find keys, per-spelling function words, natural-word and homograph injections, dev/test split)",
   "floors": {
-    "echo": {"precision": 1.0, "recall": 1.0, "true_positive": 51},
-    "repeated_phrase": {"precision": 1.0, "recall": 1.0, "true_positive": 80}
+    "dev": {
+      "echo": {"precision": 1.0, "recall": 1.0, "true_positive": 60},
+      "natural_injections": {"precision": 1.0, "recall": 1.0, "true_positive": 26},
+      "repeated_phrase": {"precision": 1.0, "recall": 1.0, "true_positive": 40}
+    },
+    "test": {
+      "echo": {"precision": 1.0, "recall": 1.0, "true_positive": 62},
+      "natural_injections": {"precision": 1.0, "recall": 1.0, "true_positive": 26},
+      "repeated_phrase": {"precision": 1.0, "recall": 1.0, "true_positive": 40}
+    }
   }
 }
