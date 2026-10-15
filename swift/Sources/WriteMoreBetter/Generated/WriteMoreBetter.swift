@@ -585,7 +585,7 @@ public protocol CheckerProtocol: AnyObject, Sendable {
     func analyze(text: String)  -> [AnalysisSentence]
     
     func analyzeDocument(text: String, options: DocumentOptions?)  -> Document
-
+    
     /**
      * Checks `text` and returns every flagged span. See [`Suggestion`] for the offset units.
      */
@@ -744,7 +744,7 @@ open func analyze(text: String) -> [AnalysisSentence]  {
     )
 })
 }
-
+    
 open func analyzeDocument(text: String, options: DocumentOptions?) -> Document  {
     return try!  FfiConverterTypeDocument_lift(try! rustCall() {
         uniffiCallStatus in
@@ -1107,9 +1107,9 @@ public struct Document: Equatable, Hashable {
         self.wordCount = wordCount
     }
 
+    
 
-
-
+    
 }
 
 #if compiler(>=6)
@@ -1123,9 +1123,9 @@ public struct FfiConverterTypeDocument: FfiConverterRustBuffer {
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Document {
         return
             try Document(
-                paragraphs: FfiConverterSequenceTypeDocumentParagraph.read(from: &buf),
-                dialogue: FfiConverterSequenceTypeDocumentSpan.read(from: &buf),
-                lemmaIndex: FfiConverterDictionaryStringSequenceTypeTokenPosition.read(from: &buf),
+                paragraphs: FfiConverterSequenceTypeDocumentParagraph.read(from: &buf), 
+                dialogue: FfiConverterSequenceTypeDocumentSpan.read(from: &buf), 
+                lemmaIndex: FfiConverterDictionaryStringSequenceTypeTokenPosition.read(from: &buf), 
                 wordCount: FfiConverterUInt32.read(from: &buf)
         )
     }
@@ -1156,16 +1156,20 @@ public func FfiConverterTypeDocument_lower(_ value: Document) -> RustBuffer {
 
 public struct DocumentOptions: Equatable, Hashable {
     public var skipNames: [String]
+    public var includeTokenDetails: Bool
+    public var hardWrapped: Bool
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(skipNames: [String]) {
+    public init(skipNames: [String] = [], includeTokenDetails: Bool = true, hardWrapped: Bool = false) {
         self.skipNames = skipNames
+        self.includeTokenDetails = includeTokenDetails
+        self.hardWrapped = hardWrapped
     }
 
+    
 
-
-
+    
 }
 
 #if compiler(>=6)
@@ -1179,12 +1183,16 @@ public struct FfiConverterTypeDocumentOptions: FfiConverterRustBuffer {
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> DocumentOptions {
         return
             try DocumentOptions(
-                skipNames: FfiConverterSequenceString.read(from: &buf)
+                skipNames: FfiConverterSequenceString.read(from: &buf), 
+                includeTokenDetails: FfiConverterBool.read(from: &buf), 
+                hardWrapped: FfiConverterBool.read(from: &buf)
         )
     }
 
     public static func write(_ value: DocumentOptions, into buf: inout [UInt8]) {
         FfiConverterSequenceString.write(value.skipNames, into: &buf)
+        FfiConverterBool.write(value.includeTokenDetails, into: &buf)
+        FfiConverterBool.write(value.hardWrapped, into: &buf)
     }
 }
 
@@ -1219,9 +1227,9 @@ public struct DocumentParagraph: Equatable, Hashable {
         self.sentences = sentences
     }
 
+    
 
-
-
+    
 }
 
 #if compiler(>=6)
@@ -1235,9 +1243,9 @@ public struct FfiConverterTypeDocumentParagraph: FfiConverterRustBuffer {
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> DocumentParagraph {
         return
             try DocumentParagraph(
-                text: FfiConverterString.read(from: &buf),
-                start: FfiConverterUInt32.read(from: &buf),
-                end: FfiConverterUInt32.read(from: &buf),
+                text: FfiConverterString.read(from: &buf), 
+                start: FfiConverterUInt32.read(from: &buf), 
+                end: FfiConverterUInt32.read(from: &buf), 
                 sentences: FfiConverterSequenceTypeDocumentSentence.read(from: &buf)
         )
     }
@@ -1281,9 +1289,9 @@ public struct DocumentSentence: Equatable, Hashable {
         self.tokens = tokens
     }
 
+    
 
-
-
+    
 }
 
 #if compiler(>=6)
@@ -1297,9 +1305,9 @@ public struct FfiConverterTypeDocumentSentence: FfiConverterRustBuffer {
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> DocumentSentence {
         return
             try DocumentSentence(
-                text: FfiConverterString.read(from: &buf),
-                start: FfiConverterUInt32.read(from: &buf),
-                end: FfiConverterUInt32.read(from: &buf),
+                text: FfiConverterString.read(from: &buf), 
+                start: FfiConverterUInt32.read(from: &buf), 
+                end: FfiConverterUInt32.read(from: &buf), 
                 tokens: FfiConverterSequenceTypeDocumentToken.read(from: &buf)
         )
     }
@@ -1339,9 +1347,9 @@ public struct DocumentSpan: Equatable, Hashable {
         self.end = end
     }
 
+    
 
-
-
+    
 }
 
 #if compiler(>=6)
@@ -1355,7 +1363,7 @@ public struct FfiConverterTypeDocumentSpan: FfiConverterRustBuffer {
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> DocumentSpan {
         return
             try DocumentSpan(
-                start: FfiConverterUInt32.read(from: &buf),
+                start: FfiConverterUInt32.read(from: &buf), 
                 end: FfiConverterUInt32.read(from: &buf)
         )
     }
@@ -1407,9 +1415,9 @@ public struct DocumentToken: Equatable, Hashable {
         self.isSkipped = isSkipped
     }
 
+    
 
-
-
+    
 }
 
 #if compiler(>=6)
@@ -1423,14 +1431,14 @@ public struct FfiConverterTypeDocumentToken: FfiConverterRustBuffer {
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> DocumentToken {
         return
             try DocumentToken(
-                text: FfiConverterString.read(from: &buf),
-                start: FfiConverterUInt32.read(from: &buf),
-                end: FfiConverterUInt32.read(from: &buf),
-                readings: FfiConverterSequenceTypeAnalysisReading.read(from: &buf),
-                chunks: FfiConverterSequenceString.read(from: &buf),
-                isWhitespace: FfiConverterBool.read(from: &buf),
-                isPunctuation: FfiConverterBool.read(from: &buf),
-                isWord: FfiConverterBool.read(from: &buf),
+                text: FfiConverterString.read(from: &buf), 
+                start: FfiConverterUInt32.read(from: &buf), 
+                end: FfiConverterUInt32.read(from: &buf), 
+                readings: FfiConverterSequenceTypeAnalysisReading.read(from: &buf), 
+                chunks: FfiConverterSequenceString.read(from: &buf), 
+                isWhitespace: FfiConverterBool.read(from: &buf), 
+                isPunctuation: FfiConverterBool.read(from: &buf), 
+                isWord: FfiConverterBool.read(from: &buf), 
                 isSkipped: FfiConverterBool.read(from: &buf)
         )
     }
@@ -1579,9 +1587,9 @@ public struct TokenPosition: Equatable, Hashable {
         self.token = token
     }
 
+    
 
-
-
+    
 }
 
 #if compiler(>=6)
@@ -1595,8 +1603,8 @@ public struct FfiConverterTypeTokenPosition: FfiConverterRustBuffer {
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> TokenPosition {
         return
             try TokenPosition(
-                paragraph: FfiConverterUInt32.read(from: &buf),
-                sentence: FfiConverterUInt32.read(from: &buf),
+                paragraph: FfiConverterUInt32.read(from: &buf), 
+                sentence: FfiConverterUInt32.read(from: &buf), 
                 token: FfiConverterUInt32.read(from: &buf)
         )
     }

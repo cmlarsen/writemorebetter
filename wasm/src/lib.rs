@@ -77,8 +77,10 @@ struct DocumentToken {
     text: String,
     start: usize,
     end: usize,
-    readings: Vec<nlprule::analysis::AnalysisReading>,
-    chunks: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    readings: Option<Vec<nlprule::analysis::AnalysisReading>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    chunks: Option<Vec<String>>,
     is_whitespace: bool,
     is_punctuation: bool,
     is_word: bool,
@@ -140,8 +142,8 @@ impl From<writemorebetter_style::Document> for Document {
                                     text: token.text,
                                     start: token.span.utf16.start,
                                     end: token.span.utf16.end,
-                                    readings: token.readings,
-                                    chunks: token.chunks,
+                                    readings: Some(token.readings),
+                                    chunks: Some(token.chunks),
                                     is_whitespace: token.is_whitespace,
                                     is_punctuation: token.is_punctuation,
                                     is_word: token.is_word,
@@ -272,6 +274,7 @@ impl Checker {
             .map_err(|err| JsValue::from_str(&format!("failed to serialize analysis: {err}")))
     }
 
+    #[wasm_bindgen(js_name = analyzeDocument)]
     pub fn analyze_document(
         &self,
         text: &str,
@@ -282,11 +285,22 @@ impl Checker {
             .transpose()
             .map_err(|err| JsValue::from_str(&format!("invalid document options: {err}")))?
             .unwrap_or_default();
-        let document = Document::from(writemorebetter_style::analyze_document(
+        let mut document = Document::from(writemorebetter_style::analyze_document(
             &self.tokenizer,
             text,
             &options,
         ));
+        if !options.include_token_details {
+            for token in document
+                .paragraphs
+                .iter_mut()
+                .flat_map(|p| &mut p.sentences)
+                .flat_map(|s| &mut s.tokens)
+            {
+                token.readings = None;
+                token.chunks = None;
+            }
+        }
         serde_json::to_string(&document)
             .map_err(|err| JsValue::from_str(&format!("failed to serialize document: {err}")))
     }

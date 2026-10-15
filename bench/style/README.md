@@ -142,15 +142,17 @@ Validate annotation text against its TSV tokens. The originals contain whole pub
 **only the prefix through the last annotated token is scored**, so unannotated later speech cannot
 become a false positive. Original spacing, wrapped lines and paragraph breaks are retained.
 
-The Rust document probe calls `writemorebetter_style::dialogue_spans` on these original prefixes.
+The Rust document probe calls `writemorebetter_style::dialogue_spans_with_options` on these original prefixes
+with hard-wrapped paragraph mode.
 Delimiters are included; a true positive requires all byte and UTF-16 endpoints to match exactly.
 The tier 2 scorer validates file identifiers and counts duplicate predictions as extra false positives.
 Counts are micro-aggregated over documents, including those with no quotations. These procedural
 paired-quotation spans have no speaker attribution; scare quotes can be false positives and dash speech
 is missed. The historical Python `quote_spans` helper remains for baseline fixture tests only. Its
 measured baseline and the Rust comparison are recorded in the document measurements. The final
-Rust test floors are precision **86.8887%**, recall **91.2882%**, and F1 **89.0341%** (1,226 exact matches,
-1,411 predictions, 1,343 gold), each raised above the historical Python floor. EWT floors are unchanged.
+corrected Rust test floors are precision **85.2799%**, recall **91.8838%**, and F1 **88.4588%**
+(1,234 exact matches, 1,447 predictions, 1,343 gold), above the historical Python floors.
+These supersede the inflated pre-recovery floors; the review correction is explained below. EWT floors are unchanged.
 
 ## Tier 2 framework
 
@@ -319,3 +321,15 @@ are diagnostic only. Raw and lexical-convention metrics are diagnostic only. The
 arithmetic; thresholds are never rounded or automatically rewritten. A rebaseline needs review of the
 metric definitions, exclusions, alignment coverage, ambiguity and per-category differences, not only
 headline scores. The README retains the initial numbers above to make this review change explicit.
+
+## Current document detector after #243 review
+
+The historical table above records #259's Python baseline. Current product-detector test floors are
+precision **85.2799%**, recall **91.8838%**, F1 **88.4588%** (1,234 / 1,447 / 1,343 TP/predicted/gold).
+The probe uses the crate's hard-wrapped paragraph mode for original LitBank text. Open quotes are
+dropped at paragraph boundaries unless the next paragraph repeats the same opener; known leading
+elisions do not open quotes. The earlier 86.8887% precision claim was partly an artifact of lost
+predictions after unclosed single quotes. The initial detector revision was triggered by a test-split
+precision failure, then evaluated on dev; the subsequent recovery fix was prompted by review that
+included test-split diagnostics. Full before/after results and revised floors are documented in
+[STYLE-DOCUMENT-BENCHMARKS.md](../../docs/STYLE-DOCUMENT-BENCHMARKS.md).

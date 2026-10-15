@@ -1,0 +1,4 @@
+root = true
+
+[swift/Sources/WriteMoreBetter/Generated/**]
+trim_trailing_whitespace = false

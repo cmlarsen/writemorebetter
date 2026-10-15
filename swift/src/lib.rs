@@ -116,9 +116,24 @@ impl From<nlprule::analysis::AnalysisSentence> for AnalysisSentence {
     }
 }
 
-#[derive(Debug, Clone, Default, uniffi::Record)]
+#[derive(Debug, Clone, uniffi::Record)]
 pub struct DocumentOptions {
+    #[uniffi(default)]
     pub skip_names: Vec<String>,
+    #[uniffi(default = true)]
+    pub include_token_details: bool,
+    #[uniffi(default)]
+    pub hard_wrapped: bool,
+}
+
+impl Default for DocumentOptions {
+    fn default() -> Self {
+        Self {
+            skip_names: Vec::new(),
+            include_token_details: true,
+            hard_wrapped: false,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
@@ -369,9 +384,11 @@ impl Checker {
     }
 
     pub fn analyze_document(&self, text: String, options: Option<DocumentOptions>) -> Document {
-        let options = writemorebetter_style::DocumentOptions {
-            skip_names: options.unwrap_or_default().skip_names,
-        };
+        let options = options.unwrap_or_default();
+        let options = writemorebetter_style::DocumentOptions::new()
+            .with_skip_names(options.skip_names)
+            .with_token_details(options.include_token_details)
+            .with_hard_wrapped(options.hard_wrapped);
         writemorebetter_style::analyze_document(&self.tokenizer, &text, &options).into()
     }
 

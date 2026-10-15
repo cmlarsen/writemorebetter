@@ -91,7 +91,7 @@ final class CheckerTests: XCTestCase {
     func testDocumentAnalysisPreservesRecordsAndReusesTokenizer() throws {
         let checker = try checker()
         let text = "😀 “Zoë’s goin’—again…”\u{2028}She stayed.\r\n\r\nZoë walked with O’Brien."
-        let options = DocumentOptions(skipNames: ["ZOË", "zoë's", "o'brien"])
+        let options = DocumentOptions(skipNames: ["Zoë", "O'Brien"])
         let analysis = checker.analyze(text: text)
         let document = checker.analyzeDocument(text: text, options: options)
         let unskipped = checker.analyzeDocument(text: text, options: nil)
@@ -139,7 +139,7 @@ final class CheckerTests: XCTestCase {
             for position in positions {
                 let token = document.paragraphs[Int(position.paragraph)].sentences[Int(position.sentence)].tokens[Int(position.token)]
                 XCTAssertTrue(token.isWord && !token.isSkipped)
-                XCTAssertTrue(token.readings.contains { $0.lemma == lemma })
+                XCTAssertTrue(token.readings.contains { $0.lemma == lemma } || (token.readings.isEmpty && lemma == token.text.lowercased()))
             }
         }
         for (paragraphIndex, paragraph) in document.paragraphs.enumerated() {
@@ -159,13 +159,31 @@ final class CheckerTests: XCTestCase {
         XCTAssertTrue(empty.dialogue.isEmpty)
         XCTAssertTrue(empty.lemmaIndex.isEmpty)
         XCTAssertEqual(empty.wordCount, 0)
-        let phrase = checker.analyzeDocument(text: "Port Royal met Port.", options: DocumentOptions(skipNames: ["port royal"]))
+        let phrase = checker.analyzeDocument(text: "Port Royal met Port.", options: DocumentOptions(skipNames: ["Port Royal"]))
         let phraseTokens = phrase.paragraphs.flatMap(\.sentences).flatMap(\.tokens)
         XCTAssertEqual(phraseTokens.filter { $0.isWord && $0.isSkipped }.map(\.text), ["Port", "Royal"])
         XCTAssertEqual(phrase.wordCount, 2)
         XCTAssertFalse(checker.check(text: "The the dog barked.").isEmpty)
         XCTAssertEqual(checker.analyze(text: text), analysis)
         XCTAssertEqual(checker.analyzeDocument(text: text, options: options), document)
+    }
+
+    func testDocumentOptionsDefaultsNamesAndCompactProjection() throws {
+        let checker = try checker()
+        let text = "Will said he will go. Anna's hat. Anna’s coat. Charles' car."
+        let defaults = DocumentOptions()
+        XCTAssertTrue(defaults.includeTokenDetails)
+        XCTAssertFalse(defaults.hardWrapped)
+        let options = DocumentOptions(skipNames: ["Will", "Anna", "Charles"])
+        let full = checker.analyzeDocument(text: text, options: options)
+        let tokens = full.paragraphs.flatMap(\.sentences).flatMap(\.tokens)
+        XCTAssertTrue(try XCTUnwrap(tokens.first { $0.text == "Will" }).isSkipped)
+        XCTAssertFalse(try XCTUnwrap(tokens.first { $0.text == "will" }).isSkipped)
+        XCTAssertTrue(tokens.filter { ["'s", "’s", "'", "’"].contains($0.text) }.allSatisfy(\.isSkipped))
+        let compact = checker.analyzeDocument(text: text, options: DocumentOptions(skipNames: options.skipNames, includeTokenDetails: false))
+        XCTAssertEqual(compact.wordCount, full.wordCount)
+        XCTAssertEqual(compact.lemmaIndex, full.lemmaIndex)
+        XCTAssertTrue(compact.paragraphs.flatMap(\.sentences).flatMap(\.tokens).allSatisfy { $0.readings.isEmpty && $0.chunks.isEmpty })
     }
 
     func testOffsetsAreUTF16CodeUnits() throws {

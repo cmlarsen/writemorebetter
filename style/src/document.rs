@@ -5,6 +5,7 @@ use nlprule::{analysis::AnalysisSpan, Tokenizer};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct Span {
     pub byte: Range<usize>,
     pub char: Range<usize>,
@@ -21,13 +22,48 @@ impl From<AnalysisSpan> for Span {
     }
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(default)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+#[non_exhaustive]
 pub struct DocumentOptions {
+    #[serde(alias = "skipNames")]
     pub skip_names: Vec<String>,
+    #[serde(alias = "includeTokenDetails")]
+    pub include_token_details: bool,
+    #[serde(alias = "hardWrapped")]
+    pub hard_wrapped: bool,
+}
+
+impl Default for DocumentOptions {
+    fn default() -> Self {
+        Self {
+            skip_names: Vec::new(),
+            include_token_details: true,
+            hard_wrapped: false,
+        }
+    }
+}
+
+impl DocumentOptions {
+    pub fn new() -> Self {
+        Self::default()
+    }
+    pub fn with_skip_names(mut self, names: Vec<String>) -> Self {
+        self.skip_names = names;
+        self
+    }
+    pub fn with_token_details(mut self, include: bool) -> Self {
+        self.include_token_details = include;
+        self
+    }
+    pub fn with_hard_wrapped(mut self, hard_wrapped: bool) -> Self {
+        self.hard_wrapped = hard_wrapped;
+        self
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct TokenPosition {
     pub paragraph: usize,
     pub sentence: usize,
@@ -35,6 +71,7 @@ pub struct TokenPosition {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct Token {
     pub text: String,
     pub span: Span,
@@ -47,6 +84,7 @@ pub struct Token {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct Sentence {
     pub text: String,
     pub span: Span,
@@ -54,6 +92,7 @@ pub struct Sentence {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct Paragraph {
     pub text: String,
     pub span: Span,
@@ -61,6 +100,7 @@ pub struct Paragraph {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct Document {
     pub paragraphs: Vec<Paragraph>,
     pub dialogue: Vec<Span>,
@@ -77,7 +117,24 @@ fn name_key(text: &str) -> String {
         .collect::<Vec<_>>()
         .join(" ")
         .replace('’', "'")
-        .to_lowercase()
+}
+
+fn name_forms(names: &[String]) -> BTreeSet<String> {
+    let mut forms = BTreeSet::new();
+    for name in names {
+        let name = name_key(name);
+        if name.is_empty() {
+            continue;
+        }
+        forms.insert(name.to_uppercase());
+        if let Some(first) = name.chars().next().filter(|ch| ch.is_lowercase()) {
+            forms.insert(
+                first.to_uppercase().collect::<String>() + name.get(first.len_utf8()..).unwrap(),
+            );
+        }
+        forms.insert(name);
+    }
+    forms
 }
 
 fn skipped_tokens(
@@ -85,32 +142,29 @@ fn skipped_tokens(
     names: &BTreeSet<String>,
 ) -> Vec<bool> {
     let mut skipped = vec![false; tokens.len()];
-    if names.is_empty() {
+    let Some(max_length) = names.iter().map(String::len).max() else {
         return skipped;
-    }
-    let phrase_length = names
-        .iter()
-        .filter(|name| name.contains(' '))
-        .map(String::len)
-        .max()
-        .unwrap_or(0);
+    };
     for (start, token) in tokens.iter().enumerate() {
         if token.is_whitespace {
-            continue;
-        }
-        skipped[start] |= names.contains(&name_key(&token.text));
-        if phrase_length == 0 {
             continue;
         }
         let mut surface = String::new();
         for (end, token) in tokens.iter().enumerate().skip(start) {
             surface.push_str(&token.text);
             let key = name_key(&surface);
-            if key.len() > phrase_length {
+            if key.len() > max_length {
                 break;
             }
             if names.contains(&key) {
                 skipped[start..=end].fill(true);
+                if let Some(clitic) = tokens.get(end + 1) {
+                    if clitic.span.byte.start == token.span.byte.end
+                        && matches!(name_key(&clitic.text).as_str(), "'s" | "'S" | "'")
+                    {
+                        skipped[end + 1] = true;
+                    }
+                }
             }
         }
     }
@@ -156,18 +210,15 @@ pub fn paragraph_spans(text: &str) -> Vec<Span> {
 }
 
 pub fn analyze_document(tokenizer: &Tokenizer, text: &str, options: &DocumentOptions) -> Document {
-    let skipped: BTreeSet<_> = options
-        .skip_names
-        .iter()
-        .map(|name| name_key(name))
-        .collect();
+    let skipped = name_forms(&options.skip_names);
+    let paragraphs = paragraph_spans_mode(text, options.hard_wrapped);
     let mut document = Document {
         paragraphs: Vec::new(),
-        dialogue: dialogue_spans(text),
+        dialogue: detect_dialogue(text, &paragraphs),
         lemma_index: BTreeMap::new(),
         word_count: 0,
     };
-    for span in paragraph_spans(text) {
+    for span in paragraphs {
         let paragraph_text = text.get(span.byte.clone()).unwrap();
         let paragraph_index = document.paragraphs.len();
         let mut sentences = Vec::new();
@@ -180,11 +231,14 @@ pub fn analyze_document(tokenizer: &Tokenizer, text: &str, options: &DocumentOpt
                 let is_skipped = skipped[token_index];
                 if word && !is_skipped {
                     document.word_count += 1;
-                    let lemmas: BTreeSet<_> = token
+                    let mut lemmas: BTreeSet<_> = token
                         .readings
                         .iter()
-                        .map(|reading| reading.lemma.as_str())
+                        .map(|reading| reading.lemma.clone())
                         .collect();
+                    if lemmas.is_empty() {
+                        lemmas.insert(token.text.to_lowercase());
+                    }
                     for lemma in lemmas {
                         document
                             .lemma_index
@@ -200,8 +254,16 @@ pub fn analyze_document(tokenizer: &Tokenizer, text: &str, options: &DocumentOpt
                 tokens.push(Token {
                     text: token.text,
                     span: shift(token.span, &span),
-                    readings: token.readings,
-                    chunks: token.chunks,
+                    readings: if options.include_token_details {
+                        token.readings
+                    } else {
+                        Vec::new()
+                    },
+                    chunks: if options.include_token_details {
+                        token.chunks
+                    } else {
+                        Vec::new()
+                    },
                     is_whitespace: token.is_whitespace,
                     is_punctuation: token.is_punctuation,
                     is_word: word,
@@ -223,58 +285,140 @@ pub fn analyze_document(tokenizer: &Tokenizer, text: &str, options: &DocumentOpt
     document
 }
 
-pub fn dialogue_spans(text: &str) -> Vec<Span> {
-    let chars: Vec<_> = text.char_indices().collect();
-    let mut spans = Vec::new();
-    let mut open: Option<(char, usize, usize, usize)> = None;
-    let mut utf16 = 0;
-    let mut line_start = true;
-    for (scalar, &(byte, ch)) in chars.iter().enumerate() {
-        let previous = scalar.checked_sub(1).map(|i| chars[i].1);
-        let next = chars.get(scalar + 1).map(|(_, ch)| *ch);
-        let single = matches!(ch, '\'' | '‘' | '’');
-        let apostrophe = single
-            && (previous.is_some_and(char::is_alphanumeric)
-                && (next.is_some_and(char::is_alphanumeric)
-                    || open
-                        .as_ref()
-                        .is_none_or(|(kind, ..)| *kind != '\'' && *kind != '‘')));
-        if !apostrophe {
-            if let Some((kind, start_byte, start_char, start_utf16)) = open {
-                let closer = match kind {
-                    '“' => '”',
-                    '‘' => '’',
-                    other => other,
-                };
-                if ch == kind && line_start {
-                    // A repeated opener continues an unfinished speech across paragraphs.
-                } else if ch == closer
-                    && (!single
-                        || previous.is_some_and(|ch| {
-                            matches!(ch, '.' | '!' | '?' | ',' | ':' | ';' | '—' | '…')
-                        }))
-                {
-                    spans.push(Span {
-                        byte: start_byte..byte + ch.len_utf8(),
-                        char: start_char..scalar + 1,
-                        utf16: start_utf16..utf16 + ch.len_utf16(),
-                    });
-                    open = None;
-                }
-            } else if matches!(ch, '“' | '"' | '‘' | '\'')
-                && (!single
-                    || (!previous.is_some_and(char::is_alphanumeric)
-                        && next.is_some_and(char::is_alphanumeric)))
-            {
-                open = Some((ch, byte, scalar, utf16));
+fn paragraph_spans_mode(text: &str, hard_wrapped: bool) -> Vec<Span> {
+    let lines = paragraph_spans(text);
+    if !hard_wrapped {
+        return lines;
+    }
+    let mut paragraphs: Vec<Span> = Vec::new();
+    for line in lines {
+        if let Some(previous) = paragraphs.last_mut() {
+            let gap = text.get(previous.byte.end..line.byte.start).unwrap();
+            let breaks =
+                gap.matches('\n').count() + gap.matches('\r').count() - gap.matches("\r\n").count();
+            if breaks < 2 && !gap.contains('\u{2029}') {
+                previous.byte.end = line.byte.end;
+                previous.char.end = line.char.end;
+                previous.utf16.end = line.utf16.end;
+                continue;
             }
         }
-        if matches!(ch, '\n' | '\r' | '\u{2029}') {
-            line_start = true;
-        } else if !ch.is_whitespace() {
-            line_start = false;
+        paragraphs.push(line);
+    }
+    paragraphs
+}
+
+pub fn dialogue_spans(text: &str) -> Vec<Span> {
+    dialogue_spans_with_options(text, &DocumentOptions::new())
+}
+
+pub fn dialogue_spans_with_options(text: &str, options: &DocumentOptions) -> Vec<Span> {
+    detect_dialogue(text, &paragraph_spans_mode(text, options.hard_wrapped))
+}
+
+fn leading_elision(after: &str) -> bool {
+    let word = after
+        .chars()
+        .take_while(|ch| ch.is_alphanumeric())
+        .collect::<String>()
+        .to_lowercase();
+    matches!(
+        word.as_str(),
+        "em" | "tis"
+            | "twas"
+            | "twere"
+            | "twill"
+            | "twould"
+            | "n"
+            | "cause"
+            | "bout"
+            | "round"
+            | "til"
+            | "till"
+            | "ere"
+            | "neath"
+            | "nother"
+            | "cept"
+            | "scuse"
+            | "twenties"
+            | "thirties"
+            | "forties"
+            | "fifties"
+            | "sixties"
+            | "seventies"
+            | "eighties"
+            | "nineties"
+    ) || word
+        .strip_suffix('s')
+        .is_some_and(|digits| !digits.is_empty() && digits.chars().all(|ch| ch.is_ascii_digit()))
+}
+
+fn detect_dialogue(text: &str, paragraphs: &[Span]) -> Vec<Span> {
+    let mut spans = Vec::new();
+    let mut open: Option<(char, usize, usize, usize)> = None;
+    for (paragraph_index, paragraph) in paragraphs.iter().enumerate() {
+        let surface = text.get(paragraph.byte.clone()).unwrap();
+        let chars: Vec<_> = surface.char_indices().collect();
+        let mut utf16 = paragraph.utf16.start;
+        let mut at_start = true;
+        for (index, &(local_byte, ch)) in chars.iter().enumerate() {
+            let byte = paragraph.byte.start + local_byte;
+            let scalar = paragraph.char.start + index;
+            let previous = index.checked_sub(1).map(|i| chars[i].1);
+            let next = chars.get(index + 1).map(|(_, ch)| *ch);
+            let single = matches!(ch, '\'' | '‘' | '’');
+            let apostrophe = single
+                && (previous.is_some_and(char::is_alphanumeric)
+                    && (next.is_some_and(char::is_alphanumeric)
+                        || open
+                            .as_ref()
+                            .is_none_or(|(kind, ..)| *kind != '\'' && *kind != '‘')));
+            if !apostrophe {
+                if let Some((kind, start_byte, start_char, start_utf16)) = open {
+                    let closer = match kind {
+                        '“' => '”',
+                        '‘' => '’',
+                        other => other,
+                    };
+                    if !(ch == kind && at_start)
+                        && ch == closer
+                        && (!single
+                            || previous.is_some_and(|ch| {
+                                matches!(ch, '.' | '!' | '?' | ',' | ':' | ';' | '—' | '…')
+                            }))
+                    {
+                        spans.push(Span {
+                            byte: start_byte..byte + ch.len_utf8(),
+                            char: start_char..scalar + 1,
+                            utf16: start_utf16..utf16 + ch.len_utf16(),
+                        });
+                        open = None;
+                    }
+                } else if matches!(ch, '“' | '"' | '‘' | '\'')
+                    && (!single
+                        || (!previous.is_some_and(char::is_alphanumeric)
+                            && next.is_some_and(char::is_alphanumeric)
+                            && !leading_elision(
+                                surface.get(local_byte + ch.len_utf8()..).unwrap(),
+                            )))
+                {
+                    open = Some((ch, byte, scalar, utf16));
+                }
+            }
+            if !ch.is_whitespace() {
+                at_start = false;
+            }
+            utf16 += ch.len_utf16();
         }
-        utf16 += ch.len_utf16();
+        if let Some((kind, ..)) = open {
+            let continued = paragraphs
+                .get(paragraph_index + 1)
+                .and_then(|next| text.get(next.byte.clone()))
+                .is_some_and(|next| next.trim_start().starts_with(kind));
+            if !continued {
+                open = None;
+            }
+        }
     }
     spans
 }

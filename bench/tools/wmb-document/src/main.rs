@@ -2,7 +2,7 @@ use std::io::{self, BufRead, Write};
 use std::time::Instant;
 
 use serde::Deserialize;
-use writemorebetter_style::{analyze_document, dialogue_spans, DocumentOptions};
+use writemorebetter_style::{analyze_document, dialogue_spans_with_options, DocumentOptions};
 
 #[derive(Deserialize)]
 struct Input {
@@ -18,7 +18,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Some("--dialogue") if args.len() == 1 => {
             for line in io::stdin().lock().lines() {
                 let input: Input = serde_json::from_str(&line?)?;
-                for span in dialogue_spans(&input.text) {
+                for span in dialogue_spans_with_options(&input.text, &DocumentOptions::new().with_hard_wrapped(true)) {
                     serde_json::to_writer(
                         &mut output,
                         &serde_json::json!({
@@ -32,8 +32,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
         }
-        Some("--benchmark") if args.len() == 3 || args.len() == 4 => {
-            let iterations: usize = args.get(3).map(|n| n.parse()).transpose()?.unwrap_or(5);
+        Some("--benchmark") if args.len() >= 3 => {
+            let iterations: usize = args.get(3).filter(|n| !n.starts_with("--")).map(|n| n.parse()).transpose()?.unwrap_or(5);
             if iterations == 0 {
                 return Err("iterations must be positive".into());
             }
@@ -41,7 +41,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let started = Instant::now();
             let tokenizer = nlprule::Tokenizer::new(&args[1])?;
             let load_ms = started.elapsed().as_secs_f64() * 1000.0;
-            let options = DocumentOptions::default();
+            let options = DocumentOptions::new().with_token_details(!args.iter().any(|arg| arg == "--compact")).with_hard_wrapped(args.iter().any(|arg| arg == "--hard-wrapped"));
             drop(std::hint::black_box(analyze_document(
                 &tokenizer, &text, &options,
             )));
@@ -63,6 +63,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 &mut output,
                 &serde_json::json!({
                     "bytes": text.len(),
+                    "include_token_details": options.include_token_details,
+                    "hard_wrapped": options.hard_wrapped,
                     "iterations": iterations,
                     "warmups": 1,
                     "tokenizer_load_ms": load_ms,
@@ -76,7 +78,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         _ => {
             return Err(
-                "usage: wmb-document --dialogue | --benchmark TOKENIZER TEXT [ITERATIONS]".into(),
+                "usage: wmb-document --dialogue | --benchmark TOKENIZER TEXT [ITERATIONS] [--compact] [--hard-wrapped]".into(),
             )
         }
     }

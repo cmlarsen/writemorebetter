@@ -158,5 +158,15 @@ let allWords = checker.analyzeDocument(text: text, options: nil)
 dialogue `start` / exclusive `end` offsets count UTF-16 code units in the original text.
 Tokens preserve readings, chunks, `isWhitespace` and `isPunctuation`, and add `isWord`
 and `isSkipped`. Skipped names stay in the document but are excluded from `wordCount`
-and `lemmaIndex`; matching ignores case and normalizes curly apostrophes.
+and `lemmaIndex`; matching is case-sensitive, accepts ALL CAPS, and normalizes curly apostrophes. A lowercase
+entry also accepts its first character capitalized; `Will` preserves the modal `will`. Adjacent
+possessive clitics of skipped names are excluded as well.
 The document pass uses the checker's existing tokenizer alongside `analyze` and `check`.
+
+Document options default to full token details and one paragraph per nonempty line. For hard-wrapped
+imports use `hardWrapped: true` (WASM also accepts `hard_wrapped`); blank lines then separate
+paragraphs. Set `includeTokenDetails: false` (WASM: `include_token_details`) to reduce memory: WASM
+omits token `readings`/`chunks` keys and Swift returns empty arrays, while counts and the index remain
+unchanged. WASM accepts camelCase/snake_case option names and rejects unknown keys. See
+[the document conventions](../docs/STYLE-DOCUMENT.md) and
+[novel-length time/memory measurements](../docs/STYLE-DOCUMENT-BENCHMARKS.md).

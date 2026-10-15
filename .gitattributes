@@ -1,1 +1,3 @@
 bench/public/moby150k.txt -text whitespace=cr-at-eol
+
+swift/Sources/WriteMoreBetter/Generated/** whitespace=-blank-at-eol

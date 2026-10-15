@@ -81,10 +81,10 @@ the checker's one loaded tokenizer. See [the analysis contract](../docs/ANALYSIS
 ## Document analysis
 
 ```js
-const document = JSON.parse(checker.analyze_document(text, JSON.stringify({
+const document = JSON.parse(checker.analyzeDocument(text, JSON.stringify({
   skip_names: ["Zoë", "O’Brien"],
 })));
-const allWords = JSON.parse(checker.analyze_document(text));
+const allWords = JSON.parse(checker.analyzeDocument(text));
 ```
 
 The optional second argument is a JSON `DocumentOptions` object containing `skip_names`.
@@ -94,7 +94,9 @@ The result contains `paragraphs` with nested `sentences` and `tokens`, `dialogue
 `start` / exclusive `end` offsets count UTF-16 code units in the original text.
 Tokens retain readings, chunks, whitespace and punctuation flags and add `is_word` and
 `is_skipped`. Skipped names remain in the document but are excluded from `word_count`
-and `lemma_index`; matching ignores case and normalizes curly apostrophes.
+and `lemma_index`; matching is case-sensitive, accepts ALL CAPS, and normalizes curly apostrophes. A lowercase
+entry also accepts its first character capitalized; `Will` preserves the modal `will`. Adjacent
+possessive clitics of skipped names are excluded as well.
 The document pass shares the checker's loaded tokenizer with `analyze()` and `check()`.
 
 ## Prerequisites
@@ -150,3 +152,11 @@ a quick single-run pass. `compare.mjs` needs the release `wmb-probe`:
 ```sh
 cargo build --release --manifest-path bench/tools/wmb-probe/Cargo.toml
 ```
+
+Document options default to full token details and one paragraph per nonempty line. For hard-wrapped
+imports use `hardWrapped: true` (WASM also accepts `hard_wrapped`); blank lines then separate
+paragraphs. Set `includeTokenDetails: false` (WASM: `include_token_details`) to reduce memory: WASM
+omits token `readings`/`chunks` keys and Swift returns empty arrays, while counts and the index remain
+unchanged. WASM accepts camelCase/snake_case option names and rejects unknown keys. See
+[the document conventions](../docs/STYLE-DOCUMENT.md) and
+[novel-length time/memory measurements](../docs/STYLE-DOCUMENT-BENCHMARKS.md).

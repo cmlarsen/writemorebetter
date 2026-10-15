@@ -129,9 +129,7 @@ fn counts_words_and_distinct_token_lemmas() {
     let skipped = analyze_document(
         &tokenizer,
         text,
-        &DocumentOptions {
-            skip_names: vec!["mara".into()],
-        },
+        &DocumentOptions::new().with_skip_names(vec!["mara".into()]),
     );
     assert_eq!(all.word_count - skipped.word_count, 2);
     assert_eq!(skipped.word_count, 3);
@@ -161,9 +159,7 @@ fn names_can_span_multiple_tokens() {
     let filtered = analyze_document(
         &tokenizer,
         text,
-        &DocumentOptions {
-            skip_names: vec!["Port Royal".into()],
-        },
+        &DocumentOptions::new().with_skip_names(vec!["Port Royal".into()]),
     );
     assert_eq!(all.word_count - filtered.word_count, 4);
     assert_eq!(filtered.word_count, 4);
@@ -177,4 +173,107 @@ fn names_can_span_multiple_tokens() {
     assert_eq!(port.len(), 2);
     assert!(port[0].is_skipped);
     assert!(!port[1].is_skipped);
+}
+
+#[test]
+fn review_dialogue_recovery() {
+    let rows: Vec<serde_json::Value> =
+        serde_json::from_str(include_str!("fixtures/review-dialogue.json")).unwrap();
+    for row in rows {
+        let text = row["text"].as_str().unwrap();
+        let expected = row["dialogue"].as_array().unwrap();
+        let spans = dialogue_spans(text);
+        assert_eq!(spans.len(), expected.len(), "{text}");
+        for (span, expected) in spans.iter().zip(expected) {
+            assert_span(text, span, expected.as_str().unwrap());
+        }
+    }
+}
+
+#[test]
+fn names_preserve_case_and_skip_adjacent_possessives() {
+    let tokenizer = tokenizer();
+    let document = analyze_document(
+        &tokenizer,
+        "Will said he will go. WILL stayed.",
+        &DocumentOptions::new().with_skip_names(vec!["Will".into()]),
+    );
+    let words: Vec<_> = document
+        .paragraphs
+        .iter()
+        .flat_map(|p| &p.sentences)
+        .flat_map(|s| &s.tokens)
+        .filter(|t| t.is_word)
+        .collect();
+    assert!(words
+        .iter()
+        .filter(|t| matches!(t.text.as_str(), "Will" | "WILL"))
+        .all(|t| t.is_skipped));
+    assert!(words.iter().any(|t| t.text == "will" && !t.is_skipped));
+    assert!(document.lemma_index.contains_key("will"));
+    for (text, name) in [
+        ("Anna's hat.", "Anna"),
+        ("Anna’s hat.", "Anna"),
+        ("Charles' hat.", "Charles"),
+        ("Zoë's hat.", "zoë's"),
+    ] {
+        let document = analyze_document(
+            &tokenizer,
+            text,
+            &DocumentOptions::new().with_skip_names(vec![name.into()]),
+        );
+        assert_eq!(document.word_count, 1, "{text}");
+        assert!(!document.lemma_index.contains_key("'s"), "{text}");
+        assert!(
+            document.paragraphs[0].sentences[0]
+                .tokens
+                .iter()
+                .filter(|t| !t.is_whitespace && t.text != "hat" && t.text != ".")
+                .all(|t| t.is_skipped),
+            "{text}"
+        );
+    }
+}
+
+#[test]
+fn unknown_words_and_compact_documents_retain_counts() {
+    let tokenizer = tokenizer();
+    let text = "Zzqvorth sang. Zzqvorth sang. as soon as possible";
+    let full = analyze_document(&tokenizer, text, &DocumentOptions::new());
+    assert_eq!(full.lemma_index["zzqvorth"].len(), 2);
+    let compact = analyze_document(
+        &tokenizer,
+        text,
+        &DocumentOptions::new().with_token_details(false),
+    );
+    assert_eq!(full.word_count, compact.word_count);
+    assert_eq!(full.lemma_index, compact.lemma_index);
+    assert!(compact
+        .paragraphs
+        .iter()
+        .flat_map(|p| &p.sentences)
+        .flat_map(|s| &s.tokens)
+        .all(|t| t.readings.is_empty() && t.chunks.is_empty()));
+    assert!(serde_json::from_str::<DocumentOptions>("{\"skpi_names\":[]}").is_err());
+    assert_eq!(
+        serde_json::from_str::<DocumentOptions>("{\"skipNames\":[\"Will\"]}")
+            .unwrap()
+            .skip_names,
+        ["Will"]
+    );
+}
+
+#[test]
+fn hard_wrapped_paragraphs_preserve_offsets() {
+    let text = "😀 “First wrapped\r\nline.”\r\n\r\nSecond paragraph.";
+    let options = DocumentOptions::new().with_hard_wrapped(true);
+    let document = analyze_document(&tokenizer(), text, &options);
+    assert_eq!(document.paragraphs.len(), 2);
+    assert_span(
+        text,
+        &document.paragraphs[0].span,
+        "😀 “First wrapped\r\nline.”",
+    );
+    assert_span(text, &document.dialogue[0], "“First wrapped\r\nline.”");
+    assert!(dialogue_spans(text).is_empty());
 }
