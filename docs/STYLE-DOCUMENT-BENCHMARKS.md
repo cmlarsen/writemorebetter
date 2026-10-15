@@ -95,7 +95,6 @@ Measurements use Apple M5 Pro, arm64 macOS, Rust 1.97.1, native release builds, 
 | Initial, concurrent probe build | 7 | 1,541.558 ms | 1,975.859 ms | 5,184.025 ms | 91.553 ms | 60.91 MiB |
 | Repeat, local probe builds finished | 7 | 1,849.392 ms | 3,491.561 ms | 4,571.081 ms | 97.929 ms | 58.09 MiB |
 | Coordinator run before final name handling | 5 | 890.333 ms | 936.558 ms | 1,494.933 ms | 64.288 ms | 64.94 MiB |
-
 | Final committed core, builds finished | 5 | 854.592 ms | 867.399 ms | 921.136 ms | 84.728 ms | 65.22 MiB |
 
 The second run's sorted durations were 1,849.392, 1,975.160, 2,292.994, 3,491.561, 3,993.763,
