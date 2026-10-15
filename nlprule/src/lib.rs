@@ -202,7 +202,9 @@ pub const TOKENIZER_FORMAT_VERSION: u32 = 18;
 /// was replaced by `optional_count`.
 /// Version 29: the `SpecificCase`, `Dash` and `Compounds` builtins were added, and `SimpleReplace`
 /// gained `has_suggestions`.
-pub const RULES_FORMAT_VERSION: u32 = 29;
+/// Version 30: `Spell::multitoken` (the multitoken phrase list) and the `MultitokenSpeller` rule
+/// filter were added.
+pub const RULES_FORMAT_VERSION: u32 = 30;
 
 /// The longest engine version string accepted in a binary header.
 const MAX_ENGINE_VERSION_LEN: usize = 256;

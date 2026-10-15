@@ -24,9 +24,24 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   `Rules::builtins_mut`. Their word lists are copied from LanguageTool by
   `build/make_build_dir.py`, so a build directory needs regenerating. `Builtin::check_paragraph`
   takes the speller as a new last argument. The rules binary format version is now 29.
+- **Misspelled multi-word names and phrases are caught.** The 14 `MULTITOKEN_SPELLING` rules
+  (`EN_MULTITOKEN_SPELLING_TWO`, `_THREE` and `_FOUR`) now compile: `MultitokenSpellerFilter` is
+  ported from LanguageTool 6.6, so "Yuval Noha Harari" suggests "Yuval Noah Harari" and "Rocki
+  Mountains National Park" suggests "Rocky Mountain National Park"
+  ([#72](https://github.com/cmlarsen/writemorebetter/issues/72)). `build/make_build_dir.py`
+  writes LanguageTool's phrase lists (`en/multiwords.txt` and `spelling_global.txt`, nouns and
+  adjectives only, as LanguageTool reads them) to `spell/multitoken.txt`, and the compiler stores
+  them in the rules binary; a build directory without that file leaves the rules uncompiled.
+  The rules stay on in the fiction profile: they flagged nothing in `bench/public`. The rules
+  binary format version is now 30.
 
 ### Fixed
 
+- **A match a rule filter vetoes no longer hides a later overlapping match of the same rule.**
+  The matcher claimed a match's characters before the filter ran, so when the filter vetoed it,
+  the next candidate starting inside it was skipped. LanguageTool 6.6 drops a vetoed match
+  before it removes overlaps, so `“yuval Noha Harari,” she said.` now gets "Noah Harari" from
+  `EN_MULTITOKEN_SPELLING_TWO` after the filter rejects "yuval Noha".
 - **Names from LanguageTool's global spelling list are accepted by `Speller::is_correct` and
   suggested.** Single-word entries of `spelling_global.txt` (`Josquin`, `fit4work`, `Nestlé`) are
   now speller words for every variant, as in LanguageTool 6.6, so `Josquinn` suggests `Josquin`

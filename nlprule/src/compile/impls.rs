@@ -24,7 +24,10 @@ use crate::{
         DisambiguationRule, Repetition, Rule,
     },
     rules::{Rules, RulesLangOptions},
-    spell::{Spell, SpellInt, SpellLangOptions},
+    spell::{
+        multitoken::{normalize_key, MultitokenSpeller},
+        Spell, SpellInt, SpellLangOptions,
+    },
     tokenizer::{
         chunk,
         multiword::{MultiwordTagger, MultiwordTaggerFields},
@@ -297,6 +300,72 @@ impl Spell {
             lang_options,
         ))
     }
+}
+
+impl MultitokenSpeller {
+    /// Reads the phrase list (one spelling per line), as `MultitokenSpeller.initMultitokenSpeller`
+    /// does after `prepareLineForSpeller`. Single-word keys are skipped.
+    pub(in crate::compile) fn from_file(path: impl AsRef<Path>) -> io::Result<Self> {
+        let mut by_first_char: DefaultHashMap<char, Vec<(String, Vec<String>)>> =
+            DefaultHashMap::default();
+        let mut key_indices: DefaultHashMap<String, usize> = DefaultHashMap::default();
+        let mut by_key_without_spaces: DefaultHashMap<String, Vec<String>> =
+            DefaultHashMap::default();
+
+        let push_unique = |spellings: &mut Vec<String>, line: &str| {
+            if !spellings.iter().any(|x| x == line) {
+                spellings.push(line.to_owned());
+            }
+        };
+
+        for line in BufReader::new(File::open(path.as_ref())?).lines() {
+            let line = line?;
+            let key = normalize_key(&line);
+            if !key.contains(' ') {
+                continue;
+            }
+            let first = key.chars().next().expect("key contains a space");
+            let entries = by_first_char.entry(first).or_default();
+            let index = *key_indices.entry(key.clone()).or_insert_with(|| {
+                entries.push((key.clone(), Vec::new()));
+                entries.len() - 1
+            });
+            push_unique(&mut entries[index].1, &line);
+            push_unique(
+                by_key_without_spaces
+                    .entry(key.replace(' ', ""))
+                    .or_default(),
+                &line,
+            );
+        }
+
+        for entries in by_first_char.values_mut() {
+            let mask = java_hash_map_capacity(entries.len()) - 1;
+            entries.sort_by_key(|(key, _)| java_hash_map_hash(key) & mask);
+        }
+
+        Ok(MultitokenSpeller {
+            by_first_char,
+            by_key_without_spaces,
+        })
+    }
+}
+
+/// `HashMap.hash(key)` for a Java `String` key: `String.hashCode` with its high half folded in.
+fn java_hash_map_hash(key: &str) -> u32 {
+    let hash = key
+        .encode_utf16()
+        .fold(0u32, |hash, c| hash.wrapping_mul(31).wrapping_add(c as u32));
+    hash ^ (hash >> 16)
+}
+
+/// The table size of a Java `HashMap` after `len` insertions at the default load factor.
+fn java_hash_map_capacity(len: usize) -> u32 {
+    let mut capacity = 16;
+    while len > capacity * 3 / 4 {
+        capacity *= 2;
+    }
+    capacity as u32
 }
 
 impl Tagger {
@@ -1679,11 +1748,14 @@ pub(in crate::compile) mod rule_filters {
                 date: Some(to_arg_value(required(&args, "date")?, is_regex_rule)),
             }),
             "MultitokenSpellerFilter" => {
-                return Err(Error::Unimplemented(format!(
-                    "filter class '{}' needs LanguageTool's multitoken-speller data, \
-                     which is not available to the on-device engine.",
-                    class
-                )))
+                if !build_dir.join("spell").join("multitoken.txt").exists() {
+                    return Err(Error::Unimplemented(format!(
+                        "filter class '{}' needs the multitoken spelling list \
+                         (spell/multitoken.txt), which this build directory does not have.",
+                        class
+                    )));
+                }
+                RuleFilter::MultitokenSpeller
             }
             "FindSuggestionsFilter" => {
                 let from = required(&args, "wordFrom")?;
@@ -2181,6 +2253,109 @@ mod tests {
                 ),
             ],
         );
+    }
+
+    const VETOING_FILTER: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
+<rules lang="en">
+<category id="PROBE" name="Probe">
+  <rule id="PAIR" name="m">
+    <pattern><token regexp="yes">[a-z]{3}</token><token regexp="yes">[a-z]{3}</token></pattern>
+    <filter class="org.languagetool.rules.patterns.RegexAntiPatternFilter" args="antipatterns:aaa"/>
+    <message>m</message>
+  </rule>
+</category>
+</rules>
+"#;
+
+    #[test]
+    fn a_vetoed_match_does_not_hide_a_later_overlapping_match() {
+        let tokenizer = Tokenizer::new("../storage/en_tokenizer.bin").unwrap();
+        let path =
+            std::env::temp_dir().join(format!("wmb-vetoing-filter-{}.xml", std::process::id()));
+        std::fs::write(&path, VETOING_FILTER).unwrap();
+        let mut info = BuildInfo::new(
+            tokenizer.tagger().clone(),
+            RegexCache::new(0),
+            PathBuf::new(),
+        );
+        let mut pool = PartInterner::default();
+        let rules = rules_from_xml(
+            &path,
+            &mut info,
+            &RulesLangOptions::default(),
+            &mut pool,
+            &mut HashMap::new(),
+        );
+        std::fs::remove_file(&path).unwrap();
+        let pool = pool.into_pool();
+        assert_eq!(rules.len(), 1);
+
+        for (text, expected) in [
+            ("\u{201c}aaa bbb ccc\u{2026}\u{201d} she said.", vec![5..12]),
+            ("aaa bbb\u{2014}ccc ddd eee.", vec![8..15]),
+            ("She left.\u{2028}aaa bbb ccc ddd.", vec![14..21]),
+            ("\u{2018}ccc ddd aaa bbb\u{2019}", vec![1..8]),
+        ] {
+            let mut flagged = Vec::new();
+            for sentence in tokenizer.pipe(text) {
+                let sentence = MatchSentence::new(&sentence);
+                flagged.extend(
+                    rules[0]
+                        .apply(&pool, &sentence, None, None, None)
+                        .map(|suggestion| suggestion.span().char().clone()),
+                );
+            }
+            assert_eq!(flagged, expected, "{:?}", text);
+        }
+    }
+
+    #[test]
+    fn multitoken_phrases_keep_the_java_hash_map_order() {
+        assert_eq!(java_hash_map_hash("hello"), 99162322 ^ (99162322 >> 16));
+        assert_eq!(java_hash_map_capacity(12), 16);
+        assert_eq!(java_hash_map_capacity(13), 32);
+
+        let path = std::env::temp_dir().join(format!("wmb-multitoken-{}.txt", std::process::id()));
+        std::fs::write(
+            &path,
+            "New York\nNoah Harari\nNotre Dame\nNorth Sea\nNova Scotia\nnoah harari\nNoah Harari\n\
+             Harari\nZo\u{eb} Quill\nZoe-Quill\nMara\u{2014}Venn\nO\u{2019}Brien Hall\n",
+        )
+        .unwrap();
+        let speller = MultitokenSpeller::from_file(&path).unwrap();
+        std::fs::remove_file(&path).unwrap();
+
+        let keys: Vec<&str> = speller.by_first_char[&'n']
+            .iter()
+            .map(|(key, _)| key.as_str())
+            .collect();
+        assert_eq!(
+            keys,
+            [
+                "noah harari",
+                "nova scotia",
+                "north sea",
+                "notre dame",
+                "new york"
+            ]
+        );
+        assert_eq!(
+            speller.by_first_char[&'n'][0].1,
+            ["Noah Harari", "noah harari"]
+        );
+        assert_eq!(
+            speller.by_first_char[&'z'],
+            [(
+                "zoe quill".to_owned(),
+                vec!["Zo\u{eb} Quill".to_owned(), "Zoe-Quill".to_owned()]
+            )]
+        );
+        assert_eq!(
+            speller.by_key_without_spaces["o\u{2019}brienhall"],
+            ["O\u{2019}Brien Hall"]
+        );
+        assert!(!speller.by_first_char.contains_key(&'h'));
+        assert!(!speller.by_first_char.contains_key(&'m'));
     }
 
     #[test]
