@@ -12,7 +12,7 @@ rule set and 34 in LT 5.2. The filters now live in `nlprule/src/rule/filter/`
 | # | Filter class | Rules | What it does | Status |
 |---|---|---:|---|---|
 | 1 | `org.languagetool.rules.en.FutureDateFilter` | 16 | Vetoes a match when the matched date is not after "today" (past tense + future date). Args are resolved token texts (`year:\5 month:\4 day:\3`). | implemented |
-| 2 | `…rules.spelling.multitoken.MultitokenSpellerFilter` | 14 | Replaces a misspelled multiword expression with suggestions from LanguageTool's multitoken speller. | skipped — needs the multitoken-speller data table |
+| 2 | `…rules.spelling.multitoken.MultitokenSpellerFilter` | 14 | Replaces a misspelled multiword expression with suggestions from LanguageTool's multitoken speller. | implemented (#72; LGPL phrase list loaded from the build dir's `spell/multitoken.txt`) |
 | 3 | `org.languagetool.rules.en.DateCheckFilter` | 9 | Vetoes a date whose weekday is wrong; 6.6 also suggests the corrected weekday and day of month. | implemented (both 6.6 and 5.2 semantics) |
 | 4 | `org.languagetool.rules.UnderlineSpacesFilter` | 6 | Extends the highlighted range over whitespace before/after the marker. | implemented |
 | 5 | `org.languagetool.rules.en.OrdinalSuffixFilter` | 5 | Fixes the ordinal suffix of the first suggestion ("11nd" -> "11th"). | implemented |

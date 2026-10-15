@@ -6,7 +6,10 @@
 //! enabled flag. Builtin rules are stored alongside the XML rules in
 //! [`Rules`](crate::rules::Rules).
 
-use crate::types::{Sentence, Suggestion};
+use crate::{
+    spell::Speller,
+    types::{Sentence, Suggestion},
+};
 use serde::{Deserialize, Serialize};
 
 pub mod en;
@@ -64,6 +67,13 @@ pub enum Builtin {
     RepeatedWords(en::RepeatedWords),
     /// Flags an adjective, noun or verb that makes up too large a share of its kind in a text.
     TooOftenUsed(en::TooOftenUsed),
+    /// Flags a multi-word proper noun with the wrong capitalization, e.g.
+    /// `"Harry potter"`.
+    SpecificCase(en::SpecificCase),
+    /// Flags a hyphenated compound written with a dash, e.g. `"T—shirt"`.
+    Dash(en::Dash),
+    /// Flags a compound written as separate words, e.g. `"part time"`.
+    Compounds(en::Compounds),
 }
 
 impl Builtin {
@@ -89,6 +99,9 @@ impl Builtin {
             Builtin::WordRepeatBeginning(rule) => rule.id(),
             Builtin::RepeatedWords(rule) => rule.id(),
             Builtin::TooOftenUsed(rule) => rule.id(),
+            Builtin::SpecificCase(rule) => rule.id(),
+            Builtin::Dash(rule) => rule.id(),
+            Builtin::Compounds(rule) => rule.id(),
         }
     }
 
@@ -115,7 +128,7 @@ impl Builtin {
                 suggestions.extend(self.finish_text(&state));
                 suggestions
             }
-            _ => self.check_paragraph(sentences, &[], true),
+            _ => self.check_paragraph(sentences, &[], true, None),
         }
     }
 
@@ -126,14 +139,16 @@ impl Builtin {
     /// uses the last two sentences, the others at most the last one. Only
     /// rules that look at the end of the text (`EMPTY_LINE`,
     /// `TOO_LONG_PARAGRAPH`, `ENGLISH_WORD_REPEAT_BEGINNING_RULE`) use
-    /// `ends_text`. The rules that count words across a text return nothing
-    /// here: [`Rules::suggest`](crate::Rules::suggest) runs them on the whole
-    /// text.
+    /// `ends_text`. Rules that check their suggestions against the speller
+    /// (`EN_COMPOUNDS`) use `speller`; without one they keep every suggestion.
+    /// The rules that count words across a text return nothing here:
+    /// [`Rules::suggest`](crate::Rules::suggest) runs them on the whole text.
     pub fn check_paragraph(
         &self,
         sentences: &[Sentence],
         previous: &[Sentence],
         ends_text: bool,
+        speller: Option<&Speller>,
     ) -> Vec<Suggestion> {
         match self {
             Builtin::CommaParenthesisWhitespace(rule) => rule.check_sentences(sentences),
@@ -165,6 +180,12 @@ impl Builtin {
             }
             Builtin::EmptyLine(rule) => rule.check_text(sentences, ends_text),
             Builtin::RepeatedWords(_) | Builtin::TooOftenUsed(_) => Vec::new(),
+            Builtin::SpecificCase(rule) => sentences.iter().flat_map(|x| rule.check(x)).collect(),
+            Builtin::Dash(rule) => sentences.iter().flat_map(|x| rule.check(x)).collect(),
+            Builtin::Compounds(rule) => sentences
+                .iter()
+                .flat_map(|x| rule.check(x, speller))
+                .collect(),
         }
     }
 

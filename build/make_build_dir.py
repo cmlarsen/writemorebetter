@@ -65,6 +65,11 @@ def merge_style_rules(out_dir, lt_rule_dir):
 
 BUILTIN_LT_FILES = {
     "en": [
+        ("rules/en/wordiness.txt", "simple_replace_plain_english.txt"),
+        ("rules/en/redundancies.txt", "simple_replace_redundancy.txt"),
+        ("rules/en/replace_profanity.txt", "simple_replace_profanity.txt"),
+        ("resource/en/specific_case.txt", "specific_case.txt"),
+        ("resource/en/compounds.txt", "compounds.txt"),
         ("rules/en/synonyms.txt", "synonyms.txt"),
     ],
 }
@@ -287,6 +292,61 @@ def proc_spelling_text(in_paths, out_path, lang_code):
                         f.write(line + "\n")
 
 
+MULTITOKEN_SPELLER_FILES = {
+    "en": [
+        (None, "org/languagetool/resource/en/multiwords.txt"),
+        ("languagetool-core.jar", "org/languagetool/resource/spelling_global.txt"),
+    ],
+}
+
+
+def java_trim(text):
+    return text.strip("".join(chr(i) for i in range(33)))
+
+
+def java_split(text, separator):
+    parts = text.split(separator)
+    while len(parts) > 1 and parts[-1] == "":
+        parts.pop()
+    return parts
+
+
+def prepare_line_for_multitoken_speller(line, lang_code):
+    if lang_code != "en":
+        return line
+    if "+" in line:
+        return ""
+    form_tag = java_split(line, "\t")
+    if len(form_tag) > 1:
+        if java_trim(form_tag[1]).startswith(("NN", "JJ")):
+            return java_trim(form_tag[0])
+        return ""
+    return line
+
+
+def write_multitoken_speller_list(out_path, lt_dir, lang_code):
+    files = MULTITOKEN_SPELLER_FILES.get(lang_code)
+    if files is None:
+        return
+
+    with open(out_path, "w", encoding="utf-8", newline="\n") as f:
+        for jar, path in files:
+            if jar is None:
+                data = (lt_dir / path).read_bytes()
+            else:
+                with ZipFile(lt_dir / "libs" / jar) as archive:
+                    data = archive.read(path)
+
+            for line in re.split(r"\r\n|\r|\n", data.decode("utf-8")):
+                if len(line) == 0 or line[0] == "#":
+                    continue
+                line = prepare_line_for_multitoken_speller(
+                    java_trim(line.split("#", 1)[0]), lang_code
+                )
+                if len(line) > 0:
+                    f.write(line + "\n")
+
+
 if __name__ == "__main__":
     parser = ArgumentParser(
         description="""
@@ -430,6 +490,10 @@ Only needed if the language requires a chunker (e. g. English).
         (args.out_dir / "spell" / "spelling_global.txt").write_bytes(
             core.read("org/languagetool/resource/spelling_global.txt")
         )
+
+    write_multitoken_speller_list(
+        args.out_dir / "spell" / "multitoken.txt", args.lt_dir, args.lang_code
+    )
 
     with open(args.out_dir / "spell" / "map.txt", "w") as f:
         for path in args.spell_map_path or []:

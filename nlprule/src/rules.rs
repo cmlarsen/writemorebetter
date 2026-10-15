@@ -258,12 +258,13 @@ impl Rules {
         previous: &[Sentence],
         ends_text: bool,
     ) -> Vec<Suggestion> {
+        let speller = self.spell.speller();
         self.builtins
             .iter()
             .filter(|rule| rule.enabled())
             .flat_map(|rule| {
                 rule.builtin()
-                    .check_paragraph(sentences, previous, ends_text)
+                    .check_paragraph(sentences, previous, ends_text, speller.as_ref())
             })
             .collect()
     }

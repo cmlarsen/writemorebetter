@@ -54,6 +54,9 @@ pub struct SimpleReplace {
     mode: MatchMode,
     /// Whether lookup keys are matched case-sensitively.
     case_sensitive: bool,
+    /// Whether matches carry the table's replacements. A table without
+    /// suggestions (e.g. profanity) only lists wrong forms, one per line.
+    has_suggestions: bool,
     /// The parsed table lines.
     entries: Vec<Entry>,
     /// Single-token lookup (`MatchMode::Single`), keyed by the wrong form.
@@ -85,7 +88,7 @@ impl SimpleReplace {
     ) -> Self {
         let entries = match mode {
             MatchMode::Single => parse_single_mode(&lines, case_sensitive),
-            MatchMode::Phrase => parse_phrase_mode(&lines),
+            MatchMode::Phrase => parse_phrase_mode(&lines, true),
         };
 
         let mut rule = SimpleReplace {
@@ -94,7 +97,29 @@ impl SimpleReplace {
             suggestions_separator: suggestions_separator.to_owned(),
             mode,
             case_sensitive,
+            has_suggestions: true,
             entries,
+            single: DefaultHashMap::default(),
+            no_space: DefaultHashMap::default(),
+            space: DefaultHashMap::default(),
+            start_space: DefaultHashMap::default(),
+            start_no_space: DefaultHashMap::default(),
+        };
+        rule.build_index();
+        rule
+    }
+
+    /// Builds a phrase rule from a table that lists wrong forms only. Its
+    /// matches carry no replacements; any `=replacement` part is ignored.
+    pub fn without_suggestions(id: &str, message: &str, lines: Vec<String>) -> Self {
+        let mut rule = SimpleReplace {
+            id: id.to_owned(),
+            message: message.to_owned(),
+            suggestions_separator: ", ".to_owned(),
+            mode: MatchMode::Phrase,
+            case_sensitive: false,
+            has_suggestions: false,
+            entries: parse_phrase_mode(&lines, false),
             single: DefaultHashMap::default(),
             no_space: DefaultHashMap::default(),
             space: DefaultHashMap::default(),
@@ -319,8 +344,11 @@ impl SimpleReplace {
             }
         }
 
-        if replacements.is_empty() {
+        if self.has_suggestions && replacements.is_empty() {
             return;
+        }
+        if !self.has_suggestions {
+            replacements.clear();
         }
 
         let message = match &entry.message {
@@ -358,8 +386,8 @@ impl SimpleReplace {
         }
 
         self.message
-            .replace("$match", original)
-            .replace("$suggestions", &rendered)
+            .replacen("$match", &java_replacement(original), 1)
+            .replacen("$suggestions", &java_replacement(&rendered), 1)
     }
 }
 
@@ -390,8 +418,8 @@ fn parse_single_mode(lines: &[String], case_sensitive: bool) -> Vec<Entry> {
 
 /// Parses the phrase table format: `wrong=replacement`, with `|` for alternatives
 /// and an optional tab-separated message. `#` starts a comment; a comment can
-/// follow an entry.
-fn parse_phrase_mode(lines: &[String]) -> Vec<Entry> {
+/// follow an entry. Without `has_suggestions` a line needs no `=replacement`.
+fn parse_phrase_mode(lines: &[String], has_suggestions: bool) -> Vec<Entry> {
     let mut entries = Vec::new();
 
     for line in lines {
@@ -408,8 +436,10 @@ fn parse_phrase_mode(lines: &[String]) -> Vec<Entry> {
             Some((pair, message)) => (pair, Some(message.to_owned())),
             None => (line, None),
         };
-        let Some((left, right)) = pair.split_once('=') else {
-            continue;
+        let (left, right) = match pair.split_once('=') {
+            Some((left, right)) => (left, right),
+            None if !has_suggestions => (pair, ""),
+            None => continue,
         };
 
         entries.push(Entry {
@@ -494,11 +524,60 @@ fn is_camel_case(text: &str) -> bool {
     chars[i + 1..].iter().all(|c| c.is_ascii_alphabetic())
 }
 
-/// Uppercases the first character of `text`, leaving the rest unchanged.
+/// `StringTools.uppercaseFirstChar`: uppercases the first letter or digit,
+/// keeping any characters before it, or else the last character.
 fn uppercase_first_char(text: &str) -> String {
-    let mut chars = text.chars();
-    match chars.next() {
-        Some(c) => c.to_uppercase().collect::<String>() + chars.as_str(),
-        None => String::new(),
+    let Some((pos, c)) = text
+        .char_indices()
+        .find(|(_, c)| c.is_alphanumeric())
+        .or_else(|| text.char_indices().last())
+    else {
+        return String::new();
+    };
+    format!(
+        "{}{}{}",
+        &text[..pos],
+        c.to_uppercase(),
+        &text[pos + c.len_utf8()..]
+    )
+}
+
+/// The literal text Java's `String.replaceFirst` inserts for `replacement`: a
+/// backslash makes the next character literal and is dropped itself.
+fn java_replacement(replacement: &str) -> String {
+    let mut result = String::with_capacity(replacement.len());
+    let mut chars = replacement.chars();
+    while let Some(c) = chars.next() {
+        match c {
+            '\\' => result.extend(chars.next()),
+            _ => result.push(c),
+        }
+    }
+    result
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn uppercase_first_char_skips_leading_non_alphanumerics() {
+        assert_eq!(uppercase_first_char("(either one)"), "(Either one)");
+        assert_eq!(
+            uppercase_first_char("\u{201c}well\u{201d}"),
+            "\u{201c}Well\u{201d}"
+        );
+        assert_eq!(uppercase_first_char("\u{2026}"), "\u{2026}");
+        assert_eq!(uppercase_first_char(""), "");
+    }
+
+    #[test]
+    fn java_replacement_drops_escaping_backslashes() {
+        assert_eq!(java_replacement(r"a\b"), "ab");
+        assert_eq!(java_replacement(r"a\\b"), r"a\b");
+        assert_eq!(
+            java_replacement("she\u{2019}d\u{2014}no"),
+            "she\u{2019}d\u{2014}no"
+        );
     }
 }

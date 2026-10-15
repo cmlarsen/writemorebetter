@@ -1226,6 +1226,17 @@ pub fn describe(tokenizer_bin: &Path, rules_bin: &Path) -> Result<Vec<(String, S
         rules.spell.multiwords.len().to_string(),
     ));
     facts.push((
+        "spell.multitoken phrases".into(),
+        rules
+            .spell
+            .multitoken
+            .by_key_without_spaces
+            .values()
+            .map(Vec::len)
+            .sum::<usize>()
+            .to_string(),
+    ));
+    facts.push((
         "spell.map entries".into(),
         rules.spell.map.len().to_string(),
     ));
