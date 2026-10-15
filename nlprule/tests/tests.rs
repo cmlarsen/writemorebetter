@@ -668,6 +668,116 @@ fn spellchecker_accepts_all_caps_names_from_the_global_list() {
 }
 
 #[test]
+fn speller_accepts_and_suggests_words_from_the_global_list() {
+    let speller = RULES.spell().speller().unwrap();
+    for word in ["Josquin", "JOSQUIN", "fit4work", "Nestl\u{e9}"] {
+        assert!(speller.is_correct(word), "{}", word);
+    }
+    assert!(!speller.is_correct("Pr\u{e9}s"));
+    assert_eq!(speller.suggest("Josquinn", 5), vec!["Josquin"]);
+    let nescio = speller.suggest("Nescio", 10);
+    assert_eq!(
+        nescio.last().map(String::as_str),
+        Some("ESCO"),
+        "{:?}",
+        nescio
+    );
+
+    for variant in ["en_US", "en_GB"] {
+        let mut rules = Rules::new(RULES_PATH).unwrap();
+        rules.spell_mut().options_mut().variant = Some(rules.spell().variant(variant).unwrap());
+        let text = "\u{201c}Josquinn\u{2014}again\u{2026}\u{201d}\u{2028}\u{2018}Josquin\u{2019}s motet, fit4work, Nestl\u{e9},\u{2019} she said.";
+        let flags: Vec<(&str, Vec<String>)> = rules
+            .suggest(text, &*TOKENIZER)
+            .into_iter()
+            .filter(|x| x.source().starts_with("SPELLCHECK"))
+            .map(|x| (&text[x.span().byte().clone()], x.replacements().to_vec()))
+            .collect();
+        assert_eq!(flags, vec![("Josquinn", vec!["Josquin".to_string()])]);
+    }
+}
+
+#[test]
+fn speller_folds_the_case_of_accented_letters() {
+    let speller = RULES.spell().speller().unwrap();
+    assert_eq!(
+        speller.suggest("\u{c9}CLAIRR", 5),
+        vec!["\u{c9}CLAIR", "\u{c9}CLAIRS"]
+    );
+    assert_eq!(
+        speller.suggest("\u{c9}clairr", 5),
+        vec!["\u{c9}clair", "\u{c9}clairs"]
+    );
+    assert_eq!(speller.suggest("NA\u{cf}VEE", 1), vec!["NA\u{cf}VE"]);
+    assert_eq!(speller.suggest("S\u{d8}RENN", 5), vec!["S\u{d8}REN"]);
+    assert_eq!(
+        speller.suggest("WH\u{152}L", 5),
+        vec!["WHO", "WELL", "WHEN", "WHAT", "WHILE"]
+    );
+    assert!(speller
+        .suggest("\u{5d7}\u{5d5}", 10)
+        .iter()
+        .all(|x| x.chars().count() > 1));
+    let qx = speller.suggest("qx", 50);
+    assert!(qx.contains(&"ox".to_string()), "{:?}", qx);
+    assert!(!qx.contains(&"a".to_string()), "{:?}", qx);
+
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    rules.spell_mut().options_mut().variant = Some(rules.spell().variant("en_US").unwrap());
+    let text = "\u{201c}S\u{d8}RENN\u{2014}wait\u{2026}\u{201d}\u{2028}\u{2018}Zo\u{eb} ate the \u{c9}clairr\u{2019}s icing,\u{2019} she said.";
+    let first_replacements: Vec<(&str, String)> = rules
+        .suggest(text, &*TOKENIZER)
+        .into_iter()
+        .filter(|x| x.source().starts_with("SPELLCHECK"))
+        .map(|x| (&text[x.span().byte().clone()], x.replacements()[0].clone()))
+        .collect();
+    assert_eq!(
+        first_replacements,
+        vec![
+            ("S\u{d8}RENN", "S\u{d8}REN".to_string()),
+            ("\u{c9}clairr", "\u{c9}clair".to_string()),
+        ]
+    );
+}
+
+#[test]
+fn speller_suggests_the_name_first_for_a_lowercased_name() {
+    let speller = RULES.spell().speller().unwrap();
+    assert_eq!(
+        speller.suggest("s\u{f8}ren", 2),
+        vec!["S\u{f8}ren", "siren"]
+    );
+    assert_eq!(speller.suggest("ren\u{e9}e", 1), vec!["Ren\u{e9}e"]);
+    assert_eq!(
+        speller.suggest("nestl\u{e9}", 2),
+        vec!["Nestl\u{e9}", "nestle"]
+    );
+    assert_eq!(speller.suggest("paris", 2), vec!["Paris", "parts"]);
+
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    rules.spell_mut().options_mut().variant = Some(rules.spell().variant("en_US").unwrap());
+    let text = "\u{201c}Wait\u{2014}s\u{f8}ren?\u{201d}\u{2028}\u{2018}zo\u{eb}\u{2019}s coat\u{2026}\u{2019} she said.";
+    let flags: Vec<(&str, Vec<String>)> = rules
+        .suggest(text, &*TOKENIZER)
+        .into_iter()
+        .filter(|x| x.source().starts_with("SPELLCHECK"))
+        .map(|x| {
+            (
+                &text[x.span().byte().clone()],
+                x.replacements().iter().take(2).cloned().collect(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        flags,
+        vec![
+            ("s\u{f8}ren", strings(&["S\u{f8}ren", "siren"])),
+            ("zo\u{eb}", strings(&["Zo\u{eb}", "zoo"])),
+        ]
+    );
+}
+
+#[test]
 fn speller_suggests_dictionary_casing_for_mixed_case_words() {
     let speller = RULES.spell().speller().unwrap();
     assert_eq!(speller.suggest("iPHONE", 2), vec!["iPhone", "phone"]);
@@ -2424,7 +2534,11 @@ fn rule_synthesis_produces_inflected_forms() {
 }
 
 fn rule_flags(text: &str, rule: &str) -> Vec<(String, Vec<String>)> {
-    RULES
+    rule_flags_with(&RULES, text, rule)
+}
+
+fn rule_flags_with(rules: &Rules, text: &str, rule: &str) -> Vec<(String, Vec<String>)> {
+    rules
         .suggest(text, &*TOKENIZER)
         .into_iter()
         .filter(|suggestion| suggestion.source().starts_with(rule))
@@ -4056,6 +4170,43 @@ fn find_suggestions_filter_matches_languagetool_on_fiction_text() {
     );
     assert_eq!(
         rule_flags(
+            "\u{201c}Worth a send,\u{201d} she said\u{2026}",
+            "GRAMMAR/A_INFINITIVE/"
+        ),
+        vec![(
+            "a send".into(),
+            strings(&["a Sand", "a Seed", "a sand", "a seed", "a sent"])
+        )]
+    );
+}
+
+#[test]
+fn speller_backed_filters_consult_the_spellers_languagetool_uses() {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    rules.spell_mut().options_mut().variant = Some(rules.spell().variant("en_GB").unwrap());
+    assert_eq!(
+        rule_flags_with(
+            &rules,
+            "\u{201c}The c0lor faded\u{2014}slowly.\u{201d} \u{2018}Her h0nour\u{2026}\u{2019} he said.\u{2028}The flav0ur was odd.",
+            "TYPOS/NUMBERS_IN_WORDS/"
+        ),
+        vec![
+            ("c0lor".into(), strings(&["color"])),
+            ("h0nour".into(), strings(&["hour"])),
+            ("flav0ur".into(), strings(&["flavor"])),
+        ]
+    );
+    assert_eq!(
+        rule_flags_with(
+            &rules,
+            "\u{201c}I can trait,\u{201d} she said\u{2014}quietly.",
+            "GRAMMAR/PRP_MD_NN/"
+        ),
+        vec![("trait".into(), strings(&["trail", "train"]))]
+    );
+    assert_eq!(
+        rule_flags_with(
+            &rules,
             "\u{201c}Worth a send,\u{201d} she said\u{2026}",
             "GRAMMAR/A_INFINITIVE/"
         ),

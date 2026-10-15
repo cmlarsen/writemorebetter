@@ -6,6 +6,30 @@ inherited 0.6.4 track this project's own release line. Each version is a top-lev
 `# <version>` heading; the Release workflow copies that section verbatim into the GitHub
 release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
+# Unreleased
+
+### Fixed
+
+- **Names from LanguageTool's global spelling list are accepted by `Speller::is_correct` and
+  suggested.** Single-word entries of `spelling_global.txt` (`Josquin`, `fit4work`, `Nestlé`) are
+  now speller words for every variant, as in LanguageTool 6.6, so `Josquinn` suggests `Josquin`
+  and the speller-backed rule filters stop treating them as misspelled
+  ([#167](https://github.com/cmlarsen/writemorebetter/issues/167)). Recompile rules binaries to
+  pick up the words; the format is unchanged.
+- **Spelling suggestions ignore the case of accented and non-Latin letters.** The suggestion
+  search compares characters instead of UTF-8 bytes, so a capitalized or all-caps word matches
+  its dictionary entry whatever its letters (`ÉCLAIRR` → `ÉCLAIR`, `SØRENN` → `SØREN`, Greek and
+  Cyrillic names too), and an accented letter counts as one edit, not two
+  ([#144](https://github.com/cmlarsen/writemorebetter/issues/144)). Lowercase words are searched
+  case-insensitively too, as LanguageTool 6.6's English spellers compare letters, so a lowercased
+  name suggests the name first (`søren` → `Søren`, `zoë` → `Zoë`, `paris` → `Paris`).
+- **Speller-backed rule filters use the speller LanguageTool 6.6 uses.** `NUMBERS_IN_WORDS` asks
+  the default variant's (`en_US`) speller whatever variant is selected, so with `en_GB` it
+  suggests `color` for `c0lor` as LanguageTool does, and `FindSuggestionsFilter` (`PRP_MD_NN`,
+  `A_INFINITIVE`) searches the tagger dictionary instead of the speller
+  ([#135](https://github.com/cmlarsen/writemorebetter/issues/135)). While a variant other than the
+  default one is selected, the default variant's checker is kept loaded as well.
+
 # 0.8.0 (2026-10-14)
 
 ### Added

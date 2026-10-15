@@ -130,8 +130,8 @@ impl Spell {
         variants
     }
 
-    fn global_phrases(path: &Path, tokenizer: &Tokenizer) -> io::Result<Vec<u8>> {
-        let mut phrases = BTreeSet::new();
+    fn global_entries(path: &Path) -> io::Result<Vec<String>> {
+        let mut entries = Vec::new();
 
         let reader = BufReader::new(File::open(path)?);
         for line in reader.lines() {
@@ -141,10 +141,18 @@ impl Spell {
                 continue;
             }
             let entry = line[..line.find('#').unwrap_or(line.len())].trim();
-            if entry.is_empty() {
-                continue;
+            if !entry.is_empty() {
+                entries.push(entry.to_owned());
             }
+        }
 
+        Ok(entries)
+    }
+
+    fn global_phrases(entries: &[String], tokenizer: &Tokenizer) -> Vec<u8> {
+        let mut phrases = BTreeSet::new();
+
+        for entry in entries {
             for variant in Spell::casing_variants(entry) {
                 let tokens = tokenizer.get_token_strs(&variant);
                 if !tokens.is_empty() {
@@ -153,10 +161,10 @@ impl Spell {
             }
         }
 
-        Ok(fst::Set::from_iter(phrases)
+        fst::Set::from_iter(phrases)
             .expect("phrases are lexicographically sorted.")
             .into_fst()
-            .to_vec())
+            .to_vec()
     }
 
     pub(in crate::compile) fn from_dumps(
@@ -185,6 +193,18 @@ impl Spell {
             }
         }
 
+        let global_entries = if global_phrase_path.as_ref().exists() {
+            Some(Spell::global_entries(global_phrase_path.as_ref())?)
+        } else {
+            None
+        };
+        let global_words: Vec<&str> = global_entries
+            .iter()
+            .flatten()
+            .map(String::as_str)
+            .filter(|entry| tokenizer.get_token_strs(entry).len() == 1)
+            .collect();
+
         for (i, variant) in lang_options.variants.iter().enumerate() {
             let spell_path = spell_dir_path
                 .as_ref()
@@ -201,7 +221,7 @@ impl Spell {
                 {
                     [freq, word] => {
                         // frequency is denoted as letters from A to Z in LanguageTool where A is the least frequent.
-                        let freq = freq.chars().next().expect("freq must have one char - would not have been yielded by split_whitespace otherwise.") as usize - 'A' as usize;
+                        let freq = freq.chars().next().expect("freq must have one char - would not have been yielded by split_whitespace otherwise.") as usize - 'A' as usize + 1;
 
                         Spell::add_line(
                             word,
@@ -227,6 +247,10 @@ impl Spell {
                 let word = line.trim();
 
                 Spell::add_line(word, 0, &mut words, &mut multiwords, i, true, tokenizer);
+            }
+
+            for word in &global_words {
+                Spell::add_line(word, 0, &mut words, &mut multiwords, i, false, tokenizer);
             }
         }
         let mut words: Vec<_> = words
@@ -260,11 +284,9 @@ impl Spell {
             assert!(parts.next().is_none());
         }
 
-        let phrases = if global_phrase_path.as_ref().exists() {
-            Spell::global_phrases(global_phrase_path.as_ref(), tokenizer)?
-        } else {
-            Vec::new()
-        };
+        let phrases = global_entries
+            .map(|entries| Spell::global_phrases(&entries, tokenizer))
+            .unwrap_or_default();
 
         Ok(Spell::new(
             fst.into_fst().to_vec(),
@@ -1773,7 +1795,7 @@ mod tests {
                     let id = rule.id.to_string();
                     let name = id.split('/').nth(1).unwrap().to_string();
                     flagged.extend(
-                        rule.apply(&pool, &sentence, None, None)
+                        rule.apply(&pool, &sentence, None, None, None)
                             .map(|suggestion| (name.clone(), suggestion.span().char().start)),
                     );
                 }
