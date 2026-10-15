@@ -37,7 +37,7 @@ Add the package and the two LGPL data files ([below](#data-files-and-licensing))
 
 ```swift
 // Package.swift
-.package(url: "https://github.com/cmlarsen/writemorebetter", exact: "0.8.0"),
+.package(url: "https://github.com/cmlarsen/writemorebetter", exact: "0.9.0"),
 ```
 
 ```swift
