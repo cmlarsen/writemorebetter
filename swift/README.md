@@ -76,8 +76,9 @@ rustup target add aarch64-apple-darwin x86_64-apple-darwin aarch64-apple-ios x86
 
 The script builds `aarch64-apple-darwin` + `x86_64-apple-darwin` (lipo'd into one `macos-arm64_x86_64` slice),
 `aarch64-apple-ios`, and `aarch64-apple-ios-sim` + `x86_64-apple-ios` (one `ios-arm64_x86_64-simulator` slice),
-all with nlprule's native `regex-onig` backend and with `MACOSX_DEPLOYMENT_TARGET=12.0` /
-`IPHONEOS_DEPLOYMENT_TARGET=16.0`, the minimums `Package.swift` declares. It then runs `uniffi-bindgen-swift` in
+all with nlprule's native `regex-onig` backend and with a macOS 12.0 / iOS 16.0 minimum OS version — the
+minimums `Package.swift` declares — pinned per target so the host proc-macros stay on the host default. It then
+runs `uniffi-bindgen-swift` in
 library mode and calls `xcodebuild -create-xcframework`. Everything lands in `dist/` (git-ignored) plus the
 generated Swift sources, which are committed so the package always has a source target.
 

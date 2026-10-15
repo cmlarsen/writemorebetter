@@ -34,8 +34,13 @@ else
     PROFILE_DIR="debug"
 fi
 
-export MACOSX_DEPLOYMENT_TARGET="12.0"
-export IPHONEOS_DEPLOYMENT_TARGET="16.0"
+# Minimum OS versions for the slices and the framework's Info.plist, applied per target in
+# build_slice rather than exported globally: the host is macOS, so a global MACOSX_DEPLOYMENT_TARGET
+# also links the host proc-macro dylibs (thiserror_impl, serde_derive, scroll_derive) at 12.0, which
+# Xcode 27's dyld rejects ("mis-aligned LINKEDIT string pool"), surfacing as E0463 on a fresh target
+# directory.
+MACOSX_MIN="12.0"
+IPHONEOS_MIN="16.0"
 
 CRATE="writemorebetter-swift"
 LIB_NAME="libwritemorebetter_swift.dylib"
@@ -51,7 +56,18 @@ BINDINGS_OUT="swift/Sources/WriteMoreBetter/Generated"
 BACKEND="regex-onig (native)"
 
 build_slice() {
-    cargo rustc --profile "$PROFILE" -p "$CRATE" --lib --target "$1" -- \
+    local target=$1
+    local slice_env
+    case "$target" in
+        *-apple-darwin)
+            slice_env="CARGO_TARGET_$(echo "$target" | tr 'a-z-' 'A-Z_')_RUSTFLAGS=-C link-arg=-mmacosx-version-min=${MACOSX_MIN}"
+            ;;
+        *-apple-ios*)
+            slice_env="IPHONEOS_DEPLOYMENT_TARGET=${IPHONEOS_MIN}"
+            ;;
+    esac
+    env "$slice_env" \
+        cargo rustc --profile "$PROFILE" -p "$CRATE" --lib --target "$target" -- \
         -C strip=none \
         -C "link-arg=-Wl,-install_name,@rpath/${FFI_NAME}.framework/${FFI_NAME}" \
         -C "link-arg=-Wl,-x" -C "link-arg=-Wl,-S"
@@ -102,7 +118,7 @@ make_framework() {
     if [ "$platform" = "MacOSX" ]; then
         contents="${framework}/Versions/A"
         mkdir -p "${contents}/Resources"
-        info_plist "$platform" LSMinimumSystemVersion "$MACOSX_DEPLOYMENT_TARGET" \
+        info_plist "$platform" LSMinimumSystemVersion "$MACOSX_MIN" \
             > "${contents}/Resources/Info.plist"
         ln -s A "${framework}/Versions/Current"
         for entry in "$FFI_NAME" Headers Modules Resources; do
@@ -110,7 +126,7 @@ make_framework() {
         done
     else
         mkdir -p "$contents"
-        info_plist "$platform" MinimumOSVersion "$IPHONEOS_DEPLOYMENT_TARGET" \
+        info_plist "$platform" MinimumOSVersion "$IPHONEOS_MIN" \
             > "${contents}/Info.plist"
     fi
     mkdir -p "${contents}/Headers" "${contents}/Modules"
