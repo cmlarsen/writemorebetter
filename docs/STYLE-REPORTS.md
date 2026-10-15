@@ -137,6 +137,9 @@ Build rules for any baseline:
 [`bench/style/README.md`](../bench/style/README.md) documents the three-tier harness, pinned public
 sources, scoring conventions and first test-split regression floors for #256. CI gates tier 1 analysis
 and quote-span accuracy, tier 2's injected-error smoke suite, and tier 3's synthetic-only self-test.
-The initial EWT test boundary F1 is 84.5817%, XPOS-among-readings accuracy 80.9639%, and
-lemma-among-readings accuracy 91.6326% on 23,508 aligned tokens; LitBank test quote-span F1 is 83.6596%.
+After measurement review, EWT test paragraph-internal boundary F1 is 87.1127% (99.5881% recall after
+terminal punctuation), normalized lexical XPOS accuracy is 90.6768%, and normalized lemma accuracy is
+95.4520% on 24,102 aligned tokens. Tag gates also require single-normalized-tag correctness not to drop;
+each universal sentence-start tag has an absolute fractional-bias ceiling. LitBank original-prose test
+quote-span F1 is 84.0361%. The benchmark README preserves initial vs reviewed numbers and conventions.
 Tier 3 real-corpus calibration remains owner-only and emits aggregate numbers exclusively.

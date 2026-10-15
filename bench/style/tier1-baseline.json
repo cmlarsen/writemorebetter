@@ -1,16 +1,33 @@
 {
-  "ewt": {
-    "boundaries.precision": 0.978494623655914,
-    "boundaries.recall": 0.7448242657679345,
-    "boundaries.f1": 0.8458173865500274,
-    "aligned_tokens": 23508,
-    "aligned_fraction": 0.9367976408703276,
-    "tag_any": 0.8096392717372809,
-    "lemma_any": 0.9163263569848562
+  "minimum": {
+    "ewt/boundaries/precision": 0.9661354581673307,
+    "litbank/precision": 0.84996191926885,
+    "ewt/boundaries/recall": 0.7931316434995912,
+    "litbank/recall": 0.8309754281459419,
+    "ewt/boundaries/f1": 0.8711270767849124,
+    "litbank/f1": 0.8403614457831325,
+    "ewt/aligned_tokens": 24102,
+    "ewt/aligned_fraction": 0.9604686379214155,
+    "ewt/normalized_tag_any": 0.9067676289635589,
+    "ewt/single_normalized_correct": 0.6223379081874113,
+    "ewt/normalized_lemma_any": 0.9545196403218174,
+    "ewt/terminal_boundary_recall": 0.995880535530381,
+    "ewt/punctuation_flag_accuracy": 0.9788781163434903,
+    "ewt/sentence_starts/with_candidates": 1833
   },
-  "litbank": {
-    "precision": 0.8461538461538461,
-    "recall": 0.827252419955324,
-    "f1": 0.8365963855421686
+  "maximum": {
+    "ewt/no_reading_share": 0.03525973413783351,
+    "ewt/sentence_starts/per_tag/ADJ/absolute_fractional_bias_pp": 0.0030836788025485617,
+    "ewt/sentence_starts/per_tag/ADP/absolute_fractional_bias_pp": 2.6564850982228734,
+    "ewt/sentence_starts/per_tag/ADV/absolute_fractional_bias_pp": 1.4025174446301527,
+    "ewt/sentence_starts/per_tag/CONJ/absolute_fractional_bias_pp": 2.6512086103456642,
+    "ewt/sentence_starts/per_tag/DET/absolute_fractional_bias_pp": 0.7935504183673139,
+    "ewt/sentence_starts/per_tag/NOUN/absolute_fractional_bias_pp": 0.43795287154670604,
+    "ewt/sentence_starts/per_tag/NUM/absolute_fractional_bias_pp": 0.27122933806058946,
+    "ewt/sentence_starts/per_tag/PRON/absolute_fractional_bias_pp": 1.836831102394168,
+    "ewt/sentence_starts/per_tag/PRT/absolute_fractional_bias_pp": 0.6647547332762305,
+    "ewt/sentence_starts/per_tag/VERB/absolute_fractional_bias_pp": 2.9898713146339233,
+    "ewt/sentence_starts/per_tag/./absolute_fractional_bias_pp": 3.8967298558156895,
+    "ewt/sentence_starts/per_tag/X/absolute_fractional_bias_pp": 3.955325881897552
   }
 }

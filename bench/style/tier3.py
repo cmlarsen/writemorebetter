@@ -6,17 +6,13 @@ import tempfile
 
 from common import jsonl
 
-TAGS = ('ADJ', 'ADP', 'ADV', 'CONJ', 'DET', 'NOUN', 'NUM', 'PRON', 'PRT', 'VERB', '.', 'X')
-QUOTATION_MARKS = frozenset("\"'“”‘’«»‹›„‟‚‛`")
-PENN = {}
-for universal, tags in {
-    'ADJ': 'JJ JJR JJS', 'ADP': 'IN', 'ADV': 'RB RBR RBS WRB', 'CONJ': 'CC',
-    'DET': 'DT EX PDT WDT', 'NOUN': 'NN NNS NNP NNPS', 'NUM': 'CD',
-    'PRON': 'PRP PRP$ WP WP$', 'PRT': 'POS RP TO', 'VERB': 'VB VBD VBG VBN VBP VBZ MD',
-    '.': "# $ '' ( ) , . : `` -LRB- -RRB-", 'X': 'FW LS SYM UH'
-}.items():
-    for tag in tags.split():
-        PENN[tag] = universal
+from equivalence import TAGS, add_start, start_candidates
+
+
+def numeric_only(value):
+    if isinstance(value, dict):
+        return all(numeric_only(item) for item in value.values())
+    return value is None or isinstance(value, (int, float))
 
 
 def percentile(values, percent):
@@ -34,7 +30,7 @@ def distribution(values):
 
 def calibrate(analyzer, export, baseline):
     authors = defaultdict(lambda: {'sentences': 0, 'words': 0, 'tokens': 0,
-                                   'starts': Counter(), 'unresolved': 0})
+                                   'starts': Counter(), 'fractional': Counter(), 'unresolved': 0, 'unknown': 0})
     units = 0
     seen = set()
     for row in jsonl(export / 'units.jsonl'):
@@ -59,31 +55,34 @@ def calibrate(analyzer, export, baseline):
                 author['words'] += len(words)
                 author['tokens'] += sum(t['is_punctuation'] or any(ch.isalnum() for ch in t['text'])
                                         for t in tokens)
-                while tokens and all(ch in QUOTATION_MARKS for ch in tokens[0]['text']):
-                    tokens.pop(0)
-                tags = {PENN[r['pos']] for r in tokens[0]['readings'] if r['pos'] in PENN} if tokens else set()
-                if len(tags) == 1:
-                    author['starts'][tags.pop()] += 1
-                else:
-                    author['unresolved'] += 1
+                candidates = start_candidates(tokens)
+                add_start(author['starts'], author['fractional'], candidates)
+                author['unresolved'] += len(candidates) != 1
+                author['unknown'] += not candidates
     usable = [a for a in authors.values() if a['sentences']]
     resolved = [a for a in usable if sum(a['starts'].values())]
-    if not usable or not resolved:
-        raise ValueError('no measurable sentences or resolved starts')
+    known = [a for a in usable if sum(a['fractional'].values())]
+    if not usable or not known:
+        raise ValueError('no measurable sentences or known starts')
     lengths = {}
     for name, field in (('without_punctuation', 'words'), ('with_punctuation', 'tokens')):
         lengths[name] = distribution([a[field] / a['sentences'] for a in usable])
     starts = {}
-    for tag in TAGS:
-        share = statistics.mean(100 * a['starts'][tag] / sum(a['starts'].values()) for a in resolved)
-        reference = baseline['google_ngram']['first_word_percent'].get(tag)
-        starts[tag] = {'measured_percent': share, 'baseline_percent': reference,
-                       'gap_percentage_points': share - reference if reference is not None else None}
+    for method, field, cohort in (('resolved_only', 'starts', resolved),
+                                  ('fractional', 'fractional', known)):
+        starts[method] = {}
+        for tag in TAGS:
+            share = statistics.mean(100 * a[field][tag] / sum(a[field].values()) for a in cohort) if cohort else None
+            reference = baseline['google_ngram']['first_word_percent'].get(tag)
+            starts[method][tag] = {'measured_percent': share, 'baseline_percent': reference,
+                                  'gap_percentage_points': share - reference
+                                  if share is not None and reference is not None else None}
     mean = lengths['with_punctuation']['mean']
     return {'units': units, 'authors': len(authors), 'authors_with_sentences': len(usable),
-            'authors_with_resolved_starts': len(resolved),
+            'authors_with_resolved_starts': len(resolved), 'authors_with_known_starts': len(known),
             'sentences': sum(a['sentences'] for a in usable),
             'unresolved_starts': sum(a['unresolved'] for a in usable),
+            'unknown_starts': sum(a['unknown'] for a in usable),
             'sentence_length': lengths, 'sentence_start': starts,
             'length_comparison': {
                 'ngram_mean': baseline['google_ngram']['mean_tokens_per_sentence'],
@@ -113,12 +112,15 @@ def self_test(analyzer, baseline):
         assert result['sentence_length']['without_punctuation']['mean'] == 3
         assert result['sentence_length']['without_punctuation']['percentiles']['50'] == 3
         assert result['sentence_length']['with_punctuation']['mean'] > 3
-        assert abs(sum(s['measured_percent'] for s in result['sentence_start'].values()) - 100) < 1e-9
+        assert abs(sum(s['measured_percent'] for s in result['sentence_start']['fractional'].values()) - 100) < 1e-9
+        ambiguous = [{'text': 'Water', 'is_whitespace': False,
+                      'readings': [{'pos': 'NN:UN'}, {'pos': 'VB'}, {'pos': 'VBP'}]}]
+        candidates = start_candidates(ambiguous)
+        resolved_counts, fractional_counts = Counter(), Counter()
+        add_start(resolved_counts, fractional_counts, candidates)
+        assert candidates == {'NOUN', 'VERB'} and resolved_counts['VERB'] == 0
+        assert fractional_counts['NOUN'] == fractional_counts['VERB'] == 0.5
         assert 'PRIVATE_SENTINEL' not in json.dumps(result)
-        def numeric_only(value):
-            if isinstance(value, dict):
-                return all(numeric_only(item) for item in value.values())
-            return value is None or isinstance(value, (int, float))
         assert numeric_only(result)
         return result
 
@@ -131,4 +133,6 @@ def run(analyzer, args):
         if args.export is None:
             raise ValueError('owner must pass an export directory')
         result = calibrate(analyzer, args.export, baseline)
+    if not numeric_only(result):
+        raise ValueError('non-numeric aggregate')
     print(json.dumps(result, indent=2, allow_nan=False))

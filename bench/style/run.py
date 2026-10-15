@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 import argparse
+import contextlib
+import io
 import json
 from pathlib import Path
 import sys
@@ -19,6 +21,9 @@ def main():
     two.add_argument('--out', type=Path, default=ROOT / 'bench/style/out')
     two.add_argument('--gold', type=Path)
     two.add_argument('--predictions', type=Path)
+    two.add_argument('--manifest', type=Path)
+    two.add_argument('--report')
+    two.add_argument('--pattern')
     three = sub.add_parser('tier3')
     three.add_argument('--self-test', action='store_true')
     three.add_argument('--export', type=Path)
@@ -26,7 +31,11 @@ def main():
     for command in (one, three):
         command.add_argument('--tokenizer', type=Path, default=ROOT / 'storage/en_tokenizer.bin')
         command.add_argument('--analyzer', type=Path)
-    args = parser.parse_args()
+    if len(sys.argv) > 1 and sys.argv[1] == 'tier3':
+        with contextlib.redirect_stderr(io.StringIO()):
+            args = parser.parse_args()
+    else:
+        args = parser.parse_args()
     if args.tier == 'tier2':
         import tier2
         tier2.run(args)
@@ -48,7 +57,9 @@ def main():
 if __name__ == '__main__':
     try:
         main()
-    except Exception:
+    except BaseException as error:
+        if isinstance(error, SystemExit) and error.code == 0:
+            raise
         if len(sys.argv) > 1 and sys.argv[1] == 'tier3':
             sys.exit('calibration failed; details suppressed to protect source metadata')
         raise

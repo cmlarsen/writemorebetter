@@ -23,7 +23,7 @@ def toy_detector(file, text):
 
 def public_passages():
     for book in ('pride', 'moby'):
-        count = 0
+        count = source_words = 0
         with tarfile.open(fetch(book)) as archive:
             for member in sorted(archive.getmembers(), key=lambda m: m.name):
                 if '/src/epub/text/chapter-' not in member.name or not member.name.endswith('.xhtml'):
@@ -31,7 +31,11 @@ def public_passages():
                 root = ET.fromstring(archive.extractfile(member).read())
                 for paragraph in root.iter('{http://www.w3.org/1999/xhtml}p'):
                     text = ''.join(paragraph.itertext()).strip()
-                    if len(list(WORD.finditer(text))) >= 20 and not toy_detector('', text):
+                    word_count = len(list(WORD.finditer(text)))
+                    source_words += word_count
+                    if source_words - word_count < 2500:
+                        continue
+                    if word_count >= 20 and not toy_detector('', text):
                         yield book, count, text
                         count += 1
                         if count == 60:
@@ -63,18 +67,33 @@ def generate(out):
 
 
 def identity(row):
-    if not isinstance(row['file'], str) or not isinstance(row['pattern'], str):
-        raise ValueError('file and pattern must be strings')
-    spans = []
-    for unit in ('byte', 'utf16'):
-        start, end = row[unit]['start'], row[unit]['end']
-        if type(start) is not int or type(end) is not int or not 0 <= start < end:
-            raise ValueError('expected nonempty half-open span')
-        spans.extend((start, end))
-    return row['file'], *spans
+    if not isinstance(row['file'], str) or not isinstance(row['pattern'], str) or row['pattern'] == '__none__':
+        raise ValueError('file and pattern must be strings; __none__ is reserved')
+    spans = row.get('spans', [row])
+    if not isinstance(spans, list) or not spans:
+        raise ValueError('spans must be a nonempty list')
+    keys = []
+    for span in spans:
+        values = []
+        for unit in ('byte', 'utf16'):
+            start, end = span[unit]['start'], span[unit]['end']
+            if type(start) is not int or type(end) is not int or not 0 <= start < end:
+                raise ValueError('expected nonempty half-open span')
+            values.extend((start, end))
+        keys.append(tuple(values))
+    if len(set(keys)) != len(keys):
+        raise ValueError('duplicate occurrence span')
+    return row['file'], tuple(sorted(keys))
 
 
-def score(gold, predictions):
+def score(gold, predictions, files, report=None, pattern=None):
+    for row in [*gold, *predictions]:
+        if row['file'] not in files:
+            raise ValueError('record file is absent from the manifest')
+    def selected(row):
+        return (report is None or row.get('report') == report) and (pattern is None or row['pattern'] == pattern)
+    gold = [row for row in gold if selected(row)]
+    predictions = [row for row in predictions if selected(row)]
     expected = {}
     for row in gold:
         key = identity(row)
@@ -112,7 +131,10 @@ def run(args):
     if args.action == 'score':
         if not args.gold or not args.predictions:
             raise ValueError('score requires --gold and --predictions')
-        print(json.dumps(score(jsonl(args.gold), jsonl(args.predictions)), indent=2))
+        manifest = args.manifest or args.gold.parent / 'documents.jsonl'
+        files = {row['file'] for row in jsonl(manifest)}
+        print(json.dumps(score(jsonl(args.gold), jsonl(args.predictions), files,
+                               report=args.report, pattern=args.pattern), indent=2))
         return
     gold, documents = generate(args.out)
     if args.action == 'generate':
@@ -123,7 +145,7 @@ def run(args):
         text = (args.out / document['file']).read_text(encoding='utf-8')
         predictions.extend(toy_detector(document['file'], text))
     write_jsonl(args.out / 'predictions.jsonl', predictions)
-    result = score(gold, predictions)
+    result = score(gold, predictions, {row['file'] for row in documents})
     if result['patterns']['repeated_word']['f1'] != 1:
         raise ValueError('tier2 smoke regressed')
     print(json.dumps({'documents': len(documents),
