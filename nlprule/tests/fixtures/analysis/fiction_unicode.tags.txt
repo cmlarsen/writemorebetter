@@ -1,0 +1,1 @@
+<S> 😀[😀/null] “[“/null]She[she/PRP,she/PRP_S3SF]'s[be/VBZ,B-NP-singular] waiting[wait/VBG]—[—/null]again[again/RB]…[…/PCT]”[”/null,B-SBAR] He[he/PRP,he/PRP_S3SM,B-NP-singular|E-NP-singular] left[left/JJ,left/NN:UN,left/RB,leave/VBD,leave/VBN,B-VP].[./.,</S>./PCT,O]

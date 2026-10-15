@@ -121,6 +121,13 @@ That snippet is [`nlprule/examples/check.rs`](nlprule/examples/check.rs), which 
 dictionary. `Rules::suggest` is parallel by default (rayon); set `NLPRULE_PARALLELISM=off` for one
 thread.
 
+### Tokenizer analysis
+
+`tokenizer.analyze(text)` returns owned sentences and tagged tokens with original surface text,
+lemma/POS readings, chunk tags, whitespace/punctuation flags, and byte, scalar and UTF-16 spans.
+Swift's `checker.analyze(text:)` and WASM's `checker.analyze(text)` reuse the loaded tokenizer and
+return UTF-16 offsets. See [`docs/ANALYSIS.md`](docs/ANALYSIS.md) for the contract and reference tests.
+
 ## Data files and licensing
 
 The checker needs two compiled data files, `en_tokenizer.bin` and `en_rules.bin`, from the

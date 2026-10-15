@@ -115,6 +115,14 @@ SwiftPM caches evaluated manifests by manifest contents, not by the filesystem. 
 before `scripts/build-xcframework.sh` ran keeps the released-URL branch until `swift package purge-cache`
 (or a fresh clone) refreshes it.
 
+## Tokenizer analysis
+
+`checker.analyze(text: text)` returns owned sentences and tokens with original text, paired
+lemma/POS readings, chunk tags and `isWhitespace` / `isPunctuation` flags. Sentence and token
+`start` / exclusive `end` are absolute UTF-16 offsets, matching `Suggestion` and `NSRange`.
+It reuses the checker's loaded tokenizer without running grammar or spelling rules.
+See [the analysis contract](../docs/ANALYSIS.md).
+
 ## Tests
 
 `swift/Tests/WriteMoreBetterTests` loads the LT 6.6 binaries from `storage/66/` (the repository's

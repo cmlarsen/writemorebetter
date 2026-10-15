@@ -1,0 +1,1 @@
+<S> I[I/PRP,I/PRP_S1S,B-NP-singular|E-NP-singular] met[meet/VBD,B-VP] O[O'Brien/NNP]'[O'Brien/NNP,'/_apostrophe_contraction_,'/_apostrophe_contraction_]BRIEN[O'Brien/NNP] today[today/JJ,today/NN:U,today/RB,E-NP-singular].[./.,</S>./PCT,O]

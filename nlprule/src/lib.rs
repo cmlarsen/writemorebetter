@@ -74,6 +74,7 @@ use std::io::{self, Read, Write};
 
 use thiserror::Error;
 
+pub mod analysis;
 pub mod builtin;
 #[cfg(feature = "compile")]
 pub mod compile;

@@ -69,6 +69,15 @@ memory, and the module does not need the JS copies afterwards. **Do not keep `to
 process RSS when retained, and the wasm heap cannot give back the memory it used to read them
 (see `memory.mjs` and REPORT.md).
 
+## Tokenizer analysis
+
+`JSON.parse(checker.analyze(text))` returns sentences and tagged tokens with original text,
+paired lemma/POS readings, chunk tags, and `is_whitespace` / `is_punctuation` flags. Sentence
+and token `start` / exclusive `end` count **UTF-16 code units** into the original input:
+use `text.slice(start, end)` to recover their text, including after emoji. This differs from
+`check()`'s existing **Unicode scalar** offsets; `check()` has not changed. Both methods share
+the checker's one loaded tokenizer. See [the analysis contract](../docs/ANALYSIS.md).
+
 ## Prerequisites
 
 ```sh

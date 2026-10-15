@@ -24,6 +24,48 @@ struct Item {
     replacements: Vec<String>,
 }
 
+#[derive(Serialize)]
+struct AnalysisSentence {
+    text: String,
+    start: usize,
+    end: usize,
+    tokens: Vec<AnalysisToken>,
+}
+
+#[derive(Serialize)]
+struct AnalysisToken {
+    text: String,
+    start: usize,
+    end: usize,
+    readings: Vec<nlprule::analysis::AnalysisReading>,
+    chunks: Vec<String>,
+    is_whitespace: bool,
+    is_punctuation: bool,
+}
+
+impl From<nlprule::analysis::AnalysisSentence> for AnalysisSentence {
+    fn from(sentence: nlprule::analysis::AnalysisSentence) -> Self {
+        Self {
+            text: sentence.text,
+            start: sentence.span.utf16.start,
+            end: sentence.span.utf16.end,
+            tokens: sentence
+                .tokens
+                .into_iter()
+                .map(|token| AnalysisToken {
+                    text: token.text,
+                    start: token.span.utf16.start,
+                    end: token.span.utf16.end,
+                    readings: token.readings,
+                    chunks: token.chunks,
+                    is_whitespace: token.is_whitespace,
+                    is_punctuation: token.is_punctuation,
+                })
+                .collect(),
+        }
+    }
+}
+
 /// A grammar and spelling checker over a pre-loaded tokenizer and rule set.
 #[wasm_bindgen]
 pub struct Checker {
@@ -98,6 +140,20 @@ impl Checker {
 
         serde_json::to_string(&items)
             .map_err(|err| JsValue::from_str(&format!("failed to serialize suggestions: {err}")))
+    }
+
+    /// Returns JSON sentences and tagged tokens, including whitespace, from one analysis pass.
+    /// Surface text is preserved. `start` and exclusive `end` count UTF-16 code units in
+    /// the original input, suitable for `text.slice(start, end)`.
+    pub fn analyze(&self, text: &str) -> Result<String, JsValue> {
+        let sentences: Vec<_> = self
+            .tokenizer
+            .analyze(text)
+            .into_iter()
+            .map(AnalysisSentence::from)
+            .collect();
+        serde_json::to_string(&sentences)
+            .map_err(|err| JsValue::from_str(&format!("failed to serialize analysis: {err}")))
     }
 
     /// Adds words to the user dictionary and returns how many were new.
