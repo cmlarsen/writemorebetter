@@ -156,7 +156,8 @@ pub(crate) const RULES_MAGIC: &[u8; 8] = b"WMBRUL01";
 /// Version 17: `Part` gained `next_exception`, the token's `scope="next"` exceptions, checked
 /// while matching instead of in the token's atom, and lost `greedy`; `Composition::can_stop_mask`
 /// was replaced by `optional_count`.
-pub const TOKENIZER_FORMAT_VERSION: u32 = 17;
+/// Version 18: the chunker models store their parameters as `f32` instead of `bf16`.
+pub const TOKENIZER_FORMAT_VERSION: u32 = 18;
 
 /// The on-disk format version of [Rules] binaries.
 ///

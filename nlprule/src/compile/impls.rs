@@ -1,7 +1,6 @@
 use bimap::BiMap;
 use fs_err::File;
 use fst::Map;
-use half::bf16;
 use log::warn;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -990,7 +989,7 @@ pub(in crate::compile) struct ContextData {
 impl From<ModelData> for chunk::Model {
     fn from(data: ModelData) -> Self {
         let mut outcomes: Vec<u8> = Vec::new();
-        let mut parameters: Vec<bf16> = Vec::new();
+        let mut parameters: Vec<f32> = Vec::new();
 
         let mut contexts: Vec<_> = data.pmap.into_iter().collect();
         contexts.sort_unstable_by(|a, b| a.0.cmp(&b.0));
@@ -1005,7 +1004,7 @@ impl From<ModelData> for chunk::Model {
                 assert!(outcome <= u8::MAX as usize);
                 outcome as u8
             }));
-            parameters.extend(value.parameters.into_iter().map(bf16::from_f32));
+            parameters.extend(value.parameters);
 
             (chunk::hash::hash_str(&key), (offset, length))
         });

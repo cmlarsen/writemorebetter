@@ -24,7 +24,6 @@ unicase = "2.6"
 derivative = "2.2"
 fst = "0.4"
 fs-err = "2.5"
-half = { version = "1.7", features = ["serde"] }
 srx = { path = "../srx", version = "0.1.4", features = ["serde"] }
 once_cell = "1"
 cfg-if = "1"

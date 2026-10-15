@@ -2680,6 +2680,151 @@ fn chunker_matches_languagetool_beam_search() {
     );
 }
 
+/// Chunk tags LanguageTool 6.6 assigns where its top two sequences are within 0.005
+/// log-probability of each other (`nginx ,` and `fast/JJ` here), and where its tokenizer
+/// keeps an opening quote attached to the next word (`‘No`, `“The`). Breaking these ties
+/// like OpenNLP needs the models' parameters at full `f32` precision.
+#[test]
+fn chunker_breaks_near_ties_like_languagetool() {
+    let chunk_tags = |text: &str| -> Vec<(String, String)> {
+        TOKENIZER
+            .pipe(text)
+            .flat_map(|sentence| sentence.into_iter())
+            .filter(|token| !token.word().as_str().trim().is_empty())
+            .map(|token| (token.word().as_str().to_string(), token.chunks().join("|")))
+            .collect()
+    };
+    let expected = |pairs: &[(&str, &str)]| -> Vec<(String, String)> {
+        pairs
+            .iter()
+            .map(|(word, chunks)| (word.to_string(), chunks.to_string()))
+            .collect()
+    };
+
+    assert_eq!(
+        chunk_tags("I have checked nginx, php, and mysql error logs and this error isn't there."),
+        expected(&[
+            ("I", "B-NP-singular|E-NP-singular"),
+            ("have", "B-VP"),
+            ("checked", "I-VP"),
+            ("nginx", "B-NP-singular|E-NP-singular"),
+            (",", "O"),
+            ("php", "B-NP-singular|E-NP-singular"),
+            (",", "O"),
+            ("and", "O"),
+            ("mysql", "B-NP-plural"),
+            ("error", "I-NP-plural"),
+            ("logs", "E-NP-plural"),
+            ("and", "O"),
+            ("this", "B-NP-singular"),
+            ("error", "E-NP-singular"),
+            ("is", "B-VP"),
+            ("n't", "O"),
+            ("there", "B-ADVP"),
+            (".", "O"),
+        ])
+    );
+
+    assert_eq!(
+        chunk_tags(
+            "\u{201c}I\u{2019}ve checked nginx, php, and mysql error logs\u{2014}and this error isn\u{2019}t there\u{2026}\u{201d}\u{2028}"
+        ),
+        expected(&[
+            ("\u{201c}", "B-NP-singular|E-NP-singular"),
+            ("I", "B-NP-singular|E-NP-singular"),
+            ("'ve", "B-VP"),
+            ("checked", "I-VP"),
+            ("nginx", "B-NP-singular|E-NP-singular"),
+            (",", "O"),
+            ("php", "B-NP-singular|E-NP-singular"),
+            (",", "O"),
+            ("and", "O"),
+            ("mysql", "B-NP-singular"),
+            ("error", "E-NP-singular"),
+            ("logs", ""),
+            ("\u{2014}", ""),
+            ("and", ""),
+            ("this", "B-NP-singular"),
+            ("error", "E-NP-singular"),
+            ("is", "B-VP"),
+            ("n't", "I-VP"),
+            ("there", "I-VP"),
+            ("\u{2026}", "I-VP"),
+            ("\u{201d}", "B-NP-singular|E-NP-singular"),
+        ])
+    );
+
+    assert_eq!(
+        chunk_tags("The car is special, fast and nice to look at."),
+        expected(&[
+            ("The", "B-NP-singular"),
+            ("car", "E-NP-singular"),
+            ("is", "B-VP"),
+            ("special", "B-ADJP"),
+            (",", "O"),
+            ("fast", "B-ADJP"),
+            ("and", "I-ADJP"),
+            ("nice", "I-ADJP"),
+            ("to", "B-VP"),
+            ("look", "I-VP"),
+            ("at", "B-PP"),
+            (".", "O"),
+        ])
+    );
+
+    assert_eq!(
+        chunk_tags("\u{201c}The car is special, fast and nice to look at\u{2026}\u{201d} she said.\u{2028}"),
+        expected(&[
+            ("\u{201c}", ""),
+            ("The", ""),
+            ("car", "E-NP-singular"),
+            ("is", "B-VP"),
+            ("special", "B-ADJP"),
+            (",", "O"),
+            ("fast", "B-ADJP"),
+            ("and", "I-ADJP"),
+            ("nice", "I-ADJP"),
+            ("to", "B-VP"),
+            ("look", "I-VP"),
+            ("at", ""),
+            ("\u{2026}", ""),
+            ("\u{201d}", "B-NP-singular|E-NP-singular"),
+            ("she", "B-NP-singular|E-NP-singular"),
+            ("said", "B-VP"),
+            (".", "O"),
+        ])
+    );
+
+    assert_eq!(
+        chunk_tags(
+            "\u{2018}No sooner, sir?\u{2019}\u{2014}\u{2018}Soon enough for any honest man that goes a passenger.\u{2019}"
+        ),
+        expected(&[
+            ("\u{2018}", ""),
+            ("No", ""),
+            ("sooner", "I-NP-singular"),
+            (",", "I-NP-singular"),
+            ("sir", "E-NP-singular"),
+            ("?", "O"),
+            ("\u{2019}", ""),
+            ("\u{2014}", ""),
+            ("\u{2018}", ""),
+            ("Soon", ""),
+            ("enough", "B-ADVP"),
+            ("for", "B-PP"),
+            ("any", "B-NP-singular"),
+            ("honest", "I-NP-singular"),
+            ("man", "E-NP-singular"),
+            ("that", "B-NP-singular|E-NP-singular"),
+            ("goes", "B-VP"),
+            ("a", "B-NP-singular"),
+            ("passenger", "E-NP-singular"),
+            (".", "O"),
+            ("\u{2019}", "O"),
+        ])
+    );
+}
+
 /// A suggestion that references a token with `min="0"` which did not take part
 /// in the match must not keep the space that separated it from the next token.
 /// 5.2's A_NNS rule suggests `\2 \3`, where token 2 is an optional adjective,
