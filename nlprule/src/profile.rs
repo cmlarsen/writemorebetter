@@ -88,6 +88,9 @@ impl Profile {
                 // Indentation with spaces at the start of a paragraph or line, which
                 // LanguageTool flags after a sentence end or a CRLF (403 on moby150k).
                 "BUILTIN/WHITESPACE_RULE/INDENTATION",
+                // Successive sentences that begin with the same word, which fiction
+                // uses for rhythm ("He waited. He listened. He...").
+                "BUILTIN/ENGLISH_WORD_REPEAT_BEGINNING_RULE",
             ]
             .iter()
             .map(|selector| (*selector).to_owned())

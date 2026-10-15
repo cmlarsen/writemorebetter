@@ -153,7 +153,11 @@ pub(crate) const RULES_MAGIC: &[u8; 8] = b"WMBRUL01";
 /// Version 15: `TaggerLangOptions::tag_g_dropped_ing` was added.
 /// Version 16: `MatcherKind::AffixedGraph` was added (literal text around a `<match>` inside a
 /// `<token>`).
-pub const TOKENIZER_FORMAT_VERSION: u32 = 16;
+/// Version 17: `Part` gained `next_exception`, the token's `scope="next"` exceptions, checked
+/// while matching instead of in the token's atom, and lost `greedy`; `Composition::can_stop_mask`
+/// was replaced by `optional_count`.
+/// Version 18: the chunker models store their parameters as `f32` instead of `bf16`.
+pub const TOKENIZER_FORMAT_VERSION: u32 = 18;
 
 /// The on-disk format version of [Rules] binaries.
 ///
@@ -192,7 +196,11 @@ pub const TOKENIZER_FORMAT_VERSION: u32 = 16;
 /// Version 24: `PosReplacer::spell_number` was added (`<match postag="_spell_number_"/>`).
 /// Version 25: `MatcherKind::AffixedGraph` was added, as in tokenizer version 16.
 /// Version 26: `Rule::repetition` was added.
-pub const RULES_FORMAT_VERSION: u32 = 26;
+/// Version 27: the `LongSentence`, `LongParagraph` and `WordRepeatBeginning` builtins were added.
+/// Version 28: `Part` gained `next_exception`, the token's `scope="next"` exceptions, checked
+/// while matching instead of in the token's atom, and lost `greedy`; `Composition::can_stop_mask`
+/// was replaced by `optional_count`.
+pub const RULES_FORMAT_VERSION: u32 = 28;
 
 /// The longest engine version string accepted in a binary header.
 const MAX_ENGINE_VERSION_LEN: usize = 256;
