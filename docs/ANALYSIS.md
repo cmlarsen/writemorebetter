@@ -57,13 +57,13 @@ Swift's `Checker.analyze(text:)` returns owned `[AnalysisSentence]` records. WAS
 returns a JSON array. Both reuse the tokenizer already owned by `Checker`.
 
 Sentence and token records expose `text`, absolute `start` and exclusive `end`, and tokens expose
-`readings`, `chunks`, and whitespace/punctuation flags. All binding offsets count **UTF-16 code
+`readings`, `chunks`, and whitespace/punctuation flags. These offsets count **UTF-16 code
 units**, suitable for JavaScript `text.slice(start, end)` or Swift `NSRange`. A lemma/POS reading is
 `{"lemma":"go","pos":"VBG"}`. JSON flags use `is_whitespace` / `is_punctuation`; Swift uses
 `isWhitespace` / `isPunctuation`.
 
-WASM `check()` retains its existing Unicode scalar offsets. Its output is intentionally unchanged;
-observe the convention documented for each method.
+WASM `check()` also returns UTF-16 code units as `start16` / `end16`, while its original `start` / `end`
+stay Unicode scalar offsets — the older convention, kept so callers do not break, to be deprecated later.
 
 ## Independent reference and verification
 

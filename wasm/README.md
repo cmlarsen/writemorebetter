@@ -16,12 +16,16 @@ const { Checker } = require("./wasm/pkg/writemorebetter_wasm.js");
 
 const checker = new Checker(tokenizerBytes, rulesBytes, "en_US", "fiction"); // spell_variant and profile optional/undefined
 const suggestions = JSON.parse(checker.check("She was not been here since Monday."));
-// [{ start: 4, end: 16, source: "GRAMMAR/WAS_BEEN/1",
+// [{ start: 4, end: 16, start16: 4, end16: 16, source: "GRAMMAR/WAS_BEEN/1",
 //    message: "Did you mean was not or has not been?",
 //    replacements: ["was not", "has not been"] }]
 ```
 
-`start`/`end` are character offsets (Unicode scalar values), not byte offsets. Pass `undefined`
+Each suggestion carries two offset pairs. `start16` / `end16` count **UTF-16 code units** into the
+input — the same convention as `analyze()` and `analyzeDocument()` — so `text.slice(start16, end16)`
+returns the flagged text even after emoji. `start` / `end` count Unicode scalar values (characters),
+not bytes; that is the **older** convention, kept so existing callers do not break, and to be
+deprecated later. Prefer `start16` / `end16`. Pass `undefined`
 (or `""`) as `spell_variant` to leave spelling off. Pass `undefined` (or `""`) as `profile` to
 disable nothing; `"fiction"` applies the fiction profile (see `docs/PROFILE.md`) and any other
 name is an error.
@@ -74,8 +78,9 @@ process RSS when retained, and the wasm heap cannot give back the memory it used
 `JSON.parse(checker.analyze(text))` returns sentences and tagged tokens with original text,
 paired lemma/POS readings, chunk tags, and `is_whitespace` / `is_punctuation` flags. Sentence
 and token `start` / exclusive `end` count **UTF-16 code units** into the original input:
-use `text.slice(start, end)` to recover their text, including after emoji. This differs from
-`check()`'s existing **Unicode scalar** offsets; `check()` has not changed. Both methods share
+use `text.slice(start, end)` to recover their text, including after emoji. `check()` exposes the same
+convention in its `start16` / `end16` fields, while its `start` / `end` stay **Unicode scalar**
+offsets (the older convention, to be deprecated). Both methods share
 the checker's one loaded tokenizer. See [the analysis contract](../docs/ANALYSIS.md).
 
 ## Document analysis

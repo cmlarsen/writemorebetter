@@ -144,6 +144,64 @@ if (grammarHit) {
     "check offsets remain Unicode scalar values");
 }
 
+// check() also returns UTF-16 offsets (`start16`/`end16`) alongside the scalar fields.
+// Both conventions must describe the same flagged text, including after astral characters.
+function checkSpans(text) {
+  const chars = [...text];
+  return JSON.parse(checker.check(text)).map((item) => {
+    const flagged = chars.slice(item.start, item.end).join("");
+    check(flagged.length > 0, "flagged span is not empty");
+    eq(text.slice(item.start16, item.end16), flagged, "start16/end16 match the scalar span");
+    return { ...item, flagged };
+  });
+}
+
+// 😀 adds 1 UTF-16 unit, a ZWJ family (👩‍👩‍👧) adds 3, and 🇺🇸 adds 2, so every later span shifts by 6.
+const utf16Text = "😀\u{1F469}\u200D\u{1F469}\u200D\u{1F467}🇺🇸 “She was not been—again…”\u2028He was not been too…";
+const utf16Spans = checkSpans(utf16Text);
+const utf16Grammar = utf16Spans.filter((item) => item.flagged === "was not been");
+eq(utf16Grammar.length, 2, "both grammar errors are flagged");
+for (const item of utf16Grammar) {
+  eq(item.start16, item.start + 6, "astral characters shift the UTF-16 start by their extra units");
+  eq(item.end16, item.end + 6, "astral characters shift the UTF-16 end by their extra units");
+}
+check(utf16Grammar[1].start16 > utf16Grammar[0].end16,
+  "a later span sits after an em dash, an ellipsis and U+2028");
+
+// A flagged span can itself contain a non-ASCII character (here, a curly apostrophe).
+const contractionSpans = checkSpans("😀 was’nt here—again…\u2028ok.");
+const contraction = contractionSpans.find((item) => item.source.startsWith("TYPOS/INCORRECT_CONTRACTIONS"));
+check(Boolean(contraction), "curly-apostrophe contraction is flagged");
+if (contraction) {
+  eq(contraction.flagged, "was’nt", "flagged span keeps its curly apostrophe");
+  eq(contraction.start16, contraction.start + 1, "one astral character shifts the span by one unit");
+}
+
+// A span that ends at the very end of the text, after an emoji.
+const endText = "😀 I saw teh";
+const endSpan = checkSpans(endText).find((item) => item.flagged === "teh");
+check(Boolean(endSpan), "a spelling error at text end is flagged");
+if (endSpan) {
+  eq([endSpan.start16, endSpan.end16], [9, 12], "end-of-text span uses UTF-16 offsets");
+  eq(endSpan.end16, endText.length, "end-of-text end16 is the UTF-16 length");
+}
+
+// A flag (two regional indicators) at the end of the text.
+const flagEndSpan = checkSpans("😀 He saw teh 🇺🇸").find((item) => item.flagged === "teh");
+check(Boolean(flagEndSpan), "a text ending in a flag still reports spans");
+if (flagEndSpan) {
+  eq([flagEndSpan.start16, flagEndSpan.end16], [10, 13], "a trailing flag does not shift earlier spans");
+}
+
+// A leading BOM and CRLF line endings keep the reported offsets aligned.
+const crlfBomGrammar = checkSpans("\uFEFF😀 She was not been here.\r\nHe was not been too.")
+  .filter((item) => item.flagged === "was not been");
+eq(crlfBomGrammar.length, 2, "BOM and CRLF text still finds both errors");
+if (crlfBomGrammar.length === 2) {
+  eq(crlfBomGrammar[1].start16, crlfBomGrammar[1].start + 1,
+    "the BOM adds no unit and the emoji adds one");
+}
+
 const documentText = "😀 “Zoë’s goin’—again…”\u2028She stayed.\r\n\r\nZoë walked with O’Brien.";
 const documentOptions = JSON.stringify({ skip_names: ["Zoë", "O'Brien"] });
 const document = JSON.parse(checker.analyzeDocument(documentText, documentOptions));
