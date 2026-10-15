@@ -35,7 +35,7 @@ if FileManager.default.fileExists(atPath: localFramework) {
 let package = Package(
     name: "WriteMoreBetter",
     platforms: [
-        .macOS(.v13),
+        .macOS(.v12),
         .iOS(.v16),
     ],
     products: [
