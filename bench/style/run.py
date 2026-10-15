@@ -10,7 +10,7 @@ from common import Analyzer, DocumentProbe, ROOT
 
 
 def private(argv):
-    return 'tier3' in argv[1:3]
+    return 'tier3' in argv[1:]
 
 
 def main():

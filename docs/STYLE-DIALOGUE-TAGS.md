@@ -30,24 +30,32 @@ quote; a `.` alone never ends a clause, so `Mr.` and `St.` stay inside it.
   when the clause starts lowercase. Otherwise (after `.`, `?`, `!`, a dash, an ellipsis or no
   punctuation) a capitalized clause is attached only as a bare speech tag: a listed speech verb with
   nothing after subject and verb but an adverb, `to`, an object pronoun or a name, up to the next
-  punctuation. `“Really?” Mara whispered.` and the common slip `“Fine.” Mara said.` are tags;
-  `“Fine.” She smiled.` and `“Hello?” She said nothing.` are beats.
+  punctuation or preposition. `“Really?” Mara whispered in his ear.` and the common slip
+  `“Fine.” Mara said with a shrug.` are tags; `“Fine.” She smiled.`, `“Hello?” She said nothing.`
+  and `“Wait—” She began to cry.` are beats.
 - **Before a quote**, the last clause is attached when it ends in `,` or `:` or with a lead-in speech
   verb (`She said “Go.”`). A paragraph ending in such a clause also tags a quote that opens the next
   paragraph (`John said:` ⏎ `“Hello.”`). Speech verbs that usually take a quoted object
   (`style/data/dialogue/object-verbs.txt`: `read`, `press`, `return`, `order`, `sing`, `call`, …) tag
-  a following quote only with a person subject (pronoun or name), a `,` or `:` before the quote and
-  speech punctuation at its end: `He returned, “No, thank you.”` is a tag; `She pressed “Send.”`,
-  `They sang “Jerusalem”`, `The headline read: “War Ends.”` are not. After a quote the full list
-  applies (`“No,” returned Holmes.`).
+  a following quote only with a `,` or `:` before the quote, speech punctuation at its end, and a
+  speaker: a pronoun or name as the last word before the verb (adverbs and auxiliaries skipped) or
+  right after it, or a noun there when the quote ends in `!` or `?`. `He returned, “No, thank you.”`
+  and `The old man called, “Wait!”` are tags; `She pressed “Send.”`, `They sang “Jerusalem”`,
+  `The headline read: “War Ends.”` and `The sign Anna saw read, “Closed.”` are not. After a quote the
+  full list applies (`“No,” returned Holmes.`).
 - **A tag** is a subject plus a verb at the edge of an attached clause: subject first (`he said`,
   `the old man said`, `she’d said`, `Anna’s mother said`) or inverted (`said the captain`, `said
   he`). The subject is a pronoun, a name, a skipped name, or a short noun phrase (possessives
   included); the verb is a token with a `VB*` reading. A listed verb wins over an unlisted one; an
   unlisted finite verb is still a tag (`VerbClass::Unlisted`), counted in `other_verbs` but never
-  flagged. `be`, `have` and `do` are never tag verbs, so `“Yes” was the answer.` has no tag. The tag
-  span runs from the subject through the verb, its particle (`he cut in`), auxiliaries (`He had said`)
-  and adverb.
+  flagged. `be`, `have` and `do` are never tag verbs. A quote followed directly by a lowercase form
+  of one of them, and not preceded by a lead-in verb, is the subject of that verb, not speech:
+  `“Yes” was the answer.` and `Her favorite poem, “The Raven,” was long.` have no tag, are not
+  exchanges, and are left out of `speech_spans`. The tag span runs from the subject through the verb,
+  its particle (`he cut in`) and adverb, with any auxiliaries and adverbs between subject and verb
+  (`She had always said`); an auxiliary is included only when nothing but adverbs separates it from the verb, so
+  `It was then he said` gives `then he said`. An inverted possessive subject is kept whole
+  (`said Anna’s mother`).
 - **Split dialogue** (`“Wait,” she said, “there’s more.”`) is one tag with position `split` and both
   quotes in `dialogue`. A tag that ends with a full stop before more speech is `after`.
 - **An action beat** is a narration clause touching a quote that is not attached and has a finite verb.
@@ -109,7 +117,13 @@ It weights authors equally and prints only numbers; see the benchmark README.
   colon).
 - Verbless participial beats (`Then, turning to his wife:`) are not beats.
 - Narration that runs into a quote in the same sentence without a lead-in comma is counted as a beat.
-- A capitalized speech clause after a quote with a longer object (`“Go.” She told Tom to leave.`) is a
-  beat, not a tag, because only bare tags attach without a comma.
+- A capitalized speech clause after a quote with a longer object (`“Go.” She told Tom to leave.`,
+  `“Why?” Tom asked his father.`) is a beat, not a tag, because only bare tags attach without a comma.
+- An object-taking verb with no comma before its quote (`He called “Come here!” across the yard.`) is
+  read as naming the quote, so the quote is embedded and not an exchange.
+- A noun subject before an object-taking verb counts as a speaker when the quote ends in `!` or `?`, so
+  `The headline read: “War Ends!”` is a tag.
+- A quoted speech act that is itself the subject of `be` (`“Fire!” was the cry.`) is not counted as
+  speech.
 - Dash-led dialogue and unpunctuated single-quoted speech are outside #243's span detector, so they
   have no tags.

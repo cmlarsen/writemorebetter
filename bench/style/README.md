@@ -487,7 +487,7 @@ speech spans, which exclude embedded scare quotes),
 `untagged_run_exchange_percent` and `tags_per_1000_words`, tag position shares, and the share of tags
 for each verb on the crate's lists. Unlisted verbs are counted, never named, so no corpus text
 reaches the output. Errors exit with a generic message and probe stderr is discarded; `run.py`
-also suppresses argument errors for any command with `tier3` as its first or second argument. `--self-test`
+also suppresses argument errors for any command line that contains `tier3`, in any position. `--self-test`
 builds a synthetic export in a temporary directory and checks counts, author weighting and that no
 metadata leaks. CI runs only the self-test. No private corpus or fiction-baseline export was read
 for #249; the published-fiction baseline is for the owner to produce with this command.

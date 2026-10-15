@@ -268,6 +268,10 @@ fn is_adverb(token: &Token) -> bool {
         && !lists().adverb_exclusions.contains(text.as_str())
 }
 
+fn is_modifier(token: &Token) -> bool {
+    is_adverb(token) || (token.is_word && has_pos(token, "RB"))
+}
+
 fn is_auxiliary(token: &Token) -> bool {
     has_pos(token, "MD")
         || token.readings.iter().any(|reading| {
@@ -482,6 +486,9 @@ impl<'a> Paragraph<'a> {
                 }
                 continue;
             }
+            if has_pos(token, "IN") && !matches!(lower(token).as_str(), "that" | "to") {
+                return true;
+            }
             if !(is_adverb(token)
                 || lower(token) == "to"
                 || OBJECT_PRONOUNS.contains(&lower(token).as_str())
@@ -514,8 +521,10 @@ impl<'a> Paragraph<'a> {
                     .filter(|&length| subject_start + length <= words.len())
                     .find(|&length| {
                         self.subject(words, subject_start, length)
-                            && (subject_start + length == words.len()
-                                || !is_nominal(self.items[words[subject_start + length]].token))
+                            && words.get(subject_start + length).is_none_or(|&next| {
+                                let next = self.items[next].token;
+                                !is_nominal(next) && !is_possessive(next)
+                            })
                     })
                 {
                     let subject_end = subject_start + length;
@@ -633,12 +642,18 @@ impl<'a> Paragraph<'a> {
                 continue;
             }
             if takes_object(&lemma) {
-                let person = words[..position]
-                    .iter()
-                    .chain(trailing.first())
-                    .any(|&index| is_person(self.items[index].token));
+                let head = words[..position].iter().rev().copied().find(|&index| {
+                    let token = self.items[index].token;
+                    !(is_adverb(token) || is_auxiliary(token) || is_clitic(token))
+                });
+                let person = head
+                    .into_iter()
+                    .chain(trailing.first().copied())
+                    .any(|index| is_person(self.items[index].token));
+                let exclaimed = matches!(quote, Some('!' | '?'))
+                    && head.is_some_and(|index| has_pos(self.items[index].token, "NN"));
                 let punctuated = matches!(self.last_text(clause), "," | ":");
-                if !(person && punctuated && speech_end(quote)) {
+                if !((person || exclaimed) && punctuated && speech_end(quote)) {
                     continue;
                 }
             }
@@ -690,14 +705,17 @@ impl<'a> Paragraph<'a> {
             let token = self.items[start - 1].token;
             let title =
                 token.text == "." && start >= floor + 2 && is_name(self.items[start - 2].token);
+            let auxiliary = (is_auxiliary(token) || is_clitic(token))
+                && self.items[start..verb]
+                    .iter()
+                    .all(|item| is_modifier(item.token));
             if !title
                 && !(token.is_word
                     && (is_nominal(token)
                         || is_pronoun(token)
                         || is_determiner(token)
-                        || is_adverb(token)
-                        || is_auxiliary(token)
-                        || is_clitic(token)))
+                        || is_modifier(token)
+                        || auxiliary))
             {
                 break;
             }
@@ -739,6 +757,14 @@ impl<'a> Paragraph<'a> {
                     .is_some_and(|previous| is_determiner(self.items[words[previous]].token))
         })
     }
+}
+
+fn starts_copula(token: &Token) -> bool {
+    token.is_word
+        && token.text.chars().next().is_some_and(char::is_lowercase)
+        && token.readings.iter().any(|reading| {
+            reading.pos.starts_with("VB") && AUXILIARIES.contains(&reading.lemma.as_str())
+        })
 }
 
 fn speech_end(last: Option<char>) -> bool {
@@ -788,14 +814,16 @@ fn paragraphs(document: &Document) -> Vec<Paragraph<'_>> {
                         return None;
                     }
                     let last = end - 1;
-                    let embedded = first
-                        .checked_sub(1)
-                        .map(|previous| &items[previous])
-                        .is_some_and(|previous| previous.token.is_word && !lead_in(previous.token));
-                    if embedded {
+                    let previous = first.checked_sub(1).map(|previous| items[previous].token);
+                    let embedded =
+                        previous.is_some_and(|previous| previous.is_word && !lead_in(previous));
+                    let ends = span.byte.end <= range.end;
+                    let copula = ends
+                        && !previous.is_some_and(lead_in)
+                        && items.get(end).is_some_and(|next| starts_copula(next.token));
+                    if embedded || copula {
                         return None;
                     }
-                    let ends = span.byte.end <= range.end;
                     let local = span.byte.start.max(range.start) - range.start
                         ..span.byte.end.min(range.end) - range.start;
                     Some(Piece {

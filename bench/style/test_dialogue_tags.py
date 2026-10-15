@@ -65,7 +65,10 @@ class DialogueTagTests(unittest.TestCase):
         run = Path(__file__).resolve().parent / 'run.py'
         for args in (['dialogue-tags', 'tier3', '--export', 'PRIVATE_SENTINEL_DIR', 'PRIVATE_SENTINEL_ARG'],
                      ['dialogue-tags', 'tier3', '--exprot', 'PRIVATE_SENTINEL_PATH'],
-                     ['tier3', 'PRIVATE_SENTINEL_ARG']):
+                     ['tier3', 'PRIVATE_SENTINEL_ARG'],
+                     ['dialogue-tags', '--export', '/books/PRIVATE_SENTINEL_AUTHOR', 'tier3', 'PRIVATE_SENTINEL_EXTRA'],
+                     ['dialogue-tags', '--exprot', '/books/PRIVATE_SENTINEL_AUTHOR', 'tier3'],
+                     ['--bogus', 'PRIVATE_SENTINEL', 'tier3']):
             result = subprocess.run([sys.executable, str(run), *args], capture_output=True, text=True)
             self.assertNotEqual(result.returncode, 0)
             self.assertNotIn('PRIVATE_SENTINEL', result.stdout + result.stderr)

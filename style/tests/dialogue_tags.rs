@@ -232,6 +232,20 @@ fn embedded_quotes_are_not_speech_spans() {
 }
 
 #[test]
+fn quoted_subjects_of_a_copula_are_not_speech_spans() {
+    let tokenizer = tokenizer();
+    let (_, report) = report(
+        &tokenizer,
+        "“Yes” was the answer.\n“The Raven” is a poem by Poe.\n“Go,” she said.",
+        Vec::new(),
+    );
+    assert_eq!(report.dialogue_spans, 3);
+    assert_eq!(report.speech_spans, 1);
+    assert_eq!(report.exchanges, 1);
+    assert_eq!(report.untagged_exchanges, Some(0));
+}
+
+#[test]
 fn baseline_accepts_camel_case() {
     let baseline: DialogueTagBaseline = serde_json::from_str(
         r#"{"saidAskedPercent": 80.0, "adverbPercent": 5.0, "nonSpeechPercent": 1.0}"#,

@@ -345,7 +345,8 @@
   },
   {
     "name": "a copula after an unpunctuated quote is not a tag",
-    "text": "“Yes” was the answer.\n“Love” is a strange word, she thought.\nHer favorite poem, “The Raven,” was long."
+    "text": "“Yes” was the answer.\n“Love” is a strange word, she thought.\nHer favorite poem, “The Raven,” was long.",
+    "untagged_exchanges": 0
   },
   {
     "name": "a title after a lead-in verb keeps one tag",
@@ -406,6 +407,30 @@
     ]
   },
   {
+    "name": "object verbs take their subject from the words before the verb",
+    "text": "The old man called, “Wait!”\nThe sign Anna saw read, “Closed.”",
+    "tags": [
+      {
+        "verb": "called",
+        "lemma": "call",
+        "class": "speech",
+        "position": "before",
+        "span": "The old man called",
+        "dialogue": [
+          "“Wait!”"
+        ]
+      }
+    ],
+    "beats": [
+      {
+        "span": "The sign Anna saw read,",
+        "dialogue": [
+          "“Closed.”"
+        ]
+      }
+    ]
+  },
+  {
     "name": "a capitalized speech tag after a full stop",
     "text": "“Fine.” Mara said.\n“Hello?” She said nothing.",
     "tags": [
@@ -425,6 +450,96 @@
         "span": "She said nothing.",
         "dialogue": [
           "“Hello?”"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "a named speaker after ?, ! or a dash keeps a prepositional phrase",
+    "text": "“Really?” Mara whispered in his ear.\n“Help!” Tom shouted at the top of his lungs.\n“Wait—” Mara began in a rush.\n“Fine.” Mara said with a shrug.\n“Where are you going?” Anne asked in surprise.\n“Is it?” Mrs. Lynde said with a sniff.\n“Hello” Mara said in a low voice.\n“Fine.” She smiled.\n“Wait—” She began to cry.",
+    "tags": [
+      {
+        "verb": "whispered",
+        "lemma": "whisper",
+        "class": "speech",
+        "position": "after",
+        "span": "Mara whispered",
+        "dialogue": [
+          "“Really?”"
+        ]
+      },
+      {
+        "verb": "shouted",
+        "lemma": "shout",
+        "class": "speech",
+        "position": "after",
+        "span": "Tom shouted",
+        "dialogue": [
+          "“Help!”"
+        ]
+      },
+      {
+        "verb": "began",
+        "lemma": "begin",
+        "class": "speech",
+        "position": "after",
+        "span": "Mara began",
+        "dialogue": [
+          "“Wait—”"
+        ]
+      },
+      {
+        "verb": "said",
+        "lemma": "say",
+        "class": "speech",
+        "position": "after",
+        "span": "Mara said",
+        "dialogue": [
+          "“Fine.”"
+        ]
+      },
+      {
+        "verb": "asked",
+        "lemma": "ask",
+        "class": "speech",
+        "position": "after",
+        "span": "Anne asked",
+        "dialogue": [
+          "“Where are you going?”"
+        ]
+      },
+      {
+        "verb": "said",
+        "lemma": "say",
+        "class": "speech",
+        "position": "after",
+        "span": "Mrs. Lynde said",
+        "dialogue": [
+          "“Is it?”"
+        ]
+      },
+      {
+        "verb": "said",
+        "lemma": "say",
+        "class": "speech",
+        "position": "after",
+        "span": "Mara said",
+        "dialogue": [
+          "“Hello”"
+        ]
+      }
+    ],
+    "beats": [
+      {
+        "span": "She smiled.",
+        "dialogue": [
+          "“Fine.”"
+        ]
+      },
+      {
+        "span": "She began to cry.",
+        "dialogue": [
+          "“Wait—”"
         ]
       }
     ]
@@ -479,6 +594,42 @@
         "span": "He had said",
         "dialogue": [
           "“Go”"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "spans cover inverted possessives and plain adverbs and stop at the previous clause",
+    "text": "“Go,” said Anna’s mother.\nShe had always said, “Never.”\nIt was then he said, “Go.”",
+    "tags": [
+      {
+        "verb": "said",
+        "lemma": "say",
+        "class": "speech",
+        "position": "after",
+        "span": "said Anna’s mother",
+        "dialogue": [
+          "“Go,”"
+        ]
+      },
+      {
+        "verb": "said",
+        "lemma": "say",
+        "class": "speech",
+        "position": "before",
+        "span": "She had always said",
+        "dialogue": [
+          "“Never.”"
+        ]
+      },
+      {
+        "verb": "said",
+        "lemma": "say",
+        "class": "speech",
+        "position": "before",
+        "span": "then he said",
+        "dialogue": [
+          "“Go.”"
         ]
       }
     ]
