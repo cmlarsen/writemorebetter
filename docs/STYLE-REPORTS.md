@@ -59,7 +59,7 @@ swift/, wasm/       one binding each, exposing check() + analyze() + the reports
 
 A baseline is the expected value in published fiction: category shares, rates per 1,000 words, or word
 frequencies. **Every report takes its baseline as an input**, so a caller can swap in a genre-specific one.
-Default baseline files may ship in `style/data/baselines/`, each listing its sources and license. Where
+Default baseline files may ship in `style/data/baselines/`, each recording its source and version. Where
 the numbers come from:
 
 1. **Derived, openly licensed datasets (preferred).** These are counts, not text, and they cover modern
@@ -101,5 +101,5 @@ Build rules for any baseline:
 | 2026-10-14 | Every report takes its baseline as an input | Callers can swap in genre-specific baselines |
 | 2026-10-14 | No pirated or scraped corpora | Legal exposure, and the reason for *Bartz v. Anthropic* (2025) |
 | 2026-10-14 | Audiobook transcription rejected as a text source | Speech-to-text loses the author's punctuation, so sentence and dialogue statistics would measure the STT model |
-| 2026-10-15 | Aggregate numbers derived from any source, the private corpus included, may be published; text never | Aggregates aren't the text; attribution follows each dataset's license |
+| 2026-10-15 | Aggregate numbers derived from any source, the private corpus included, may be published; text never | Statistics are facts, not creative output, so they need no attribution |
 | 2026-10-15 | Prefer derived datasets (Ngram, HTRC EF) over building a corpus | They already cover modern fiction at scale, openly licensed; a private corpus is only needed for running-text statistics |
