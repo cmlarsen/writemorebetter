@@ -322,14 +322,18 @@ arithmetic; thresholds are never rounded or automatically rewritten. A rebaselin
 metric definitions, exclusions, alignment coverage, ambiguity and per-category differences, not only
 headline scores. The README retains the initial numbers above to make this review change explicit.
 
-## Current document detector after #243 review
+## Current document detector after #261
 
 The historical table above records #259's Python baseline. Current product-detector test floors are
-precision **85.2799%**, recall **91.8838%**, F1 **88.4588%** (1,234 / 1,447 / 1,343 TP/predicted/gold).
+precision **85.2516%**, recall **92.1072%**, F1 **88.5469%** (1,237 / 1,451 / 1,343 TP/predicted/gold).
 The probe uses the crate's hard-wrapped paragraph mode for original LitBank text. Open quotes are
 dropped at paragraph boundaries unless the next paragraph repeats the same opener; known leading
-elisions do not open quotes. The earlier 86.8887% precision claim was partly an artifact of lost
+elisions after a curly left quote and all straight single openers before a word are tentative: they
+require a punctuated single closer in the same paragraph and yield to a later opener. They never
+continue into the next paragraph. The earlier 86.8887% precision claim was partly an artifact of lost
 predictions after unclosed single quotes. The initial detector revision was triggered by a test-split
 precision failure, then evaluated on dev; the subsequent recovery fix was prompted by review that
-included test-split diagnostics. Full before/after results and revised floors are documented in
+included test-split diagnostics. The #261 dev measurement was unchanged (411 / 475 / 422;
+86.5263 / 97.3934 / 91.6388% P/R/F1), then test moved from 1,234 / 1,447 / 1,343 (85.2799 / 91.8838 / 88.4588%) to the current floors.
+Full before/after results and revised floors are documented in
 [STYLE-DOCUMENT-BENCHMARKS.md](../../docs/STYLE-DOCUMENT-BENCHMARKS.md).
