@@ -43,3 +43,6 @@ license text is in style/data/licenses/.
 style/data/suppressed.txt, style/data/fixed-wording.txt,
 style/data/literal-guards.txt and style/data/open-slot.txt are writemorebetter's
 own lists (MIT OR Apache-2.0).
+
+The word lists in style/data/dialogue/ were written for writemorebetter and are
+not taken from any third-party source.

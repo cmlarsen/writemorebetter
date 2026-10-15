@@ -412,3 +412,69 @@ homograph plurals and five natural copies; the fixes are described in
 dev vocabulary) drove the per-spelling key change and found a suite bug, sentence splitting after
 `Mr.`, so dev is not held out. The test vocabulary and the natural-word injections were written after
 the review fixes and run once, with no tuning since. Keep test untouched when tuning further.
+
+## Dialogue tags (#249)
+
+```sh
+python3 bench/style/run.py dialogue-tags tier2
+python3 bench/style/run.py dialogue-tags tier3 --self-test
+python3 bench/style/run.py dialogue-tags tier3 --export /path/to/export/out   # owner only
+```
+
+`--probe PATH` selects an already-built `dialogue_tags` binary (built from `bench/tools/wmb-document`,
+`src/bin/dialogue_tags.rs`); `--tokenizer PATH` selects the data. The probe reads `file`/`text` JSONL
+and calls `analyze_document` with default (line) paragraphs, then the report. It emits one record per
+dialogue span (`report: dialogue_span`) and, per tag, records for `dialogue_tag_position`
+(`before`/`after`/`split`) and `dialogue_tag_verb` (`speech`/`non_speech`/`unlisted`) on the verb
+token, `dialogue_tag_adverb` on the adverb token, and `dialogue_beat` (`tag`/`beat`) on the first word
+of the narration clause. Each category is scored separately with tier 2's exact-span scorer.
+
+**Hand-labeled set.** Four pinned chapter files from Standard Ebooks (CC0 dedication; underlying works
+public domain in the US; none is in LitBank) are added to `sources.json`. `dialogue_tags.py` joins the
+listed paragraph windows one paragraph per line:
+
+| File | Source | Paragraphs | Split | Dialogue spans |
+|---|---|---|---:|---:|
+| `styles-1.txt` | Christie, *The Mysterious Affair at Styles*, ch. 1 | 12–69 | dev | 46 |
+| `gatsby-1.txt` | Fitzgerald, *The Great Gatsby*, ch. 1 | 34–71 | dev | 46 |
+| `sign-1.txt` | Doyle, *The Sign of the Four*, ch. 1 | 3–33 | test | 47 |
+| `avonlea-1.txt` | Montgomery, *Anne of Avonlea*, ch. 1 | 0–49 | test | 47 |
+
+`labels/dialogue-tags.jsonl` holds 238 records (70 tags, 10 beats) over those 186 spans, with
+verbatim `text` that the suite checks against the offsets. Two independent labelers
+(`claude-opus-5-5/a` and `/b`, separate model sessions given only the guidelines and a worksheet with
+the detector's quote spans marked) labeled every quote before the detector was run on the passages.
+They agreed on 80 of 81 clause records and on every position, verb class and adverb. The one
+disagreement (a sentence that does not touch the quote, labeled a beat by one labeler) was resolved
+against the beat by the guideline's "only the sentence touching the quotation" clause. Owner
+adjudication is still pending, as for any judgment suite. Both labelers left scare quotes unlabeled;
+that, before any detector run on these passages, motivated the embedded-quote rule. The dev passages
+were then inspected; their two misses were not tuned away. Test was scored once.
+
+| Category / pattern | Dev P / R | Test P / R | All P / R (TP / predicted / gold) |
+|---|---:|---:|---:|
+| position `after` | 100 / 100 | 100 / 100 | 100 / 100 (50 / 50 / 50) |
+| position `before` | 100 / 80.00 | 100 / 100 | 100 / 85.71 (6 / 6 / 7) |
+| position `split` | 100 / 100 | 100 / 100 | 100 / 100 (13 / 13 / 13) |
+| verb `speech` | 100 / 96.30 | 100 / 97.62 | 100 / 97.10 (67 / 67 / 69) |
+| verb `non_speech` | 100 / 100 | none | 100 / 100 (1 / 1 / 1) |
+| adverb | 100 / 100 | 100 / 90.00 | 100 / 94.44 (17 / 17 / 18) |
+| beat vs tag: `tag` | 100 / 96.43 | 100 / 100 | 100 / 98.57 (69 / 69 / 70) |
+| beat vs tag: `beat` | 100 / 83.33 | 66.67 / 100 | 81.82 / 90.00 (9 / 11 / 10) |
+
+`dialogue-tags-baseline.json` stores the full-precision P/R/F1 for every gold pattern on all four
+passages as floors; the suite fails when any falls. The set is small: one non-speech tag and ten beats
+make those rows coarse. The Rust fixtures in `style/tests/fixtures/dialogue-tags.json` cover the
+issue's acceptance list (tags before and after, split dialogue, beats, non-speech tags, an untagged
+run) with curly and straight quotes, curly apostrophes, em dashes, ellipses and U+2028.
+
+**Tier 3.** `dialogue-tags tier3 --export DIR` reads the same export layout as tier 3, sends each unit
+to the probe's `--counts` mode and pools counts per `author_key`. It prints totals, per-author means
+and percentiles (authors weighted equally) of `said_asked_percent`, `adverb_percent`,
+`non_speech_percent`, `unlisted_percent`, `tagged_span_percent`, `beats_per_100_spans`,
+`untagged_run_exchange_percent` and `tags_per_1000_words`, tag position shares, and the share of tags
+for each verb on the crate's lists. Unlisted verbs are counted, never named, so no corpus text
+reaches the output. Errors exit with a generic message and probe stderr is discarded. `--self-test`
+builds a synthetic export in a temporary directory and checks counts, author weighting and that no
+metadata leaks. CI runs only the self-test. No private corpus or fiction-baseline export was read
+for #249; the published-fiction baseline is for the owner to produce with this command.

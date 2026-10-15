@@ -34,6 +34,13 @@ def main():
     three.add_argument('--self-test', action='store_true')
     three.add_argument('--export', type=Path)
     three.add_argument('--baseline', type=Path, default=ROOT / 'bench/style/published-baseline.json')
+    tags = sub.add_parser('dialogue-tags')
+    tags.add_argument('suite', choices=['tier2', 'tier3'])
+    tags.add_argument('--self-test', action='store_true')
+    tags.add_argument('--export', type=Path)
+    tags.add_argument('--probe', type=Path)
+    tags.add_argument('--tokenizer', type=Path, default=ROOT / 'storage/en_tokenizer.bin')
+    tags.add_argument('--out', type=Path, default=ROOT / 'bench/style/out')
     for command in (one, three):
         command.add_argument('--tokenizer', type=Path, default=ROOT / 'storage/en_tokenizer.bin')
         command.add_argument('--analyzer', type=Path)
@@ -42,6 +49,10 @@ def main():
             args = parser.parse_args()
     else:
         args = parser.parse_args()
+    if args.tier == 'dialogue-tags':
+        import dialogue_tags
+        dialogue_tags.main(args)
+        return
     if args.tier == 'tier2':
         import tier2
         tier2.run(args)

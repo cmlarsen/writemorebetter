@@ -38,5 +38,37 @@
     "license": "CC0 1.0",
     "sha256": "1059bceeb87ae492fe036aa499023572955fc1a1c1a4e82abf5c2cb4d13025bf",
     "license_url": "https://standardebooks.org/about"
+  },
+  "styles_ch1": {
+    "filename": "styles-ch1.xhtml",
+    "url": "https://raw.githubusercontent.com/standardebooks/agatha-christie_the-mysterious-affair-at-styles/1f905cddaa7c17df0f142e02bd95a5a8e6524786/src/epub/text/chapter-1.xhtml",
+    "version": "1f905cddaa7c17df0f142e02bd95a5a8e6524786",
+    "license": "CC0 1.0",
+    "sha256": "6a4317a526ffa5e26f54e529c28c40851db95dc4f11ad8d45b9d77a3fa80462f",
+    "license_url": "https://standardebooks.org/about"
+  },
+  "gatsby_ch1": {
+    "filename": "gatsby-ch1.xhtml",
+    "url": "https://raw.githubusercontent.com/standardebooks/f-scott-fitzgerald_the-great-gatsby/fe47c8c04f5175d45f9410f4e3ca64c257ae0acc/src/epub/text/chapter-1.xhtml",
+    "version": "fe47c8c04f5175d45f9410f4e3ca64c257ae0acc",
+    "license": "CC0 1.0",
+    "sha256": "7e46ac1dcf4d16f62101a0b87de645f86f967d661f5697beec7e77e9713e2fcd",
+    "license_url": "https://standardebooks.org/about"
+  },
+  "sign_ch1": {
+    "filename": "sign-ch1.xhtml",
+    "url": "https://raw.githubusercontent.com/standardebooks/arthur-conan-doyle_the-sign-of-the-four/336a5f4f32b0aae235364724dcf3dbaaab784171/src/epub/text/chapter-1.xhtml",
+    "version": "336a5f4f32b0aae235364724dcf3dbaaab784171",
+    "license": "CC0 1.0",
+    "sha256": "af6f54de150f941e3c050dd1875be2fea59e08016f1212702dbef5ef524d6ab1",
+    "license_url": "https://standardebooks.org/about"
+  },
+  "avonlea_ch1": {
+    "filename": "avonlea-ch1.xhtml",
+    "url": "https://raw.githubusercontent.com/standardebooks/l-m-montgomery_anne-of-avonlea/3748cb7711c06c5157e1d55afdeecd034df675a9/src/epub/text/chapter-1.xhtml",
+    "version": "3748cb7711c06c5157e1d55afdeecd034df675a9",
+    "license": "CC0 1.0",
+    "sha256": "cdce6022eecf8a90255251642497e3277112fdcc91044aaf387604f40e1c5b48",
+    "license_url": "https://standardebooks.org/about"
   }
 }
