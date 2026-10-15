@@ -1,11 +1,11 @@
 {
   "minimum": {
     "ewt/boundaries/precision": 0.9661354581673307,
-    "litbank/precision": 0.84996191926885,
+    "litbank/precision": 0.8688873139617292,
     "ewt/boundaries/recall": 0.7931316434995912,
-    "litbank/recall": 0.8309754281459419,
+    "litbank/recall": 0.9128816083395384,
     "ewt/boundaries/f1": 0.8711270767849124,
-    "litbank/f1": 0.8403614457831325,
+    "litbank/f1": 0.8903413217138707,
     "ewt/aligned_tokens": 24102,
     "ewt/aligned_fraction": 0.9604686379214155,
     "ewt/normalized_tag_any": 0.9067676289635589,

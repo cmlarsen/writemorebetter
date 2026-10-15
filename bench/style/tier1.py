@@ -3,7 +3,8 @@ import json
 import re
 import tarfile
 
-from common import HERE, fetch, prf
+from common import DocumentProbe, HERE, fetch, offsets, prf
+from tier2 import score
 from equivalence import (EXCLUDED_XPOS, PENN, QUOTATION_MARKS, TAGS,
                          add_start, lexical_conventions, normalize_lemma,
                          normalize_pos, shares, start_candidates)
@@ -227,9 +228,9 @@ def align_litbank(tokenized, original):
     return rows
 
 
-def score_litbank(split):
+def score_litbank(split, document_probe=None):
     splits = json.loads((HERE / 'splits.json').read_text())['litbank'][split]
-    tp = predicted = gold_count = 0
+    documents, gold_records = [], []
     with tarfile.open(fetch('litbank')) as archive:
         files = {m.name.split('/', 1)[1]: archive.extractfile(m).read().decode('utf-8')
                  for m in archive.getmembers() if m.isfile() and
@@ -253,15 +254,19 @@ def score_litbank(split):
                     annotated.extend(words[st if sentence_id == ss else 0: et + 1 if sentence_id == es else len(words)])
                 if ' '.join(annotated) != ' '.join(fields[6].split()):
                     raise ValueError('LitBank annotation alignment failed')
-        detected = set(quote_spans(original))
-        tp += len(detected & gold)
-        predicted += len(detected)
-        gold_count += len(gold)
-    return {'documents': len(splits), **prf(tp, predicted, gold_count)}
+        documents.append({'file': doc, 'text': original})
+        gold_records.extend({'file': doc, **offsets(original, start, end), 'pattern': 'dialogue'}
+                            for start, end in sorted(gold))
+    predictions = (document_probe or DocumentProbe()).dialogue(documents)
+    if any(row.get('pattern') != 'dialogue' for row in predictions):
+        raise ValueError('unexpected document probe pattern')
+    result = score(gold_records, predictions, set(splits), pattern='dialogue')
+    return {'documents': len(splits), **result['patterns']['dialogue']}
 
 
-def run(analyzer, split, gate=False):
-    result = {'split': split, 'ewt': score_ewt(analyzer, split), 'litbank': score_litbank(split)}
+def run(analyzer, split, gate=False, document_probe=None):
+    result = {'split': split, 'ewt': score_ewt(analyzer, split),
+              'litbank': score_litbank(split, document_probe)}
     print(json.dumps(result, indent=2))
     if gate:
         if split != 'test':

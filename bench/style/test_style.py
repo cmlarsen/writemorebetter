@@ -7,6 +7,7 @@ from pathlib import Path
 import tempfile
 import runpy
 import sys
+import tarfile
 import unittest
 from unittest.mock import patch
 
@@ -20,6 +21,47 @@ from collections import Counter
 
 
 class BenchTests(unittest.TestCase):
+    def test_litbank_document_probe_scores_both_offsets_on_annotated_prefix(self):
+        original = '😀 “She’s—here…\u2028yes.”\n\nUnused “later.”'
+        prefix = original[:original.index('\n\n')]
+        quoted = prefix[2:]
+        tokens = '😀 “ She’s — here … yes . ”'
+        contents = {'original/book.txt': original,
+                    'quotations/tsv/book_brat.txt': tokens + '\n',
+                    'quotations/tsv/book_brat.ann': 'QUOTE\t0\t0\t1\t0\t8\t' + ' '.join(tokens.split()[1:])}
+        record = {'file': 'book_brat', 'pattern': 'dialogue',
+                  **common.offsets(prefix, 2, 2 + len(quoted))}
+
+        class Probe:
+            def dialogue(self, documents):
+                self.documents = documents
+                return self.predictions
+
+        probe = Probe()
+        with tempfile.TemporaryDirectory() as directory:
+            here = Path(directory)
+            (here / 'splits.json').write_text(json.dumps({'litbank': {'test': ['book_brat']}}))
+            archive_path = here / 'fixture.tar'
+            with tarfile.open(archive_path, 'w') as archive:
+                for name, text in contents.items():
+                    data = text.encode('utf-8')
+                    member = tarfile.TarInfo('fixture/' + name)
+                    member.size = len(data)
+                    archive.addfile(member, io.BytesIO(data))
+            with patch.object(tier1, 'HERE', here), patch.object(tier1, 'fetch', return_value=archive_path):
+                probe.predictions = [record]
+                self.assertEqual(tier1.score_litbank('test', probe)['f1'], 1)
+                self.assertEqual(probe.documents, [{'file': 'book_brat', 'text': prefix}])
+                wrong = copy.deepcopy(record)
+                wrong['utf16']['start'] -= 1
+                probe.predictions = [wrong]
+                self.assertEqual(tier1.score_litbank('test', probe)['true_positive'], 0)
+                probe.predictions = [record, record]
+                self.assertEqual(tier1.score_litbank('test', probe)['precision'], .5)
+                probe.predictions = [{**record, 'file': 'unscored'}]
+                with self.assertRaisesRegex(ValueError, 'manifest'):
+                    tier1.score_litbank('test', probe)
+
     def test_unicode_offsets_and_detector(self):
         text = '😀 “She’s—quiet…\u2028very very.”'
         rows = toy_detector('test', text)
