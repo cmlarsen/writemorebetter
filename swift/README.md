@@ -76,11 +76,13 @@ rustup target add aarch64-apple-darwin x86_64-apple-darwin aarch64-apple-ios x86
 
 The script builds `aarch64-apple-darwin` + `x86_64-apple-darwin` (lipo'd into one `macos-arm64_x86_64` slice),
 `aarch64-apple-ios`, and `aarch64-apple-ios-sim` + `x86_64-apple-ios` (one `ios-arm64_x86_64-simulator` slice),
-all with nlprule's native `regex-onig` backend and with a macOS 12.0 / iOS 16.0 minimum OS version — the
-minimums `Package.swift` declares — pinned per target so the host proc-macros stay on the host default. It then
-runs `uniffi-bindgen-swift` in
-library mode and calls `xcodebuild -create-xcframework`. Everything lands in `dist/` (git-ignored) plus the
-generated Swift sources, which are committed so the package always has a source target.
+all with nlprule's native `regex-onig` backend and with a macOS 12.0 / iOS 16.0 minimum OS version, the
+minimums `Package.swift` declares, pinned per target so the host proc-macros stay on the host default. It then
+runs `uniffi-bindgen-swift` in library mode and calls `xcodebuild -create-xcframework`. Everything lands in
+`dist/` (git-ignored) plus the generated Swift sources, which are committed so the package always has a source
+target.
+
+If you ran an earlier checkout and hit [#258](https://github.com/cmlarsen/writemorebetter/issues/258) here, run `cargo clean` once first: cargo reuses the stale proc-macro dylibs.
 
 Each slice is a dynamic framework (`Headers/`, `Modules/module.modulemap`, `Info.plist`; macOS uses the
 versioned bundle layout) whose binary exports only the UniFFI C functions. That lets an app link it next to

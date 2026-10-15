@@ -34,11 +34,7 @@ else
     PROFILE_DIR="debug"
 fi
 
-# Minimum OS versions for the slices and the framework's Info.plist, applied per target in
-# build_slice rather than exported globally: the host is macOS, so a global MACOSX_DEPLOYMENT_TARGET
-# also links the host proc-macro dylibs (thiserror_impl, serde_derive, scroll_derive) at 12.0, which
-# Xcode 27's dyld rejects ("mis-aligned LINKEDIT string pool"), surfacing as E0463 on a fresh target
-# directory.
+# Minimum OS versions for the slices and the framework's Info.plist.
 MACOSX_MIN="12.0"
 IPHONEOS_MIN="16.0"
 
@@ -57,20 +53,17 @@ BACKEND="regex-onig (native)"
 
 build_slice() {
     local target=$1
-    local slice_env
+    local min_args=() slice_env=()
     case "$target" in
-        *-apple-darwin)
-            slice_env="CARGO_TARGET_$(echo "$target" | tr 'a-z-' 'A-Z_')_RUSTFLAGS=-C link-arg=-mmacosx-version-min=${MACOSX_MIN}"
-            ;;
-        *-apple-ios*)
-            slice_env="IPHONEOS_DEPLOYMENT_TARGET=${IPHONEOS_MIN}"
-            ;;
+        *-apple-darwin) min_args=(-C "link-arg=-mmacosx-version-min=${MACOSX_MIN}") ;;
+        *-apple-ios*) slice_env=("IPHONEOS_DEPLOYMENT_TARGET=${IPHONEOS_MIN}") ;;
     esac
-    env "$slice_env" \
+    env ${slice_env[@]+"${slice_env[@]}"} \
         cargo rustc --profile "$PROFILE" -p "$CRATE" --lib --target "$target" -- \
         -C strip=none \
         -C "link-arg=-Wl,-install_name,@rpath/${FFI_NAME}.framework/${FFI_NAME}" \
-        -C "link-arg=-Wl,-x" -C "link-arg=-Wl,-S"
+        -C "link-arg=-Wl,-x" -C "link-arg=-Wl,-S" \
+        ${min_args[@]+"${min_args[@]}"}
 }
 
 slice_lib() {
