@@ -78,6 +78,25 @@ use `text.slice(start, end)` to recover their text, including after emoji. This 
 `check()`'s existing **Unicode scalar** offsets; `check()` has not changed. Both methods share
 the checker's one loaded tokenizer. See [the analysis contract](../docs/ANALYSIS.md).
 
+## Document analysis
+
+```js
+const document = JSON.parse(checker.analyze_document(text, JSON.stringify({
+  skip_names: ["Zoë", "O’Brien"],
+})));
+const allWords = JSON.parse(checker.analyze_document(text));
+```
+
+The optional second argument is a JSON `DocumentOptions` object containing `skip_names`.
+The result contains `paragraphs` with nested `sentences` and `tokens`, `dialogue` spans,
+`lemma_index` mapping each lemma to `{ paragraph, sentence, token }` positions, and
+`word_count`. Positions are zero-based. All paragraph, sentence, token, and dialogue
+`start` / exclusive `end` offsets count UTF-16 code units in the original text.
+Tokens retain readings, chunks, whitespace and punctuation flags and add `is_word` and
+`is_skipped`. Skipped names remain in the document but are excluded from `word_count`
+and `lemma_index`; matching ignores case and normalizes curly apostrophes.
+The document pass shares the checker's loaded tokenizer with `analyze()` and `check()`.
+
 ## Prerequisites
 
 ```sh

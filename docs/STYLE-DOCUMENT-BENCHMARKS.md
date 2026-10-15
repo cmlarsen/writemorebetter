@@ -106,3 +106,55 @@ and 1,494.933 ms, with 6,562 involuntary context switches. Its median meets the 
 its slowest observations exceed it, so this is a measured median target rather than a latency ceiling.
 RSS is whole-process peak across tokenizer load, warmup and all iterations, converted
 from macOS bytes to MiB; it is not an incremental allocation measurement.
+
+## WASM document binding
+
+Measured 2026-10-15 on the same Apple M5 Pro, with Node v26.8.1 and Rust 1.97.1.
+The release `wasm32-unknown-unknown` build uses `regex-fancy` and the repository's
+`opt-level=s` setting. All builds had finished before this run. The input is the same
+149,091-byte `bench/public/moby150k.txt` identified above.
+
+| Call | Document binding time |
+|---|---:|
+| 1 | 1,592.660 ms |
+| 2 | 1,244.451 ms |
+| 3 | 1,128.374 ms |
+| Mean | 1,321.828 ms |
+| Median | 1,244.451 ms |
+
+One checker is constructed before timing, with tokenizer and rules loading excluded.
+There is no warmup call: the first observation includes any first-call V8 optimization work.
+Each interval measures `checker.analyze_document(text)` through its return to JavaScript,
+including document construction, binding projection to UTF-16 `start`/`end` records,
+Rust JSON serialization and string transfer. JavaScript JSON parsing is outside each
+interval. Every result contains 25,743 words and 2,308 paragraphs; its JSON string is
+11,506,268 UTF-8 bytes. All three observations exceed the proposed 1-second target.
+This measures the JSON binding with a different regex backend from the native probe,
+so the difference does not isolate the cost of WebAssembly execution or JSON serialization.
+The shared machine's other workloads are uncontrolled.
+
+Reproduce from the repository root after staging the English binaries:
+
+```sh
+cargo build --release --target wasm32-unknown-unknown -p writemorebetter-wasm
+wasm-bindgen --target nodejs --out-dir wasm/pkg \
+  target/wasm32-unknown-unknown/release/writemorebetter_wasm.wasm
+node --input-type=module <<'JS'
+import { createRequire } from 'node:module';
+import { readFileSync } from 'node:fs';
+import { performance } from 'node:perf_hooks';
+const require = createRequire(import.meta.url);
+const { Checker } = require('./wasm/pkg/writemorebetter_wasm.js');
+const checker = new Checker(
+  readFileSync('storage/en_tokenizer.bin'), readFileSync('storage/en_rules.bin'));
+const text = readFileSync('bench/public/moby150k.txt', 'utf8');
+for (let run = 1; run <= 3; run++) {
+  const start = performance.now();
+  const result = checker.analyze_document(text);
+  const ms = performance.now() - start;
+  const document = JSON.parse(result);
+  console.log({ run, ms, word_count: document.word_count,
+    paragraphs: document.paragraphs.length, json_bytes: Buffer.byteLength(result) });
+}
+JS
+```

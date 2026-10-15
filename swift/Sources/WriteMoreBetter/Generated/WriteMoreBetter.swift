@@ -584,6 +584,8 @@ public protocol CheckerProtocol: AnyObject, Sendable {
      */
     func analyze(text: String)  -> [AnalysisSentence]
     
+    func analyzeDocument(text: String, options: DocumentOptions?)  -> Document
+
     /**
      * Checks `text` and returns every flagged span. See [`Suggestion`] for the offset units.
      */
@@ -739,6 +741,17 @@ open func analyze(text: String) -> [AnalysisSentence]  {
     uniffi_writemorebetter_swift_fn_method_checker_analyze(
             self.uniffiCloneHandle(),
         FfiConverterString.lower(text),uniffiCallStatus
+    )
+})
+}
+
+open func analyzeDocument(text: String, options: DocumentOptions?) -> Document  {
+    return try!  FfiConverterTypeDocument_lift(try! rustCall() {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_method_checker_analyze_document(
+            self.uniffiCloneHandle(),
+        FfiConverterString.lower(text),
+        FfiConverterOptionTypeDocumentOptions.lower(options),uniffiCallStatus
     )
 })
 }
@@ -1079,6 +1092,378 @@ public func FfiConverterTypeAnalysisToken_lower(_ value: AnalysisToken) -> RustB
 }
 
 
+public struct Document: Equatable, Hashable {
+    public var paragraphs: [DocumentParagraph]
+    public var dialogue: [DocumentSpan]
+    public var lemmaIndex: [String: [TokenPosition]]
+    public var wordCount: UInt32
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(paragraphs: [DocumentParagraph], dialogue: [DocumentSpan], lemmaIndex: [String: [TokenPosition]], wordCount: UInt32) {
+        self.paragraphs = paragraphs
+        self.dialogue = dialogue
+        self.lemmaIndex = lemmaIndex
+        self.wordCount = wordCount
+    }
+
+
+
+
+}
+
+#if compiler(>=6)
+extension Document: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeDocument: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Document {
+        return
+            try Document(
+                paragraphs: FfiConverterSequenceTypeDocumentParagraph.read(from: &buf),
+                dialogue: FfiConverterSequenceTypeDocumentSpan.read(from: &buf),
+                lemmaIndex: FfiConverterDictionaryStringSequenceTypeTokenPosition.read(from: &buf),
+                wordCount: FfiConverterUInt32.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: Document, into buf: inout [UInt8]) {
+        FfiConverterSequenceTypeDocumentParagraph.write(value.paragraphs, into: &buf)
+        FfiConverterSequenceTypeDocumentSpan.write(value.dialogue, into: &buf)
+        FfiConverterDictionaryStringSequenceTypeTokenPosition.write(value.lemmaIndex, into: &buf)
+        FfiConverterUInt32.write(value.wordCount, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeDocument_lift(_ buf: RustBuffer) throws -> Document {
+    return try FfiConverterTypeDocument.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeDocument_lower(_ value: Document) -> RustBuffer {
+    return FfiConverterTypeDocument.lower(value)
+}
+
+
+public struct DocumentOptions: Equatable, Hashable {
+    public var skipNames: [String]
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(skipNames: [String]) {
+        self.skipNames = skipNames
+    }
+
+
+
+
+}
+
+#if compiler(>=6)
+extension DocumentOptions: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeDocumentOptions: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> DocumentOptions {
+        return
+            try DocumentOptions(
+                skipNames: FfiConverterSequenceString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: DocumentOptions, into buf: inout [UInt8]) {
+        FfiConverterSequenceString.write(value.skipNames, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeDocumentOptions_lift(_ buf: RustBuffer) throws -> DocumentOptions {
+    return try FfiConverterTypeDocumentOptions.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeDocumentOptions_lower(_ value: DocumentOptions) -> RustBuffer {
+    return FfiConverterTypeDocumentOptions.lower(value)
+}
+
+
+public struct DocumentParagraph: Equatable, Hashable {
+    public var text: String
+    public var start: UInt32
+    public var end: UInt32
+    public var sentences: [DocumentSentence]
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(text: String, start: UInt32, end: UInt32, sentences: [DocumentSentence]) {
+        self.text = text
+        self.start = start
+        self.end = end
+        self.sentences = sentences
+    }
+
+
+
+
+}
+
+#if compiler(>=6)
+extension DocumentParagraph: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeDocumentParagraph: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> DocumentParagraph {
+        return
+            try DocumentParagraph(
+                text: FfiConverterString.read(from: &buf),
+                start: FfiConverterUInt32.read(from: &buf),
+                end: FfiConverterUInt32.read(from: &buf),
+                sentences: FfiConverterSequenceTypeDocumentSentence.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: DocumentParagraph, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.text, into: &buf)
+        FfiConverterUInt32.write(value.start, into: &buf)
+        FfiConverterUInt32.write(value.end, into: &buf)
+        FfiConverterSequenceTypeDocumentSentence.write(value.sentences, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeDocumentParagraph_lift(_ buf: RustBuffer) throws -> DocumentParagraph {
+    return try FfiConverterTypeDocumentParagraph.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeDocumentParagraph_lower(_ value: DocumentParagraph) -> RustBuffer {
+    return FfiConverterTypeDocumentParagraph.lower(value)
+}
+
+
+public struct DocumentSentence: Equatable, Hashable {
+    public var text: String
+    public var start: UInt32
+    public var end: UInt32
+    public var tokens: [DocumentToken]
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(text: String, start: UInt32, end: UInt32, tokens: [DocumentToken]) {
+        self.text = text
+        self.start = start
+        self.end = end
+        self.tokens = tokens
+    }
+
+
+
+
+}
+
+#if compiler(>=6)
+extension DocumentSentence: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeDocumentSentence: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> DocumentSentence {
+        return
+            try DocumentSentence(
+                text: FfiConverterString.read(from: &buf),
+                start: FfiConverterUInt32.read(from: &buf),
+                end: FfiConverterUInt32.read(from: &buf),
+                tokens: FfiConverterSequenceTypeDocumentToken.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: DocumentSentence, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.text, into: &buf)
+        FfiConverterUInt32.write(value.start, into: &buf)
+        FfiConverterUInt32.write(value.end, into: &buf)
+        FfiConverterSequenceTypeDocumentToken.write(value.tokens, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeDocumentSentence_lift(_ buf: RustBuffer) throws -> DocumentSentence {
+    return try FfiConverterTypeDocumentSentence.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeDocumentSentence_lower(_ value: DocumentSentence) -> RustBuffer {
+    return FfiConverterTypeDocumentSentence.lower(value)
+}
+
+
+public struct DocumentSpan: Equatable, Hashable {
+    public var start: UInt32
+    public var end: UInt32
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(start: UInt32, end: UInt32) {
+        self.start = start
+        self.end = end
+    }
+
+
+
+
+}
+
+#if compiler(>=6)
+extension DocumentSpan: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeDocumentSpan: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> DocumentSpan {
+        return
+            try DocumentSpan(
+                start: FfiConverterUInt32.read(from: &buf),
+                end: FfiConverterUInt32.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: DocumentSpan, into buf: inout [UInt8]) {
+        FfiConverterUInt32.write(value.start, into: &buf)
+        FfiConverterUInt32.write(value.end, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeDocumentSpan_lift(_ buf: RustBuffer) throws -> DocumentSpan {
+    return try FfiConverterTypeDocumentSpan.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeDocumentSpan_lower(_ value: DocumentSpan) -> RustBuffer {
+    return FfiConverterTypeDocumentSpan.lower(value)
+}
+
+
+public struct DocumentToken: Equatable, Hashable {
+    public var text: String
+    public var start: UInt32
+    public var end: UInt32
+    public var readings: [AnalysisReading]
+    public var chunks: [String]
+    public var isWhitespace: Bool
+    public var isPunctuation: Bool
+    public var isWord: Bool
+    public var isSkipped: Bool
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(text: String, start: UInt32, end: UInt32, readings: [AnalysisReading], chunks: [String], isWhitespace: Bool, isPunctuation: Bool, isWord: Bool, isSkipped: Bool) {
+        self.text = text
+        self.start = start
+        self.end = end
+        self.readings = readings
+        self.chunks = chunks
+        self.isWhitespace = isWhitespace
+        self.isPunctuation = isPunctuation
+        self.isWord = isWord
+        self.isSkipped = isSkipped
+    }
+
+
+
+
+}
+
+#if compiler(>=6)
+extension DocumentToken: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeDocumentToken: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> DocumentToken {
+        return
+            try DocumentToken(
+                text: FfiConverterString.read(from: &buf),
+                start: FfiConverterUInt32.read(from: &buf),
+                end: FfiConverterUInt32.read(from: &buf),
+                readings: FfiConverterSequenceTypeAnalysisReading.read(from: &buf),
+                chunks: FfiConverterSequenceString.read(from: &buf),
+                isWhitespace: FfiConverterBool.read(from: &buf),
+                isPunctuation: FfiConverterBool.read(from: &buf),
+                isWord: FfiConverterBool.read(from: &buf),
+                isSkipped: FfiConverterBool.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: DocumentToken, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.text, into: &buf)
+        FfiConverterUInt32.write(value.start, into: &buf)
+        FfiConverterUInt32.write(value.end, into: &buf)
+        FfiConverterSequenceTypeAnalysisReading.write(value.readings, into: &buf)
+        FfiConverterSequenceString.write(value.chunks, into: &buf)
+        FfiConverterBool.write(value.isWhitespace, into: &buf)
+        FfiConverterBool.write(value.isPunctuation, into: &buf)
+        FfiConverterBool.write(value.isWord, into: &buf)
+        FfiConverterBool.write(value.isSkipped, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeDocumentToken_lift(_ buf: RustBuffer) throws -> DocumentToken {
+    return try FfiConverterTypeDocumentToken.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeDocumentToken_lower(_ value: DocumentToken) -> RustBuffer {
+    return FfiConverterTypeDocumentToken.lower(value)
+}
+
+
 /**
  * A single flagged span.
  *
@@ -1178,6 +1563,64 @@ public func FfiConverterTypeSuggestion_lift(_ buf: RustBuffer) throws -> Suggest
 #endif
 public func FfiConverterTypeSuggestion_lower(_ value: Suggestion) -> RustBuffer {
     return FfiConverterTypeSuggestion.lower(value)
+}
+
+
+public struct TokenPosition: Equatable, Hashable {
+    public var paragraph: UInt32
+    public var sentence: UInt32
+    public var token: UInt32
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(paragraph: UInt32, sentence: UInt32, token: UInt32) {
+        self.paragraph = paragraph
+        self.sentence = sentence
+        self.token = token
+    }
+
+
+
+
+}
+
+#if compiler(>=6)
+extension TokenPosition: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeTokenPosition: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> TokenPosition {
+        return
+            try TokenPosition(
+                paragraph: FfiConverterUInt32.read(from: &buf),
+                sentence: FfiConverterUInt32.read(from: &buf),
+                token: FfiConverterUInt32.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: TokenPosition, into buf: inout [UInt8]) {
+        FfiConverterUInt32.write(value.paragraph, into: &buf)
+        FfiConverterUInt32.write(value.sentence, into: &buf)
+        FfiConverterUInt32.write(value.token, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeTokenPosition_lift(_ buf: RustBuffer) throws -> TokenPosition {
+    return try FfiConverterTypeTokenPosition.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeTokenPosition_lower(_ value: TokenPosition) -> RustBuffer {
+    return FfiConverterTypeTokenPosition.lower(value)
 }
 
 
@@ -1355,6 +1798,30 @@ fileprivate struct FfiConverterOptionString: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterOptionTypeDocumentOptions: FfiConverterRustBuffer {
+    typealias SwiftType = DocumentOptions?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterTypeDocumentOptions.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeDocumentOptions.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterSequenceString: FfiConverterRustBuffer {
     typealias SwiftType = [String]
 
@@ -1455,6 +1922,106 @@ fileprivate struct FfiConverterSequenceTypeAnalysisToken: FfiConverterRustBuffer
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterSequenceTypeDocumentParagraph: FfiConverterRustBuffer {
+    typealias SwiftType = [DocumentParagraph]
+
+    public static func write(_ value: [DocumentParagraph], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeDocumentParagraph.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [DocumentParagraph] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [DocumentParagraph]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeDocumentParagraph.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeDocumentSentence: FfiConverterRustBuffer {
+    typealias SwiftType = [DocumentSentence]
+
+    public static func write(_ value: [DocumentSentence], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeDocumentSentence.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [DocumentSentence] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [DocumentSentence]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeDocumentSentence.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeDocumentSpan: FfiConverterRustBuffer {
+    typealias SwiftType = [DocumentSpan]
+
+    public static func write(_ value: [DocumentSpan], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeDocumentSpan.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [DocumentSpan] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [DocumentSpan]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeDocumentSpan.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeDocumentToken: FfiConverterRustBuffer {
+    typealias SwiftType = [DocumentToken]
+
+    public static func write(_ value: [DocumentToken], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeDocumentToken.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [DocumentToken] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [DocumentToken]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeDocumentToken.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterSequenceTypeSuggestion: FfiConverterRustBuffer {
     typealias SwiftType = [Suggestion]
 
@@ -1477,6 +2044,57 @@ fileprivate struct FfiConverterSequenceTypeSuggestion: FfiConverterRustBuffer {
     }
 }
 
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeTokenPosition: FfiConverterRustBuffer {
+    typealias SwiftType = [TokenPosition]
+
+    public static func write(_ value: [TokenPosition], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeTokenPosition.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [TokenPosition] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [TokenPosition]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeTokenPosition.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterDictionaryStringSequenceTypeTokenPosition: FfiConverterRustBuffer {
+    public static func write(_ value: [String: [TokenPosition]], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for (key, value) in value {
+            FfiConverterString.write(key, into: &buf)
+            FfiConverterSequenceTypeTokenPosition.write(value, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [String: [TokenPosition]] {
+        let len: Int32 = try readInt(&buf)
+        var dict = [String: [TokenPosition]]()
+        dict.reserveCapacity(Int(len))
+        for _ in 0..<len {
+            let key = try FfiConverterString.read(from: &buf)
+            let value = try FfiConverterSequenceTypeTokenPosition.read(from: &buf)
+            dict[key] = value
+        }
+        return dict
+    }
+}
+
 private enum InitializationResult {
     case ok
     case contractVersionMismatch
@@ -1496,6 +2114,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_method_checker_analyze() != 33163) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_writemorebetter_swift_checksum_method_checker_analyze_document() != 58231) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_method_checker_check() != 47217) {

@@ -66,6 +66,122 @@ impl From<nlprule::analysis::AnalysisSentence> for AnalysisSentence {
     }
 }
 
+#[derive(Serialize)]
+struct DocumentSpan {
+    start: usize,
+    end: usize,
+}
+
+#[derive(Serialize)]
+struct DocumentToken {
+    text: String,
+    start: usize,
+    end: usize,
+    readings: Vec<nlprule::analysis::AnalysisReading>,
+    chunks: Vec<String>,
+    is_whitespace: bool,
+    is_punctuation: bool,
+    is_word: bool,
+    is_skipped: bool,
+}
+
+#[derive(Serialize)]
+struct DocumentSentence {
+    text: String,
+    start: usize,
+    end: usize,
+    tokens: Vec<DocumentToken>,
+}
+
+#[derive(Serialize)]
+struct DocumentParagraph {
+    text: String,
+    start: usize,
+    end: usize,
+    sentences: Vec<DocumentSentence>,
+}
+
+#[derive(Serialize)]
+struct TokenPosition {
+    paragraph: usize,
+    sentence: usize,
+    token: usize,
+}
+
+#[derive(Serialize)]
+struct Document {
+    paragraphs: Vec<DocumentParagraph>,
+    dialogue: Vec<DocumentSpan>,
+    lemma_index: std::collections::BTreeMap<String, Vec<TokenPosition>>,
+    word_count: usize,
+}
+
+impl From<writemorebetter_style::Document> for Document {
+    fn from(document: writemorebetter_style::Document) -> Self {
+        Self {
+            paragraphs: document
+                .paragraphs
+                .into_iter()
+                .map(|paragraph| DocumentParagraph {
+                    text: paragraph.text,
+                    start: paragraph.span.utf16.start,
+                    end: paragraph.span.utf16.end,
+                    sentences: paragraph
+                        .sentences
+                        .into_iter()
+                        .map(|sentence| DocumentSentence {
+                            text: sentence.text,
+                            start: sentence.span.utf16.start,
+                            end: sentence.span.utf16.end,
+                            tokens: sentence
+                                .tokens
+                                .into_iter()
+                                .map(|token| DocumentToken {
+                                    text: token.text,
+                                    start: token.span.utf16.start,
+                                    end: token.span.utf16.end,
+                                    readings: token.readings,
+                                    chunks: token.chunks,
+                                    is_whitespace: token.is_whitespace,
+                                    is_punctuation: token.is_punctuation,
+                                    is_word: token.is_word,
+                                    is_skipped: token.is_skipped,
+                                })
+                                .collect(),
+                        })
+                        .collect(),
+                })
+                .collect(),
+            dialogue: document
+                .dialogue
+                .into_iter()
+                .map(|span| DocumentSpan {
+                    start: span.utf16.start,
+                    end: span.utf16.end,
+                })
+                .collect(),
+            lemma_index: document
+                .lemma_index
+                .into_iter()
+                .map(|(lemma, positions)| {
+                    (
+                        lemma,
+                        positions
+                            .into_iter()
+                            .map(|position| TokenPosition {
+                                paragraph: position.paragraph,
+                                sentence: position.sentence,
+                                token: position.token,
+                            })
+                            .collect(),
+                    )
+                })
+                .collect(),
+            word_count: document.word_count,
+        }
+    }
+}
+
 /// A grammar and spelling checker over a pre-loaded tokenizer and rule set.
 #[wasm_bindgen]
 pub struct Checker {
@@ -154,6 +270,25 @@ impl Checker {
             .collect();
         serde_json::to_string(&sentences)
             .map_err(|err| JsValue::from_str(&format!("failed to serialize analysis: {err}")))
+    }
+
+    pub fn analyze_document(
+        &self,
+        text: &str,
+        options_json: Option<String>,
+    ) -> Result<String, JsValue> {
+        let options = options_json
+            .map(|json| serde_json::from_str::<writemorebetter_style::DocumentOptions>(&json))
+            .transpose()
+            .map_err(|err| JsValue::from_str(&format!("invalid document options: {err}")))?
+            .unwrap_or_default();
+        let document = Document::from(writemorebetter_style::analyze_document(
+            &self.tokenizer,
+            text,
+            &options,
+        ));
+        serde_json::to_string(&document)
+            .map_err(|err| JsValue::from_str(&format!("failed to serialize document: {err}")))
     }
 
     /// Adds words to the user dictionary and returns how many were new.

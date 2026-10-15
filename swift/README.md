@@ -141,3 +141,22 @@ swift test
 
 `.github/workflows/swift.yml` does exactly this on a macOS runner, generating `data/en-lt66` the same way the
 6.6 job in `ci.yml` does and failing if the committed bindings drift from the freshly generated ones.
+
+## Document analysis
+
+```swift
+let document = checker.analyzeDocument(
+    text: text,
+    options: DocumentOptions(skipNames: ["Zoë", "O’Brien"])
+)
+let allWords = checker.analyzeDocument(text: text, options: nil)
+```
+
+`Document` is a Swift record containing `paragraphs` with nested `sentences` and `tokens`,
+`dialogue` spans, `lemmaIndex` mapping each lemma to zero-based `TokenPosition` records
+(`paragraph`, `sentence`, `token`), and `wordCount`. All paragraph, sentence, token, and
+dialogue `start` / exclusive `end` offsets count UTF-16 code units in the original text.
+Tokens preserve readings, chunks, `isWhitespace` and `isPunctuation`, and add `isWord`
+and `isSkipped`. Skipped names stay in the document but are excluded from `wordCount`
+and `lemmaIndex`; matching ignores case and normalizes curly apostrophes.
+The document pass uses the checker's existing tokenizer alongside `analyze` and `check`.
