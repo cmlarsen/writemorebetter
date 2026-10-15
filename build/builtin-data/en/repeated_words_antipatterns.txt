@@ -1,0 +1,33 @@
+# Antipatterns of LanguageTool's EnglishRepeatedWordsRule (EN_REPEATEDWORDS),
+# copied from org.languagetool.rules.en.EnglishRepeatedWordsRule (LanguageTool
+# 6.6, LGPL-2.1). Tokens matched by one of these sequences are skipped by the
+# rule. One antipattern per line, tokens separated by spaces: a plain token
+# matches its text case-insensitively, 're:' a case-insensitive regular
+# expression for the whole token, 'pos:' a regular expression for a whole
+# part-of-speech tag and 'lemma:' a lemma (case-sensitively). 'opt:' in front of
+# a token makes it optional, and 'skip:N' after a token lets up to N other
+# tokens follow it before the next one.
+lemma:need to
+re:solve(s|d|ing)? skip:3 re:problems?
+pos:SENT_START|PCT no problem pos:PCT
+re:math|word re:problems?
+re:as re:a re:whole
+more often than not
+often times
+re:details?|facts?|it|journals?|questions?|research|results?|study|studies|this|these|those|which opt:pos:RB lemma:suggest
+lemma:form pos:IN|PCT|RP|TO|SENT_END
+re:bonds?|crystals?|ions?|rocks?|.*valence skip:10 lemma:form
+re:form(s|ed|ing)? skip:10 re:bonds?|crystals?|ions?|rocks?|.*valence
+interesting re:facts?|things?
+several re:hundreds?|thousands?|millions?
+must be nice
+nice day
+nice to opt:meet pos:PRP_O.*
+lemma:be nice and pos:JJ pos:PCT|SENT_END
+pos:P?DT|PRP$.* proposed pos:N.*
+lemma:propose re:to|marriage
+too literally
+literally and figuratively
+literally everything
+literally pos:PCT|SENT_END
+pos:CC maybe

@@ -550,11 +550,11 @@ fn apply_profile_reports_unmatched_selectors() {
         "EN_PLAIN_ENGLISH_REPLACE",
         "EN_REDUNDANCY_REPLACE",
         "PROFANITY",
+        "EN_REPEATEDWORDS",
     ];
-    assert!(rules
-        .builtins()
-        .iter()
-        .all(|rule| rule.enabled() || off_by_default.contains(&rule.id())));
+    assert!(rules.builtins().iter().all(|rule| rule.enabled()
+        || off_by_default.contains(&rule.id())
+        || rule.id().starts_with("TOO_OFTEN_USED_")));
 }
 
 /// The `BUILTIN/` selector path disables a builtin rule by its id.
@@ -5599,5 +5599,459 @@ fn repetition_rule_needs_min_prev_matches() {
             &"It was announced that we won. ".repeat(5)
         ),
         vec![123..136]
+    );
+}
+
+lazy_static! {
+    static ref WORD_STATISTICS_RULES: Rules = {
+        let mut rules = RULES.clone();
+        rules.rules_mut().iter_mut().for_each(|rule| rule.disable());
+        for rule in rules.builtins_mut() {
+            if rule.id() == "EN_REPEATEDWORDS" || rule.id().starts_with("TOO_OFTEN_USED_") {
+                rule.enable();
+            } else {
+                rule.disable();
+            }
+        }
+        rules
+    };
+}
+
+/// `(source, start char, matched text, replacements)` of the word-statistics builtins.
+fn word_statistics_flags(rules: &Rules, text: &str) -> Vec<(String, usize, String, Vec<String>)> {
+    let chars: Vec<char> = text.chars().collect();
+    rules
+        .suggest(text, &TOKENIZER)
+        .into_iter()
+        .map(|suggestion| {
+            let span = suggestion.span().char().clone();
+            (
+                suggestion
+                    .source()
+                    .trim_start_matches("BUILTIN/")
+                    .to_owned(),
+                span.start,
+                chars[span].iter().collect(),
+                suggestion.replacements().to_vec(),
+            )
+        })
+        .collect()
+}
+
+fn repeated(
+    id: &str,
+    start: usize,
+    text: &str,
+    replacements: &[&str],
+) -> (String, usize, String, Vec<String>) {
+    (
+        format!("EN_REPEATEDWORDS_{}", id),
+        start,
+        text.to_owned(),
+        replacements.iter().map(|x| (*x).to_owned()).collect(),
+    )
+}
+
+#[test]
+fn word_statistics_builtins_are_off_by_default() {
+    let text = "He definitely ran. She definitely left. ".repeat(60);
+    assert!(RULES.suggest(&text, &TOKENIZER).iter().all(|suggestion| {
+        !suggestion.source().starts_with("BUILTIN/EN_REPEATEDWORDS")
+            && !suggestion.source().starts_with("BUILTIN/TOO_OFTEN_USED_")
+    }));
+}
+
+#[test]
+fn repeated_words_flags_a_word_from_an_earlier_sentence() {
+    let flags = |text: &str| word_statistics_flags(&WORD_STATISTICS_RULES, text);
+    let definitely = ["certainly", "absolutely", "undoubtedly"];
+
+    assert_eq!(
+        flags("He definitely ran. She definitely left."),
+        vec![repeated("DEFINITELY", 23, "definitely", &definitely)]
+    );
+    assert_eq!(
+        flags("He definitely ran. Definitely she left."),
+        vec![repeated(
+            "DEFINITELY",
+            19,
+            "Definitely",
+            &["Certainly", "Absolutely", "Undoubtedly"]
+        )]
+    );
+    assert_eq!(
+        flags("He definitely ran\u{2014}she definitely left. He definitely won. Ok."),
+        vec![repeated("DEFINITELY", 42, "definitely", &definitely)]
+    );
+    assert_eq!(flags("He definitely ran. She DEFINITELY left."), vec![]);
+    assert_eq!(flags("He definitely ran. She Definitely left."), vec![]);
+    assert_eq!(flags("He definitely ran definitely. She left."), vec![]);
+}
+
+#[test]
+fn repeated_words_inflects_the_synonyms() {
+    assert_eq!(
+        word_statistics_flags(
+            &WORD_STATISTICS_RULES,
+            "He chose it. She chooses it. They will choose it. We have chosen it."
+        ),
+        vec![
+            repeated("CHOOSE", 17, "chooses", &["decides", "selects", "picks"]),
+            repeated("CHOOSE", 39, "choose", &["decide", "select", "pick"]),
+            repeated("CHOOSE", 58, "chosen", &["decided", "selected", "picked"]),
+        ]
+    );
+}
+
+#[test]
+fn repeated_words_skips_sentences_that_do_not_end_in_a_full_stop() {
+    let flags = |text: &str| word_statistics_flags(&WORD_STATISTICS_RULES, text);
+
+    assert_eq!(flags("He definitely ran. She definitely left.\n"), vec![]);
+    assert_eq!(flags("He definitely ran. She definitely left. "), vec![]);
+    assert_eq!(
+        flags("\u{201c}He definitely ran.\u{201d} She definitely left. Ok."),
+        vec![]
+    );
+    assert_eq!(
+        flags("He definitely ran. \u{201c}She definitely left.\u{201d} Ok."),
+        vec![]
+    );
+    assert_eq!(
+        flags("He definitely ran\u{2026} She definitely left. Ok."),
+        vec![]
+    );
+    assert_eq!(
+        flags("He definitely ran\u{2028}She definitely left. Ok."),
+        vec![]
+    );
+    assert_eq!(
+        flags("He definitely ran. She definitely left.\u{a0}"),
+        vec![]
+    );
+    assert_eq!(
+        flags("He definitely ran. She definitely left.\u{202f}"),
+        vec![]
+    );
+    assert_eq!(
+        flags("He definitely ran.\u{a0}She definitely left. Ok."),
+        vec![repeated(
+            "DEFINITELY",
+            23,
+            "definitely",
+            &["certainly", "absolutely", "undoubtedly"]
+        )]
+    );
+    assert_eq!(
+        flags("He definitely ran.\n\nShe definitely left. Ok."),
+        vec![repeated(
+            "DEFINITELY",
+            24,
+            "definitely",
+            &["certainly", "absolutely", "undoubtedly"]
+        )]
+    );
+}
+
+#[test]
+fn repeated_words_handles_dialogue_and_curly_apostrophes() {
+    let flags = |text: &str| word_statistics_flags(&WORD_STATISTICS_RULES, text);
+
+    assert_eq!(
+        flags("He definitely ran. \u{201c}Definitely,\u{201d} she said. Ok."),
+        vec![repeated(
+            "DEFINITELY",
+            20,
+            "Definitely",
+            &["Certainly", "Absolutely", "Undoubtedly"]
+        )]
+    );
+    assert_eq!(
+        flags("He\u{2019}s definitely gone. She\u{2019}s definitely here. Ok."),
+        vec![repeated(
+            "DEFINITELY",
+            28,
+            "definitely",
+            &["certainly", "absolutely", "undoubtedly"]
+        )]
+    );
+}
+
+#[test]
+fn repeated_words_respects_antipatterns_and_constraints() {
+    let flags = |text: &str| word_statistics_flags(&WORD_STATISTICS_RULES, text);
+    let nice = [
+        "pleasant",
+        "impressive",
+        "enjoyable",
+        "delightful",
+        "charming",
+    ];
+
+    assert_eq!(
+        flags("It was a nice day. It was nice. It was nice."),
+        vec![repeated("NICE", 39, "nice", &nice)]
+    );
+    assert_eq!(
+        flags("No problem, I said. The problem is there. Ok."),
+        vec![]
+    );
+    assert_eq!(
+        flags("We solve the problem. The problem is there. Ok."),
+        vec![]
+    );
+    assert_eq!(
+        flags("We need to go. We need to stop. We need help. We need help. Ok."),
+        vec![repeated("NEED", 49, "need", &["require"])]
+    );
+    assert_eq!(
+        flags("Literally. It is literally true. Take it literally. Ok."),
+        vec![]
+    );
+    assert_eq!(
+        flags("Several men came. Several hundred men came. Several women came. Ok."),
+        vec![repeated(
+            "SEVERAL",
+            44,
+            "Several",
+            &["Many", "Numerous", "Various", "Countless"]
+        )]
+    );
+}
+
+#[test]
+fn repeated_words_looks_back_150_words() {
+    let flags = |text: &str| word_statistics_flags(&WORD_STATISTICS_RULES, text);
+    let text = |dogs: usize, tail: &str| {
+        format!(
+            "He definitely ran. Dogs {}{}. She definitely left.",
+            vec!["dogs"; dogs].join(" "),
+            tail
+        )
+    };
+
+    assert_eq!(flags(&text(144, "")).len(), 1);
+    assert_eq!(flags(&text(145, "")), vec![]);
+    assert_eq!(flags(&text(143, " need to")).len(), 1);
+}
+
+#[test]
+fn repeated_words_state_is_per_suggest_call() {
+    let flags = |text: &str| word_statistics_flags(&WORD_STATISTICS_RULES, text);
+
+    assert_eq!(flags("He definitely ran."), vec![]);
+    assert_eq!(flags("She definitely left."), vec![]);
+}
+
+const STATISTICS_NOUNS: &str = "dog tree river car book chair garden street city lamp bottle cup \
+    plate shirt horse apple kitchen window door table house phone mountain forest island bridge \
+    castle candle blanket pillow spoon fork knife basket ladder carpet curtain mirror wallet pocket \
+    jacket helmet hammer engine wheel tunnel valley meadow village harbor lantern barrel saddle \
+    anchor violin piano guitar trumpet tomato potato carrot onion banana lemon cherry peach pear \
+    melon cabbage pepper garlic biscuit pastry sandwich elephant giraffe monkey tiger rabbit turtle \
+    squirrel donkey camel dolphin parrot pigeon sparrow eagle owl spider beetle ant wasp nephew niece \
+    uncle aunt cousin grandmother teacher doctor farmer";
+
+fn cats_and_nouns(cat: &str, others: usize) -> String {
+    cats_and_nouns_joined(cat, others, " ")
+}
+
+fn cats_and_nouns_joined(cat: &str, others: usize, separator: &str) -> String {
+    let mut sentences = vec![cat.to_owned(); 5];
+    sentences.extend(
+        STATISTICS_NOUNS
+            .split_whitespace()
+            .take(others)
+            .map(|noun| format!("I saw the {}.", noun)),
+    );
+    sentences.join(separator)
+}
+
+/// `(start char, matched text)` of the matches of the builtin `id`.
+fn too_often_used(rules: &Rules, id: &str, text: &str) -> Vec<(usize, String)> {
+    word_statistics_flags(rules, text)
+        .into_iter()
+        .filter(|(source, ..)| source == id)
+        .map(|(_, start, matched, _)| (start, matched))
+        .collect()
+}
+
+fn too_often_used_nouns(rules: &Rules, text: &str) -> Vec<usize> {
+    word_statistics_flags(rules, text)
+        .into_iter()
+        .filter(|(source, ..)| source == "TOO_OFTEN_USED_NOUN_EN")
+        .map(|(_, start, matched, replacements)| {
+            assert_eq!(matched, "cat");
+            assert!(replacements.is_empty());
+            start
+        })
+        .collect()
+}
+
+#[test]
+fn too_often_used_noun_needs_five_percent_of_100_nouns() {
+    let flags = |text: &str| too_often_used_nouns(&WORD_STATISTICS_RULES, text);
+
+    assert_eq!(
+        flags(&cats_and_nouns("I saw the cat.", 95)),
+        vec![10, 25, 40, 55, 70]
+    );
+    assert_eq!(
+        flags(&cats_and_nouns("I saw the cat.", 96)),
+        Vec::<usize>::new()
+    );
+    assert_eq!(
+        flags(&cats_and_nouns("I saw the cat.", 94)),
+        Vec::<usize>::new()
+    );
+
+    let text = cats_and_nouns("I saw the cat.", 95).replacen(
+        "I saw the cat.",
+        "I saw the cat\u{2014}the cat\u{2026}",
+        1,
+    );
+    assert_eq!(flags(&text), vec![10, 18, 33, 48, 63, 78]);
+}
+
+#[test]
+fn too_often_used_counts_dialogue_unless_the_case_is_disabled() {
+    let dialogue = cats_and_nouns("\u{201c}I saw the cat,\u{201d} she said.", 95);
+    assert_eq!(
+        too_often_used_nouns(&WORD_STATISTICS_RULES, &dialogue),
+        vec![11, 38, 65, 92, 119]
+    );
+
+    let mut rules = WORD_STATISTICS_RULES.clone();
+    for rule in rules.builtins_mut() {
+        if rule.id().starts_with("TOO_OFTEN_USED_") {
+            assert!(rule.disable_case("DIRECT_SPEECH"));
+        }
+    }
+    assert_eq!(too_often_used_nouns(&rules, &dialogue), Vec::<usize>::new());
+
+    let narration = cats_and_nouns("I saw the cat.", 95);
+    assert_eq!(
+        too_often_used_nouns(&rules, &narration),
+        vec![10, 25, 40, 55, 70]
+    );
+}
+
+#[test]
+fn too_often_used_gives_way_to_overlapping_suggestions() {
+    let mut rules = WORD_STATISTICS_RULES.clone();
+    for rule in rules.builtins_mut() {
+        if rule.id() == "ENGLISH_WORD_REPEAT_RULE" {
+            rule.enable();
+        }
+    }
+    let text = cats_and_nouns("I saw the cat.", 95).replacen("the cat.", "the cat cat.", 1);
+    let flags = word_statistics_flags(&rules, &text);
+
+    assert!(flags
+        .iter()
+        .any(|(source, start, ..)| source == "ENGLISH_WORD_REPEAT_RULE" && *start == 10));
+    assert!(flags
+        .iter()
+        .all(|(source, start, ..)| source != "TOO_OFTEN_USED_NOUN_EN" || *start > 17));
+}
+
+#[test]
+fn too_often_used_verb_counts_across_line_separators_and_apostrophes() {
+    let verbs = |text: &str| too_often_used(&WORD_STATISTICS_RULES, "TOO_OFTEN_USED_VERB_EN", text);
+
+    let flags = verbs(&cats_and_nouns_joined("I saw the cat.", 95, "\u{2028}"));
+    assert_eq!(flags.len(), 100);
+    assert!(flags.iter().all(|(_, matched)| matched == "saw"));
+    assert_eq!(
+        flags[..3]
+            .iter()
+            .map(|(start, _)| *start)
+            .collect::<Vec<_>>(),
+        vec![2, 17, 32]
+    );
+
+    let flags = verbs(&cats_and_nouns(
+        "He\u{2019}s seen the cat\u{2019}s cat.",
+        95,
+    ));
+    assert_eq!(flags.len(), 100);
+    assert_eq!(flags[0], (5, "seen".to_owned()));
+    assert_eq!(flags[5], (127, "saw".to_owned()));
+}
+
+#[test]
+fn too_often_used_direct_speech_handles_straight_quotes_and_line_separators() {
+    let mut rules = WORD_STATISTICS_RULES.clone();
+    for rule in rules.builtins_mut() {
+        if rule.id().starts_with("TOO_OFTEN_USED_") {
+            assert!(rule.disable_case("DIRECT_SPEECH"));
+        }
+    }
+    let said = |text: &str| -> Vec<usize> {
+        too_often_used(&rules, "TOO_OFTEN_USED_VERB_EN", text)
+            .into_iter()
+            .filter(|(_, matched)| matched == "said")
+            .map(|(start, _)| start)
+            .collect()
+    };
+    let saw = |text: &str| {
+        too_often_used(&rules, "TOO_OFTEN_USED_VERB_EN", text)
+            .into_iter()
+            .filter(|(_, matched)| matched == "saw")
+            .count()
+    };
+
+    let text = cats_and_nouns("\"I saw the cat,\" she said.", 95);
+    assert_eq!(said(&text), vec![21, 48, 75, 102, 129]);
+    assert_eq!(saw(&text), 95);
+
+    let text = cats_and_nouns("She said \"I saw the cat.\"", 95);
+    assert_eq!(said(&text), vec![4, 30, 56, 82, 108]);
+    assert_eq!(saw(&text), 95);
+
+    let text = cats_and_nouns_joined("\u{201c}I saw the cat,\u{201d} she said.", 95, "\u{2028}");
+    assert_eq!(said(&text), vec![21, 48, 75, 102, 129]);
+    assert_eq!(saw(&text), 95);
+}
+
+#[test]
+fn word_statistics_builtins_check_text_as_a_whole() {
+    let builtin = |id: &str| {
+        RULES
+            .builtins()
+            .iter()
+            .find(|rule| rule.id() == id)
+            .unwrap()
+            .builtin()
+    };
+    let starts = |id: &str, text: &str| -> Vec<usize> {
+        let sentences: Vec<_> = TOKENIZER.pipe(text).collect();
+        builtin(id)
+            .check_text(&sentences)
+            .iter()
+            .map(|suggestion| suggestion.span().char().start)
+            .collect()
+    };
+
+    assert_eq!(
+        starts(
+            "TOO_OFTEN_USED_NOUN_EN",
+            &cats_and_nouns("I saw the cat.", 95)
+        ),
+        vec![10, 25, 40, 55, 70]
+    );
+    assert_eq!(
+        starts(
+            "EN_REPEATEDWORDS",
+            "He definitely ran. She definitely left."
+        ),
+        vec![23]
+    );
+    assert_eq!(
+        starts(
+            "EN_REPEATEDWORDS",
+            "He definitely ran. She definitely left. "
+        ),
+        Vec::<usize>::new()
     );
 }
