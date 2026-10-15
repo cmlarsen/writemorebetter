@@ -94,7 +94,9 @@ Measurements use Apple M5 Pro, arm64 macOS, Rust 1.97.1, native release builds, 
 |---|---:|---:|---:|---:|---:|---:|
 | Initial, concurrent probe build | 7 | 1,541.558 ms | 1,975.859 ms | 5,184.025 ms | 91.553 ms | 60.91 MiB |
 | Repeat, local probe builds finished | 7 | 1,849.392 ms | 3,491.561 ms | 4,571.081 ms | 97.929 ms | 58.09 MiB |
-| Final coordinator run | 5 | 890.333 ms | 936.558 ms | 1,494.933 ms | 64.288 ms | 64.94 MiB |
+| Coordinator run before final name handling | 5 | 890.333 ms | 936.558 ms | 1,494.933 ms | 64.288 ms | 64.94 MiB |
+
+| Final committed core, builds finished | 5 | 854.592 ms | 867.399 ms | 921.136 ms | 84.728 ms | 65.22 MiB |
 
 The second run's sorted durations were 1,849.392, 1,975.160, 2,292.994, 3,491.561, 3,993.763,
 4,535.890 and 4,571.081 ms. Neither run meets the 1-second target. Both show substantial scheduling
@@ -104,6 +106,8 @@ uncontrolled. These observations establish the measured budget shortfall, not an
 latency claim. The coordinator's final five sorted durations were 890.333, 916.407, 936.558, 1,449.384
 and 1,494.933 ms, with 6,562 involuntary context switches. Its median meets the 1-second target;
 its slowest observations exceed it, so this is a measured median target rather than a latency ceiling.
+The final committed-core run, after all builds finished, measured 854.592, 863.674, 867.399,
+892.787 and 921.136 ms: every observed iteration meets the target. Tokenizer loading is excluded.
 RSS is whole-process peak across tokenizer load, warmup and all iterations, converted
 from macOS bytes to MiB; it is not an incremental allocation measurement.
 
