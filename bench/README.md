@@ -44,3 +44,9 @@ python3 tools/recall.py               # recall per tool and error kind, plus eac
 python3 tools/compare.py draft1 draft2  # per-line side-by-side of every tool's non-whitespace flags
 python3 tools/weir_coverage.py grammar.xml style.xml   # how much of LT's English rule set Harper's Weir can express
 ```
+
+## Style reports
+
+The separate [`style/`](style/README.md) harness measures analysis against pinned public annotations,
+provides injected-error scoring, and supports owner-only aggregate calibration. Its CI commands and
+baseline scores are documented there; it does not use the private grammar-recall corpus.

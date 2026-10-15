@@ -1,0 +1,42 @@
+{
+  "ewt_dev": {
+    "filename": "en_ewt-ud-dev.conllu",
+    "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_English-EWT/r2.15/en_ewt-ud-dev.conllu",
+    "version": "r2.15",
+    "license": "CC BY-SA 4.0",
+    "sha256": "14a82ce2c4c4648c3e7c4efc76872c85c5f4c39643fcb7f9c91a45a58157a270",
+    "license_url": "https://github.com/UniversalDependencies/UD_English-EWT/blob/r2.15/README.md"
+  },
+  "ewt_test": {
+    "filename": "en_ewt-ud-test.conllu",
+    "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_English-EWT/r2.15/en_ewt-ud-test.conllu",
+    "version": "r2.15",
+    "license": "CC BY-SA 4.0",
+    "sha256": "0612e45914359e4b36d187ef2bfeaf66fc8933210925be985c5fbf6a9e311036",
+    "license_url": "https://github.com/UniversalDependencies/UD_English-EWT/blob/r2.15/README.md"
+  },
+  "litbank": {
+    "filename": "litbank.tar.gz",
+    "url": "https://codeload.github.com/dbamman/litbank/tar.gz/3e50db0ffc033d7ccbb94f4d88f6b99210328ed8",
+    "version": "3e50db0ffc033d7ccbb94f4d88f6b99210328ed8",
+    "license": "CC BY 4.0",
+    "sha256": "1dc94ccf0ee6bcfb949f879d5786d15547b6295b9b3cd2ac727369cf771f3d20",
+    "license_url": "https://github.com/dbamman/litbank/blob/3e50db0ffc033d7ccbb94f4d88f6b99210328ed8/README.md"
+  },
+  "pride": {
+    "filename": "pride.tar.gz",
+    "url": "https://codeload.github.com/standardebooks/jane-austen_pride-and-prejudice/tar.gz/ed94a32be3e875c0814568050c7544e03aad3ef5",
+    "version": "ed94a32be3e875c0814568050c7544e03aad3ef5",
+    "license": "CC0 1.0",
+    "sha256": "14e743c763fadd71cd3fd877c390ed5906c13772522e30dba2cb64b948a95061",
+    "license_url": "https://standardebooks.org/about"
+  },
+  "moby": {
+    "filename": "moby.tar.gz",
+    "url": "https://codeload.github.com/standardebooks/herman-melville_moby-dick/tar.gz/013b51e2d9d6bb28b1d054bfc30beeeff4b85480",
+    "version": "013b51e2d9d6bb28b1d054bfc30beeeff4b85480",
+    "license": "CC0 1.0",
+    "sha256": "1059bceeb87ae492fe036aa499023572955fc1a1c1a4e82abf5c2cb4d13025bf",
+    "license_url": "https://standardebooks.org/about"
+  }
+}

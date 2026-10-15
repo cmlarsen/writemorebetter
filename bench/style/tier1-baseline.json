@@ -1,0 +1,22 @@
+{
+  "minimum": {
+    "ewt/boundaries/precision": 0.9661354581673307,
+    "litbank/precision": 0.84996191926885,
+    "ewt/boundaries/recall": 0.7931316434995912,
+    "litbank/recall": 0.8309754281459419,
+    "ewt/boundaries/f1": 0.8711270767849124,
+    "litbank/f1": 0.8403614457831325,
+    "ewt/aligned_tokens": 24102,
+    "ewt/aligned_fraction": 0.9604686379214155,
+    "ewt/normalized_tag_any": 0.9067676289635589,
+    "ewt/single_normalized_correct": 0.6223379081874113,
+    "ewt/normalized_lemma_any": 0.9545196403218174,
+    "ewt/terminal_boundary_recall": 0.995880535530381,
+    "ewt/sentence_starts/with_candidates": 1833
+  },
+  "maximum": {
+    "ewt/no_reading_share": 0.03525973413783351,
+    "ewt/mean_distinct_normalized_tags_known": 1.5810255406595557,
+    "ewt/sentence_starts/total_absolute_bias_pp": 22.559540347993412
+  }
+}

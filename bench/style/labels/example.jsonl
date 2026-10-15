@@ -1,0 +1,3 @@
+{"file": "excerpt.txt", "byte": {"start": 0, "end": 16}, "utf16": {"start": 0, "end": 16}, "report": "sentence_start", "pattern": "imperative", "labelers": [], "adjudication": "schema-example-only"}
+{"file": "excerpt.txt", "byte": {"start": 0, "end": 16}, "utf16": {"start": 0, "end": 16}, "report": "transition", "pattern": "none", "labelers": [], "adjudication": "schema-example-only"}
+{"file": "excerpt.txt", "byte": {"start": 0, "end": 16}, "utf16": {"start": 0, "end": 16}, "report": "pacing", "pattern": "short", "labelers": [], "adjudication": "schema-example-only"}

@@ -24,3 +24,7 @@ wasm/pkg/
 # Swift package build products and the locally built XCFramework
 .build/
 dist/
+
+# Public style benchmark downloads and generated cases
+bench/style/.cache/
+bench/style/out/

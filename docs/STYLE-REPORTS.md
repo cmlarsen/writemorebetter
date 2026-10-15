@@ -131,3 +131,16 @@ Build rules for any baseline:
 | 2026-10-14 | Audiobook transcription rejected as a text source | Speech-to-text loses the author's punctuation, so sentence and dialogue statistics would measure the STT model |
 | 2026-10-15 | Aggregate numbers derived from any source, the private corpus included, may be published; text never | Statistics are facts, not creative output, so they need no attribution |
 | 2026-10-15 | Prefer derived datasets (Ngram, HTRC EF) over building a corpus | They already cover modern fiction at scale, openly licensed; a private corpus is only needed for running-text statistics |
+
+## Accuracy benchmarks
+
+[`bench/style/README.md`](../bench/style/README.md) documents the three-tier harness, pinned public
+sources, scoring conventions and first test-split regression floors for #256. CI gates tier 1 analysis
+and quote-span accuracy, tier 2's injected-error smoke suite, and tier 3's synthetic-only self-test.
+After measurement review, EWT test paragraph-internal boundary F1 is 87.1127% (99.5881% recall after
+terminal punctuation), normalized lexical XPOS accuracy is 90.6768%, and normalized lemma accuracy is
+95.4520% on 24,102 aligned tokens. Tag gates also require single-normalized-tag correctness not to drop
+and conditional mean tag count not to rise. Sentence-start total absolute fractional bias has a
+22.5595 pp ceiling, including 1 pp of explicit slack; per-tag biases remain diagnostic. LitBank original-prose test
+quote-span F1 is 84.0361%. The benchmark README preserves initial vs reviewed numbers and conventions.
+Tier 3 real-corpus calibration remains owner-only and emits aggregate numbers exclusively.

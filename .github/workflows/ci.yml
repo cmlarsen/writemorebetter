@@ -74,6 +74,21 @@ jobs:
           cargo build --release --manifest-path bench/tools/wmb-probe/Cargo.toml
           python3 bench/tools/public_recall.py --min "$RECALL_MIN"
 
+      - name: Cache public style datasets
+        uses: actions/cache@v4
+        with:
+          path: bench/style/.cache
+          key: style-data-${{ hashFiles('bench/style/sources.json') }}
+
+      - name: Style benchmark accuracy gates
+        run: |
+          cargo fmt --manifest-path bench/tools/wmb-analyze/Cargo.toml -- --check
+          cargo build --release --manifest-path bench/tools/wmb-analyze/Cargo.toml
+          python3 -m unittest discover -s bench/style -p 'test_*.py'
+          python3 bench/style/run.py tier1 --gate --analyzer bench/tools/wmb-analyze/target/release/wmb-analyze
+          python3 bench/style/run.py tier2 smoke
+          python3 bench/style/run.py tier3 --self-test --analyzer bench/tools/wmb-analyze/target/release/wmb-analyze
+
       - name: Disambiguation conformance
         env:
           RUST_LOG: WARN
