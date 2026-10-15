@@ -44,6 +44,7 @@ English first. Other languages come later as data plus per-language builtins beh
 interface — keep English specifics out of the generic engine, but do not build other languages' special
 cases yet. N-gram confusion rules are out of scope for the on-device engine.
 
-The `style` crate diagnoses and never generates replacement prose. It doesn't duplicate LanguageTool
-rules that `nlprule` ports, and it never ships text from any corpus, only aggregate numbers (see
+The `style` crate diagnoses and never generates replacement prose. It holds no LGPL data, doesn't
+duplicate LanguageTool rules that `nlprule` ports, and never ships text from any corpus, only aggregate
+numbers (see
 `docs/STYLE-REPORTS.md`).
