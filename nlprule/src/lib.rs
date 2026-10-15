@@ -200,7 +200,9 @@ pub const TOKENIZER_FORMAT_VERSION: u32 = 18;
 /// Version 28: `Part` gained `next_exception`, the token's `scope="next"` exceptions, checked
 /// while matching instead of in the token's atom, and lost `greedy`; `Composition::can_stop_mask`
 /// was replaced by `optional_count`.
-pub const RULES_FORMAT_VERSION: u32 = 28;
+/// Version 29: the `SpecificCase`, `Dash` and `Compounds` builtins were added, and `SimpleReplace`
+/// gained `has_suggestions`.
+pub const RULES_FORMAT_VERSION: u32 = 29;
 
 /// The longest engine version string accepted in a binary header.
 const MAX_ENGINE_VERSION_LEN: usize = 256;

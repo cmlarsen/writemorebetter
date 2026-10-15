@@ -320,7 +320,7 @@
 595 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 596 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 598 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
-599 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+598 | BUILTIN/EN_COMPOUNDS_SELF_DRIVEN | "self\r\n  driven" -> ["self-driven"] | This word is normally spelled with a hyphen.
 601 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 602 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 603 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
@@ -366,6 +366,7 @@
 650 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 652 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 653 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
+653 | BUILTIN/EN_SPECIFIC_CASE | "Pacific ocean" -> ["Pacific Ocean"] | If the term is a proper noun, use initial capitals.
 654 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 656 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
 657 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: you repeated a whitespace
@@ -521,6 +522,7 @@
 849 | SPELLCHECK/SINGLE | "Manhattoes" -> ["Manhattans"] | Possibly misspelled word.
 856 | SPELLCHECK/SINGLE | "Corlears" -> ["Corners", "Orleans", "Collars", "Clears", "Coolers", "Curlers", "Corneas", "Forbears", "Corers", "Corkers"] | Possibly misspelled word.
 857 | SPELLCHECK/SINGLE | "Coenties" -> ["Counties"] | Possibly misspelled word.
+863 | BUILTIN/EN_COMPOUNDS_PENT_UP | "pent up" -> ["pent-up"] | This word is normally spelled with a hyphen.
 867 | BUILTIN/UPPERCASE_SENTENCE_START | "here" -> ["Here"] | This sentence does not start with an uppercase letter.
 872 | SPELLCHECK/SINGLE | "Inlanders" -> ["Islanders", "Inlander"] | Possibly misspelled word.
 884 | GRAMMAR/PCT_SINGULAR_NOUN_PLURAL_VERB_AGREEMENT/0 | "happen" -> ["happens"] | "Caravan" is a singular noun. It appears that the verb form is incorrect.
@@ -538,6 +540,7 @@
 990 | TYPOS/ANY_BODY/0 | "any one" -> ["anyone"] | Did you mean anyone?
 992 | SPELLCHECK/SINGLE | "programme" -> ["programmed", "programmer"] | Possibly misspelled word.
 998 | SPELLCHECK/SINGLE | "AFFGHANISTAN" -> ["AFGHANISTAN"] | Possibly misspelled word.
+1025 | BUILTIN/EN_COMPOUNDS_FLOOD_GATES | "flood-gates" -> ["floodgates"] | This word is normally spelled as one.
 1035 | SPELLCHECK/SINGLE | "Manhatto" -> ["Manhattan", "Mankato"] | Possibly misspelled word.
 1046 | SPELLCHECK/SINGLE | "monopolising" -> ["monopolizing"] | Possibly misspelled word.
 1050 | SPELLCHECK/SINGLE | "whalemen" -> ["Whalen", "whaleses"] | Possibly misspelled word.
@@ -565,6 +568,7 @@
 1185 | SPELLCHECK/SINGLE | "squitchy" -> ["squishy", "squelchy", "squinch"] | Possibly misspelled word.
 1189 | SPELLCHECK/SINGLE | "marvellous" -> ["marvelous"] | Possibly misspelled word.
 1196 | BUILTIN/UPPERCASE_SENTENCE_START | "even" -> ["Even"] | This sentence does not start with an uppercase letter.
+1203 | BUILTIN/EN_COMPOUNDS_SPRING_CLEAN | "spring clean" -> ["spring-clean"] | This word is normally spelled with a hyphen.
 1242 | SPELLCHECK/SINGLE | "villanous" -> ["villainous"] | Possibly misspelled word.
 1250 | SPELLCHECK/SINGLE | "skrimshander" -> [] | Possibly misspelled word.
 1253 | SPELLCHECK/SINGLE | "haint" -> ["paint", "saint", "faint", "haunt", "hint", "taint"] | Possibly misspelled word.
@@ -586,6 +590,7 @@
 1312 | SPELLCHECK/SINGLE | "woollen" -> ["woolen", "Woolley"] | Possibly misspelled word.
 1313 | SPELLCHECK/SINGLE | "bedarned" -> ["learned", "bearded", "yearned", "beaned", "bedaubed", "bewared"] | Possibly misspelled word.
 1318 | SPELLCHECK/SINGLE | "brimmers" -> ["trimmers", "krimmers"] | Possibly misspelled word.
+1321 | BUILTIN/EN_COMPOUNDS_LONG_STANDING | "long standing" -> ["long-standing"] | This word is normally spelled with a hyphen.
 1325 | SPELLCHECK/SINGLE | "arrantest" -> ["arranges"] | Possibly misspelled word.
 1341 | SPELLCHECK/SINGLE | "Alleghanian" -> ["Alleghenian"] | Possibly misspelled word.
 1345 | SPELLCHECK/SINGLE | "favourite" -> ["favorite"] | Possibly misspelled word.
@@ -644,6 +649,7 @@
 1517 | SPELLCHECK/SINGLE | "centre" -> ["center", "Centrex", "CENTR", "centra"] | Possibly misspelled word.
 1523 | SPELLCHECK/SINGLE | "centre" -> ["center", "Centrex", "CENTR", "centra"] | Possibly misspelled word.
 1528 | SPELLCHECK/SINGLE | "harpooneer" -> ["harpooner"] | Possibly misspelled word.
+1530 | BUILTIN/EN_COMPOUNDS_FISH_HOOKS | "fish hooks" -> ["fishhooks"] | This word is normally spelled as one.
 1540 | SPELLCHECK/SINGLE | "harpooneer" -> ["harpooner"] | Possibly misspelled word.
 1544 | SPELLCHECK/SINGLE | "harpooneer" -> ["harpooner"] | Possibly misspelled word.
 1550 | SPELLCHECK/SINGLE | "harpooneer" -> ["harpooner"] | Possibly misspelled word.
@@ -742,6 +748,7 @@
 2025 | REDUNDANCY/SUMMER_TIME/1 | "summer time" -> ["summer"] | Consider using summer.
 2029 | SPELLCHECK/SINGLE | "superinduced" -> [] | Possibly misspelled word.
 2035 | PUNCTUATION/SENT_START_CONJUNCTIVE_LINKING_ADVERB_COMMA/0 | "Elsewhere" -> ["Elsewhere,"] | A comma may be missing after the conjunctive/linking adverb 'Elsewhere'.
+2037 | BUILTIN/EN_COMPOUNDS_OFF_SHORE | "off\r\nshore" -> ["offshore"] | This word is normally spelled as one.
 2039 | SPELLCHECK/SINGLE | "Puritanic" -> ["Puritan", "Puritanical", "Puritans", "Puritanism", "Puranic", "Puritanize", "Ruritania"] | Possibly misspelled word.
 2044 | SPELLCHECK/SINGLE | "Whaleman" -> ["Whalen", "Walkman", "Waldman"] | Possibly misspelled word.
 2054 | SPELLCHECK/SINGLE | "worshipper" -> ["worshiper"] | Possibly misspelled word.
@@ -763,6 +770,7 @@
 2143 | SPELLCHECK/SINGLE | "harpooneer" -> ["harpooner"] | Possibly misspelled word.
 2145 | SPELLCHECK/SINGLE | "Mapple" -> ["Apple", "Maple", "Marple", "Dapple"] | Possibly misspelled word.
 2151 | SPELLCHECK/SINGLE | "Mapple" -> ["Apple", "Maple", "Marple", "Dapple"] | Possibly misspelled word.
+2161 | BUILTIN/EN_COMPOUNDS_OLD_FASHIONED | "old fashioned" -> ["old-fashioned"] | This word is normally spelled with a hyphen.
 2161 | GRAMMAR/A_NNS/4 | "a\r\nregular stairs" -> ["a regular stair", "regular stairs"] | The plural noun "stairs" cannot be used with the article "a".
 2164 | SPELLCHECK/SINGLE | "Mapple" -> ["Apple", "Maple", "Marple", "Dapple"] | Possibly misspelled word.
 2165 | GRAMMAR/A_NNS/2 | "a stairs" -> ["a stair", "stairs"] | The plural noun "stairs" cannot be used with the article "a". Did you mean a stair or stairs?

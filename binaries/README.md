@@ -22,7 +22,9 @@ Derived from that release:
   speller dictionaries (`hunspell/*.dict` / `*.info`),
 - the `builtin-data` word lists (article lists, word-repeat exceptions,
   wrong-word/phrase replacement tables, word coherency, wrong-word-in-context,
-  uppercase-sentence-start exceptions, adverb→adjective table), and
+  uppercase-sentence-start exceptions, adverb→adjective table, compound
+  antipatterns) and the builtin lists copied from the release (compounds,
+  specific-case phrases, wordiness, redundancy and profanity lists), and
 - the OpenNLP chunker model, taken from nlprule's published `en.zip`
   (<https://f000.backblazeb2.com/file/nlprule/en.zip>, sha256
   `57a0ded6f3becbb669835c0ef9a8841c642cd809c005357ff48bf5c6319adf01`), which
