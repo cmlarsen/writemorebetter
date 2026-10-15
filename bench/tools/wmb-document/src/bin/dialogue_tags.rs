@@ -104,6 +104,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     "file": input.file,
                     "words": document.word_count,
                     "dialogue_spans": report.dialogue_spans,
+                    "speech_spans": report.speech_spans,
                     "tagged_spans": report.tagged_spans,
                     "exchanges": report.exchanges,
                     "tags": report.tags.len(),
@@ -112,8 +113,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     "non_speech": report.non_speech,
                     "unlisted": unlisted,
                     "beats": report.beats.len(),
-                    "untagged_runs": report.untagged_runs.len(),
-                    "untagged_run_exchanges": report.untagged_runs.iter().map(|run| run.exchanges).sum::<usize>(),
+                    "untagged_runs": report.untagged_runs.as_ref().map_or(0, Vec::len),
+                    "untagged_run_exchanges": report.untagged_runs.iter().flatten().map(|run| run.exchanges).sum::<usize>(),
                     "positions": positions,
                     "verbs": verbs,
                 }),
@@ -162,7 +163,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         for beat in &report.beats {
             rows.push(first_word(file, "dialogue_beat", "beat", &beat.span, text));
         }
-        for run in &report.untagged_runs {
+        for run in report.untagged_runs.iter().flatten() {
             rows.push(span_record(
                 file,
                 "dialogue_untagged_run",

@@ -1,6 +1,9 @@
 import contextlib
 import io
 import json
+from pathlib import Path
+import subprocess
+import sys
 import unittest
 from unittest.mock import patch
 
@@ -57,6 +60,15 @@ class DialogueTagTests(unittest.TestCase):
         with contextlib.redirect_stderr(stderr), self.assertRaises(SystemExit) as raised:
             dialogue_tags.tier3(Args())
         self.assertNotIn('PRIVATE_SENTINEL', str(raised.exception.code) + stderr.getvalue())
+
+    def test_tier3_argument_errors_hide_details(self):
+        run = Path(__file__).resolve().parent / 'run.py'
+        for args in (['dialogue-tags', 'tier3', '--export', 'PRIVATE_SENTINEL_DIR', 'PRIVATE_SENTINEL_ARG'],
+                     ['dialogue-tags', 'tier3', '--exprot', 'PRIVATE_SENTINEL_PATH'],
+                     ['tier3', 'PRIVATE_SENTINEL_ARG']):
+            result = subprocess.run([sys.executable, str(run), *args], capture_output=True, text=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertNotIn('PRIVATE_SENTINEL', result.stdout + result.stderr)
 
 
 if __name__ == '__main__':

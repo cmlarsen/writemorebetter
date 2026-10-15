@@ -102,6 +102,8 @@ fn annotated_passages() {
         assert_eq!(Value::Array(beats), expected, "{name}: beats");
         let runs: Vec<Value> = report
             .untagged_runs
+            .as_ref()
+            .unwrap()
             .iter()
             .map(|run| {
                 assert_eq!(run.dialogue.len(), run.exchanges);
@@ -112,7 +114,7 @@ fn annotated_passages() {
         assert_eq!(Value::Array(runs), expected, "{name}: runs");
         if let Some(expected) = fixture.get("untagged_exchanges") {
             assert_eq!(
-                report.untagged_exchanges as u64,
+                report.untagged_exchanges.unwrap() as u64,
                 expected.as_u64().unwrap(),
                 "{name}: untagged exchanges"
             );
@@ -176,10 +178,11 @@ fn untagged_run_threshold_is_configurable() {
         &document,
         &DialogueTagOptions::new().with_max_untagged_exchanges(2),
     );
-    assert_eq!(report.untagged_runs.len(), 1);
-    assert_eq!(report.untagged_runs[0].exchanges, 3);
+    let runs = report.untagged_runs.unwrap();
+    assert_eq!(runs.len(), 1);
+    assert_eq!(runs[0].exchanges, 3);
     let report = dialogue_tags(&document, &DialogueTagOptions::new());
-    assert!(report.untagged_runs.is_empty());
+    assert!(report.untagged_runs.unwrap().is_empty());
 }
 
 #[test]
@@ -191,6 +194,50 @@ fn continued_speech_is_one_exchange() {
     assert_eq!(report.exchanges, 1);
     assert_eq!(report.tags.len(), 1);
     assert_eq!(report.tags[0].dialogue, [0]);
+}
+
+#[test]
+fn compact_documents_report_no_runs() {
+    let tokenizer = tokenizer();
+    let text = (1..=8)
+        .map(|n| format!("“Line {n},” she said."))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let full = analyze_document(&tokenizer, &text, &DocumentOptions::new());
+    let report = dialogue_tags(&full, &DialogueTagOptions::new());
+    assert_eq!(report.tags.len(), 8);
+    assert_eq!(report.untagged_exchanges, Some(0));
+    let compact = analyze_document(
+        &tokenizer,
+        &text,
+        &DocumentOptions::new().with_token_details(false),
+    );
+    let report = dialogue_tags(&compact, &DialogueTagOptions::new());
+    assert!(report.tags.is_empty());
+    assert!(report.untagged_runs.is_none());
+    assert_eq!(report.untagged_exchanges, None);
+}
+
+#[test]
+fn embedded_quotes_are_not_speech_spans() {
+    let tokenizer = tokenizer();
+    let (_, report) = report(
+        &tokenizer,
+        "He called it “grub” and ate.\n“Go,” she said.",
+        Vec::new(),
+    );
+    assert_eq!(report.dialogue_spans, 2);
+    assert_eq!(report.speech_spans, 1);
+    assert_eq!(report.exchanges, 1);
+}
+
+#[test]
+fn baseline_accepts_camel_case() {
+    let baseline: DialogueTagBaseline = serde_json::from_str(
+        r#"{"saidAskedPercent": 80.0, "adverbPercent": 5.0, "nonSpeechPercent": 1.0}"#,
+    )
+    .unwrap();
+    assert_eq!(baseline, DialogueTagBaseline::new(80.0, 5.0, 1.0));
 }
 
 #[test]

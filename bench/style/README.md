@@ -429,7 +429,7 @@ dialogue span (`report: dialogue_span`) and, per tag, records for `dialogue_tag_
 token, `dialogue_tag_adverb` on the adverb token, and `dialogue_beat` (`tag`/`beat`) on the first word
 of the narration clause. Each category is scored separately with tier 2's exact-span scorer.
 
-**Hand-labeled set.** Four pinned chapter files from Standard Ebooks (CC0 dedication; underlying works
+**Model-labeled set (provisional gate).** Four pinned chapter files from Standard Ebooks (CC0 dedication; underlying works
 public domain in the US; none is in LitBank) are added to `sources.json`. `dialogue_tags.py` joins the
 listed paragraph windows one paragraph per line:
 
@@ -441,15 +441,25 @@ listed paragraph windows one paragraph per line:
 | `avonlea-1.txt` | Montgomery, *Anne of Avonlea*, ch. 1 | 0–49 | test | 47 |
 
 `labels/dialogue-tags.jsonl` holds 238 records (70 tags, 10 beats) over those 186 spans, with
-verbatim `text` that the suite checks against the offsets. Two independent labelers
-(`claude-opus-5-5/a` and `/b`, separate model sessions given only the guidelines and a worksheet with
-the detector's quote spans marked) labeled every quote before the detector was run on the passages.
-They agreed on 80 of 81 clause records and on every position, verb class and adverb. The one
-disagreement (a sentence that does not touch the quote, labeled a beat by one labeler) was resolved
-against the beat by the guideline's "only the sentence touching the quotation" clause. Owner
-adjudication is still pending, as for any judgment suite. Both labelers left scare quotes unlabeled;
-that, before any detector run on these passages, motivated the embedded-quote rule. The dev passages
-were then inspected; their two misses were not tuned away. Test was scored once.
+verbatim `text` that the suite checks against the offsets. These are **model labels**, not hand labels:
+two sessions of the same model family as the detector's author (`claude-opus-5-5/a` and `/b`), each
+given only the guidelines and a worksheet with the detector's quote spans marked. They labeled every
+quote before the detector was run on the passages. They agreed on 80 of 81 clause records and on
+every position, verb class and adverb. The one disagreement was resolved by the guideline's "only the
+sentence touching the quotation" clause, against a beat on avonlea paragraph 6 (`His farm had been
+bought…`, the sentence before `… “a crank,” Mrs. Rachel Lynde said.`). Owner adjudication is pending,
+and the README's rule above (two independent labels and owner adjudication before accuracy is gated)
+is not yet met: **the CI gate on this suite is provisional** until the owner adjudicates.
+
+The test passages are not untouched held-out data. The author read all four passages while building
+the worksheets, before the rules and docs were final; both labelers' notes on scare quotes, covering
+all passages, motivated the embedded-quote rule; the docs' examples echo test text; and four
+speech-list verbs (`splutter`, `remonstrate`, `implore`, `snap`) occur in the gold only on test. The
+dev passages were inspected after the first detector run and their two misses were not tuned away.
+Review of #266 then cited the test adverb miss (`told Marilla Cuthbert indignantly`); the generic fix
+(an adverb after a pronoun or short name object) moved test adverb recall from 90.00% to 100%. Read
+the test column as regression measurements, as with #261's LitBank numbers, not as a generalization
+claim.
 
 | Category / pattern | Dev P / R | Test P / R | All P / R (TP / predicted / gold) |
 |---|---:|---:|---:|
@@ -458,23 +468,26 @@ were then inspected; their two misses were not tuned away. Test was scored once.
 | position `split` | 100 / 100 | 100 / 100 | 100 / 100 (13 / 13 / 13) |
 | verb `speech` | 100 / 96.30 | 100 / 97.62 | 100 / 97.10 (67 / 67 / 69) |
 | verb `non_speech` | 100 / 100 | none | 100 / 100 (1 / 1 / 1) |
-| adverb | 100 / 100 | 100 / 90.00 | 100 / 94.44 (17 / 17 / 18) |
+| adverb | 100 / 100 | 100 / 100 | 100 / 100 (18 / 18 / 18) |
 | beat vs tag: `tag` | 100 / 96.43 | 100 / 100 | 100 / 98.57 (69 / 69 / 70) |
 | beat vs tag: `beat` | 100 / 83.33 | 66.67 / 100 | 81.82 / 90.00 (9 / 11 / 10) |
 
 `dialogue-tags-baseline.json` stores the full-precision P/R/F1 for every gold pattern on all four
-passages as floors; the suite fails when any falls. The set is small: one non-speech tag and ten beats
-make those rows coarse. The Rust fixtures in `style/tests/fixtures/dialogue-tags.json` cover the
+passages as floors; the suite fails when any falls. They are regression tripwires, not accuracy
+estimates: counts are tiny (non-speech 1, before 7, beats 10, adverbs 18), so one new false positive
+trips a 100% precision floor. Unlisted predictions are not gated directly (one occurs, on `flashed`). The Rust fixtures in `style/tests/fixtures/dialogue-tags.json` cover the
 issue's acceptance list (tags before and after, split dialogue, beats, non-speech tags, an untagged
 run) with curly and straight quotes, curly apostrophes, em dashes, ellipses and U+2028.
 
 **Tier 3.** `dialogue-tags tier3 --export DIR` reads the same export layout as tier 3, sends each unit
 to the probe's `--counts` mode and pools counts per `author_key`. It prints totals, per-author means
 and percentiles (authors weighted equally) of `said_asked_percent`, `adverb_percent`,
-`non_speech_percent`, `unlisted_percent`, `tagged_span_percent`, `beats_per_100_spans`,
+`non_speech_percent`, `unlisted_percent`, `tagged_span_percent` and `beats_per_100_spans` (both over
+speech spans, which exclude embedded scare quotes),
 `untagged_run_exchange_percent` and `tags_per_1000_words`, tag position shares, and the share of tags
 for each verb on the crate's lists. Unlisted verbs are counted, never named, so no corpus text
-reaches the output. Errors exit with a generic message and probe stderr is discarded. `--self-test`
+reaches the output. Errors exit with a generic message and probe stderr is discarded; `run.py`
+also suppresses argument errors for any command with `tier3` as its first or second argument. `--self-test`
 builds a synthetic export in a temporary directory and checks counts, author weighting and that no
 metadata leaks. CI runs only the self-test. No private corpus or fiction-baseline export was read
 for #249; the published-fiction baseline is for the owner to produce with this command.

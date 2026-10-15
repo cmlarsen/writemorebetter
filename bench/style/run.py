@@ -9,6 +9,10 @@ import sys
 from common import Analyzer, DocumentProbe, ROOT
 
 
+def private(argv):
+    return 'tier3' in argv[1:3]
+
+
 def main():
     parser = argparse.ArgumentParser(description='Public style accuracy and owner-only calibration')
     sub = parser.add_subparsers(dest='tier', required=True)
@@ -44,7 +48,7 @@ def main():
     for command in (one, three):
         command.add_argument('--tokenizer', type=Path, default=ROOT / 'storage/en_tokenizer.bin')
         command.add_argument('--analyzer', type=Path)
-    if len(sys.argv) > 1 and sys.argv[1] == 'tier3':
+    if private(sys.argv):
         with contextlib.redirect_stderr(io.StringIO()):
             args = parser.parse_args()
     else:
@@ -82,6 +86,6 @@ if __name__ == '__main__':
     except BaseException as error:
         if isinstance(error, SystemExit) and error.code == 0:
             raise
-        if len(sys.argv) > 1 and sys.argv[1] == 'tier3':
+        if private(sys.argv):
             sys.exit('calibration failed; details suppressed to protect source metadata')
         raise

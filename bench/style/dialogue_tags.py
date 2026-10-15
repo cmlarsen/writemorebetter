@@ -113,15 +113,15 @@ class CountProbe:
             raise RuntimeError('dialogue tag probe failed')
 
 
-FIELDS = ('words', 'dialogue_spans', 'tagged_spans', 'exchanges', 'tags', 'said_asked', 'with_adverb',
+FIELDS = ('words', 'dialogue_spans', 'speech_spans', 'tagged_spans', 'exchanges', 'tags', 'said_asked', 'with_adverb',
           'non_speech', 'unlisted', 'beats', 'untagged_runs', 'untagged_run_exchanges')
 RATES = {
     'said_asked_percent': ('said_asked', 'tags', 100),
     'adverb_percent': ('with_adverb', 'tags', 100),
     'non_speech_percent': ('non_speech', 'tags', 100),
     'unlisted_percent': ('unlisted', 'tags', 100),
-    'tagged_span_percent': ('tagged_spans', 'dialogue_spans', 100),
-    'beats_per_100_spans': ('beats', 'dialogue_spans', 100),
+    'tagged_span_percent': ('tagged_spans', 'speech_spans', 100),
+    'beats_per_100_spans': ('beats', 'speech_spans', 100),
     'untagged_run_exchange_percent': ('untagged_run_exchanges', 'exchanges', 100),
     'tags_per_1000_words': ('tags', 'words', 1000),
 }
