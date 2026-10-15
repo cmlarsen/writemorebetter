@@ -65,7 +65,8 @@ region, without overlapping extra spans or speaker attribution. Curly/straight d
 punctuated single-quoted speech are recognized. A single closer requires preceding speech punctuation
 (`.!?,:;—…`), so unpunctuated single-quoted fragments and British punctuation-outside forms can be
 missed. Internal/trailing apostrophes and common leading elisions (`'em`, `'tis`, `'twas`, `'n'`,
-`'cause`, decade forms such as `'90s`/`'eighties`) do not open speech.
+`'cause`, decade forms such as `'90s`/`'eighties`) do not open speech or serve as repeated
+opening marks for a continued quote.
 
 At each paragraph boundary, an unfinished quote continues only if the next nonempty paragraph begins
 with the same opening mark. Otherwise the **entire unfinished span is dropped**, including any carried

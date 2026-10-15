@@ -414,7 +414,12 @@ fn detect_dialogue(text: &str, paragraphs: &[Span]) -> Vec<Span> {
             let continued = paragraphs
                 .get(paragraph_index + 1)
                 .and_then(|next| text.get(next.byte.clone()))
-                .is_some_and(|next| next.trim_start().starts_with(kind));
+                .is_some_and(|next| {
+                    let next = next.trim_start();
+                    next.starts_with(kind)
+                        && (!matches!(kind, '\'' | '‘')
+                            || !leading_elision(next.get(kind.len_utf8()..).unwrap()))
+                });
             if !continued {
                 open = None;
             }
