@@ -72,7 +72,7 @@ the numbers come from:
      POS tags and sentence counts, for fiction up to 2009. Gives per-book and per-author mean sentence
      length, POS rates and word counts, which allows per-author weighting.
 
-   Baselines computed from these may be committed with attribution, under the source's license.
+   Baselines computed from these may be committed.
 2. **A private corpus**, for what needs running text: per-sentence length distributions, the
    narration/dialogue split, dialogue tags, pacing calibration. It is built from legally obtained,
    DRM-free fiction. The text is never committed anywhere; aggregate numbers derived from it may be
