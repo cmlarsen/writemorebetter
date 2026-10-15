@@ -131,3 +131,12 @@ Build rules for any baseline:
 | 2026-10-14 | Audiobook transcription rejected as a text source | Speech-to-text loses the author's punctuation, so sentence and dialogue statistics would measure the STT model |
 | 2026-10-15 | Aggregate numbers derived from any source, the private corpus included, may be published; text never | Statistics are facts, not creative output, so they need no attribution |
 | 2026-10-15 | Prefer derived datasets (Ngram, HTRC EF) over building a corpus | They already cover modern fiction at scale, openly licensed; a private corpus is only needed for running-text statistics |
+
+## Accuracy benchmarks
+
+[`bench/style/README.md`](../bench/style/README.md) documents the three-tier harness, pinned public
+sources, scoring conventions and first test-split regression floors for #256. CI gates tier 1 analysis
+and quote-span accuracy, tier 2's injected-error smoke suite, and tier 3's synthetic-only self-test.
+The initial EWT test boundary F1 is 84.5817%, XPOS-among-readings accuracy 80.9639%, and
+lemma-among-readings accuracy 91.6326% on 23,508 aligned tokens; LitBank test quote-span F1 is 83.6596%.
+Tier 3 real-corpus calibration remains owner-only and emits aggregate numbers exclusively.

@@ -1,0 +1,10 @@
+[package]
+name = "wmb-analyze"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+nlprule = { path = "../../../nlprule" }
+serde_json = "1"
+
+[workspace]
