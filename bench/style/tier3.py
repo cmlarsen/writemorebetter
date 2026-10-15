@@ -83,6 +83,7 @@ def calibrate(analyzer, export, baseline):
             'sentences': sum(a['sentences'] for a in usable),
             'unresolved_starts': sum(a['unresolved'] for a in usable),
             'unknown_starts': sum(a['unknown'] for a in usable),
+            'ambiguous_starts': sum(a['unresolved'] - a['unknown'] for a in usable),
             'sentence_length': lengths, 'sentence_start': starts,
             'length_comparison': {
                 'ngram_mean': baseline['google_ngram']['mean_tokens_per_sentence'],

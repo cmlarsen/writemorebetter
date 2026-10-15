@@ -139,7 +139,7 @@ sources, scoring conventions and first test-split regression floors for #256. CI
 and quote-span accuracy, tier 2's injected-error smoke suite, and tier 3's synthetic-only self-test.
 After measurement review, EWT test paragraph-internal boundary F1 is 87.1127% (99.5881% recall after
 terminal punctuation), normalized lexical XPOS accuracy is 90.6768%, and normalized lemma accuracy is
-95.4520% on 24,102 aligned tokens. Tag gates also require single-normalized-tag correctness not to drop;
+95.3952% on 24,102 aligned tokens. Tag gates also require single-normalized-tag correctness not to drop;
 each universal sentence-start tag has an absolute fractional-bias ceiling. LitBank original-prose test
 quote-span F1 is 84.0361%. The benchmark README preserves initial vs reviewed numbers and conventions.
 Tier 3 real-corpus calibration remains owner-only and emits aggregate numbers exclusively.

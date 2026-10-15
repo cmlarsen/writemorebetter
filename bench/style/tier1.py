@@ -95,7 +95,8 @@ def start_share_check(analyzer, paragraphs):
                         'resolved_fraction_within_gold': resolved_by_gold[tag] / total_by_gold[tag]
                         if total_by_gold[tag] else None}
     return {'sentences': sum(gold.values()), 'with_candidates': known,
-            'resolved': sum(resolved.values()), 'per_tag': per_tag}
+            'resolved': sum(resolved.values()), 'unknown': sum(gold.values()) - known,
+            'ambiguous': known - sum(resolved.values()), 'per_tag': per_tag}
 
 
 def score_ewt(analyzer, split):

@@ -10,7 +10,7 @@
     "ewt/aligned_fraction": 0.9604686379214155,
     "ewt/normalized_tag_any": 0.9067676289635589,
     "ewt/single_normalized_correct": 0.6223379081874113,
-    "ewt/normalized_lemma_any": 0.9545196403218174,
+    "ewt/normalized_lemma_any": 0.9539517274017983,
     "ewt/terminal_boundary_recall": 0.995880535530381,
     "ewt/punctuation_flag_accuracy": 0.9788781163434903,
     "ewt/sentence_starts/with_candidates": 1833

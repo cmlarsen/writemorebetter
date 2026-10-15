@@ -263,7 +263,7 @@ measurement, **not an engine improvement**:
 | EWT single normalized tag and correct | not measured | **62.2338%** (second tag gate) |
 | EWT normalized tags per lexical token | not measured | 1.52925 (diagnostic) |
 | EWT lexical-convention inclusive accuracy | not measured | 92.1439% (diagnostic; not gated) |
-| EWT gold lemma among readings | 91.6326% raw over all aligned | **95.4520%** normalized over lexical tokens |
+| EWT gold lemma among readings | 91.6326% raw over all aligned | **95.3952%** normalized over lexical tokens |
 | EWT no readings / aligned non-punctuation | not separated | 748 / 21,214 = **3.5260%** |
 | EWT punctuation/symbol flag agreement | not separated | 97.8878% (2,888 tokens; per-class detail in JSON) |
 | EWT raw tag any / first (current cohort) | 80.9639 / 69.4530% on old cohort | 81.2879 / 70.0357% (diagnostic) |
