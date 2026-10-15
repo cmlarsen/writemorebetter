@@ -13,3 +13,32 @@ Rules, dictionaries, and other data compiled from LanguageTool resources
 under LGPL-2.1; see binaries/LICENSE-LGPL-2.1.txt. The OpenNLP chunker model is
 taken from nlprule's published English data. writemorebetter is not affiliated
 with LanguageTool or LanguageTooler GmbH.
+
+style/data/ holds phrase lists vendored from the following projects. Each list's
+license text is in style/data/licenses/.
+
+- style/data/cliches/no-cliches.txt: the `cliches` array of cliches.js from
+  no-cliches (https://github.com/duereg/no-cliches) at commit
+  61d6c543b971d72f9f559b99d2452368c35bac41 (v0.3.6), Copyright (c) 2021 Matt
+  Blair, MIT License (style/data/licenses/no-cliches.txt). One phrase per line,
+  unchanged. write-good (https://github.com/btford/write-good, MIT) takes its
+  cliche check from this package; nothing is vendored from write-good itself.
+- style/data/redundancy/redundant-acronyms.tsv: lib/schema.js from
+  retext-redundant-acronyms (https://github.com/retextjs/retext-redundant-acronyms)
+  at commit e670637aa13a223f7d6505349f4a474695e2c115 (v5.0.0), Copyright (c)
+  2016 Titus Wormer, MIT License
+  (style/data/licenses/retext-redundant-acronyms.txt). One acronym and expansion
+  per line, converted from JavaScript to tab-separated text.
+- style/data/cliches/proselint.txt and style/data/redundancy/proselint-ras.tsv:
+  proselint/checks/cliches/hell.py and proselint/checks/redundancy/ras_syndrome.py
+  from proselint (https://github.com/amperser/proselint) at commit
+  dbed789caae662d06c7c8a5a13dd31f1acd36f5c, Copyright (c) 2014-2015 Jordan
+  Suchow, Michael Pacer, and Lara A. Ross, BSD 3-Clause License
+  (style/data/licenses/proselint.txt). Phrases extracted from the Python source.
+  proselint's other cliche and redundancy lists are not vendored: proselint
+  names a third-party origin for each (GNU diction, GPL-3.0; After the
+  Deadline, GPL-2.0; Garner's Modern American Usage; Richard Nordquist; David
+  Foster Wallace).
+
+style/data/suppressed.txt and style/data/fixed-wording.txt are writemorebetter's
+own lists (MIT OR Apache-2.0).

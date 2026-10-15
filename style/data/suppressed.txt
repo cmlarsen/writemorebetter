@@ -1,0 +1,8 @@
+# Entries the default English grammar rules already flag; see docs/STYLE-REPORTS.md.
+ATM machine
+CD disc
+HIV virus
+LCD display
+PIN number
+ISBN number
+for all intents and purposes
