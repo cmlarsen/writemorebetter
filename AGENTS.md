@@ -12,6 +12,10 @@ em dashes, deliberate fragments) is the primary input.
 Read `docs/FINDINGS.md` before making architectural decisions; it records what was measured and why this
 approach was chosen over Harper or the alexvinasdev nlprule fork.
 
+Prose style reports (sentence starts, echoes, overused words, clichés, dialogue tags, …) are planned as a
+separate `style/` crate. Read `docs/STYLE-REPORTS.md` before working on them or on `analyze()`. It records
+the structure, the baseline data sources, and the decisions behind them. Tracking issue: #241.
+
 ## Hard rules
 
 - **Never use the name "LanguageTool"** for the project, crates, packages, or binaries — it is a trademark of
@@ -39,3 +43,8 @@ approach was chosen over Harper or the alexvinasdev nlprule fork.
 English first. Other languages come later as data plus per-language builtins behind a per-language
 interface — keep English specifics out of the generic engine, but do not build other languages' special
 cases yet. N-gram confusion rules are out of scope for the on-device engine.
+
+The `style` crate diagnoses and never generates replacement prose. It holds no LGPL data, doesn't
+duplicate LanguageTool rules that `nlprule` ports, and never ships text from any corpus, only aggregate
+numbers (see
+`docs/STYLE-REPORTS.md`).
