@@ -206,10 +206,11 @@ is valid only for the toy predicate with validated controls. This PR claims no r
 ### Clichés and redundancies (#246)
 
 `python3 bench/style/run.py cliches --gate` builds `bench/tools/wmb-cliches` (or takes `--probe PATH`) and
-scores the cliché report's own tier 2 suite: 50 templates (30 positive, 20 negative) injected at the start of the 120 passages above,
-labelled `cliche|redundancy.narration|dialogue`, with clean/injected pairs so matches already in the clean
-passage are excluded rather than counted. Floors are in `tier2-cliches-baseline.json` (P/R/F1 1.0 on 80
-injections and 40 negative controls). See [the report notes](../../docs/STYLE-CLICHES.md).
+scores the cliché report's own tier 2 suite: 60 templates (35 positive, 25 negative) injected into the 120 passages above,
+each template once at a passage's start and once at a narration sentence boundary near its middle, in both
+hard-wrapped and default mode (240 documents). Rows are labelled `cliche|redundancy.narration|dialogue`, with
+clean/injected pairs so matches already in the clean passage are excluded rather than counted. Floors are in
+`tier2-cliches-baseline.json` (P/R/F1 1.0 on 140 injections and 100 negative controls). See [the report notes](../../docs/STYLE-CLICHES.md).
 
 `labels/example.jsonl` defines the hand-label format for judgment suites: the same `file`, `byte`,
 `utf16`, and `pattern` fields, plus `report` (`sentence_start`, `transition`, `pacing`), `labelers`

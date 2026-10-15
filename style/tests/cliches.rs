@@ -316,6 +316,29 @@ fn bundled_lists_are_complete() {
 }
 
 #[test]
+fn guard_and_slot_lists_name_vendored_entries() {
+    let normalize = |text: &str| text.replace(['’', '‘'], "'").to_lowercase();
+    let vendored: Vec<_> = vendored_phrase_entries()
+        .iter()
+        .map(|entry| normalize(&entry.phrase))
+        .collect();
+    for data in [
+        include_str!("../data/fixed-wording.txt"),
+        include_str!("../data/literal-guards.txt"),
+        include_str!("../data/open-slot.txt"),
+        include_str!("../data/suppressed.txt"),
+    ] {
+        for line in data.lines().map(str::trim) {
+            if line.is_empty() || line.starts_with('#') {
+                continue;
+            }
+            let phrase = normalize(line.split('\t').next().unwrap());
+            assert!(vendored.contains(&phrase), "{phrase}");
+        }
+    }
+}
+
+#[test]
 fn callers_can_supply_their_own_list() {
     let list = PhraseList::new(
         tokenizer(),
@@ -368,7 +391,7 @@ fn irregular_and_suppletive_lemmas_do_not_match() {
 }
 
 #[test]
-fn possessive_slot_is_optional_and_accepts_determiners() {
+fn open_slot_entries_accept_the_or_nothing() {
     assert_eq!(
         phrases(
             "She aired the dirty laundry. She aired dirty laundry. They aired the family's dirty \
@@ -395,6 +418,62 @@ fn possessive_slot_is_optional_and_accepts_determiners() {
 }
 
 #[test]
+fn other_slots_need_a_possessive() {
+    for text in [
+        "Hold the horses while I check the trail.",
+        "He held the horses at the ford.",
+        "She flipped the lid of the box open.",
+        "The dog was not in the backyard.",
+        "Two spinning wheels stood by the hearth.",
+        "He was yanking the chain of the anchor.",
+        "Every evening she gets the goat in from the field.",
+        "Don't burn the bridges until the army has crossed.",
+        "She put a foot down to steady herself.",
+        "The nurse licked the wounds clean.",
+        "He was pulling the leg of the table.",
+        "She burst the bubble with a pin.",
+        "The birds feather the nest with down.",
+        "Don't count the chickens until the fox is gone.",
+        "Eat that words.",
+    ] {
+        assert!(phrases(text).is_empty(), "{text}");
+    }
+    assert_eq!(
+        phrases("Hold your horses. She flipped the captain's lid. He was spinning his wheels."),
+        vec![
+            pair("hold your horses", "Hold your horses"),
+            pair("flip your lid", "flipped the captain's lid"),
+            pair("spinning your wheels", "spinning his wheels"),
+        ]
+    );
+}
+
+#[test]
+fn own_in_the_entry_is_not_taken_by_the_slot() {
+    assert_eq!(
+        phrases(
+            "He liked to blow his own horn. Blow your own horn. She held her own. He could hold \
+             his own in a fight. To each his own. To each their own, she said."
+        ),
+        vec![
+            pair("blow your own horn", "blow his own horn"),
+            pair("blow your own horn", "Blow your own horn"),
+            pair("hold your own", "held her own"),
+            pair("hold your own", "hold his own"),
+            pair("to each his own", "To each his own"),
+            pair("to each his own", "To each their own"),
+        ]
+    );
+    for text in [
+        "He blew own horn.",
+        "He blew the own horn.",
+        "She held the own.",
+    ] {
+        assert!(phrases(text).is_empty(), "{text}");
+    }
+}
+
+#[test]
 fn wits_end_accepts_the_singular_possessive() {
     assert_eq!(
         phrases("He was at his wit's end. At my wit’s end. At their wits’ end. At wits end."),
@@ -415,6 +494,8 @@ fn literal_body_part_uses_are_guarded() {
         "The dog lay in the straw and licked its wounds.",
         "The cat landed on its feet.",
         "He kicked the bucket of water across the yard.",
+        "She put her foot down on the brakes.",
+        "He put his foot down onto the deck.",
     ] {
         assert!(phrases(text).is_empty(), "{text}");
     }
@@ -426,6 +507,36 @@ fn literal_body_part_uses_are_guarded() {
             pair("land on your feet", "landed on his feet"),
         ]
     );
+    assert_eq!(
+        phrases(
+            "Old Tom kicked the bucket over Christmas. She put her foot down on that plan. He put \
+             his foot down on the matter of the dog."
+        ),
+        vec![
+            pair("kick the bucket", "kicked the bucket"),
+            pair("put your foot down", "put her foot down"),
+            pair("put your foot down", "put his foot down"),
+        ]
+    );
+}
+
+#[test]
+fn caller_entries_naming_its_keep_it() {
+    let list = PhraseList::new(
+        tokenizer(),
+        vec![PhraseEntry::new(
+            PhraseKind::Cliche,
+            "rear its ugly head",
+            "custom",
+        )],
+    );
+    let text = "The problem reared its ugly head.";
+    let result = cliches(
+        &analyze_document(tokenizer(), text, &DocumentOptions::new()),
+        &list,
+    );
+    assert_eq!(result.matches.len(), 1);
+    assert_span(text, &result.matches[0].span, "reared its ugly head");
 }
 
 #[test]

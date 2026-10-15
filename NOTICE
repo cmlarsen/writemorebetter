@@ -40,5 +40,6 @@ license text is in style/data/licenses/.
   Deadline, GPL-2.0; Garner's Modern American Usage; Richard Nordquist; David
   Foster Wallace).
 
-style/data/suppressed.txt, style/data/fixed-wording.txt and
-style/data/literal-guards.txt are writemorebetter's own lists (MIT OR Apache-2.0).
+style/data/suppressed.txt, style/data/fixed-wording.txt,
+style/data/literal-guards.txt and style/data/open-slot.txt are writemorebetter's
+own lists (MIT OR Apache-2.0).

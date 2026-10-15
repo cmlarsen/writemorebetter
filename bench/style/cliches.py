@@ -8,6 +8,8 @@ import tier2
 
 BASELINE = HERE / 'tier2-cliches-baseline.json'
 MARK = re.compile(r'\[([^\]]*)\]')
+BOUNDARY = re.compile(r'\b[a-z]{2,}[.!?]\s+(?=[A-Z])')
+MODES = (('hard', True), ('soft', False))
 
 TEMPLATES = [
     ('He had [kicked the bucket] at last, they said.', 'cliche', 'narration'),
@@ -40,6 +42,11 @@ TEMPLATES = [
     ('She [aired the dirty laundry] at supper.', 'cliche', 'narration'),
     ('He was [at his wit’s end] by Friday.', 'cliche', 'narration'),
     ('“I have [put my foot down],” said Mr. Bennet.', 'cliche', 'dialogue'),
+    ('He liked to [blow his own horn] at dinner.', 'cliche', 'narration'),
+    ('She [held her own] against the three of them.', 'cliche', 'narration'),
+    ('“[To each his own],” said Stubb.', 'cliche', 'dialogue'),
+    ('Old Tom [kicked the bucket] over Christmas.', 'cliche', 'narration'),
+    ('She [put her foot down] on that plan.', 'cliche', 'narration'),
     ('The pin number was painted on the skittle.', None, None),
     ('He kicked the old bucket across the yard.', None, None),
     ('That was the insult. To injury he added nothing.', None, None),
@@ -60,6 +67,11 @@ TEMPLATES = [
     ('She was three years younger than her sister.', None, None),
     ('Sailors spoke of it in their dreams.', None, None),
     ('He sat on the rocking chair.', None, None),
+    ('Hold the horses while I check the trail.', None, None),
+    ('He held the horses at the ford.', None, None),
+    ('She flipped the lid of the box open.', None, None),
+    ('The dog was not in the backyard.', None, None),
+    ('Two spinning wheels stood by the hearth.', None, None),
 ]
 
 
@@ -74,9 +86,17 @@ def parse(template):
     return text + template[shift:], spans
 
 
-def inject(clean, sentence):
+def boundaries(clean):
+    for match in BOUNDARY.finditer(clean):
+        before = clean[:match.end()]
+        if before.count('“') == before.count('”') and before.count('"') % 2 == 0:
+            yield match.end()
+
+
+def inject(clean, sentence, middle=False):
     insertion = sentence + ' '
-    return insertion + clean, 0, len(insertion)
+    at = min(boundaries(clean), key=lambda at: abs(at - len(clean) // 2), default=0) if middle else 0
+    return clean[:at] + insertion + clean[at:], at, len(insertion)
 
 
 def utf16_len(text):
@@ -106,23 +126,28 @@ def label(kind, context):
 
 def generate(passages):
     documents, gold, pairs = [], [], []
-    for number, (book, index, clean) in enumerate(passages):
-        template, kind, context = TEMPLATES[number % len(TEMPLATES)]
-        sentence, spans = parse(template)
-        text, at, length = inject(clean, sentence)
-        insertion = text[at:at + length]
-        offset = at
-        file = f'{book}-{index:03}.txt'
-        for start, end in spans:
-            gold.append({'file': file, 'report': 'cliches', 'pattern': label(kind, context),
-                         **offsets(text, offset + start, offset + end)})
-        documents.append({'file': file, 'source': book, 'injected': kind is not None})
-        pairs.append((file, clean, text, at, insertion))
+    for mode, _hard_wrapped in MODES:
+        for number, (book, index, clean) in enumerate(passages):
+            template, kind, context = TEMPLATES[number % len(TEMPLATES)]
+            if mode == 'soft':
+                template = template.replace('\n', ' ')
+            sentence, spans = parse(template)
+            middle = number // len(TEMPLATES) % 2 == 1
+            text, at, length = inject(clean, sentence, middle)
+            insertion = text[at:at + length]
+            file = f'{book}-{index:03}-{mode}.txt'
+            for start, end in spans:
+                gold.append({'file': file, 'report': 'cliches', 'pattern': label(kind, context),
+                             **offsets(text, at + start, at + end)})
+            documents.append({'file': file, 'source': book, 'mode': mode,
+                              'position': 'middle' if at else 'start', 'injected': kind is not None})
+            pairs.append((file, clean, text, at, insertion))
     return documents, gold, pairs
 
 
-def predict(probe, tokenizer, rows):
-    result = subprocess.run([str(probe), '--predict', str(tokenizer), '--hard-wrapped'],
+def predict(probe, tokenizer, rows, hard_wrapped=True):
+    flags = ['--hard-wrapped'] if hard_wrapped else []
+    result = subprocess.run([str(probe), '--predict', str(tokenizer), *flags],
                             input=''.join(json.dumps(row, ensure_ascii=False) + '\n' for row in rows),
                             capture_output=True, text=True, encoding='utf-8', check=True)
     predictions = [json.loads(line) for line in result.stdout.splitlines() if line.strip()]
@@ -167,12 +192,18 @@ def run(args):
     args.out.mkdir(parents=True, exist_ok=True)
     write_jsonl(args.out / 'documents.jsonl', documents)
     write_jsonl(args.out / 'answers.jsonl', gold)
-    clean = predict(probe, args.tokenizer, [{'file': f, 'text': c} for f, c, *_ in pairs])
-    injected = predict(probe, args.tokenizer, [{'file': f, 'text': t} for f, _c, t, *_ in pairs])
+    clean, injected = [], []
+    for mode, hard_wrapped in MODES:
+        rows = [pair for pair in pairs if pair[0].endswith(f'-{mode}.txt')]
+        clean += predict(probe, args.tokenizer, [{'file': f, 'text': c} for f, c, *_ in rows],
+                         hard_wrapped)
+        injected += predict(probe, args.tokenizer, [{'file': f, 'text': t} for f, _c, t, *_ in rows],
+                            hard_wrapped)
     write_jsonl(args.out / 'predictions.jsonl', injected)
     scored, natural_hits, natural_kept = evaluate(pairs, documents, gold, clean, injected)
     total = micro(scored)
     result = {'documents': len(documents),
+              'middle_injections': sum(row['position'] == 'middle' for row in documents),
               'injected': sum(row['injected'] for row in documents),
               'negative_controls': sum(not row['injected'] for row in documents),
               'gold': len(gold), 'natural_hits_in_clean_text': natural_hits,

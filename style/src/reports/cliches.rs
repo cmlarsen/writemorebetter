@@ -13,6 +13,7 @@ const PROSELINT_RAS: &str = include_str!("../../data/redundancy/proselint-ras.ts
 const SUPPRESSED: &str = include_str!("../../data/suppressed.txt");
 const FIXED_WORDING: &str = include_str!("../../data/fixed-wording.txt");
 const LITERAL_GUARDS: &str = include_str!("../../data/literal-guards.txt");
+const OPEN_SLOT: &str = include_str!("../../data/open-slot.txt");
 
 const ARTICLES: &[&str] = &["a", "an", "the"];
 const DETERMINERS: &[&str] = &["a", "an", "the", "this", "that"];
@@ -107,6 +108,8 @@ pub struct PhraseEntry {
     #[serde(default)]
     pub fixed_wording: bool,
     #[serde(default)]
+    pub open_slot: bool,
+    #[serde(default)]
     pub not_followed_by: Vec<String>,
 }
 
@@ -118,6 +121,7 @@ impl PhraseEntry {
             source: source.into(),
             acronym: None,
             fixed_wording: false,
+            open_slot: false,
             not_followed_by: Vec::new(),
         }
     }
@@ -127,6 +131,10 @@ impl PhraseEntry {
     }
     pub fn with_fixed_wording(mut self, fixed_wording: bool) -> Self {
         self.fixed_wording = fixed_wording;
+        self
+    }
+    pub fn with_open_slot(mut self, open_slot: bool) -> Self {
+        self.open_slot = open_slot;
         self
     }
     pub fn with_not_followed_by(mut self, words: Vec<String>) -> Self {
@@ -157,8 +165,9 @@ enum Element {
 struct Pattern {
     entry: usize,
     optional_article: bool,
+    open_slot: bool,
     body_part: bool,
-    not_followed_by: BTreeSet<String>,
+    not_followed_by: Vec<Vec<String>>,
     elements: Vec<(Element, bool)>,
 }
 
@@ -268,12 +277,13 @@ pub fn vendored_phrase_entries() -> Vec<PhraseEntry> {
         );
     }
     let fixed: BTreeSet<_> = lines(FIXED_WORDING).map(normalize).collect();
+    let open: BTreeSet<_> = lines(OPEN_SLOT).map(normalize).collect();
     let guards: HashMap<_, _> = lines(LITERAL_GUARDS)
         .filter_map(|line| line.split_once('\t'))
-        .map(|(phrase, words)| {
+        .map(|(phrase, guards)| {
             (
                 normalize(phrase),
-                words.split_whitespace().map(normalize).collect::<Vec<_>>(),
+                guards.split('\t').map(normalize).collect::<Vec<_>>(),
             )
         })
         .collect();
@@ -282,6 +292,7 @@ pub fn vendored_phrase_entries() -> Vec<PhraseEntry> {
     for entry in &mut entries {
         let key = normalize(&entry.phrase);
         entry.fixed_wording = fixed.contains(&key);
+        entry.open_slot = open.contains(&key);
         entry.not_followed_by = guards.get(&key).cloned().unwrap_or_default();
     }
     entries
@@ -400,17 +411,20 @@ fn compile(tokenizer: &Tokenizer, index: usize, entry: &PhraseEntry) -> Option<P
     if elements.len() < 2 {
         return None;
     }
-    let body_part = elements.iter().any(
-        |(element, _)| matches!(element, Element::Word { surface, .. } if BODY_PARTS.contains(&surface.as_str())),
-    );
+    let body_part = !tokens.iter().any(|token| normalize(&token.text) == "its")
+        && elements.iter().any(
+            |(element, _)| matches!(element, Element::Word { surface, .. } if BODY_PARTS.contains(&surface.as_str())),
+        );
     Some(Pattern {
         entry: index,
         optional_article,
+        open_slot: entry.open_slot,
         body_part,
         not_followed_by: entry
             .not_followed_by
             .iter()
-            .map(|word| normalize(word))
+            .map(|guard| guard.split_whitespace().map(normalize).collect::<Vec<_>>())
+            .filter(|guard| !guard.is_empty())
             .collect(),
         elements,
     })
@@ -471,6 +485,7 @@ struct Item {
     span: Span,
     is_word: bool,
     is_skipped: bool,
+    name_end: usize,
     keys: BTreeSet<String>,
 }
 
@@ -499,8 +514,8 @@ fn match_owner(stream: &[Item], at: usize) -> Option<usize> {
     (owner.is_word && is_clitic(clitic) && adjacent(owner, clitic)).then_some(at + 2)
 }
 
-fn skip_own(stream: &[Item], at: usize) -> usize {
-    if stream.get(at).is_some_and(|item| item.surface == "own") {
+fn skip_own(stream: &[Item], at: usize, rules: SlotRules) -> usize {
+    if !rules.own_next && stream.get(at).is_some_and(|item| item.surface == "own") {
         at + 1
     } else {
         at
@@ -510,13 +525,16 @@ fn skip_own(stream: &[Item], at: usize) -> usize {
 fn match_possessive(stream: &[Item], at: usize, rules: SlotRules) -> Option<usize> {
     let surface = stream.get(at).map_or("", |item| item.surface.as_str());
     if POSSESSIVES.contains(&surface) && !(rules.body_part && surface == "its") {
-        return Some(skip_own(stream, at + 1));
+        return Some(skip_own(stream, at + 1, rules));
     }
     let determiner = DETERMINERS.contains(&surface);
     if let Some(end) = match_owner(stream, at + usize::from(determiner)) {
-        return Some(skip_own(stream, end));
+        return Some(skip_own(stream, end, rules));
     }
-    if determiner {
+    if !rules.open || rules.own_next {
+        return None;
+    }
+    if surface == "the" {
         return Some(at + 1);
     }
     rules.optional.then_some(at)
@@ -529,15 +547,8 @@ fn match_slot(stream: &[Item], at: usize, slot: Slot, rules: SlotRules) -> Optio
         if PERSONAL.contains(&surface) {
             return Some(at + 1);
         }
-        if token.is_some_and(|item| item.is_skipped) {
-            let mut end = at;
-            while stream
-                .get(end)
-                .is_some_and(|item| item.is_skipped && !is_clitic(item))
-            {
-                end += 1;
-            }
-            return Some(end);
+        if let Some(item) = token.filter(|item| item.is_skipped) {
+            return Some(item.name_end);
         }
     }
     if matches!(slot, Slot::Possessive | Slot::PossessiveOrPersonal) {
@@ -556,6 +567,8 @@ fn comparative(pattern: &str, text: &str) -> bool {
 #[derive(Debug, Clone, Copy)]
 struct SlotRules {
     optional: bool,
+    open: bool,
+    own_next: bool,
     body_part: bool,
 }
 
@@ -605,6 +618,11 @@ fn match_pattern(stream: &[Item], start: usize, pattern: &Pattern) -> Option<usi
         }
         let rules = SlotRules {
             optional: index > 0,
+            open: pattern.open_slot,
+            own_next: matches!(
+                pattern.elements.get(index + 1),
+                Some((Element::Word { surface, .. }, _)) if surface == "own"
+            ),
             body_part: pattern.body_part,
         };
         at = match_element(stream, at, element, rules)?;
@@ -612,14 +630,15 @@ fn match_pattern(stream: &[Item], start: usize, pattern: &Pattern) -> Option<usi
             return None;
         }
     }
-    let end = at - 1;
-    let next = stream
-        .get(at)
-        .filter(|item| item.sentence == stream[start].sentence);
-    if next.is_some_and(|item| pattern.not_followed_by.contains(&item.surface)) {
-        return None;
-    }
-    Some(end)
+    let sentence = stream[start].sentence;
+    let guarded = pattern.not_followed_by.iter().any(|guard| {
+        guard.iter().enumerate().all(|(offset, word)| {
+            stream.get(at + offset).is_some_and(|item| {
+                item.sentence == sentence && (item.surface == *word || item.keys.contains(word))
+            })
+        })
+    });
+    (!guarded).then_some(at - 1)
 }
 
 fn token_keys(document: &Document) -> HashMap<(usize, usize, usize), Vec<&str>> {
@@ -704,10 +723,18 @@ pub fn cliches(document: &Document, phrases: &PhraseList) -> ClicheReport {
                         span,
                         is_word: token.is_word,
                         is_skipped: token.is_skipped,
+                        name_end: 0,
                         keys: item_keys,
                     });
                 }
             }
+        }
+        let mut name_end = stream.len();
+        for (index, item) in stream.iter_mut().enumerate().rev() {
+            if !item.is_skipped || is_clitic(item) {
+                name_end = index;
+            }
+            item.name_end = name_end;
         }
         for start in 0..stream.len() {
             let candidates = stream[start]

@@ -1,0 +1,11 @@
+# Entries whose possessive slot may also be "the" or empty ("aired the dirty laundry", "at wits end").
+# Other entries need a possessive determiner or a possessive noun there.
+air your dirty laundry
+at my wits end
+bide your time
+count your blessings
+jog your memory
+make your blood boil
+play your cards right
+pull your punches
+set your teeth on edge

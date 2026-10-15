@@ -14,7 +14,8 @@ The report is the public module `reports::cliches`; nothing is re-exported at th
 `reports`. Build the `PhraseList` once per tokenizer and cache it (compiling the bundled list analyzes
 each of its 882 entries; bindings should do this once, which matters most on WASM and iOS).
 `PhraseList::new(&tokenizer, entries)` takes a caller-supplied list instead: each `PhraseEntry` has a
-kind, phrase, source, optional acronym, a fixed-wording flag and `not_followed_by` words. This is the
+kind, phrase, source, optional acronym, a fixed-wording flag, an open-slot flag and `not_followed_by`
+guards (each a word or a space-separated word sequence). This is the
 extension point for a later, owner-approved redundancy list. `PhraseList::len()` counts compiled
 patterns; an entry with fewer than two words after an optional leading article is dropped, so a
 caller-supplied list can compile to fewer patterns than `entries().len()`.
@@ -45,26 +46,36 @@ suppressed; the caller decides whether to show them.
   more, most, less, least, further, farther, elder* and their superlatives) never match a different list
   word by lemma: "years younger" is not *years young* and "worse to the bone" is not *bad to the bone*.
 - **Slots.** A possessive determiner in an entry is a slot. It matches any possessive determiner,
-  optionally followed by *own*; a possessive noun phrase (`the captain’s`, `Mara’s`, `the Joneses’`); a
-  plain determiner (`the`, `a`, `this`, `that`); or nothing, unless the slot is the entry's first word.
-  So "air your dirty laundry" matches "aired her own dirty laundry", "aired the dirty laundry" and "aired
-  dirty laundry". In entries naming a body part (*hair, foot, feet, tongue, wounds*, …) the slot rejects
-  *its*, so "the cat landed on its feet" and "the dog licked its wounds" are not flagged. Personal
+  optionally followed by *own*, or a possessive noun phrase (`the captain’s`, `Mara’s`, `the Joneses’`).
+  So "hold your horses" matches "held his horses" and "held the captain’s horses", but not "held the
+  horses", which is usually literal. When the entry's next word is *own* ("blow your own horn", "hold
+  your own", "to each his own"), the slot leaves *own* to the entry and needs a possessive. Entries in
+  `style/data/open-slot.txt`, an owner-authored list of idioms whose plain form is also idiomatic, accept
+  `the` or nothing as well, unless the slot is the entry's first word: "air your dirty laundry" also
+  matches "aired the dirty laundry" and "aired dirty laundry", and "at my wits end" matches "at wits
+  end". `PhraseEntry::with_open_slot` sets this for caller-supplied entries. In entries naming a body
+  part (*hair, foot, feet, tongue, wounds*, …) the slot rejects *its*, so "the cat landed on its feet"
+  and "the dog licked its wounds" are not flagged; an entry that itself says *its* ("rear its ugly
+  head") keeps it. Personal
   pronouns match any personal pronoun or a skipped name; reflexives match any reflexive. An entry-initial
   `a`/`an`/`the` is optional, and the span includes a preceding article or possessive determiner
   ("his far cry", but not "that far cry"). A list word ending in *s* also matches the singular
   possessive: "at my wits end" matches "at his wit's end" and "at her wits’ end".
 - **Guards.** `style/data/fixed-wording.txt` lists entries whose pronouns are part of the idiom ("in your
   dreams", "mark my words"); those match their own pronouns only. `style/data/literal-guards.txt` lists
-  following words that mark a literal use: "let her hair down **from**", "put her foot down **on**",
-  "kicked the bucket **of** water".
+  following words or word sequences that mark a literal use: "let her hair down **from**", "put her foot
+  down **on the brake**", "kicked the bucket **of** water". Guards match a following word's surface or
+  lemma ("on the brakes"). They are kept narrow because each costs recall: "put her foot down on that
+  plan" and "kicked the bucket over Christmas" are idiomatic and still flagged.
 - **Spacing and punctuation.** Matches run across any whitespace inside one sentence, including hard
   line wraps in `hard_wrapped` mode, CRLF, NBSP, tabs and U+2028, but never across sentences or
   paragraphs: "It was all talk… No action came." is not *all talk, no action*. Hyphens are optional
   ("red handed" matches "red-handed", "bird’s-eye view" matches "bird's eye view"). Commas, dashes and
   semicolons are accepted only where the entry has punctuation, plus a serial comma before `and`/`or`.
   Curly and straight apostrophes are equivalent.
-- **Names.** Skipped names never match a list word: with `skip_names: ["Jack"]`, "Jack of all trades"
+- **Names.** A run of skipped names fills a personal-pronoun slot ("go Mara Quinn one better"); the
+  end of each run is found once per paragraph, so long runs cost linear time. Skipped names never match
+  a list word: with `skip_names: ["Jack"]`, "Jack of all trades"
   is not flagged but "a jack of all trades" is.
 - **Acronyms.** Redundancy entries built from acronyms require the acronym in capitals, optionally
   plural (`UPC codes`, not `upc codes`).
@@ -74,7 +85,9 @@ suppressed; the caller decides whether to show them.
 Known precision limits: the lists mark no literal readings, so a literal action that fiction describes
 often can still be flagged when no guard applies. Examples: "crossing the ford, she got her feet wet",
 "the salt sat on the tip of her tongue", "he jumped and landed on his feet". Add guards to
-`literal-guards.txt` (an owner-authored list, allowed under the data rules) as they are found.
+`literal-guards.txt` (an owner-authored list, allowed under the data rules) as they are found. "On
+the tip of my tongue" is left out of `open-slot.txt` because "the tip of the tongue" is usually
+anatomy.
 
 ## Data
 
@@ -124,24 +137,30 @@ phrases.
 
 ## Accuracy
 
-`python3 bench/style/run.py cliches --gate` is the tier 2 suite. It injects 50 sentence templates at
-the start of the 120 pinned Standard Ebooks passages. The 30 positive templates cover inflected forms,
-slots (including an empty slot and "wit's end"), hard wraps, U+2028, curly quotes and apostrophes, em
-dashes, ellipses, dialogue and acronyms. The 20 negative templates are near-misses and the PR #267
-review's false positives ("a good half hour", "a bad nightmare", "shooting in the dark", "licked its
-wounds", "all talk… No action", "years younger", …). It runs the detector on both the clean and the
-injected text, and drops matches already present in the clean passage before scoring exact spans with
-`kind.context` labels. Measured 2026-10-15: precision, recall and F1 1.0 (80/80/80) with 40 negative
-controls and 1 natural hit in the clean passages; floors are in
-`bench/style/tier2-cliches-baseline.json`. The templates were written against this matcher, so the
-suite is a regression gate, not an accuracy claim on natural prose. It injects only at a passage's
-start and runs in hard-wrapped mode.
+`python3 bench/style/run.py cliches --gate` is the tier 2 suite. It injects 60 sentence templates into
+the 120 pinned Standard Ebooks passages, each template once at a passage's start and once at a narration
+sentence boundary near its middle (passages with no such boundary fall back to the start: 39 of 60), and
+runs every passage in both hard-wrapped and default mode, so 240 documents. The 35 positive templates
+cover inflected forms, slots (including an open slot and "wit's end"), entries ending in *own*, hard
+wraps (joined with a space in default mode), U+2028, curly quotes and apostrophes, em dashes, ellipses,
+dialogue, acronyms and idioms a literal guard must not suppress. The 25 negative templates are
+near-misses and the PR #267 reviews' false positives ("a good half hour", "a bad nightmare", "shooting
+in the dark", "licked its wounds", "all talk… No action", "years younger", "held the horses", "flipped
+the lid", "not in the backyard", "two spinning wheels", …). It runs the detector on both the clean and
+the injected text, and drops matches already present in the clean passage before scoring exact spans
+with `kind.context` labels. Measured 2026-10-15: precision, recall and F1 1.0 (140/140/140) with 100
+negative controls and 2 natural hits in the clean passages; floors are in
+`bench/style/tier2-cliches-baseline.json`. Reverting either re-review fix fails the gate (recall 0.914
+when the slot takes the entry's *own*, precision 0.875 when every slot is open). The templates were
+written against this matcher, so the suite is a regression gate, not an accuracy claim on natural
+prose.
 
 As an unscored audit, the bundled lists over every chapter paragraph of the two pinned books (4,621
 paragraphs) give 31 matches (23 narration, 8 dialogue), all idiomatic uses on one reviewer's reading,
 for example "hold her tongue", "high and dry", "adding insult to injury". The three false-positive
 kinds that audit first found ("years younger", "in their dreams", "on the rocking") are now fixture
-guards; the review fixes left the audit unchanged (the same 31 matches).
+guards; both rounds of review fixes left the audit unchanged (the same 31 matches, byte-identical, in
+hard-wrapped and default mode).
 
 ## Cost
 

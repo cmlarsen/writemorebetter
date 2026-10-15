@@ -15,6 +15,13 @@ class ClicheSuiteTest(unittest.TestCase):
             self.assertEqual(bool(spans), kind is not None, template)
             self.assertIn(context, (None, 'narration', 'dialogue'))
 
+    def test_middle_injection_lands_on_a_narration_sentence_boundary(self):
+        clean = 'He went home. “It is late. Go.” Mr. Smith left. She sat down at last. Then she slept.'
+        text, at, length = cliches.inject(clean, 'It was [a far cry].', middle=True)
+        self.assertEqual(clean[:at], 'He went home. “It is late. Go.” Mr. Smith left. ')
+        self.assertEqual(text[at:at + length], 'It was [a far cry]. ')
+        self.assertEqual(cliches.inject('No boundary here', 'X.', middle=True)[1], 0)
+
     def test_natural_hits_are_shifted_and_excluded(self):
         clean = 'He was “high and dry”.'
         sentence, spans = cliches.parse('It was [a far cry].')
