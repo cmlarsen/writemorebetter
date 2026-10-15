@@ -23,9 +23,13 @@ The public types are in `nlprule::analysis`:
 - `AnalysisSentence`: original sentence text, span, and tokens.
 - `AnalysisToken`: original surface text, span, paired lemma/POS readings after disambiguation,
   chunk tags, and `is_whitespace` / `is_punctuation` flags.
-- `AnalysisReading`: one lemma and POS pair. Several readings preserve genuine ambiguity; neither
-  their order nor the tag set is a cross-language contract.
+- `AnalysisReading`: one lemma and POS pair. Readings can repeat and can include LanguageTool-internal
+  tags such as `_apostrophe_contraction_`. Consumers should count tokens, not readings. The engine
+  preserves duplicates; neither reading order nor the tag set is a cross-language contract.
 - `AnalysisSpan`: absolute, half-open `byte`, `char` (Unicode scalar) and `utf16` ranges into the input.
+
+These four Rust structs are `#[non_exhaustive]` so fields can be added without requiring exhaustive
+construction or destructuring by callers.
 
 Normalized apostrophes stay confined to linguistic readings; surface text is always taken from the
 original input at checked UTF-8 boundaries. Internal matcher sentinel readings (empty POS, UNKNOWN,
@@ -37,11 +41,15 @@ Whitespace gaps omitted by the internal pipeline are reconstructed with empty re
 Each input token is returned once; token spans partition each returned sentence, without synthetic
 sentence-marker tokens. Sentence boundaries and trailing-whitespace inclusion follow `pipe()`.
 Empty or whitespace-only input returns an empty vector. This method does not impose new paragraph
-boundaries or detect dialogue.
+boundaries or detect dialogue. A single newline does not split sentences. Sentence spans need not
+align with paragraphs or cover trailing whitespace; derive paragraph boundaries from the original
+text rather than from sentence endings.
 
 `analyze()` uses the caller's already-loaded tokenizer, as does `Rules::suggest()`. It does not load
 another tokenizer, and it does not keep the raw token copies needed by a few grammar rules.
 Separate calls to `analyze()` and `suggest()` analyze their respective inputs independently.
+The user dictionary (`addWords` in the bindings) changes spelling checks in `Rules`, not the tokenizer,
+so it does not affect `analyze()` or supply readings for added names.
 
 ## Swift and WASM
 
@@ -61,8 +69,11 @@ observe the convention documented for each method.
 
 The invented inputs and checked-in transcripts under
 [`nlprule/tests/fixtures/analysis`](../nlprule/tests/fixtures/analysis/README.md) come from the pinned
-LanguageTool 6.6 CLI's `--taggeronly` output. Tests assert selected independent lemma/POS readings
-and a chunk tag, including a multiword entry and `goin'`. Span tests cover curly quotes/apostrophes,
+LanguageTool 6.6 CLI's `--taggeronly` output. Tests parse every transcript and compare the full sets of
+lemma/POS readings and chunk tags for each non-whitespace token in order, alongside readable spot
+checks including a multiword entry and `goin'`. The named `emoji_noun_phrase_chunk` allowlist entry
+records the existing emoji chunk divergence in `fiction_unicode`; readings have no exceptions.
+Span tests cover curly quotes/apostrophes,
 em dash, ellipsis, U+2028, paragraph breaks, combining marks, and non-BMP characters. Swift and Node
 slice the original strings using UTF-16 offsets and alternate `analyze()` with `check()` on the same
 checker. The export does not claim to fix the engine's existing analysis/conformance gaps.
@@ -87,10 +98,10 @@ Compared with main at `5259287`, using freshly compiled English 6.6 data:
 
 The passing conformance IDs and public recall probe outputs are identical. Recall used
 `python3 bench/tools/recall.py --truth bench/public/truth.json --runs <probe-output-directory>`.
-The default private-corpus recall gate could not run: this checkout lacks
-`bench/corpus/truth.json`. Public recall does not establish private-corpus recall.
+Private recall was run locally by the owner: 46/50, unchanged, with identical flags. This session
+does not access the private corpus, which is withheld by policy.
 
-Rust workspace tests (excluding the unmaintained Python binding) passed 487 tests; Swift passed
+Rust workspace tests (excluding the unmaintained Python binding) passed 488 tests; Swift passed
 nine tests, and the Node WASM binding tests passed. Clippy and Rust formatting checks passed.
 All 12 existing public golden suggestion files matched.
 

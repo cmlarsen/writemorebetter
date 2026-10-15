@@ -8,10 +8,11 @@ use std::ops::Range;
 use serde::{Deserialize, Serialize};
 use unicode_categories::UnicodeCategories;
 
-use crate::Tokenizer;
+use crate::{tokenizer::tag::SpecialPos, Tokenizer};
 
 /// A range into the original input in three offset conventions.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct AnalysisSpan {
     /// UTF-8 byte offsets, suitable for slicing a Rust string.
     pub byte: Range<usize>,
@@ -23,6 +24,7 @@ pub struct AnalysisSpan {
 
 /// One possible lemma and POS reading after disambiguation.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct AnalysisReading {
     /// Lemma, which can differ from the surface text.
     pub lemma: String,
@@ -32,12 +34,14 @@ pub struct AnalysisReading {
 
 /// An owned token, including whitespace reconstructed between pipeline tokens.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct AnalysisToken {
     /// Original surface text, without normalization.
     pub text: String,
     /// Absolute input span.
     pub span: AnalysisSpan,
     /// Paired lemma/POS readings after disambiguation; empty for whitespace and unknowns.
+    /// Readings can repeat and include internal linguistic tags; count tokens, not readings.
     pub readings: Vec<AnalysisReading>,
     /// Chunk tags assigned by the tokenizer.
     pub chunks: Vec<String>,
@@ -49,6 +53,7 @@ pub struct AnalysisToken {
 
 /// An owned sentence from the tokenizer's full analysis pipeline.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct AnalysisSentence {
     /// Original sentence text, including whitespace retained by the sentence splitter.
     pub text: String,
@@ -107,10 +112,7 @@ impl Tokenizer {
                         .tags()
                         .iter()
                         .filter(|reading| {
-                            !matches!(
-                                reading.pos().as_str(),
-                                "" | "UNKNOWN" | "SENT_START" | "SENT_END"
-                            )
+                            !SpecialPos::iter().any(|pos| pos == reading.pos().as_str())
                         })
                         .map(|reading| AnalysisReading {
                             lemma: reading.lemma().as_str().to_owned(),

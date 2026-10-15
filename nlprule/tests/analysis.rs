@@ -1,5 +1,6 @@
 use lazy_static::lazy_static;
 use nlprule::{analysis::AnalysisSentence, Tokenizer};
+use std::{collections::BTreeSet, fs, path::Path};
 
 lazy_static! {
     static ref TOKENIZER: Tokenizer = Tokenizer::new("../storage/en_tokenizer.bin").unwrap();
@@ -16,6 +17,142 @@ fn readings(sentences: &[AnalysisSentence], surface: &str) -> Vec<(String, Strin
         .iter()
         .map(|r| (r.lemma.clone(), r.pos.clone()))
         .collect()
+}
+
+#[derive(Debug)]
+struct ReferenceToken {
+    text: String,
+    readings: BTreeSet<(String, String)>,
+    chunks: BTreeSet<String>,
+}
+
+/// Parse the CLI's surface[lemma/POS,...,chunk|chunk] format, including adjacent tokens.
+fn parse_taggeronly(transcript: &str) -> Vec<ReferenceToken> {
+    let mut tokens = Vec::new();
+    for line in transcript.lines() {
+        let mut rest = line.strip_prefix("<S> ").expect("CLI sentence marker");
+        while !rest.trim().is_empty() {
+            let (surface, tagged) = rest.split_once('[').expect("CLI token opening bracket");
+            let (tags, remaining) = tagged.split_once(']').expect("CLI token closing bracket");
+            let mut token = ReferenceToken {
+                text: surface.trim().to_owned(),
+                readings: BTreeSet::new(),
+                chunks: BTreeSet::new(),
+            };
+            assert!(!token.text.is_empty(), "unexpected empty CLI token");
+            for tag in tags.split(',') {
+                let tag = tag.strip_prefix("</S>").unwrap_or(tag);
+                if let Some((lemma, pos)) = tag.rsplit_once('/') {
+                    // Keep this independent of the engine's SpecialPos list.
+                    if !matches!(pos, "null" | "" | "UNKNOWN" | "SENT_START" | "SENT_END") {
+                        token.readings.insert((lemma.to_owned(), pos.to_owned()));
+                    }
+                } else {
+                    token.chunks.extend(tag.split('|').map(str::to_owned));
+                }
+            }
+            tokens.push(token);
+            rest = remaining;
+        }
+    }
+    tokens
+}
+
+struct KnownChunkDivergence {
+    name: &'static str,
+    fixture: &'static str,
+    token_index: usize,
+    surface: &'static str,
+    reference: &'static [&'static str],
+    actual: &'static [&'static str],
+}
+
+// Existing chunker gap (review #255 finding 5d), not a reading or tokenization exception.
+const KNOWN_CHUNK_DIVERGENCES: &[KnownChunkDivergence] = &[KnownChunkDivergence {
+    name: "emoji_noun_phrase_chunk",
+    fixture: "fiction_unicode",
+    token_index: 0,
+    surface: "😀",
+    reference: &[],
+    actual: &["B-NP-singular"],
+}];
+
+#[test]
+fn every_lt66_transcript_matches_all_token_reading_and_chunk_sets() {
+    let directory = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/analysis");
+    let mut fixtures: Vec<_> = fs::read_dir(directory)
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .filter(|path| path.to_str().unwrap().ends_with(".tags.txt"))
+        .collect();
+    fixtures.sort();
+    assert!(!fixtures.is_empty(), "no CLI reference transcripts found");
+    let mut used_divergences = BTreeSet::new();
+    for path in fixtures {
+        let fixture = path
+            .file_name()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .strip_suffix(".tags.txt")
+            .unwrap();
+        let text = fs::read_to_string(path.with_file_name(format!("{fixture}.txt"))).unwrap();
+        let reference = parse_taggeronly(&fs::read_to_string(&path).unwrap());
+        let analysis = TOKENIZER.analyze(&text);
+        let actual: Vec<_> = analysis
+            .iter()
+            .flat_map(|s| &s.tokens)
+            .filter(|t| !t.is_whitespace)
+            .collect();
+        assert_eq!(actual.len(), reference.len(), "{fixture}: token count");
+        for (index, (actual, reference)) in actual.iter().zip(&reference).enumerate() {
+            let context = format!("{fixture}: token {index} ({:?})", actual.text);
+            // The CLI prints straight apostrophes; analyze preserves the input surface.
+            assert_eq!(
+                actual.text.replace('’', "'"),
+                reference.text,
+                "{context}: surface"
+            );
+            let readings: BTreeSet<_> = actual
+                .readings
+                .iter()
+                .map(|r| (r.lemma.clone(), r.pos.clone()))
+                .collect();
+            assert_eq!(readings, reference.readings, "{context}: readings");
+            let chunks: BTreeSet<_> = actual.chunks.iter().cloned().collect();
+            if let Some(known) = KNOWN_CHUNK_DIVERGENCES
+                .iter()
+                .find(|known| known.fixture == fixture && known.token_index == index)
+            {
+                assert_eq!(actual.text, known.surface, "{context}: allowlist surface");
+                assert_eq!(
+                    reference.chunks,
+                    known.reference.iter().map(|s| (*s).to_owned()).collect(),
+                    "{context}: reference chunks changed"
+                );
+                assert_eq!(
+                    chunks,
+                    known.actual.iter().map(|s| (*s).to_owned()).collect(),
+                    "{context}: known chunks changed"
+                );
+                assert_ne!(
+                    chunks, reference.chunks,
+                    "{context}: remove resolved allowlist entry"
+                );
+                used_divergences.insert(known.name);
+            } else {
+                assert_eq!(chunks, reference.chunks, "{context}: chunks");
+            }
+        }
+    }
+    assert_eq!(
+        used_divergences,
+        KNOWN_CHUNK_DIVERGENCES
+            .iter()
+            .map(|known| known.name)
+            .collect(),
+        "allowlist entries must be exercised"
+    );
 }
 
 #[test]

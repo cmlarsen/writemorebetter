@@ -24,4 +24,7 @@ The reference normalizes curly apostrophes in its printed text. The public API p
 surface text and offsets while exporting the post-disambiguation lemma/POS readings. Internal
 matcher sentinels (empty POS, UNKNOWN, SENT_START, SENT_END) are deliberately omitted. This is an
 export of the existing tokenizer, not a new claim of complete tagger parity: the tests assert selected
-independent readings and a chunk tag, alongside span coverage, punctuation and whitespace behavior.
+independent readings as readable spot checks and parse every transcript to compare all non-whitespace
+tokens' reading and chunk sets in order. The named `emoji_noun_phrase_chunk` allowlist entry permits
+only the existing emoji chunk difference in `fiction_unicode` (no chunk in the reference versus
+`B-NP-singular` in the engine). Span coverage, punctuation and whitespace checks remain separate.
