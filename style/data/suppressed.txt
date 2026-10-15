@@ -1,4 +1,4 @@
-# Entries the default English grammar rules already flag; see docs/STYLE-REPORTS.md.
+# Entries the shipped English rules already flag on the same phrase (one rule is off by default); see docs/STYLE-CLICHES.md.
 ATM machine
 CD disc
 HIV virus

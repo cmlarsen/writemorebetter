@@ -1,7 +1,7 @@
 use std::sync::OnceLock;
 
 use nlprule::Tokenizer;
-use writemorebetter_style::reports::{
+use writemorebetter_style::reports::cliches::{
     bundled_phrase_entries, cliches, suppressed_phrases, vendored_phrase_entries, ClicheReport,
     PhraseContext, PhraseEntry, PhraseKind, PhraseList,
 };
@@ -333,4 +333,315 @@ fn callers_can_supply_their_own_list() {
     assert_eq!(result.matches.len(), 1);
     assert_eq!(result.matches[0].source, "custom");
     assert_span(text, &result.matches[0].span, "past histories");
+}
+
+#[test]
+fn irregular_and_suppletive_lemmas_do_not_match() {
+    for text in [
+        "A good half of the crowd left.",
+        "They waited a good half hour.",
+        "She woke from a bad nightmare.",
+        "Every fiber of her was screaming.",
+        "He was worse to the bone.",
+        "Well safe than sorry, she thought.",
+        "Good late than never.",
+        "They were shooting in the dark at shadows.",
+        "He kept his ear to the grinding stone.",
+        "It was easier said than did.",
+        "It was better as gold. Best as gold.",
+        "A chip off the older block. As older as time.",
+    ] {
+        assert!(phrases(text).is_empty(), "{text}");
+    }
+    assert_eq!(
+        phrases("His better half stayed. It was her worst nightmare. Every fiber of my being."),
+        vec![
+            pair("better half", "better half"),
+            pair("worst nightmare", "worst nightmare"),
+            pair("every fiber of my being", "Every fiber of my being"),
+        ]
+    );
+    assert_eq!(
+        phrases("It went without saying. It goes without saying."),
+        vec![pair("it goes without saying", "It goes without saying")]
+    );
+}
+
+#[test]
+fn possessive_slot_is_optional_and_accepts_determiners() {
+    assert_eq!(
+        phrases(
+            "She aired the dirty laundry. She aired dirty laundry. They aired the family's dirty \
+             laundry. He aired her own dirty laundry. They aired the Joneses’ dirty laundry."
+        ),
+        vec![
+            pair("air your dirty laundry", "aired the dirty laundry"),
+            pair("air your dirty laundry", "aired dirty laundry"),
+            pair("air your dirty laundry", "aired the family's dirty laundry"),
+            pair("air your dirty laundry", "aired her own dirty laundry"),
+            pair("air your dirty laundry", "aired the Joneses’ dirty laundry"),
+        ]
+    );
+    let options = DocumentOptions::new().with_skip_names(vec!["Mara".into(), "Quinn".into()]);
+    let text = "He would go Mara Quinn one better.";
+    assert_eq!(
+        found(text, &options),
+        vec![(
+            "go him one better".to_owned(),
+            "go Mara Quinn one better".to_owned(),
+            PhraseContext::Narration
+        )]
+    );
+}
+
+#[test]
+fn wits_end_accepts_the_singular_possessive() {
+    assert_eq!(
+        phrases("He was at his wit's end. At my wit’s end. At their wits’ end. At wits end."),
+        vec![
+            pair("at my wits end", "at his wit's end"),
+            pair("at my wits end", "At my wit’s end"),
+            pair("at my wits end", "At their wits’ end"),
+            pair("at my wits end", "At wits end"),
+        ]
+    );
+}
+
+#[test]
+fn literal_body_part_uses_are_guarded() {
+    for text in [
+        "She let her hair down from its pins and brushed it.",
+        "She put her foot down on the brake.",
+        "The dog lay in the straw and licked its wounds.",
+        "The cat landed on its feet.",
+        "He kicked the bucket of water across the yard.",
+    ] {
+        assert!(phrases(text).is_empty(), "{text}");
+    }
+    assert_eq!(
+        phrases("At last she let her hair down. He put his foot down. He landed on his feet."),
+        vec![
+            pair("let your hair down", "let her hair down"),
+            pair("put your foot down", "put his foot down"),
+            pair("land on your feet", "landed on his feet"),
+        ]
+    );
+}
+
+#[test]
+fn matches_stay_inside_one_sentence() {
+    for text in [
+        "It was all talk… No action came.",
+        "It was all talk. No action came.",
+        "He kicked the… Bucket was full.",
+        "He was caught. Red handed, she said.",
+    ] {
+        assert!(phrases(text).is_empty(), "{text}");
+    }
+    assert_eq!(
+        phrases("It was all talk, no action."),
+        vec![pair("all talk, no action", "all talk, no action")]
+    );
+}
+
+#[test]
+fn lookback_takes_only_articles_and_possessives() {
+    assert_eq!(
+        phrases("He said that far cry was nothing. It was his far cry."),
+        vec![
+            pair("a far cry", "far cry"),
+            pair("a far cry", "his far cry")
+        ]
+    );
+}
+
+type Expected = (&'static str, &'static str, PhraseContext);
+
+#[test]
+fn review_adversarial_cases() {
+    let plain = DocumentOptions::new();
+    let hard = DocumentOptions::new().with_hard_wrapped(true);
+    let names = DocumentOptions::new().with_skip_names(vec!["Bucket".into()]);
+    let cases: &[(&str, &DocumentOptions, &[Expected])] = &[
+        (
+            "He kicks the bucket. They are kicking the bucket. He has kicked the bucket.",
+            &plain,
+            &[
+                (
+                    "kick the bucket",
+                    "kicks the bucket",
+                    PhraseContext::Narration,
+                ),
+                (
+                    "kick the bucket",
+                    "kicking the bucket",
+                    PhraseContext::Narration,
+                ),
+                (
+                    "kick the bucket",
+                    "kicked the bucket",
+                    PhraseContext::Narration,
+                ),
+            ],
+        ),
+        (
+            "KICKED THE BUCKET. Kicked The Bucket.",
+            &plain,
+            &[
+                (
+                    "kick the bucket",
+                    "KICKED THE BUCKET",
+                    PhraseContext::Narration,
+                ),
+                (
+                    "kick the bucket",
+                    "Kicked The Bucket",
+                    PhraseContext::Narration,
+                ),
+            ],
+        ),
+        ("He kicked the\nbucket.", &plain, &[]),
+        (
+            "He kicked the\nbucket.",
+            &hard,
+            &[(
+                "kick the bucket",
+                "kicked the\nbucket",
+                PhraseContext::Narration,
+            )],
+        ),
+        (
+            "He kicked the\r\nbucket.",
+            &hard,
+            &[(
+                "kick the bucket",
+                "kicked the\r\nbucket",
+                PhraseContext::Narration,
+            )],
+        ),
+        ("He kicked the\u{2029}bucket.", &plain, &[]),
+        ("He kicked the\n\nbucket.", &hard, &[]),
+        (
+            "He kicked the\u{a0}bucket.",
+            &plain,
+            &[(
+                "kick the bucket",
+                "kicked the\u{a0}bucket",
+                PhraseContext::Narration,
+            )],
+        ),
+        (
+            "He kicked\tthe  bucket.",
+            &plain,
+            &[(
+                "kick the bucket",
+                "kicked\tthe  bucket",
+                PhraseContext::Narration,
+            )],
+        ),
+        (
+            "He kicked the—bucket. He was under the — weather.",
+            &plain,
+            &[],
+        ),
+        (
+            "He kicked the - bucket.",
+            &plain,
+            &[(
+                "kick the bucket",
+                "kicked the - bucket",
+                PhraseContext::Narration,
+            )],
+        ),
+        (
+            "All in a day’s work. All in a day's work. All in a days work.",
+            &plain,
+            &[
+                (
+                    "all in a day's work",
+                    "All in a day’s work",
+                    PhraseContext::Narration,
+                ),
+                (
+                    "all in a day's work",
+                    "All in a day's work",
+                    PhraseContext::Narration,
+                ),
+            ],
+        ),
+        (
+            "The Gps system. The GPS System. THE GPS SYSTEM FAILED. The GPSs system.",
+            &plain,
+            &[
+                ("GPS system", "GPS System", PhraseContext::Narration),
+                ("GPS system", "GPS SYSTEM", PhraseContext::Narration),
+            ],
+        ),
+        (
+            "“The PIN numbers,” she said. “ATM teller machines!”",
+            &plain,
+            &[(
+                "ATM teller machine",
+                "ATM teller machines",
+                PhraseContext::Dialogue,
+            )],
+        ),
+        (
+            "He had, as she put it, “kicked the bucket.” Then he “kicked” the bucket.",
+            &plain,
+            &[(
+                "kick the bucket",
+                "kicked the bucket",
+                PhraseContext::Dialogue,
+            )],
+        ),
+        (
+            "“Better safe\u{2028}than sorry,” she said.",
+            &plain,
+            &[(
+                "better safe than sorry",
+                "Better safe\u{2028}than sorry",
+                PhraseContext::Dialogue,
+            )],
+        ),
+        ("They kicked the Bucket.", &names, &[]),
+        (
+            "It was a kick-the-bucket moment.",
+            &plain,
+            &[(
+                "kick the bucket",
+                "kick-the-bucket",
+                PhraseContext::Narration,
+            )],
+        ),
+        (
+            "It was the calm before the storm before the storm.",
+            &plain,
+            &[(
+                "calm before the storm",
+                "calm before the storm",
+                PhraseContext::Narration,
+            )],
+        ),
+        (
+            "Every dog has its days. Busier than a bee. As busier as a bee. As busy as a bee.",
+            &plain,
+            &[
+                (
+                    "every dog has its day",
+                    "Every dog has its days",
+                    PhraseContext::Narration,
+                ),
+                ("busy as a bee", "busy as a bee", PhraseContext::Narration),
+            ],
+        ),
+        ("He kicked “the bucket”.", &plain, &[]),
+    ];
+    for (text, options, expected) in cases {
+        let expected: Vec<_> = expected
+            .iter()
+            .map(|(phrase, surface, context)| (phrase.to_string(), surface.to_string(), *context))
+            .collect();
+        assert_eq!(found(text, options), expected, "{text:?}");
+    }
 }

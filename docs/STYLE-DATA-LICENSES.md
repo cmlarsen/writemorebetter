@@ -10,7 +10,7 @@ commit, the OSF license record, or the authors' and publisher's pages.
 | no-cliches | [duereg/no-cliches](https://github.com/duereg/no-cliches) `61d6c543b971d72f9f559b99d2452368c35bac41` (v0.3.6) | `LICENSE`: MIT, © 2021 Matt Blair | vendored |
 | retext-redundant-acronyms | [retextjs/retext-redundant-acronyms](https://github.com/retextjs/retext-redundant-acronyms) `e670637aa13a223f7d6505349f4a474695e2c115` (v5.0.0) | `license`: MIT, © 2016 Titus Wormer | vendored |
 | proselint | [amperser/proselint](https://github.com/amperser/proselint) `dbed789caae662d06c7c8a5a13dd31f1acd36f5c` | `LICENSE.md`: BSD-3-Clause, © 2014–2015 Suchow, Pacer and Ross | `hell.py` and `ras_syndrome.py` only |
-| write-good | [btford/write-good](https://github.com/btford/write-good) `6940b034c6f5a7e101c01a24d651a778fc3fe435` (v1.0.8) | `LICENSE`: MIT, © 2014–2019 Brian Ford | nothing to vendor |
+| write-good | [btford/write-good](https://github.com/btford/write-good) `6940b034c6f5a7e101c01a24d651a778fc3fe435` (master; package version 1.0.8, the v1.0.8 tag is `f4bd563`) | `LICENSE`: MIT, © 2014–2019 Brian Ford | nothing to vendor |
 
 - write-good has no cliché or redundancy list of its own. Its cliché check is the `no-cliches`
   dependency; its other lists (wordiness, weasel words, E-Prime) are outside #246.

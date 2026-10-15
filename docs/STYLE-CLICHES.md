@@ -5,14 +5,19 @@ machine") from vendored phrase lists, with spans, and counts narration and dialo
 It diagnoses only and never suggests replacement wording.
 
 ```rust
-use writemorebetter_style::reports::{cliches, PhraseList};
+use writemorebetter_style::reports::cliches::{cliches, PhraseList};
 let phrases = PhraseList::bundled(&tokenizer);
 let report = cliches(&document, &phrases);
 ```
 
-Build the `PhraseList` once per tokenizer and reuse it. `PhraseList::new(&tokenizer, entries)` takes a
-caller-supplied list instead (each `PhraseEntry` has a kind, phrase, source, optional acronym and a
-fixed-wording flag); this is the extension point for a later, owner-approved redundancy list.
+The report is the public module `reports::cliches`; nothing is re-exported at the crate root or in
+`reports`. Build the `PhraseList` once per tokenizer and cache it (compiling the bundled list analyzes
+each of its 882 entries; bindings should do this once, which matters most on WASM and iOS).
+`PhraseList::new(&tokenizer, entries)` takes a caller-supplied list instead: each `PhraseEntry` has a
+kind, phrase, source, optional acronym, a fixed-wording flag and `not_followed_by` words. This is the
+extension point for a later, owner-approved redundancy list. `PhraseList::len()` counts compiled
+patterns; an entry with fewer than two words after an optional leading article is dropped, so a
+caller-supplied list can compile to fewer patterns than `entries().len()`.
 
 ## Output
 
@@ -31,25 +36,45 @@ suppressed; the caller decides whether to show them.
 - **Lemmas.** A list word in base form matches any token sharing a lemma with it, so "kick the bucket"
   matches "kicked the bucket" and "cock and bull story" matches "stories". Token lemmas come from the
   document's lemma index, so compact documents (`with_token_details(false)`) give the same matches.
-  A list word that is itself inflected ("on the rocks", "in your dreams") matches only that form, and
-  comparatives and superlatives never match by lemma ("years young" does not match "years younger").
-- **Slots.** Possessive determiners in an entry match any possessive determiner or a possessive noun
-  phrase (`her`, `the captain’s`, `Mara’s`): "air your dirty laundry" matches "aired her dirty
-  laundry". Personal pronouns match any personal pronoun or a skipped name; reflexives match any
-  reflexive. An entry-initial `a`/`an`/`the` is optional, and the span includes whichever article or
-  possessive fills it. `style/data/fixed-wording.txt` lists entries whose pronouns are part of the
-  idiom ("in your dreams", "mark my words"); those match their own pronouns only.
-- **Spacing and punctuation.** Matches run across any whitespace inside a paragraph, including hard
-  line wraps in `hard_wrapped` mode and U+2028, but never across paragraphs or sentence punctuation.
-  Hyphens are optional ("red handed" matches "red-handed", "bird’s-eye view" matches "bird's eye
-  view"). Commas, dashes and semicolons are accepted only where the entry has punctuation, plus a
-  serial comma before `and`/`or`. Curly and straight apostrophes are equivalent.
+  A list word keeps only lemmas equal to its surface or a regular stem of it (at least three letters):
+  "raining" keeps *rain*, but "better" drops *good*/*well*, "worst" drops *bad*, "shot" drops *shoot*,
+  "ground" drops *grind*, "being" drops *be* and "done" drops *do*. So "a good half hour" is not
+  *better half* and "shooting in the dark" is not *shot in the dark*. A list word that is itself
+  inflected ("on the rocks", "in your dreams") matches only that form. On the text side, regular
+  comparatives and superlatives (`-er`, `-est`) and the irregular ones (*better, best, worse, worst,
+  more, most, less, least, further, farther, elder* and their superlatives) never match a different list
+  word by lemma: "years younger" is not *years young* and "worse to the bone" is not *bad to the bone*.
+- **Slots.** A possessive determiner in an entry is a slot. It matches any possessive determiner,
+  optionally followed by *own*; a possessive noun phrase (`the captain’s`, `Mara’s`, `the Joneses’`); a
+  plain determiner (`the`, `a`, `this`, `that`); or nothing, unless the slot is the entry's first word.
+  So "air your dirty laundry" matches "aired her own dirty laundry", "aired the dirty laundry" and "aired
+  dirty laundry". In entries naming a body part (*hair, foot, feet, tongue, wounds*, …) the slot rejects
+  *its*, so "the cat landed on its feet" and "the dog licked its wounds" are not flagged. Personal
+  pronouns match any personal pronoun or a skipped name; reflexives match any reflexive. An entry-initial
+  `a`/`an`/`the` is optional, and the span includes a preceding article or possessive determiner
+  ("his far cry", but not "that far cry"). A list word ending in *s* also matches the singular
+  possessive: "at my wits end" matches "at his wit's end" and "at her wits’ end".
+- **Guards.** `style/data/fixed-wording.txt` lists entries whose pronouns are part of the idiom ("in your
+  dreams", "mark my words"); those match their own pronouns only. `style/data/literal-guards.txt` lists
+  following words that mark a literal use: "let her hair down **from**", "put her foot down **on**",
+  "kicked the bucket **of** water".
+- **Spacing and punctuation.** Matches run across any whitespace inside one sentence, including hard
+  line wraps in `hard_wrapped` mode, CRLF, NBSP, tabs and U+2028, but never across sentences or
+  paragraphs: "It was all talk… No action came." is not *all talk, no action*. Hyphens are optional
+  ("red handed" matches "red-handed", "bird’s-eye view" matches "bird's eye view"). Commas, dashes and
+  semicolons are accepted only where the entry has punctuation, plus a serial comma before `and`/`or`.
+  Curly and straight apostrophes are equivalent.
 - **Names.** Skipped names never match a list word: with `skip_names: ["Jack"]`, "Jack of all trades"
   is not flagged but "a jack of all trades" is.
 - **Acronyms.** Redundancy entries built from acronyms require the acronym in capitals, optionally
   plural (`UPC codes`, not `upc codes`).
 - **Overlaps.** A match contained in a longer match is dropped ("a chip off the old block" is reported
   once).
+
+Known precision limits: the lists mark no literal readings, so a literal action that fiction describes
+often can still be flagged when no guard applies. Examples: "crossing the ford, she got her feet wet",
+"the salt sat on the tip of her tongue", "he jumped and landed on his feet". Add guards to
+`literal-guards.txt` (an owner-authored list, allowed under the data rules) as they are found.
 
 ## Data
 
@@ -99,25 +124,30 @@ phrases.
 
 ## Accuracy
 
-`python3 bench/style/run.py cliches --gate` is the tier 2 suite. It injects 32 sentence templates
-(inflected forms, slots, hard wraps, U+2028, curly quotes and apostrophes, em dashes, ellipses,
-dialogue, acronyms, and 5 negative near-misses) at the start of the 120 pinned Standard Ebooks
-passages. It runs the detector on both the clean and the injected text, and drops matches already
-present in the clean passage before scoring exact spans with `kind.context` labels. Measured
-2026-10-15: precision, recall and F1 1.0 (105/105/105), 1 natural hit in the clean passages; floors
-are in `bench/style/tier2-cliches-baseline.json`. The templates were written against this matcher,
-so the suite is a regression gate, not an accuracy claim on natural prose.
+`python3 bench/style/run.py cliches --gate` is the tier 2 suite. It injects 50 sentence templates at
+the start of the 120 pinned Standard Ebooks passages. The 30 positive templates cover inflected forms,
+slots (including an empty slot and "wit's end"), hard wraps, U+2028, curly quotes and apostrophes, em
+dashes, ellipses, dialogue and acronyms. The 20 negative templates are near-misses and the PR #267
+review's false positives ("a good half hour", "a bad nightmare", "shooting in the dark", "licked its
+wounds", "all talk… No action", "years younger", …). It runs the detector on both the clean and the
+injected text, and drops matches already present in the clean passage before scoring exact spans with
+`kind.context` labels. Measured 2026-10-15: precision, recall and F1 1.0 (80/80/80) with 40 negative
+controls and 1 natural hit in the clean passages; floors are in
+`bench/style/tier2-cliches-baseline.json`. The templates were written against this matcher, so the
+suite is a regression gate, not an accuracy claim on natural prose. It injects only at a passage's
+start and runs in hard-wrapped mode.
 
 As an unscored audit, the bundled lists over every chapter paragraph of the two pinned books (4,621
 paragraphs) give 31 matches (23 narration, 8 dialogue), all idiomatic uses on one reviewer's reading,
 for example "hold her tongue", "high and dry", "adding insult to injury". The three false-positive
 kinds that audit first found ("years younger", "in their dreams", "on the rocking") are now fixture
-guards.
+guards; the review fixes left the audit unchanged (the same 31 matches).
 
 ## Cost
 
 `bench/tools/wmb-cliches --benchmark TOKENIZER TEXT` on the pinned *Moby-Dick* chapters as one
-document (209,407 words, compact document): building the 882-pattern `PhraseList` takes 441 ms once
-per tokenizer, and the report takes 248 ms (median of 5), against 45.5 s for `analyze_document` on the
-same, loaded machine. Besides its match list, the report builds a token-to-lemma map from the lemma
+document (209,407 words, compact document). Before the review fixes: building the 882-pattern
+`PhraseList` took 441 ms, the report 248 ms (median of 5) and `analyze_document` 45.5 s. After them, on
+the same machine at load average 64: 3.9 s, 349 ms and 34.2 s. The report stays at about 1% of
+`analyze_document`; the compile time varies most with load. Besides its match list, the report builds a token-to-lemma map from the lemma
 index and one token stream per paragraph.

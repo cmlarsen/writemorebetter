@@ -4,7 +4,7 @@ use std::time::Instant;
 
 use nlprule::{Rules, Tokenizer};
 use serde::Deserialize;
-use writemorebetter_style::reports::{cliches, vendored_phrase_entries, PhraseList};
+use writemorebetter_style::reports::cliches::{cliches, vendored_phrase_entries, PhraseList};
 use writemorebetter_style::{analyze_document, DocumentOptions};
 
 #[derive(Deserialize)]

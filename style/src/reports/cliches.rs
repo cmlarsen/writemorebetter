@@ -12,6 +12,7 @@ const REDUNDANT_ACRONYMS: &str = include_str!("../../data/redundancy/redundant-a
 const PROSELINT_RAS: &str = include_str!("../../data/redundancy/proselint-ras.tsv");
 const SUPPRESSED: &str = include_str!("../../data/suppressed.txt");
 const FIXED_WORDING: &str = include_str!("../../data/fixed-wording.txt");
+const LITERAL_GUARDS: &str = include_str!("../../data/literal-guards.txt");
 
 const ARTICLES: &[&str] = &["a", "an", "the"];
 const DETERMINERS: &[&str] = &["a", "an", "the", "this", "that"];
@@ -31,6 +32,50 @@ const REFLEXIVES: &[&str] = &[
     "yourselves",
     "themselves",
     "oneself",
+];
+const IRREGULAR_COMPARATIVES: &[&str] = &[
+    "better", "best", "worse", "worst", "more", "most", "less", "least", "further", "furthest",
+    "farther", "farthest", "elder", "eldest",
+];
+const BODY_PARTS: &[&str] = &[
+    "arm",
+    "arms",
+    "back",
+    "belly",
+    "blood",
+    "bones",
+    "chin",
+    "ear",
+    "ears",
+    "eye",
+    "eyes",
+    "face",
+    "feet",
+    "finger",
+    "fingers",
+    "foot",
+    "hair",
+    "hand",
+    "hands",
+    "head",
+    "heart",
+    "heels",
+    "leg",
+    "legs",
+    "lip",
+    "lips",
+    "mouth",
+    "neck",
+    "nose",
+    "shoulder",
+    "shoulders",
+    "skin",
+    "stomach",
+    "teeth",
+    "throat",
+    "toes",
+    "tongue",
+    "wounds",
 ];
 const JOINERS: &[&str] = &["-", "‐", "‑", "'"];
 const PHRASE_PUNCTUATION: &[&str] = &[",", ";", ":", "—", "–", "-", "…"];
@@ -61,6 +106,8 @@ pub struct PhraseEntry {
     pub acronym: Option<String>,
     #[serde(default)]
     pub fixed_wording: bool,
+    #[serde(default)]
+    pub not_followed_by: Vec<String>,
 }
 
 impl PhraseEntry {
@@ -71,6 +118,7 @@ impl PhraseEntry {
             source: source.into(),
             acronym: None,
             fixed_wording: false,
+            not_followed_by: Vec::new(),
         }
     }
     pub fn with_acronym(mut self, acronym: impl Into<String>) -> Self {
@@ -79,6 +127,10 @@ impl PhraseEntry {
     }
     pub fn with_fixed_wording(mut self, fixed_wording: bool) -> Self {
         self.fixed_wording = fixed_wording;
+        self
+    }
+    pub fn with_not_followed_by(mut self, words: Vec<String>) -> Self {
+        self.not_followed_by = words;
         self
     }
 }
@@ -105,6 +157,8 @@ enum Element {
 struct Pattern {
     entry: usize,
     optional_article: bool,
+    body_part: bool,
+    not_followed_by: BTreeSet<String>,
     elements: Vec<(Element, bool)>,
 }
 
@@ -214,10 +268,21 @@ pub fn vendored_phrase_entries() -> Vec<PhraseEntry> {
         );
     }
     let fixed: BTreeSet<_> = lines(FIXED_WORDING).map(normalize).collect();
+    let guards: HashMap<_, _> = lines(LITERAL_GUARDS)
+        .filter_map(|line| line.split_once('\t'))
+        .map(|(phrase, words)| {
+            (
+                normalize(phrase),
+                words.split_whitespace().map(normalize).collect::<Vec<_>>(),
+            )
+        })
+        .collect();
     let mut seen = BTreeSet::new();
     entries.retain(|entry| seen.insert((entry.kind, normalize(&entry.phrase))));
     for entry in &mut entries {
-        entry.fixed_wording = fixed.contains(&normalize(&entry.phrase));
+        let key = normalize(&entry.phrase);
+        entry.fixed_wording = fixed.contains(&key);
+        entry.not_followed_by = guards.get(&key).cloned().unwrap_or_default();
     }
     entries
 }
@@ -310,6 +375,11 @@ fn compile(tokenizer: &Tokenizer, index: usize, entry: &PhraseEntry) -> Option<P
                 .collect();
             if parts.len() > 1 || !lemmas.contains(&surface) {
                 lemmas.clear();
+            } else {
+                lemmas.retain(|lemma| {
+                    let stem = lemma.trim_end_matches('e');
+                    *lemma == surface || (stem.chars().count() >= 3 && surface.starts_with(stem))
+                });
             }
             elements.push((
                 Element::Word {
@@ -330,9 +400,18 @@ fn compile(tokenizer: &Tokenizer, index: usize, entry: &PhraseEntry) -> Option<P
     if elements.len() < 2 {
         return None;
     }
+    let body_part = elements.iter().any(
+        |(element, _)| matches!(element, Element::Word { surface, .. } if BODY_PARTS.contains(&surface.as_str())),
+    );
     Some(Pattern {
         entry: index,
         optional_article,
+        body_part,
+        not_followed_by: entry
+            .not_followed_by
+            .iter()
+            .map(|word| normalize(word))
+            .collect(),
         elements,
     })
 }
@@ -386,6 +465,7 @@ impl PhraseList {
 }
 
 struct Item {
+    sentence: usize,
     surface: String,
     span_text: String,
     span: Span,
@@ -414,31 +494,42 @@ fn part_span(token: &Token, part: &Range<usize>) -> Span {
     }
 }
 
-fn match_slot(stream: &[Item], at: usize, slot: Slot) -> Option<usize> {
-    let token = stream.get(at)?;
-    let surface = token.surface.clone();
-    let possessive = matches!(slot, Slot::Possessive | Slot::PossessiveOrPersonal);
-    let personal = matches!(slot, Slot::Personal | Slot::PossessiveOrPersonal);
-    if possessive {
-        if POSSESSIVES.contains(&surface.as_str()) {
-            return Some(at + 1);
-        }
-        let start = if DETERMINERS.contains(&surface.as_str()) {
-            at + 1
-        } else {
-            at
-        };
-        if let (Some(owner), Some(clitic)) = (stream.get(start), stream.get(start + 1)) {
-            if owner.is_word && is_clitic(clitic) && adjacent(owner, clitic) {
-                return Some(start + 2);
-            }
-        }
+fn match_owner(stream: &[Item], at: usize) -> Option<usize> {
+    let (owner, clitic) = (stream.get(at)?, stream.get(at + 1)?);
+    (owner.is_word && is_clitic(clitic) && adjacent(owner, clitic)).then_some(at + 2)
+}
+
+fn skip_own(stream: &[Item], at: usize) -> usize {
+    if stream.get(at).is_some_and(|item| item.surface == "own") {
+        at + 1
+    } else {
+        at
     }
-    if personal {
-        if PERSONAL.contains(&surface.as_str()) {
+}
+
+fn match_possessive(stream: &[Item], at: usize, rules: SlotRules) -> Option<usize> {
+    let surface = stream.get(at).map_or("", |item| item.surface.as_str());
+    if POSSESSIVES.contains(&surface) && !(rules.body_part && surface == "its") {
+        return Some(skip_own(stream, at + 1));
+    }
+    let determiner = DETERMINERS.contains(&surface);
+    if let Some(end) = match_owner(stream, at + usize::from(determiner)) {
+        return Some(skip_own(stream, end));
+    }
+    if determiner {
+        return Some(at + 1);
+    }
+    rules.optional.then_some(at)
+}
+
+fn match_slot(stream: &[Item], at: usize, slot: Slot, rules: SlotRules) -> Option<usize> {
+    let token = stream.get(at);
+    let surface = token.map_or("", |item| item.surface.as_str());
+    if matches!(slot, Slot::Personal | Slot::PossessiveOrPersonal) {
+        if PERSONAL.contains(&surface) {
             return Some(at + 1);
         }
-        if token.is_skipped {
+        if token.is_some_and(|item| item.is_skipped) {
             let mut end = at;
             while stream
                 .get(end)
@@ -449,34 +540,50 @@ fn match_slot(stream: &[Item], at: usize, slot: Slot) -> Option<usize> {
             return Some(end);
         }
     }
-    if slot == Slot::Reflexive && REFLEXIVES.contains(&surface.as_str()) {
-        return Some(at + 1);
+    if matches!(slot, Slot::Possessive | Slot::PossessiveOrPersonal) {
+        return match_possessive(stream, at, rules);
     }
-    None
+    (slot == Slot::Reflexive && REFLEXIVES.contains(&surface)).then_some(at + 1)
 }
 
 fn comparative(pattern: &str, text: &str) -> bool {
-    ["er", "est"]
-        .iter()
-        .any(|suffix| text.ends_with(suffix) && !pattern.ends_with(suffix))
+    (IRREGULAR_COMPARATIVES.contains(&text) && pattern != text)
+        || ["er", "est"]
+            .iter()
+            .any(|suffix| text.ends_with(suffix) && !pattern.ends_with(suffix))
 }
 
-fn match_element(stream: &[Item], at: usize, element: &Element) -> Option<usize> {
+#[derive(Debug, Clone, Copy)]
+struct SlotRules {
+    optional: bool,
+    body_part: bool,
+}
+
+fn match_element(stream: &[Item], at: usize, element: &Element, rules: SlotRules) -> Option<usize> {
+    if let Element::Slot(slot) = element {
+        return match_slot(stream, at, *slot, rules);
+    }
     let item = stream.get(at)?;
     match element {
         Element::Word { surface, lemmas } => {
             let inflected = item.surface != *surface
                 && !comparative(surface, &item.surface)
                 && !item.keys.is_disjoint(lemmas);
-            (item.is_word && !item.is_skipped && (item.surface == *surface || inflected))
-                .then_some(at + 1)
+            if !item.is_word || item.is_skipped {
+                return None;
+            }
+            if item.surface == *surface || inflected {
+                return Some(at + 1);
+            }
+            let possessive = surface.strip_suffix('s') == Some(item.surface.as_str());
+            match_owner(stream, at).filter(|_| possessive)
         }
         Element::Acronym(acronym) => {
             let surface = item.span_text.as_str();
             (!item.is_skipped && (surface == acronym || surface.strip_suffix('s') == Some(acronym)))
                 .then_some(at + 1)
         }
-        Element::Slot(slot) => match_slot(stream, at, *slot),
+        Element::Slot(_) => None,
     }
 }
 
@@ -496,9 +603,23 @@ fn match_pattern(stream: &[Item], start: usize, pattern: &Pattern) -> Option<usi
                 at += 1;
             }
         }
-        at = match_element(stream, at, element)?;
+        let rules = SlotRules {
+            optional: index > 0,
+            body_part: pattern.body_part,
+        };
+        at = match_element(stream, at, element, rules)?;
+        if stream.get(at.checked_sub(1)?)?.sentence != stream[start].sentence {
+            return None;
+        }
     }
-    Some(at - 1)
+    let end = at - 1;
+    let next = stream
+        .get(at)
+        .filter(|item| item.sentence == stream[start].sentence);
+    if next.is_some_and(|item| pattern.not_followed_by.contains(&item.surface)) {
+        return None;
+    }
+    Some(end)
 }
 
 fn token_keys(document: &Document) -> HashMap<(usize, usize, usize), Vec<&str>> {
@@ -577,6 +698,7 @@ pub fn cliches(document: &Document, phrases: &PhraseList) -> ClicheReport {
                         }
                     }
                     stream.push(Item {
+                        sentence: s,
                         surface: normalize(text),
                         span_text: text.to_owned(),
                         span,
@@ -604,7 +726,8 @@ pub fn cliches(document: &Document, phrases: &PhraseList) -> ClicheReport {
                     .checked_sub(1)
                     .filter(|&previous| {
                         pattern.optional_article
-                            && DETERMINERS
+                            && stream[previous].sentence == stream[start].sentence
+                            && ARTICLES
                                 .iter()
                                 .chain(POSSESSIVES)
                                 .any(|word| stream[previous].surface == *word)
