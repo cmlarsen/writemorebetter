@@ -71,7 +71,7 @@ pub(crate) struct FilterMatch {
 }
 
 /// What a filter may consult besides the match itself: "today" for the
-/// time-dependent filters and the speller.
+/// time-dependent filters and the spellers.
 #[derive(Debug, Default)]
 pub(crate) struct FilterContext<'a> {
     /// Overrides "today" (the rule test harness passes LanguageTool's fixed
@@ -79,6 +79,9 @@ pub(crate) struct FilterContext<'a> {
     pub now: Option<Date>,
     /// `None` only when no spell variant is selected and the language has no default one.
     pub speller: Option<&'a Speller<'a>>,
+    /// The default variant's speller whatever variant is selected. `None` only when the
+    /// language has no default variant.
+    pub default_speller: Option<&'a Speller<'a>>,
 }
 
 /// One filter per LanguageTool filter class the English rules use.
@@ -121,9 +124,9 @@ impl RuleFilter {
             RuleFilter::DateCheck(f) => f.accept(m, sentence, graph, now),
             RuleFilter::YmdDateCheck(f) => f.accept(m, sentence, graph, now),
             RuleFilter::NewYearDate(f) => f.accept(m, sentence, graph, now),
-            RuleFilter::FindSuggestions(f) => f.accept(m, sentence, graph, speller),
+            RuleFilter::FindSuggestions(f) => f.accept(m, sentence, graph),
             RuleFilter::SuppressMisspelledSuggestions(f) => f.accept(m, sentence, speller),
-            RuleFilter::NumberInWord(f) => f.accept(m, sentence, graph, speller),
+            RuleFilter::NumberInWord(f) => f.accept(m, sentence, graph, ctx.default_speller),
         }
     }
 }
@@ -876,9 +879,8 @@ const MAX_SUGGESTIONS: usize = 10;
 
 /// `org.languagetool.rules.en.FindSuggestionsFilter`: replaces the
 /// `{suggestion}` placeholder (or, without one, appends) with the words one
-/// edit away from the chosen token whose tags match `desiredPostag`.
-/// LanguageTool searches its tagger dictionary; this searches the speller
-/// (see issue #135).
+/// edit away from the chosen token whose tags match `desiredPostag`, searching
+/// the tagger dictionary as LanguageTool does.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub(crate) struct FindSuggestions {
     pub word_from: WordFrom,
@@ -894,7 +896,6 @@ impl FindSuggestions {
         mut m: FilterMatch,
         sentence: &'t MatchSentence<'t>,
         graph: &MatchGraph<'t>,
-        speller: Option<&Speller>,
     ) -> Option<FilterMatch> {
         let word = token_text(sentence, graph, self.word_from.index(&m, graph))?;
         let tagger = sentence.tagger();
@@ -908,7 +909,7 @@ impl FindSuggestions {
 
         let mut replacements: Vec<String> = Vec::new();
         let mut priority_count = 0;
-        for candidate in speller.map_or_else(Vec::new, |speller| speller.similar(&word, 1)) {
+        for candidate in tagger.similar(&word, 1) {
             if replacements.len() >= 2 * MAX_SUGGESTIONS {
                 break;
             }
@@ -1032,7 +1033,8 @@ impl SuppressMisspelledSuggestions {
 /// `org.languagetool.rules.en.EnglishNumberInWordFilter`: suggests the word
 /// with `0` read as `o` and the word without its digits when the speller
 /// knows them, else the speller's suggestions for the word without its
-/// digits; vetoes the match when there is nothing to suggest.
+/// digits; vetoes the match when there is nothing to suggest. LanguageTool
+/// always asks the American speller here, the default variant's.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub(crate) struct NumberInWord {
     pub word: ArgValue,

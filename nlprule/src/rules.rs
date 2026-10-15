@@ -279,6 +279,7 @@ impl Rules {
     ) -> SentenceMatches {
         let spell_suggestions = self.spell.suggest(sentence);
         let speller = self.spell.speller();
+        let default_speller = self.spell.default_speller();
         let raw_sentence = sentence.raw().map(MatchSentence::new);
         let sentence = MatchSentence::new(sentence);
 
@@ -300,6 +301,7 @@ impl Rules {
                     match_sentence,
                     self.articles.as_ref(),
                     speller.as_ref(),
+                    default_speller.as_ref(),
                 ) {
                     output.push((i, suggestion));
                 }
@@ -490,6 +492,7 @@ impl Rules {
             &self.parts,
             self.articles.as_ref(),
             self.spell.speller().as_ref(),
+            self.spell.default_speller().as_ref(),
         )
     }
 }
