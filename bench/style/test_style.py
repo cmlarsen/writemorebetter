@@ -7,10 +7,9 @@ import unittest
 from unittest.mock import patch
 
 import common
-from common import offsets
 from tier1 import ewt_documents, quote_spans
 from tier2 import score, toy_detector
-from tier3 import PENN, distribution
+from tier3 import PENN, calibrate, distribution
 
 
 class BenchTests(unittest.TestCase):
@@ -88,6 +87,30 @@ class BenchTests(unittest.TestCase):
         self.assertEqual(PENN['TO'], 'PRT')
         self.assertEqual(distribution([2, 4])['mean'], 3)
         self.assertEqual(distribution([2, 4])['percentiles']['50'], 3)
+
+    def test_calibration_skips_single_quotes_without_exposing_metadata(self):
+        class SyntheticAnalyzer:
+            def analyze(self, text):
+                tokens = []
+                for word, pos in (("'", "''"), ('She', 'PRP'), ('.', '.'), ("'", "''")):
+                    tokens.append({'text': word, 'is_whitespace': False,
+                                   'is_punctuation': not word.isalpha(),
+                                   'readings': [{'pos': pos}]})
+                return [{'tokens': tokens}]
+
+        with tempfile.TemporaryDirectory() as directory:
+            export = Path(directory)
+            (export / 'units').mkdir()
+            (export / 'units' / 'synthetic.txt').write_text("'She.'\n")
+            (export / 'units.jsonl').write_text(json.dumps({
+                'unit_id': 'synthetic', 'author_key': 'PRIVATE_SENTINEL',
+                'title': 'PRIVATE_SENTINEL', 'authors': ['PRIVATE_SENTINEL']}))
+            baseline = json.loads((common.HERE / 'published-baseline.json').read_text())
+            result = calibrate(SyntheticAnalyzer(), export, baseline)
+        self.assertEqual(result['sentence_start']['PRON']['measured_percent'], 100)
+        self.assertEqual(result['sentence_length']['without_punctuation']['mean'], 1)
+        self.assertEqual(result['sentence_length']['with_punctuation']['mean'], 4)
+        self.assertNotIn('PRIVATE_SENTINEL', json.dumps(result))
 
 
 if __name__ == '__main__':

@@ -7,6 +7,7 @@ import tempfile
 from common import jsonl
 
 TAGS = ('ADJ', 'ADP', 'ADV', 'CONJ', 'DET', 'NOUN', 'NUM', 'PRON', 'PRT', 'VERB', '.', 'X')
+QUOTATION_MARKS = frozenset("\"'“”‘’«»‹›„‟‚‛`")
 PENN = {}
 for universal, tags in {
     'ADJ': 'JJ JJR JJS', 'ADP': 'IN', 'ADV': 'RB RBR RBS WRB', 'CONJ': 'CC',
@@ -58,7 +59,7 @@ def calibrate(analyzer, export, baseline):
                 author['words'] += len(words)
                 author['tokens'] += sum(t['is_punctuation'] or any(ch.isalnum() for ch in t['text'])
                                         for t in tokens)
-                while tokens and all(ch in '“”"‘’' for ch in tokens[0]['text']):
+                while tokens and all(ch in QUOTATION_MARKS for ch in tokens[0]['text']):
                     tokens.pop(0)
                 tags = {PENN[r['pos']] for r in tokens[0]['readings'] if r['pos'] in PENN} if tokens else set()
                 if len(tags) == 1:
