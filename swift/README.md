@@ -87,8 +87,8 @@ another Rust library: a Rust static library carries its own copy of `std` and of
 in one app collide on duplicate symbols, and two static XCFrameworks with a top-level `module.modulemap` collide
 in Xcode's `include/` directory. An app embeds the framework the way it embeds any SwiftPM binary framework.
 
-The binaries are never run through Xcode's `strip`: the linker drops local symbols and debug info itself
-(`-Wl,-x -Wl,-S`, with rustc's own `strip` off). The `strip` in Xcode 27 removes the `.llvm.<hash>` suffixes
+The build never runs Xcode's `strip`: the linker drops local symbols and debug info itself (`-Wl,-x -Wl,-S`,
+with rustc's own `strip` off), so an app's own strip during archiving finds nothing left to remove. The `strip` in Xcode 27 removes the `.llvm.<hash>` suffixes
 LLVM gives promoted local functions, which merged two different functions into one symbol in the old static
 library ([#238](https://github.com/cmlarsen/writemorebetter/issues/238)), and it leaves a dylib that `ld`
 rejects with "mis-aligned LINKEDIT string pool".

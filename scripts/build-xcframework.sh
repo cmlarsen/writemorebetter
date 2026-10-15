@@ -17,7 +17,7 @@ cd "$(dirname "$0")/.."
 PROFILE="release"
 case "${1:-}" in
     "") ;;
-    --debug) PROFILE="debug" ;;
+    --debug) PROFILE="dev" ;;
     --help)
         sed -n '2,12p' "$0"
         exit 0

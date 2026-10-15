@@ -116,7 +116,7 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   LLVM's promoted local functions apart. Two different `<char as Pattern>::is_contained_in` copies (a general
   one and one specialized for U+2019 with a different calling convention) ended up with one name, so calls
   landed in the wrong function and crashed in the tokenizer and speller. The framework is now linked as a
-  dylib with the linker dropping local symbols and debug info, and nothing runs `strip`
+  dylib with the linker dropping local symbols and debug info, and `build-xcframework.sh` never runs `strip`
   ([#238](https://github.com/cmlarsen/writemorebetter/issues/238)).
 
 - **Token patterns match like LanguageTool 6.6, without backtracking.** An optional token

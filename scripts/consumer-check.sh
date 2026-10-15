@@ -106,7 +106,8 @@ for slice in "$unzipped"/WriteMoreBetterFFI.xcframework/*/; do
         echo "error: $(basename "$slice") is not a dynamic WriteMoreBetterFFI.framework" >&2
         exit 1
     fi
-    leaked=$(nm -gUj "$binary" | grep -cE '^__(R|ZN)' || true)
+    exported=$(nm -gUj "$binary")
+    leaked=$(printf '%s\n' "$exported" | grep -cE '^__(R|ZN)' || true)
     if [ "$leaked" -ne 0 ]; then
         echo "error: $(basename "$slice") exports $leaked Rust symbols" >&2
         exit 1
