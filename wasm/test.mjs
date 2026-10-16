@@ -316,7 +316,7 @@ check(typeof lengthReport.groups.all.meanDifference === "number", "bundled basel
 eq(JSON.parse(retained.sentenceLength(options, "none")).groups.all.meanDifference, null, "baseline disabled per call");
 const custom = JSON.parse(retained.sentenceLength(options, '{"mean":1}'));
 eq(custom.groups.all.meanDifference, custom.groups.all.mean - 1, "custom baseline per call");
-const calls = ["echoes", "repeatedPhrases", "cliches", "dialogueTags", "sentenceLength", "sentenceStarts", "sensoryBalance", "pacing", "overusedWords", "stats"];
+const calls = ["echoes", "repeatedPhrases", "cliches", "dialogueTags", "sentenceLength", "sentenceStarts", "sensoryBalance", "pacing", "overusedWords", "transitions", "pronounStarts", "stats"];
 for (const method of calls) {
   const fresh = checker.styleDocument(reportText);
   eq(JSON.parse(retained[method]()), JSON.parse(fresh[method]()), `shared analysis matches fresh ${method}`);
@@ -345,7 +345,7 @@ eq(invalid.kind, "invalidBaseline", "invalid baseline rejected");
 eq(invalid.report, "sentenceStarts", "error names report");
 eq(styleError(() => checker.styleDocument("text", '{"typo":true}')).kind, "invalidOptions", "document options validated");
 const compactStyle = checker.styleDocument(reportText, '{"includeTokenDetails":false}');
-for (const method of ["echoes", "repeatedPhrases", "dialogueTags", "sentenceStarts", "sensoryBalance", "pacing", "overusedWords"]) {
+for (const method of ["echoes", "repeatedPhrases", "dialogueTags", "sentenceStarts", "sensoryBalance", "pacing", "overusedWords", "transitions", "pronounStarts"]) {
   eq(styleError(() => compactStyle[method]()).kind, "needsTokenDetails", `compact rejects ${method}`);
 }
 eq(styleError(() => compactStyle.diction(undefined, '{"hope":1.5}')).kind, "needsTokenDetails", "compact rejects diction");
@@ -441,6 +441,23 @@ eq(pacingReport.words, JSON.parse(pacingDocument.stats()).words, "pacing word co
 eq(styleError(() => pacingDocument.pacing('{"minimumParagraphs":0}')).kind, "invalidOptions", "pacing options validated");
 eq(styleError(() => pacingDocument.pacing('{"typo":0}')).kind, "invalidOptions", "pacing unknown options rejected");
 pacingDocument.free();
+
+const lensText = "😀.\u2028“AS A RESULT, she’s tired—still… fine.”\u2028As a result, she left. As a result, she slept.\nShe walked home. She slept.\n\nShe woke early.";
+const lensDoc = checker.styleDocument(lensText);
+const transitions = JSON.parse(lensDoc.transitions('{"minimumSentences":1}'));
+eq(transitions.matches.length, 3, "transitions: multiword matches");
+for (const match of transitions.matches) eq(lensText.slice(match.span.start, match.span.end).toLowerCase(), "as a result", "transitions: UTF-16 phrase span");
+eq(transitions.repeats.length, 1, "transitions: no mode bridging");
+eq(JSON.parse(lensDoc.transitions('{"repeatWindow":1}')).repeats.length, 0, "transitions: repeat window override");
+eq(styleError(() => lensDoc.transitions('{"repeatWindow":0}')).kind, "invalidOptions", "transitions: zero window rejected");
+const pronouns = JSON.parse(lensDoc.pronounStarts('{"minimumSentences":1}'));
+eq(pronouns.groups.narration.runs.length, 1, "pronouns: run crosses paragraph");
+eq(pronouns.groups.narration.runs[0].pronoun, "she", "pronouns: named run");
+eq(pronouns.groups.all.pronounStarts.difference, null, "pronouns: no baseline");
+check(pronouns.groups.all.lowConfidence, "pronouns: small sample marked");
+eq(JSON.parse(lensDoc.pronounStarts()).groups.all.pronounStarts.percent, null, "pronouns: default sample floor");
+eq(styleError(() => lensDoc.pronounStarts('{"typo":1}')).kind, "invalidOptions", "pronouns: unknown option");
+lensDoc.free();
 
 checkStyleRecords(checker);
 const independent = checker.styleDocument("She ran.");

@@ -108,3 +108,8 @@ Licenses checked 2026-10-15 (recorded in #246, below). #250 vendors one derived 
 `style/data/pacing/cognition.txt`, version 1 (2026-10-16), is an original authored list of
 22 cognition/interior verb lemmas, including British and American spellings. It is MIT OR
 Apache-2.0 with the engine, contains no third-party data, and is credited in NOTICE.
+
+## Transition inventory (#247)
+
+`style/data/transitions.tsv` is an original list written by this project's contributors in 2026,
+licensed MIT OR Apache-2.0 like the style crate. No external word list, corpus or rule data was used.

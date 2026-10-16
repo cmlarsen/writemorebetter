@@ -991,3 +991,16 @@ boundaries, including an exact decimal boundary that binary floating-point subtr
 input basename for public-text calibration; output belongs in ignored benchmark directories.
 The source text is never included in that JSON. The public calibration, the #286 review fixes and
 the owner decision to remove `singleSense` are recorded in [STYLE-NORMS.md](../../docs/STYLE-NORMS.md).
+
+## Transitions and pronoun starts (#247)
+
+`python3 bench/style/transitions_pronouns.py --gate` builds the native example probe and scores
+`labels/transitions.jsonl` (original, hand-labeled development examples) with exact byte/UTF-16 spans
+for all five types. It also injects six paragraph-crossing pronoun runs and six alternating-pronoun
+controls before the first six pinned public-domain passages per book. Scene boundaries isolate each
+injection from its unchanged public source; natural source runs are diagnostic counts. The first
+regression baseline is `transitions-pronouns-baseline.json`; all scored patterns require F1 = 1, and
+CI checks measurement drift. `--probe PATH` reuses an existing `transition_reports` example binary.
+The output under ignored `out/transitions-pronouns/` holds exact gold/prediction rows and aggregate
+measurements, including candidate flag counts on all six `bench/public` texts. See
+[definitions and limitations](../../docs/STYLE-TRANSITIONS.md).

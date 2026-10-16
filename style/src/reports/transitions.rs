@@ -121,7 +121,15 @@ fn phrases() -> &'static Vec<(TransitionType, &'static str, Vec<&'static str>)> 
                     "example" => TransitionType::Example,
                     _ => unreachable!(),
                 };
-                (kind, phrase, if phrase == "what's more" { vec!["what", "'s", "more"] } else { phrase.split_whitespace().collect::<Vec<_>>() })
+                (
+                    kind,
+                    phrase,
+                    if phrase == "what's more" {
+                        vec!["what", "'s", "more"]
+                    } else {
+                        phrase.split_whitespace().collect::<Vec<_>>()
+                    },
+                )
             })
             .collect();
         phrases.sort_by_key(|(_, _, words)| std::cmp::Reverse(words.len()));

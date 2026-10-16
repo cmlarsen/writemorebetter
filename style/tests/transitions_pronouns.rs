@@ -33,6 +33,16 @@ fn labeled_transitions() {
             "because",
             TransitionType::Cause,
         ),
+        (
+            "What’s more, she paid.",
+            "what's more",
+            TransitionType::Addition,
+        ),
+        (
+            "What's more, she paid.",
+            "what's more",
+            TransitionType::Addition,
+        ),
         ("Meanwhile, he waited.", "meanwhile", TransitionType::Time),
         ("Then, he left.", "then", TransitionType::Time),
         (
@@ -58,7 +68,8 @@ fn labeled_transitions() {
         assert_eq!(
             text.get(result.matches[0].span.byte.clone())
                 .unwrap()
-                .to_lowercase(),
+                .to_lowercase()
+                .replace('’', "'"),
             phrase
         );
     }

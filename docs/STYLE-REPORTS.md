@@ -57,7 +57,7 @@ swift/, wasm/       one binding each, exposing check() + analyze() + analyzeDocu
 | [Echoes](STYLE-ECHOES.md) (same lemma nearby) | #245 | lemmas | none |
 | [Repeated phrases](STYLE-ECHOES.md#repeated-phrases) | #245 | lemma n-grams | none |
 | Clichés and redundancies | #246 | phrase lists | none |
-| Transitions, pronoun starts | #247 | #244's classifier, word list | Ngram `_START_` 2- to 4-grams (planned; not yet in #247) |
+| [Transitions, pronoun starts](STYLE-TRANSITIONS.md) | #247 | #244's classifier, word list | Ngram `_START_` 2- to 4-grams (planned; not yet in #247) |
 | [Overused words](STYLE-OVERUSED-WORDS.md), filler words | #248 | lemma counts | Ngram English Fiction 1990–2019 unigrams, lemmatized (bundled) |
 | Dialogue tags | #249 | dialogue spans | published-fiction corpus (owner-run tier 3 command; see [STYLE-DIALOGUE-TAGS.md](STYLE-DIALOGUE-TAGS.md)) |
 | [Sensory balance, diction (concreteness)](STYLE-NORMS.md) | #250 | lemmas, word-norm tables | none; Lancaster norms bundled (CC BY 4.0), concreteness table caller-supplied |
@@ -160,7 +160,7 @@ annotate the value decoded with `JSON.parse`.
 
 Subplot chooses which methods to call. Its recommended default set is **clichés, dialogue tags,
 sentence length statistics and monotony, and sentence starts**. **Echoes, repeated phrases,
-long-sentence flags, overused and filler words, sensory balance, diction and pacing** are opt-in lenses;
+long-sentence flags, overused and filler words, transitions, pronoun starts, sensory balance, diction and pacing** are opt-in lenses;
 sensory balance and diction stay opt-in until the owner has seen usefulness numbers on real manuscripts. Length statistics and monotony remain available without
 `includeLongSentences`. Pacing thresholds are heuristic and uncalibrated against published fiction.
 A pacing strip should highlight only `slowRuns` and draw the per-paragraph signals as neutral
@@ -169,6 +169,8 @@ measurements: single paragraphs that meet two thresholds are mostly in-scene noi
 
 | Report | Module and entry point | Options | Baseline | Needs readings |
 |---|---|---|---|---|
+| transitions | `transitions::report(&Document, &TransitionsOptions)` | `minimumSentences`, `repeatWindow` | none yet | yes |
+| pronoun starts | `pronoun_starts::report(&Document, &PronounStartsOptions)` | `minimumSentences` | none yet | yes |
 | echoes | `echoes::report(&Document, &EchoOptions)` | `window`, `matchForms` | none | yes |
 | repeated phrases | `repeated_phrases::report(&Document, &RepeatedPhraseOptions)` | `minimumLength`, `maximumLength`, `minimumContentWords`, `minimumOccurrences`, `nearbyWords` | none | yes |
 | clichés | `cliches::report(&Document, &ClicheList, &ClicheOptions)` | none yet | none | no |
@@ -404,6 +406,7 @@ Build rules for any baseline:
 | 2026-10-16 | #284 review: pacing rows carry no per-paragraph verdict, verb heads need a verb-phrase chunk, past perfect skips adverbs with a lexical verb reading (*had still not forgotten*), and a failed pooled sequence reports its longest passing window | A seeded sample of 40 two-signal rows judged 15 useful / 25 noise, so a UI highlights only runs. The chunk rule removes *up*, *home*, *wrong* from the denominator (128 two-signal rows, default runs still 1). Without the window fallback, appending two reflective paragraphs could erase a flagged run. See [STYLE-PACING.md](STYLE-PACING.md) |
 | 2026-10-16 | #251: pacing is an opt-in lens over shared paragraphs and speech, requiring two signals and ≥3 paragraphs or >400 words; authored cognition list, configurable 18-word / 20% / 20% thresholds | Public-only measurement chooses conservative defaults; published-fiction calibration remains owner-run and no baseline or prose-quality judgment ships. See [STYLE-PACING.md](STYLE-PACING.md) |
 | 2026-10-16 | #282: preserve eligible participle surface ratings, floor decimal norms, share speech-tag detection, guard lexicalized compound suffixes, and keep sensory defaults unchanged | Nine-text imagery recovery restores 13 candidate hits (10 useful); changed-span audit nets +1 useful, +12 noise, −10 wrong. Expanded public calibration: 114 eligible scenes, flags at 85/80/75/70% = 0/1/4/11, none useful. See the next row for `singleSense` ([STYLE-NORMS.md](STYLE-NORMS.md#singlesense-removed)) |
+| 2026-10-16 | #247: independent opt-in transitions and pronoun-start lenses; original transition inventory; no baseline yet; pronoun runs cross ordinary paragraphs and include dialogue, rhetorical and repeated-two-word uses | Descriptive census differs from the default `sameWordRuns` editorial signal; scene/chapter/mode boundaries reset runs; 50-sentence shares and low confidence below 200 follow #241. See [definitions](STYLE-TRANSITIONS.md) |
 | 2026-10-16 | #281 review: norm lookups prefer a verb reading's lemma over a base-form homograph (*felt* → *feel*), figurative and hearsay rules look past whitespace only, the bundled table keeps the 3.5/0.5 floor with haptic leads measured past interoception, defaults stay 4.0 / 1.0 / sight 3.0, and diction marks only narration sentences `abstract` | Past *felt* counted as the fabric and skipped the *feel* rule; *cold* (touch 4.11, interoception 3.53) could never count. Lowering default strength to 3.7 added *turn*, *wake* and *forget* as noise, so *warm*/*crimson* stay opt-in. Blind re-judging: 14/26/20 → 23/30/7 useful/noise/wrong ([STYLE-NORMS.md](STYLE-NORMS.md#re-review-281)) |
 | 2026-10-16 | #250: sensory balance is an opt-in lens over a derived Lancaster table: a sense word's strongest perceptual modality rates ≥ 4.0 and leads the next by ≥ 1.0 (sight by ≥ 3.0); `singleSense` needs ≥ 20 narration sense words and ≥ 85% in one modality | Calibrated on bench/public plus three Standard Ebooks chapters ([STYLE-NORMS.md](STYLE-NORMS.md)): nearly every concrete noun rates visual-dominant, so a uniform margin made sight 75–92% of every scene; the sight margin lifted useful sense words from 13 to 33 of 60 sampled. Published scenes peak at 77% one modality (Gatsby’s multi-sensory dawn), so 85% leaves no false flags on them |
 | 2026-10-16 | #250: diction takes a required caller-supplied concreteness table (JSON or TSV), flags runs of ≥ 3 consecutive abstract narration sentences (mean < 2.5 over ≥ 3 rated words), and errors without a table | Brysbaert is CC BY-NC-ND and stays out of the repository and tests; defaults assume its 1–5 scale. Real-world usefulness depends on the table Subplot supplies, an owner decision |
