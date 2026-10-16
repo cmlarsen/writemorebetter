@@ -161,9 +161,11 @@ annotate the value decoded with `JSON.parse`.
 Subplot chooses which methods to call. Its recommended default set is **clichés, dialogue tags,
 sentence length statistics and monotony, and sentence starts**. **Echoes, repeated phrases,
 long-sentence flags, overused and filler words, sensory balance, diction and pacing** are opt-in lenses;
-Pacing thresholds are heuristic and uncalibrated against published fiction;
 sensory balance and diction stay opt-in until the owner has seen usefulness numbers on real manuscripts. Length statistics and monotony remain available without
-`includeLongSentences`. The library has no combined request or default report selection.
+`includeLongSentences`. Pacing thresholds are heuristic and uncalibrated against published fiction.
+A pacing strip should highlight only `slowRuns` and draw the per-paragraph signals as neutral
+measurements: single paragraphs that meet two thresholds are mostly in-scene noise
+([STYLE-PACING.md](STYLE-PACING.md#signals-and-runs)). The library has no combined request or default report selection.
 
 | Report | Module and entry point | Options | Baseline | Needs readings |
 |---|---|---|---|---|
@@ -398,6 +400,7 @@ Build rules for any baseline:
 
 | Date | Decision | Why |
 |---|---|---|
+| 2026-10-16 | #284 review: pacing rows carry no per-paragraph verdict, verb heads need a verb-phrase chunk, past perfect skips adverbs with a lexical verb reading (*had still not forgotten*), and a failed pooled sequence reports its longest passing window | A seeded sample of 40 two-signal rows judged 15 useful / 25 noise, so a UI highlights only runs. The chunk rule removes *up*, *home*, *wrong* from the denominator (128 two-signal rows, default runs still 1). Without the window fallback, appending two reflective paragraphs could erase a flagged run. See [STYLE-PACING.md](STYLE-PACING.md) |
 | 2026-10-16 | #251: pacing is an opt-in lens over shared paragraphs and speech, requiring two signals and ≥3 paragraphs or >400 words; authored cognition list, configurable 18-word / 20% / 20% thresholds | Public-only measurement chooses conservative defaults; published-fiction calibration remains owner-run and no baseline or prose-quality judgment ships. See [STYLE-PACING.md](STYLE-PACING.md) |
 | 2026-10-16 | #281 review: norm lookups prefer a verb reading's lemma over a base-form homograph (*felt* → *feel*), figurative and hearsay rules look past whitespace only, the bundled table keeps the 3.5/0.5 floor with haptic leads measured past interoception, defaults stay 4.0 / 1.0 / sight 3.0, and diction marks only narration sentences `abstract` | Past *felt* counted as the fabric and skipped the *feel* rule; *cold* (touch 4.11, interoception 3.53) could never count. Lowering default strength to 3.7 added *turn*, *wake* and *forget* as noise, so *warm*/*crimson* stay opt-in. Blind re-judging: 14/26/20 → 23/30/7 useful/noise/wrong ([STYLE-NORMS.md](STYLE-NORMS.md#re-review-281)) |
 | 2026-10-16 | #250: sensory balance is an opt-in lens over a derived Lancaster table: a sense word's strongest perceptual modality rates ≥ 4.0 and leads the next by ≥ 1.0 (sight by ≥ 3.0); `singleSense` needs ≥ 20 narration sense words and ≥ 85% in one modality | Calibrated on bench/public plus three Standard Ebooks chapters ([STYLE-NORMS.md](STYLE-NORMS.md)): nearly every concrete noun rates visual-dominant, so a uniform margin made sight 75–92% of every scene; the sight margin lifted useful sense words from 13 to 33 of 60 sampled. Published scenes peak at 77% one modality (Gatsby’s multi-sensory dawn), so 85% leaves no false flags on them |

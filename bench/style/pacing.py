@@ -102,6 +102,15 @@ def tier2(probe, gate=False):
     return result
 
 
+def two_signal_rows(report):
+    return sum(not p['hasSpeech'] and p['signals']['words']['all'] > 0 and len(p['triggeredSignals']) >= 2
+               for p in report['paragraphs'])
+
+
+def run_paragraphs(report):
+    return sum(run['paragraphs']['end'] - run['paragraphs']['start'] for run in report['slowRuns'])
+
+
 def signals_summary(report):
     return {name: distribution(values) if (values := [row['signals'][name] for row in report['paragraphs']
                                                      if row['signals'][name] is not None]) else None
@@ -126,7 +135,7 @@ def measure_public(probe, out, options=None, suffix="public"):
     for name, text, wrapped in public_texts():
         report = probe.report(text, wrapped, options)
         rows.append({'source': name, 'words': report['words']['all'], 'paragraphs': len(report['paragraphs']),
-                     'qualifyingParagraphs': sum(p['slow'] for p in report['paragraphs']),
+                     'twoSignalParagraphs': two_signal_rows(report), 'runParagraphs': run_paragraphs(report),
                      'runs': len(report['slowRuns']), 'signals': signals_summary(report)})
         raw = text.encode('utf-8')
         for index, run in enumerate(report['slowRuns']):
@@ -142,7 +151,7 @@ def measure_public(probe, out, options=None, suffix="public"):
 
 def calibrate(probe, export):
     authors = defaultdict(lambda: {'signals': {name: [] for name in SIGNALS}, 'paragraphs': 0,
-                                   'slow': 0, 'runs': 0, 'words': 0})
+                                   'runParagraphs': 0, 'runs': 0, 'words': 0})
     seen = set()
     for row in jsonl(export / 'units.jsonl'):
         unit = row['unit_id']
@@ -155,7 +164,7 @@ def calibrate(probe, export):
         totals = authors[author]
         totals['words'] += report['words']['all']
         totals['paragraphs'] += len(report['paragraphs'])
-        totals['slow'] += sum(p['slow'] for p in report['paragraphs'])
+        totals['runParagraphs'] += run_paragraphs(report)
         totals['runs'] += len(report['slowRuns'])
         for paragraph in report['paragraphs']:
             for name in SIGNALS:
@@ -164,36 +173,29 @@ def calibrate(probe, export):
                     totals['signals'][name].append(value)
     if not authors:
         raise ValueError('empty export')
-    summaries = []
-    for totals in authors.values():
-        summaries.append({
-            'paragraphs': totals['paragraphs'], 'words': totals['words'], 'runs': totals['runs'],
-            'qualifyingParagraphPercent': 100 * totals['slow'] / totals['paragraphs'] if totals['paragraphs'] else None,
-            'runsPerThousandWords': 1000 * totals['runs'] / totals['words'] if totals['words'] else None,
-            'signals': {name: distribution(values) if values else None for name, values in totals['signals'].items()},
-        })
-    summaries.sort(key=lambda r: (r['words'], r['paragraphs'], r['runs']))
-    result = {'units': len(seen), 'authors': len(authors), 'authorAggregates': summaries,
-              'authorMeanSignals': {name: distribution(values) if (values := [r['signals'][name]['mean'] for r in summaries
-                                                                            if r['signals'][name] is not None]) else None
-                                    for name in SIGNALS},
-              'authorFlagRates': {name: distribution(values) if (values := [r[name] for r in summaries if r[name] is not None]) else None
-                                  for name in ('qualifyingParagraphPercent', 'runsPerThousandWords')}}
+    means = {name: [sum(t['signals'][name]) / len(t['signals'][name]) for t in authors.values() if t['signals'][name]]
+             for name in SIGNALS}
+    rates = {'runParagraphPercent': [100 * t['runParagraphs'] / t['paragraphs'] for t in authors.values() if t['paragraphs']],
+             'runsPerThousandWords': [1000 * t['runs'] / t['words'] for t in authors.values() if t['words']]}
+    pooled = {name: [value for t in authors.values() for value in t['signals'][name]] for name in SIGNALS}
+    result = {'units': len(seen), 'authors': len(authors),
+              'authorsWithRunsPercent': 100 * sum(t['runs'] > 0 for t in authors.values()) / len(authors),
+              'paragraphSignals': {name: distribution(values) if values else None for name, values in pooled.items()},
+              'authorMeanSignals': {name: distribution(values) if values else None for name, values in means.items()},
+              'authorFlagRates': {name: distribution(values) if values else None for name, values in rates.items()}}
     if not aggregate_only(result):
         raise ValueError('invalid aggregate')
     return result
 
 
-KEYS = set(SIGNALS) | {'units', 'authors', 'authorAggregates', 'authorMeanSignals', 'authorFlagRates',
-                      'paragraphs', 'words', 'runs', 'qualifyingParagraphPercent', 'runsPerThousandWords',
-                      'signals', 'mean', 'percentiles', '0', '5', '25', '50', '75', '95', '100'}
+KEYS = set(SIGNALS) | {'units', 'authors', 'authorsWithRunsPercent', 'paragraphSignals', 'authorMeanSignals',
+                      'authorFlagRates', 'runParagraphPercent', 'runsPerThousandWords',
+                      'mean', 'percentiles', '0', '5', '25', '50', '75', '95', '100'}
 
 
 def aggregate_only(value):
     if isinstance(value, dict):
         return all(key in KEYS and aggregate_only(item) for key, item in value.items())
-    if isinstance(value, list):
-        return all(aggregate_only(item) for item in value)
     return value is None or isinstance(value, (int, float))
 
 
@@ -209,8 +211,8 @@ def self_test(probe):
         (export / 'units.jsonl').write_text('\n'.join(json.dumps(row) for row in rows))
         result = calibrate(probe, export)
         assert result['authors'] == 2 and result['units'] == 3
-        assert sum(row['runs'] for row in result['authorAggregates']) == 1
-        assert result['authorFlagRates']['qualifyingParagraphPercent']['mean'] == 37.5
+        assert result['authorsWithRunsPercent'] == 50
+        assert result['authorFlagRates']['runParagraphPercent']['mean'] == 37.5
         encoded = json.dumps(result)
         assert 'PRIVATE_SENTINEL' not in encoded and temporary not in encoded
         assert aggregate_only(result)

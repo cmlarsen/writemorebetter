@@ -27,8 +27,8 @@ let custom = try document.pacing(optionsJson: "{\"minimumPastPerfectPercent\":30
 
 ## Signals and runs
 
-Each row in `paragraphs` has a self-contained `span`, `sceneBreakBefore`, `hasSpeech`, `signals`,
-`triggeredSignals` and `slow`. Row order is the document's prose-paragraph order after its heading
+Each row in `paragraphs` has a self-contained `span`, `sceneBreakBefore`, `hasSpeech`, `signals`
+and `triggeredSignals`. Row order is the document's prose-paragraph order after its heading
 and scene-marker exclusions. The original spans remain valid for hard-wrapped text; the report
 never reparses paragraphs. See [document conventions](STYLE-DOCUMENT.md).
 
@@ -39,15 +39,23 @@ never reparses paragraphs. See [document conventions](STYLE-DOCUMENT.md).
 | `words` | `Split<usize>` (`all`, `narration`, `dialogue`), counted by `is_word && !is_skipped`; clitics count as words, as in sentence length |
 | `sentences`, `meanSentenceLength` | number of analyzed sentences (including zero-word sentences), and counted words ÷ sentences |
 | `dialoguePercent` | speech word tokens ÷ all word tokens × 100; uses `Document::mode_at`, not sentence mode |
-| `verbPhrases` | approximate verb heads: a counted token with a `VB*` reading outside a noun phrase; adjacent *be/have/do* auxiliary chains, with intervening adverbs, collapse into one head |
+| `verbPhrases` | approximate verb heads: a counted token with a `VB*` reading inside a verb-phrase chunk (`*-VP`), or with no chunk at all; adjacent *be/have/do* auxiliary chains, with intervening adverbs, collapse into one head |
 | `pastPerfect`, `pastPerfectPercent` | heads introduced by *had* (`VBD`, lemma *have*) or *'d* followed by `VBN`; count ÷ verb phrases × 100 |
 | `cognition`, `cognitionPercent` | heads with a cognition verb lemma from the authored list; count ÷ verb phrases × 100 |
 
-Noun-phrase chunks (`*-NP*`) suppress even mis-tagged noun *thought*. Verb-phrase chunks take
-precedence if both chunk families occur. Multiple readings never count a token twice. Auxiliary
-chains may cross only whitespace and consecutive adverbs (`RB`, `RBR`, `RBS`), never punctuation,
-other words, skipped names, sentences or paragraph boundaries. *Had never been*, *had already gone*
-and *had been remembering* count once. *Had a boat* is ordinary possession. Straight and curly
+A token chunked as anything other than a verb phrase is not a verb head, so noun *thought*,
+particle *up* (*dug up*), adverb *home* (*'d come home*) and adjective *wrong* stay out of both
+numerator and denominator even though each has a lexical `VB` reading. Tokens the chunker left
+unchunked fall back to the `VB` reading. The chunker sometimes labels a real verb as a noun phrase
+(*was* in *What she had done was wrong*); it is then not counted. Multiple readings never count a
+token twice. Auxiliary chains may cross only whitespace and consecutive adverbs, never
+punctuation, other words, skipped names, sentences or paragraph boundaries. An adverb here is a
+token with an `RB`, `RBR` or `RBS` reading and no `VBN`, `VBG` or `VBD` reading, so *still* and
+*back* count as adverbs despite their base-verb readings: *had still not forgotten* and *had back
+then known* are past perfect, while *had still water* and *had back pain* are not. *Had never
+been*, *had already gone* and *had been remembering* count once. *Had a boat* is ordinary
+possession. Inverted counterfactuals (*Had she known, …*) are not counted, because *had* is
+followed by the subject rather than the participle. Straight and curly
 apostrophes normalize alike. Contracted *'d gone* counts, but *'d go*, *'d put* and other cases
 where the following token also has a base `VB` reading do not: *would* is still possible.
 
@@ -59,20 +67,30 @@ data copied or derived from third-party dictionaries or rule resources.
 
 Null means an empty denominator, never zero or NaN. These local measurements remain available
 for short paragraphs so a UI can draw a strip; they are not baseline comparisons and have no
-50-sentence display floor. A paragraph's `slow` means it contains no speech and meets at least two
-of the other three signal thresholds. `hasSpeech` checks the document's speech spans even when
+50-sentence display floor. `triggeredSignals` on a row lists which thresholds that paragraph's own
+values meet; it is a measurement, not a verdict. **A pacing strip should highlight only
+`slowRuns`** and draw paragraph signals as neutral values. A short in-scene sentence with one
+relative-clause past perfect (*the coffee I had made too strong*) or immediate-action past perfect
+(*I had opened my mouth to reply, when…*) easily meets two thresholds on its own. An independent
+review of PR #284 judged a seeded random sample of 40 such two-signal rows on the public texts:
+15 useful, 25 noise, 0 wrong. `hasSpeech` checks the document's speech spans even when
 the speech contains only punctuation or all its words were skipped; a rounded zero dialogue share
 can never make speech qualify. Scare quotes and quoted titles follow the document's non-speech rule.
 
-`slowRuns` contains maximal consecutive sequences of slow rows, bounded by speech, a nonqualifying
-paragraph, recognized headings or scene breaks. A sequence is reported when it has **at least 3
-paragraphs OR strictly more than 400 words**, and its pooled signal values also meet at least two
-thresholds. Ordinary paragraph breaks do not stop it. Each `PacingRun` owns its covering `span`,
+A paragraph is eligible for a run when it contains no speech, has at least one counted word and
+meets at least two of the three thresholds. `slowRuns` starts from maximal consecutive sequences
+of eligible rows, bounded by speech, an ineligible paragraph, recognized headings or scene breaks.
+Ordinary paragraph breaks do not stop a sequence. A run must have **at least 3 paragraphs OR
+strictly more than 400 words**, and its pooled signal values must also meet at least two
+thresholds. When a whole sequence fails the pooled check, the report keeps the longest window
+inside it that passes (the earliest on ties) and searches the remainder on each side the same
+way. Different signal pairs can support adjacent paragraphs, so pooling the whole sequence can
+dilute both pairs below their thresholds; the window search means that appending more eligible
+paragraphs to a flagged sequence never leaves it without a run. Each `PacingRun` owns its covering `span`,
 half-open `paragraphs: {start, end}` indexes into this report's rows, pooled `signals` and
 `triggeredSignals` (`sentenceLength`, `pastPerfect`, `cognition`). Pooling sums raw counts and then
-recomputes rates; it never averages paragraph percentages. Paragraph `slow` is a local indicator;
-it does not imply membership in a flagged run. Different combinations of signals can support
-adjacent paragraphs, so the pooled check is independent.
+recomputes rates; it never averages paragraph percentages. An eligible paragraph is not
+necessarily inside a run.
 
 ## Options
 
@@ -111,44 +129,51 @@ not held-out literary precision or recall.
 
 ### First baseline (2026-10-16)
 
-51,987 counted word tokens across 1,207 paragraphs; defaults select 116 local slow rows but
-only one sustained run. All four Standard Ebooks chapters and the full Moby excerpt have zero
+51,987 counted word tokens across 1,207 paragraphs; 128 paragraphs meet two thresholds on their
+own, but defaults report only one sustained run. All four Standard Ebooks chapters and the full Moby excerpt have zero
 runs. The first chapter of each is fetched at benchmark time; no downloaded text is committed.
 Full signal means/percentiles, options, sweep counts and judgment metadata are recorded in
 [`pacing-baseline.json`](../bench/style/pacing-baseline.json).
 
-| Input | Words | Paragraphs | Local slow rows | Runs |
-|---|---:|---:|---:|---:|
-| story1 | 2,209 | 96 | 22 | 1 |
-| story2 | 2,038 | 96 | 14 | 0 |
-| story3 | 2,008 | 96 | 19 | 0 |
-| story4 | 2,175 | 93 | 20 | 0 |
-| story5 | 1,856 | 86 | 18 | 0 |
-| moby150k (hard-wrapped) | 25,002 | 315 | 7 | 0 |
-| The Mysterious Affair at Styles, ch. 1 | 4,161 | 157 | 4 | 0 |
-| The Great Gatsby, ch. 1 | 6,067 | 152 | 6 | 0 |
-| The Sign of the Four, ch. 1 | 2,949 | 56 | 3 | 0 |
-| Anne of Avonlea, ch. 1 | 3,522 | 60 | 3 | 0 |
+| Input | Words | Paragraphs | Two-signal rows | Paragraphs in runs | Runs |
+|---|---:|---:|---:|---:|---:|
+| story1 | 2,209 | 96 | 25 | 4 | 1 |
+| story2 | 2,038 | 96 | 16 | 0 | 0 |
+| story3 | 2,008 | 96 | 19 | 0 | 0 |
+| story4 | 2,175 | 93 | 21 | 0 | 0 |
+| story5 | 1,856 | 86 | 21 | 0 | 0 |
+| moby150k (hard-wrapped) | 25,002 | 315 | 9 | 0 | 0 |
+| The Mysterious Affair at Styles, ch. 1 | 4,161 | 157 | 4 | 0 | 0 |
+| The Great Gatsby, ch. 1 | 6,067 | 152 | 7 | 0 | 0 |
+| The Sign of the Four, ch. 1 | 2,949 | 56 | 3 | 0 | 0 |
+| Anne of Avonlea, ch. 1 | 3,522 | 60 | 3 | 0 | 0 |
+
+These numbers follow the PR #284 review fixes. Before them, the verb-head rule admitted particles,
+adverbs and adjectives with a lexical `VB` reading (7.9% of counted verb tokens in story1–5), which
+diluted both verb shares: 116 two-signal rows, the same single default run, and 7 / 5 / 2 runs in
+the first three sweep rows below.
 
 Public-only threshold sweep (`python3 bench/style/pacing.py --sweep`):
 
 | Mean length / past-perfect % / cognition % | Runs | Spot judgment: useful / noise / wrong |
 |---|---:|---|
-| 15 / 10 / 10 | 7 | 3 / 4 / 0 |
-| 20 / 10 / 10 | 5 | not separately scored; overlapping variants of the loose set |
-| 20 / 15 / 15 | 2 | not separately scored |
+| 15 / 10 / 10 | 8 | 4 / 4 / 0 |
+| 20 / 10 / 10 | 6 | 2 / 4 / 0 |
+| 20 / 15 / 15 | 2 | 0 / 2 / 0 |
 | **18 / 20 / 20 (defaults)** | **1** | **1 / 0 / 0** |
 | 25 / 30 / 30 | 0 | no flags to judge |
 
-The single implementer spot-judged all seven loose-setting stretches and the default run as a
+The implementer spot-judged every loose-setting stretch and the default run as a
 fiction editor inspecting a pacing strip: useful means sustained backstory/interior reflection
 or exposition worth locating; noise means predominantly current scene business or a short
 setup; wrong means the asserted signals do not describe the passage. This is a lens-usefulness
 judgment, not a recommendation to cut prose. The useful loose stretches were story1's sustained
 recollection of a past job offer (paragraphs 79–82, zero-based), the Styles family-history block,
-and Gatsby's Buchanan background/portrait. Four other story1/story4 stretches were scene/setup
-noise. The defaults retain only the job-offer recollection. They miss the Styles and Gatsby
-blocks: deliberate conservatism trades recall for fewer interruptions. There was no blind or
+Gatsby's Buchanan background/portrait and, borderline, Moby's introduction of Father Mapple (his
+sailor past, then the pulpit's description). Four other story1/story4 stretches were scene/setup
+noise. The 20 / 10 / 10 and 20 / 15 / 15 runs are subsets or trimmed variants of those stretches
+and inherit their labels. The defaults retain only the job-offer recollection. They miss the
+Styles, Gatsby and Moby blocks: deliberate conservatism trades recall for fewer interruptions. There was no blind or
 independent adjudication, the sample is small and historically skewed, and these thresholds
 remain uncalibrated against modern published fiction. Raising the length threshold alone lost
 the clearest backstory block; raising the verb shares removed current-scene noise instead.
@@ -162,8 +187,10 @@ python3 bench/style/run.py tier3 --pacing --export /approved/export
 ```
 
 The script is a calibration entry point without a published-fiction baseline. It pools units by
-`author_key`, prints only anonymous numeric signal distributions and flag rates per author,
-and equally weighted distributions across author means/rates. It never emits text or source
+`author_key` and prints only aggregates: the pooled per-paragraph signal distributions, the
+distribution of author signal means, the distribution of per-author flag rates (share of
+paragraphs inside runs, runs per thousand words), and the share of authors with any run. It
+prints no per-author rows or exact word totals. It never emits text or source
 metadata. The synthetic self-test checks pooling and metadata suppression. No private corpus,
 export, title or author record was accessed to implement or test this report. See the
 [benchmark README](../bench/style/README.md#pacing-251) for export layout, weighting and gates.

@@ -2,6 +2,7 @@ export interface Span { start: number; end: number; }
 export type Mode = "narration" | "dialogue";
 export interface Split<T> { all: T; narration: T; dialogue: T; }
 export interface SentenceRange { start: number; end: number; }
+export interface PacingParagraphRange { start: number; end: number; }
 
 export type ClicheKind = "cliche" | "redundancy";
 export type DialogueTagPosition = "before" | "after" | "split";
@@ -313,7 +314,6 @@ export interface PacingParagraph {
   signals: PacingSignals;
   hasSpeech: boolean;
   triggeredSignals: Array<PacingSignal>;
-  slow: boolean;
 }
 export interface PacingRun {
   span: Span;
@@ -326,5 +326,3 @@ export interface PacingReport {
   paragraphs: Array<PacingParagraph>;
   slowRuns: Array<PacingRun>;
 }
-
-export interface PacingParagraphRange { start: number; end: number; }

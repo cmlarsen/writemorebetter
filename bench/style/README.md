@@ -811,12 +811,12 @@ natural exposition. Default thresholds and public flag distributions are recorde
 
 Tier 3 is an owner-run calibration entry point with no shipped published-fiction baseline.
 The export layout is `units.jsonl` plus `units/<unit_id>.txt`, one paragraph per line;
-`author_key` pools all of an author's units. Output contains anonymous numeric per-author
-paragraph-signal distributions (mean and p0/5/25/50/75/95/100), qualifying-paragraph shares,
-and run rates per thousand words, plus equally weighted distributions of those author means
-and rates. Paragraph signal distributions weight each paragraph equally within an author;
-null denominators are omitted for that measure. Anonymous rows sort by numeric size/counts,
-never by metadata. It emits no text, titles, identifiers or author keys; a fixed output-key
+`author_key` pools all of an author's units. Output is aggregate-only: pooled per-paragraph
+signal distributions (mean and p0/5/25/50/75/95/100, each paragraph weighted equally), equally
+weighted distributions of author signal means and of per-author flag rates (share of paragraphs
+inside runs, runs per thousand words), and the share of authors with any run. Null
+denominators are omitted for that measure. There are no per-author rows or exact word totals.
+It emits no text, titles, identifiers or author keys; a fixed output-key
 allowlist and numeric-value check guard serialization, probe stderr is discarded, and run.py
 suppresses all tier 3 argument/runtime errors. CI runs only synthetic `--self-test`, which
 checks author pooling and sentinel metadata suppression. No private data was accessed for #251.

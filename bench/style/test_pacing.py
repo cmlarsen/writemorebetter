@@ -12,8 +12,8 @@ class FakeProbe:
     def report(self, text):
         dialogue = text.startswith('“')
         slow = 'remembered' in text
-        return {'words': {'all': 10}, 'slowRuns': [1] if slow else [],
-                'paragraphs': [{'slow': slow, 'signals': dict(zip(pacing.SIGNALS,
+        return {'words': {'all': 10}, 'slowRuns': [{'paragraphs': {'start': 0, 'end': 1}}] if slow else [],
+                'paragraphs': [{'signals': dict(zip(pacing.SIGNALS,
                                [100.0 if dialogue else 0.0, 10.0, 50.0 if slow else 0.0, 40.0 if slow else 0.0]))}]}
 
 
@@ -31,7 +31,9 @@ class PacingTests(unittest.TestCase):
             result = pacing.calibrate(FakeProbe(), export)
             self.assertEqual(result['authors'], 2)
             self.assertEqual(result['authorMeanSignals']['pastPerfectPercent']['mean'], 12.5)
-            self.assertEqual(result['authorFlagRates']['qualifyingParagraphPercent']['mean'], 25)
+            self.assertEqual(result['authorFlagRates']['runParagraphPercent']['mean'], 25)
+            self.assertEqual(result['authorsWithRunsPercent'], 50)
+            self.assertNotIn('words', json.dumps(result))
             self.assertNotIn('SECRET', json.dumps(result))
             self.assertTrue(pacing.aggregate_only(result))
             rows[0]['unit_id'] = '../escape'
@@ -40,7 +42,8 @@ class PacingTests(unittest.TestCase):
                 pacing.calibrate(FakeProbe(), export)
 
     def test_output_key_allowlist(self):
-        self.assertTrue(pacing.aggregate_only({'authors': 2, 'signals': {'mean': None}}))
+        self.assertTrue(pacing.aggregate_only({'authors': 2, 'paragraphSignals': {'mean': None}}))
+        self.assertFalse(pacing.aggregate_only({'authorFlagRates': [{'runsPerThousandWords': 1.0}]}))
         self.assertFalse(pacing.aggregate_only({'PRIVATE_SENTINEL': 3}))
         self.assertFalse(pacing.aggregate_only({'words': 'PRIVATE_SENTINEL'}))
 

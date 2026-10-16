@@ -19,6 +19,11 @@ public struct SentenceRange: Codable, Equatable, Sendable {
     public let end: Int
 }
 
+public struct PacingParagraphRange: Codable, Equatable, Sendable {
+    public let start: Int
+    public let end: Int
+}
+
 public enum ClicheKind: String, Codable, Sendable {
     case cliche
     case redundancy
@@ -365,7 +370,6 @@ public struct PacingParagraph: Codable, Equatable, Sendable {
     public let signals: PacingSignals
     public let hasSpeech: Bool
     public let triggeredSignals: [PacingSignal]
-    public let slow: Bool
 }
 public struct PacingRun: Codable, Equatable, Sendable {
     public let span: Span
@@ -431,9 +435,4 @@ public extension StyleDocument {
 
 private func decodeStyle<T: Decodable>(_ json: String) throws -> T {
     try JSONDecoder().decode(T.self, from: Data(json.utf8))
-}
-
-public struct PacingParagraphRange: Codable, Equatable, Sendable {
-    public let start: Int
-    public let end: Int
 }

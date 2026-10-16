@@ -148,6 +148,19 @@ impl PacingSignals {
         self.past_perfect += other.past_perfect;
         self.cognition += other.cognition;
     }
+
+    fn between(start: &Self, end: &Self) -> Self {
+        let mut signals = Self::default();
+        signals.words.all = end.words.all - start.words.all;
+        signals.words.narration = end.words.narration - start.words.narration;
+        signals.words.dialogue = end.words.dialogue - start.words.dialogue;
+        signals.sentences = end.sentences - start.sentences;
+        signals.verb_phrases = end.verb_phrases - start.verb_phrases;
+        signals.past_perfect = end.past_perfect - start.past_perfect;
+        signals.cognition = end.cognition - start.cognition;
+        signals.finish();
+        signals
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -159,7 +172,6 @@ pub struct PacingParagraph {
     pub signals: PacingSignals,
     pub has_speech: bool,
     pub triggered_signals: Vec<PacingSignal>,
-    pub slow: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -192,8 +204,13 @@ fn verb(token: &Token) -> bool {
     token.is_word
         && !token.is_skipped
         && token.readings.iter().any(|r| r.pos.starts_with("VB"))
-        && (!token.chunks.iter().any(|c| c.contains("-NP"))
-            || token.chunks.iter().any(|c| c.ends_with("-VP")))
+        && (token.chunks.is_empty() || token.chunks.iter().any(|c| c.ends_with("-VP")))
+}
+
+fn adverb(token: &Token) -> bool {
+    !token.is_skipped
+        && (tag(token, "RB") || tag(token, "RBR") || tag(token, "RBS"))
+        && !(tag(token, "VBN") || tag(token, "VBG") || tag(token, "VBD"))
 }
 
 fn cognition(token: &Token) -> bool {
@@ -209,9 +226,7 @@ fn cognition(token: &Token) -> bool {
 
 fn next_verb(tokens: &[&Token], index: usize) -> Option<usize> {
     let mut next = index + 1;
-    while tokens.get(next).is_some_and(|t| {
-        !t.is_skipped && (tag(t, "RB") || tag(t, "RBR") || tag(t, "RBS")) && !verb(t)
-    }) {
+    while tokens.get(next).is_some_and(|t| adverb(t)) {
         next += 1;
     }
     tokens.get(next).filter(|t| verb(t)).map(|_| next)
@@ -259,24 +274,43 @@ fn close(
     options: &PacingOptions,
     runs: &mut Vec<PacingRun>,
 ) {
-    if start == end {
-        return;
-    }
-    let mut signals = PacingSignals::default();
+    let mut totals = vec![PacingSignals::default()];
     for row in &rows[start..end] {
-        signals.add(&row.signals);
+        let mut total = totals[totals.len() - 1].clone();
+        total.add(&row.signals);
+        totals.push(total);
     }
-    signals.finish();
-    let triggered_signals = signals.triggered(options);
-    if (end - start >= options.minimum_paragraphs || signals.words.all > options.more_than_words)
-        && triggered_signals.len() >= 2
-    {
-        runs.push(PacingRun {
-            span: Span::covering(&rows[start].span, &rows[end - 1].span),
-            paragraphs: start..end,
-            signals,
-            triggered_signals,
-        });
+    window(start, 0, end - start, &totals, rows, options, runs);
+}
+
+fn window(
+    offset: usize,
+    start: usize,
+    end: usize,
+    totals: &[PacingSignals],
+    rows: &[PacingParagraph],
+    options: &PacingOptions,
+    runs: &mut Vec<PacingRun>,
+) {
+    for length in (1..=end - start).rev() {
+        for first in start..=end - length {
+            let last = first + length;
+            let signals = PacingSignals::between(&totals[first], &totals[last]);
+            let triggered_signals = signals.triggered(options);
+            if (length >= options.minimum_paragraphs || signals.words.all > options.more_than_words)
+                && triggered_signals.len() >= 2
+            {
+                window(offset, start, first, totals, rows, options, runs);
+                runs.push(PacingRun {
+                    span: Span::covering(&rows[offset + first].span, &rows[offset + last - 1].span),
+                    paragraphs: offset + first..offset + last,
+                    signals,
+                    triggered_signals,
+                });
+                window(offset, last, end, totals, rows, options, runs);
+                return;
+            }
+        }
     }
 }
 
@@ -309,16 +343,15 @@ pub fn report(document: &Document, options: &PacingOptions) -> Result<PacingRepo
         }
         signals.finish();
         let triggered_signals = signals.triggered(options);
-        let slow = !has_speech && signals.words.all > 0 && triggered_signals.len() >= 2;
+        let eligible = !has_speech && signals.words.all > 0 && triggered_signals.len() >= 2;
         paragraphs.push(PacingParagraph {
             span: paragraph.span.clone(),
             scene_break_before: paragraph.scene_break_before,
             signals,
             has_speech,
             triggered_signals,
-            slow,
         });
-        if !slow {
+        if !eligible {
             close(start, index, &paragraphs, options, &mut slow_runs);
             start = index + 1;
         }
