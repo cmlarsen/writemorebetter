@@ -969,3 +969,19 @@ It emits no text, titles, identifiers or author keys; a fixed output-key
 allowlist and numeric-value check guard serialization, probe stderr is discarded, and run.py
 suppresses all tier 3 argument/runtime errors. CI runs only synthetic `--self-test`, which
 checks author pooling and sentinel metadata suppression. No private data was accessed for #251.
+
+## Sensory norms follow-ups (#282)
+
+`cargo build -p writemorebetter-style --release --example norm_reports` followed by
+`python3 bench/style/norms.py --probe target/release/examples/norm_reports` runs five tier 2
+synthetic cases: participles, literal versus predicative *feel*, transparent versus lexicalized
+compounds, adverb-interrupted figurative predicates, and speech tags. The fixtures include curly
+quotes/apostrophes, an em dash, an ellipsis and U+2028; byte and UTF-16 spans must agree. The
+Rust suite additionally forces strongly rated speech tags through an invented table.
+
+`test_lancaster_norms.py` checks the derivation using invented means around strength/margin
+boundaries, including an exact decimal boundary that binary floating-point subtraction can lose.
+`WMB_NORM_JSON=bench/style/out/norms` makes the `norm_reports` example save one JSON result per
+input basename for public-text calibration; output belongs in ignored benchmark directories.
+The source text is never included in that JSON. The public calibration and pending owner decision
+are recorded in [STYLE-NORMS.md](../../docs/STYLE-NORMS.md).

@@ -443,7 +443,7 @@ fn compound_guards_keep_transparent_sensory_parts_and_unicode_spans() {
     let text =
         "“Her lamp’s dimmed…”, she said—\u{2028}hard-heartedness, cold-blooded, eagle-eyed, \
                 dubious-looking look-outs; red-hot, ice-cold, sweet-smelling, dance-music, \
-                amber-tinted, half-muffled, blue-clothed, red-eyed.";
+                amber-tinted, half-muffled, blue-clothed, red-eyed, cloud-flocks.";
     let found = bundled(text, &options());
     let compounds: Vec<_> = found
         .iter()
@@ -462,7 +462,8 @@ fn compound_guards_keep_transparent_sensory_parts_and_unicode_spans() {
             "amber-tinted",
             "half-muffled",
             "blue-clothed",
-            "red-eyed"
+            "red-eyed",
+            "cloud-flocks"
         ]
     );
     let report =
@@ -480,6 +481,7 @@ fn compound_guards_keep_transparent_sensory_parts_and_unicode_spans() {
 fn figurative_predicates_look_past_short_adverbs_but_not_punctuation() {
     let text = "It looks just as if it will rain. It looked almost like a ship. \
                 I felt very nice and snug. He felt unduly concerned. \
+                I felt worse and worse. \
                 She felt very smooth stone. She looked, almost like a ship.";
     let found = bundled(text, &options());
     assert_eq!(

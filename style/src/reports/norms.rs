@@ -71,7 +71,7 @@ fn lookup_parts<'a, T>(token: &Token, get: impl Fn(&str) -> Option<&'a T>) -> Op
     let candidates: &[&str] = if matches!(last, "eyed" | "looking" | "tinted" | "clothed") {
         &[parts[0]]
     } else {
-        &[last]
+        &[last, parts[0]]
     };
     for &part in candidates {
         if let Some(value) = get(part).filter(|_| !excluded(part)) {

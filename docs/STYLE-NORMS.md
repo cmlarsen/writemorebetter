@@ -19,7 +19,11 @@ and reject compact documents. On the hard-wrapped moby150k document (native rele
 Linux), sensory balance takes 15 ms after a one-time 3.0 ms table load, and diction 11 ms plus 11 ms
 to parse a 36,800-word TSV table the first time it is passed. `StyleDocument::diction` keeps the
 last parsed table and reuses it while callers pass the same text, so a lens refresh with an
-unchanged table skips the parse (the bindings still copy the text across the boundary).
+unchanged table skips the parse (the bindings still copy the text across the boundary). The cache
+is process-global: it retains the last table’s full source text and parsed map until replacement or
+process exit. Calls compare and replace that slot under a mutex; parsing happens outside the lock, so
+concurrent cache misses can parse independently (including duplicate parses of the same input). A
+retained table handle across the JS/Swift boundary remains deferred; the current API still copies text.
 
 ## Word lookup
 
@@ -30,29 +34,39 @@ has a verb reading whose lemma differs from the surface form, only those lemmas 
 *felt* is *feel*, not the verb *to felt*, and *saw* in a verb chunk is *see* (in a noun phrase,
 *the felt* and *the saw* keep their own lemmas). When exactly one candidate is in the table it is
 used, when several are the one equal to the surface form is used, and when none is the lowercase
-surface form is tried, unless it is itself the lemma of a rejected reading. Tokens without readings
+surface form is tried, unless it is itself the lemma of a rejected reading. Regular `-s`, `-ed` and
+`-ing` forms (including a dropped final `e`) may fall back even when the surface has its own reading.
+Sensory lookup treats a rating below the selected strength or margin as absent before making that
+fallback; diction uses every rating. Thus *creaking* keeps its stronger surface rating when *creak*
+is too weak, while past *felt* and *saw* keep their verb lemmas and never fall back to the homographs. Tokens without readings
 use the surface form. A hyphenated compound with no entry of its own (*red-hot*, *sweet-smelling*,
-*dance-music*) is looked up by its last part, then its first, and keeps the whole token's span.
+*dance-music*) is looked up by its last part, then its first, and keeps the whole token’s span. Compounds ending in
+`-eyed`, `-looking`, `-tinted` or `-clothed` use only their first part (*red-eyed*, *amber-tinted*,
+*blue-clothed*); `-blooded`, `-hearted`, `-heartedness` and `-outs` have no part fallback. These
+suffix guards reject *eagle-eyed*, *dubious-looking*, *cold-blooded*, *hard-heartedness* and
+*look-outs*. Direct whole-word entries still take precedence; other lexicalized compounds can still
+be misread, and *half-muffled* remains context-dependent (wrapped up versus a muted sound).
 Excluded: echoes' function-word list, *say/ask/tell/talk/speak/reply/answer*, tokens whose readings
 are all proper nouns, and capitalized words that do not open a sentence (after an opening quote,
 bracket, dash or colon counts as opening). The last rule keeps character names such as *Daisy* out of
 the counts when no skip list is supplied; supply `skipNames` to also drop sentence-initial names.
 
-Because ties between candidates are broken by table membership, a table that lacks a word's base
-lemma can still resolve the inflected form differently; verb forms no longer depend on it, which
-is why *holding*, *breathing* and *laughing* now resolve to *hold*, *breathe* and *laugh* whichever
-table is loaded.
+Table membership and sensory thresholds can resolve regular inflections differently. If a verb
+lemma has an eligible rating it wins; only an absent or ineligible lemma permits the surface
+fallback. This preserves the homograph fix without throwing away highly rated participles.
 
 ## Sensory balance
 
 `style/data/norms/lancaster-perceptual.tsv` is derived from the Lancaster Sensorimotor Norms by
 `scripts/build-lancaster-norms.py`. Each line is `word`, dominant modality letter, its mean strength
-and its lead over the second-strongest modality, both in tenths (0–50). For a haptic word the lead
+and its lead over the second-strongest modality, both in floored tenths (0–50). For a haptic word the lead
 is measured over the strongest modality other than interoception: touch and interoception co-rate
 on temperature and bodily-contact words (*cold* is haptic 4.11, interoceptive 3.53), so the plain
 lead dropped *cold*, *heat* and *warmth* although no other sense competes. Single lowercase words
-whose dominant modality rates ≥ 3.5 and leads by ≥ 0.5 ship: 11,450 words, 192,986 bytes (65,954
-with `gzip -9`). The table is looser than the default options so that options can loosen as well as
+whose dominant modality rates ≥ 3.5 and leads by ≥ 0.5 ship. The #282 build has 11,456 words, 193,102 bytes (66,055 with `gzip -9`).
+Decimal arithmetic preserves exact CSV boundaries; flooring tenths prevents rounding a word below
+4.0/1.0 into the defaults. Custom thresholds between tenths are conservative by less than 0.1; the
+public TSV format stays unchanged. The table is looser than the default options so that options can loosen as well as
 tighten; values below 3.5/0.5 select nothing more. `PerceptualNorms::from_tsv` loads a caller table
 in the same format (a leading UTF-8 BOM is ignored).
 
@@ -64,14 +78,19 @@ A **sense word** is a looked-up word whose dominant modality has strength ≥ `m
 and leads the next modality by ≥ `dominanceMargin` (1.0); sight words must lead by ≥ `sightMargin`
 (3.0). Lemmas in `style/data/norms/not-sensory.txt` (our own list of generic, speech-act and
 reading words the norms rate perceptual, such as *way*, *up*, *story*, *tale*, *read*, *explain*,
-the emotion noun *feeling*, and *pose* from dialect *s’pose*) never count. Neither do these uses,
+the emotion noun *feeling*, and *pose* from dialect *s’pose*) never count. Speech verbs identified as dialogue attributions by the shared `dialogue_tags`
+report also never count, even with a caller table that rates them strongly; a literal sound elsewhere
+(*the thunder grumbled*) remains eligible. Neither do these uses,
 judged on the next word or two when only whitespace separates them (a comma or other punctuation
 breaks the link; double spaces and hard-wrapped line breaks do not):
 
 - *see* and *feel* followed by a clause or comparison (*that*, *if*, *how*, *like*, *as*, …), and
-  *feel* followed by an adjective or past participle (*felt ashamed*, *felt obliged*);
+  *feel* followed by a predicative adjective or past participle (*felt ashamed*, *felt obliged*); an
+  immediately following noun preserves literal touch (*felt broken glass*, *felt warm breath*,
+  *felt smooth stone*, *felt sharp pain*);
 - *look* followed by *like*, *as if* or *as though*, and *sound* followed by *as if* or *as though*
-  (appearance, not sight);
+  (appearance, not sight); these predicates and *feel* can look past up to two adverbs
+  (*looks just as if*, *looked almost like*, *felt unduly concerned*);
 - *hear* followed by *that*, *of*, *about* or *from* (hearsay);
 - a flat adverb (an adjective spelling with its own adverb reading, such as *pretty* or *hard*)
   used as an intensifier before an adjective or adverb outside a noun phrase (*pretty soon*,
@@ -145,6 +164,10 @@ moves with any change to the pool, so every changed span in the six chapters was
 hand-marked sensory words) rose from 13 to 15 (*cold* twice). *snow* (sight 4.10, touch 3.62) and
 *windy* (touch 3.76, sound 3.59) stay out: each splits two senses, so the margins reject them by
 design.
+
+Remaining F3 limitations: *Do you see?* can mean understand, and a bare adverb (*felt dreadfully*)
+does not establish an adjective complement. Longer modifier chains, noun-reading ambiguity and
+figurative adjectives (*cold judgment*, *cloudy meanings*) still need semantic context.
 
 Perception verbs still make up a large share: *look*, *see*, *hear* and *feel* are counted when
 literal, and editors usually treat them as filter words. Reporting them separately is a follow-up.

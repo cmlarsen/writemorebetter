@@ -325,7 +325,10 @@ fn figurative(lemma: &str, following: &[&Token]) -> bool {
             .iter()
             .take(2)
             .take_while(|token| {
-                reads(token, "RB") && !matches!(fold(&token.text).as_str(), "as" | "like")
+                reads(token, "RB")
+                    && (!reads(token, "JJ")
+                        || token.chunks.iter().any(|chunk| chunk.contains("ADVP")))
+                    && !matches!(fold(&token.text).as_str(), "as" | "like")
             })
             .count()
     } else {
@@ -438,7 +441,6 @@ pub fn report(
                         && !speech_tags.contains(&token.span.byte.start)
                         && !figurative(&found.lemma, &following)
                         && !flat_adverb(token, previous, next)
-                        && classify(found.value, options)
                 })
                 .map(|found| (found.lemma, (found.value.modality, found.value.strength)));
                 for tally in [

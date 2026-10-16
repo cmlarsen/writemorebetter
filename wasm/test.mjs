@@ -378,6 +378,17 @@ eq(dictionReport.tableWords, 2, "TSV table parsed");
 eq(dictionReport.sentences.find(s => s.ratedWords === 2).mean, 4.65, "sentence mean from caller table");
 eq(JSON.parse(senseDocument.diction(undefined, '{"lamp":4.8}')).tableWords, 1, "JSON table parsed");
 senseDocument.free();
+const participleText = "😀.\u2028The floorboards were creaking. The clock kept ticking. Someone was knocking. The roses had withered. The lamp dimmed.";
+const participleDocument = checker.styleDocument(participleText);
+const participles = JSON.parse(participleDocument.sensoryBalance());
+eq(participles.senseWords.map(w => participleText.slice(w.span.start, w.span.end)), ["creaking", "ticking", "knocking", "withered", "dimmed"], "participles retain eligible surface ratings and UTF-16 spans");
+participleDocument.free();
+const touchDocument = checker.styleDocument("He felt broken glass. He felt warm breath. She felt smooth stone. He felt sharp pain. He felt ashamed. He felt obliged to go.");
+eq(JSON.parse(touchDocument.sensoryBalance()).senseWords.filter(w => w.lemma === "feel").length, 4, "object modifiers preserve literal touch");
+touchDocument.free();
+const attributionDocument = checker.styleDocument("“I’m stiff,” she complained. “Listen,” she whispered.");
+eq(JSON.parse(attributionDocument.sensoryBalance()).senseWords.filter(w => ["complain", "whisper"].includes(w.lemma)), [], "speech attributions do not count as sound");
+attributionDocument.free();
 for (const selector of [undefined, null, "bundled"]) {
   eq(JSON.parse(retainedBaseline(selector)), JSON.parse(retainedBaseline()), "absent/null/bundled baseline selects bundled");
 }

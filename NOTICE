@@ -52,8 +52,8 @@ International License (https://creativecommons.org/licenses/by/4.0/).
 Changes: single words only, lowercased; only words whose strongest perceptual
 modality rates at least 3.5 and leads the next modality by at least 0.5, not
 counting interoception as the next modality of a haptic word; columns reduced
-to that modality, its mean strength and that lead, in tenths of a rating
-point. The authors do not endorse writemorebetter.
+to that modality, its mean strength and that lead, in floored tenths of a
+rating point using decimal arithmetic. The authors do not endorse writemorebetter.
 
 style/data/norms/not-sensory.txt, style/data/suppressed.txt, style/data/fixed-wording.txt,
 style/data/literal-guards.txt and style/data/open-slot.txt are writemorebetter's
