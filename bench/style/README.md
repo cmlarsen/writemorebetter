@@ -341,3 +341,65 @@ included test-split diagnostics. The #261 dev measurement was unchanged (411 / 4
 (85.2516 / 92.1072 / 88.5469%) to the current floors after the elision/nesting review fixes.
 Full before/after results and revised floors are documented in
 [STYLE-DOCUMENT-BENCHMARKS.md](../../docs/STYLE-DOCUMENT-BENCHMARKS.md).
+
+## Echoes and repeated phrases (#245)
+
+```sh
+cargo build --release --manifest-path bench/tools/wmb-document/Cargo.toml
+python3 bench/style/echoes.py --gate --probe bench/tools/wmb-document/target/release/wmb-echoes
+```
+
+The report's probe is `wmb-echoes`, a second binary of `bench/tools/wmb-document`. It reads JSONL
+`{"file", "text"}` lines (`--hard-wrapped`, `--min-content-words N` optional) and writes one record per
+echo (`report: "echoes"`, `pattern: "echo"`, `key`, `label`, two spans) and per repeated phrase
+(`report: "repeated_phrases"`, `pattern: "repeated_phrase"`, `keys`, `labels`, every occurrence span), in the
+grouped-span format above. `--benchmark` times the document pass and both reports.
+
+`echoes.py` takes 40 passages from each pinned Standard Ebooks book: paragraphs of at least 110
+words, after the first 2,500 chapter words, with at least four sentence boundaries (`Mr.` and similar
+abbreviations excluded). The first 20 passages of each book are **dev**, the rest **test**; the two
+splits use disjoint injected vocabularies. Each clean passage gets up to three injected copies,
+written to the ignored `out/echoes/`:
+
+- **echo:** two inserted sentences carry one invented word each, in different forms (`It was the
+  lantern.` … `There were lanterns.`, `He knelt.` … `They were kneeling.`), in plain,
+  curly-quote/em-dash and ellipsis variants. Every fourth passage uses a **homograph** instead: a verb
+  use, a noun use and a plural (`He wound it. It was the wound.` … `There were wounds.`), giving two
+  gold echoes. The invented words are absent from the passage (checked by stem, including related
+  forms such as `wind` for `wound`). Their companions are function words, so these copies test
+  recall, lemma families, window bounds and typography.
+- **natural:** one lowercase word of five or more letters from the passage, not a listed function
+  word, is copied as a one-word sentence (`Attention.`, `“Attention…”`, `Attention!`) 12–35 words
+  after its natural occurrence. No word sharing its first four letters may appear from 55 words before
+  that occurrence to 60 words after the copy. Gold is the natural occurrence and the copy. The copy is
+  tagged in a new context and measured against real text, so a wrong tag, function-word decision or
+  window count produces a spurious or missed flag.
+- **phrase:** the same four- or five-word phrase with three content words is inserted twice as its
+  own sentence, varied by plural noun, an inserted comma, or curly quotes (`The miller’s silver
+  thimble.` … `“The miller’s silver thimble!”`).
+
+In one passage in three, the echo and natural injections become **far controls**: the pair is at
+least 70 words apart (natural: no prefix match within 75 words before or 60 after the copy) and has
+no gold record. Clean flags are shifted by the inserted lengths and matched by exact span set; the
+remaining injected flags go to the tier 2 scorer with `--report echoes` or `--report
+repeated_phrases`. Natural flags in the clean passages and clean flags lost after injection (an
+insertion can push a natural pair beyond the window) are printed as diagnostics, not scored.
+
+Results (English 6.6 tokenizer, 2026-10-15, after the PR #265 review), 319 documents:
+
+| Split | Echoes (all) | Invented-word echoes | Natural-word echoes | Phrases | Spurious flags on far controls |
+|---|---:|---:|---:|---:|---:|
+| dev | 60/60, 60 new flags | 34/34 | 26/26 | 40/40, 40 new flags | 0 of 28 |
+| test | 62/62, 62 new flags | 36/36 | 26/26 | 40/40, 40 new flags | 0 of 28 |
+
+The clean passages contain 514 natural echoes and 61 natural repeated phrases; 15 natural echoes are
+lost after injection. `echoes-baseline.json` sets precision, recall and true-positive floors per split
+for all echoes, natural-word echoes and phrases. The gate also fails on any spurious flag on a far
+control.
+
+Before the review the report found 51/60 dev and 53/62 test echoes on this suite. It missed the
+homograph plurals and five natural copies; the fixes are described in
+[STYLE-ECHOES.md](../../docs/STYLE-ECHOES.md#keys-and-ambiguous-tokens). The original suite (now the
+dev vocabulary) drove the per-spelling key change and found a suite bug, sentence splitting after
+`Mr.`, so dev is not held out. The test vocabulary and the natural-word injections were written after
+the review fixes and run once, with no tuning since. Keep test untouched when tuning further.

@@ -89,6 +89,7 @@ jobs:
           python3 -m unittest discover -s bench/style -p 'test_*.py'
           python3 bench/style/run.py tier1 --gate --analyzer bench/tools/wmb-analyze/target/release/wmb-analyze --document-probe bench/tools/wmb-document/target/release/wmb-document
           python3 bench/style/run.py tier2 smoke
+          python3 bench/style/echoes.py --gate --probe bench/tools/wmb-document/target/release/wmb-echoes
           python3 bench/style/run.py tier3 --self-test --analyzer bench/tools/wmb-analyze/target/release/wmb-analyze
 
       - name: Disambiguation conformance

@@ -53,8 +53,8 @@ swift/, wasm/       one binding each, exposing check() + analyze() + the reports
 |---|---|---|---|
 | Sentence length (distribution, monotony runs) | #244 | sentences | published-fiction corpus (needs running text); HTRC for the mean |
 | Sentence starts (subject, adverb, gerund, …) | #244 | POS of first tokens | Google Books Ngram fiction `_START_` bigrams |
-| Echoes (same lemma nearby) | #245 | lemmas | none |
-| Repeated phrases | #245 | lemma n-grams | none |
+| [Echoes](STYLE-ECHOES.md) (same lemma nearby) | #245 | lemmas | none |
+| [Repeated phrases](STYLE-ECHOES.md#repeated-phrases) | #245 | lemma n-grams | none |
 | Clichés and redundancies | #246 | phrase lists | none |
 | Transitions, pronoun starts | #247 | #244's classifier, word list | Ngram `_START_` 2- to 4-grams (planned; not yet in #247) |
 | Overused words | #248 | lemma counts | Ngram fiction unigrams, or HTRC per-author counts |
