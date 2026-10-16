@@ -379,7 +379,13 @@ fn nominal_category(
     let mut opening_depth = quotes.len();
     for (index, token) in tokens.iter().enumerate().skip(1) {
         let word = token.text.to_lowercase();
-        if imperative && has(token, &["CC"]) {
+        if imperative
+            && has(token, &["CC"])
+            && ["and", "or", "but", "nor"].contains(&word.as_str())
+            && tokens.get(index + 1).is_some_and(|next| {
+                has(next, &["VB"]) && !has(next, &["NNS", "NNP", "NNPS", "DT", "PRP", "PRP$"])
+            })
+        {
             return SentenceStartCategory::Other;
         }
         if token.text.chars().all(|c| "\"'“”‘’«»‹›„‟‚‛`".contains(c)) {
@@ -407,6 +413,7 @@ fn nominal_category(
         ]
         .contains(&word.as_str())
             && !(word == "that"
+                && dependent
                 && has(token, &["DT"])
                 && tokens
                     .get(index + 1)
@@ -441,10 +448,10 @@ fn nominal_category(
         }
         let contracted_predicate = ["'s", "’s"].contains(&word.as_str())
             && tags(token) == BTreeSet::from(["POS"])
+            && tokens.get(index + 1).is_some_and(|next| next.is_word)
             && !tokens[index + 1..]
                 .iter()
-                .skip_while(|next| has(next, &["JJ", "JJR", "JJS", "RB", "RBR", "RBS"]))
-                .next()
+                .find(|next| !has(next, &["JJ", "JJR", "JJS", "RB", "RBR", "RBS"]))
                 .is_some_and(|next| has(next, &["NN", "NNS", "NNP", "NNPS"]));
         let auxiliary = [
             "am", "is", "are", "was", "were", "be", "been", "being", "do", "does", "did", "have",

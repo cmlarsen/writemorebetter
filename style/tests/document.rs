@@ -91,6 +91,8 @@ fn line_separator_sentence_boundaries_preserve_offsets() {
             ("😀 She’s home.\u{2028}He waited.", 2),
             ("“Go!”\u{2028}She said nothing.", 2),
             ("“Go!”\u{2028}she said.", 2),
+            ("“Go!” \u{2028}she said.", 2),
+            ("“Go!”  \u{2028}she said.", 2),
             ("‘Go…’ \u{2028}He waited.", 2),
             ("She waited\u{2028}for him.", 1),
             ("She waited.\u{2028}\u{2028}He left.", 2),

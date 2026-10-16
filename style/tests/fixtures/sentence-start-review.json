@@ -594,5 +594,69 @@
   {
     "text": "The man whose mom’s asleep is quiet.",
     "category": "subject"
+  },
+  {
+    "text": "Pictures of John and Mary hung on the wall.",
+    "category": "subject"
+  },
+  {
+    "text": "Rows of corn and wheat stretched away.",
+    "category": "subject"
+  },
+  {
+    "text": "Stacks of paper and books covered the desk.",
+    "category": "subject"
+  },
+  {
+    "text": "Bowls of rice and beans sat on the table.",
+    "category": "subject"
+  },
+  {
+    "text": "Love for her husband and children drove her on.",
+    "category": "subject"
+  },
+  {
+    "text": "People on the mainland and the islands liked it.",
+    "category": "subject"
+  },
+  {
+    "text": "People on the mainland, and the islands too, liked it.",
+    "category": "subject"
+  },
+  {
+    "text": "Father Mapple and his wife rose.",
+    "category": "subject"
+  },
+  {
+    "text": "Nurse Ratched and the orderlies came in.",
+    "category": "subject"
+  },
+  {
+    "text": "Wave after wave thus leaps into the ship.",
+    "category": "subject"
+  },
+  {
+    "text": "Wait at Joe’s.",
+    "category": "other"
+  },
+  {
+    "text": "Look at Mom’s!",
+    "category": "other"
+  },
+  {
+    "text": "Christmas at Grandma’s.",
+    "category": "other"
+  },
+  {
+    "text": "Dinner at Mom’s.",
+    "category": "other"
+  },
+  {
+    "text": "Mom’s, not Dad’s.",
+    "category": "other"
+  },
+  {
+    "text": "The idea that people lie.",
+    "category": "other"
   }
 ]

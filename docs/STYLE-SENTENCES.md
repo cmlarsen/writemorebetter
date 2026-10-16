@@ -144,23 +144,29 @@ Surface particles/adverbs `still up down out away here there on off back` cannot
 immediately after NNS also supports a plural-subject predicate when chunking misses it. Subject-case
 pronouns additionally accept verb chunks despite tagger ambiguity. Relative/dependent clauses close
 after their first predicate; auxiliary continuations and coordinated relative verbs remain dependent,
-so the next main predicate can establish a subject. Determiner `that` before NN/NNS does not reopen
-the dependent state (`The man who wrote that book died`). Comma/semicolon resets that state; post-comma
+so the next main predicate can establish a subject. Inside a relative clause, determiner `that` before
+NN/NNS does not reopen the dependent state (`The man who wrote that book died`); outside one it still
+opens a complement clause, so `The idea that people lie.` stays other. Comma/semicolon resets that state; post-comma
 subject-pronoun parentheticals and TO-scoped nonfinite verbs are excluded. Nominal/VB-ambiguous openings
 followed by noun/adjective/preposition evidence use the same scan, so `People on the mainland liked…`
-can be subject while `Look at me` remains other. This imperative-branch scan stops at CC so a
-coordinated command (`Look at me and tell me`) cannot supply subject evidence. An unknown capitalized
+can be subject while `Look at me` remains other. This imperative-branch scan stops at `and`, `or`,
+`but` or `nor` followed by a base-form verb, so a coordinated command (`Look at me and tell me`)
+cannot supply subject evidence while a coordinated noun phrase (`Pictures of John and Mary hung…`,
+`Father Mapple and his wife rose`) still reaches its predicate. An unknown capitalized
 second token also enters the scan, allowing nominal titles (`Father Mapple rose`, `Nurse Ratched came in`).
-POS-only `'s`/`’s` supplies predicate evidence unless the following tokens continue a noun phrase
-(optionally modified by adjectives/adverbs); `Mom’s asleep` is subject, `Mom’s red car` is other.
+POS-only `'s`/`’s` supplies predicate evidence when a word follows it and the following tokens do
+not continue a noun phrase (optionally modified by adjectives/adverbs); `Mom’s asleep` is subject,
+`Mom’s red car` and elliptical possessives (`Dinner at Mom’s.`) are other.
 This evidence respects relative-clause and quote scope.
 
 Listed interjections consistently open introductory, including bare utterances. They are retained
 as the opener rather than skipped before a comma; see the #269 decision in STYLE-REPORTS.md.
 This preserves the adjudicated interjection labels and applies the same convention to the added
 dialogue forms. U+2028 after terminal punctuation (including a closing quote) ends a sentence within
-its paragraph; attribution reattachment cannot cross that explicit boundary. Without terminal
-punctuation U+2028 remains internal whitespace.
+its paragraph; attribution reattachment cannot cross that explicit boundary, with or without
+spaces before the separator. A tag after the boundary (`“Where?”` U+2028 `she asked.`) therefore
+counts as its own short subject-led sentence in the start and length reports; the dialogue-tags
+report still attributes it. Without terminal punctuation U+2028 remains internal whitespace.
 
 Quote state matches the opening quote family and tracks nested families. An inner `‘ghost’` does not
 end an outer `“…”` scan; unquoted text can continue after quoted material. A closing outer quote still
@@ -288,14 +294,22 @@ data and paragraph modes. Each cell is count (percent); totals remain 622 storie
 | infinitive | 0 (0.00%) | 0 (0.00%) | 4 (0.47%) | 4 (0.47%) |
 | introductory | 46 (7.40%) | 46 (7.40%) | 125 (14.64%) | 129 (15.11%) |
 | inversion | 0 (0.00%) | 0 (0.00%) | 9 (1.05%) | 9 (1.05%) |
-| other | 16 (2.57%) | 15 (2.41%) | 106 (12.41%) | 106 (12.41%) |
+| other | 16 (2.57%) | 15 (2.41%) | 106 (12.41%) | 103 (12.06%) |
 | pastParticiple | 0 (0.00%) | 0 (0.00%) | 7 (0.82%) | 7 (0.82%) |
-| subject | 500 (80.39%) | 501 (80.55%) | 329 (38.52%) | 325 (38.06%) |
+| subject | 500 (80.39%) | 501 (80.55%) | 329 (38.52%) | 328 (38.41%) |
 | subordinatingConjunction | 8 (1.29%) | 8 (1.29%) | 27 (3.16%) | 27 (3.16%) |
 
+Against origin/main, Moby's `Father Mapple rose, and …` moves from other to subject; `Aye,
+shipmates, …` and `Aye, well mightest thou …` move from subject to introductory, and `Hurrah, boys;
+…` and `Nay, to this very hour, …` from other to introductory, under the interjection convention.
+`Wave after wave thus leaps …`, `Savage though he was, …` and `Fill to _this_ mark, and your charge
+is …` stay subject as on origin/main; the last is a known imperative miss. In the stories,
+`“Everyone’s a stray out here,” I said.` moves from other to subject.
+
 All adjudicated per-category F1 values above are unchanged; no floor or ceiling changed. The
-review fixture set now contains 149 cases, each also tested with curly quotes, a U+2028 boundary,
-curly apostrophe, em dash and ellipsis. Additional separator tests cover terminal/unterminated
+review fixture set now contains 165 cases, each also tested inside curly quotes followed by a U+2028
+boundary and a second sentence with a curly apostrophe, em dash and ellipsis; the test asserts the
+split and classifies both sentences. Additional separator tests cover terminal/unterminated
 sentences, quoted attributions, repeated separators, both paragraph modes and byte/char/UTF-16 spans.
 
 Issue item 6 is closed by #276: each independent method accepts only its own baseline, so there

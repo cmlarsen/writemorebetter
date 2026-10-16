@@ -425,9 +425,17 @@ fn reviewed_opening_functions() {
             format!("“{text}”\u{2028}She’s gone—again…"),
         ] {
             let document = analyze_document(&tokenizer, &input, &DocumentOptions::new());
-            let category = starts::classify(&document.paragraphs[0].sentences[0]);
+            let sentences = &document.paragraphs[0].sentences;
+            let category = starts::classify(&sentences[0]);
             if category != expected {
                 failures.push(format!("{input}: {category:?} expected {expected:?}"));
+            }
+            if input != text {
+                if sentences.len() != 2 {
+                    failures.push(format!("{input}: {} sentences expected 2", sentences.len()));
+                } else if starts::classify(&sentences[1]) != SentenceStartCategory::Subject {
+                    failures.push(format!("{input}: trailing sentence not subject"));
+                }
             }
         }
     }
