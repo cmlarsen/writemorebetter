@@ -30,11 +30,12 @@ The owner decisions on #241 change report defaults and scope. The source pins, g
 labeler provenance remain frozen. Rebaselines record the intended changes rather than claiming
 better editorial precision from synthetic injections:
 
-- Echoes: precision remains 1.0 and all far controls remain zero. With the 30-word cap,
-  conservative POS/lemma matching and quoted-turn suppression, dev recall is 43/58 and test 48/61.
-  Near injections now span 12–25 regex words; tokenized clitics can push them outside 30. Exact
-  *ladies* and *miss* repeats are restored by positional honorific suppression and positive fixtures.
-  Natural-copy recall is 25/26 in each split; quoted-turn copies of *arched* and *toasted* are suppressed.
+- Echoes: plural and gerund matches are restored while the ambiguity regressions remain blocked.
+  Precision is 1.0; individual echo-injection recall is 100% in both splits. Combined recall improves
+  from 43/58 to 57/58 dev and from 48/61 to 60/61 test, replacing the over-broad morphology floor.
+  The remaining natural-copy misses (25/26 each split) target subwords inside `low-arched` and
+  `sun-toasted`, which the product tokenizes as whole compounds. The prior quote-turn explanation
+  was incorrect. Gold, the 12–25-word near range, the 30-word cap and all far controls are unchanged.
 - Repeated phrases: injections now distinguish three uses, two near uses and separate distant-pair
   negative controls. Phrasal verbs and *Piglet said that* are included. In-scope recall and precision
   are 100%; the former distant-pair recall reduction is removed. Rust fixtures cover punctuation
@@ -42,15 +43,22 @@ better editorial precision from synthetic injections:
 - Dialogue: all frozen floors remain unchanged, including beat precision 9/11 and recall 9/10.
   Response beats such as *I nodded* and *She smiled* no longer attribute the preceding speaker.
   Interrupt-type standalone beats attach to the following quote and skip negated clauses.
-- Sentences: the independent reference uses top-three unquoted candidates by default and checks
+- Sentences: the probe explicitly enables the top-three long-sentence lens and checks
   deliberate anaphora separately. Labeled/injected F1 floors remain unchanged. Heading counting
-  preserves signs and ordinary prose; a single blank line no longer breaks narration runs.
+  preserves signs and ordinary prose, recognizes colon/dash titles and excludes exact numbered chapter headings; a single blank line does not break narration runs.
 - Synthetic tier 3 self-tests cover a 13-exchange untagged run. All 36 Python tests pass. The new
   owner-supplied chapter-window bands and full percentiles are preserved with exact provenance;
   no private calibration inputs were accessed. Calibration used #270's segmentation, predating
   this PR's refinements. Synthetic median/p95 chapters verify matching-mode highlights.
 
-`usefulness-counts.json` records per-report before/after counts for all six `bench/public` texts,
+The final default request retains sentence-length statistics and monotony, sentence starts,
+dialogue tags and clichés. Echoes, repeated phrases and long-sentence flags are opt-in; the owner
+made this decision after the re-review measured 97% phrase noise/wrong flags and 84% long-sentence
+noise. The long lens needs `sentenceLength.includeLongSentences:true`; direct defaults also keep
+that flag list empty. The sentence and flag-rate probes explicitly opt in so their gates still
+exercise the lens.
+
+`usefulness-counts.json` records default and opt-in counts alongside per-report before/after counts for all six `bench/public` texts,
 against main `42f658d`. Reproduce the after counts with:
 
 ```sh
@@ -60,7 +68,7 @@ cargo run -p writemorebetter-style --release --example usefulness -- \
 ```
 
 Echoes are explicitly opted in by this counter; the default combined call now omits them. The
-counter uses line mode for stories, hard-wrapped mode for Moby, and no skipped names. These are
+counter uses line mode for stories, hard-wrapped mode for Moby, and no skipped names. Flat `echoes`, `phrases` and `long` fields are explicit lens counts; `defaultFlags` is the final default total, and the snapshot adds separate `default` and `optIn` maps. These are
 workload counts, not editorial judgments.
 
 ## Download provenance and splits

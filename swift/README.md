@@ -180,8 +180,8 @@ unchanged. WASM accepts camelCase/snake_case option names and rejects unknown ke
 prose report: echoes, repeated phrases, clichés, dialogue tags, sentence length and sentence starts.
 It builds the document once for all selected reports, reuses the cliché list compiled on the first
 call (cached on the `Checker`), and performs no grammar or spelling checks. Omitting the request runs
-every report except echoes with bundled baselines; echoes are an opt-in lens selected with
-`{"echoes":{}}`. A request selects only the reports it names:
+statistics, narration runs, dialogue tags and clichés with bundled baselines. Echoes and repeated
+phrases are opt-in lenses selected with `{"echoes":{}}` and `{"repeatedPhrases":{}}`. A request selects only the reports it names:
 
 ```swift
 let json = try checker.styleReports(
@@ -203,3 +203,6 @@ The separate `sentenceLength(text:optionsJson:baselineJson:documentOptions:)` an
 and `styleReports` with `{"sentenceLength": {}}` or `{"sentenceStarts": {}}` replaces them.
 `styleReports` always keeps token readings internally, so `includeTokenDetails` does not change its
 output.
+
+Long-sentence flags are also opt-in: pass `{"sentenceLength":{"includeLongSentences":true}}`.
+Default sentence-length output retains the histogram, percentiles and monotony runs, with an empty `longSentences` list.

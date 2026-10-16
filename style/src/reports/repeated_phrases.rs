@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
@@ -123,22 +123,35 @@ pub fn report(
         }
     }
     for sentence in document.sentences() {
-        for token in &sentence.tokens {
+        for (index, token) in sentence.tokens.iter().enumerate() {
             if !token.is_word {
                 if token
                     .text
-                    .contains([',', ';', '—', '–', '-', '…', '.', '”', '"'])
+                    .contains([',', ';', '—', '–', '-', '…', '”', '"'])
                     || token.text.contains("...")
+                    || (token.text == "."
+                        && (index.checked_sub(1).is_some_and(|i| {
+                            sentence.tokens[i].text == "."
+                                && sentence.tokens[i].span.byte.end == token.span.byte.start
+                        }) || sentence.tokens.get(index + 1).is_some_and(|next| {
+                            next.text == "." && token.span.byte.end == next.span.byte.start
+                        })))
                 {
                     close_segment(&mut units, &mut segment);
                 }
                 continue;
             }
             let masked = token.is_skipped
-                || capitals
-                    .get(&fold(&token.text))
-                    .is_some_and(|count| *count >= 2);
-            let function = masked || lexicon.is_function(token);
+                || token.text.chars().next().is_some_and(char::is_uppercase)
+                    && capitals
+                        .get(&fold(&token.text))
+                        .is_some_and(|count| *count >= 2);
+            let title = crate::document::honorific(&fold(&token.text))
+                && sentence.tokens[index + 1..]
+                    .iter()
+                    .find(|t| t.is_word)
+                    .is_some_and(|t| t.text.chars().next().is_some_and(char::is_uppercase));
+            let function = masked || title || lexicon.is_function(token);
             let key = if masked {
                 "<name>".into()
             } else if function {
@@ -167,7 +180,6 @@ pub fn report(
         .unwrap_or(0);
     let max_length = options.maximum_length.min(longest);
     let mut phrases: Vec<(usize, RepeatedPhrase)> = Vec::new();
-    let mut longer: HashSet<usize> = HashSet::new();
     for length in (min_length..=max_length).rev() {
         let mut grams: HashMap<&[u32], (usize, Vec<usize>)> = HashMap::new();
         for start in 0..units.len() {
@@ -185,7 +197,6 @@ pub fn report(
                     .or_insert((start, Vec::new()));
             }
         }
-        let mut repeated = HashSet::new();
         for (gram, (first, later)) in grams {
             if later.is_empty() {
                 continue;
@@ -196,12 +207,6 @@ pub fn report(
                     .windows(2)
                     .any(|pair| pair[1] - pair[0] <= options.nearby_words)
             {
-                continue;
-            }
-            repeated.extend(starts.iter().copied());
-            if starts.iter().all(|start| {
-                longer.contains(start) || (*start > 0 && longer.contains(&(start - 1)))
-            }) {
                 continue;
             }
             let spans: Vec<Span> = starts
@@ -236,7 +241,6 @@ pub fn report(
                 },
             ));
         }
-        longer = repeated;
     }
     phrases.sort_by_key(|(first, phrase)| (*first, std::cmp::Reverse(phrase.keys.len())));
     let mut merged: Vec<(usize, RepeatedPhrase)> = Vec::new();
@@ -275,6 +279,7 @@ pub fn report(
     for entry in merged {
         if selected.iter().any(|(_, longer)| {
             longer.keys.len() > entry.1.keys.len()
+                && entry.1.count < longer.count.saturating_mul(2)
                 && entry.1.spans.iter().any(|short| {
                     longer.spans.iter().any(|long| {
                         long.byte.start < short.byte.end && short.byte.start < long.byte.end

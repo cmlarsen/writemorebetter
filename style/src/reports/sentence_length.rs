@@ -24,6 +24,8 @@ pub struct SentenceLengthOptions {
     pub longest_per_chapter: usize,
     #[serde(alias = "include_above_percentile")]
     pub include_above_percentile: bool,
+    #[serde(alias = "include_long_sentences")]
+    pub include_long_sentences: bool,
 }
 
 impl Default for SentenceLengthOptions {
@@ -33,6 +35,7 @@ impl Default for SentenceLengthOptions {
             long_sentence_words: 40,
             longest_per_chapter: 3,
             include_above_percentile: false,
+            include_long_sentences: false,
         }
     }
 }
@@ -47,6 +50,10 @@ impl SentenceLengthOptions {
     }
     pub fn with_long_sentence_words(mut self, words: usize) -> Self {
         self.long_sentence_words = words;
+        self
+    }
+    pub fn with_long_sentences(mut self, enabled: bool) -> Self {
+        self.include_long_sentences = enabled;
         self
     }
     pub fn with_above_percentile(mut self, enabled: bool) -> Self {
@@ -376,13 +383,30 @@ pub fn report(
             chapter += 1;
         }
         for sentence in &paragraph.sentences {
-            let quoted = document.dialogue.iter().any(|q| {
-                q.byte.start < sentence.span.byte.end && sentence.span.byte.start < q.byte.end
-            });
+            let quoted_words = sentence
+                .words()
+                .filter(|t| {
+                    document
+                        .dialogue
+                        .iter()
+                        .any(|q| q.byte.start <= t.span.byte.start && t.span.byte.end <= q.byte.end)
+                })
+                .count();
+            let quoted = quoted_words * 2 > sentence.word_count();
+            let lines: Vec<_> = paragraph
+                .text
+                .lines()
+                .filter(|line| !line.trim().is_empty())
+                .collect();
+            let indented_block = lines.len() > 1
+                && lines
+                    .iter()
+                    .all(|line| line.starts_with("    ") || line.starts_with('\t'));
+            let letters = paragraph.text.chars().filter(|c| c.is_alphabetic()).count();
+            let capitals = paragraph.text.chars().filter(|c| c.is_uppercase()).count();
             let block = paragraph.text.trim_start().starts_with('>')
-                || paragraph.text.starts_with("    ")
-                || (paragraph.text.chars().any(char::is_uppercase)
-                    && !paragraph.text.chars().any(char::is_lowercase));
+                || indented_block
+                || (letters >= 10 && capitals * 5 >= letters * 4);
             if quoted || block {
                 index += 1;
                 continue;
@@ -401,7 +425,8 @@ pub fn report(
         lengths.sort_unstable();
         let p95 = percentile(&lengths, 95).unwrap_or(0.0);
         for (rank, &(index, words, mode)) in sentences.iter().enumerate() {
-            if words >= options.long_sentence_words
+            if options.include_long_sentences
+                && words >= options.long_sentence_words
                 && (rank < options.longest_per_chapter
                     || (options.include_above_percentile && words as f64 > p95))
             {

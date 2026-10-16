@@ -207,12 +207,12 @@ def paragraph_count(text, wrapped):
         line = line.strip()
         plain = line.lstrip('#').strip()
         words = plain.split()
-        number = words[1] if len(words) > 1 else ''
+        number = words[1].rstrip(':.,') if len(words) > 1 else ''
         roman = re.fullmatch(r'M{0,3}(CM|CD|D?C{0,3})(XC|XL|L?X{0,3})(IX|IV|V?I{0,3})', number)
         chapter = bool(words and words[0].lower() in ('chapter', 'book', 'part') and number and
                        (number.isdigit() or roman or number.lower() in 'one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty'.split()) and
-                       all(w[0].isupper() or w in ('of', 'the', 'and', 'a', 'in') for w in words[2:]))
-        return (chapter and len(words) <= 10 and not any(c in plain for c in '.!?“”"')
+                       all(not w.strip('—–-:.,') or w.strip('—–-:.,')[0].isupper() or w in ('of', 'the', 'and', 'a', 'in') for w in words[2:]))
+        return (chapter and len(words) <= 10 and not any(c in plain for c in '!?“”"')
                 or line.startswith('#') and len(words) <= 10 and not any(c in line for c in '.!?')
                 or bool(line) and all(c.isspace() or c in '*#—-_=·•' for c in line)
                 or line.startswith('—') and line[1:].lstrip().startswith('_'))

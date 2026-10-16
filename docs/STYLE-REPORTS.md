@@ -14,7 +14,7 @@ first consumer.
   replacement prose. That is a Subplot product rule, so there is no "rephrase" or thesaurus feature.
 - **Procedural.** No LLM and no network at runtime. Everything runs on device: WASM, native, and Swift.
 - **Whole-document.** Reports run over a document or chapter on idle or save, never on each keystroke.
-  Percentages are suppressed below a minimum sample (default 200 sentences), where noise is larger than
+  Percentages are suppressed below a minimum sample (default 50 sentences), where noise is larger than
   the differences.
 
 ## Where the code lives
@@ -53,7 +53,7 @@ swift/, wasm/       one binding each, exposing check() + analyze() + analyzeDocu
 | Report | Issue | Needs | Baseline |
 |---|---|---|---|
 | Sentence length (distribution, monotony runs) | #244 | sentences | author-weighted published fiction with this report’s exact word/paragraph convention |
-| Sentence starts (subject, adverb, gerund, …) | #244 | POS of first tokens | Google Books Ngram fiction `_START_` bigrams |
+| Sentence starts (subject, adverb, gerund, …) | #244 | POS of first tokens | author-weighted published chapter-window shares and p5–p95 bands |
 | [Echoes](STYLE-ECHOES.md) (same lemma nearby) | #245 | lemmas | none |
 | [Repeated phrases](STYLE-ECHOES.md#repeated-phrases) | #245 | lemma n-grams | none |
 | Clichés and redundancies | #246 | phrase lists | none |
@@ -91,7 +91,7 @@ let json = run_json(&tokenizer, &resources, text, Some(r#"{"echoes":{}}"#), &Doc
 | repeated phrases | `repeated_phrases::report(&Document, &RepeatedPhraseOptions)` | `minimumLength`, `maximumLength`, `minimumContentWords`, `minimumOccurrences`, `nearbyWords` | none | yes |
 | clichés | `cliches::report(&Document, &ClicheList, &ClicheOptions)` | none yet | none | no |
 | dialogue tags | `dialogue_tags::report(&Document, &DialogueTagOptions, Option<&DialogueTagBaseline>)` | `maxUntaggedExchanges`, `minimumTags` | caller only | yes |
-| sentence length | `sentence_length::report(&Document, &SentenceLengthOptions, Option<&SentenceLengthBaseline>)` | `minimumSentences`, `longSentenceWords`, `longestPerChapter` | bundled | no |
+| sentence length | `sentence_length::report(&Document, &SentenceLengthOptions, Option<&SentenceLengthBaseline>)` | `minimumSentences`, `includeLongSentences`, `longSentenceWords`, `longestPerChapter` | bundled | no |
 | sentence starts | `sentence_starts::report(&Document, &SentenceStartsOptions, Option<&SentenceStartsBaseline>)` | `minimumSentences` | bundled | yes |
 
 Every entry point returns `Result<_, StyleError>`. Type names are prefixed with their report
@@ -102,12 +102,15 @@ built with `new()` plus `with_*` builders.
 
 ### Request
 
-`StyleRequest::new()` (and an absent `requestJson`) selects every report except echoes, with default
-options and bundled baselines. Echoes are an opt-in nearby-repeat lens: select `{"echoes":{}}` explicitly. A JSON request selects exactly the non-null report members it names:
+`StyleRequest::new()` (and an absent `requestJson`) selects sentence-start and length statistics,
+monotony/opener runs, dialogue tags and clichés, with bundled baselines. Echoes and repeated phrases
+are opt-in: select `{"echoes":{}}` or `{"repeatedPhrases":{}}` explicitly. Length statistics and
+monotony remain selected, but `longSentences` is empty unless `sentenceLength.includeLongSentences`
+is true. Request the long lens with `{"sentenceLength":{"includeLongSentences":true}}`. A JSON request selects exactly the non-null report members it names:
 
 ```json
 {"echoes": {}, "repeatedPhrases": {"minimumContentWords": 1}, "cliches": {}, "dialogueTags": {"minimumTags": 50},
- "sentenceLength": {"longSentenceWords": 40}, "sentenceStarts": {}, "baselines": "bundled"}
+ "sentenceLength": {"includeLongSentences": true, "longSentenceWords": 40}, "sentenceStarts": {}, "baselines": "bundled"}
 ```
 
 `baselines` is `"bundled"`, `null`/absent (no baselines), or an object with any of `sentenceLength`,
@@ -325,6 +328,7 @@ Build rules for any baseline:
 | 2026-10-15 | Report clichés in dialogue separately, not suppressed (#246) | Clichés in dialogue are often deliberate characterization; the caller decides; see [STYLE-CLICHES.md](STYLE-CLICHES.md) |
 | 2026-10-15 | Brysbaert concreteness ratings are a caller-supplied input; the Lancaster Sensorimotor Norms may be vendored (#250) | CC BY-NC-ND 3.0 vs CC BY 4.0; see [STYLE-DATA-LICENSES.md](STYLE-DATA-LICENSES.md) |
 | 2026-10-15 | Echoes are an opt-in lens with say/ask, name/honorific, particle and heading suppressions; no transitive ambiguous-reading chains | The writer review found 97% noise; deliberate repetition is not an issue list |
+| 2026-10-16 | Repeated phrases and long-sentence flags join echoes as opt-in lenses; keep sentence-length statistics and monotony in defaults | Re-review of b113df7 measured phrases at 97% noise/wrong (146/150 reviewed) and long sentences at 84% noise (43/51); default output should prioritize useful signals |
 | 2026-10-16 | Use the owner-supplied chapter-window bands, preserving full aggregate provenance | Integrates #270 calibration without accessing private data; strict p5/p95 highlighting per mode |
 | 2026-10-16 | Narrow neutral tags; cried remains showy; top-three unquoted long sentences; punctuation-bounded longest phrases; conservative headings and two-blank-line scenes | Owner follow-up to the #273 usefulness review; optional name fallback and p95 lens preserve caller control |
 | 2026-10-15 | Baseline highlights require a value outside the published-author p5–p95 band for its measure and narration/dialogue mode | Blended averages and small deltas mislead novelists; ship non-highlighting placeholder bands until owner chapter-window calibration |

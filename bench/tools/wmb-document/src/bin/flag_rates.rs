@@ -119,7 +119,7 @@ fn vocabulary(tokenizer: &nlprule::Tokenizer) -> Value {
         .collect();
     sources.sort_unstable();
     sources.dedup();
-    let length = sentence_length::SentenceLengthOptions::new();
+    let length = sentence_length::SentenceLengthOptions::new().with_long_sentences(true);
     let phrase_options = PhraseOptions::new();
     let tag_options = DialogueTagOptions::new();
     json!({
@@ -179,7 +179,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         lap("document", &mut timing);
         let length = sentence_length::report(
             &document,
-            &sentence_length::SentenceLengthOptions::new(),
+            &sentence_length::SentenceLengthOptions::new().with_long_sentences(true),
             Some(&length_baseline),
         )?;
         lap("sentence_length", &mut timing);

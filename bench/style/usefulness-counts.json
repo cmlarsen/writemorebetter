@@ -3,12 +3,11 @@
   "measured": "2026-10-16",
   "inputs": "bench/public only; line mode for story1-5, hard-wrapped CRLF Moby",
   "notes": [
-    "Echoes are explicitly opted in for this comparison; default echo flags now zero.",
-    "Before verbFlags counts listed speech verbs other than say/ask; after counts showy verbs only. Non-speech tags are zero on these inputs.",
-    "Counts describe workload, not editorial precision. No skipped names supplied.",
-    "reviewedHead preserves original #273 counts; after contains the owner-requested review fixes and supplied bands.",
-    "Conservative heading exclusion retains signs and punctuated contents entries in statistics; numbered title-shaped lines still mark chapter and run boundaries.",
-    "Automatic name detection is optional and off by default; these counts use default options and no roster."
+    "Only bench/public and synthetic fixtures were used. Stories use line mode; Moby uses hard-wrapped CRLF. No skip_names roster; automaticNames is off.",
+    "Flat after fields retain opt-in lens counts for historical comparisons. Explicit default and optIn maps distinguish the final default report set.",
+    "Default length statistics and monotony remain enabled; long-sentence flags, phrases and echoes require opt-in.",
+    "beforeOptInDecision preserves b113df7; reviewedHead preserves 98dd73d; before preserves 42f658d.",
+    "Counts describe workload, not editorial precision. Before verbFlags counted all listed speech verbs except say/ask; final verbFlags counts showy speech verbs only."
   ],
   "texts": [
     {
@@ -36,7 +35,8 @@
       "after": {
         "adverbs": 0,
         "cliches": 0,
-        "echoes": 26,
+        "defaultFlags": 1,
+        "echoes": 28,
         "file": "bench/public/story1.txt",
         "long": 3,
         "monotony": 0,
@@ -72,6 +72,43 @@
         "untagged": 0,
         "verbFlags": 0,
         "words": 2209
+      },
+      "beforeOptInDecision": {
+        "adverbs": 0,
+        "cliches": 0,
+        "echoes": 26,
+        "file": "bench/public/story1.txt",
+        "long": 3,
+        "monotony": 0,
+        "nonSpeech": 0,
+        "openers": 1,
+        "phrases": 4,
+        "sentences": {
+          "all": 119,
+          "dialogue": 37,
+          "narration": 82
+        },
+        "speechSpans": 34,
+        "untagged": 0,
+        "verbFlags": 0,
+        "words": 2209
+      },
+      "default": {
+        "echoes": 0,
+        "phrases": 0,
+        "long": 0,
+        "monotony": 0,
+        "openers": 1,
+        "verbFlags": 0,
+        "adverbs": 0,
+        "nonSpeech": 0,
+        "untagged": 0,
+        "cliches": 0
+      },
+      "optIn": {
+        "echoes": 28,
+        "phrases": 4,
+        "long": 3
       }
     },
     {
@@ -99,7 +136,8 @@
       "after": {
         "adverbs": 0,
         "cliches": 0,
-        "echoes": 36,
+        "defaultFlags": 2,
+        "echoes": 42,
         "file": "bench/public/story2.txt",
         "long": 0,
         "monotony": 1,
@@ -135,6 +173,43 @@
         "untagged": 0,
         "verbFlags": 0,
         "words": 2038
+      },
+      "beforeOptInDecision": {
+        "adverbs": 0,
+        "cliches": 0,
+        "echoes": 36,
+        "file": "bench/public/story2.txt",
+        "long": 0,
+        "monotony": 1,
+        "nonSpeech": 0,
+        "openers": 1,
+        "phrases": 4,
+        "sentences": {
+          "all": 131,
+          "dialogue": 40,
+          "narration": 91
+        },
+        "speechSpans": 36,
+        "untagged": 0,
+        "verbFlags": 0,
+        "words": 2038
+      },
+      "default": {
+        "echoes": 0,
+        "phrases": 0,
+        "long": 0,
+        "monotony": 1,
+        "openers": 1,
+        "verbFlags": 0,
+        "adverbs": 0,
+        "nonSpeech": 0,
+        "untagged": 0,
+        "cliches": 0
+      },
+      "optIn": {
+        "echoes": 42,
+        "phrases": 4,
+        "long": 0
       }
     },
     {
@@ -162,7 +237,8 @@
       "after": {
         "adverbs": 0,
         "cliches": 0,
-        "echoes": 26,
+        "defaultFlags": 3,
+        "echoes": 28,
         "file": "bench/public/story3.txt",
         "long": 0,
         "monotony": 2,
@@ -198,6 +274,43 @@
         "untagged": 0,
         "verbFlags": 0,
         "words": 2008
+      },
+      "beforeOptInDecision": {
+        "adverbs": 0,
+        "cliches": 0,
+        "echoes": 26,
+        "file": "bench/public/story3.txt",
+        "long": 0,
+        "monotony": 2,
+        "nonSpeech": 0,
+        "openers": 0,
+        "phrases": 7,
+        "sentences": {
+          "all": 127,
+          "dialogue": 44,
+          "narration": 83
+        },
+        "speechSpans": 40,
+        "untagged": 0,
+        "verbFlags": 1,
+        "words": 2008
+      },
+      "default": {
+        "echoes": 0,
+        "phrases": 0,
+        "long": 0,
+        "monotony": 2,
+        "openers": 0,
+        "verbFlags": 1,
+        "adverbs": 0,
+        "nonSpeech": 0,
+        "untagged": 0,
+        "cliches": 0
+      },
+      "optIn": {
+        "echoes": 28,
+        "phrases": 7,
+        "long": 0
       }
     },
     {
@@ -225,7 +338,8 @@
       "after": {
         "adverbs": 0,
         "cliches": 1,
-        "echoes": 37,
+        "defaultFlags": 3,
+        "echoes": 46,
         "file": "bench/public/story4.txt",
         "long": 0,
         "monotony": 1,
@@ -261,6 +375,43 @@
         "untagged": 0,
         "verbFlags": 0,
         "words": 2175
+      },
+      "beforeOptInDecision": {
+        "adverbs": 0,
+        "cliches": 1,
+        "echoes": 37,
+        "file": "bench/public/story4.txt",
+        "long": 0,
+        "monotony": 1,
+        "nonSpeech": 0,
+        "openers": 1,
+        "phrases": 10,
+        "sentences": {
+          "all": 128,
+          "dialogue": 28,
+          "narration": 100
+        },
+        "speechSpans": 25,
+        "untagged": 0,
+        "verbFlags": 0,
+        "words": 2175
+      },
+      "default": {
+        "echoes": 0,
+        "phrases": 0,
+        "long": 0,
+        "monotony": 1,
+        "openers": 1,
+        "verbFlags": 0,
+        "adverbs": 0,
+        "nonSpeech": 0,
+        "untagged": 0,
+        "cliches": 1
+      },
+      "optIn": {
+        "echoes": 46,
+        "phrases": 10,
+        "long": 0
       }
     },
     {
@@ -288,13 +439,14 @@
       "after": {
         "adverbs": 0,
         "cliches": 0,
-        "echoes": 29,
+        "defaultFlags": 2,
+        "echoes": 36,
         "file": "bench/public/story5.txt",
         "long": 0,
         "monotony": 0,
         "nonSpeech": 0,
         "openers": 2,
-        "phrases": 5,
+        "phrases": 7,
         "sentences": {
           "all": 117,
           "dialogue": 32,
@@ -324,6 +476,43 @@
         "untagged": 0,
         "verbFlags": 0,
         "words": 1856
+      },
+      "beforeOptInDecision": {
+        "adverbs": 0,
+        "cliches": 0,
+        "echoes": 29,
+        "file": "bench/public/story5.txt",
+        "long": 0,
+        "monotony": 0,
+        "nonSpeech": 0,
+        "openers": 2,
+        "phrases": 5,
+        "sentences": {
+          "all": 117,
+          "dialogue": 32,
+          "narration": 85
+        },
+        "speechSpans": 28,
+        "untagged": 0,
+        "verbFlags": 0,
+        "words": 1856
+      },
+      "default": {
+        "echoes": 0,
+        "phrases": 0,
+        "long": 0,
+        "monotony": 0,
+        "openers": 2,
+        "verbFlags": 0,
+        "adverbs": 0,
+        "nonSpeech": 0,
+        "untagged": 0,
+        "cliches": 0
+      },
+      "optIn": {
+        "echoes": 36,
+        "phrases": 7,
+        "long": 0
       }
     },
     {
@@ -351,22 +540,23 @@
       "after": {
         "adverbs": 1,
         "cliches": 6,
-        "echoes": 538,
+        "defaultFlags": 16,
+        "echoes": 410,
         "file": "bench/public/moby150k.txt",
         "long": 39,
-        "monotony": 1,
+        "monotony": 0,
         "nonSpeech": 0,
         "openers": 3,
-        "phrases": 96,
+        "phrases": 93,
         "sentences": {
-          "all": 1403,
+          "all": 1126,
           "dialogue": 365,
-          "narration": 1038
+          "narration": 761
         },
         "speechSpans": 187,
         "untagged": 0,
         "verbFlags": 6,
-        "words": 25633
+        "words": 25002
       },
       "reviewedHead": {
         "adverbs": 1,
@@ -387,9 +577,47 @@
         "untagged": 0,
         "verbFlags": 2,
         "words": 24967
+      },
+      "beforeOptInDecision": {
+        "adverbs": 1,
+        "cliches": 6,
+        "echoes": 538,
+        "file": "bench/public/moby150k.txt",
+        "long": 39,
+        "monotony": 1,
+        "nonSpeech": 0,
+        "openers": 3,
+        "phrases": 96,
+        "sentences": {
+          "all": 1403,
+          "dialogue": 365,
+          "narration": 1038
+        },
+        "speechSpans": 187,
+        "untagged": 0,
+        "verbFlags": 6,
+        "words": 25633
+      },
+      "default": {
+        "echoes": 0,
+        "phrases": 0,
+        "long": 0,
+        "monotony": 0,
+        "openers": 3,
+        "verbFlags": 6,
+        "adverbs": 1,
+        "nonSpeech": 0,
+        "untagged": 0,
+        "cliches": 6
+      },
+      "optIn": {
+        "echoes": 410,
+        "phrases": 93,
+        "long": 39
       }
     }
   ],
   "reviewedHead": "98dd73d",
-  "main": "d150a97"
+  "main": "d150a97",
+  "beforeOptInDecision": "b113df7"
 }

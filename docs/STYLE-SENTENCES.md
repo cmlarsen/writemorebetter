@@ -36,12 +36,15 @@ a skipped name. Start shares and the starts sample threshold use `sentences - ex
 
 Words are exactly `is_word && !is_skipped` document tokens (`Sentence::word_count`). Unicode
 letters/numbers count; clitics count separately, while punctuation and emoji do not. Zero-word
-sentences remain in the histogram and are counted in `zeroWordSentences`. Long-sentence candidates have **at least** `longSentenceWords` words (default 40). The default
-selection is only the top N per chapter (`longestPerChapter: 3`). Set `includeAbovePercentile:true`
+sentences remain in the histogram and are counted in `zeroWordSentences`. Length statistics and
+monotony remain selected by default. The long-sentence lens is opt-in via
+`includeLongSentences:true` or `with_long_sentences(true)`; `longSentences` is empty otherwise.
+Once opted in, long-sentence candidates have **at least** `longSentenceWords` words (default 40). The lens selection is the top N per chapter (`longestPerChapter: 3`). Set `includeAbovePercentile:true`
 (or `with_above_percentile(true)`) to also include candidates above the writer's own chapter p95.
-Quoted material, Markdown block quotes, indented blocks and all-capital inscriptions are excluded
-from candidates; their sentences remain in descriptive statistics. The optional p95 is calculated
-over the unquoted candidate pool, including sentences below the 40-word floor. Ties in the top N use document
+Sentences with more than half their words inside quotes, Markdown block quotes, consistently
+indented multiline blocks and inscriptions with at least 80% uppercase letters are excluded
+from candidates; their sentences remain in descriptive statistics. A narrator’s own sentence containing a short embedded or scare quote remains eligible. Four-space first-line indents alone do not mark a block. The optional p95 is calculated
+over the eligible sentence pool, including sentences below the 40-word floor. Ties in the top N use document
 order; equality at p95 alone does not qualify. Chapter headings start a new selection unit; without
 headings the input is one chapter. A chapter with no 40-word candidates produces no long flags.
 Lower the candidate floor explicitly when a UI wants a pure longest-sentences lens. Each group returns `sentences`, a `histogram` of
@@ -75,14 +78,13 @@ a fresh corpus run. No private corpus was accessed for this integration.
 The export has one paragraph per line, with blank lines at scene breaks. `tier3 --sentence-length`
 uses **default line mode**, not hard-wrapped mode. Unpunctuated headings, interrupted dialogue and
 following paragraphs remain separate. `wmb-document --reports TOKENIZER [--hard-wrapped]` defaults
-to line mode; select hard-wrapped only for wrapped public imports such as Moby. The probe runs the
-product defaults (default options, bundled baselines) and prints the combined result under
-`reports`; `wmb-document --defaults` prints the default options and run thresholds that the Python
+to line mode; select hard-wrapped only for wrapped public imports such as Moby. The probe explicitly opts in to the long-sentence lens with otherwise default options and bundled baselines and prints the combined result under
+`reports`; `wmb-document --defaults` prints those selected options and run thresholds that the Python
 reference reads instead of hardcoding them. The synthetic test
 includes consecutive unpunctuated lines and fails under the old hard-wrapped convention.
 
-Calibration pools units within each author, then averages each author's sentence mean and each
-within-author sentence percentile equally into `baseline`. `authorMeanPercentiles` separately
+The optional owner-run sentence-length calibration command pools units within each author, then averages each author's sentence mean and each
+within-author sentence percentile equally into its output `baseline` (distinct from the shipped chapter-window calibration). Its `authorMeanPercentiles` separately
 measures the distribution of author means and must not be copied into `baseline.percentiles`.
 The owner supplies the export/build provenance; the command does not infer or enforce publication
 years. It prints numeric aggregate JSON only and
@@ -263,13 +265,13 @@ The Moby gate measures narrative **from the second exact `CHAPTER 1. Loomings.` 
 first occurrence is a contents entry; the second starts at **UTF-8 byte 28,824**. Matching is by text,
 not a hard-coded offset; the marker, occurrence and measured offset are recorded in the artifact.
 This excludes contents, etymology and extracts, but retains the narrative chapter headings. The cut
-contains 120,267 bytes; with conservative heading retention it has 202 prose paragraphs and 878 sentences. It is separate from the timing
+contains 120,267 bytes; after exact numbered-heading exclusion it has 190 prose paragraphs and 854 sentences. It is separate from the timing
 workload, which remains the complete unchanged 149,091-byte file.
 
-Stories have **16/622 other (2.57%)**, ceiling **5%**. Narrative-only Moby has **130/878 other
-(14.81%)**, ceiling **16%**, a 1.19 percentage-point margin. Top mutually exclusive narrative other
+Stories have **16/622 other (2.57%)**, ceiling **5%**. Narrative-only Moby has **106/854 other
+(12.41%)**, ceiling **16%**, a 3.59 percentage-point margin. Top mutually exclusive narrative other
 surface shapes are 26 remaining verb-tagged openings (including literary/archaic constructions),
-26 vocative/interjection shapes, 16 command-like openers, 14 short fragment shapes, 12 chapter-number
+26 vocative/interjection shapes, 16 command-like openers, 10 short fragment shapes, no chapter-number
 headings, 2 article-led starts, 2 punctuation/markup-led starts, and 24 remaining openings. These
 are structural diagnostics, not independently adjudicated grammatical labels. Full counts/shares,
 source modes, paragraph counts and cut provenance are in `sentence-measurements.json`; ceilings are

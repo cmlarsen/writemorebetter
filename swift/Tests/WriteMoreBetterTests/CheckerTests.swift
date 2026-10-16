@@ -351,10 +351,23 @@ final class CheckerTests: XCTestCase {
         let text = "“Fine,” he said. He grinned at her and he grinned again."
         let json = try checker.styleReports(text: text, requestJson: nil, documentOptions: nil)
         let result = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any])
-        for key in ["stats", "sentences", "repeatedPhrases", "cliches", "dialogueTags", "sentenceLength", "sentenceStarts"] {
+        for key in ["stats", "sentences", "cliches", "dialogueTags", "sentenceLength", "sentenceStarts"] {
             XCTAssertNotNil(result[key], key)
         }
         XCTAssertNil(result["echoes"])
+        XCTAssertNil(result["repeatedPhrases"])
+        let length = try XCTUnwrap(result["sentenceLength"] as? [String: Any])
+        let groups = try XCTUnwrap(length["groups"] as? [String: Any])
+        let all = try XCTUnwrap(groups["all"] as? [String: Any])
+        XCTAssertEqual(all["longSentences"] as? [Int], [])
+        let longText = Array(repeating: "word", count: 50).joined(separator: " ") + "."
+        let lensJson = try checker.styleReports(text: longText, requestJson: "{\"sentenceLength\":{\"includeLongSentences\":true},\"repeatedPhrases\":{}}", documentOptions: nil)
+        let lens = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(lensJson.utf8)) as? [String: Any])
+        XCTAssertNotNil(lens["repeatedPhrases"])
+        let lensLength = try XCTUnwrap(lens["sentenceLength"] as? [String: Any])
+        let lensGroups = try XCTUnwrap(lensLength["groups"] as? [String: Any])
+        let lensAll = try XCTUnwrap(lensGroups["all"] as? [String: Any])
+        XCTAssertEqual(lensAll["longSentences"] as? [Int], [0])
         let only = try checker.styleReports(text: text, requestJson: "{\"sentenceLength\":{}}", documentOptions: nil)
         let selected = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(only.utf8)) as? [String: Any])
         XCTAssertNotNil(selected["sentenceLength"])

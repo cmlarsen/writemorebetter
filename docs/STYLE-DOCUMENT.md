@@ -55,7 +55,7 @@ can differ from `analyze()`: for example, `“Where?” I asked.` is one style s
 analysis may split its attribution. Map grammar suggestions by absolute spans, not sentence indexes.
 A single blank line separates paragraphs and does not imply a scene break. Chapter/Book/Part lines
 must be short, lack terminal punctuation and use a number or a valid uppercase Roman numeral followed
-by title-shaped words. Markdown chapter headings also start a chapter. Punctuated numbered chapter titles can mark chapter boundaries while remaining in descriptive statistics. Bare signs and sound effects
+by title-shaped words. Markdown chapter headings also start a chapter. Numbered chapter titles may use colon, dash or period separators; recognized titles, including `CHAPTER 1. Loomings.`, mark chapter boundaries and are excluded from statistics. Bare signs and sound effects
 such as `I`, `BANG` and `NO VACANCY` remain prose; arbitrary capitalized lines are not deleted.
 Sentence/token spans retain the tokenizer's whitespace conventions and need not cover trailing
 paragraph whitespace. All Rust spans contain absolute, half-open UTF-8 byte, Unicode scalar (`char`)

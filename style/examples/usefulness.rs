@@ -1,5 +1,7 @@
 use nlprule::Tokenizer;
-use writemorebetter_style::reports::{echoes, run, StyleRequest, StyleResources};
+use writemorebetter_style::reports::{
+    echoes, repeated_phrases, run, sentence_length, StyleRequest, StyleResources,
+};
 use writemorebetter_style::{analyze_document, DocumentOptions};
 
 fn main() {
@@ -20,10 +22,38 @@ fn main() {
             }
         }
         let result = run(&document, &StyleRequest::new(), &resources, &tokenizer).unwrap();
-        let tags = result.dialogue_tags.unwrap();
+        let phrases = repeated_phrases::report(&document, &Default::default()).unwrap();
+        let long = sentence_length::report(
+            &document,
+            &sentence_length::SentenceLengthOptions::new().with_long_sentences(true),
+            None,
+        )
+        .unwrap();
+        let tags = result.dialogue_tags.as_ref().unwrap();
+        let default_flags = result.cliches.as_ref().unwrap().matches.len()
+            + result
+                .sentence_length
+                .as_ref()
+                .unwrap()
+                .groups
+                .all
+                .monotony_runs
+                .len()
+            + result
+                .sentence_starts
+                .as_ref()
+                .unwrap()
+                .groups
+                .all
+                .same_word_runs
+                .len()
+            + tags.showy_verbs.iter().map(|v| v.count).sum::<usize>()
+            + tags.non_speech.count
+            + tags.with_adverb.count
+            + tags.untagged_runs.len();
         println!(
             "{}",
-            serde_json::json!({"file":path,"words":result.stats.words.all,"sentences":result.stats.sentences,"speechSpans":result.stats.speech_spans,"echoes":echoes::report(&document,&echoes::EchoOptions::new()).unwrap().echoes.len(),"phrases":result.repeated_phrases.unwrap().phrases.len(),"cliches":result.cliches.unwrap().matches.len(),"long":result.sentence_length.as_ref().unwrap().groups.all.long_sentences.len(),"monotony":result.sentence_length.unwrap().groups.all.monotony_runs.len(),"openers":result.sentence_starts.unwrap().groups.all.same_word_runs.len(),"verbFlags":tags.showy_verbs.iter().map(|v|v.count).sum::<usize>(),"adverbs":tags.with_adverb.count,"nonSpeech":tags.non_speech.count,"untagged":tags.untagged_runs.len()})
+            serde_json::json!({"file":path,"words":result.stats.words.all,"sentences":result.stats.sentences,"speechSpans":result.stats.speech_spans,"echoes":echoes::report(&document,&echoes::EchoOptions::new()).unwrap().echoes.len(),"phrases":phrases.phrases.len(),"cliches":result.cliches.unwrap().matches.len(),"long":long.groups.all.long_sentences.len(),"defaultFlags":default_flags,"monotony":result.sentence_length.unwrap().groups.all.monotony_runs.len(),"openers":result.sentence_starts.unwrap().groups.all.same_word_runs.len(),"verbFlags":tags.showy_verbs.iter().map(|v|v.count).sum::<usize>(),"adverbs":tags.with_adverb.count,"nonSpeech":tags.non_speech.count,"untagged":tags.untagged_runs.len()})
         );
     }
 }

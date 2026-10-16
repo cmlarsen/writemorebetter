@@ -298,7 +298,7 @@ impl Default for StyleRequest {
     fn default() -> Self {
         Self {
             echoes: None,
-            repeated_phrases: Some(RepeatedPhraseOptions::new()),
+            repeated_phrases: None,
             cliches: Some(ClicheOptions::new()),
             dialogue_tags: Some(DialogueTagOptions::new()),
             sentence_length: Some(SentenceLengthOptions::new()),

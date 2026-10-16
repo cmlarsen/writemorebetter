@@ -361,7 +361,6 @@ fn json_request_selects_reports_and_baselines() {
     for key in [
         "stats",
         "sentences",
-        "repeatedPhrases",
         "cliches",
         "dialogueTags",
         "sentenceLength",
@@ -370,6 +369,11 @@ fn json_request_selects_reports_and_baselines() {
         assert!(all.get(key).is_some(), "{key}");
     }
     assert!(all.get("echoes").is_none());
+    assert!(all.get("repeatedPhrases").is_none());
+    assert_eq!(
+        all["sentenceLength"]["groups"]["all"]["longSentences"],
+        serde_json::json!([])
+    );
     let percentile = &all["sentenceLength"]["groups"]["all"]["percentiles"][2];
     assert_eq!(percentile["percentile"], 50);
     assert!(percentile["value"].is_null());

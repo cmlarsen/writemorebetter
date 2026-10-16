@@ -245,7 +245,7 @@ fn repeated_phrases_stop_at_internal_punctuation() {
 }
 
 #[test]
-fn shorter_phrases_inside_a_longer_repeat_are_dropped_unless_they_also_occur_alone() {
+fn shorter_phrases_need_a_clear_frequency_advantage() {
     let text = "The old grey house stood. The old grey house fell. A grey house remained.";
     assert_eq!(
         phrases_of(text, &[]),

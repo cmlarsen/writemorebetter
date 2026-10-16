@@ -92,21 +92,45 @@ fn listed(word: &str) -> bool {
     FUNCTION_WORDS.binary_search(&word).is_ok()
 }
 
-fn echo_lemmas(token: &Token) -> BTreeSet<String> {
+fn echo_families(token: &Token) -> Vec<&'static str> {
+    let families: Vec<_> = CONTENT_TAGS
+        .iter()
+        .copied()
+        .filter(|tag| token.readings.iter().any(|r| r.pos.starts_with(tag)))
+        .collect();
+    if families.len() <= 1 {
+        return families;
+    }
+    if families.contains(&"VB") && token.chunks.iter().any(|c| c.contains("-VP")) {
+        return vec!["VB"];
+    }
+    if token.chunks.iter().any(|c| c.contains("-NP")) {
+        if families.contains(&"NN") {
+            return vec!["NN"];
+        }
+        if families.contains(&"JJ") {
+            return vec!["JJ"];
+        }
+    }
+    if fold(&token.text).ends_with("ing") && token.readings.iter().any(|r| r.pos == "VBG") {
+        return vec!["VB"];
+    }
+    if families.iter().all(|tag| matches!(*tag, "NN" | "VB")) {
+        vec!["NN"]
+    } else {
+        Vec::new()
+    }
+}
+
+fn echo_lemmas(token: &Token, families: &[&str]) -> BTreeSet<String> {
     let candidates: BTreeSet<_> = token
         .readings
         .iter()
-        .filter(|r| CONTENT_TAGS.iter().any(|tag| r.pos.starts_with(tag)))
+        .filter(|r| families.iter().any(|tag| r.pos.starts_with(tag)))
         .map(|r| fold(&r.lemma))
         .filter(|lemma| !lemma.is_empty() && !lemma.contains(char::is_whitespace))
         .collect();
-    let categories: BTreeSet<_> = token
-        .readings
-        .iter()
-        .filter_map(|r| CONTENT_TAGS.iter().find(|tag| r.pos.starts_with(**tag)))
-        .collect();
     if candidates.len() == 1
-        && categories.len() == 1
         && !token
             .readings
             .iter()
@@ -253,15 +277,15 @@ pub fn report(document: &Document, options: &EchoOptions) -> Result<EchoReport, 
             continue;
         }
         let mut candidates = if options.match_forms {
-            let pos = token
-                .readings
-                .iter()
-                .find_map(|r| CONTENT_TAGS.iter().find(|tag| r.pos.starts_with(**tag)))
-                .copied()
-                .unwrap_or("");
-            echo_lemmas(token)
+            let families = echo_families(token);
+            let lemmas = echo_lemmas(token, &families);
+            families
                 .into_iter()
-                .map(|lemma| format!("lemma:{pos}:{lemma}"))
+                .flat_map(|pos| {
+                    lemmas
+                        .iter()
+                        .map(move |lemma| format!("lemma:{pos}:{lemma}"))
+                })
                 .collect()
         } else {
             BTreeSet::new()

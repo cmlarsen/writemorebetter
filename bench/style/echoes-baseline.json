@@ -1,16 +1,17 @@
 {
   "source": "Pinned public Standard Ebooks passages, English 6.6; reviewed scope 2026-10-16",
   "rebaselineReasons": [
-    "Echo window is capped at 30 words; ambiguous or comparative readings cannot supply cross-form joins, and quote-to-quote pairs across paragraphs are suppressed. The scoped near range is now 12\u201325 regex words; tokenizer clitics can still put pairs outside 30. Precision remains 1.0; ordinary ladies/miss have positive regression fixtures.",
-    "Echo dev recall 43/58 and test 48/61 replace the previous broader morphology/window contract. Natural-copy recall is 25/26 in both splits; the suppressed copies are arched in dev and toasted in test, across quoted turns.",
-    "Repeated phrases now score three-use and two-near injections, including I got up and Piglet said that, at 100% recall. Distant twice-used pairs have separate negative controls rather than lowering recall; punctuation boundaries are tested in Rust."
+    "The 2026-10-16 re-review repair restores plural and gerund echoes using noun/verb chunk context and singleton lemmas, without reintroducing the ambiguous-reading negative fixtures. Precision stays 1.0 and all far controls stay zero; individual echo injections now have 100% recall in both splits.",
+    "The prior 43/58 dev and 48/61 test echo floors are replaced by 57/58 and 60/61. The only remaining misses are natural-copy targets inside tokenizer compounds: low-arched versus Arched in moby-005-natural and sun-toasted versus Toasted in moby-023-natural. The generator selects regex subwords while the product keeps each compound as one word. Frozen gold remains unchanged, and natural-copy floors stay 25/26; the previous quote-turn explanation was incorrect.",
+    "The 30-word cap, same-sentence short-pair suppression and quote-turn suppression remain owner decisions. Near injection range and gold counts are unchanged from b113df7.",
+    "Repeated-phrase in-scope cases retain 100% precision/recall, with distant two-use pairs scored as negative controls; punctuation, abbreviation, frequent-shorter and name-fallback fixtures are covered in Rust."
   ],
   "floors": {
     "dev": {
       "echo": {
         "precision": 1.0,
-        "recall": 0.7413793103448276,
-        "true_positive": 43
+        "recall": 0.9827586206896551,
+        "true_positive": 57
       },
       "natural_injections": {
         "precision": 1.0,
@@ -26,8 +27,8 @@
     "test": {
       "echo": {
         "precision": 1.0,
-        "recall": 0.7868852459016393,
-        "true_positive": 48
+        "recall": 0.9836065573770492,
+        "true_positive": 60
       },
       "natural_injections": {
         "precision": 1.0,

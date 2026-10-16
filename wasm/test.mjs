@@ -326,10 +326,15 @@ const onlyLength = JSON.parse(checker.styleReports(reportText, JSON.stringify({s
 check("sentenceLength" in onlyLength && !("sentenceStarts" in onlyLength), "combined request selects reports");
 
 const everything = JSON.parse(checker.styleReports(reportText));
-for (const key of ["stats", "sentences", "repeatedPhrases", "cliches", "dialogueTags", "sentenceLength", "sentenceStarts"]) {
+for (const key of ["stats", "sentences", "cliches", "dialogueTags", "sentenceLength", "sentenceStarts"]) {
   check(key in everything, `default request includes ${key}`);
 }
-check(!("echoes" in everything), "echoes are opt-in");
+check(!("echoes" in everything) && !("repeatedPhrases" in everything), "echoes and phrases are opt-in");
+eq(everything.sentenceLength.groups.all.longSentences, [], "long flags are opt-in");
+const longText = Array(50).fill("word").join(" ") + ".";
+eq(JSON.parse(checker.styleReports(longText)).sentenceLength.groups.all.longSentences, [], "default keeps long list empty");
+eq(JSON.parse(checker.styleReports(longText, JSON.stringify({sentenceLength:{includeLongSentences:true}, repeatedPhrases:{}}))).sentenceLength.groups.all.longSentences, [0], "long flags can be opted in");
+check("repeatedPhrases" in JSON.parse(checker.styleReports(longText, JSON.stringify({repeatedPhrases:{}}))), "phrases can be opted in");
 const echoLens = JSON.parse(checker.styleReports(reportText, JSON.stringify({echoes:{}}))).echoes;
 eq(everything.stats.words.all, echoLens.words, "word totals agree");
 eq(everything.cliches.groups.dialogue.words, everything.stats.words.dialogue, "dialogue word split agrees");

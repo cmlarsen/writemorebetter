@@ -332,7 +332,7 @@ pub(crate) fn honorific(text: &str) -> bool {
 
 fn chapter_heading(text: &str) -> bool {
     let text = text.trim().trim_start_matches('#').trim();
-    if text.contains(['.', '!', '?', '“', '”', '"']) || text.split_whitespace().count() > 10 {
+    if text.contains(['!', '?', '“', '”', '"']) || text.split_whitespace().count() > 10 {
         return false;
     }
     let mut words = text.split_whitespace();
@@ -345,6 +345,7 @@ fn chapter_heading(text: &str) -> bool {
     let Some(number) = words.next() else {
         return false;
     };
+    let number = number.trim_end_matches([':', '.', ',']);
     let values: Vec<i32> = number
         .chars()
         .map(|c| match c {
@@ -394,7 +395,7 @@ fn chapter_heading(text: &str) -> bool {
         }
         number == result
     };
-    let numbered = number.chars().all(|c| c.is_ascii_digit())
+    let numbered = (!number.is_empty() && number.chars().all(|c| c.is_ascii_digit()))
         || roman
         || matches!(
             number.to_lowercase().as_str(),
@@ -421,7 +422,9 @@ fn chapter_heading(text: &str) -> bool {
         );
     numbered
         && words.all(|w| {
-            w.chars().next().is_some_and(char::is_uppercase)
+            let w = w.trim_matches(['—', '–', '-', ':', '.', ',']);
+            w.is_empty()
+                || w.chars().next().is_some_and(char::is_uppercase)
                 || matches!(w, "of" | "the" | "and" | "a" | "in")
         })
 }

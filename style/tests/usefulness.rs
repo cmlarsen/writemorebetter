@@ -170,19 +170,28 @@ fn long_sentences_use_rank_and_the_writers_own_distribution_per_chapter() {
         .collect::<Vec<_>>()
         .join("\n");
     let d = document(&text);
-    let r = sentence_length::report(&d, &Default::default(), None).unwrap();
+    let r = sentence_length::report(
+        &d,
+        &sentence_length::SentenceLengthOptions::new().with_long_sentences(true),
+        None,
+    )
+    .unwrap();
     assert_eq!(r.groups.all.long_sentences, vec![97, 98, 99]);
     let d = document(&format!(
         "Chapter One\n{text}\nChapter Two\n{}.",
         vec!["word"; 40].join(" ")
     ));
     assert_eq!(
-        sentence_length::report(&d, &Default::default(), None)
-            .unwrap()
-            .groups
-            .all
-            .long_sentences
-            .len(),
+        sentence_length::report(
+            &d,
+            &sentence_length::SentenceLengthOptions::new().with_long_sentences(true),
+            None
+        )
+        .unwrap()
+        .groups
+        .all
+        .long_sentences
+        .len(),
         4
     );
 }
@@ -438,7 +447,7 @@ fn headings_preserve_prose_signs_and_mark_markdown_chapters() {
     }
     let d = document("CHAPTER 1. Loomings.\nShe waited.");
     assert!(d.paragraphs[0].chapter_start);
-    assert_eq!(d.paragraphs.len(), 2);
+    assert_eq!(d.paragraphs.len(), 1);
     let d = document("## Chapter Two\nShe waited.");
     assert!(d.paragraphs[0].chapter_start);
     let d = document("“Where?” I asked.");
@@ -525,18 +534,30 @@ fn long_sentence_options_exclude_quotes_blocks_and_preserve_percentile_option() 
     let short = "She waited. ".repeat(200);
     let long = format!("{}.", vec!["word"; 42].join(" "));
     let d = document(&format!("{short}{}", vec![long.clone(); 10].join("\n")));
-    let r = sentence_length::report(&d, &Default::default(), None).unwrap();
+    let r = sentence_length::report(
+        &d,
+        &sentence_length::SentenceLengthOptions::new().with_long_sentences(true),
+        None,
+    )
+    .unwrap();
     assert_eq!(r.groups.all.long_sentences.len(), 3);
     let r = sentence_length::report(
         &d,
-        &sentence_length::SentenceLengthOptions::new().with_above_percentile(true),
+        &sentence_length::SentenceLengthOptions::new()
+            .with_long_sentences(true)
+            .with_above_percentile(true),
         None,
     )
     .unwrap();
     assert_eq!(r.groups.all.long_sentences.len(), 10);
     let d = document(&format!("“{long}”\n> {long}\n    {long}\n{long}"));
-    let r = sentence_length::report(&d, &Default::default(), None).unwrap();
-    assert_eq!(r.groups.all.long_sentences.len(), 1);
+    let r = sentence_length::report(
+        &d,
+        &sentence_length::SentenceLengthOptions::new().with_long_sentences(true),
+        None,
+    )
+    .unwrap();
+    assert_eq!(r.groups.all.long_sentences.len(), 2);
 }
 
 #[test]
@@ -574,5 +595,213 @@ fn beats_introduce_following_speech_and_manner_does_not_modify_adjective() {
             r#"{"dialogue":{"dialogue":{}}}"#
         )
         .is_err()
+    );
+}
+
+#[test]
+fn chapter_separators_keep_selection_independent_without_deleting_prose() {
+    let long = (41..45)
+        .map(|n| format!("{}.", vec!["word"; n].join(" ")))
+        .collect::<Vec<_>>()
+        .join("\n");
+    for heading in [
+        "Chapter 1: The Storm",
+        "Chapter One: The Storm",
+        "Chapter 1 — The Storm",
+        "Part IV – The Storm",
+        "CHAPTER 1. Loomings.",
+    ] {
+        let text = format!("{heading}\n{long}\n{heading}\n{long}");
+        let d = document(&text);
+        assert_eq!(
+            d.paragraphs.iter().filter(|p| p.chapter_start).count(),
+            2,
+            "{heading}"
+        );
+        assert_eq!(d.sentences().count(), 8, "{heading}");
+        let r = sentence_length::report(
+            &d,
+            &sentence_length::SentenceLengthOptions::new().with_long_sentences(true),
+            None,
+        )
+        .unwrap();
+        assert_eq!(r.groups.all.long_sentences.len(), 6, "{heading}");
+    }
+    for text in [
+        "Part civil servant, part spy.",
+        "Book one was a disaster.",
+        "Part iv",
+        "BANG",
+        "NO VACANCY",
+    ] {
+        assert_eq!(document(text).paragraphs.len(), 1, "{text}");
+    }
+}
+
+#[test]
+fn abbreviations_do_not_split_phrases_or_make_honorifics_content() {
+    let text = "She said Mrs. Dalloway. She said Mrs. Coates. She said Mrs. Bletchley.";
+    let r = repeated_phrases::report(&document(text), &Default::default()).unwrap();
+    assert!(r.phrases.is_empty(), "{r:?}");
+    let text = "He saw Dr. Jones at the old mill. He saw Dr. Jones at the old mill. He saw Dr. Jones at the old mill.";
+    let r = repeated_phrases::report(&document(text), &Default::default()).unwrap();
+    assert!(
+        r.phrases.iter().any(|p| p.count == 3
+            && p.spans
+                .iter()
+                .all(|s| text.get(s.byte.clone()).unwrap().contains("Dr. Jones"))),
+        "{r:?}"
+    );
+    for text in [
+        "Bright... silver. Bright... silver. Bright... silver.",
+        "Bright… silver. Bright… silver. Bright… silver.",
+    ] {
+        assert!(
+            repeated_phrases::report(&document(text), &Default::default())
+                .unwrap()
+                .phrases
+                .is_empty()
+        );
+    }
+}
+
+#[test]
+fn frequent_shorter_phrases_survive_rare_longer_repeats() {
+    let text = "The young man waited. The young man waited. The young man spoke. The young man ran. The bright young man sat. The bright young man sat.";
+    let r = repeated_phrases::report(&document(text), &Default::default()).unwrap();
+    let young = r
+        .phrases
+        .iter()
+        .find(|p| p.labels.join(" ") == "the young man")
+        .unwrap();
+    assert_eq!(young.count, 4);
+    assert!(r
+        .phrases
+        .iter()
+        .any(|p| p.labels.join(" ").contains("bright young man")));
+
+    let text = "The young man waited. The young man spoke. The young man ran. “Fine,” said the young man. “No,” said the young man.";
+    let r = repeated_phrases::report(&document(text), &Default::default()).unwrap();
+    assert!(
+        r.phrases
+            .iter()
+            .any(|p| p.labels.join(" ") == "the young man" && p.count == 5),
+        "{r:?}"
+    );
+    let text = "The old grey house stood. The old grey house fell. A grey house remained.";
+    let r = repeated_phrases::report(&document(text), &Default::default()).unwrap();
+    assert!(!r.phrases.iter().any(|p| p.labels.join(" ") == "grey house"));
+}
+
+#[test]
+fn noun_plurals_and_gerunds_recover_without_ambiguous_family_joins() {
+    for (singular, plural) in [
+        ("bucket", "buckets"),
+        ("blanket", "blankets"),
+        ("ladder", "ladders"),
+        ("horse", "horses"),
+        ("window", "windows"),
+        ("candle", "candles"),
+        ("ground", "grounds"),
+    ] {
+        let text = format!("The {singular} stood. The {plural} fell.");
+        let r = echoes::report(&document(&text), &Default::default()).unwrap();
+        assert!(
+            r.echoes
+                .iter()
+                .any(|e| text.get(e.earlier.byte.clone()) == Some(singular)
+                    && text.get(e.later.byte.clone()) == Some(plural)),
+            "{text}: {r:?}"
+        );
+    }
+    let text = "He swung. They were swinging.";
+    assert!(!echoes::report(&document(text), &Default::default())
+        .unwrap()
+        .echoes
+        .is_empty());
+    for text in [
+        "The leaves fell. She left.",
+        "He was better. She was well.",
+        "He uttered words. It was utter nonsense.",
+    ] {
+        assert!(
+            echoes::report(&document(text), &Default::default())
+                .unwrap()
+                .echoes
+                .is_empty(),
+            "{text}"
+        );
+    }
+}
+
+#[test]
+fn own_narration_with_quotes_and_first_line_indents_remains_a_long_candidate() {
+    let words = vec!["word"; 50].join(" ");
+    let text = format!("She called it “the plan” and {words}.\n    She remembered {words}.\n“{words}.”\n> {words}.\nSACRED {} _December_ 31st 1839.", vec!["MEMORY"; 45].join(" "));
+    let r = sentence_length::report(
+        &document(&text),
+        &sentence_length::SentenceLengthOptions::new().with_long_sentences(true),
+        None,
+    )
+    .unwrap();
+    assert_eq!(r.groups.all.long_sentences, vec![0, 1]);
+    let d = analyze_document(
+        &Tokenizer::new("../storage/en_tokenizer.bin").unwrap(),
+        &format!("    {words}\n    {words}."),
+        &DocumentOptions::new().with_hard_wrapped(true),
+    );
+    let r = sentence_length::report(
+        &d,
+        &sentence_length::SentenceLengthOptions::new().with_long_sentences(true),
+        None,
+    )
+    .unwrap();
+    assert!(r.groups.all.long_sentences.is_empty());
+}
+
+#[test]
+fn defaults_retain_statistics_and_monotony_but_lenses_are_explicit() {
+    let text = format!(
+        "{} {}.",
+        "She waited. ".repeat(50),
+        vec!["word"; 50].join(" ")
+    );
+    let tokenizer = Tokenizer::new("../storage/en_tokenizer.bin").unwrap();
+    let d = document(&text);
+    let resources = writemorebetter_style::reports::StyleResources::new();
+    let r = writemorebetter_style::reports::run(&d, &StyleRequest::new(), &resources, &tokenizer)
+        .unwrap();
+    assert!(r.repeated_phrases.is_none());
+    assert!(r.echoes.is_none());
+    let group = &r.sentence_length.unwrap().groups.all;
+    assert!(group.mean.is_some());
+    assert!(!group.monotony_runs.is_empty());
+    assert!(group.long_sentences.is_empty());
+    let request = StyleRequest::from_json(
+        r#"{"sentenceLength":{"includeLongSentences":true},"repeatedPhrases":{},"echoes":{}}"#,
+    )
+    .unwrap();
+    let r = writemorebetter_style::reports::run(&d, &request, &resources, &tokenizer).unwrap();
+    assert_eq!(
+        r.sentence_length.unwrap().groups.all.long_sentences.len(),
+        1
+    );
+    assert!(r.repeated_phrases.is_some());
+    assert!(r.echoes.is_some());
+}
+
+#[test]
+fn inferred_names_do_not_mask_lowercase_homonyms() {
+    let text = "They saw Rose waiting. They saw Rose waiting. The rose garden grew. The rose garden grew. The rose garden grew.";
+    let r = repeated_phrases::report(
+        &document(text),
+        &repeated_phrases::RepeatedPhraseOptions::new().with_automatic_names(true),
+    )
+    .unwrap();
+    assert!(
+        r.phrases
+            .iter()
+            .any(|p| p.keys.iter().any(|k| k == "rose") && p.count == 3),
+        "{r:?}"
     );
 }

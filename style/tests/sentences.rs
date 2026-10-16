@@ -170,6 +170,7 @@ fn lengths_runs_thresholds_baselines_and_skips() {
     let text = "She ran. She left. She slept. She wept.\n\n“He ran. He left. He slept. He wept.”\n\n😀 They don’t know—yet…\u{2028}perhaps.";
     let document = analyze_document(&tokenizer, text, &DocumentOptions::new());
     let options = SentenceLengthOptions::new()
+        .with_long_sentences(true)
         .with_minimum_sentences(4)
         .with_long_sentence_words(2)
         .with_longest_per_chapter(20);
@@ -279,12 +280,16 @@ fn fractional_ambiguity_and_empty_input() {
         .universal
         .iter()
         .all(|c| c.percent.is_none()));
-    assert!(length::report(&empty, &SentenceLengthOptions::new(), None)
-        .unwrap()
-        .groups
-        .all
-        .mean
-        .is_none());
+    assert!(length::report(
+        &empty,
+        &SentenceLengthOptions::new().with_long_sentences(true),
+        None
+    )
+    .unwrap()
+    .groups
+    .all
+    .mean
+    .is_none());
 }
 
 #[test]
@@ -305,8 +310,12 @@ fn monotony_has_no_drift_and_reports_overlapping_maximal_windows() {
         (vec![1, 1, 1, 1, 6, 6, 6, 6], vec![0..4, 4..8]),
         (vec![2; 10_000], vec![0..10_000]),
     ] {
-        let report =
-            length::report(&document(&lengths), &SentenceLengthOptions::new(), None).unwrap();
+        let report = length::report(
+            &document(&lengths),
+            &SentenceLengthOptions::new().with_long_sentences(true),
+            None,
+        )
+        .unwrap();
         let runs = &report.groups.all.monotony_runs;
         assert_eq!(
             runs.iter().map(|s| s.span.byte.clone()).collect::<Vec<_>>(),
@@ -376,23 +385,29 @@ fn sample_floor_is_per_group_and_long_threshold_is_inclusive() {
     let words = vec!["word"; 40].join(" ") + ".";
     let document = analyze_document(&tokenizer, &words, &DocumentOptions::new());
     assert_eq!(
-        length::report(&document, &SentenceLengthOptions::new(), None)
-            .unwrap()
-            .groups
-            .all
-            .long_sentences,
+        length::report(
+            &document,
+            &SentenceLengthOptions::new().with_long_sentences(true),
+            None
+        )
+        .unwrap()
+        .groups
+        .all
+        .long_sentences,
         vec![0]
     );
     let words = vec!["word"; 39].join(" ") + ".";
     let document = analyze_document(&tokenizer, &words, &DocumentOptions::new());
-    assert!(
-        length::report(&document, &SentenceLengthOptions::new(), None)
-            .unwrap()
-            .groups
-            .all
-            .long_sentences
-            .is_empty()
-    );
+    assert!(length::report(
+        &document,
+        &SentenceLengthOptions::new().with_long_sentences(true),
+        None
+    )
+    .unwrap()
+    .groups
+    .all
+    .long_sentences
+    .is_empty());
 }
 
 #[test]
@@ -453,7 +468,11 @@ fn universal_starts_skip_one_punctuation_after_quotes_and_reject_unknown_keys() 
     let baseline: SentenceLengthBaseline =
         serde_json::from_str(r#"{"percentiles":{"10":3}}"#).unwrap();
     assert!(matches!(
-        length::report(&document, &SentenceLengthOptions::new(), Some(&baseline)),
+        length::report(
+            &document,
+            &SentenceLengthOptions::new().with_long_sentences(true),
+            Some(&baseline)
+        ),
         Err(StyleError::InvalidBaseline { .. })
     ));
 }
