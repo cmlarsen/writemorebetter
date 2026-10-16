@@ -1,0 +1,4 @@
+# Entries followed by one of these word sequences are literal uses, not the idiom (phrase, then one tab-separated guard per field).
+kick the bucket	of	across
+let your hair down	from
+put your foot down	onto	on the brake	on the pedal	on the accelerator	on the gas	on the floor	on the ground	on the step	on the stair	on the deck

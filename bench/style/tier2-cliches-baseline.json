@@ -1,0 +1,10 @@
+{
+  "suite": "tier 2 cliches: 60 templates (35 positive, 25 negative) injected into 120 pinned Standard Ebooks passages (Pride and Prejudice, Moby-Dick), each at the start and near the middle, in hard-wrapped and default mode (240 documents); natural hits in the clean passage are excluded",
+  "measured": "2026-10-15, English 6.6 tokenizer, after the PR #267 re-review fixes",
+  "documents": 240,
+  "gold": 140,
+  "negative_controls": 100,
+  "precision": 1.0,
+  "recall": 1.0,
+  "f1": 1.0
+}

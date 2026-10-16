@@ -25,6 +25,11 @@ def main():
     two.add_argument('--manifest', type=Path)
     two.add_argument('--report')
     two.add_argument('--pattern')
+    cliches = sub.add_parser('cliches')
+    cliches.add_argument('--gate', action='store_true')
+    cliches.add_argument('--probe', type=Path)
+    cliches.add_argument('--tokenizer', type=Path, default=ROOT / 'storage/en_tokenizer.bin')
+    cliches.add_argument('--out', type=Path, default=ROOT / 'bench/style/out/cliches')
     three = sub.add_parser('tier3')
     three.add_argument('--self-test', action='store_true')
     three.add_argument('--export', type=Path)
@@ -40,6 +45,10 @@ def main():
     if args.tier == 'tier2':
         import tier2
         tier2.run(args)
+        return
+    if args.tier == 'cliches':
+        import cliches
+        cliches.run(args)
         return
     analyzer = Analyzer(args.tokenizer, args.analyzer, quiet=args.tier == 'tier3')
     try:

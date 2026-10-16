@@ -1,0 +1,8 @@
+# Entries the shipped English rules already flag on the same phrase (one rule is off by default); see docs/STYLE-CLICHES.md.
+ATM machine
+CD disc
+HIV virus
+LCD display
+PIN number
+ISBN number
+for all intents and purposes

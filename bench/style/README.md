@@ -203,6 +203,15 @@ pattern vocabulary and span convention. Clean/injected-pair precision (to separa
 new flags) and overlap scoring are deferred to the first real report issue; exact-match precision here
 is valid only for the toy predicate with validated controls. This PR claims no real-report accuracy.
 
+### Clichés and redundancies (#246)
+
+`python3 bench/style/run.py cliches --gate` builds `bench/tools/wmb-cliches` (or takes `--probe PATH`) and
+scores the cliché report's own tier 2 suite: 60 templates (35 positive, 25 negative) injected into the 120 passages above,
+each template once at a passage's start and once at a narration sentence boundary near its middle, in both
+hard-wrapped and default mode (240 documents). Rows are labelled `cliche|redundancy.narration|dialogue`, with
+clean/injected pairs so matches already in the clean passage are excluded rather than counted. Floors are in
+`tier2-cliches-baseline.json` (P/R/F1 1.0 on 140 injections and 100 negative controls). See [the report notes](../../docs/STYLE-CLICHES.md).
+
 `labels/example.jsonl` defines the hand-label format for judgment suites: the same `file`, `byte`,
 `utf16`, and `pattern` fields, plus `report` (`sentence_start`, `transition`, `pacing`), `labelers`
 (independent labeler identifiers) and `adjudication`. Offsets refer to `labels/excerpt.txt`, the first
