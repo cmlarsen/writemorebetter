@@ -506,7 +506,7 @@ def self_test(probe, started=None):
     lexical = probe.measure('She glanced. ' * 6 + 'It was red. ' * 20
                             + 'An idea, a belief, a truth. ' * 3)
     assert lexical['overused_words']['overused'] >= 1
-    assert lexical['sensory_balance']['modalities']['sight'] == 20
+    assert lexical['sensory_balance']['modalities']['sight'] == 26
     assert lexical['sensory_balance']['single_sense'] == 1
     assert lexical['diction']['abstract_sentences'] == 3
     assert lexical['diction']['abstract_runs'] == 1
