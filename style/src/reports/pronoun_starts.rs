@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 
 use super::{sentence_starts, Share, Split};
-use crate::{Document, Mode, Span, StyleError};
+use crate::{Document, Mode, Span, StyleError, Token};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields, rename_all = "camelCase")]
@@ -74,6 +74,89 @@ pub struct PronounStartsReport {
     pub groups: Split<PronounStartsGroup>,
 }
 
+fn is_pronoun(tokens: &[&Token]) -> bool {
+    let Some(first) = tokens.first() else {
+        return false;
+    };
+    let word = first.text.to_lowercase();
+    let has = |token: &Token, tags: &[&str]| {
+        token
+            .readings
+            .iter()
+            .any(|r| tags.contains(&sentence_starts::normalize_pos(&r.pos)))
+    };
+    let next = tokens.get(1).copied();
+    let nominal = next.is_some_and(|t| {
+        has(
+            t,
+            &[
+                "NN", "NNS", "NNP", "NNPS", "JJ", "JJR", "JJS", "PRP$", "DT", "PDT", "VBG",
+            ],
+        )
+    });
+    if ["her", "his", "whose", "what", "which"].contains(&word.as_str()) && nominal {
+        return false;
+    }
+    if [
+        "this", "that", "these", "those", "each", "either", "neither",
+    ]
+    .contains(&word.as_str())
+    {
+        let following = tokens
+            .iter()
+            .skip(1)
+            .find(|t| !has(t, &["RB", "RBR", "RBS"]));
+        return following.is_none_or(|t| {
+            !t.is_word
+                || ["'s", "’s"].contains(&t.text.as_str())
+                || (!nominal && has(t, &["VBD", "VBP", "VBZ", "MD"]))
+        });
+    }
+    [
+        "i",
+        "you",
+        "he",
+        "she",
+        "it",
+        "we",
+        "they",
+        "me",
+        "him",
+        "her",
+        "us",
+        "them",
+        "mine",
+        "yours",
+        "his",
+        "hers",
+        "ours",
+        "theirs",
+        "myself",
+        "yourself",
+        "yourselves",
+        "himself",
+        "herself",
+        "itself",
+        "ourselves",
+        "themselves",
+        "oneself",
+        "whose",
+        "someone",
+        "somebody",
+        "something",
+        "nobody",
+        "nothing",
+        "everyone",
+        "everybody",
+        "everything",
+        "anyone",
+        "anybody",
+        "anything",
+    ]
+    .contains(&word.as_str())
+        || has(first, &["PRP", "WP"])
+}
+
 pub fn report(
     document: &Document,
     options: &PronounStartsOptions,
@@ -104,13 +187,7 @@ pub fn report(
                 group.sentences += 1;
                 group.excluded_sentences += usize::from(first.is_some_and(|t| t.is_skipped));
             }
-            let pronoun = first.filter(|t| {
-                !t.is_skipped
-                    && t.readings.iter().any(|r| {
-                        let tag = sentence_starts::normalize_pos(&r.pos);
-                        matches!(tag, "PRP" | "WP")
-                    })
-            });
+            let pronoun = first.filter(|t| !t.is_skipped && is_pronoun(&tokens));
             if let Some(token) = pronoun {
                 let word = token.text.to_lowercase();
                 starts.push(PronounStart {

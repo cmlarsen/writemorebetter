@@ -105,9 +105,10 @@ pub struct TransitionsReport {
     pub groups: Split<TransitionsGroup>,
 }
 
-fn phrases() -> &'static Vec<(TransitionType, &'static str, Vec<&'static str>)> {
-    static PHRASES: OnceLock<Vec<(TransitionType, &'static str, Vec<&'static str>)>> =
-        OnceLock::new();
+type TransitionEntry = (TransitionType, &'static str, Vec<&'static str>);
+
+fn phrases() -> &'static Vec<TransitionEntry> {
+    static PHRASES: OnceLock<Vec<TransitionEntry>> = OnceLock::new();
     PHRASES.get_or_init(|| {
         let mut phrases: Vec<_> = include_str!("../../data/transitions.tsv")
             .lines()
@@ -176,6 +177,10 @@ pub fn report(
                 index += 1;
                 continue;
             }
+            let folded: Vec<_> = tokens
+                .iter()
+                .map(|t| super::echoes::fold(&t.text))
+                .collect();
             let mut at = 0;
             while at < tokens.len() {
                 let found = phrases().iter().find(|(_, phrase, words)| {
@@ -183,9 +188,12 @@ pub fn report(
                         return false;
                     }
                     let selected = &tokens[at..at + words.len()];
-                    if !selected.iter().zip(words).all(|(token, word)| {
-                        !token.is_skipped && token.text.to_lowercase().replace('’', "'") == *word
-                    }) {
+                    if selected.iter().any(|token| token.is_skipped)
+                        || !folded[at..at + words.len()]
+                            .iter()
+                            .zip(words)
+                            .all(|(token, word)| token == word)
+                    {
                         return false;
                     }
                     if !selected.windows(2).all(|pair| {
@@ -205,9 +213,9 @@ pub fn report(
                         "and" | "but" => at == 0,
                         "so" => {
                             at == 0
-                                && next.is_some_and(|t| {
+                                && folded.get(at + words.len()).is_some_and(|word| {
                                     ["i", "you", "he", "she", "it", "we", "they", "there"]
-                                        .contains(&t.text.to_lowercase().as_str())
+                                        .contains(&word.as_str())
                                 })
                         }
                         "then" => at == 0 && comma,

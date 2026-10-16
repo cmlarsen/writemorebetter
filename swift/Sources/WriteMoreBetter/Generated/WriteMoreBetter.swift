@@ -949,14 +949,13 @@ public protocol StyleDocumentProtocol: AnyObject, Sendable {
      */
     func pacingJson(optionsJson: String?) throws  -> String
     
+    func pronounStartsJson(optionsJson: String?) throws  -> String
+    
     /**
      * Returns this report on the retained analysis; options default when omitted.
      */
     func repeatedPhrasesJson(optionsJson: String?) throws  -> String
     
-    /**
-     * Returns this report on the retained analysis; options default when omitted.
-     */
     func sensoryBalanceJson(optionsJson: String?) throws  -> String
     
     /**
@@ -975,6 +974,11 @@ public protocol StyleDocumentProtocol: AnyObject, Sendable {
      * Counts for the retained analysis, returned as DocumentStats JSON.
      */
     func statsJson()  -> String
+    
+    /**
+     * Returns this report on the retained analysis; options default when omitted.
+     */
+    func transitionsJson(optionsJson: String?) throws  -> String
     
 }
 open class StyleDocument: StyleDocumentProtocol, @unchecked Sendable {
@@ -1114,6 +1118,16 @@ open func pacingJson(optionsJson: String? = nil)throws  -> String  {
 })
 }
     
+open func pronounStartsJson(optionsJson: String? = nil)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_method_styledocument_pronoun_starts_json(
+            self.uniffiCloneHandle(),
+        FfiConverterOptionString.lower(optionsJson),uniffiCallStatus
+    )
+})
+}
+    
     /**
      * Returns this report on the retained analysis; options default when omitted.
      */
@@ -1127,9 +1141,6 @@ open func repeatedPhrasesJson(optionsJson: String? = nil)throws  -> String  {
 })
 }
     
-    /**
-     * Returns this report on the retained analysis; options default when omitted.
-     */
 open func sensoryBalanceJson(optionsJson: String? = nil)throws  -> String  {
     return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
         uniffiCallStatus in
@@ -1178,6 +1189,19 @@ open func statsJson() -> String  {
         uniffiCallStatus in
     uniffi_writemorebetter_swift_fn_method_styledocument_stats_json(
             self.uniffiCloneHandle(),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * Returns this report on the retained analysis; options default when omitted.
+     */
+open func transitionsJson(optionsJson: String? = nil)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_method_styledocument_transitions_json(
+            self.uniffiCloneHandle(),
+        FfiConverterOptionString.lower(optionsJson),uniffiCallStatus
     )
 })
 }
@@ -2516,10 +2540,13 @@ private let initializationResult: InitializationResult = {
     if (uniffi_writemorebetter_swift_checksum_method_styledocument_pacing_json() != 10494) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_writemorebetter_swift_checksum_method_styledocument_pronoun_starts_json() != 32092) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_writemorebetter_swift_checksum_method_styledocument_repeated_phrases_json() != 39140) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_writemorebetter_swift_checksum_method_styledocument_sensory_balance_json() != 44119) {
+    if (uniffi_writemorebetter_swift_checksum_method_styledocument_sensory_balance_json() != 54955) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_method_styledocument_sentence_length_json() != 11222) {
@@ -2529,6 +2556,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_method_styledocument_stats_json() != 3996) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_writemorebetter_swift_checksum_method_styledocument_transitions_json() != 58172) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_constructor_checker_new() != 1239) {

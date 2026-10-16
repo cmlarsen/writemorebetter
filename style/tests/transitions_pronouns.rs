@@ -235,3 +235,64 @@ fn boundaries_exclusions_and_shared_methods() {
     assert!(shared.pronoun_starts(Some("{\"unknown\":1}")).is_err());
     assert!(shared.transitions(Some("{\"unknown\":1}")).is_err());
 }
+
+#[test]
+fn sample_floors_and_empty_documents() {
+    for (count, shown, low) in [
+        (0, false, true),
+        (49, false, true),
+        (50, true, true),
+        (199, true, true),
+        (200, true, false),
+    ] {
+        let doc = document(&"She slept. ".repeat(count));
+        let result = pronoun_starts::report(&doc, &Default::default()).unwrap();
+        assert_eq!(result.groups.all.pronoun_starts.percent.is_some(), shown);
+        assert_eq!(result.groups.all.low_confidence, low);
+        assert_eq!(result.groups.all.pronoun_starts.count, count);
+        let result = transitions::report(&doc, &Default::default()).unwrap();
+        assert_eq!(result.groups.all.containing.percent.is_some(), shown);
+        assert_eq!(result.groups.all.low_confidence, low);
+        assert!(result.groups.dialogue.containing.percent.is_none());
+    }
+    let doc = document("As\u{2028}a result, she slept.");
+    assert_eq!(
+        transitions::report(&doc, &Default::default())
+            .unwrap()
+            .matches
+            .len(),
+        1
+    );
+}
+
+#[test]
+fn pronouns_distinguish_determiners_and_independent_uses() {
+    for text in [
+        "Her coat was red.",
+        "His coat was blue.",
+        "This book was red.",
+        "What color was it?",
+        "That she left was clear.",
+    ] {
+        assert!(
+            pronoun_starts::report(&document(text), &Default::default())
+                .unwrap()
+                .starts
+                .is_empty(),
+            "{text}"
+        );
+    }
+    for (text, word) in [
+        ("Hers was blue.", "hers"),
+        ("Nobody left.", "nobody"),
+        ("Someone came.", "someone"),
+        ("This was easy.", "this"),
+        ("Who came?", "who"),
+        ("What she said was clear.", "what"),
+        ("His was blue.", "his"),
+    ] {
+        let result = pronoun_starts::report(&document(text), &Default::default()).unwrap();
+        assert_eq!(result.starts.len(), 1, "{text}");
+        assert_eq!(result.starts[0].pronoun, word);
+    }
+}

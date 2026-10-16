@@ -72,9 +72,13 @@ lowercase `pronoun`, and `mode`. `groups: Split<PronounStartsGroup>` contains `s
 `excludedSentences`, `lowConfidence`, the overall `pronounStarts` share, alphabetically ordered
 `pronouns` share rows, and `runs`. Pronoun rows divide by all eligible sentences, rather than just
 pronoun-led sentences. Openers use #244's `opening_tokens` and POS normalization: any surviving PRP
-or WP reading qualifies. Possessive determiners (PRP$), demonstrative determiners (DT), and existential
-`there` (EX) do not qualify by those readings alone. This is a POS-based inventory, not a closed
-seven-personal-pronoun list; ambiguous readings can count and are a limitation of the underlying tagger.
+or WP reading qualifies, with explicit personal/reflexive, independent possessive and indefinite
+pronouns (including #244's someone/somebody/something/nobody/nothing/everyone/everybody/everything/
+anyone/anybody/anything cues). A following nominal/adjectival token excludes ambiguous her/his/whose/
+what/which determiners (`Her coat`, `What color`). Demonstrative this/that/these/those and each/either/
+neither qualify before a finite verb (allowing intervening adverbs) or punctuation/end, avoiding
+`This book` and complementizer `That she left`. Existential `there` (EX) does not qualify by that
+reading alone. These guards are heuristics; ambiguous readings remain a limitation of the tagger.
 Leading quotes are skipped; other leading punctuation is retained. Contractions count by their pronoun
 head (`She’s` opens with `she`).
 
