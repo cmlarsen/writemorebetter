@@ -105,7 +105,16 @@ impl CommaParenthesisWhitespace {
                     vec![previous.text.to_owned()],
                     MESSAGE_NO_SPACE_AFTER,
                 ));
-            } else if current.whitespace && is_quote(previous.text) && second_previous.text == " " {
+            } else if current.whitespace
+                && is_quote(previous.text)
+                && second_previous.text == " "
+                && !(i >= 3
+                    && (is_ellipsis_dot(&pieces, i - 3) || is_any_quote(pieces[i - 3].text)))
+                && !(!current.text.contains(['\n', '\r', '\u{2028}', '\u{2029}'])
+                    && pieces.get(i + 1).is_some_and(|piece| {
+                        is_ellipsis_dot(&pieces, i + 1) || is_any_quote(piece.text)
+                    }))
+            {
                 // Whitespace on both sides of a quotation mark.
                 replacement = Some((
                     Span::from_positions(second_previous.start, current.end),
@@ -135,7 +144,7 @@ impl CommaParenthesisWhitespace {
                         vec![current.text.to_owned()],
                         MESSAGE_NO_SPACE_BEFORE,
                     ));
-                } else if current.text == "," {
+                } else if current.text == "," && !(i >= 2 && is_ellipsis_dot(&pieces, i - 2)) {
                     // Whitespace directly before a comma. A following word is
                     // merged in when no whitespace separates it from the comma.
                     let doubled = next.map(|piece| !piece.whitespace && piece.text == ",");
@@ -151,6 +160,7 @@ impl CommaParenthesisWhitespace {
                     && !self.is_domain(next_text)
                     && !is_file_extension(next_text)
                     && !is_digit_or_dot(next_text)
+                    && !in_spaced_ellipsis(&pieces, i)
                 {
                     // Whitespace directly before a full stop. Figures such as
                     // `.5`, ellipses and commands such as `./script.sh` are
@@ -265,6 +275,10 @@ fn is_quote(token: &str) -> bool {
     }
 }
 
+fn is_any_quote(token: &str) -> bool {
+    is_quote(token) || token == "\u{2018}"
+}
+
 /// The characters that may follow a comma; anything else (punctuation such as
 /// an em dash) is not a word and is left alone.
 fn starts_with_word(token: &str) -> bool {
@@ -277,6 +291,29 @@ fn contains_digit(token: &str) -> bool {
 
 fn is_digit_or_dot(token: &str) -> bool {
     matches!(token.chars().next(), Some(c) if c == '.' || c.is_ascii_digit())
+}
+
+fn is_ellipsis_dot(pieces: &[Piece], i: usize) -> bool {
+    pieces[i].text == "." && !pieces[i].whitespace && in_spaced_ellipsis(pieces, i)
+}
+
+fn in_spaced_ellipsis(pieces: &[Piece], i: usize) -> bool {
+    let is_dot = |piece: &Piece| !piece.whitespace && piece.text == ".";
+    let mut dots = 1;
+
+    let mut j = i;
+    while j >= 2 && pieces[j - 1].whitespace && is_dot(&pieces[j - 2]) {
+        dots += 1;
+        j -= 2;
+    }
+
+    let mut j = i;
+    while j + 2 < pieces.len() && pieces[j + 1].whitespace && is_dot(&pieces[j + 2]) {
+        dots += 1;
+        j += 2;
+    }
+
+    dots >= 3
 }
 
 fn is_letters(token: &str) -> bool {
