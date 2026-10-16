@@ -4,14 +4,19 @@ use std::time::Instant;
 
 use serde::de::DeserializeOwned;
 use serde_json::{json, Value};
-use writemorebetter_style::reports::cliches::{cliches, PhraseContext, PhraseList};
-use writemorebetter_style::reports::dialogue_tags::{
-    dialogue_tags, non_speech_verbs, speech_verbs, DialogueTagOptions, VerbClass,
+use writemorebetter_style::reports::cliches::{
+    report as cliches, ClicheList as PhraseList, ClicheOptions,
 };
-use writemorebetter_style::reports::echoes::{echoes, EchoOptions};
-use writemorebetter_style::reports::phrases::{repeated_phrases, PhraseOptions};
+use writemorebetter_style::reports::dialogue_tags::{
+    non_speech_verbs, report as dialogue_tags, speech_verbs, DialogueTagOptions,
+    DialogueTagVerbClass as VerbClass,
+};
+use writemorebetter_style::reports::echoes::{report as echoes, EchoOptions};
+use writemorebetter_style::reports::repeated_phrases::{
+    report as repeated_phrases, RepeatedPhraseOptions as PhraseOptions,
+};
 use writemorebetter_style::reports::{sentence_length, sentence_starts};
-use writemorebetter_style::{analyze_document, DocumentOptions};
+use writemorebetter_style::{analyze_document, DocumentOptions, Mode};
 
 const ECHO_BANDS: [(usize, &str); 4] = [(5, "1_5"), (10, "6_10"), (25, "11_25"), (50, "26_50")];
 
@@ -31,36 +36,51 @@ fn fold(text: &str) -> String {
     text.replace('’', "'").to_lowercase()
 }
 
-fn length_group(group: &sentence_length::Group) -> Value {
+fn length_group(group: &sentence_length::SentenceLengthGroup) -> Value {
+    let histogram: BTreeMap<usize, usize> = group
+        .histogram
+        .iter()
+        .map(|bucket| (bucket.words, bucket.sentences))
+        .collect();
     json!({
-        "histogram": group.histogram,
+        "histogram": histogram,
         "long_sentences": group.long_sentences.len(),
         "monotony_runs": group.monotony_runs.len(),
     })
 }
 
-fn length_unit(group: &sentence_length::Group) -> Value {
+fn length_unit(group: &sentence_length::SentenceLengthGroup) -> Value {
+    let percentiles: BTreeMap<u8, Option<f64>> = group
+        .percentiles
+        .iter()
+        .map(|p| (p.percentile, p.value))
+        .collect();
+    let differences: BTreeMap<u8, Option<f64>> = group
+        .percentiles
+        .iter()
+        .map(|p| (p.percentile, p.difference))
+        .collect();
     json!({
         "mean": group.mean,
-        "percentiles": group.percentiles,
+        "percentiles": percentiles,
         "mean_difference": group.mean_difference,
-        "percentile_differences": group.percentile_differences,
+        "percentile_differences": differences,
     })
 }
 
-fn starts_group(group: &sentence_starts::Group) -> Value {
+fn starts_group(group: &sentence_starts::SentenceStartsGroup) -> Value {
     let categories: BTreeMap<String, f64> = group
         .categories
         .iter()
-        .map(|(category, count)| (name(category), count.count))
+        .map(|share| (name(share.category), share.share.count as f64))
         .collect();
     let universal: BTreeMap<&str, f64> = group
         .universal
         .iter()
-        .map(|(tag, count)| (tag.as_str(), count.count))
+        .map(|share| (share.tag.as_str(), share.weight))
         .collect();
     json!({
-        "sentences": group.sentence_count,
+        "sentences": group.sentences - group.excluded_sentences,
         "unknown_starts": group.unknown_starts,
         "ambiguous_starts": group.ambiguous_starts,
         "categories": categories,
@@ -69,14 +89,14 @@ fn starts_group(group: &sentence_starts::Group) -> Value {
     })
 }
 
-fn starts_unit(group: &sentence_starts::Group) -> Value {
+fn starts_unit(group: &sentence_starts::SentenceStartsGroup) -> Value {
     let universal: BTreeMap<&str, Value> = group
         .universal
         .iter()
-        .map(|(tag, count)| {
+        .map(|share| {
             (
-                tag.as_str(),
-                json!({"percent": count.percent, "difference": count.difference_percentage_points}),
+                share.tag.as_str(),
+                json!({"percent": share.percent, "difference": share.difference}),
             )
         })
         .collect();
@@ -99,20 +119,20 @@ fn vocabulary(tokenizer: &nlprule::Tokenizer) -> Value {
         .collect();
     sources.sort_unstable();
     sources.dedup();
-    let length = sentence_length::Options::new();
+    let length = sentence_length::SentenceLengthOptions::new();
     let phrase_options = PhraseOptions::new();
     let tag_options = DialogueTagOptions::new();
     json!({
         "defaults": {
             "sentence_length_minimum_sentences": length.minimum_sentences,
             "long_sentence_words": length.long_sentence_words,
-            "sentence_starts_minimum_sentences": sentence_starts::Options::new().minimum_sentences,
+            "sentence_starts_minimum_sentences": sentence_starts::SentenceStartsOptions::new().minimum_sentences,
             "echo_window": EchoOptions::new().window,
-            "phrase_min_length": phrase_options.min_length,
-            "phrase_max_length": phrase_options.max_length,
-            "phrase_min_content_words": phrase_options.min_content_words,
+            "phrase_min_length": phrase_options.minimum_length,
+            "phrase_max_length": phrase_options.maximum_length,
+            "phrase_min_content_words": phrase_options.minimum_content_words,
             "max_untagged_exchanges": tag_options.max_untagged_exchanges,
-            "dialogue_tag_min_tags": tag_options.min_tags,
+            "dialogue_tag_min_tags": tag_options.minimum_tags,
         },
         "cliche_entries": entries,
         "cliche_sources": sources,
@@ -134,8 +154,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         [tokenizer, length, starts] => (
             nlprule::Tokenizer::new(tokenizer)?,
-            baseline::<sentence_length::Baseline>(length)?,
-            baseline::<sentence_starts::Baseline>(starts)?,
+            baseline::<sentence_length::SentenceLengthBaseline>(length)?,
+            baseline::<sentence_starts::SentenceStartsBaseline>(starts)?,
         ),
         _ => {
             return Err(
@@ -159,23 +179,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         lap("document", &mut timing);
         let length = sentence_length::report(
             &document,
-            &sentence_length::Options::new(),
+            &sentence_length::SentenceLengthOptions::new(),
             Some(&length_baseline),
-        );
+        )?;
         lap("sentence_length", &mut timing);
         let starts = sentence_starts::report(
             &document,
-            &sentence_starts::Options::new(),
+            &sentence_starts::SentenceStartsOptions::new(),
             Some(&starts_baseline),
-        );
+        )?;
         lap("sentence_starts", &mut timing);
-        let echo_report = echoes(&document, &EchoOptions::new());
+        let echo_report = echoes(&document, &EchoOptions::new())?;
         lap("echoes", &mut timing);
-        let phrase_report = repeated_phrases(&document, &PhraseOptions::new());
+        let phrase_report = repeated_phrases(&document, &PhraseOptions::new())?;
         lap("repeated_phrases", &mut timing);
-        let cliche_report = cliches(&document, &phrase_list);
+        let cliche_report = cliches(&document, &phrase_list, &ClicheOptions::new())?;
         lap("cliches", &mut timing);
-        let tag_report = dialogue_tags(&document, &DialogueTagOptions::new());
+        let tag_report = dialogue_tags(&document, &DialogueTagOptions::new(), None)?;
         lap("dialogue_tags", &mut timing);
 
         let mut bands: BTreeMap<&str, usize> = ECHO_BANDS.iter().map(|(_, n)| (*n, 0)).collect();
@@ -212,8 +232,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let mut sources: BTreeMap<String, BTreeMap<&str, usize>> = BTreeMap::new();
         let mut entries: BTreeMap<String, BTreeMap<&str, usize>> = BTreeMap::new();
         for found in &cliche_report.matches {
-            let context = match found.context {
-                PhraseContext::Dialogue => "dialogue",
+            let context = match found.mode {
+                Mode::Dialogue => "dialogue",
                 _ => "narration",
             };
             for (map, key) in [
@@ -252,14 +272,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 "words": document.word_count,
                 "timing_ms": timing,
                 "sentence_length": {
-                    "all": length_group(&length.all),
-                    "narration": length_group(&length.narration),
-                    "dialogue": length_group(&length.dialogue),
+                    "all": length_group(&length.groups.all),
+                    "narration": length_group(&length.groups.narration),
+                    "dialogue": length_group(&length.groups.dialogue),
                 },
                 "sentence_starts": {
-                    "all": starts_group(&starts.all),
-                    "narration": starts_group(&starts.narration),
-                    "dialogue": starts_group(&starts.dialogue),
+                    "all": starts_group(&starts.groups.all),
+                    "narration": starts_group(&starts.groups.narration),
+                    "dialogue": starts_group(&starts.groups.dialogue),
                 },
                 "echoes": {
                     "echoes": echo_report.echoes.len(),
@@ -273,20 +293,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 },
                 "cliches": {
                     "matches": cliche_report.matches.len(),
-                    "narration_words": cliche_report.narration.words,
-                    "dialogue_words": cliche_report.dialogue.words,
+                    "narration_words": cliche_report.groups.narration.words,
+                    "dialogue_words": cliche_report.groups.dialogue.words,
                     "kind": kinds,
                     "source": sources,
                     "entry": entries,
                 },
                 "dialogue_tags": {
                     "tags": tag_report.tags.len(),
-                    "said_asked": tag_report.said_asked,
+                    "said_asked": tag_report.said_asked.count,
                     "other_speech_verb": other_speech,
-                    "non_speech_verb": tag_report.non_speech,
-                    "manner_adverb": tag_report.with_adverb,
+                    "non_speech_verb": tag_report.non_speech.count,
+                    "manner_adverb": tag_report.with_adverb.count,
                     "unlisted_verb": unlisted,
-                    "untagged_run": tag_report.untagged_runs.as_ref().map_or(0, Vec::len),
+                    "untagged_run": tag_report.untagged_runs.len(),
                     "beats": tag_report.beats.len(),
                     "speech_spans": tag_report.speech_spans,
                     "exchanges": tag_report.exchanges,
@@ -294,14 +314,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 },
                 "unit_report": {
                     "sentence_length": {
-                        "all": length_unit(&length.all),
-                        "narration": length_unit(&length.narration),
-                        "dialogue": length_unit(&length.dialogue),
+                        "all": length_unit(&length.groups.all),
+                        "narration": length_unit(&length.groups.narration),
+                        "dialogue": length_unit(&length.groups.dialogue),
                     },
                     "sentence_starts": {
-                        "all": starts_unit(&starts.all),
-                        "narration": starts_unit(&starts.narration),
-                        "dialogue": starts_unit(&starts.dialogue),
+                        "all": starts_unit(&starts.groups.all),
+                        "narration": starts_unit(&starts.groups.narration),
+                        "dialogue": starts_unit(&starts.groups.dialogue),
                     },
                 },
             }),
