@@ -1,48 +1,45 @@
-from collections import defaultdict
+from collections import Counter, defaultdict
 import json
 import os
 from pathlib import Path
 import random
 import resource
-import statistics
 import subprocess
 import sys
 import tempfile
 import time
 
 from common import ROOT, jsonl
-from tier3 import numeric_only, percentile
 
 GROUPS = ('all', 'narration', 'dialogue')
-PERCENTILES = (5, 25, 50, 75, 95)
-LENGTH_STATISTICS = ('mean',) + tuple(str(p) for p in PERCENTILES)
+PERCENTILES = (5, 10, 25, 50, 75, 90, 95)
+LENGTH_STATISTICS = ('mean', '5', '25', '50', '75', '95')
 LENGTH_SWEEP = (0.5, 1, 2, 3, 5)
 STARTS_SWEEP = (1, 2, 5, 10)
+WINDOW_RULE = {'scene_break_words': 3000, 'maximum_words': 6000, 'minimum_words': 2000}
 TOP = 10
 BASELINES = ROOT / 'style/data/baselines'
 LENGTH_BASELINE = BASELINES / 'sentence-length.json'
 STARTS_BASELINE = BASELINES / 'sentence-starts.json'
 TAG_FLAGS = ('other_speech_verb', 'non_speech_verb', 'manner_adverb', 'untagged_run')
-TAG_CONTEXT = ('said_asked', 'unlisted_verb', 'beats')
+TAG_CONTEXT = ('tags', 'said_asked', 'unlisted_verb', 'beats')
 STAGES = ('document', 'sentence_length', 'sentence_starts', 'echoes', 'repeated_phrases', 'cliches',
           'dialogue_tags')
-STRUCTURE = frozenset(GROUPS + LENGTH_STATISTICS + TAG_FLAGS + TAG_CONTEXT + STAGES + tuple(
-    str(t) for t in LENGTH_SWEEP + STARTS_SWEEP) + (
-    'units', 'authors', 'words', 'run', 'seconds', 'probe_peak_rss_bytes', 'harness_peak_rss_bytes',
-    'stage_seconds', 'defaults', 'tags', 'mean', 'reports', 'percentiles', 'flags_per_1000_words',
-    'baseline_comparison',
-    'categories', 'patterns', 'top_categories', 'top_patterns', 'patterns_with_flags',
-    'authors_with_flag_share', 'per_1000_words', 'difference', 'highlighted_share', 'eligible_authors',
-    'share_abs_difference_at_least', 'percent', 'universal', 'fine', 'total', 'long_sentence',
-    'monotony_run', 'same_word_run', 'distance', 'form', 'length', 'kind', 'source', 'verb',
-    'repeated_phrase', 'occurrence', 'tags_per_1000_words', 'context_per_1000_words', 'echo',
-    'cliche', 'redundancy', 'same_form', 'different_form', '1_5', '6_10', '11_25', '26_50', 'over_50',
-    'subject', 'adverb', 'gerund', 'infinitive', 'subordinatingConjunction', 'coordinatingConjunction',
-    'pastParticiple', 'inversion', 'introductory', 'other',
-    'ADJ', 'ADP', 'ADV', 'CONJ', 'DET', 'NOUN', 'NUM', 'PRON', 'PRT', 'VERB', '.', 'X',
-    'sentence_length_minimum_sentences', 'long_sentence_words', 'sentence_starts_minimum_sentences',
-    'echo_window', 'phrase_min_length', 'phrase_max_length', 'phrase_min_content_words',
-    'max_untagged_exchanges', 'dialogue_tag_min_tags'))
+FINE = ('subject', 'adverb', 'gerund', 'infinitive', 'subordinatingConjunction', 'coordinatingConjunction',
+        'pastParticiple', 'inversion', 'introductory', 'other')
+UNIVERSAL = ('ADJ', 'ADP', 'ADV', 'CONJ', 'DET', 'NOUN', 'NUM', 'PRON', 'PRT', 'VERB', '.', 'X')
+STRUCTURE = frozenset(GROUPS + LENGTH_STATISTICS + TAG_FLAGS + TAG_CONTEXT + STAGES + FINE + UNIVERSAL
+                      + tuple(WINDOW_RULE) + (
+    'units', 'authors', 'samples', 'words', 'mean', 'percentiles', 'run', 'seconds', 'probe_peak_rss_bytes',
+    'harness_peak_rss_bytes', 'stage_seconds', 'defaults', 'window_rule', 'chapter', 'manuscript',
+    'sample_words', 'reports', 'flags_per_1000_words', 'baseline_comparison', 'measures', 'categories',
+    'patterns', 'top_categories', 'top_patterns', 'patterns_with_flags', 'flagged_share', 'per_1000_words',
+    'difference', 'eligible_share', 'share_abs_difference_at_least', 'percent', 'universal', 'fine', 'total',
+    'long_sentence', 'monotony_run', 'same_word_run', 'distance', 'form', 'length', 'kind', 'source', 'verb',
+    'repeated_phrase', 'occurrence', 'context_per_1000_words', 'echo', 'cliche', 'redundancy', 'same_form',
+    'different_form', '1_5', '6_10', '11_25', '26_50', 'over_50', 'sentence_length_minimum_sentences',
+    'long_sentence_words', 'sentence_starts_minimum_sentences', 'echo_window', 'phrase_min_length',
+    'phrase_max_length', 'phrase_min_content_words', 'max_untagged_exchanges', 'dialogue_tag_min_tags'))
 
 
 class FlagProbe:
@@ -96,44 +93,106 @@ def merge(target, source):
 def units(export):
     seen = set()
     for row in jsonl(export / 'units.jsonl'):
-        unit_id = row['unit_id']
+        unit_id, author = row['unit_id'], row['author_key']
         if not isinstance(unit_id, str) or Path(unit_id).name != unit_id or unit_id in ('.', '..'):
             raise ValueError('invalid unit identifier')
+        if not isinstance(author, str) or not author:
+            raise ValueError('invalid author key')
         if unit_id in seen:
             raise ValueError('duplicate unit')
         seen.add(unit_id)
-        yield row['author_key'], (export / 'units' / (unit_id + '.txt')).read_text(encoding='utf-8')
+        yield author, (export / 'units' / (unit_id + '.txt')).read_text(encoding='utf-8')
+
+
+def window_words(paragraph):
+    return sum(any(ch.isalnum() for ch in word) for word in paragraph.split())
+
+
+def windows(text, rule=WINDOW_RULE):
+    result, current, words, scene_break = [], [], 0, False
+    for line in text.splitlines():
+        if not line.strip():
+            scene_break = True
+            continue
+        if current and (words >= rule['maximum_words'] or (scene_break and words >= rule['scene_break_words'])):
+            result.append((current, words))
+            current, words = [], 0
+        current.append((scene_break, line))
+        words += window_words(line)
+        scene_break = False
+    if current:
+        if result and words < rule['minimum_words']:
+            previous, total = result.pop()
+            current, words = previous + current, words + total
+        result.append((current, words))
+    return ['\n'.join(('\n' if index and scene else '') + line for index, (scene, line) in enumerate(window)) + '\n'
+            for window, _ in result]
+
+
+def measure(probe, text, stages):
+    unit = probe.measure(text)
+    for stage, milliseconds in unit.pop('timing_ms').items():
+        stages[stage] += milliseconds / 1000
+    unit.pop('unit_report')
+    return unit
 
 
 def collect(probe, export):
-    authors = defaultdict(dict)
+    pooled = defaultdict(dict)
+    chapters = []
     stages = defaultdict(float)
     count = 0
     for author, text in units(export):
-        unit = probe.measure(text)
-        for stage, milliseconds in unit.pop('timing_ms').items():
-            stages[stage] += milliseconds / 1000
-        unit.pop('unit_report')
-        merge(authors[author], unit)
+        merge(pooled[author], measure(probe, text, stages))
+        chapters.extend((author, measure(probe, window, stages)) for window in windows(text))
         count += 1
-    return count, list(authors.values()), dict(stages)
+    return count, list(pooled.items()), chapters, dict(stages)
+
+
+def weighted(values):
+    per_author = Counter(author for author, _ in values)
+    return sorted((value, 1 / per_author[author]) for author, value in values)
+
+
+def weighted_percentile(pairs, percent):
+    if len(pairs) == 1:
+        return pairs[0][0]
+    total = sum(weight for _, weight in pairs)
+    span = total - pairs[0][1] / 2 - pairs[-1][1] / 2
+    positions, seen = [], 0.0
+    for _, weight in pairs:
+        seen += weight
+        positions.append((seen - weight / 2 - pairs[0][1] / 2) / span)
+    target = percent / 100
+    for index in range(len(pairs) - 1):
+        low, high = positions[index], positions[index + 1]
+        if target <= high:
+            fraction = (target - low) / (high - low) if high > low else 0.0
+            return pairs[index][0] + (pairs[index + 1][0] - pairs[index][0]) * fraction
+    return pairs[-1][0]
 
 
 def spread(values):
     if not values:
         return None
-    return {'authors': len(values), 'mean': statistics.mean(values),
-            'percentiles': {str(p): percentile(values, p) for p in PERCENTILES}}
+    pairs = weighted(values)
+    total = sum(weight for _, weight in pairs)
+    return {'samples': len(values), 'authors': len({author for author, _ in values}),
+            'mean': sum(value * weight for value, weight in pairs) / total,
+            'percentiles': {str(p): weighted_percentile(pairs, p) for p in PERCENTILES}}
 
 
-def share(flags, total):
-    return flags / total if total else None
+def share(values):
+    if not values:
+        return None
+    pairs = weighted(values)
+    return sum(value * weight for value, weight in pairs) / sum(weight for _, weight in pairs)
 
 
-def category(authors, count, words):
-    eligible = [a for a in authors if words(a)]
-    return {'authors_with_flag_share': share(sum(count(a) > 0 for a in eligible), len(eligible)),
-            'per_1000_words': spread([1000 * count(a) / words(a) for a in eligible])}
+def category(samples, count, words):
+    eligible = [(author, data) for author, data in samples if words(data)]
+    return {'flagged_share': share([(author, float(count(data) > 0)) for author, data in eligible]),
+            'per_1000_words': spread([(author, 1000 * count(data) / words(data)) for author, data in eligible])}
 
 
 def ranked(categories):
@@ -168,7 +227,7 @@ def histogram_statistics(histogram):
         return items[-1][0]
 
     result = {'mean': sum(length * count for length, count in items) / total}
-    for p in PERCENTILES:
+    for p in (5, 25, 50, 75, 95):
         index = (total - 1) * p / 100
         low = int(index)
         high = min(low + 1, total - 1)
@@ -176,17 +235,23 @@ def histogram_statistics(histogram):
     return result
 
 
-def length_differences(author, group, baseline, minimum):
-    histogram = author.get('sentence_length', {}).get(group, {}).get('histogram', {})
+def length_measures(data, group, minimum):
+    histogram = data.get('sentence_length', {}).get(group, {}).get('histogram', {})
     if sum(histogram.values()) < max(minimum, 1):
         return None
-    measured = histogram_statistics(histogram)
+    return histogram_statistics(histogram)
+
+
+def length_differences(data, group, baseline, minimum):
+    measured = length_measures(data, group, minimum)
+    if measured is None:
+        return None
     reference = {'mean': baseline.get('mean'), **{str(k): v for k, v in baseline.get('percentiles', {}).items()}}
     return {name: measured[name] - reference[name] for name in LENGTH_STATISTICS if reference.get(name) is not None}
 
 
-def starts_percentages(author, group, minimum):
-    starts = author.get('sentence_starts', {}).get(group, {})
+def starts_percentages(data, group, minimum):
+    starts = data.get('sentence_starts', {}).get(group, {})
     sentences = starts.get('sentences', 0)
     if sentences < max(minimum, 1):
         return None
@@ -196,121 +261,119 @@ def starts_percentages(author, group, minimum):
             if known else {}}
 
 
-def comparison(values, total, sweep):
-    return {'eligible_authors': len(values), 'highlighted_share': share(len(values), total),
-            'difference': spread(values),
-            'share_abs_difference_at_least': {str(t): share(sum(abs(v) >= t for v in values), total)
-                                              for t in sweep}}
+def comparison(present, sweep):
+    differences = [(author, value) for author, value in present if value is not None]
+    return {'eligible_share': share([(author, float(value is not None)) for author, value in present]),
+            'difference': spread(differences),
+            'share_abs_difference_at_least': {
+                str(t): share([(author, float(value is not None and abs(value) >= t)) for author, value in present])
+                for t in sweep}}
 
 
-def group_words(author, group):
-    return histogram_words(author.get('sentence_length', {}).get(group, {}).get('histogram', {}))
+def group_words(data, group):
+    return histogram_words(data.get('sentence_length', {}).get(group, {}).get('histogram', {}))
 
 
-def sentence_length(authors, baseline, defaults):
-    flags = {}
+def sentence_length(samples, baseline, defaults):
+    minimum = defaults['sentence_length_minimum_sentences']
+    flags, comparisons, measures = {}, {}, {}
     for group in GROUPS:
-        words = lambda a, group=group: group_words(a, group)
-        long = lambda a, group=group: get(a, 'sentence_length', group, 'long_sentences')
-        runs = lambda a, group=group: get(a, 'sentence_length', group, 'monotony_runs')
-        flags[group] = {'total': category(authors, lambda a: long(a) + runs(a), words),
-                        'long_sentence': category(authors, long, words),
-                        'monotony_run': category(authors, runs, words)}
-    comparisons = {}
-    for group in GROUPS:
-        differences = [length_differences(a, group, baseline, defaults['sentence_length_minimum_sentences'])
-                       for a in authors]
-        comparisons[group] = {name: comparison([d[name] for d in differences if d and name in d],
-                                               len(authors), LENGTH_SWEEP)
-                              for name in LENGTH_STATISTICS}
-    return {'flags_per_1000_words': flags, 'baseline_comparison': comparisons}
+        words = lambda d, group=group: group_words(d, group)
+        long = lambda d, group=group: get(d, 'sentence_length', group, 'long_sentences')
+        runs = lambda d, group=group: get(d, 'sentence_length', group, 'monotony_runs')
+        flags[group] = {'total': category(samples, lambda d: long(d) + runs(d), words),
+                        'long_sentence': category(samples, long, words),
+                        'monotony_run': category(samples, runs, words)}
+        differences = [(author, length_differences(data, group, baseline, minimum) or {}) for author, data in samples]
+        comparisons[group] = {name: comparison([(author, value.get(name)) for author, value in differences],
+                                               LENGTH_SWEEP) for name in LENGTH_STATISTICS}
+        values = [(author, length_measures(data, group, minimum)) for author, data in samples]
+        measures[group] = {name: spread([(author, value[name]) for author, value in values if value])
+                           for name in LENGTH_STATISTICS}
+    return {'flags_per_1000_words': flags, 'baseline_comparison': comparisons, 'measures': measures}
 
 
-def sentence_starts(authors, baseline, defaults):
+def sentence_starts(samples, baseline, defaults):
+    minimum = defaults['sentence_starts_minimum_sentences']
     flags = {group: {'same_word_run': category(
-        authors, lambda a, group=group: get(a, 'sentence_starts', group, 'same_word_runs'),
-        lambda a, group=group: group_words(a, group))} for group in GROUPS}
-    comparisons, fine = {}, {}
+        samples, lambda d, group=group: get(d, 'sentence_starts', group, 'same_word_runs'),
+        lambda d, group=group: group_words(d, group))} for group in GROUPS}
+    comparisons, measures = {}, {}
     for group in GROUPS:
-        shares = [starts_percentages(a, group, defaults['sentence_starts_minimum_sentences']) for a in authors]
-        comparisons[group] = {'universal': {
-            tag: comparison([s['universal'][tag] - reference for s in shares if s and tag in s['universal']],
-                            len(authors), STARTS_SWEEP)
-            for tag, reference in baseline.get('universalPercent', {}).items()}}
-        if baseline.get('categoryPercent'):
-            comparisons[group]['fine'] = {
-                name: comparison([s['fine'][name] - reference for s in shares if s and name in s['fine']],
-                                 len(authors), STARTS_SWEEP)
-                for name, reference in baseline['categoryPercent'].items()}
-        names = sorted({name for s in shares if s for name in s['fine']})
-        fine[group] = {name: {'percent': spread([s['fine'][name] for s in shares if s])} for name in names}
-    return {'flags_per_1000_words': flags, 'baseline_comparison': comparisons, 'categories': fine}
+        shares = [(author, starts_percentages(data, group, minimum)) for author, data in samples]
+        comparisons[group] = {kind: {
+            name: comparison([(author, value[kind][name] - reference if value and name in value[kind] else None)
+                              for author, value in shares], STARTS_SWEEP)
+            for name, reference in baseline.get(key, {}).items()}
+            for kind, key in (('universal', 'universalPercent'), ('fine', 'categoryPercent'))}
+        measures[group] = {kind: {
+            name: spread([(author, value[kind][name]) for author, value in shares if value and name in value[kind]])
+            for name in names} for kind, names in (('universal', UNIVERSAL), ('fine', FINE))}
+    return {'flags_per_1000_words': flags, 'baseline_comparison': comparisons, 'measures': measures}
 
 
-def words(author):
-    return author.get('words', 0)
+def words(data):
+    return data.get('words', 0)
 
 
-def family(authors, path, names):
-    return {name: category(authors, lambda a, name=name: get(a, *path, name), words) for name in names}
+def family(samples, path, names):
+    return {name: category(samples, lambda d, name=name: get(d, *path, name), words) for name in names}
 
 
-def keys(authors, *path):
+def keys(samples, *path):
     found = set()
-    for author in authors:
-        value = author
+    for _, data in samples:
+        value = data
         for key in path:
             value = value.get(key, {})
         found.update(value)
     return sorted(found)
 
 
-def echoes(authors):
-    categories = {'distance': family(authors, ('echoes', 'distance'), keys(authors, 'echoes', 'distance')),
-                  'form': family(authors, ('echoes', 'form'), keys(authors, 'echoes', 'form'))}
-    return {'flags_per_1000_words': {'all': {'echo': category(authors, lambda a: get(a, 'echoes', 'echoes'), words)}},
+def echoes(samples):
+    categories = {name: family(samples, ('echoes', name), keys(samples, 'echoes', name)) for name in ('distance', 'form')}
+    return {'flags_per_1000_words': {'all': {'echo': category(samples, lambda d: get(d, 'echoes', 'echoes'), words)}},
             'categories': categories,
             'top_categories': {name: ranked(stats) for name, stats in categories.items()}}
 
 
-def repeated_phrases(authors):
-    lengths = keys(authors, 'repeated_phrases', 'length')
-    categories = {'length': {n: category(authors, lambda a, n=n: get(a, 'repeated_phrases', 'length', n, 'phrases'),
-                                        words) for n in lengths}}
+def repeated_phrases(samples):
+    categories = {'length': {n: category(samples, lambda d, n=n: get(d, 'repeated_phrases', 'length', n, 'phrases'),
+                                         words) for n in keys(samples, 'repeated_phrases', 'length')}}
     return {'flags_per_1000_words': {'all': {
-                'repeated_phrase': category(authors, lambda a: get(a, 'repeated_phrases', 'phrases'), words),
-                'occurrence': category(authors, lambda a: get(a, 'repeated_phrases', 'occurrences'), words)}},
+                'repeated_phrase': category(samples, lambda d: get(d, 'repeated_phrases', 'phrases'), words),
+                'occurrence': category(samples, lambda d: get(d, 'repeated_phrases', 'occurrences'), words)}},
             'categories': categories,
             'top_categories': {'length': ranked(categories['length'])}}
 
 
-def context_words(author, context):
+def context_words(data, context):
     if context == 'all':
-        return get(author, 'cliches', 'narration_words') + get(author, 'cliches', 'dialogue_words')
-    return get(author, 'cliches', context + '_words')
+        return get(data, 'cliches', 'narration_words') + get(data, 'cliches', 'dialogue_words')
+    return get(data, 'cliches', context + '_words')
 
 
-def context_count(author, path, context):
+def context_count(data, path, context):
     if context == 'all':
-        return get(author, *path, 'narration') + get(author, *path, 'dialogue')
-    return get(author, *path, context)
+        return get(data, *path, 'narration') + get(data, *path, 'dialogue')
+    return get(data, *path, context)
 
 
-def contexts(authors, path):
-    return {context: category(authors, lambda a, context=context: context_count(a, path, context),
-                              lambda a, context=context: context_words(a, context)) for context in GROUPS}
+def contexts(samples, path):
+    return {context: category(samples, lambda d, context=context: context_count(d, path, context),
+                              lambda d, context=context: context_words(d, context)) for context in GROUPS}
 
 
-def cliches(authors):
+def cliches(samples):
+    kinds = keys(samples, 'cliches', 'kind')
     flags = {context: {'total': category(
-        authors, lambda a, context=context: sum(context_count(a, ('cliches', 'kind', kind), context)
-                                                for kind in keys([a], 'cliches', 'kind')),
-        lambda a, context=context: context_words(a, context))} for context in GROUPS}
-    categories = {'kind': {kind: contexts(authors, ('cliches', 'kind', kind)) for kind in keys(authors, 'cliches', 'kind')},
-                  'source': {source: contexts(authors, ('cliches', 'source', source))['all']
-                             for source in keys(authors, 'cliches', 'source')}}
-    patterns = {entry: contexts(authors, ('cliches', 'entry', entry))['all']
-                for entry in keys(authors, 'cliches', 'entry')}
+        samples, lambda d, context=context: sum(context_count(d, ('cliches', 'kind', kind), context) for kind in kinds),
+        lambda d, context=context: context_words(d, context))} for context in GROUPS}
+    categories = {'kind': {kind: contexts(samples, ('cliches', 'kind', kind)) for kind in kinds},
+                  'source': {source: contexts(samples, ('cliches', 'source', source))['all']
+                             for source in keys(samples, 'cliches', 'source')}}
+    patterns = {entry: contexts(samples, ('cliches', 'entry', entry))['all']
+                for entry in keys(samples, 'cliches', 'entry')}
     return {'flags_per_1000_words': flags, 'categories': categories, 'patterns_with_flags': len(patterns),
             'patterns': patterns,
             'top_categories': {'kind': ranked({kind: stats['all'] for kind, stats in categories['kind'].items()}),
@@ -318,31 +381,45 @@ def cliches(authors):
             'top_patterns': ranked(patterns)}
 
 
-def dialogue_tags(authors):
-    categories = family(authors, ('dialogue_tags',), TAG_FLAGS)
-    verbs = {verb: category(authors, lambda a, verb=verb: get(a, 'dialogue_tags', 'verb', verb), words)
-             for verb in keys(authors, 'dialogue_tags', 'verb') if verb not in ('say', 'ask')}
+def dialogue_tags(samples):
+    categories = family(samples, ('dialogue_tags',), TAG_FLAGS)
+    verbs = {verb: category(samples, lambda d, verb=verb: get(d, 'dialogue_tags', 'verb', verb), words)
+             for verb in keys(samples, 'dialogue_tags', 'verb') if verb not in ('say', 'ask')}
     return {'flags_per_1000_words': {'all': {'total': category(
-                authors, lambda a: sum(get(a, 'dialogue_tags', name) for name in TAG_FLAGS), words)}},
+                samples, lambda d: sum(get(d, 'dialogue_tags', name) for name in TAG_FLAGS), words)}},
             'categories': categories, 'patterns_with_flags': len(verbs), 'patterns': verbs,
-            'context_per_1000_words': {'tags': spread([1000 * get(a, 'dialogue_tags', 'tags') / words(a)
-                                                       for a in authors if words(a)]),
-                                       **family(authors, ('dialogue_tags',), TAG_CONTEXT)},
+            'context_per_1000_words': family(samples, ('dialogue_tags',), TAG_CONTEXT),
             'top_categories': ranked(categories), 'top_patterns': ranked(verbs)}
 
 
-def aggregate(count, authors, vocabulary, length_baseline, starts_baseline):
+def section(samples, defaults, length_baseline, starts_baseline):
+    return {'samples': len(samples), 'sample_words': spread([(author, words(data)) for author, data in samples]),
+            'reports': {'sentence_length': sentence_length(samples, length_baseline, defaults),
+                        'sentence_starts': sentence_starts(samples, starts_baseline, defaults),
+                        'echoes': echoes(samples), 'repeated_phrases': repeated_phrases(samples),
+                        'cliches': cliches(samples), 'dialogue_tags': dialogue_tags(samples)}}
+
+
+def aggregate(count, authors, chapters, vocabulary, length_baseline, starts_baseline):
     defaults = vocabulary['defaults']
-    return {'units': count, 'authors': len(authors), 'words': sum(map(words, authors)), 'defaults': defaults,
-            'reports': {'sentence_length': sentence_length(authors, length_baseline, defaults),
-                        'sentence_starts': sentence_starts(authors, starts_baseline, defaults),
-                        'echoes': echoes(authors), 'repeated_phrases': repeated_phrases(authors),
-                        'cliches': cliches(authors), 'dialogue_tags': dialogue_tags(authors)}}
+    return {'units': count, 'authors': len(authors), 'words': sum(words(data) for _, data in authors),
+            'defaults': defaults, 'window_rule': WINDOW_RULE,
+            'chapter': section(chapters, defaults, length_baseline, starts_baseline),
+            'manuscript': section(authors, defaults, length_baseline, starts_baseline)}
 
 
 def allowed_keys(vocabulary):
-    return STRUCTURE | {str(n) for n in range(1000)} | set(vocabulary['cliche_entries']) | set(
-        vocabulary['cliche_sources']) | set(vocabulary['speech_verbs']) | set(vocabulary['non_speech_verbs'])
+    defaults = vocabulary['defaults']
+    digits = {str(n) for n in PERCENTILES + LENGTH_SWEEP + STARTS_SWEEP} | {
+        str(n) for n in range(defaults['phrase_min_length'], defaults['phrase_max_length'] + 1)}
+    return STRUCTURE | digits | set(vocabulary['cliche_entries']) | set(vocabulary['cliche_sources']) | set(
+        vocabulary['speech_verbs']) | set(vocabulary['non_speech_verbs'])
+
+
+def numeric_only(value):
+    if isinstance(value, dict):
+        return all(numeric_only(item) for item in value.values())
+    return value is None or (isinstance(value, (int, float)) and not isinstance(value, bool))
 
 
 def check(result, allowed):
@@ -361,12 +438,12 @@ def baseline(path):
     return json.loads(path.read_text(encoding='utf-8'))['baseline']
 
 
-def calibrate(probe, export):
-    started = time.perf_counter()
-    count, authors, stages = collect(probe, export)
-    if not authors or not any(map(words, authors)):
+def calibrate(probe, export, started=None):
+    started = time.perf_counter() if started is None else started
+    count, authors, chapters, stages = collect(probe, export)
+    if not authors or not any(words(data) for _, data in authors):
         raise ValueError('no measurable words')
-    result = aggregate(count, authors, probe.vocabulary, baseline(LENGTH_BASELINE), baseline(STARTS_BASELINE))
+    result = aggregate(count, authors, chapters, probe.vocabulary, baseline(LENGTH_BASELINE), baseline(STARTS_BASELINE))
     probe.close()
     result['run'] = {'seconds': time.perf_counter() - started, 'probe_peak_rss_bytes': probe.peak_rss_bytes,
                      'harness_peak_rss_bytes': rss_bytes(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss),
@@ -406,13 +483,13 @@ def synthetic_text(seed, paragraphs, dialogue=True):
     return '\n'.join(lines) + '\n'
 
 
-def self_test(probe):
+def self_test(probe, started=None):
     with tempfile.TemporaryDirectory(prefix='style-synthetic-') as temporary:
         export = Path(temporary)
         (export / 'units').mkdir()
-        plan = (('PRIVATE_SENTINEL_UNIT_1', 'PRIVATE_SENTINEL_AUTHOR_A', synthetic_text(1, 140)),
+        plan = (('PRIVATE_SENTINEL_UNIT_1', 'PRIVATE_SENTINEL_AUTHOR_A', synthetic_text(1, 700)),
                 ('PRIVATE_SENTINEL_UNIT_2', 'PRIVATE_SENTINEL_AUTHOR_A', synthetic_text(2, 30)),
-                ('PRIVATE_SENTINEL_UNIT_3', 'PRIVATE_SENTINEL_AUTHOR_B', synthetic_text(3, 160)),
+                ('PRIVATE_SENTINEL_UNIT_3', 'PRIVATE_SENTINEL_AUTHOR_B', synthetic_text(3, 500)),
                 ('PRIVATE_SENTINEL_UNIT_4', 'PRIVATE_SENTINEL_AUTHOR_C', synthetic_text(4, 12, dialogue=False)))
         rows = []
         for unit_id, author, text in plan:
@@ -422,31 +499,39 @@ def self_test(probe):
                          'genre': 'PRIVATE_SENTINEL_GENRE', 'form': 'PRIVATE_SENTINEL_FORM', 'year': 2001, 'words': 1})
             (export / 'units' / (unit_id + '.txt')).write_text(text, encoding='utf-8')
         (export / 'units.jsonl').write_text('\n'.join(json.dumps(row) for row in rows) + '\n')
+        split = windows(plan[0][2])
+        assert len(split) > 1 and ''.join(split).split() == plan[0][2].split()
+        assert all(window_words(window) >= WINDOW_RULE['minimum_words'] for window in split)
         unit = probe.measure(plan[2][2])
         reported = unit['unit_report']
-        author = {key: value for key, value in unit.items() if key not in ('timing_ms', 'unit_report')}
+        data = {key: value for key, value in unit.items() if key not in ('timing_ms', 'unit_report')}
         defaults = probe.vocabulary['defaults']
-        assert author['sentence_starts']['all']['sentences'] >= defaults['sentence_starts_minimum_sentences']
-        length = length_differences(author, 'all', baseline(LENGTH_BASELINE), defaults['sentence_length_minimum_sentences'])
+        assert data['sentence_starts']['all']['sentences'] >= defaults['sentence_starts_minimum_sentences']
+        length = length_differences(data, 'all', baseline(LENGTH_BASELINE), defaults['sentence_length_minimum_sentences'])
         assert abs(length['mean'] - reported['sentence_length']['all']['mean_difference']) < 1e-9
-        for p in PERCENTILES:
+        for p in (5, 25, 50, 75, 95):
             assert abs(length[str(p)] - reported['sentence_length']['all']['percentile_differences'][str(p)]) < 1e-9
-        starts = starts_percentages(author, 'all', defaults['sentence_starts_minimum_sentences'])
+        starts = starts_percentages(data, 'all', defaults['sentence_starts_minimum_sentences'])
         for tag, values in reported['sentence_starts']['all']['universal'].items():
             assert abs(starts['universal'][tag] - values['percent']) < 1e-9
-        result = calibrate(probe, export)
+        result = calibrate(probe, export, started)
         output = json.dumps(result)
         assert result['units'] == 4 and result['authors'] == 3
-        reports = result['reports']
-        doornail = reports['cliches']['patterns']['dead as a doornail']
-        assert doornail['authors_with_flag_share'] == 1
-        assert reports['cliches']['flags_per_1000_words']['dialogue']['total']['authors_with_flag_share'] == 0
-        assert reports['dialogue_tags']['categories']['non_speech_verb']['authors_with_flag_share'] == 2 / 3
-        assert reports['dialogue_tags']['patterns']['smile']['authors_with_flag_share'] == 2 / 3
-        assert reports['sentence_length']['flags_per_1000_words']['narration']['long_sentence']['authors_with_flag_share'] == 1
-        assert reports['sentence_starts']['flags_per_1000_words']['narration']['same_word_run']['authors_with_flag_share'] > 0
-        assert reports['sentence_length']['baseline_comparison']['all']['mean']['highlighted_share'] == 2 / 3
-        assert reports['echoes']['flags_per_1000_words']['all']['echo']['authors_with_flag_share'] == 1
+        chapter, manuscript = result['chapter'], result['manuscript']
+        assert manuscript['samples'] == 3 and chapter['samples'] > 4
+        assert chapter['sample_words']['authors'] == 3
+        reports = manuscript['reports']
+        assert reports['cliches']['patterns']['dead as a doornail']['flagged_share'] == 1
+        assert reports['cliches']['flags_per_1000_words']['dialogue']['total']['flagged_share'] == 0
+        assert reports['dialogue_tags']['categories']['non_speech_verb']['flagged_share'] == 2 / 3
+        assert reports['dialogue_tags']['patterns']['smile']['flagged_share'] == 2 / 3
+        assert reports['sentence_length']['flags_per_1000_words']['narration']['long_sentence']['flagged_share'] == 1
+        assert reports['sentence_length']['baseline_comparison']['all']['mean']['eligible_share'] == 2 / 3
+        assert reports['sentence_length']['measures']['all']['mean']['samples'] == 2
+        assert set(reports['sentence_starts']['measures']['narration']['universal']['PRON']['percentiles']) == {
+            str(p) for p in PERCENTILES}
+        assert chapter['reports']['echoes']['flags_per_1000_words']['all']['echo']['flagged_share'] == 1
+        assert chapter['reports']['sentence_length']['baseline_comparison']['all']['mean']['eligible_share'] > 0
         assert result['run']['probe_peak_rss_bytes'] > 0 and result['run']['seconds'] > 0
         assert 'sentinel' not in output.lower() and temporary not in output
         assert numeric_only(result)
@@ -456,14 +541,16 @@ def self_test(probe):
 def run(args):
     if args.sentence_length:
         raise ValueError('choose one tier 3 mode')
-    probe = FlagProbe(args.probe or probe_build(), args.tokenizer)
+    executable = args.probe or probe_build()
+    started = time.perf_counter()
+    probe = FlagProbe(executable, args.tokenizer)
     try:
         if args.self_test:
-            result = self_test(probe)
+            result = self_test(probe, started)
         elif args.export is None:
             raise ValueError('owner must pass an export directory')
         else:
-            result = calibrate(probe, args.export)
+            result = calibrate(probe, args.export, started)
     finally:
         if probe.process.returncode is None:
             probe.process.kill()

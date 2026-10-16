@@ -10,10 +10,12 @@ from unittest.mock import patch
 
 import common
 import flag_rates
-from tier3 import numeric_only, percentile
+from flag_rates import numeric_only
+from tier3 import percentile
 
 SENTINEL = 'PRIVATE_SENTINEL_FLAGS'
-VOCABULARY = {'defaults': {'sentence_length_minimum_sentences': 2, 'sentence_starts_minimum_sentences': 2},
+VOCABULARY = {'defaults': {'sentence_length_minimum_sentences': 2, 'sentence_starts_minimum_sentences': 2,
+                           'phrase_min_length': 2, 'phrase_max_length': 5},
               'cliche_entries': ['dead as a doornail'], 'cliche_sources': ['no-cliches'],
               'speech_verbs': ['say', 'whisper'], 'non_speech_verbs': ['smile']}
 
@@ -39,7 +41,8 @@ def unit(words, long_sentences, histogram, cliches=0, entry='dead as a doornail'
 
 class FakeProbe:
     def __init__(self, units):
-        self.vocabulary, self.units, self.peak_rss_bytes = VOCABULARY, iter(units), None
+        self.vocabulary, self.peak_rss_bytes = VOCABULARY, None
+        self.units = iter([item for item in units for _ in range(2)])
 
     def measure(self, text):
         return json.loads(json.dumps(next(self.units)))
@@ -60,35 +63,72 @@ def export(directory, authors):
 
 
 class FlagRateTests(unittest.TestCase):
-    def test_rates_pool_units_within_author_then_weight_authors_equally(self):
+    def test_manuscripts_pool_units_and_chapters_weight_authors_equally(self):
         units = [unit(1000, 1, {'10': 2}, cliches=1), unit(3000, 0, {'10': 2}), unit(500, 2, {'20': 2})]
         with tempfile.TemporaryDirectory() as temporary:
             result = flag_rates.calibrate(FakeProbe(units), export(Path(temporary), ['a', 'a', 'b']))
         self.assertEqual((result['units'], result['authors'], result['words']), (3, 2, 4500))
-        long = result['reports']['sentence_length']['flags_per_1000_words']['all']['long_sentence']
+        manuscript, chapter = result['manuscript'], result['chapter']
+        self.assertEqual((manuscript['samples'], chapter['samples']), (2, 3))
+        long = manuscript['reports']['sentence_length']['flags_per_1000_words']['all']['long_sentence']
         self.assertAlmostEqual(long['per_1000_words']['mean'], (1000 * 1 / 40 + 1000 * 2 / 40) / 2)
-        cliche = result['reports']['cliches']['patterns']['dead as a doornail']
-        self.assertEqual(cliche['authors_with_flag_share'], 0.5)
+        long = chapter['reports']['sentence_length']['flags_per_1000_words']['all']['long_sentence']
+        self.assertAlmostEqual(long['per_1000_words']['mean'], (0.5 * 50 + 0.5 * 0 + 50) / 2)
+        self.assertAlmostEqual(long['flagged_share'], (0.5 + 1) / 2)
+        self.assertEqual((long['per_1000_words']['samples'], long['per_1000_words']['authors']), (3, 2))
+        cliche = manuscript['reports']['cliches']['patterns']['dead as a doornail']
+        self.assertEqual(cliche['flagged_share'], 0.5)
         self.assertAlmostEqual(cliche['per_1000_words']['mean'], (1000 / 4000) / 2)
-        self.assertEqual(result['reports']['cliches']['top_patterns'], {'dead as a doornail': 1})
-        mean = result['reports']['sentence_length']['baseline_comparison']['all']['mean']
-        self.assertEqual((mean['eligible_authors'], mean['highlighted_share']), (2, 1))
+        self.assertEqual(chapter['reports']['cliches']['patterns']['dead as a doornail']['flagged_share'], 0.25)
+        self.assertEqual(manuscript['reports']['cliches']['top_patterns'], {'dead as a doornail': 1})
         reference = flag_rates.baseline(flag_rates.LENGTH_BASELINE)['mean']
+        mean = manuscript['reports']['sentence_length']['baseline_comparison']['all']['mean']
+        self.assertEqual(mean['eligible_share'], 1)
         self.assertAlmostEqual(mean['difference']['mean'], 15 - reference)
-        dialogue = result['reports']['sentence_length']['baseline_comparison']['dialogue']['mean']
-        self.assertEqual((dialogue['highlighted_share'], dialogue['difference']), (0, None))
-        pron = result['reports']['sentence_starts']['baseline_comparison']['all']['universal']['PRON']
+        measured = chapter['reports']['sentence_length']['measures']['all']['mean']
+        self.assertAlmostEqual(measured['mean'], (0.5 * 10 + 0.5 * 10 + 20) / 2)
+        self.assertEqual(set(measured['percentiles']), {str(p) for p in flag_rates.PERCENTILES})
+        dialogue = chapter['reports']['sentence_length']['baseline_comparison']['dialogue']['mean']
+        self.assertEqual((dialogue['eligible_share'], dialogue['difference']), (0, None))
+        pron = manuscript['reports']['sentence_starts']['baseline_comparison']['all']['universal']['PRON']
         self.assertAlmostEqual(pron['difference']['mean'], 100 - 35.31)
+        self.assertEqual(manuscript['reports']['sentence_starts']['measures']['all']['universal']['PRON']['mean'], 100)
         self.assertNotIn(SENTINEL, json.dumps(result))
         self.assertTrue(numeric_only(result))
+
+    def test_windows_close_at_scene_breaks_and_merge_short_tails(self):
+        rule = {'scene_break_words': 3, 'maximum_words': 6, 'minimum_words': 2}
+        self.assertEqual(flag_rates.windows('a b c\nd e\n\nf g\nh\n\ni j k\n', rule),
+                         ['a b c\nd e\n', 'f g\nh\n', 'i j k\n'])
+        self.assertEqual(flag_rates.windows('one two three\n\nfour\n', rule), ['one two three\n\nfour\n'])
+        self.assertEqual(flag_rates.windows('one two\nthree four five six seven\neight\n\n\nnine ten\n', rule),
+                         ['one two\nthree four five six seven\n', 'eight\n\nnine ten\n'])
+        text = flag_rates.synthetic_text(7, 1500)
+        split = flag_rates.windows(text)
+        self.assertEqual(''.join(split).split(), text.split())
+        sizes = [flag_rates.window_words(window) for window in split]
+        self.assertTrue(all(2000 <= size for size in sizes))
+        self.assertTrue(all(size < 6000 + 60 for size in sizes[:-1]))
+
+    def test_weighted_percentiles_match_linear_rule_at_equal_weights(self):
+        values = [3, 1, 4, 1, 5, 9, 2, 6]
+        pairs = flag_rates.weighted([(index, value) for index, value in enumerate(values)])
+        for p in flag_rates.PERCENTILES:
+            self.assertAlmostEqual(flag_rates.weighted_percentile(pairs, p), percentile(values, p))
+        self.assertEqual(flag_rates.spread([('a', 1), ('a', 3), ('b', 10)])['mean'], 6)
+
+    def test_author_keys_must_be_nonempty_strings(self):
+        for author in (None, '', ['a']):
+            with tempfile.TemporaryDirectory() as temporary, self.assertRaisesRegex(ValueError, 'author'):
+                flag_rates.calibrate(FakeProbe([unit(10, 0, {'5': 2})]), export(Path(temporary), [author]))
 
     def test_histogram_statistics_match_report_interpolation(self):
         histogram = {'3': 2, '7': 1, '12': 4, '40': 1}
         lengths = [3, 3, 7, 12, 12, 12, 12, 40]
         measured = flag_rates.histogram_statistics(histogram)
         self.assertAlmostEqual(measured['mean'], sum(lengths) / len(lengths))
-        for p in flag_rates.PERCENTILES:
-            self.assertAlmostEqual(measured[str(p)], percentile(lengths, p))
+        for name in flag_rates.LENGTH_STATISTICS[1:]:
+            self.assertAlmostEqual(measured[name], percentile(lengths, int(name)))
 
     def test_unlisted_keys_from_the_probe_are_rejected(self):
         for leaked in (unit(1000, 0, {'5': 2}, entry=SENTINEL), unit(1000, 0, {'5': 2}, verb=SENTINEL)):
@@ -107,6 +147,11 @@ class FlagRateTests(unittest.TestCase):
                      ['--flag-rates', '--export', '/books/' + SENTINEL, 'tier3'],
                      ['--export', '/books/' + SENTINEL, '--flag-rates'],
                      ['--flag-rates', SENTINEL],
+                     ['--e', '/books/' + SENTINEL],
+                     ['--exp=/books/' + SENTINEL],
+                     ['--f', '--e', '/books/' + SENTINEL],
+                     ['tier3', '--e', '/books/' + SENTINEL],
+                     ['tier3', '--flag', '--export', '/books/' + SENTINEL],
                      ['tier3', '--flag-rate', SENTINEL],
                      ['tier3', '--flag-rates', '--bogus-' + SENTINEL],
                      ['--bogus', SENTINEL, 'tier3', '--flag-rates'],
