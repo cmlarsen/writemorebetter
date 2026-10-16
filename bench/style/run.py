@@ -9,6 +9,10 @@ import sys
 from common import Analyzer, DocumentProbe, ROOT
 
 
+def private(argv):
+    return 'tier3' in argv[1:]
+
+
 def main():
     parser = argparse.ArgumentParser(description='Public style accuracy and owner-only calibration')
     sub = parser.add_subparsers(dest='tier', required=True)
@@ -34,14 +38,25 @@ def main():
     three.add_argument('--self-test', action='store_true')
     three.add_argument('--export', type=Path)
     three.add_argument('--baseline', type=Path, default=ROOT / 'bench/style/published-baseline.json')
+    tags = sub.add_parser('dialogue-tags')
+    tags.add_argument('suite', choices=['tier2', 'tier3'])
+    tags.add_argument('--self-test', action='store_true')
+    tags.add_argument('--export', type=Path)
+    tags.add_argument('--probe', type=Path)
+    tags.add_argument('--tokenizer', type=Path, default=ROOT / 'storage/en_tokenizer.bin')
+    tags.add_argument('--out', type=Path, default=ROOT / 'bench/style/out')
     for command in (one, three):
         command.add_argument('--tokenizer', type=Path, default=ROOT / 'storage/en_tokenizer.bin')
         command.add_argument('--analyzer', type=Path)
-    if len(sys.argv) > 1 and sys.argv[1] == 'tier3':
+    if private(sys.argv):
         with contextlib.redirect_stderr(io.StringIO()):
             args = parser.parse_args()
     else:
         args = parser.parse_args()
+    if args.tier == 'dialogue-tags':
+        import dialogue_tags
+        dialogue_tags.main(args)
+        return
     if args.tier == 'tier2':
         import tier2
         tier2.run(args)
@@ -71,6 +86,6 @@ if __name__ == '__main__':
     except BaseException as error:
         if isinstance(error, SystemExit) and error.code == 0:
             raise
-        if len(sys.argv) > 1 and sys.argv[1] == 'tier3':
+        if private(sys.argv):
             sys.exit('calibration failed; details suppressed to protect source metadata')
         raise

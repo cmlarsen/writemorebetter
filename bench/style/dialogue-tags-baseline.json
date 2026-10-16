@@ -1,0 +1,54 @@
+{
+  "source": "bench/style/labels/dialogue-tags.jsonl over the four pinned Standard Ebooks passages in bench/style/dialogue_tags.py (dev and test splits combined)",
+  "measured": "2026-10-15, English 6.6 tokenizer",
+  "floors": {
+    "dialogue_tag_position": {
+      "after": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0
+      },
+      "before": {
+        "precision": 1.0,
+        "recall": 0.8571428571428571,
+        "f1": 0.9230769230769231
+      },
+      "split": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0
+      }
+    },
+    "dialogue_tag_verb": {
+      "non_speech": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0
+      },
+      "speech": {
+        "precision": 1.0,
+        "recall": 0.9710144927536232,
+        "f1": 0.9852941176470589
+      }
+    },
+    "dialogue_tag_adverb": {
+      "adverb": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0
+      }
+    },
+    "dialogue_beat": {
+      "beat": {
+        "precision": 0.8181818181818182,
+        "recall": 0.9,
+        "f1": 0.8571428571428571
+      },
+      "tag": {
+        "precision": 1.0,
+        "recall": 0.9857142857142858,
+        "f1": 0.9928057553956835
+      }
+    }
+  }
+}

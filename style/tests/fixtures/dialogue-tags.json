@@ -1,0 +1,637 @@
+[
+  {
+    "name": "tag after the quote",
+    "text": "“Where are you going?” he asked.",
+    "tags": [
+      {
+        "verb": "asked",
+        "lemma": "ask",
+        "class": "speech",
+        "position": "after",
+        "span": "he asked",
+        "dialogue": [
+          "“Where are you going?”"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "tag before the quote with an adverb",
+    "text": "Mara said softly, “Come home.”",
+    "tags": [
+      {
+        "verb": "said",
+        "lemma": "say",
+        "class": "speech",
+        "position": "before",
+        "adverb": "softly",
+        "span": "Mara said softly",
+        "dialogue": [
+          "“Come home.”"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "split dialogue is reported once",
+    "text": "“Wait,” she said, “there’s more.”",
+    "tags": [
+      {
+        "verb": "said",
+        "lemma": "say",
+        "class": "speech",
+        "position": "split",
+        "span": "she said",
+        "dialogue": [
+          "“Wait,”",
+          "“there’s more.”"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "a full stop ends the tag before more speech",
+    "text": "“Wait,” she said. “There’s more.”",
+    "tags": [
+      {
+        "verb": "said",
+        "lemma": "say",
+        "class": "speech",
+        "position": "after",
+        "span": "she said",
+        "dialogue": [
+          "“Wait,”"
+        ]
+      }
+    ],
+    "untagged_exchanges": 0
+  },
+  {
+    "name": "action beats are counted separately",
+    "text": "She set down the cup. “I’m done.”\n“You’re not.” He reached for the pot.",
+    "beats": [
+      {
+        "span": "She set down the cup.",
+        "dialogue": [
+          "“I’m done.”"
+        ]
+      },
+      {
+        "span": "He reached for the pot.",
+        "dialogue": [
+          "“You’re not.”"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "a beat between two quotes is one beat",
+    "text": "“Go.” She set down the cup. “Now.”",
+    "beats": [
+      {
+        "span": "She set down the cup.",
+        "dialogue": [
+          "“Go.”",
+          "“Now.”"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "non-speech tag",
+    "text": "“Fine,” she smiled.\n“I know,” he nodded.",
+    "tags": [
+      {
+        "verb": "smiled",
+        "lemma": "smile",
+        "class": "non_speech",
+        "position": "after",
+        "span": "she smiled",
+        "dialogue": [
+          "“Fine,”"
+        ]
+      },
+      {
+        "verb": "nodded",
+        "lemma": "nod",
+        "class": "non_speech",
+        "position": "after",
+        "span": "he nodded",
+        "dialogue": [
+          "“I know,”"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "a non-speech verb after a full stop is a beat",
+    "text": "“Fine.” She smiled.",
+    "beats": [
+      {
+        "span": "She smiled.",
+        "dialogue": [
+          "“Fine.”"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "capitalized name after a question mark",
+    "text": "“Really?” Mara whispered.\n“Really?” Mara set down the cup.",
+    "tags": [
+      {
+        "verb": "whispered",
+        "lemma": "whisper",
+        "class": "speech",
+        "position": "after",
+        "span": "Mara whispered",
+        "dialogue": [
+          "“Really?”"
+        ]
+      }
+    ],
+    "beats": [
+      {
+        "span": "Mara set down the cup.",
+        "dialogue": [
+          "“Really?”"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "inverted tag with an adverb after the subject",
+    "text": "“Leave it,” said the captain gruffly.",
+    "tags": [
+      {
+        "verb": "said",
+        "lemma": "say",
+        "class": "speech",
+        "position": "after",
+        "adverb": "gruffly",
+        "span": "said the captain gruffly",
+        "dialogue": [
+          "“Leave it,”"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "phrasal speech verb",
+    "text": "“And then,” he went on, “we left.”",
+    "tags": [
+      {
+        "verb": "went",
+        "lemma": "go on",
+        "class": "speech",
+        "position": "split",
+        "span": "he went on",
+        "dialogue": [
+          "“And then,”",
+          "“we left.”"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "lead-in tag at the end of the previous paragraph",
+    "text": "As we turned in at the gates, John said:\n“Hello.”",
+    "tags": [
+      {
+        "verb": "said",
+        "lemma": "say",
+        "class": "speech",
+        "position": "before",
+        "span": "John said",
+        "dialogue": [
+          "“Hello.”"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "scare quotes inside narration are not dialogue exchanges",
+    "text": "He called it “grub” and ate it standing.",
+    "untagged_exchanges": 0
+  },
+  {
+    "name": "em dash, ellipsis and curly apostrophe in tags",
+    "text": "“I don’t—” he began.\n“Well…” she murmured.\n“Go,” she’d said.",
+    "tags": [
+      {
+        "verb": "began",
+        "lemma": "begin",
+        "class": "speech",
+        "position": "after",
+        "span": "he began",
+        "dialogue": [
+          "“I don’t—”"
+        ]
+      },
+      {
+        "verb": "murmured",
+        "lemma": "murmur",
+        "class": "speech",
+        "position": "after",
+        "span": "she murmured",
+        "dialogue": [
+          "“Well…”"
+        ]
+      },
+      {
+        "verb": "said",
+        "lemma": "say",
+        "class": "speech",
+        "position": "after",
+        "span": "she’d said",
+        "dialogue": [
+          "“Go,”"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "straight quotes and apostrophes",
+    "text": "\"Go,\" she'd said.\n\"Why?\" he asked.",
+    "tags": [
+      {
+        "verb": "said",
+        "lemma": "say",
+        "class": "speech",
+        "position": "after",
+        "span": "she'd said",
+        "dialogue": [
+          "\"Go,\""
+        ]
+      },
+      {
+        "verb": "asked",
+        "lemma": "ask",
+        "class": "speech",
+        "position": "after",
+        "span": "he asked",
+        "dialogue": [
+          "\"Why?\""
+        ]
+      }
+    ]
+  },
+  {
+    "name": "line separator inside one paragraph",
+    "text": "“Go,” she said. “Now,” he replied coldly.",
+    "tags": [
+      {
+        "verb": "said",
+        "lemma": "say",
+        "class": "speech",
+        "position": "after",
+        "span": "she said",
+        "dialogue": [
+          "“Go,”"
+        ]
+      },
+      {
+        "verb": "replied",
+        "lemma": "reply",
+        "class": "speech",
+        "position": "after",
+        "adverb": "coldly",
+        "span": "he replied coldly",
+        "dialogue": [
+          "“Now,”"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "untagged exchange run",
+    "text": "“Ready?” she asked.\n“Yes.”\n“Sure?”\n“Yes.”\n“Truly?”\n“I said yes.”\n“Fine.”\n“Good.”\n“Then go.”",
+    "tags": [
+      {
+        "verb": "asked",
+        "lemma": "ask",
+        "class": "speech",
+        "position": "after",
+        "span": "she asked",
+        "dialogue": [
+          "“Ready?”"
+        ]
+      }
+    ],
+    "runs": [
+      {
+        "exchanges": 8,
+        "span": "“Yes.”\n“Sure?”\n“Yes.”\n“Truly?”\n“I said yes.”\n“Fine.”\n“Good.”\n“Then go.”"
+      }
+    ],
+    "untagged_exchanges": 8
+  },
+  {
+    "name": "six untagged exchanges are not a run",
+    "text": "“Ready?” she asked.\n“Yes.”\n“Sure?”\n“Yes.”\n“Truly?”\n“I said yes.”\n“Fine.”\nShe left.\n“Wait.”",
+    "tags": [
+      {
+        "verb": "asked",
+        "lemma": "ask",
+        "class": "speech",
+        "position": "after",
+        "span": "she asked",
+        "dialogue": [
+          "“Ready?”"
+        ]
+      }
+    ],
+    "untagged_exchanges": 7
+  },
+  {
+    "name": "a copula after an unpunctuated quote is not a tag",
+    "text": "“Yes” was the answer.\n“Love” is a strange word, she thought.\nHer favorite poem, “The Raven,” was long.",
+    "untagged_exchanges": 0
+  },
+  {
+    "name": "a title after a lead-in verb keeps one tag",
+    "text": "He said “The Raven” was his favorite.",
+    "tags": [
+      {
+        "verb": "said",
+        "lemma": "say",
+        "class": "speech",
+        "position": "before",
+        "span": "He said",
+        "dialogue": [
+          "“The Raven”"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "quoted titles and labels after object verbs are not tags",
+    "text": "She pressed “Send.”\nShe returned “The Hobbit” to the library.\nHe ordered “the usual.”\nThey sang “Jerusalem” at the wedding.\nThe sign read “Closed.”\nThe poem was called “The Raven.”"
+  },
+  {
+    "name": "a headline lead-in is a beat, not a speaker",
+    "text": "The headline read: “War Ends.”",
+    "beats": [
+      {
+        "span": "The headline read:",
+        "dialogue": [
+          "“War Ends.”"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "object verbs still tag with a speaker and a comma",
+    "text": "He returned, “No, thank you.”\n“No,” returned Holmes.",
+    "tags": [
+      {
+        "verb": "returned",
+        "lemma": "return",
+        "class": "speech",
+        "position": "before",
+        "span": "He returned",
+        "dialogue": [
+          "“No, thank you.”"
+        ]
+      },
+      {
+        "verb": "returned",
+        "lemma": "return",
+        "class": "speech",
+        "position": "after",
+        "span": "returned Holmes",
+        "dialogue": [
+          "“No,”"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "object verbs take their subject from the words before the verb",
+    "text": "The old man called, “Wait!”\nThe sign Anna saw read, “Closed.”",
+    "tags": [
+      {
+        "verb": "called",
+        "lemma": "call",
+        "class": "speech",
+        "position": "before",
+        "span": "The old man called",
+        "dialogue": [
+          "“Wait!”"
+        ]
+      }
+    ],
+    "beats": [
+      {
+        "span": "The sign Anna saw read,",
+        "dialogue": [
+          "“Closed.”"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "a capitalized speech tag after a full stop",
+    "text": "“Fine.” Mara said.\n“Hello?” She said nothing.",
+    "tags": [
+      {
+        "verb": "said",
+        "lemma": "say",
+        "class": "speech",
+        "position": "after",
+        "span": "Mara said",
+        "dialogue": [
+          "“Fine.”"
+        ]
+      }
+    ],
+    "beats": [
+      {
+        "span": "She said nothing.",
+        "dialogue": [
+          "“Hello?”"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "a named speaker after ?, ! or a dash keeps a prepositional phrase",
+    "text": "“Really?” Mara whispered in his ear.\n“Help!” Tom shouted at the top of his lungs.\n“Wait—” Mara began in a rush.\n“Fine.” Mara said with a shrug.\n“Where are you going?” Anne asked in surprise.\n“Is it?” Mrs. Lynde said with a sniff.\n“Hello” Mara said in a low voice.\n“Fine.” She smiled.\n“Wait—” She began to cry.",
+    "tags": [
+      {
+        "verb": "whispered",
+        "lemma": "whisper",
+        "class": "speech",
+        "position": "after",
+        "span": "Mara whispered",
+        "dialogue": [
+          "“Really?”"
+        ]
+      },
+      {
+        "verb": "shouted",
+        "lemma": "shout",
+        "class": "speech",
+        "position": "after",
+        "span": "Tom shouted",
+        "dialogue": [
+          "“Help!”"
+        ]
+      },
+      {
+        "verb": "began",
+        "lemma": "begin",
+        "class": "speech",
+        "position": "after",
+        "span": "Mara began",
+        "dialogue": [
+          "“Wait—”"
+        ]
+      },
+      {
+        "verb": "said",
+        "lemma": "say",
+        "class": "speech",
+        "position": "after",
+        "span": "Mara said",
+        "dialogue": [
+          "“Fine.”"
+        ]
+      },
+      {
+        "verb": "asked",
+        "lemma": "ask",
+        "class": "speech",
+        "position": "after",
+        "span": "Anne asked",
+        "dialogue": [
+          "“Where are you going?”"
+        ]
+      },
+      {
+        "verb": "said",
+        "lemma": "say",
+        "class": "speech",
+        "position": "after",
+        "span": "Mrs. Lynde said",
+        "dialogue": [
+          "“Is it?”"
+        ]
+      },
+      {
+        "verb": "said",
+        "lemma": "say",
+        "class": "speech",
+        "position": "after",
+        "span": "Mara said",
+        "dialogue": [
+          "“Hello”"
+        ]
+      }
+    ],
+    "beats": [
+      {
+        "span": "She smiled.",
+        "dialogue": [
+          "“Fine.”"
+        ]
+      },
+      {
+        "span": "She began to cry.",
+        "dialogue": [
+          "“Wait—”"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "possessive subject",
+    "text": "“Go,” Anna’s mother said.",
+    "tags": [
+      {
+        "verb": "said",
+        "lemma": "say",
+        "class": "speech",
+        "position": "after",
+        "span": "Anna’s mother said",
+        "dialogue": [
+          "“Go,”"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "adverb after an object and spans with particles and auxiliaries",
+    "text": "“Why?” she asked him softly.\n“And so,” he cut in, “we left.”\nHe had said “Go” twice.",
+    "tags": [
+      {
+        "verb": "asked",
+        "lemma": "ask",
+        "class": "speech",
+        "position": "after",
+        "adverb": "softly",
+        "span": "she asked him softly",
+        "dialogue": [
+          "“Why?”"
+        ]
+      },
+      {
+        "verb": "cut",
+        "lemma": "cut in",
+        "class": "speech",
+        "position": "split",
+        "span": "he cut in",
+        "dialogue": [
+          "“And so,”",
+          "“we left.”"
+        ]
+      },
+      {
+        "verb": "said",
+        "lemma": "say",
+        "class": "speech",
+        "position": "before",
+        "span": "He had said",
+        "dialogue": [
+          "“Go”"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "spans cover inverted possessives and plain adverbs and stop at the previous clause",
+    "text": "“Go,” said Anna’s mother.\nShe had always said, “Never.”\nIt was then he said, “Go.”",
+    "tags": [
+      {
+        "verb": "said",
+        "lemma": "say",
+        "class": "speech",
+        "position": "after",
+        "span": "said Anna’s mother",
+        "dialogue": [
+          "“Go,”"
+        ]
+      },
+      {
+        "verb": "said",
+        "lemma": "say",
+        "class": "speech",
+        "position": "before",
+        "span": "She had always said",
+        "dialogue": [
+          "“Never.”"
+        ]
+      },
+      {
+        "verb": "said",
+        "lemma": "say",
+        "class": "speech",
+        "position": "before",
+        "span": "then he said",
+        "dialogue": [
+          "“Go.”"
+        ]
+      }
+    ]
+  }
+]

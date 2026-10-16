@@ -58,7 +58,7 @@ swift/, wasm/       one binding each, exposing check() + analyze() + the reports
 | Clichés and redundancies | #246 | phrase lists | none |
 | Transitions, pronoun starts | #247 | #244's classifier, word list | Ngram `_START_` 2- to 4-grams (planned; not yet in #247) |
 | Overused words | #248 | lemma counts | Ngram fiction unigrams, or HTRC per-author counts |
-| Dialogue tags | #249 | dialogue spans | published-fiction corpus (planned; not yet in #249) |
+| Dialogue tags | #249 | dialogue spans | published-fiction corpus (owner-run tier 3 command; see [STYLE-DIALOGUE-TAGS.md](STYLE-DIALOGUE-TAGS.md)) |
 | Diction (concreteness), sensory balance | #250 | word-norm tables | none, and the data license comes first |
 | Pacing | #251 | dialogue spans, sentence stats | published-fiction corpus, for threshold calibration |
 
