@@ -188,6 +188,10 @@ fn inputs_are_validated_and_compact_documents_rejected() {
 fn bundled_table_covers_fillers_and_common_content_lemmas() {
     let bundled = OverusedWordsBaseline::bundled().unwrap();
     bundled.validate().unwrap();
+    assert!(std::ptr::eq(
+        bundled,
+        OverusedWordsBaseline::bundled().unwrap()
+    ));
     assert!(bundled.lemmas.len() > 10_000);
     for word in FILLER_WORDS {
         assert!(bundled.fillers[word] > 0.0, "{word}");
@@ -302,14 +306,16 @@ fn british_and_american_spellings_share_one_reference_rate() {
 }
 
 #[test]
-fn hyphenated_words_count_their_head() {
+fn unknown_hyphenated_words_count_their_head() {
     let text = "She half-smiled. He half-smiled back. A well-known face, a blue-grey coat, \
-twenty-five men, a grey dog.";
+twenty-five men, a grey dog. The old-fashioned man sat cross-legged, blue-eyed and red-faced.";
     let found = flags(text, &loose());
     let lemma = |name: &str| found.iter().find(|(l, _, _)| l == name).map(|f| f.1);
     assert_eq!(lemma("smile"), Some(2));
-    assert_eq!(lemma("know"), Some(1));
     assert_eq!(lemma("grey"), Some(2));
+    for lexicalized in ["know", "fashion", "leg", "eye", "face"] {
+        assert_eq!(lemma(lexicalized), None, "{lexicalized}: {found:?}");
+    }
     assert!(
         found
             .iter()
@@ -342,6 +348,9 @@ fn minimum_count_scales_with_length_beyond_a_chapter() {
     let options = OverusedWordsOptions::new();
     assert_eq!(options.minimum_count_for(0), 5);
     assert_eq!(options.minimum_count_for(10_000), 5);
+    assert_eq!(options.minimum_count_for(10_001), 5);
+    assert_eq!(options.minimum_count_for(12_000), 5);
+    assert_eq!(options.minimum_count_for(12_200), 6);
     assert_eq!(options.minimum_count_for(25_000), 8);
     assert_eq!(options.minimum_count_for(90_000), 15);
     assert_eq!(
@@ -352,7 +361,7 @@ fn minimum_count_scales_with_length_beyond_a_chapter() {
         5
     );
     let mut text = CHAPTER.repeat(450);
-    text.push_str(&"She glanced up. ".repeat(7));
+    text.push_str(&"She glanced up. ".repeat(6));
     let d = document(&text, &DocumentOptions::new());
     assert!(d.word_count > 20_000);
     let glance = |options: &OverusedWordsOptions| {

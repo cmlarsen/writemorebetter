@@ -702,7 +702,7 @@ pub fn analyze_document(tokenizer: &Tokenizer, text: &str, options: &DocumentOpt
                 let is_skipped = skipped[token_index];
                 if word && !is_skipped {
                     document.word_count += 1;
-                    if options.include_token_details {
+                    if options.include_token_details && token.readings.is_empty() {
                         if let Some(head) = compound_head(&token.text) {
                             let readings = document.compound_heads.entry(head);
                             if let std::collections::btree_map::Entry::Vacant(entry) = readings {

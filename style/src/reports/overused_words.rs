@@ -1,4 +1,3 @@
-use std::cmp::Reverse;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::OnceLock;
 
@@ -335,9 +334,8 @@ impl OverusedWordsOptions {
         let minimum = self.minimum_count.max(1);
         match self.count_scale_words {
             0 => minimum,
-            scale => {
-                minimum.max((minimum as f64 * (words as f64 / scale as f64).sqrt()).ceil() as usize)
-            }
+            scale => minimum
+                .max((minimum as f64 * (words as f64 / scale as f64).sqrt()).round() as usize),
         }
     }
 
@@ -357,6 +355,8 @@ impl OverusedWordsOptions {
         Ok(())
     }
 }
+
+static BUNDLED: OnceLock<OverusedWordsBaseline> = OnceLock::new();
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields, rename_all = "camelCase")]
@@ -386,9 +386,13 @@ impl OverusedWordsBaseline {
     }
 
     pub fn bundled() -> Option<&'static Self> {
-        static BUNDLED: OnceLock<OverusedWordsBaseline> = OnceLock::new();
         Some(BUNDLED.get_or_init(|| {
-            super::bundled_baseline(include_str!("../../data/baselines/overused-words.json"))
+            let table: Self =
+                super::bundled_baseline(include_str!("../../data/baselines/overused-words.json"));
+            table
+                .validate()
+                .expect("bundled overused-words table is valid");
+            table
         }))
     }
 
@@ -466,6 +470,8 @@ pub struct OverusedWordsReport {
     pub fillers: Vec<OverusedWordsFiller>,
 }
 
+type Spellings = Vec<(String, usize)>;
+
 struct Word<'a> {
     token: &'a Token,
     initial: bool,
@@ -500,26 +506,25 @@ fn proper(token: &Token, initial: bool, names: &HashSet<&str>) -> bool {
 
 fn words_with_position(document: &Document) -> impl Iterator<Item = Word<'_>> {
     document.sentences().flat_map(|sentence| {
-        let tokens: Vec<&Token> = sentence
+        let mut tokens = sentence
             .tokens
             .iter()
             .filter(|t| !t.is_whitespace)
-            .collect();
+            .peekable();
         let mut initial = true;
-        let mut words = Vec::new();
-        for (index, token) in tokens.iter().enumerate() {
+        std::iter::from_fn(move || loop {
+            let token = tokens.next()?;
             let opens = initial;
             initial =
                 token.is_punctuation && (initial || token.text.contains(['“', '‘', '"', ':', '(']));
             if token.is_word && !token.is_skipped {
-                words.push(Word {
+                return Some(Word {
                     token,
                     initial: opens,
-                    next: tokens.get(index + 1).copied(),
+                    next: tokens.peek().copied(),
                 });
             }
-        }
-        words
+        })
     })
 }
 
@@ -561,10 +566,7 @@ fn content_lemma(
             .iter()
             .map(|r| (r.lemma.as_str(), r.pos.as_str())),
     );
-    if !content
-        .iter()
-        .any(|(lemma, _)| baseline.rate(lemma).is_some())
-    {
+    if token.readings.is_empty() {
         if let Some(readings) =
             compound_head(&token.text).and_then(|head| document.compound_heads.get(&head))
         {
@@ -610,11 +612,15 @@ pub fn report(
         return Err(StyleError::needs_token_details(REPORT));
     }
     options.validate()?;
-    if let Some(baseline) = baseline {
+    if let Some(baseline) = baseline.filter(|b| {
+        !BUNDLED
+            .get()
+            .is_some_and(|bundled| std::ptr::eq(*b, bundled))
+    }) {
         baseline.validate()?;
     }
     let words = document.word_count;
-    let mut lemmas: HashMap<String, (Vec<Span>, BTreeMap<String, usize>)> = HashMap::new();
+    let mut lemmas: HashMap<String, (Vec<Span>, Spellings)> = HashMap::new();
     let mut fillers: BTreeMap<&str, Vec<Span>> = BTreeMap::new();
     let names: HashSet<&str> = words_with_position(document)
         .filter(|word| !word.initial && capitalized(word.token))
@@ -627,10 +633,19 @@ pub fn report(
         } else if let Some(baseline) = baseline.filter(|_| !proper(token, word.initial, &names)) {
             match content_lemma(&word, document, baseline) {
                 Some((lemma, noun)) if options.include_nouns || !noun => {
-                    let key = canonical_spelling(&lemma).to_owned();
-                    let (spans, spellings) = lemmas.entry(key).or_default();
+                    let key = canonical_spelling(&lemma);
+                    if !lemmas.contains_key(key) {
+                        lemmas.insert(key.to_owned(), Default::default());
+                    }
+                    let (spans, spellings) = lemmas.get_mut(key).unwrap();
                     spans.push(token.span.clone());
-                    *spellings.entry(lemma).or_default() += 1;
+                    match spellings
+                        .iter_mut()
+                        .find(|(spelling, _)| *spelling == lemma)
+                    {
+                        Some((_, count)) => *count += 1,
+                        None => spellings.push((lemma, 1)),
+                    }
                 }
                 _ => {}
             }
@@ -642,11 +657,13 @@ pub fn report(
             lemmas.into_iter().filter_map(|(key, (spans, spellings))| {
                 let reference = *baseline.lemmas.get(&key)?;
                 let lemma = spellings
-                    .iter()
-                    .max_by_key(|(spelling, count)| {
-                        (**count, **spelling == key, Reverse(*spelling))
+                    .into_iter()
+                    .max_by(|(a, x), (b, y)| {
+                        x.cmp(y)
+                            .then_with(|| (*a == key).cmp(&(*b == key)))
+                            .then_with(|| b.cmp(a))
                     })
-                    .map(|(spelling, _)| spelling.clone())?;
+                    .map(|(spelling, _)| spelling)?;
                 if spans.len() < minimum_count
                     || reference <= 0.0
                     || reference < options.minimum_reference_per_million

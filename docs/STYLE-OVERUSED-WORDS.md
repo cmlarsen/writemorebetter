@@ -36,10 +36,13 @@ content lemma:
    head keeps its noun readings. The remaining `NN*`, `VB*`, `JJ*` and `RB*` lemmas are the
    candidates; ambiguous tokens take the candidate with the highest reference rate (*saw* → *see*,
    *found* → *find*).
-4. A hyphenated token whose own readings give no lemma in the table counts as its head, the part after
-   the last hyphen, with the tagger's readings for that word: *half-smiled* → *smile*, *yellow-grey*
-   → *grey*, *well-known* → *know*. Ngram v3 splits hyphenated words, so the reference counts the
-   head the same way. A hyphenated lemma in a custom table (*well-known*) is still matched first.
+4. A hyphenated token the tagger doesn't know (no readings) counts as its head, the part after the
+   last hyphen, with the tagger's readings for that word: *half-smiled* → *smile*, *yellow-grey* →
+   *grey*, *self-containing* → *contain*. Ngram v3 splits hyphenated words, so the reference counts
+   the head the same way. Compounds the tagger lists keep their own lemma (*old-fashioned*,
+   *cross-legged*, *blue-eyed*, *well-known*). These are lexicalized, and their head is often another
+   part of speech (*fashion*, *leg*), so the bundled table, which has no hyphenated keys, never flags
+   them. A custom table can still list them.
 5. British spellings count under their American lemma: *grey* and *gray*, *realise* and *realize*,
    *colour* and *color* share one count and one reference rate. `SPELLING_VARIANTS` in
    `overused_words.rs` holds the 248 pairs (*-ise/-ize*, *-yse/-yze*, *-isation*, *-our/-or*,
@@ -60,9 +63,10 @@ ratio = (count / words × 1,000,000) / reference per million ≥ minimumRatio
 
 `words` is the document's word count, the same denominator every report uses. Above
 `countScaleWords` words (10,000 by default) the count threshold grows with the square root of the
-length, `ceil(minimumCount × √(words / countScaleWords))`: 8 at 25,000 words, 15 at 90,000. On the
-25,002-word `moby150k` excerpt that gives 7 flags instead of 26, and 13 instead of 14 on the five
-stories joined (10,286 words). The defaults are calibrated on chapters; run the report per chapter
+length, `minimumCount × √(words / countScaleWords)` rounded to the nearest count, so it moves
+smoothly past the boundary: still 5 at 12,000 words, 6 from 12,100, 8 at 25,000, 15 at 90,000. On
+the 25,002-word `moby150k` excerpt that gives 7 flags instead of 25, and 13 on the five stories
+joined (10,286 words), the same as unscaled. The defaults are calibrated on chapters; run the report per chapter
 for chapter-sized results, or set `countScaleWords` to 0 to turn the scaling off. Lemmas missing from
 the table are never flagged. Flags are sorted by ratio, then count. Each carries the lemma, count,
 `perTenThousandWords`, `referencePerTenThousandWords` (the table rate divided by 100, so both rates
@@ -167,11 +171,15 @@ not *grey*); anything else is rejected with `invalidBaseline` instead of silentl
 Filler keys must be from the fixed list; rates must be finite and non-negative. `"none"` skips the
 comparison and returns fillers only.
 
-Bundled into WASM, the table and report grow the module from 4,473,179 to 4,879,900 bytes after
-`wasm-bindgen` (+406,721, +9.1%; `gzip -9` 1,121,499 → 1,229,415, +107,916) and from 2,538,553 to
-2,835,388 bytes after `wasm-opt -Oz` (+296,835, +11.7%), measured on Linux with Rust's wasm32
-target and binaryen 116. The table's JSON is 233,226 of those bytes; the spelling-variant list and
-the hyphenated-head lookup add about 9 KB and 28 KB. The table is parsed once, on the first call.
+Bundled into WASM, the table and report grow the module from 4,808,929 to 5,212,762 bytes after
+`wasm-bindgen` (+403,833, +8.4%; `gzip -9` 1,228,589 → 1,336,327, +107,738) and from 2,798,977 to
+3,098,525 bytes after `wasm-opt -Oz` (+299,548, +10.7%), measured against main with sensory balance
+and diction (#281), on Linux with Rust's wasm32 target and binaryen 116. The table's JSON is
+233,226 of those bytes; the spelling-variant list and the hyphenated-head lookup add about 9 KB and
+28 KB. The table is parsed and validated once, on the first call: 20–25 ms in Node. Later calls
+skip validating the bundled table and take 1.4 ms on a 2,209-word story and 4.0 ms on the
+6,067-word Gatsby chapter (median of 200; 1.3 and 3.6 ms before the review fixes). A caller-supplied
+table is validated on every call.
 
 ## Calibration and usefulness
 
@@ -184,9 +192,9 @@ GitHub repositories (*The Great Gatsby*, *The Sun Also Rises*, *The Mysterious A
 
 | Setting (ratio, count, floor) | Nouns | Flags per text: median (min–max) | Total over 14 texts |
 |---|---|---:|---:|
-| 4, 5, 0 | included | 18.5 (6–29) | 249 |
+| 4, 5, 0 | included | 18.5 (6–29) | 248 |
 | 4, 5, 0 | excluded | 5 (2–9) | 77 |
-| 4, 5, 10 | included | 16.5 (6–28) | 229 |
+| 4, 5, 10 | included | 16.5 (6–28) | 228 |
 | 3, 5, 10 | excluded | 7.5 (5–10) | 106 |
 | 4, 4, 10 | excluded | 9 (3–13) | 124 |
 | **4, 5, 10** | **excluded** | **5 (2–9)** | **76** |
@@ -228,7 +236,7 @@ other wrong flag, with *sea* in *going to sea*.
 - Wrong: *form* in *The Age of Innocence* counts the noun *“form”* and *sea* in *going to sea* is
   counted as a non-noun; both are noun uses the chunk restriction missed.
 
-Including nouns adds 153 flags, mostly setting and topic: *ferry*, *island*, *clock*, *bread*,
+Including nouns adds 152 flags, mostly setting and topic: *ferry*, *island*, *clock*, *bread*,
 *whale*-chapter *ship*, *sea*, *bed*, *landlord*. About ten are useful (*way* in the *the way you…*
 similes, *thing*, Gatsby's *murmur*, *sort of*), so nouns stay opt-in.
 
