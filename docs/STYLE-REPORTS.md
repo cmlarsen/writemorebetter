@@ -451,15 +451,16 @@ Tier 3 real-corpus calibration remains owner-only and emits aggregate numbers ex
 
 The #256 completion audit is in [`bench/style/AUDIT-256.md`](../bench/style/AUDIT-256.md).
 All nine merged reports now have tier 2 coverage: the existing sentence, echo/phrase, cliché and
-dialogue suites plus `lexical.py` for overused words and fillers, sensory balance and single-sense
-scenes, and caller-table diction sentences and abstract runs. The test split scores 100% P/R/F1 per
-category on 1,714 cases (295–300 occurrences per overused lemma, 60 per filler word, 60 per sensory
-modality, 60 single-sense scenes, 420 abstract sentences, 60 abstract runs), with targeted negative
-controls for each filter and threshold and zero changes on paired untouched prefixes; development
-has 1,725 cases. The 217 test-split predictions on the untouched public paragraphs are frozen and
-gated for equality, so a natural-text precision regression fails CI; a deliberate report change
-rebaselines them. These are injection regression scores, not editorial accuracy. All 21 report mutations tried
-(the reviewer's 12 plus 9 boundary changes, listed in the README) fail the gate.
+dialogue suites plus `lexical.py` for overused words and fillers, sensory balance, and caller-table
+diction sentences and abstract runs. The test split scores 100% P/R/F1 per category on 1,534 cases
+(295–300 occurrences per overused lemma, 60 per filler word, 60 per sensory modality, 420 abstract
+sentences, 60 abstract runs), with targeted negative controls for each filter and threshold and zero
+changes on paired untouched prefixes; development has 1,545 cases. The 217 test-split predictions on
+the untouched public paragraphs are frozen and gated for equality, so a natural-text precision
+regression fails CI; a deliberate report change rebaselines them. These are injection regression
+scores, not editorial accuracy. All 21 report mutations tried (the reviewer's 12 plus 9 boundary
+changes, listed in the README) failed the gate when measured; #282 later removed the single-sense
+cases and the two `singleSensePercent` mutations along with the flag.
 Tier 3 flag-rate calibration now covers all nine reports, including sensory modalities, overused/filler
 counts and rated-word-weighted diction means, and requires an owner-supplied diction table for real
 runs. Only synthetic self-tests ran here. Approximately 300 independent, owner-adjudicated judgment

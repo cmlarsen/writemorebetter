@@ -65,13 +65,13 @@ def export(directory, authors):
 class FlagRateTests(unittest.TestCase):
     def test_lexical_aggregates_pool_ratings_without_leaking_lemmas(self):
         a = {'words': 100, 'overused_words': {'overused': 2, 'occurrences': 12, 'fillers': 3},
-             'sensory_balance': {'sense_words': 20, 'single_sense': 1, 'modalities': {'sight': 20}},
+             'sensory_balance': {'sense_words': 20, 'modalities': {'sight': 20}},
              'diction': {'abstract_sentences': 3, 'abstract_runs': 1, 'rated_words': 9, 'rating_sum': 18}}
         b = {'words': 200, 'diction': {'rated_words': 3, 'rating_sum': 12}}
         flag_rates.merge(a, b)
         result = flag_rates.lexical_reports([('A', a), ('B', {'words': 100})])
         self.assertEqual(result['overused_words']['categories']['overused']['flagged_share'], 0.5)
-        self.assertEqual(result['sensory_balance']['categories']['single_sense']['flagged_share'], 0.5)
+        self.assertEqual(result['sensory_balance']['categories']['sense_words']['flagged_share'], 0.5)
         self.assertEqual(result['diction']['mean_rating']['mean'], 2.5)
         flag_rates.check(result, flag_rates.allowed_keys(VOCABULARY))
 

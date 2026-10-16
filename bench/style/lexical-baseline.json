@@ -1,11 +1,11 @@
 {
   "dev": {
     "split": "dev",
-    "documents": 1725,
-    "paired_controls": 1725,
+    "documents": 1545,
+    "paired_controls": 1545,
     "changed_controls": 0,
     "natural": {
-      "predictions": 222,
+      "predictions": 223,
       "counts": {
         "fillers": {
           "actually": 1,
@@ -21,13 +21,13 @@
         },
         "sensoryBalance": {
           "interoception": 11,
-          "sight": 99,
-          "sound": 34,
+          "sight": 101,
+          "sound": 33,
           "taste": 9,
           "touch": 10
         }
       },
-      "sha256": "69d6dd4de100e5fc1f925aa1186af977a980053ff0c92db0a81a792a960c48e4"
+      "sha256": "14aa612167f62c1b71ae25b708c7048e05221af50d67c14b5efa37ee276948ba"
     },
     "reports": {
       "overusedWords": {
@@ -180,23 +180,6 @@
           }
         }
       },
-      "singleSense": {
-        "patterns": {
-          "sight": {
-            "precision": 1.0,
-            "recall": 1.0,
-            "f1": 1.0,
-            "true_positive": 60,
-            "predicted": 60,
-            "gold": 60
-          }
-        },
-        "confusion": {
-          "sight": {
-            "sight": 60
-          }
-        }
-      },
       "diction": {
         "patterns": {
           "abstract": {
@@ -229,8 +212,8 @@
   },
   "test": {
     "split": "test",
-    "documents": 1714,
-    "paired_controls": 1714,
+    "documents": 1534,
+    "paired_controls": 1534,
     "changed_controls": 0,
     "natural": {
       "predictions": 217,
@@ -249,17 +232,14 @@
         },
         "sensoryBalance": {
           "interoception": 14,
-          "sight": 92,
+          "sight": 93,
           "smell": 1,
           "sound": 18,
           "taste": 3,
           "touch": 11
-        },
-        "singleSense": {
-          "sight": 1
         }
       },
-      "sha256": "b98c2440044afb7e34e351aa2be35327daa978548641eb10d0a8ac1299eb9536"
+      "sha256": "975c3e1bf844e7e79defa2fb79cafe9f02dc13040ba18814929069339aeb45b2"
     },
     "reports": {
       "overusedWords": {
@@ -409,23 +389,6 @@
           },
           "touch": {
             "touch": 60
-          }
-        }
-      },
-      "singleSense": {
-        "patterns": {
-          "sight": {
-            "precision": 1.0,
-            "recall": 1.0,
-            "f1": 1.0,
-            "true_positive": 60,
-            "predicted": 60,
-            "gold": 60
-          }
-        },
-        "confusion": {
-          "sight": {
-            "sight": 60
           }
         }
       },
