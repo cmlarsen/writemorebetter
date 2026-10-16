@@ -21,7 +21,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let resources = StyleResources::new();
             let defaults = StyleRequest::new();
             let mut request = StyleRequest::empty();
-            request.sentence_length = defaults.sentence_length;
+            request.sentence_length = defaults.sentence_length.map(|options| options.with_long_sentences(true));
             request.sentence_starts = defaults.sentence_starts;
             request.baselines = defaults.baselines;
             for line in io::stdin().lock().lines() {
@@ -41,7 +41,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             serde_json::to_writer(
                 &mut output,
                 &serde_json::json!({
-                    "sentenceLength": request.sentence_length,
+                    "sentenceLength": request.sentence_length.map(|options| options.with_long_sentences(true)),
                     "sentenceStarts": request.sentence_starts,
                     "monotonyMinSentences": sentence_length::MONOTONY_MIN_SENTENCES,
                     "monotonyMaxSpread": sentence_length::MONOTONY_MAX_SPREAD,

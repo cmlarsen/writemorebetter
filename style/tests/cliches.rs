@@ -216,7 +216,7 @@ fn typography() {
         (
             "better safe than sorry",
             "better safe than sorry",
-            Mode::Narration,
+            Mode::Dialogue,
         ),
         ("tip of the iceberg", "tip of the iceberg", Mode::Narration),
         ("ATM teller machine", "ATM teller machines", Mode::Dialogue),

@@ -44,7 +44,7 @@ pub struct EchoOptions {
 impl Default for EchoOptions {
     fn default() -> Self {
         Self {
-            window: 50,
+            window: 30,
             match_forms: true,
         }
     }
@@ -92,13 +92,86 @@ fn listed(word: &str) -> bool {
     FUNCTION_WORDS.binary_search(&word).is_ok()
 }
 
+fn echo_families(token: &Token) -> Vec<&'static str> {
+    let families: Vec<_> = CONTENT_TAGS
+        .iter()
+        .copied()
+        .filter(|tag| token.readings.iter().any(|r| r.pos.starts_with(tag)))
+        .collect();
+    if families.len() <= 1 {
+        return families;
+    }
+    if families.contains(&"VB") && token.chunks.iter().any(|c| c.contains("-VP")) {
+        return vec!["VB"];
+    }
+    if token.chunks.iter().any(|c| c.contains("-NP")) {
+        if families.contains(&"NN") {
+            return vec!["NN"];
+        }
+        if families.contains(&"JJ") {
+            return vec!["JJ"];
+        }
+    }
+    if fold(&token.text).ends_with("ing") && token.readings.iter().any(|r| r.pos == "VBG") {
+        return vec!["VB"];
+    }
+    if families.iter().all(|tag| matches!(*tag, "NN" | "VB")) {
+        vec!["NN"]
+    } else {
+        Vec::new()
+    }
+}
+
+fn echo_lemmas(token: &Token, families: &[&str]) -> BTreeSet<String> {
+    let candidates: BTreeSet<_> = token
+        .readings
+        .iter()
+        .filter(|r| families.iter().any(|tag| r.pos.starts_with(tag)))
+        .map(|r| fold(&r.lemma))
+        .filter(|lemma| !lemma.is_empty() && !lemma.contains(char::is_whitespace))
+        .collect();
+    if candidates.len() == 1
+        && !token
+            .readings
+            .iter()
+            .any(|r| matches!(r.pos.as_str(), "JJR" | "JJS" | "RBR" | "RBS"))
+    {
+        candidates
+    } else {
+        BTreeSet::new()
+    }
+}
+
 fn lemmas(token: &Token) -> BTreeSet<String> {
     token
         .readings
         .iter()
-        .map(|reading| fold(&reading.lemma))
-        .filter(|lemma| !lemma.is_empty() && !lemma.contains(char::is_whitespace))
+        .map(|r| fold(&r.lemma))
+        .filter(|l| !l.is_empty() && !l.contains(char::is_whitespace))
         .collect()
+}
+
+fn suppressed(token: &Token, next: Option<&&Token>) -> bool {
+    let word = fold(&token.text);
+    matches!(
+        word.as_str(),
+        "say"
+            | "said"
+            | "says"
+            | "saying"
+            | "ask"
+            | "asked"
+            | "asks"
+            | "asking"
+            | "up"
+            | "down"
+            | "out"
+            | "back"
+            | "off"
+            | "over"
+            | "away"
+    ) || (crate::document::honorific(&word)
+        && next.is_some_and(|t| t.text.chars().next().is_some_and(char::is_uppercase)))
 }
 
 #[derive(Default)]
@@ -112,14 +185,6 @@ struct Spelling {
 pub(crate) struct Lexicon {
     function: HashSet<String>,
     families: HashMap<String, String>,
-}
-
-fn root(parent: &mut [usize], mut node: usize) -> usize {
-    while parent[node] != node {
-        parent[node] = parent[parent[node]];
-        node = parent[node];
-    }
-    node
 }
 
 impl Lexicon {
@@ -144,48 +209,19 @@ impl Lexicon {
             entry.lemmas.extend(lemmas(token));
         }
         let mut function = HashSet::new();
-        let mut nodes: HashMap<String, usize> = HashMap::new();
-        let mut parent: Vec<usize> = Vec::new();
-        let mut node = |name: String, parent: &mut Vec<usize>| {
-            *nodes.entry(name).or_insert_with(|| {
-                parent.push(parent.len());
-                parent.len() - 1
-            })
-        };
-        let mut members = Vec::new();
+        let mut families = HashMap::new();
         for (spelling, entry) in spellings {
             if entry.function || listed(&spelling) || entry.content * 2 < entry.occurrences {
                 function.insert(spelling);
                 continue;
             }
-            let own = node(format!("s:{spelling}"), &mut parent);
-            for lemma in entry.lemmas.iter().chain([&spelling]) {
-                let other = node(format!("l:{lemma}"), &mut parent);
-                let (left, right) = (root(&mut parent, own), root(&mut parent, other));
-                parent[left] = right;
-            }
-            members.push((spelling, own, entry.lemmas));
+            let key = if entry.lemmas.len() == 1 {
+                entry.lemmas.into_iter().next().unwrap()
+            } else {
+                spelling.clone()
+            };
+            families.insert(spelling, key);
         }
-        let mut names: HashMap<usize, String> = HashMap::new();
-        for (spelling, own, lemmas) in &members {
-            let family = root(&mut parent, *own);
-            let candidate = lemmas.iter().next().unwrap_or(spelling);
-            names
-                .entry(family)
-                .and_modify(|name| {
-                    if candidate < name {
-                        candidate.clone_into(name);
-                    }
-                })
-                .or_insert_with(|| candidate.clone());
-        }
-        let families = members
-            .into_iter()
-            .map(|(spelling, own, _)| {
-                let name = names[&root(&mut parent, own)].clone();
-                (spelling, name)
-            })
-            .collect();
         Self { function, families }
     }
 
@@ -235,32 +271,67 @@ pub fn report(document: &Document, options: &EchoOptions) -> Result<EchoReport, 
     let lexicon = Lexicon::new(document);
     let mut last: HashMap<String, (usize, &Token)> = HashMap::new();
     let mut echoes = Vec::new();
-    for (index, token) in document.words().enumerate() {
-        if lexicon.is_function(token) {
+    let tokens: Vec<_> = document.words().collect();
+    for (index, token) in tokens.iter().copied().enumerate() {
+        if lexicon.is_function(token) || suppressed(token, tokens.get(index + 1)) {
             continue;
         }
-        let family = if options.match_forms {
-            lexicon.family(token)
+        let mut candidates = if options.match_forms {
+            let families = echo_families(token);
+            let lemmas = echo_lemmas(token, &families);
+            families
+                .into_iter()
+                .flat_map(|pos| {
+                    lemmas
+                        .iter()
+                        .map(move |lemma| format!("lemma:{pos}:{lemma}"))
+                })
+                .collect()
         } else {
-            fold(&token.text)
+            BTreeSet::new()
         };
-        if let Some((earlier, previous)) = last.get(&family) {
+        candidates.insert(format!("surface:{}", fold(&token.text)));
+        let nearest = candidates
+            .iter()
+            .filter_map(|key| last.get(key).map(|previous| (key, previous)))
+            .max_by_key(|(_, (index, _))| *index);
+        if let Some((family, (earlier, previous))) = nearest {
             let distance = index - earlier;
-            if distance <= options.window {
+            let same_sentence = document.sentences().any(|s| {
+                s.span.byte.start <= previous.span.byte.start
+                    && token.span.byte.end <= s.span.byte.end
+            });
+            let turn = |t: &Token| {
+                document.paragraphs.iter().position(|p| {
+                    p.span.byte.start <= t.span.byte.start && t.span.byte.end <= p.span.byte.end
+                })
+            };
+            let quoted = |t: &Token| {
+                document
+                    .dialogue
+                    .iter()
+                    .any(|s| s.byte.start <= t.span.byte.start && t.span.byte.end <= s.byte.end)
+            };
+            if distance <= options.window.min(30)
+                && !(same_sentence && distance <= 10)
+                && !(quoted(previous) && quoted(token) && turn(previous) != turn(token))
+            {
                 echoes.push(Echo {
                     label: if options.match_forms {
                         lexicon.label([*previous, token])
                     } else {
-                        family.clone()
+                        family.rsplit(':').next().unwrap().to_owned()
                     },
-                    key: family.clone(),
+                    key: family.rsplit(':').next().unwrap().to_owned(),
                     earlier: previous.span.clone(),
                     later: token.span.clone(),
                     distance,
                 });
             }
         }
-        last.insert(family, (index, token));
+        for key in candidates {
+            last.insert(key, (index, token));
+        }
     }
     let words = document.word_count;
     let per_thousand_words = if words == 0 {

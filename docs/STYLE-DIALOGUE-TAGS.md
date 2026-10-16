@@ -3,10 +3,10 @@
 Issue [#249](https://github.com/cmlarsen/writemorebetter/issues/249), part of #241. The report finds the
 tag attached to each quoted span from #243's document pass and reports:
 
-- tag verbs other than *said* and *asked*, with counts (`other_verbs`);
+- neutral tag verbs as counts (`neutralVerbs`) and showy verbs to review (`showyVerbs`);
 - manner adverbs on tags (`said softly`), as `DialogueTag::adverb`;
 - tags whose verb cannot produce speech (`“Fine,” she smiled.`), as `DialogueTagVerbClass::NonSpeech`;
-- runs of more than 6 untagged exchanges (`untagged_runs`);
+- runs of more than 12 untagged exchanges (`untagged_runs`);
 - action beats, counted separately and never flagged (`beats`).
 
 ```rust
@@ -23,11 +23,28 @@ combined `reports::run` call and the bindings' `styleReports`
 ([STYLE-REPORTS.md](STYLE-REPORTS.md#one-call-for-every-report)); typed Swift records come with the
 bindings follow-up.
 
+## Neutral and showy verbs
+
+All parsed tags remain in `tags`; `otherVerbs` remains a descriptive count for compatibility.
+Use `tag.showy` for individual verb flags. `showyVerbs` counts speech bookisms; non-speech verbs are counted separately in `nonSpeech`, so the aggregates do not duplicate them. `neutralVerbs` includes said/asked, replied,
+answered, told, added, continued, called, whispered, shouted, muttered, repeated and went on.
+Cried, explained, demanded, inquired, urged, remarked and other recognized attributions are showy.
+The separate implementation-authored
+`neutral-verbs.txt` and `showy-verbs.txt` lists contain no copied material.
+Showy verbs include hissed, chortled, snarled, ejaculated, growled and breathed; non-speech tags
+such as laughed, sighed and smiled are also showy. Unlisted verbs are counted and never flagged.
+The older speech/nonSpeech classification remains a grammatical distinction, independent of style.
+
 ## Method
 
 Each paragraph is split into quoted pieces (the document's **speech** spans, `Document::speech`) and
 the narration between them. Clause boundaries come from the tokenizer's sentences and from `!`/`?` tokens, cut at the next
 quote; a `.` alone never ends a clause, so `Mr.` and `St.` stay inside it.
+
+Passive attributions such as “Go,” was the answer, “There she blows,” was sung out, and a cry of
+“Where is he?” count as speech. A following listed attribution also keeps an embedded quote in speech
+(Then “Fine,” she said). Titles with a title noun and copula remain narration. This behavior is shared
+by every report.
 
 - **After a quote**, the first narration clause is attached when the quote ends in `,`, `:` or `;`, or
   when the clause starts lowercase. Otherwise (after `.`, `?`, `!`, a dash, an ellipsis or no
@@ -51,7 +68,7 @@ quote; a `.` alone never ends a clause, so `Mr.` and `St.` stay inside it.
   he`). The subject is a pronoun, a name, a skipped name, or a short noun phrase (possessives
   included); the verb is a token with a `VB*` reading. A listed verb wins over an unlisted one; an
   unlisted finite verb is still a tag (`DialogueTagVerbClass::Unlisted`), counted in `other_verbs` but never
-  flagged. `be`, `have` and `do` are never tag verbs. A quote followed directly by a lowercase form
+  flagged. `be`, `have` and `do` are never tag verbs. An unpunctuated quote followed directly by a lowercase form
   of one of them, and not preceded by a lead-in verb, is the subject of that verb, not speech:
   `“Yes” was the answer.` and `Her favorite poem, “The Raven,” was long.` have no tag, are not
   exchanges, and are left out of `speech_spans`. This test and the embedded-quote test below run in
@@ -67,7 +84,10 @@ quote; a `.` alone never ends a clause, so `Mr.` and `St.` stay inside it.
   One clause between two quotes is one beat.
 - **Adverbs** are tokens with an `RB` reading ending in *-ly* next to the verb, after an inverted
   subject, or after an object pronoun or a one- or two-word name (`said softly`, `softly said`, `said
-  the captain gruffly`, `asked him softly`, `told Mara Lynde sharply`), commas ignored. Time and
+  the captain gruffly`, `asked him softly`, `told Mara Lynde sharply`), commas ignored. Intensifiers such as *rather*, *quite* and *very* may intervene. Adverbs on non-speech verbs are
+  not manner-adverb flags. Inverted subject spans stop at a comma and retain noun modifiers such as
+  *the examining magistrate*. *Reflect* requires an attached comma or lead-in frame: *Poirot reflected for a
+  minute* after a sentence-final quote is a beat, while *“No,” she reflected* remains an attribution. Time and
   degree words in `style/data/dialogue/adverb-exclusions.txt` are ignored.
 - **Embedded quotes** preceded directly by a word in the same paragraph, other than a listed verb
   outside the object-verb list (`He called it “grub” and ate.`, `She pressed “Send.”`), are scare
@@ -75,16 +95,19 @@ quote; a `.` alone never ends a clause, so `Mr.` and `St.` stay inside it.
   `speech_spans`, the denominator for span rates (`dialogue_spans` counts every document span).
 - **Exchanges and runs.** An exchange is a paragraph where a dialogue span starts; paragraphs only
   continuing an earlier span are neutral. An exchange is attributed when one of its quotes has a tag
-  or a beat, because a beat names who acts. A paragraph with no dialogue ends a run. Runs longer than
-  `max_untagged_exchanges` (default 6) are reported with their span and quotes.
+  or a beat, because a beat names who acts. A short standalone action/attribution paragraph such as
+  *The magistrate cut her short* also attaches a beat to the preceding quote. A paragraph with no dialogue ends a run. Runs longer than
+  `max_untagged_exchanges` (default 12) are reported with their span and quotes.
 
 Tags, beats and untagged runs carry `quotes`: the spans of the quotes they attach to, so a binding
 caller never needs the document to resolve them. `saidAsked`, `withAdverb` and `nonSpeech` are
-`Share { count, percent, difference }` records over all tags. `percent` is null below
-`minimum_tags` (default 50). The optional `DialogueTagBaseline` is a separate argument, as for the
+`Share { count, percent, difference, highlighted }` records over all tags. `percent` is null below
+`minimum_tags` (default 15), with `lowConfidence` below 50 tags. The optional `DialogueTagBaseline` is a separate argument, as for the
 sentence reports, with three optional percentages (`saidAskedPercent`, `adverbPercent`,
 `nonSpeechPercent`, each in 0..=100 or `InvalidBaseline`). `difference` is the share minus the
-baseline in percentage points; the baseline is no longer echoed in the report.
+baseline in percentage points. Only `highlighted` warrants a baseline highlight: the percentage must
+be strictly outside a supplied `saidAskedBand`, `adverbBand` or `nonSpeechBand` (`{p5,p95}`). Missing
+bands never highlight. Bands must be ordered and within 0–100.
 `DialogueTagBaseline::bundled()` returns `None`: no default baseline ships yet.
 
 ## Word lists
@@ -94,9 +117,8 @@ for this crate. They are not copied or derived from LanguageTool or any other li
 lemmas, including phrasal verbs such as `go on`, `cut in` and `cry out`. The non-speech list covers
 facial expressions, gestures and bodily actions that cannot themselves produce words: `smile`,
 `laugh`, `nod`, `shrug`, `sigh` and similar. Contested verbs (`snort`, `hesitate`) are on neither list
-and are reported as unlisted. Thought verbs are on the speech list only when a dictionary sense is
-saying something aloud in that manner: `muse`, `reflect` and `wonder` (to say thoughtfully or
-wonderingly) and `recall` (to say in recollection) are listed; `think` has no such sense and is not.
+and are reported as unlisted. Thought verbs with speech uses remain heuristic; the writer review's narrative *reflect* case
+is guarded by its attachment frame rather than removing legitimate comma-attached tags.
 `object-verbs.txt` marks speech verbs that usually take a quoted object, for the lead-in rule above.
 
 ## Accuracy
@@ -105,7 +127,9 @@ The tier 2 suite in [bench/style/README.md](../bench/style/README.md#dialogue-ta
 model-labeled records over 186 dialogue spans in four CC0 Standard Ebooks passages that are not in
 LitBank. On all four passages: tag position precision is 100% for every position, with recall 100%
 (after, split) and 85.71% (before); verb class recall is 97.10% for speech and 100% for non-speech;
-adverb precision/recall is 100% / 100%; beats are 81.82% / 90.00%. Labels come from two independent
+adverb precision/recall is 100% / 100%. Frozen-label beat precision/recall is now 69.23% / 90.00%:
+the added standalone *I nodded* and *She smiled* beats are correct but absent from those labels.
+The two older false beat predictions remain; the rebaseline records this explicitly. Labels come from two independent
 model sessions, coordinator-adjudicated, and the test passages were read during development, so
 these are regression floors, not a claim about modern fiction.
 
@@ -133,7 +157,7 @@ It weights authors equally and prints only numbers; see the benchmark README.
   read as naming the quote, so the quote is embedded and not an exchange.
 - A noun subject before an object-taking verb counts as a speaker when the quote ends in `!` or `?`, so
   `The headline read: “War Ends!”` is a tag.
-- A quoted speech act that is itself the subject of `be` (`“Fire!” was the cry.`) is not counted as
-  speech.
+- Passive speech attributions count as speech even when their subject/verb frame does not yield an
+  explicit tag. They can therefore remain untagged exchanges.
 - Dash-led dialogue and unpunctuated single-quoted speech are outside #243's span detector, so they
   have no tags.

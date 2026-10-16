@@ -36,15 +36,15 @@ class BenchTests(unittest.TestCase):
                     'sentenceLength': {'groups': {'all': {'meanDifference': 0.5}}},
                     'sentenceStarts': {'groups': {'all': group},
                                        'starts': [{'category': 'other', 'word': 'call', 'sentence': 0}]}}}
-        text = b'CHAPTER 1. Loomings.\r\nCONTENTS\r\n\r\nCHAPTER 1. Loomings.\r\nCall me Ishmael.\r\n'
-        line, wrapped = Probe(4), Probe(1)
+        text = b'CHAPTER 1. Loomings.\r\nCONTENTS\r\n\r\nCHAPTER 1. Loomings.\r\nCall me Ishmael.\r\nThe sea waited.\r\n'
+        line, wrapped = Probe(3), Probe(1)
         with patch.object(Path, 'read_bytes', return_value=text):
             result = public_distribution(line, wrapped)
             self.assertEqual((len(line.calls), len(wrapped.calls)), (5, 1))
             self.assertIn('\r\n', wrapped.calls[0])
             self.assertTrue(result['mobyDick']['inputs'][0]['hardWrapped'])
             self.assertEqual(result['mobyDick']['inputs'][0]['cut']['occurrence'], 2)
-            self.assertEqual(wrapped.calls[0], 'CHAPTER 1. Loomings.\r\nCall me Ishmael.\r\n')
+            self.assertEqual(wrapped.calls[0], 'CHAPTER 1. Loomings.\r\nCall me Ishmael.\r\nThe sea waited.\r\n')
             self.assertFalse(result['stories']['inputs'][0]['hardWrapped'])
             with self.assertRaisesRegex(ValueError, 'paragraph mode'):
                 public_distribution(wrapped, line)
@@ -54,7 +54,7 @@ class BenchTests(unittest.TestCase):
         distributions = {'stories': {'categories': {'other': {'percent': 2.8}}},
                          'mobyDick': {'categories': {'other': {'percent': 14.81}},
                                       'bundledBaselineComparison': {'meanDifference': 1.2,
-                                                                    'universalDifferences': 11}}}
+                                                                    'universalDifferences': 12}}}
         ceilings = {'stories': 5.0, 'mobyDick': 16.0}
         check_public_distribution(distributions, ceilings)
         distributions['mobyDick']['bundledBaselineComparison']['meanDifference'] = None

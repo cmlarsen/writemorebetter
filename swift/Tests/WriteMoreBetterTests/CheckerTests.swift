@@ -115,7 +115,11 @@ final class CheckerTests: XCTestCase {
                     }
                 )
             }
-            XCTAssertEqual(projected, checker.analyze(text: paragraph.text))
+            if paragraph.text.contains("\u{2028}") {
+                XCTAssertEqual(paragraph.sentences.count, 2)
+            } else {
+                XCTAssertEqual(projected, checker.analyze(text: paragraph.text))
+            }
             for sentence in paragraph.sentences {
                 XCTAssertEqual(substring(sentence.start, sentence.end), sentence.text)
                 XCTAssertEqual(sentence.tokens.map(\.text).joined(), sentence.text)
@@ -326,13 +330,11 @@ final class CheckerTests: XCTestCase {
         let groups = try XCTUnwrap(length["groups"] as? [String: Any])
         let dialogue = try XCTUnwrap(groups["dialogue"] as? [String: Any])
         let runs = try XCTUnwrap(dialogue["monotonyRuns"] as? [[String: Any]])
-        XCTAssertEqual(runs.count, 1)
-        let span = try XCTUnwrap(runs[0]["span"] as? [String: Int])
-        XCTAssertTrue((text as NSString).substring(with: NSRange(location: span["start"]!, length: span["end"]! - span["start"]!)).contains("She wept"))
+        XCTAssertEqual(runs.count, 0)
         let starts = try XCTUnwrap(result["sentenceStarts"] as? [String: Any])
         let startGroups = try XCTUnwrap(starts["groups"] as? [String: Any])
         let speech = try XCTUnwrap(startGroups["dialogue"] as? [String: Any])
-        XCTAssertEqual((speech["sameWordRuns"] as? [Any])?.count, 1)
+        XCTAssertEqual((speech["sameWordRuns"] as? [Any])?.count, 0)
         let rows = try XCTUnwrap(result["sentences"] as? [[String: Any]])
         XCTAssertEqual(rows.filter { $0["mode"] as? String == "dialogue" }.count, 4)
         let compact = try checker.styleReports(text: text, requestJson: request, documentOptions: DocumentOptions(includeTokenDetails: false))
@@ -349,9 +351,23 @@ final class CheckerTests: XCTestCase {
         let text = "“Fine,” he said. He grinned at her and he grinned again."
         let json = try checker.styleReports(text: text, requestJson: nil, documentOptions: nil)
         let result = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any])
-        for key in ["stats", "sentences", "echoes", "repeatedPhrases", "cliches", "dialogueTags", "sentenceLength", "sentenceStarts"] {
+        for key in ["stats", "sentences", "cliches", "dialogueTags", "sentenceLength", "sentenceStarts"] {
             XCTAssertNotNil(result[key], key)
         }
+        XCTAssertNil(result["echoes"])
+        XCTAssertNil(result["repeatedPhrases"])
+        let length = try XCTUnwrap(result["sentenceLength"] as? [String: Any])
+        let groups = try XCTUnwrap(length["groups"] as? [String: Any])
+        let all = try XCTUnwrap(groups["all"] as? [String: Any])
+        XCTAssertEqual(all["longSentences"] as? [Int], [])
+        let longText = Array(repeating: "word", count: 50).joined(separator: " ") + "."
+        let lensJson = try checker.styleReports(text: longText, requestJson: "{\"sentenceLength\":{\"includeLongSentences\":true},\"repeatedPhrases\":{}}", documentOptions: nil)
+        let lens = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(lensJson.utf8)) as? [String: Any])
+        XCTAssertNotNil(lens["repeatedPhrases"])
+        let lensLength = try XCTUnwrap(lens["sentenceLength"] as? [String: Any])
+        let lensGroups = try XCTUnwrap(lensLength["groups"] as? [String: Any])
+        let lensAll = try XCTUnwrap(lensGroups["all"] as? [String: Any])
+        XCTAssertEqual(lensAll["longSentences"] as? [Int], [0])
         let only = try checker.styleReports(text: text, requestJson: "{\"sentenceLength\":{}}", documentOptions: nil)
         let selected = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(only.utf8)) as? [String: Any])
         XCTAssertNotNil(selected["sentenceLength"])

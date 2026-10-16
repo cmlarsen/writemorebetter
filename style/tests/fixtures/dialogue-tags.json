@@ -318,12 +318,7 @@
         ]
       }
     ],
-    "runs": [
-      {
-        "exchanges": 8,
-        "span": "“Yes.”\n“Sure?”\n“Yes.”\n“Truly?”\n“I said yes.”\n“Fine.”\n“Good.”\n“Then go.”"
-      }
-    ],
+    "runs": [],
     "untagged_exchanges": 8
   },
   {

@@ -24,6 +24,53 @@ JSONL objects with `file` and `text`, and emits one JSONL object per detected sp
 `utf16`, and `pattern: "dialogue"`. This mode needs no tokenizer. `--output PATH` saves tier 1's
 aggregate JSON. See [document measurements](../../docs/STYLE-DOCUMENT-BENCHMARKS.md) for native timing.
 
+## Usefulness revision (2026-10-16)
+
+The owner decisions on #241 change report defaults and scope. The source pins, gold labels and
+labeler provenance remain frozen. Rebaselines record the intended changes rather than claiming
+better editorial precision from synthetic injections:
+
+- Echoes: plural and gerund matches are restored while the ambiguity regressions remain blocked.
+  Precision is 1.0; individual echo-injection recall is 100% in both splits. Combined recall improves
+  from 43/58 to 57/58 dev and from 48/61 to 60/61 test, replacing the over-broad morphology floor.
+  The remaining natural-copy misses (25/26 each split) target subwords inside `low-arched` and
+  `sun-toasted`, which the product tokenizes as whole compounds. The prior quote-turn explanation
+  was incorrect. Gold, the 12–25-word near range, the 30-word cap and all far controls are unchanged.
+- Repeated phrases: injections now distinguish three uses, two near uses and separate distant-pair
+  negative controls. Phrasal verbs and *Piglet said that* are included. In-scope recall and precision
+  are 100%; the former distant-pair recall reduction is removed. Rust fixtures cover punctuation
+  boundaries, longest-overlap selection and the optional name fallback.
+- Dialogue: all frozen floors remain unchanged, including beat precision 9/11 and recall 9/10.
+  Response beats such as *I nodded* and *She smiled* no longer attribute the preceding speaker.
+  Interrupt-type standalone beats attach to the following quote and skip negated clauses.
+- Sentences: the probe explicitly enables the top-three long-sentence lens and checks
+  deliberate anaphora separately. Labeled/injected F1 floors remain unchanged. Heading counting
+  preserves signs and ordinary prose, recognizes colon/dash titles and excludes exact numbered chapter headings; a single blank line does not break narration runs.
+- Synthetic tier 3 self-tests cover a 13-exchange untagged run. All 36 Python tests pass. The new
+  owner-supplied chapter-window bands and full percentiles are preserved with exact provenance;
+  no private calibration inputs were accessed. Calibration used #270's segmentation, predating
+  this PR's refinements. Synthetic median/p95 chapters verify matching-mode highlights.
+
+The final default request retains sentence-length statistics and monotony, sentence starts,
+dialogue tags and clichés. Echoes, repeated phrases and long-sentence flags are opt-in; the owner
+made this decision after the re-review measured 97% phrase noise/wrong flags and 84% long-sentence
+noise. The long lens needs `sentenceLength.includeLongSentences:true`; direct defaults also keep
+that flag list empty. The sentence and flag-rate probes explicitly opt in so their gates still
+exercise the lens.
+
+`usefulness-counts.json` records default and opt-in counts alongside per-report before/after counts for all six `bench/public` texts,
+against main `42f658d`. Reproduce the after counts with:
+
+```sh
+cargo run -p writemorebetter-style --release --example usefulness -- \
+  bench/public/story1.txt bench/public/story2.txt bench/public/story3.txt \
+  bench/public/story4.txt bench/public/story5.txt bench/public/moby150k.txt
+```
+
+Echoes are explicitly opted in by this counter; the default combined call now omits them. The
+counter uses line mode for stories, hard-wrapped mode for Moby, and no skipped names. Flat `echoes`, `phrases` and `long` fields are explicit lens counts; `defaultFlags` is the final default total, and the snapshot adds separate `default` and `optIn` maps. These are
+workload counts, not editorial judgments.
+
 ## Download provenance and splits
 
 `sources.json` is the lockfile: every download has a tag or commit, URL, SHA-256 and original license
@@ -688,15 +735,15 @@ What counts as one flag:
 |---|---|---|
 | Sentence length | each long sentence (≥ `longSentenceWords`, default 40) and each monotony run | `long_sentence`, `monotony_run`, `total` per group |
 | Sentence starts | each same-word start run (≥ 3 sentences) | `same_word_run` per group |
-| Echoes | each echo (default window 50) | `distance` band in words (`1_5`, `6_10`, `11_25`, `26_50`); `form`: `same_form` if the two words have the same case-folded spelling, else `different_form` |
-| Repeated phrases | each distinct repeated phrase; `occurrence` counts every occurrence separately | `length` in words (2–5) |
+| Echoes | each opt-in echo (default and maximum window 30) | `distance` band in words (`1_5`, `6_10`, `11_25`, `26_50`); `form`: `same_form` if the two words have the same case-folded spelling, else `different_form` |
+| Repeated phrases | each distinct repeated phrase; `occurrence` counts every occurrence separately | `length` in words (merged phrases can exceed 5; numeric length keys are allowed) |
 | Clichés | each match | `kind` (cliché/redundancy) × group, `source` list, `patterns` per bundled entry with at least one flag (`patterns_with_flags` counts them) |
-| Dialogue tags | each tag with a listed speech verb other than *say*/*ask* (`other_speech_verb`), each non-speech tag, each tag adverb, each untagged run (> 6 exchanges) | those four categories; `patterns` per listed verb lemma except *say*/*ask*. One tag can carry two flags (verb and adverb). Unflagged context (`tags`, `said_asked`, `unlisted_verb`, `beats`) is under `context_per_1000_words`, in the same shape |
+| Dialogue tags | each tag with a listed speech verb other than *say*/*ask* (`other_speech_verb`, a legacy calibration category; UI flags use showy verbs), each non-speech tag, each tag adverb, each untagged run (> 12 exchanges) | those four categories; `patterns` per listed verb lemma except *say*/*ask*. One tag can carry two flags (verb and adverb). Unflagged context (`tags`, `said_asked`, `unlisted_verb`, `beats`) is under `context_per_1000_words`, in the same shape |
 
 ### Baseline measures and comparisons
 
 Sentence length and sentence starts compare a document with their shipped baselines. The report
-returns a measure only when the group has at least `minimumSentences` (200) sentences; that sample
+returns a measure only when the group has at least `minimumSentences` (50) sentences; that sample
 (a window, or an author's pooled manuscripts) is then **eligible**.
 
 - **`measures`** gives, for `all`/`narration`/`dialogue`, the distribution over eligible samples of
@@ -715,10 +762,10 @@ returns a measure only when the group has at least `minimumSentences` (200) sent
   0.5/1/2/3/5 words (length) or 1/2/5/10 percentage points (starts). Fine categories have no shipped
   baseline, so their comparisons appear only if a `categoryPercent` baseline is shipped.
 
-Neither report applies a magnitude threshold: it shows every comparison on an eligible document. So
+Reports return differences on eligible documents and highlight only outside the matching p5–p95 band. The calibration adapter retains all comparison values for measurement. So
 `eligible_share` in `chapter` is the share of windows on which the report would show a comparison,
 and the threshold sweep is there to choose one. In `manuscript`, `eligible_share` tests each
-author's pooled sample against the 200-sentence bar, which is nearly always met. The self-test checks
+author's pooled sample against the 50-sentence bar, which is nearly always met. The self-test checks
 the harness's histogram mean and percentile differences and universal percentages against the
 report's own `meanDifference`, percentile differences and `percent` on one document.
 

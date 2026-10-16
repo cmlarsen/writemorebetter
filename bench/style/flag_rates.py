@@ -429,7 +429,7 @@ def check(result, allowed):
     while stack:
         value = stack.pop()
         if isinstance(value, dict):
-            if any(key not in allowed for key in value):
+            if any(key not in allowed and not key.isdecimal() for key in value):
                 raise ValueError('unexpected aggregate key')
             stack.extend(value.values())
 

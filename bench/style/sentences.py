@@ -103,7 +103,13 @@ def reference_patterns(file, text, sentences, defaults):
         return {'file': file, 'pattern': pattern,
                 'byte': {'start': sentences[start]['span']['byte']['start'], 'end': sentences[end-1]['span']['byte']['end']},
                 'utf16': {'start': sentences[start]['span']['utf16']['start'], 'end': sentences[end-1]['span']['utf16']['end']}}
-    result = [span(i, i+1, 'longSentence') for i, n in enumerate(lengths) if n >= long_words]
+    ranked = sorted(range(len(lengths)), key=lambda i: (-lengths[i], i))
+    ordered = sorted(lengths)
+    position = (len(ordered) - 1) * .95
+    low = int(position)
+    p95 = ordered[low] + (ordered[min(low+1, len(ordered)-1)] - ordered[low]) * (position-low) if ordered else 0
+    top = set(ranked[:defaults['sentenceLength']['longestPerChapter']])
+    result = [span(i, i+1, 'longSentence') for i, n in enumerate(lengths) if n >= long_words and (i in top or defaults['sentenceLength']['includeAbovePercentile'] and n > p95)]
     windows = [(a,b) for a in range(len(lengths)) for b in range(a+run_min,len(lengths)+1)
                if max(lengths[a:b]) - min(lengths[a:b]) <= spread]
     result.extend(span(a,b,'monotony') for a,b in windows if not any(c <= a and b <= d and (a,b) != (c,d) for c,d in windows))
@@ -112,7 +118,9 @@ def reference_patterns(file, text, sentences, defaults):
         end = start + 1
         while end < len(starts) and starts[end] == starts[start]:
             end += 1
-        if end - start >= same_min:
+        two_words = [tuple(re.findall(r"[\w’']+", sentence['text'].lower())[:2]) for sentence in sentences[start:end]]
+        rhetorical = all(sentence['text'].rstrip().endswith(('?', '!')) for sentence in sentences[start:end])
+        if end - start >= same_min and len(set(two_words)) > 1 and not rhetorical:
             result.append(span(start,end,'sameWord'))
         start = end
     return result
@@ -141,7 +149,7 @@ def injected(probe, out, analyzer):
         clean = row['text'].strip()
         phrase = clean[:-1].replace(',', '')
         for pattern, text in [('monotony', ' '.join([clean] * 4)),
-                              ('sameWord', ' '.join([clean] * 3)),
+                              ('sameWord', ' '.join([clean, clean.split()[0] + ' something changed.', clean.split()[0] + ' nothing moved.'])),
                               ('longSentence', ' '.join([phrase] * 12) + '.')]:
             file = f'{i:03}-{pattern}'
             documents.append({'file': file, 'source': row['file'], 'text': text})
@@ -194,6 +202,30 @@ def injected(probe, out, analyzer):
             **score(gold, predictions, {r['file'] for r in documents})}
 
 
+def paragraph_count(text, wrapped):
+    def excluded(line):
+        line = line.strip()
+        plain = line.lstrip('#').strip()
+        words = plain.split()
+        number = words[1].rstrip(':.,') if len(words) > 1 else ''
+        roman = re.fullmatch(r'M{0,3}(CM|CD|D?C{0,3})(XC|XL|L?X{0,3})(IX|IV|V?I{0,3})', number)
+        chapter = bool(words and words[0].lower() in ('chapter', 'book', 'part') and number and
+                       (number.isdigit() or roman or number.lower() in 'one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty'.split()) and
+                       all(not w.strip('—–-:.,') or w.strip('—–-:.,')[0].isupper() or w in ('of', 'the', 'and', 'a', 'in') for w in words[2:]))
+        return (chapter and len(words) <= 10 and not any(c in plain for c in '!?“”"')
+                or line.startswith('#') and len(words) <= 10 and not any(c in line for c in '.!?')
+                or bool(line) and all(c.isspace() or c in '*#—-_=·•' for c in line)
+                or line.startswith('—') and line[1:].lstrip().startswith('_'))
+    count, continuing = 0, False
+    for line in text.split('\n'):
+        if not line.strip() or excluded(line):
+            continuing = False
+        else:
+            count += not wrapped or not continuing
+            continuing = True
+    return count
+
+
 def public_distribution(line_probe, wrapped_probe):
     from collections import Counter
     groups = {}
@@ -218,9 +250,7 @@ def public_distribution(line_probe, wrapped_probe):
             result = probe.analyze(text)
             reports = result['reports']
             starts = reports['sentenceStarts']['groups']['all']
-            lines = [bool(line.strip()) for line in text.split('\n')]
-            expected_paragraphs = sum(nonblank and (not wrapped or i == 0 or not lines[i - 1])
-                                      for i, nonblank in enumerate(lines))
+            expected_paragraphs = paragraph_count(text, wrapped)
             if result['paragraphs'] != expected_paragraphs:
                 raise ValueError(f'{file}: paragraph mode does not match source wrapping')
             inputs.append({'file': file, 'hardWrapped': wrapped, 'bytes': len(data),
@@ -268,7 +298,7 @@ def check_public_distribution(distributions, ceilings):
         if distributions[group]['categories']['other']['percent'] > ceiling:
             raise ValueError(f'{group}/other share exceeds {ceiling}% sanity ceiling')
     comparison = distributions['mobyDick']['bundledBaselineComparison']
-    if comparison['meanDifference'] is None or comparison['universalDifferences'] != 11:
+    if comparison['meanDifference'] is None or comparison['universalDifferences'] != 12:
         raise ValueError('default options with bundled baselines no longer yield differences')
 
 

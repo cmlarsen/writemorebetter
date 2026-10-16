@@ -174,7 +174,7 @@ def sentence_length_self_test(probe):
             (export / 'units' / (unit + '.txt')).write_text(text)
         (export / 'units.jsonl').write_text('\n'.join(json.dumps(row) for row in rows))
         split = probe.analyze('Chapter One\nShe ran to the door\n“Wait—”\n“No.”\nHe left. Then he came back.\n')
-        assert [s['words'] for s in split['reports']['sentences']] == [2, 5, 1, 1, 2, 4]
+        assert [s['words'] for s in split['reports']['sentences']] == [5, 1, 1, 2, 4]
         result = calibrate_sentence_length(probe, export)
         assert result['authors'] == 2 and result['sentences'] == 4
         assert result['baseline']['mean'] == 3

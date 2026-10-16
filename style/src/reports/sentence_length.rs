@@ -3,7 +3,7 @@ use std::sync::OnceLock;
 
 use serde::{Deserialize, Serialize};
 
-use super::{SentenceRun, Split};
+use super::{PercentileBand, SentenceRun, Split};
 use crate::error::StyleError;
 use crate::{Document, Mode, Span};
 
@@ -20,13 +20,22 @@ pub struct SentenceLengthOptions {
     pub minimum_sentences: usize,
     #[serde(alias = "long_sentence_words")]
     pub long_sentence_words: usize,
+    #[serde(alias = "longest_per_chapter")]
+    pub longest_per_chapter: usize,
+    #[serde(alias = "include_above_percentile")]
+    pub include_above_percentile: bool,
+    #[serde(alias = "include_long_sentences")]
+    pub include_long_sentences: bool,
 }
 
 impl Default for SentenceLengthOptions {
     fn default() -> Self {
         Self {
-            minimum_sentences: 200,
+            minimum_sentences: 50,
             long_sentence_words: 40,
+            longest_per_chapter: 3,
+            include_above_percentile: false,
+            include_long_sentences: false,
         }
     }
 }
@@ -43,6 +52,45 @@ impl SentenceLengthOptions {
         self.long_sentence_words = words;
         self
     }
+    pub fn with_long_sentences(mut self, enabled: bool) -> Self {
+        self.include_long_sentences = enabled;
+        self
+    }
+    pub fn with_above_percentile(mut self, enabled: bool) -> Self {
+        self.include_above_percentile = enabled;
+        self
+    }
+    pub fn with_longest_per_chapter(mut self, count: usize) -> Self {
+        self.longest_per_chapter = count;
+        self
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields, rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct SentenceLengthBands {
+    pub mean: Option<PercentileBand>,
+    pub percentiles: BTreeMap<u8, PercentileBand>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields, rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct SentenceLengthReference {
+    pub mean: Option<f64>,
+    pub percentiles: BTreeMap<u8, f64>,
+}
+
+impl SentenceLengthReference {
+    fn validate(&self) -> Result<(), StyleError> {
+        SentenceLengthBaseline {
+            mean: self.mean,
+            percentiles: self.percentiles.clone(),
+            ..Default::default()
+        }
+        .validate()
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -51,9 +99,19 @@ impl SentenceLengthOptions {
 pub struct SentenceLengthBaseline {
     pub mean: Option<f64>,
     pub percentiles: BTreeMap<u8, f64>,
+    pub bands: Split<SentenceLengthBands>,
+    pub narration: Option<SentenceLengthReference>,
+    pub dialogue: Option<SentenceLengthReference>,
 }
 
 impl SentenceLengthBaseline {
+    fn reference(&self) -> SentenceLengthReference {
+        SentenceLengthReference {
+            mean: self.mean,
+            percentiles: self.percentiles.clone(),
+        }
+    }
+
     pub fn new() -> Self {
         Self::default()
     }
@@ -104,6 +162,20 @@ impl SentenceLengthBaseline {
             }
             words("percentile", *value)?;
         }
+        for bands in [&self.bands.all, &self.bands.narration, &self.bands.dialogue] {
+            if let Some(band) = &bands.mean {
+                band.validate(REPORT, f64::MAX)?;
+            }
+            for (p, band) in &bands.percentiles {
+                if !PERCENTILES.contains(p) {
+                    return Err(StyleError::baseline(REPORT, "unknown band percentile"));
+                }
+                band.validate(REPORT, f64::MAX)?;
+            }
+        }
+        for baseline in [&self.narration, &self.dialogue].into_iter().flatten() {
+            baseline.validate()?;
+        }
         Ok(())
     }
 }
@@ -123,6 +195,7 @@ pub struct SentenceLengthPercentile {
     pub percentile: u8,
     pub value: Option<f64>,
     pub difference: Option<f64>,
+    pub highlighted: bool,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -134,6 +207,8 @@ pub struct SentenceLengthGroup {
     pub histogram: Vec<SentenceLengthBucket>,
     pub mean: Option<f64>,
     pub mean_difference: Option<f64>,
+    pub mean_highlighted: bool,
+    pub low_confidence: bool,
     pub percentiles: Vec<SentenceLengthPercentile>,
     pub long_sentences: Vec<usize>,
     pub monotony_runs: Vec<SentenceRun>,
@@ -168,7 +243,8 @@ impl Builder {
     fn finish(
         mut self,
         options: &SentenceLengthOptions,
-        baseline: Option<&SentenceLengthBaseline>,
+        baseline: Option<&SentenceLengthReference>,
+        bands: Option<&SentenceLengthBands>,
     ) -> SentenceLengthGroup {
         let sentences = self.lengths.len();
         self.lengths.sort_unstable();
@@ -184,6 +260,8 @@ impl Builder {
                 .collect(),
             mean,
             mean_difference: mean.zip(baseline.and_then(|b| b.mean)).map(|(a, b)| a - b),
+            mean_highlighted: PercentileBand::highlights(bands.and_then(|b| b.mean.as_ref()), mean),
+            low_confidence: sentences < 200.max(options.minimum_sentences),
             percentiles: PERCENTILES
                 .into_iter()
                 .map(|p| {
@@ -194,6 +272,10 @@ impl Builder {
                         difference: value
                             .zip(baseline.and_then(|b| b.percentiles.get(&p)))
                             .map(|(a, b)| a - b),
+                        highlighted: PercentileBand::highlights(
+                            bands.and_then(|b| b.percentiles.get(&p)),
+                            value,
+                        ),
                     }
                 })
                 .collect(),
@@ -257,36 +339,123 @@ pub fn report(
     }
     let mut groups: Split<Builder> = Split::default();
     let mut index = 0;
+    let mut sequence = Vec::new();
     for paragraph in &document.paragraphs {
-        let mut sequence = Vec::new();
+        if paragraph.scene_break_before {
+            monotony_runs(
+                &sequence,
+                Some(Mode::Narration),
+                &mut groups.all.monotony_runs,
+            );
+            sequence.clear();
+        }
         for sentence in &paragraph.sentences {
             let words = sentence.word_count();
             let mode = document.sentence_mode(sentence);
             for group in groups.all_and_mode_mut(mode) {
                 group.lengths.push(words);
                 *group.histogram.entry(words).or_default() += 1;
-                if words >= options.long_sentence_words {
-                    group.long_sentences.push(index);
-                }
             }
             sequence.push(Measured {
                 index,
-                mode,
+                mode: if document.sentence_has_speech(sentence) {
+                    Mode::Dialogue
+                } else {
+                    mode
+                },
                 span: sentence.span.clone(),
                 words,
             });
             index += 1;
         }
-        monotony_runs(&sequence, None, &mut groups.all.monotony_runs);
-        for mode in [Mode::Narration, Mode::Dialogue] {
-            monotony_runs(
-                &sequence,
-                Some(mode),
-                &mut groups.mode_mut(mode).monotony_runs,
-            );
+    }
+    monotony_runs(
+        &sequence,
+        Some(Mode::Narration),
+        &mut groups.all.monotony_runs,
+    );
+    groups.narration.monotony_runs = groups.all.monotony_runs.clone();
+    let mut chapters: BTreeMap<usize, Vec<(usize, usize, Mode)>> = BTreeMap::new();
+    let mut chapter = 0;
+    let mut index = 0;
+    for paragraph in &document.paragraphs {
+        if paragraph.chapter_start {
+            chapter += 1;
+        }
+        for sentence in &paragraph.sentences {
+            let quoted_words = sentence
+                .words()
+                .filter(|t| {
+                    document
+                        .dialogue
+                        .iter()
+                        .any(|q| q.byte.start <= t.span.byte.start && t.span.byte.end <= q.byte.end)
+                })
+                .count();
+            let quoted = quoted_words * 2 > sentence.word_count();
+            let lines: Vec<_> = paragraph
+                .text
+                .lines()
+                .filter(|line| !line.trim().is_empty())
+                .collect();
+            let indented_block = lines.len() > 1
+                && lines
+                    .iter()
+                    .all(|line| line.starts_with("    ") || line.starts_with('\t'));
+            let letters = paragraph.text.chars().filter(|c| c.is_alphabetic()).count();
+            let capitals = paragraph.text.chars().filter(|c| c.is_uppercase()).count();
+            let block = paragraph.text.trim_start().starts_with('>')
+                || indented_block
+                || (letters >= 10 && capitals * 5 >= letters * 4);
+            if quoted || block {
+                index += 1;
+                continue;
+            }
+            chapters.entry(chapter).or_default().push((
+                index,
+                sentence.word_count(),
+                document.sentence_mode(sentence),
+            ));
+            index += 1;
         }
     }
+    for sentences in chapters.values_mut() {
+        sentences.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
+        let mut lengths: Vec<_> = sentences.iter().map(|s| s.1).collect();
+        lengths.sort_unstable();
+        let p95 = percentile(&lengths, 95).unwrap_or(0.0);
+        for (rank, &(index, words, mode)) in sentences.iter().enumerate() {
+            if options.include_long_sentences
+                && words >= options.long_sentence_words
+                && (rank < options.longest_per_chapter
+                    || (options.include_above_percentile && words as f64 > p95))
+            {
+                for group in groups.all_and_mode_mut(mode) {
+                    group.long_sentences.push(index);
+                }
+            }
+        }
+    }
+    for group in [&mut groups.all, &mut groups.narration, &mut groups.dialogue] {
+        group.long_sentences.sort_unstable();
+    }
     Ok(SentenceLengthReport {
-        groups: groups.map(|group| group.finish(options, baseline)),
+        groups: Split {
+            all: groups.all.finish(
+                options,
+                baseline.map(|b| b.reference()).as_ref(),
+                baseline.map(|b| &b.bands.all),
+            ),
+            narration: groups.narration.finish(
+                options,
+                baseline.and_then(|b| b.narration.as_ref()),
+                baseline.map(|b| &b.bands.narration),
+            ),
+            dialogue: groups.dialogue.finish(
+                options,
+                baseline.and_then(|b| b.dialogue.as_ref()),
+                baseline.map(|b| &b.bands.dialogue),
+            ),
+        },
     })
 }
