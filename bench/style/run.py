@@ -10,7 +10,7 @@ from common import Analyzer, DocumentProbe, SentenceProbe, ROOT
 
 
 def private(argv):
-    return 'tier3' in argv[1:]
+    return any(arg == 'tier3' or arg.startswith(('--fl', '--ex')) for arg in argv[1:])
 
 
 def main():
@@ -41,6 +41,8 @@ def main():
     three = sub.add_parser('tier3')
     three.add_argument('--self-test', action='store_true')
     three.add_argument('--sentence-length', action='store_true')
+    three.add_argument('--flag-rates', action='store_true')
+    three.add_argument('--probe', type=Path)
     three.add_argument('--document-probe', type=Path)
     three.add_argument('--export', type=Path)
     three.add_argument('--baseline', type=Path, default=ROOT / 'bench/style/published-baseline.json')
@@ -74,6 +76,10 @@ def main():
     if args.tier == 'cliches':
         import cliches
         cliches.run(args)
+        return
+    if args.tier == 'tier3' and args.flag_rates:
+        import flag_rates
+        flag_rates.run(args)
         return
     if args.tier == 'tier3' and args.sentence_length:
         import tier3

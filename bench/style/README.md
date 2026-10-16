@@ -10,6 +10,7 @@ python3 bench/style/run.py tier1 --split dev
 python3 bench/style/run.py tier1 --gate
 python3 bench/style/run.py tier2 smoke
 python3 bench/style/run.py tier3 --self-test
+python3 bench/style/run.py tier3 --flag-rates --self-test
 python3 -m unittest discover -s bench/style -p 'test_*.py'
 ```
 
@@ -600,3 +601,95 @@ fiction-baseline `b464cac1193a3555957fa2784a1ddfd553de505b`, EXTRACTOR_VERSION 1
 71 author units, 663,457 sentences. `style/data/baselines/sentence-length.json` now records the
 12.900118525896554-word mean and separate sentence/author-mean percentiles. The earlier hard-wrapped
 calibration is invalid. No worker read private exports, titles, authors or unit IDs.
+
+## Flag-rate calibration (#241)
+
+```sh
+python3 bench/style/run.py tier3 --flag-rates --self-test
+python3 bench/style/run.py tier3 --flag-rates --export /path/to/fiction-baseline/out   # owner only
+```
+
+This measures how often every style report flags published fiction. It reads the tier 3 export layout
+(`units.jsonl` plus `units/<unit_id>.txt`, one paragraph per line, blank lines at scene breaks), and
+uses only `author_key` and `unit_id`. Each unit is one document built with default `DocumentOptions`
+(line mode, token details, no skipped names). The probe `bench/tools/wmb-document` binary `flag_rates`
+(built automatically; `--probe PATH` selects a prebuilt one) runs all six reports on that document
+with their default options: sentence length and sentence starts with the shipped
+`style/data/baselines/sentence-length.json` and `sentence-starts.json`, echoes, repeated phrases,
+the bundled cliché/redundancy list, and dialogue tags (no dialogue-tag baseline ships). The probe
+returns counts only; the harness pools them within each `author_key` and then weights authors
+equally, so a prolific author counts once.
+
+Output is one JSON object of numbers. Its keys come from a fixed allowlist: structure names, report
+categories, digits, and the report's **public list vocabulary** (bundled cliché entries and sources,
+listed dialogue speech/non-speech verb lemmas), which the probe prints with `--vocabulary`. Any other
+key fails the run, so echo keys, repeated-phrase keys, unlisted verbs, matched text, titles, author
+names, unit ids and paths cannot reach stdout. Probe stderr is discarded. Whenever `tier3`, or an
+argument starting with `--fl` or `--ex`, appears anywhere in argv, every argparse or runtime error,
+including interrupts, prints only `calibration failed; details suppressed to protect source metadata`.
+
+### Definitions
+
+- **Rate distribution** (`per_1000_words`): for each author, pooled flags × 1000 / pooled words;
+  then the mean and linearly interpolated 5/25/50/75/95th percentiles across authors, plus
+  `authors`, the number of authors with a nonzero denominator. Authors without words in that
+  denominator (for example, no dialogue) are excluded from that distribution only.
+- **`authors_with_flag_share`**: authors with at least one flag in the category, divided by authors
+  with a nonzero denominator.
+- **Narration and dialogue.** Only sentence length, sentence starts and clichés distinguish them.
+  Sentence reports assign a whole sentence by its first word, and their denominator is the words in
+  that group's sentences (`is_word && !is_skipped`). Clichés assign each match and word by its own
+  position (the report's `narration`/`dialogue` word counts). `all` is both together.
+- **Top categories / top patterns**: `{name: rank}` for the 10 highest mean per-1,000-word rates,
+  rank 1 highest, rate above zero. Names are categories or list vocabulary, never matched text.
+- **`defaults`** echoes the report option defaults in force; **`run`** gives wall-clock `seconds`
+  for the whole calibration (probe start, tokenizer load, every unit, aggregation),
+  `stage_seconds` summed per report inside the probe, and peak RSS in bytes of the probe process
+  (`os.wait4`) and of the Python harness.
+
+What counts as one flag:
+
+| Report | Flags | Categories / patterns |
+|---|---|---|
+| Sentence length | each long sentence (≥ `longSentenceWords`, default 40) and each monotony run | `long_sentence`, `monotony_run`, `total` per group |
+| Sentence starts | each same-word start run (≥ 3 sentences) | `same_word_run` per group |
+| Echoes | each echo (default window 50) | `distance` band in words (`1_5`, `6_10`, `11_25`, `26_50`); `form`: `same_form` if the two words have the same case-folded spelling, else `different_form` |
+| Repeated phrases | each distinct repeated phrase; `occurrence` counts every occurrence separately | `length` in words (2–5) |
+| Clichés | each match | `kind` (cliché/redundancy) × group, `source` list, `patterns` per bundled entry with at least one flag (`patterns_with_flags` counts them) |
+| Dialogue tags | each tag with a listed speech verb other than *say*/*ask* (`other_speech_verb`), each non-speech tag, each tag adverb, each untagged run (> 6 exchanges) | those four categories; `patterns` per listed verb lemma except *say*/*ask*. One tag can carry two flags (verb and adverb). Unflagged context rates (`tags`, `said_asked`, `unlisted_verb`, `beats`) are under `context_per_1000_words` |
+
+### Baseline comparisons and "would highlight"
+
+Sentence length and sentence starts compare with their shipped baselines. For each group:
+
+- **Sentence length**, per statistic (`mean`, `5`…`95`): the author's pooled sentence-length
+  histogram gives the mean and percentiles with the report's own interpolation at `(n−1)·p/100`;
+  `difference` = author value − baseline value, in words.
+- **Sentence starts**, per universal-12 tag in the baseline (the `.` tag has none): the author's
+  pooled fractional count ÷ (sentences − unknown starts) × 100, minus the baseline, in percentage
+  points. Fine categories have no shipped baseline, so `categories` gives the distribution of each
+  fine category's pooled share instead; if a `categoryPercent` baseline is ever shipped, `fine`
+  comparisons appear automatically.
+
+Neither report applies a magnitude threshold. Under its defaults, a report **highlights** a
+comparison whenever it returns a non-null difference: the group has at least `minimumSentences`
+(200) sentences and the baseline has that statistic. The harness applies that rule to each author's
+pooled sample, so `highlighted_share` = eligible authors ÷ all authors, and `eligible_authors` counts
+them. For book-length units this is close to 1 for `all` and `narration`, so it mostly measures
+sample size. To help choose a future threshold, `share_abs_difference_at_least` gives, over all
+authors, the share whose |difference| is at least 0.5/1/2/3/5 words (length) or 1/2/5/10
+percentage points (starts). The self-test checks the harness's pooled values against the report's
+own `meanDifference`, percentile differences and universal percentages on a single-unit author.
+
+### Cost and self-test
+
+Two synthetic 501,054-byte units (180,780 words) took 8.3 s and 170 MB peak probe RSS on an Apple
+M5 Pro, 91% of it in document construction, so a 210-unit export should take on the order of
+15 minutes. `--self-test` generates seeded synthetic text in a temporary directory (four units,
+three authors, dialogue, clichés, long sentences, monotony and start runs, a made-up sentinel word
+repeated in the text) with sentinel strings in every metadata field. It asserts the author pooling,
+the cross-check above, several expected shares, numeric-only output and that no sentinel string
+or temporary path appears in the output. `test_flag_rates.py` covers equal author weighting,
+histogram percentiles, rejection of an unlisted key from the probe, and suppression of argparse and
+runtime errors in eight argument orders. CI runs only the self-test; no private corpus or export
+was read to build this.
