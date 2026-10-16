@@ -111,7 +111,7 @@ resets a run, using the same speaker-turn proxy as the transition window: `“Sh
 did,” he said.⏎⏎“She will,” I said.` is three speakers' lines, not a run. A run inside one speaker's
 paragraph still counts.
 
-**Relationship to `sentence_starts.sameWordRuns` (pending owner confirmation).** The default
+**Relationship to `sentence_starts.sameWordRuns` (owner-confirmed 2026-10-16).** The default
 same-word signal already flags narration runs of one opener, omitting speech, repeated first-two-word
 openings (`She was… She was…`) and all-question/exclamation runs. On public text three of four
 narration pronoun runs were exactly those flags, so this lens leaves out any narration run that lies
