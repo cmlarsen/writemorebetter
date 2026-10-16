@@ -391,12 +391,11 @@ impl Rule {
                             let split = captures.get(self.split_group).map(|span| span.start());
                             (candidate, split)
                         }
-                        Ok(None) => {
+                        Ok(None) | Err(_) => {
                             start = candidate
                                 + text[candidate..].chars().next().map_or(1, char::len_utf8);
                             continue;
                         }
-                        Err(_) => break,
                     }
                 }
                 (Matcher::Automata(_), None) => break,
@@ -716,20 +715,23 @@ mod tests {
     }
 
     #[test]
-    fn look_around_rule_errors_stop_the_scan() {
-        let regex_str = rule_pattern(r"\s(?!(on|it))\p{L}{1,2}\.\s", r"\p{Ll}");
+    fn look_around_rule_errors_skip_only_their_position() {
+        let regex_str = rule_pattern(r"(?:a+a+a+b|x)(?!z)", r"\s");
         let regex = fancy_regex::RegexBuilder::new(&regex_str)
-            .backtrack_limit(1)
+            .backtrack_limit(100)
             .build()
             .expect("test rule is valid");
-        let mut rule = Rule::from_pattern(regex_str, false).expect("test rule is valid");
+        let mut rule = Rule::from_pattern(regex_str, true).expect("test rule is valid");
         rule.regex = Matcher::Fancy {
-            regex: Arc::new(regex),
+            regex: Arc::new(regex.clone()),
             candidates: None,
         };
-        let text = "\u{201c}Wait\u{2026}\u{201d} she said\u{2014}2 hr. or so. ".repeat(200);
+        let text = "\u{201c}aaaaaaaaaaaaaaaaaaaaaaaac\u{201d} x \u{2014} xz x\u{2026} x ";
+        let expected: Vec<usize> = text.match_indices("x ").map(|(i, _)| i + 1).collect();
 
-        assert_eq!(rule.match_indices(&text), Vec::<usize>::new());
+        assert!(regex.captures_from_pos(text, 0).is_err());
+        assert_eq!(expected.len(), 2);
+        assert_eq!(rule.match_indices(text), expected);
     }
 
     #[test]
