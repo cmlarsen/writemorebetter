@@ -51,7 +51,7 @@ swift/, wasm/       one binding each, exposing check() + analyze() + the reports
 
 | Report | Issue | Needs | Baseline |
 |---|---|---|---|
-| Sentence length (distribution, monotony runs) | #244 | sentences | published-fiction corpus (needs running text); HTRC for the mean |
+| Sentence length (distribution, monotony runs) | #244 | sentences | author-weighted published fiction with this report’s exact word/paragraph convention |
 | Sentence starts (subject, adverb, gerund, …) | #244 | POS of first tokens | Google Books Ngram fiction `_START_` bigrams |
 | [Echoes](STYLE-ECHOES.md) (same lemma nearby) | #245 | lemmas | none |
 | [Repeated phrases](STYLE-ECHOES.md#repeated-phrases) | #245 | lemma n-grams | none |
@@ -61,6 +61,12 @@ swift/, wasm/       one binding each, exposing check() + analyze() + the reports
 | Dialogue tags | #249 | dialogue spans | published-fiction corpus (owner-run tier 3 command; see [STYLE-DIALOGUE-TAGS.md](STYLE-DIALOGUE-TAGS.md)) |
 | Diction (concreteness), sensory balance | #250 | word-norm tables | none, and the data license comes first |
 | Pacing | #251 | dialogue spans, sentence stats | published-fiction corpus, for threshold calibration |
+
+Sentence length and sentence starts are public modules under `style::reports`, with no flattened
+crate-root exports. [Sentence report definitions](STYLE-SENTENCES.md) specify word counting, Penn
+patterns and priority, ambiguity allocation, dialogue grouping, baseline comparisons, bindings and
+public regression measurements. The fine start categories use a documented deterministic priority;
+the Ngram universal-12 comparison allocates ambiguous starts fractionally.
 
 ## Baselines
 

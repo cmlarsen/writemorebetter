@@ -93,6 +93,8 @@ jobs:
           python3 bench/style/run.py tier2 smoke
           python3 bench/style/echoes.py --gate --probe bench/tools/wmb-document/target/release/wmb-echoes
           python3 bench/style/run.py cliches --gate --probe bench/tools/wmb-cliches/target/release/wmb-cliches
+          python3 bench/style/run.py tier2 sentences --gate --document-probe bench/tools/wmb-document/target/release/wmb-document
+          python3 bench/style/run.py tier3 --sentence-length --self-test --document-probe bench/tools/wmb-document/target/release/wmb-document
           python3 bench/style/run.py tier3 --self-test --analyzer bench/tools/wmb-analyze/target/release/wmb-analyze
           python3 bench/style/run.py dialogue-tags tier2 --probe bench/tools/wmb-document/target/release/dialogue_tags
           python3 bench/style/run.py dialogue-tags tier3 --self-test --probe bench/tools/wmb-document/target/release/dialogue_tags

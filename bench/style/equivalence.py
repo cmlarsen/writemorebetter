@@ -60,8 +60,10 @@ def skip_quotes(tokens):
     return tokens
 
 
-def start_candidates(tokens):
+def start_candidates(tokens, skip_punctuation=False):
     tokens = skip_quotes(tokens)
+    if skip_punctuation and tokens and tokens[0].get('is_punctuation', False):
+        tokens = tokens[1:]
     if not tokens:
         return set()
     first = tokens[0]

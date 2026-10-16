@@ -607,6 +607,10 @@ public protocol CheckerProtocol: AnyObject, Sendable {
      */
     func removeWords(words: [String])  -> UInt32
     
+    func sentenceLength(text: String, optionsJson: String?, baselineJson: String?, documentOptions: DocumentOptions?) throws  -> String
+    
+    func sentenceStarts(text: String, optionsJson: String?, baselineJson: String?, documentOptions: DocumentOptions?) throws  -> String
+    
     /**
      * Selects the writer's mother tongue (e.g. `"de"`) so the false-friend rules for speakers of
      * that language run; pass `nil` (or an empty string) to turn them off again (the default).
@@ -618,6 +622,8 @@ public protocol CheckerProtocol: AnyObject, Sendable {
      * Replaces the whole user dictionary and returns the number of entries now set.
      */
     func setWords(words: [String])  -> UInt32
+    
+    func styleReports(text: String, requestJson: String?, documentOptions: DocumentOptions?) throws  -> String
     
     /**
      * Lists the user dictionary, canonicalized and sorted.
@@ -806,6 +812,32 @@ open func removeWords(words: [String]) -> UInt32  {
 })
 }
     
+open func sentenceLength(text: String, optionsJson: String?, baselineJson: String?, documentOptions: DocumentOptions?)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_method_checker_sentence_length(
+            self.uniffiCloneHandle(),
+        FfiConverterString.lower(text),
+        FfiConverterOptionString.lower(optionsJson),
+        FfiConverterOptionString.lower(baselineJson),
+        FfiConverterOptionTypeDocumentOptions.lower(documentOptions),uniffiCallStatus
+    )
+})
+}
+    
+open func sentenceStarts(text: String, optionsJson: String?, baselineJson: String?, documentOptions: DocumentOptions?)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_method_checker_sentence_starts(
+            self.uniffiCloneHandle(),
+        FfiConverterString.lower(text),
+        FfiConverterOptionString.lower(optionsJson),
+        FfiConverterOptionString.lower(baselineJson),
+        FfiConverterOptionTypeDocumentOptions.lower(documentOptions),uniffiCallStatus
+    )
+})
+}
+    
     /**
      * Selects the writer's mother tongue (e.g. `"de"`) so the false-friend rules for speakers of
      * that language run; pass `nil` (or an empty string) to turn them off again (the default).
@@ -829,6 +861,18 @@ open func setWords(words: [String]) -> UInt32  {
     uniffi_writemorebetter_swift_fn_method_checker_set_words(
             self.uniffiCloneHandle(),
         FfiConverterSequenceString.lower(words),uniffiCallStatus
+    )
+})
+}
+    
+open func styleReports(text: String, requestJson: String?, documentOptions: DocumentOptions?)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_method_checker_style_reports(
+            self.uniffiCloneHandle(),
+        FfiConverterString.lower(text),
+        FfiConverterOptionString.lower(requestJson),
+        FfiConverterOptionTypeDocumentOptions.lower(documentOptions),uniffiCallStatus
     )
 })
 }
@@ -1672,6 +1716,8 @@ enum CheckError: Swift.Error, Equatable, Hashable, Foundation.LocalizedError {
      */
     case UnknownSpellVariant(message: String
     )
+    case ReportInput(message: String
+    )
 
     
 
@@ -1719,6 +1765,9 @@ public struct FfiConverterTypeCheckError: FfiConverterRustBuffer {
         case 6: return .UnknownSpellVariant(
             message: try FfiConverterString.read(from: &buf)
             )
+        case 7: return .ReportInput(
+            message: try FfiConverterString.read(from: &buf)
+            )
 
          default: throw UniffiInternalError.unexpectedEnumCase
         }
@@ -1758,6 +1807,11 @@ public struct FfiConverterTypeCheckError: FfiConverterRustBuffer {
         
         case let .UnknownSpellVariant(message):
             writeInt(&buf, Int32(6))
+            FfiConverterString.write(message, into: &buf)
+            
+        
+        case let .ReportInput(message):
+            writeInt(&buf, Int32(7))
             FfiConverterString.write(message, into: &buf)
             
         }
@@ -2139,10 +2193,19 @@ private let initializationResult: InitializationResult = {
     if (uniffi_writemorebetter_swift_checksum_method_checker_remove_words() != 27495) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_writemorebetter_swift_checksum_method_checker_sentence_length() != 40646) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_writemorebetter_swift_checksum_method_checker_sentence_starts() != 23125) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_writemorebetter_swift_checksum_method_checker_set_mother_tongue() != 22149) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_method_checker_set_words() != 45047) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_writemorebetter_swift_checksum_method_checker_style_reports() != 36205) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_method_checker_words() != 61704) {

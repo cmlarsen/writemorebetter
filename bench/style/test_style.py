@@ -21,6 +21,60 @@ from collections import Counter
 
 
 class BenchTests(unittest.TestCase):
+    def test_public_distribution_uses_source_wrapping_and_preserves_crlf(self):
+        from sentences import public_distribution
+        class Probe:
+            def __init__(self, paragraphs):
+                self.paragraphs, self.calls = paragraphs, []
+            def analyze(self, text):
+                self.calls.append(text)
+                return {'paragraphs': self.paragraphs,
+                        'starts': {'all': {'sentenceCount': 1, 'categories': {'other': {'count': 1}},
+                                           'starts': [{'category': 'other', 'word': 'call',
+                                                       'span': {'byte': {'start': 0, 'end': 16}}}]}}}
+        text = b'CHAPTER 1. Loomings.\r\nCONTENTS\r\n\r\nCHAPTER 1. Loomings.\r\nCall me Ishmael.\r\n'
+        line, wrapped = Probe(4), Probe(1)
+        with patch.object(Path, 'read_bytes', return_value=text):
+            result = public_distribution(line, wrapped)
+            self.assertEqual((len(line.calls), len(wrapped.calls)), (5, 1))
+            self.assertIn('\r\n', wrapped.calls[0])
+            self.assertTrue(result['mobyDick']['inputs'][0]['hardWrapped'])
+            self.assertEqual(result['mobyDick']['inputs'][0]['cut']['occurrence'], 2)
+            self.assertEqual(wrapped.calls[0], 'CHAPTER 1. Loomings.\r\nCall me Ishmael.\r\n')
+            self.assertFalse(result['stories']['inputs'][0]['hardWrapped'])
+            with self.assertRaisesRegex(ValueError, 'paragraph mode'):
+                public_distribution(wrapped, line)
+
+    def test_sentence_distribution_gate_rejects_large_other_share(self):
+        from sentences import check_public_distribution
+        distributions = {'stories': {'categories': {'other': {'percent': 2.8}}},
+                         'mobyDick': {'categories': {'other': {'percent': 14.81}}}}
+        ceilings = {'stories': 5.0, 'mobyDick': 16.0}
+        check_public_distribution(distributions, ceilings)
+        distributions['mobyDick']['categories']['other']['percent'] = 17.0
+        with self.assertRaisesRegex(ValueError, 'mobyDick/other'):
+            check_public_distribution(distributions, ceilings)
+
+    def test_ngram_start_convention_skips_one_punctuation_token(self):
+        punctuation = {'text': '…', 'is_whitespace': False, 'is_punctuation': True, 'readings': [{'pos':'PCT'}]}
+        word = {'text': 'She', 'is_whitespace': False, 'is_punctuation': False, 'readings': [{'pos':'PRP'}]}
+        self.assertEqual(start_candidates([punctuation,word],skip_punctuation=True), {'PRON'})
+        self.assertEqual(start_candidates([punctuation,word]), {'.'})
+        self.assertEqual(start_candidates([punctuation,punctuation,word],skip_punctuation=True), {'.'})
+
+    def test_tier3_argparse_suppresses_values_before_and_after_subcommand(self):
+        sentinel = 'PRIVATE_ARG_SENTINEL_244'
+        for argv in (['run.py', '--export', sentinel, 'tier3', '--sentence-length'],
+                     ['run.py', 'tier3', '--bad-' + sentinel],
+                     ['run.py', '--bad-' + sentinel, 'tier3']):
+            output, errors = io.StringIO(), io.StringIO()
+            with patch.object(sys, 'argv', argv), contextlib.redirect_stdout(output), contextlib.redirect_stderr(errors):
+                with self.assertRaises(SystemExit) as result:
+                    runpy.run_path(str(common.HERE / 'run.py'), run_name='__main__')
+            combined = output.getvalue() + errors.getvalue() + str(result.exception)
+            self.assertNotIn(sentinel, combined)
+            self.assertIn('details suppressed', str(result.exception))
+
     def test_litbank_document_probe_scores_both_offsets_on_annotated_prefix(self):
         original = '😀 “She’s—here…\u2028yes.”\n\nUnused “later.”'
         prefix = original[:original.index('\n\n')]

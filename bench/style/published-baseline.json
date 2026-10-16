@@ -3,24 +3,48 @@
   "google_ngram": {
     "source": "Google Books Ngram English Fiction",
     "version": "2020 (v3)",
-    "edition_years": [1990, 2019],
+    "edition_years": [
+      1990,
+      2019
+    ],
     "weighting": "volume-weighted; no author dimension",
-    "tokens_include_punctuation": true,
+    "tokens_include_punctuation": false,
     "mean_tokens_per_sentence": 12.66,
-    "first_word_convention": "skip a leading quotation mark; resolved first words only; universal 12 tags",
-    "first_word_percent": {"PRON": 35.3, "NOUN": 17.3, "DET": 12.1, "ADV": 9.1, "VERB": 7.5, "ADP": 6.9, "CONJ": 5.3},
-    "url": "https://books.google.com/ngrams/info"
+    "first_word_convention": "skip one leading punctuation token; resolved first words only; universal 12 tags",
+    "first_word_percent": {
+      "PRON": 35.31,
+      "NOUN": 17.27,
+      "DET": 12.1,
+      "ADV": 9.13,
+      "VERB": 7.47,
+      "ADP": 6.93,
+      "CONJ": 5.26,
+      "X": 3.13,
+      "ADJ": 1.85,
+      "NUM": 1.18,
+      "PRT": 0.36
+    },
+    "url": "https://books.google.com/ngrams/info",
+    "source_record": "Owner supplied from cmlarsen/fiction-baseline docs/datasets/google-ngram-eng-fiction.md; 2026-10-15",
+    "build_commit": "a54a2e2fe22c46fdb862fd9c928a788ccfe12de2",
+    "mean_word_convention": "Owner clarified 2026-10-15: 12.66 words excluding punctuation"
   },
   "htrc": {
     "source": "HTRC Extracted Features 2.0 joined with NovelTM",
     "version": "EF 2.0; NovelTM 2020",
-    "years": [1990, 2009],
+    "years": [
+      1990,
+      2009
+    ],
     "tokens_include_punctuation": true,
     "volume_median_tokens_per_sentence": 12.67,
     "author_median_tokens_per_sentence": 12.59,
     "author_mean_tokens_per_sentence": 13.12,
     "caveat": "Sentence counts per page double-count sentences crossing page breaks.",
-    "urls": ["https://analytics.hathitrust.org/algorithms", "https://github.com/tedunderwood/noveltmmeta"]
+    "urls": [
+      "https://analytics.hathitrust.org/algorithms",
+      "https://github.com/tedunderwood/noveltmmeta"
+    ]
   },
   "provenance": "Published aggregate values supplied for issue #256; this harness does not rebuild them or access the private baseline repository."
 }

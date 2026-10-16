@@ -1,0 +1,42 @@
+{
+  "native": {
+    "bytes": 149091,
+    "iterations": 5,
+    "warmups": 1,
+    "reports_ms": [
+      4.187417,
+      4.512792,
+      3.6033749999999998,
+      3.7414169999999998,
+      3.699458
+    ],
+    "report_median_ms": 3.7414169999999998,
+    "document_plus_reports_and_json_ms": [
+      1217.1788339999998,
+      1342.7625409999998,
+      1197.8690840000006,
+      1254.1690409999999,
+      1076.7207499999997
+    ],
+    "document_plus_reports_and_json_median_ms": 1217.1788339999998,
+    "platform": "Apple M5 Pro, arm64 macOS; Rust 1.97.1; release; NLPRULE_PARALLELISM=off",
+    "paragraphMode": "hard-wrapped public import; original CRLF preserved",
+    "note": "One warmup and five calls; end-to-end includes document construction, report serialization, IPC and Python JSON decoding; shared machine."
+  },
+  "wasmCombined": {
+    "inputBytes": 596376,
+    "iterations": 3,
+    "warmups": 1,
+    "timesMs": [
+      6475.349042000001,
+      5679.624375000001,
+      4769.790417
+    ],
+    "medianMs": 5679.624375000001,
+    "jsonBytes": 2820893,
+    "peakRssBytes": 304824320,
+    "platform": "Apple M5 Pro, arm64 macOS; Node WASM release",
+    "paragraphMode": "hard-wrapped public import; original CRLF preserved",
+    "note": "Single combined call; JSON validation outside timed interval; shared machine."
+  }
+}

@@ -94,3 +94,19 @@ def write_jsonl(path, rows):
     with Path(path).open('w', encoding='utf-8') as stream:
         for row in rows:
             stream.write(json.dumps(row, ensure_ascii=False) + '\n')
+
+
+class SentenceProbe(Analyzer):
+    def __init__(self, tokenizer, executable=None, quiet=False, hard_wrapped=False):
+        tool = ROOT / 'bench/tools/wmb-document'
+        if executable is None:
+            subprocess.run(['cargo', 'build', '--release', '--manifest-path',
+                            str(tool / 'Cargo.toml')], check=True, stdout=subprocess.DEVNULL,
+                           stderr=subprocess.DEVNULL if quiet else None)
+            executable = tool / 'target/release/wmb-document'
+        self.executable = executable
+        self.process = subprocess.Popen([str(executable), '--reports', str(tokenizer)] + (['--hard-wrapped'] if hard_wrapped else []),
+                                        stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                        text=True, encoding='utf-8',
+                                        stderr=subprocess.DEVNULL if quiet else None,
+                                        env={**os.environ, 'NLPRULE_PARALLELISM': 'off'})

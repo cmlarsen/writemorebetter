@@ -165,3 +165,14 @@ omits token `readings`/`chunks` keys and Swift returns empty arrays, while count
 unchanged. WASM accepts camelCase/snake_case option names and rejects unknown keys. See
 [the document conventions](../docs/STYLE-DOCUMENT.md) and
 [novel-length time/memory measurements](../docs/STYLE-DOCUMENT-BENCHMARKS.md).
+
+
+Sentence length and sentence starts are exposed as `sentenceLength` and `sentenceStarts`, returning
+JSON with camelCase report fields and `{start,end}` spans in UTF-16 code units. Both accept optional
+JSON report options and a caller baseline; see [sentence report definitions](../docs/STYLE-SENTENCES.md)
+for signatures, sample suppression, compact options and the baseline schema. Each call builds one
+shared document for its report and performs no grammar/spelling checks.
+
+Prefer `styleReports` when requesting both sentence reports: one document pass serves the selected
+`sentenceLength`/`sentenceStarts` request members. Individual methods each rebuild the document.
+See the definitions doc for the request/baseline schema and the adjudicated `other` fragment category.

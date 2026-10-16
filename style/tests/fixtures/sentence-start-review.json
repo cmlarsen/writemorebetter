@@ -1,0 +1,378 @@
+[
+  {
+    "text": "Let me go.",
+    "category": "other"
+  },
+  {
+    "text": "Let’s go.",
+    "category": "other"
+  },
+  {
+    "text": "“Let me go,” she said.",
+    "category": "other"
+  },
+  {
+    "text": "Put it down.",
+    "category": "other"
+  },
+  {
+    "text": "Shut the door.",
+    "category": "other"
+  },
+  {
+    "text": "Set it down.",
+    "category": "other"
+  },
+  {
+    "text": "Cut the rope.",
+    "category": "other"
+  },
+  {
+    "text": "Hit him.",
+    "category": "other"
+  },
+  {
+    "text": "Quit it.",
+    "category": "other"
+  },
+  {
+    "text": "Read the letter.",
+    "category": "other"
+  },
+  {
+    "text": "Hurt him and you die.",
+    "category": "other"
+  },
+  {
+    "text": "Do it now.",
+    "category": "other"
+  },
+  {
+    "text": "Have a seat.",
+    "category": "other"
+  },
+  {
+    "text": "Looks good.",
+    "category": "other"
+  },
+  {
+    "text": "Sounds like a plan.",
+    "category": "other"
+  },
+  {
+    "text": "Seems fine to me.",
+    "category": "other"
+  },
+  {
+    "text": "Got it.",
+    "category": "other"
+  },
+  {
+    "text": "Told you so.",
+    "category": "other"
+  },
+  {
+    "text": "Thought so.",
+    "category": "other"
+  },
+  {
+    "text": "Walked the dog, ate dinner, went to bed.",
+    "category": "other"
+  },
+  {
+    "text": "Come here.",
+    "category": "other"
+  },
+  {
+    "text": "Come on, let’s go.",
+    "category": "other"
+  },
+  {
+    "text": "“Come here—now.”",
+    "category": "other"
+  },
+  {
+    "text": "Run away.",
+    "category": "other"
+  },
+  {
+    "text": "Run!",
+    "category": "other"
+  },
+  {
+    "text": "Spread out.",
+    "category": "other"
+  },
+  {
+    "text": "Hurry up.",
+    "category": "other"
+  },
+  {
+    "text": "For a moment, nothing.",
+    "category": "introductory"
+  },
+  {
+    "text": "For years he waited.",
+    "category": "introductory"
+  },
+  {
+    "text": "For the same reason, we left.",
+    "category": "introductory"
+  },
+  {
+    "text": "After dinner, we left.",
+    "category": "introductory"
+  },
+  {
+    "text": "After all, she thought, it was fine.",
+    "category": "introductory"
+  },
+  {
+    "text": "As a professional man, I aim at discretion.",
+    "category": "introductory"
+  },
+  {
+    "text": "As for me, I waited.",
+    "category": "introductory"
+  },
+  {
+    "text": "Once upon a time, he lived here.",
+    "category": "introductory"
+  },
+  {
+    "text": "Before everything.",
+    "category": "introductory"
+  },
+  {
+    "text": "Now that she has gone, we can rest.",
+    "category": "subordinatingConjunction"
+  },
+  {
+    "text": "After he left, she slept.",
+    "category": "subordinatingConjunction"
+  },
+  {
+    "text": "Because the door was open, he went in.",
+    "category": "subordinatingConjunction"
+  },
+  {
+    "text": "For he was tired.",
+    "category": "coordinatingConjunction"
+  },
+  {
+    "text": "For it was late.",
+    "category": "coordinatingConjunction"
+  },
+  {
+    "text": "For there was no hope.",
+    "category": "coordinatingConjunction"
+  },
+  {
+    "text": "Did she leave?",
+    "category": "inversion"
+  },
+  {
+    "text": "Was the door open?",
+    "category": "inversion"
+  },
+  {
+    "text": "Could they wait?",
+    "category": "inversion"
+  },
+  {
+    "text": "Didn’t the milkman tell you that?",
+    "category": "inversion"
+  },
+  {
+    "text": "Born in Paris, she left early.",
+    "category": "pastParticiple"
+  },
+  {
+    "text": "Seated by the door, she waited.",
+    "category": "pastParticiple"
+  },
+  {
+    "text": "Exhausted, he slept.",
+    "category": "pastParticiple"
+  },
+  {
+    "text": "Nothing happened.",
+    "category": "subject"
+  },
+  {
+    "text": "People on the mainland liked to say so.",
+    "category": "subject"
+  },
+  {
+    "text": "Evening fell.",
+    "category": "subject"
+  },
+  {
+    "text": "God knows.",
+    "category": "subject"
+  },
+  {
+    "text": "There you go again.",
+    "category": "adverb"
+  },
+  {
+    "text": "Never have I seen that.",
+    "category": "adverb"
+  },
+  {
+    "text": "Nonsense.",
+    "category": "other"
+  },
+  {
+    "text": "“Nonsense,” she said.",
+    "category": "other"
+  },
+  {
+    "text": "A sad business.",
+    "category": "other"
+  },
+  {
+    "text": "One who waited and hoped.",
+    "category": "other"
+  },
+  {
+    "text": "An unnecessary question, since who else could it be?",
+    "category": "other"
+  },
+  {
+    "text": "Her eyes widened.",
+    "category": "subject"
+  },
+  {
+    "text": "The old man's dog barked twice.",
+    "category": "subject"
+  },
+  {
+    "text": "I found him on the landing.",
+    "category": "subject"
+  },
+  {
+    "text": "They put him down among the sailors.",
+    "category": "subject"
+  },
+  {
+    "text": "The man who left was tall.",
+    "category": "subject"
+  },
+  {
+    "text": "The house that Jack built stood empty.",
+    "category": "subject"
+  },
+  {
+    "text": "Everyone who came stayed late.",
+    "category": "subject"
+  },
+  {
+    "text": "The girl whose mother died moved away.",
+    "category": "subject"
+  },
+  {
+    "text": "My brother and I played chess.",
+    "category": "subject"
+  },
+  {
+    "text": "The dogs bark at night.",
+    "category": "subject"
+  },
+  {
+    "text": "Her heart pounded.",
+    "category": "subject"
+  },
+  {
+    "text": "Mara, who hated rain, stayed home.",
+    "category": "subject"
+  },
+  {
+    "text": "The man—tall, thin—walked in.",
+    "category": "subject"
+  },
+  {
+    "text": "“The ‘ghost’ was a cat,” she said.",
+    "category": "subject"
+  },
+  {
+    "text": "The word “ghost” scared her.",
+    "category": "subject"
+  },
+  {
+    "text": "“We—we left.”",
+    "category": "subject"
+  },
+  {
+    "text": "As the door opened, she turned.",
+    "category": "subordinatingConjunction"
+  },
+  {
+    "text": "When she left, we waited.",
+    "category": "subordinatingConjunction"
+  },
+  {
+    "text": "After the war ended, they married.",
+    "category": "subordinatingConjunction"
+  },
+  {
+    "text": "Before the sun rose, we left.",
+    "category": "subordinatingConjunction"
+  },
+  {
+    "text": "Before the police arrived, he ran.",
+    "category": "subordinatingConjunction"
+  },
+  {
+    "text": "Since my mother died, nothing is the same.",
+    "category": "subordinatingConjunction"
+  },
+  {
+    "text": "Until the war ended, they waited.",
+    "category": "subordinatingConjunction"
+  },
+  {
+    "text": "After the funeral was over, we drove home.",
+    "category": "subordinatingConjunction"
+  },
+  {
+    "text": "Look at me.",
+    "category": "other"
+  },
+  {
+    "text": "Listen to me.",
+    "category": "other"
+  },
+  {
+    "text": "Listen to this.",
+    "category": "other"
+  },
+  {
+    "text": "Wait for me.",
+    "category": "other"
+  },
+  {
+    "text": "Think about it.",
+    "category": "other"
+  },
+  {
+    "text": "Turn around.",
+    "category": "other"
+  },
+  {
+    "text": "After dinner we left.",
+    "category": "introductory"
+  },
+  {
+    "text": "After the funeral we drove home.",
+    "category": "introductory"
+  },
+  {
+    "text": "Before dawn the ship sailed.",
+    "category": "introductory"
+  },
+  {
+    "text": "As a child she feared the dark.",
+    "category": "introductory"
+  }
+]

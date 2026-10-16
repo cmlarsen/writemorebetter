@@ -70,5 +70,21 @@
     "license": "CC0 1.0",
     "sha256": "cdce6022eecf8a90255251642497e3277112fdcc91044aaf387604f40e1c5b48",
     "license_url": "https://standardebooks.org/about"
+  },
+  "blue_castle": {
+    "filename": "blue_castle.tar.gz",
+    "url": "https://codeload.github.com/standardebooks/l-m-montgomery_the-blue-castle/tar.gz/08942ee29ed0abd918f7c47268806bdeb5f6188b",
+    "version": "08942ee29ed0abd918f7c47268806bdeb5f6188b",
+    "license": "CC0 1.0",
+    "sha256": "eb65d44ab6c4d03413b9393fbb041dc4ca3ceadb7a3f799b8f76aa73dde1087c",
+    "license_url": "https://standardebooks.org/about/standard-ebooks-and-the-public-domain"
+  },
+  "ackroyd": {
+    "filename": "ackroyd.tar.gz",
+    "url": "https://codeload.github.com/standardebooks/agatha-christie_the-murder-of-roger-ackroyd/tar.gz/e3f77eb999de92aa16afcaf6f145c40677927bed",
+    "version": "e3f77eb999de92aa16afcaf6f145c40677927bed",
+    "license": "CC0 1.0",
+    "sha256": "033f5eabe354e1168583358036761614ceb586e2169077f3603ca6b9a4ac8aaf",
+    "license_url": "https://standardebooks.org/about/standard-ebooks-and-the-public-domain"
   }
 }

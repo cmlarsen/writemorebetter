@@ -296,6 +296,34 @@ check(unknownOption, "unknown document options rejected");
 const unknownDocument = JSON.parse(checker.analyzeDocument("Zzqvorth sang. Zzqvorth sang."));
 eq(unknownDocument.lemma_index.zzqvorth.length, 2, "unknown surface indexed");
 
+const reportText = "😀\n\n“She ran. She left. She slept. She wept.”";
+const reportOptions = JSON.stringify({minimumSentences: 4});
+const lengthReport = JSON.parse(checker.sentenceLength(reportText, reportOptions));
+eq(lengthReport.dialogue.histogram["2"], 4, "length uses document words");
+eq(lengthReport.dialogue.monotonyRuns.length, 1, "length monotony run");
+check(reportText.slice(lengthReport.dialogue.monotonyRuns[0].start, lengthReport.dialogue.monotonyRuns[0].end).includes("She wept"), "report UTF-16 spans after emoji");
+const startReport = JSON.parse(checker.sentenceStarts(reportText, reportOptions));
+const compactStartReport = JSON.parse(checker.sentenceStarts(reportText, reportOptions, undefined, JSON.stringify({includeTokenDetails:false})));
+eq(startReport, compactStartReport, "compact options preserve internal start readings");
+eq(startReport.dialogue.categories.subject.percent, 100, "start subject percent");
+eq(startReport.dialogue.sameWordRuns.length, 1, "same-word run");
+const suppressed = JSON.parse(checker.sentenceStarts("She ran."));
+eq(suppressed.all.categories.subject.percent, null, "default sample suppression");
+let badReportOption = false;
+try { checker.sentenceLength("She ran.", '{"minimumSentneces":1}'); } catch { badReportOption = true; }
+check(badReportOption, "report option misspellings rejected");
+
+const together = JSON.parse(checker.styleReports(reportText, JSON.stringify({sentenceLength: {minimumSentences:4}, sentenceStarts: {minimumSentences:4}})));
+eq(together.sentenceLength, lengthReport, "combined length equals individual report");
+eq(together.sentenceStarts, startReport, "combined starts equals individual report");
+const onlyLength = JSON.parse(checker.styleReports(reportText, JSON.stringify({sentenceLength:{}})));
+check("sentenceLength" in onlyLength && !("sentenceStarts" in onlyLength), "combined request selects reports");
+const compactTogether = JSON.parse(checker.styleReports(reportText, JSON.stringify({sentenceLength: {minimumSentences:4}, sentenceStarts: {minimumSentences:4}}), JSON.stringify({includeTokenDetails:false})));
+eq(together, compactTogether, "combined compact reports preserve classification");
+let invalidTagKey = false;
+try { checker.styleReports("She ran.", JSON.stringify({sentenceStarts:{},sentenceStartsBaseline:{universalPercent:{Noun:20}}})); } catch { invalidTagKey = true; }
+check(invalidTagKey, "combined baseline validates universal tag keys");
+
 if (failures > 0) {
   console.error(`\n${failures} assertion(s) failed`);
   process.exit(1);
