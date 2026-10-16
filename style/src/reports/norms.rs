@@ -46,13 +46,14 @@ pub(crate) fn lookup<'a, T>(
     token: &Token,
     at_start: bool,
     get: impl Fn(&str) -> Option<&'a T>,
+    prefer: impl Fn(&T) -> bool,
 ) -> Option<Found<'a, T>> {
     let capitalized = token.text.chars().next().is_some_and(char::is_uppercase)
         && token.text.chars().any(char::is_lowercase);
     if capitalized && !at_start {
         return None;
     }
-    lookup_word(token, &get).or_else(|| lookup_parts(token, &get))
+    lookup_word(token, &get, prefer).or_else(|| lookup_parts(token, &get))
 }
 
 fn lookup_parts<'a, T>(token: &Token, get: impl Fn(&str) -> Option<&'a T>) -> Option<Found<'a, T>> {
@@ -65,7 +66,21 @@ fn lookup_parts<'a, T>(token: &Token, get: impl Fn(&str) -> Option<&'a T>) -> Op
         return None;
     }
     let last = parts[parts.len() - 1];
-    if matches!(last, "blooded" | "hearted" | "heartedness" | "outs") {
+    if matches!(
+        last,
+        "blooded"
+            | "footed"
+            | "handed"
+            | "headed"
+            | "hearted"
+            | "heartedness"
+            | "minded"
+            | "mindedness"
+            | "mouthed"
+            | "nosed"
+            | "outs"
+            | "tempered"
+    ) {
         return None;
     }
     let candidates: &[&str] = if matches!(last, "eyed" | "looking" | "tinted" | "clothed") {
@@ -84,7 +99,11 @@ fn lookup_parts<'a, T>(token: &Token, get: impl Fn(&str) -> Option<&'a T>) -> Op
     None
 }
 
-fn lookup_word<'a, T>(token: &Token, get: impl Fn(&str) -> Option<&'a T>) -> Option<Found<'a, T>> {
+fn lookup_word<'a, T>(
+    token: &Token,
+    get: impl Fn(&str) -> Option<&'a T>,
+    prefer: impl Fn(&T) -> bool,
+) -> Option<Found<'a, T>> {
     let surface = fold(&token.text);
     if excluded(&surface) {
         return None;
@@ -149,6 +168,10 @@ fn lookup_word<'a, T>(token: &Token, get: impl Fn(&str) -> Option<&'a T>) -> Opt
         _ => hits
             .iter()
             .position(|(lemma, _)| *lemma == surface)
+            .or_else(|| {
+                let mut preferred = (0..hits.len()).filter(|&index| prefer(hits[index].1));
+                preferred.next().filter(|_| preferred.next().is_none())
+            })
             .map(|index| hits.swap_remove(index)),
     }?;
     Some(Found { lemma, value })

@@ -71,10 +71,9 @@ fn main() {
             shares(&sensory.groups.dialogue)
         );
         for (index, scene) in sensory.scenes.iter().enumerate() {
-            if scene.groups.narration.sense_words >= 20 || scene.single_sense.is_some() {
+            if scene.groups.narration.sense_words >= 20 {
                 println!(
-                    "scene {index} singleSense={:?} narrationSenseWords={} [{}] {}",
-                    scene.single_sense,
+                    "scene {index} narrationSenseWords={} [{}] {}",
                     scene.groups.narration.sense_words,
                     shares(&scene.groups.narration),
                     text[scene.span.byte.clone()]

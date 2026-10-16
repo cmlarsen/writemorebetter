@@ -19,14 +19,22 @@ CASES = {
     'compounds': (
         '“Her lamp’s dimmed…”—\u2028hard-heartedness, cold-blooded, eagle-eyed, dubious-looking '
         'look-outs; red-hot, ice-cold, sweet-smelling, dance-music, amber-tinted, half-muffled, '
-        'blue-clothed, red-eyed.',
+        'blue-clothed, red-eyed, hot-tempered, loud-mouthed.',
         {'hot', 'cold', 'smelling', 'music', 'amber', 'muffled', 'blue', 'red'},
-        {'hard', 'eyed', 'looking', 'look'}),
+        {'hard', 'eyed', 'looking', 'look', 'loud'}),
     'figurative': (
         'It looks just as if it will rain. It looked almost like a ship. '
         'I felt very nice and snug. He felt unduly concerned.',
         set(), {'look', 'feel'}),
-    'tags': ('“I’m stiff,” she complained. “Listen,” she whispered.', set(), {'complain', 'whisper'}),
+    'tags': (
+        '“I’m stiff,” she complained. “Listen,” she whispered. “Run!” he shouted. '
+        '“Hush,” she murmured. The crowd shouted. A dove murmured.',
+        {'shout', 'murmur'}, {'complain', 'whisper'}),
+}
+SURFACES = {
+    'compounds': ['dimmed', 'red-hot', 'ice-cold', 'sweet-smelling', 'dance-music', 'amber-tinted',
+                  'half-muffled', 'blue-clothed', 'red-eyed'],
+    'tags': ['Listen', 'shouted', 'murmured'],
 }
 
 
@@ -52,12 +60,16 @@ def main():
             assert not excluded & lemmas, (name, 'unexpected', excluded & lemmas)
             if name == 'predicates':
                 assert sum(word['lemma'] == 'feel' for word in words) == 4
+            surfaces = []
             for word in words:
                 span = word['span']
                 byte = span['byte']
                 utf16 = span['utf16']
                 surface = text.encode()[byte['start']:byte['end']].decode()
                 assert surface == text.encode('utf-16-le')[2 * utf16['start']:2 * utf16['end']].decode('utf-16-le')
+                surfaces.append(surface)
+            if name in SURFACES:
+                assert surfaces == SURFACES[name], (name, surfaces)
     print(f'norms tier 2: {len(CASES)} synthetic cases passed')
 
 

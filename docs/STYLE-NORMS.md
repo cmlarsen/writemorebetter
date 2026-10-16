@@ -36,15 +36,18 @@ has a verb reading whose lemma differs from the surface form, only those lemmas 
 used, when several are the one equal to the surface form is used, and when none is the lowercase
 surface form is tried, unless it is itself the lemma of a rejected reading. Regular `-s`, `-ed` and
 `-ing` forms (including a dropped final `e`) may fall back even when the surface has its own reading.
-For single words, sensory lookup treats a rating below the selected strength or margin as absent
-before making that fallback; diction uses every rating. Thus *creaking* keeps its stronger surface rating when *creak*
+For single words, sensory lookup treats a rating below the selected strength as absent before making
+that fallback; diction uses every rating. Thus *creaking* keeps its stronger surface rating when *creak*
 is too weak, while past *felt* and *saw* keep their verb lemmas and never fall back to the homographs.
+When two verb lemmas are rated and neither is the surface form, sensory lookup takes the one that
+passes every threshold (*singing* is *sing*, not *singe*).
 Tokens without readings use the surface form. A hyphenated compound with no entry of its own (*red-hot*, *sweet-smelling*,
 *dance-music*) is looked up by its last part, then its first, and keeps the whole token’s span. Compounds ending in
 `-eyed`, `-looking`, `-tinted` or `-clothed` use only their first part (*red-eyed*, *amber-tinted*,
-*blue-clothed*); `-blooded`, `-hearted`, `-heartedness` and `-outs` have no part fallback. These
-suffix guards reject *eagle-eyed*, *dubious-looking*, *cold-blooded*, *hard-heartedness* and
-*look-outs*. Direct whole-word entries still take precedence; other lexicalized compounds can still
+*blue-clothed*); `-blooded`, `-footed`, `-handed`, `-headed`, `-hearted`, `-heartedness`, `-minded`,
+`-mindedness`, `-mouthed`, `-nosed`, `-outs` and `-tempered` have no part fallback. These suffix
+guards reject *eagle-eyed*, *dubious-looking*, *cold-blooded*, *hard-heartedness*, *look-outs*,
+*hot-tempered*, *loud-mouthed*, *hard-nosed*, *light-footed* and *red-handed*. Direct whole-word entries still take precedence; other lexicalized compounds can still
 be misread. Compound part selection uses table membership before applying the thresholds, so an
 ineligible last part never makes a misleading first part win (*hard-boiled*, *looking-glass*).
 *half-muffled* remains context-dependent (wrapped up versus a muted sound).
@@ -53,9 +56,12 @@ are all proper nouns, and capitalized words that do not open a sentence (after a
 bracket, dash or colon counts as opening). The last rule keeps character names such as *Daisy* out of
 the counts when no skip list is supplied; supply `skipNames` to also drop sentence-initial names.
 
-Table membership and sensory thresholds can resolve regular inflections differently. If a verb
-lemma has an eligible rating it wins; only an absent or ineligible lemma permits the surface
-fallback. This preserves the homograph fix without throwing away highly rated participles.
+Table membership and sensory thresholds can resolve regular inflections differently. A verb lemma
+that reaches `minimumStrength` wins even when it then fails a margin; only an absent lemma or one
+below `minimumStrength` permits the surface fallback. This preserves the homograph fix without
+throwing away highly rated participles, and keeps inflections from bypassing the margins their verb
+fails: *watch*, *hold*, *tire* and *picture* pass strength but fail a margin, so *watched*,
+*holding*, *tired* and *pictured* do not count through their own, more one-sided ratings.
 
 ## Sensory balance
 
@@ -91,10 +97,16 @@ breaks the link; double spaces and hard-wrapped line breaks do not):
 - *see* and *feel* followed by a clause or comparison (*that*, *if*, *how*, *like*, *as*, …), and
   *feel* followed by a predicative adjective or past participle (*felt ashamed*, *felt obliged*); an
   immediately following noun preserves literal touch (*felt broken glass*, *felt warm breath*,
-  *felt smooth stone*, *felt sharp pain*);
+  *felt smooth stone*, *felt sharp pain*). A word with a preposition reading is never that
+  adjective (*felt over the table*, *felt along the wall*, *felt under his feet* count). The
+  following word is not an object when it has a pronoun or adverb reading (*felt sure someone*,
+  *felt certain nothing*, *felt ashamed yesterday*, *feel far away*), is capitalized (*felt glad
+  Mother*) or follows an adjective phrase;
 - *look* followed by *like*, *as if* or *as though*, and *sound* followed by *as if* or *as though*
   (appearance, not sight); these predicates and *feel* can look past up to two adverbs
-  (*looks just as if*, *looked almost like*, *felt unduly concerned*);
+  (*looks just as if*, *looked almost like*, *felt unduly concerned*). For *feel* an adverb that
+  also reads as an adjective is tested as the predicate, not skipped (*felt alone in space*, *felt
+  less alone*);
 - *hear* followed by *that*, *of*, *about* or *from* (hearsay);
 - a flat adverb (an adjective spelling with its own adverb reading, such as *pretty* or *hard*)
   used as an intensifier before an adjective or adverb outside a noun phrase (*pretty soon*,
@@ -110,9 +122,8 @@ The result has `senseWords` (span, lemma, modality, strength, mode), document `g
 `{modality, count, percent}`, split into `all`, `narration` and `dialogue` by the shared token mode.
 Percent is null below `minimumSenseWords` (20) in that group. Scenes follow the document model:
 headings, scene markers, two blank lines and U+2029 start one; chapters start at recognized chapter
-headings. `singleSense` names the modality holding ≥ `singleSensePercent` (85) of a unit's
-**narration** sense words, when it has at least `minimumSenseWords` of them; dialogue is reported but
-not flagged.
+headings. No unit is flagged: the `singleSense` flag was removed in #282 (see
+[below](#singlesense-removed)), and the per-scene counts and percents are the lens.
 
 ### Calibration
 
@@ -142,7 +153,7 @@ In the initial calibration, no published scene reached the flag: of 20 scenes wi
 one-sided is Gatsby's dawn (77% sight: "grey-turning, gold-turning light… ghostly birds began to
 sing among the blue leaves"), which is plainly multi-sensory, then Moby's New Bedford street (73%).
 85% therefore left no false flags on that sample while still flagging a synthetic all-sight scene.
-The expanded #282 measurement below revisits whether this silence is useful.
+The expanded #282 measurement below found no useful flag at any threshold, and the flag was removed.
 
 #### Re-review (#281)
 
@@ -199,8 +210,10 @@ candidate hits: *creaking* +1, *ticking* +2, *knocking* +1, *pricking* +1, *dimm
 *flew* +5 and *breathing* +1. Reading all 13 in context: **10 useful, 2 noise, 1 wrong**. The wrong
 one is a pricking conscience; knocking hats off and the withered old man are stage business/an
 epithet. This recovers the reported imagery without preferring every surface over an eligible
-base verb. The tradeoff is real: *holding* adds 10 mostly mundane actions, *watching* adds eight
-filter verbs, and *reflected* adds two cognitive uses. Separate filter-verb reporting remains deferred.
+base verb. As first shipped, the fallback also fired when the lemma failed only a margin, adding
+*holding* ×10, *watching* ×8 and *watched* ×8 on these texts; the #286 review fixes below limit it to
+lemmas below `minimumStrength`. *reflected* (two cognitive uses) and *waking* still fall back because
+*reflect* and *wake* are below strength. Separate filter-verb reporting remains deferred.
 
 **N2 thresholds:** the exact-decimal, floored build changes the raw default-qualifying set from
 2,069 to 2,034 entries: **35 subthreshold entries removed**, no additions to that set. The review’s
@@ -236,10 +249,52 @@ wrong. These costs are retained explicitly rather than tuning to this sample. Di
 sentences are identical before/after, as are the two runs; the proxy still does not establish
 usefulness with the owner’s eventual table.
 
-### singleSense — pending owner decision
+### #286 review fixes
 
-**Recommendation: remove the flag; retain the per-scene modality distribution as an opt-in lens.**
-No defaults or result fields change in #282: `singleSensePercent` stays 85 and the owner decides.
+The PR review (2026-10-16) found five follow-ups. The before build is the PR head `a2c8c0a`; the
+sample is the nine texts above plus every chapter of the five pinned Standard Ebooks books listed
+below (94 files, all public).
+
+| | `a2c8c0a` | After fixes |
+|---|---:|---:|
+| Nine texts, sense words | 1,624 | **1,588** |
+| Three review chapters | 552 | 542 |
+| 94 public files | 9,722 | **9,506** (+3, −219) |
+
+- **F1:** the surface fallback for regular inflections now applies only when the verb lemma is below
+  `minimumStrength`, not when it passes strength and fails a margin. Across the 94 files this removes
+  *holding* 41, *watched* 41, *watching* 33, *tired* 33, *pictured* 11, *waving* 11, *showing* 8,
+  *laughing* 7 and *displayed* 6, with no additions. All 13 N1 restorations remain. The tie-break
+  that picks the lemma passing every threshold keeps *singing* (8 of the 9 *singing* spans the
+  strength-only filter would drop). Useful losses are *ringing* ×2 (*ring* rates as the visual
+  noun), *waving* and *laughing* as stage business, and one *singing*.
+- **F2:** *feel* counts literal groping and drops emotional predicates (rules above). The 94 files add
+  *felt over innumerable feet of dark wall*, *ice he had felt under his feet* and *made itself felt
+  by* (wrong), and drop 12: *felt alone in space*, *felt less alone*, *I feel far away*, *feel
+  better* ×3, *feel pretty bad* ×2, *feel quite well*, *felt most intensely*, *feel most
+  delightfully* and *feel very cold now* (a useful loss: *now* has an adverb reading). Abstract
+  nominal objects (*felt instant panic*, *feeling vague relief*) still count.
+- **F3:** six more compound suffixes have no part fallback (list above). The 94 files lose
+  *light-footed* ×3, *soft-mindedness* and *red-handed*. Other lexicalized compounds (*fever-pitch*,
+  *first-felt*, *green-eyed* with envy) can still be misread.
+- **F4:** tier 2 `compounds` and `tags` now assert exact surfaces. The `tags` case uses *shouted* and
+  *murmured*, which the bundled table rates ≥ 4.0, so the speech-tag detector (not the threshold)
+  excludes *he shouted* while *the crowd shouted* still counts.
+- **F5:** exact thresholds drop *pat* (haptic 3.968; 6 *patted* spans in the 94 files, such as
+  *patted their sweating flanks*) and *luminous* (sight lead below 3.0). This is the intended result of
+  making the documented 4.0 / 1.0 / sight 3.0 thresholds exact; do not restore them by rounding.
+
+Every span changed on the nine texts was read: 36 removed, none added. Two were useful (*feel very
+cold now*, *He’s singing away*), one wrong (*the engine was tired*), and the rest filter verbs,
+stage business and named states.
+
+### singleSense removed
+
+**Owner decision (Caleb, 2026-10-16): remove the flag.** Chapters and scenes no longer carry
+`singleSense`, and the `singleSensePercent` option is gone; passing it is rejected as an unknown
+option (`invalidOptions`). The per-scene modality counts and percents remain the opt-in lens. The
+evidence follows: on 114 eligible public scenes the flag fires on 0/1/4/11 scenes at 85/80/75/70%,
+and none of them is a useful warning.
 
 Expanded public-only sample: **243,160 words, 191 scenes, 114 eligible scenes** (≥ 20 narration sense
 words). It includes `bench/public` and every chapter of five Standard Ebooks books, fetched at bench
@@ -293,11 +348,18 @@ threshold candidates). All were judged noise as writer-facing warnings:
 | *The Awakening* 12 | 70.45% sight (31/44) | Coffee/taste, sun biting the skin and ocean roar alongside purposeful colour description |
 
 85% gives no evidence of a useful positive; lowering it produces warnings on purposeful published
-scenes. An all-sight synthetic fixture still fires, which proves mechanics rather than writer value.
-This supports removing the flag, pending the owner’s decision, rather than lowering it on these data.
+scenes. An all-sight synthetic fixture still fired, which proved mechanics rather than writer value.
+High sight share mostly measures setting nouns and filter verbs the norms cannot separate from
+imagery, so a writer could not act on it. A better-defined signal, such as a scene with ≥ 20 sense
+words and no sound or touch at all, fires on none of the eligible public scenes and would need draft
+data to validate; it is a separate decision.
+
+After the #286 review fixes, 113 scenes are eligible and the maximum is 84.62% (the same *Ethan
+Frome* 8 scene, which lost one non-sight word); 0/1/5/10 scenes would reach 85/80/75/70%, all among
+the scenes judged above.
 
 Reproduce the synthetic suite with `python3 bench/style/norms.py` after building the `norm_reports`
-example. For public calibration, set `WMB_NORM_JSON` to an ignored output directory and run the
+example. For the public calibration, set `WMB_NORM_JSON` to an ignored output directory and run the
 example on the six public files plus the pinned books’ chapter files. Count eligible `scenes` using
 `groups.narration.senseWords >= 20`; top share is the maximum modality count divided by that count,
 without rounding before threshold comparison. The before probe was built and retained before edits.
