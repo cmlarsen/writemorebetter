@@ -416,6 +416,20 @@ final class CheckerTests: XCTestCase {
         try roundTrip(DialogueTagReport.self, document.dialogueTagsJson(optionsJson: tagOptions, baselineJson: tagBaseline))
         try roundTrip(SentenceLengthReport.self, document.sentenceLengthJson(optionsJson: lengthOptions, baselineJson: nil))
         try roundTrip(SentenceStartsReport.self, document.sentenceStartsJson(optionsJson: startOptions, baselineJson: nil))
+        let normText = try String(contentsOf: Self.repositoryRoot.appendingPathComponent("style/tests/fixtures/norm-records.txt"), encoding: .utf8)
+        let normDocument = try checker().styleDocument(text: normText)
+        let table = "{\"hope\": 1.5, \"idea\": 1.6, \"freedom\": 1.3, \"lamp\": 4.8}"
+        try roundTrip(SensoryBalanceReport.self, normDocument.sensoryBalanceJson(optionsJson: "{\"minimumSenseWords\":1}"))
+        try roundTrip(DictionReport.self, normDocument.dictionJson(optionsJson: nil, table: table))
+        let sensory = try normDocument.sensoryBalance(optionsJson: "{\"minimumSenseWords\":1}")
+        XCTAssertFalse(sensory.senseWords.isEmpty)
+        XCTAssertEqual(sensory.groups.all.words, try normDocument.stats().words.all)
+        let diction = try normDocument.diction(table: table)
+        XCTAssertFalse(diction.abstractRuns.isEmpty)
+        XCTAssertThrowsError(try normDocument.dictionJson(optionsJson: nil, table: nil)) { error in
+            guard case CheckError.ReportInput(let message) = error else { return XCTFail("unexpected error: \(error)") }
+            XCTAssertTrue(message.hasPrefix("diction needs a caller-supplied"))
+        }
         let length = try document.sentenceLength(optionsJson: lengthOptions)
         let tags = try document.dialogueTags(optionsJson: tagOptions, baseline: .custom(tagBaseline))
         XCTAssertFalse(length.groups.all.longSentences.isEmpty)

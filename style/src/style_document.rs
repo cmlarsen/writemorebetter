@@ -1,11 +1,11 @@
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use nlprule::Tokenizer;
 use serde::de::DeserializeOwned;
 
 use crate::reports::{
-    cliches, dialogue_tags, echoes, repeated_phrases, sentence_length, sentence_starts,
-    DocumentStats, StyleResources,
+    cliches, dialogue_tags, diction, echoes, repeated_phrases, sensory_balance, sentence_length,
+    sentence_starts, DocumentStats, StyleResources,
 };
 use crate::{analyze_document, Document, DocumentOptions, StyleError};
 
@@ -21,6 +21,17 @@ fn options<T: DeserializeOwned + Default>(json: Option<&str>) -> Result<T, Style
         .transpose()
         .map(Option::unwrap_or_default)
         .map_err(StyleError::options)
+}
+
+fn parsed_table(text: &str) -> Result<Arc<diction::ConcretenessTable>, StyleError> {
+    static LAST: Mutex<Option<(String, Arc<diction::ConcretenessTable>)>> = Mutex::new(None);
+    let mut last = LAST.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    if let Some((_, table)) = last.as_ref().filter(|(cached, _)| cached == text) {
+        return Ok(table.clone());
+    }
+    let table = Arc::new(diction::ConcretenessTable::parse(text)?);
+    *last = Some((text.to_owned(), table.clone()));
+    Ok(table)
 }
 
 fn baseline<T: DeserializeOwned>(
@@ -115,5 +126,26 @@ impl StyleDocument {
             sentence_starts::REPORT,
         )?;
         sentence_starts::report(&self.document, &options(json)?, baseline.as_ref())
+    }
+
+    pub fn sensory_balance(
+        &self,
+        json: Option<&str>,
+    ) -> Result<sensory_balance::SensoryBalanceReport, StyleError> {
+        sensory_balance::report(
+            &self.document,
+            sensory_balance::PerceptualNorms::bundled(),
+            &options(json)?,
+        )
+    }
+
+    pub fn diction(
+        &self,
+        json: Option<&str>,
+        table: Option<&str>,
+    ) -> Result<diction::DictionReport, StyleError> {
+        let options = options(json)?;
+        let table = table.ok_or_else(|| StyleError::missing_table(diction::REPORT))?;
+        diction::report(&self.document, &*parsed_table(table)?, &options)
     }
 }

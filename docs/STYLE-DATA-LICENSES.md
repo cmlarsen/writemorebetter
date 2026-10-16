@@ -31,7 +31,36 @@ commit, the OSF license record, or the authors' and publisher's pages.
 
 ## Word norms (#250)
 
-Research only; nothing is vendored in #246.
+Licenses checked 2026-10-15 (recorded in #246, below). #250 vendors one derived table:
+
+| File | Source | Version | License | Retrieved |
+|---|---|---|---|---|
+| `style/data/norms/lancaster-perceptual.tsv` | Lancaster Sensorimotor Norms, OSF project <https://osf.io/7emr6/>, Data component <https://osf.io/rwhs6/>, file `Lancaster_sensorimotor_norms_for_39707_words.csv` (<https://osf.io/download/48wsc/>) | the 39,707-word aggregate release accompanying Lynott et al. (2020); sha256 `445d363fb1f9f3e50b86d88e2f46cdc9a22b5dd8a713ce4e7be2a773d57f43c5`, 17,196,336 bytes | CC BY 4.0 | 2026-10-16 |
+
+- **How it was obtained.** On 2026-10-16 the OSF API and download routes returned HTTP 500 or timed
+  out for several hours. The CSV was taken from a verbatim copy in
+  [BergelsonLab/BlindToddlerVocabulary](https://github.com/BergelsonLab/BlindToddlerVocabulary/blob/d8db5afa7e480b0eaadc01f8df83d6007568a766/data/Norms/Lancaster_sensorimotor_norms_for_39707_words.csv)
+  (commit `d8db5afa`, added 2023-01-03), whose size matches OSF's published listing for `48wsc`.
+  `scripts/build-lancaster-norms.py` refuses any input with a different sha256. Re-verify against
+  OSF's own download when it is reachable.
+- **OSF recheck (2026-10-16, #281).** OSF was still unreachable from the build machine:
+  `https://osf.io/download/48wsc/` timed out after 90 s and `https://api.osf.io/v2/files/48wsc/`
+  returned HTTP 500, so the pinned sha256 could not be compared with OSF's own copy. The #281 review
+  corroborated the mirror independently: concepticon/norare-data's `Lynott-2020-Sensorimotor.tsv`,
+  downloaded by that project from `https://osf.io/48wsc/download`, agrees on all six perceptual
+  means for every one of the 2,708 shared words, and a third-party listing of OSF's files gives the
+  same 17,196,336-byte size. The BergelsonLab copy fetched again for #281 still has the pinned sha256.
+- **Changes** (recorded in the file header and NOTICE): single words only, lowercased; only words
+  whose strongest perceptual modality rates ≥ 3.5 and leads the next by ≥ 0.5, not counting
+  interoception as the next modality of a haptic word; columns reduced to that modality, its mean
+  strength and that lead, in tenths. 11,450 of 39,707 entries; 192,986 bytes. The build is
+  byte-reproducible from the pinned CSV.
+  The raw CSV is not committed.
+- **Concreteness** stays caller-supplied. Tests use invented ratings only, and the usefulness review
+  used a proxy derived locally from the Lancaster norms, never Brysbaert's ratings.
+- `style/data/norms/not-sensory.txt` is writemorebetter's own list (MIT OR Apache-2.0).
+
+### License research (#246)
 
 - **Brysbaert, Warriner & Kuperman (2014) concreteness ratings: CC BY-NC-ND 3.0, so not
   redistributable here.** The authors' release page (Center for Reading Research, Ghent University;

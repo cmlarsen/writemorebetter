@@ -60,7 +60,7 @@ swift/, wasm/       one binding each, exposing check() + analyze() + analyzeDocu
 | Transitions, pronoun starts | #247 | #244's classifier, word list | Ngram `_START_` 2- to 4-grams (planned; not yet in #247) |
 | Overused words | #248 | lemma counts | Ngram fiction unigrams, or HTRC per-author counts |
 | Dialogue tags | #249 | dialogue spans | published-fiction corpus (owner-run tier 3 command; see [STYLE-DIALOGUE-TAGS.md](STYLE-DIALOGUE-TAGS.md)) |
-| Diction (concreteness), sensory balance | #250 | word-norm tables | none, and the data license comes first |
+| [Sensory balance, diction (concreteness)](STYLE-NORMS.md) | #250 | lemmas, word-norm tables | none; Lancaster norms bundled (CC BY 4.0), concreteness table caller-supplied |
 | Pacing | #251 | dialogue spans, sentence stats | published-fiction corpus, for threshold calibration |
 
 Sentence length and sentence starts are public modules under `style::reports`, with no flattened
@@ -106,6 +106,8 @@ const tags = JSON.parse(document.dialogueTags());
 const stats = JSON.parse(document.stats());
 const echoes = JSON.parse(document.echoes());
 const phrases = JSON.parse(document.repeatedPhrases());
+const senses = JSON.parse(document.sensoryBalance());
+const diction = JSON.parse(document.diction(undefined, concretenessTableText));
 const long = JSON.parse(document.sentenceLength('{"includeLongSentences":true}'));
 const descriptive = JSON.parse(document.sentenceLength(undefined, "none"));
 document.free();
@@ -116,7 +118,9 @@ result as JSON. `stats()` returns `DocumentStats`. Baseline-aware methods (`sent
 `sentenceStarts`, `dialogueTags`) take a separate optional `baselineJSON`: omit it for bundled data,
 pass a baseline object encoded as JSON to override it, use `"bundled"` explicitly, or use
 `"none"` to disable comparisons.
-There is no bundled dialogue-tag baseline yet. Options use camelCase, accept snake_case aliases,
+There is no bundled dialogue-tag baseline yet. `diction` takes no baseline; its second argument is
+the caller's word-to-concreteness table (JSON object or TSV text), which is required: omitting it
+throws `missingTable` rather than returning an empty report. Options use camelCase, accept snake_case aliases,
 and reject unknown keys. Overrides never change later calls. Native Rust `report` functions take
 `Option<&Baseline>` explicitly; `XBaseline::bundled()` loads the matching bundled file.
 
@@ -131,6 +135,8 @@ let cliches: ClicheReport = try document.cliches()
 let stats: DocumentStats = try document.stats()
 let echoes: EchoReport = try document.echoes()
 let phrases: RepeatedPhraseReport = try document.repeatedPhrases()
+let senses: SensoryBalanceReport = try document.sensoryBalance()
+let diction: DictionReport = try document.diction(table: concretenessTableText)
 let custom = try document.sentenceLength(baseline: .custom("{\"mean\":13}"))
 let descriptive = try document.sentenceLength(baseline: .none)
 if let match = cliches.matches.first {
@@ -147,8 +153,9 @@ JSON reports `invalidBaseline` with the report name. TypeScript result declarati
 annotate the value decoded with `JSON.parse`.
 
 Subplot chooses which methods to call. Its recommended default set is **clichés, dialogue tags,
-sentence length statistics and monotony, and sentence starts**. **Echoes, repeated phrases, and
-long-sentence flags** are opt-in lenses. Length statistics and monotony remain available without
+sentence length statistics and monotony, and sentence starts**. **Echoes, repeated phrases,
+long-sentence flags, sensory balance and diction** are opt-in lenses; sensory balance and diction
+stay opt-in until the owner has seen usefulness numbers on real manuscripts. Length statistics and monotony remain available without
 `includeLongSentences`. The library has no combined request or default report selection.
 
 | Report | Module and entry point | Options | Baseline | Needs readings |
@@ -159,6 +166,8 @@ long-sentence flags** are opt-in lenses. Length statistics and monotony remain a
 | dialogue tags | `dialogue_tags::report(&Document, &DialogueTagOptions, Option<&DialogueTagBaseline>)` | `maxUntaggedExchanges`, `minimumTags` | caller only | yes |
 | sentence length | `sentence_length::report(&Document, &SentenceLengthOptions, Option<&SentenceLengthBaseline>)` | `minimumSentences`, `includeLongSentences`, `longSentenceWords`, `longestPerChapter` | bundled | no |
 | sentence starts | `sentence_starts::report(&Document, &SentenceStartsOptions, Option<&SentenceStartsBaseline>)` | `minimumSentences` | bundled | yes |
+| sensory balance | `sensory_balance::report(&Document, &PerceptualNorms, &SensoryBalanceOptions)` | `minimumStrength`, `dominanceMargin`, `sightMargin`, `minimumSenseWords`, `singleSensePercent` | none (norms bundled: `PerceptualNorms::bundled()`) | yes |
+| diction | `diction::report(&Document, &ConcretenessTable, &DictionOptions)` | `abstractBelow`, `minimumRatedWords`, `minimumRunSentences` | none (table caller-supplied: `ConcretenessTable::parse`) | yes |
 
 Every entry point returns `Result<_, StyleError>`. Type names are prefixed with their report
 (`SentenceLengthReport`, `ClicheMatch`, `DialogueTagVerbClass`, …) so they stay unique in Swift's
@@ -169,10 +178,11 @@ built with `new()` plus `with_*` builders.
 ### Errors
 
 Each method validates its inputs independently. Baseline parse errors identify the report and
-use `invalidBaseline`; options errors use `invalidOptions`. `StyleError` has three kinds: `invalidOptions`
+use `invalidBaseline`; options errors use `invalidOptions`. `StyleError` has five kinds: `invalidOptions`
 (unparseable options or unknown keys), `invalidBaseline` (with `report`: invalid values, percentile
-or universal tags), and `needsTokenDetails` (with `report`: a compact document supplied to a report
-requiring readings). WASM throws an `Error` named `StyleError` with `kind` and `report`; Swift throws
+or universal tags), `needsTokenDetails` (with `report`: a compact document supplied to a report
+requiring readings), `missingTable` (with `report`: diction called without a word table) and
+`invalidTable` (with `report`: an unparseable, empty or non-finite word table). WASM throws an `Error` named `StyleError` with `kind` and `report`; Swift throws
 `CheckError.ReportInput` with the same message.
 
 ### Result
@@ -221,6 +231,21 @@ sentences and runs, refer only to that result’s own table:
 
 ```json
 {"words": {"all": 19, "narration": 18, "dialogue": 1}, "tags": [{"span": {"start": 8, "end": 24}, "clause": {"start": 8, "end": 25}, "verb": {"start": 13, "end": 17}, "verbText": "said", "lemma": "say", "class": "speech", "showy": false, "position": "after", "adverb": {"start": 18, "end": 24}, "quotes": [{"start": 0, "end": 7}]}], "beats": [], "untaggedRuns": [], "otherVerbs": [], "neutralVerbs": [{"lemma": "say", "class": "speech", "count": 1}], "showyVerbs": [], "lowConfidence": true, "dialogueSpans": 1, "speechSpans": 1, "taggedSpans": 1, "exchanges": 1, "untaggedExchanges": 0, "saidAsked": {"count": 1, "percent": 100, "difference": null, "highlighted": false}, "withAdverb": {"count": 1, "percent": 100, "difference": null, "highlighted": false}, "nonSpeech": {"count": 0, "percent": 0, "difference": null, "highlighted": false}}
+```
+
+`sensoryBalance` (with `minimumSenseWords: 1`; `chapters` and `scenes` are `{"span", "chapter",
+"groups", "singleSense"}` with `groups` shaped like the top-level one; every group lists all six
+modalities in a fixed order):
+
+```json
+{"words": {"all": 19, "narration": 18, "dialogue": 1}, "senseWords": [{"span": {"start": 18, "end": 24}, "lemma": "softly", "modality": "touch", "strength": 4.0, "mode": "narration"}, {"span": {"start": 64, "end": 67}, "lemma": "light", "modality": "sight", "strength": 4.6, "mode": "narration"}], "groups": {"all": {"words": 19, "senseWords": 2, "modalities": [{"modality": "sight", "count": 1, "percent": 50.0}]}, "narration": {}, "dialogue": {}}, "chapters": [{"span": {"start": 0, "end": 108}, "chapter": 0, "groups": {}, "singleSense": null}], "scenes": [{"span": {"start": 0, "end": 108}, "chapter": 0, "groups": {}, "singleSense": null}]}
+```
+
+`diction` (with `minimumRatedWords: 1` and the invented table `{"lamp": 4.8, "room": 4.5,
+"bucket": 4.9, "fine": 2.1, "grin": 3.9}`; groups have the same shape as `all`):
+
+```json
+{"words": {"all": 19, "narration": 18, "dialogue": 1}, "tableWords": 5, "sentences": [{"span": {"start": 0, "end": 26}, "mode": "dialogue", "words": 3, "ratedWords": 1, "mean": 2.1, "abstract": false}], "paragraphs": [{"span": {"start": 0, "end": 50}, "sentences": {"start": 0, "end": 2}, "ratedWords": 3, "mean": 3.3}], "groups": {"all": {"sentences": 4, "ratedWords": 7, "mean": 4.128571428571428, "abstractSentences": 0}, "narration": {}, "dialogue": {}}, "abstractRuns": []}
 ```
 
 Beats are `{"span", "quotes"}`, untagged runs `{"span", "quotes", "exchanges"}` and other verbs
@@ -347,12 +372,17 @@ Build rules for any baseline:
   a third party. Baseline files under `style/data/baselines/` carry their source record inside the file
   and need no NOTICE entry.
 - Word-norm datasets (concreteness, sensorimotor norms) are vendored only if their license allows
-  redistribution. Otherwise they are a caller-supplied input, like baselines.
+  redistribution. Otherwise they are a caller-supplied input, like baselines. The Lancaster
+  Sensorimotor Norms (CC BY 4.0) ship as a derived table in `style/data/norms/`; the Brysbaert
+  concreteness ratings (CC BY-NC-ND) do not ship and are never used in tests.
 
 ## Decisions
 
 | Date | Decision | Why |
 |---|---|---|
+| 2026-10-16 | #281 review: norm lookups prefer a verb reading's lemma over a base-form homograph (*felt* → *feel*), figurative and hearsay rules look past whitespace only, the bundled table keeps the 3.5/0.5 floor with haptic leads measured past interoception, defaults stay 4.0 / 1.0 / sight 3.0, and diction marks only narration sentences `abstract` | Past *felt* counted as the fabric and skipped the *feel* rule; *cold* (touch 4.11, interoception 3.53) could never count. Lowering default strength to 3.7 added *turn*, *wake* and *forget* as noise, so *warm*/*crimson* stay opt-in. Blind re-judging: 14/26/20 → 23/30/7 useful/noise/wrong ([STYLE-NORMS.md](STYLE-NORMS.md#re-review-281)) |
+| 2026-10-16 | #250: sensory balance is an opt-in lens over a derived Lancaster table: a sense word's strongest perceptual modality rates ≥ 4.0 and leads the next by ≥ 1.0 (sight by ≥ 3.0); `singleSense` needs ≥ 20 narration sense words and ≥ 85% in one modality | Calibrated on bench/public plus three Standard Ebooks chapters ([STYLE-NORMS.md](STYLE-NORMS.md)): nearly every concrete noun rates visual-dominant, so a uniform margin made sight 75–92% of every scene; the sight margin lifted useful sense words from 13 to 33 of 60 sampled. Published scenes peak at 77% one modality (Gatsby’s multi-sensory dawn), so 85% leaves no false flags on them |
+| 2026-10-16 | #250: diction takes a required caller-supplied concreteness table (JSON or TSV), flags runs of ≥ 3 consecutive abstract narration sentences (mean < 2.5 over ≥ 3 rated words), and errors without a table | Brysbaert is CC BY-NC-ND and stays out of the repository and tests; defaults assume its 1–5 scale. Real-world usefulness depends on the table Subplot supplies, an owner decision |
 | 2026-10-16 | #269: listed dialogue interjections consistently open `introductory`, including bare utterances; retain their opener spans | Skipping comma-led interjections would contradict adjudicated `Ay`, `Oh` and `Yes` labels and lower the required floors. Extend the existing category convention to aye, alas, hey, okay, ok, yeah, yep, nope, hmm, um, uh, hurrah and nay |
 | 2026-10-16 | Owner direction (#275): independent methods on retained Swift/WASM `StyleDocument` objects; remove the combined API; each result owns its counts and sentence rows | Share the expensive analysis while letting Subplot choose its default set and opt-in lenses; typed per-report Swift and TypeScript results |
 | 2026-10-16 | #275: retained documents honor `includeTokenDetails: false`; only clichés and sentence length run on compact documents | Reverses the removed combined binding’s forced full analysis. Keep the default full options for style documents; compact `analyzeDocument` options should not be reused for the recommended report set |

@@ -179,10 +179,13 @@ const cliches = JSON.parse(document.cliches());
 const stats = JSON.parse(document.stats());
 const echoes = JSON.parse(document.echoes());
 const phrases = JSON.parse(document.repeatedPhrases());
+const senses = JSON.parse(document.sensoryBalance());
+const diction = JSON.parse(document.diction(undefined, concretenessTableText));
 document.free();
 ```
 
-Methods take optional options JSON; baseline-aware methods also take baseline JSON (omitted:
+Methods take optional options JSON; `diction` also takes the caller's word-to-concreteness table
+(JSON object or TSV text) and throws a `missingTable` StyleError without one; baseline-aware methods also take baseline JSON (omitted:
 bundled; JSON object: override; `"none"`: no comparison). Results contain UTF-16 spans. Each
 sentence report owns its sentence rows. Result types ship in the generated package (source: `style-results.d.ts`):
 
@@ -191,8 +194,8 @@ import type { SentenceLengthReport } from "./pkg/writemorebetter_wasm";
 const length: SentenceLengthReport = JSON.parse(document.sentenceLength());
 ```
 
-Construction respects compact-document options. Echoes, phrases, dialogue tags and starts require
-token details and throw on compact documents. Reports run on the retained analysis; construct a new
+Construction respects compact-document options. Echoes, phrases, dialogue tags, starts, sensory
+balance and diction require token details and throw on compact documents. Reports run on the retained analysis; construct a new
 object for changed text/options. See [the per-report API](../docs/STYLE-REPORTS.md#independent-reports-shared-analysis)
 for options, result JSON examples, baselines and Subplot’s recommended default set and opt-in lenses.
 
