@@ -203,7 +203,7 @@ baseline JSON and return the JSON string directly. Spans carry UTF-16
 `diction` needs a caller-supplied word-to-concreteness table (JSON object or TSV text);
 `dictionJson(optionsJson:table:)` with a nil table throws `CheckError.ReportInput`.
 
-Construction respects compact-document options. Echoes, phrases, overused words, transitions, pronoun starts, dialogue tags,
+Construction respects compact-document options. Echoes, phrases, overused words, pronoun starts, dialogue tags,
 starts, sensory balance and diction require token details and throw on compact documents. Reports run on the retained analysis; construct a new
 object for changed text/options. See [the per-report API](../docs/STYLE-REPORTS.md#independent-reports-shared-analysis)
 for options, result JSON examples, baselines and Subplot’s recommended default set and opt-in lenses.
@@ -215,3 +215,5 @@ while its linear memory high-water mark does not shrink back to the OS. Avoid ca
 
 Transitions and pronoun starts are opt-in descriptive lenses. See [definitions, options and public
 measurements](../docs/STYLE-TRANSITIONS.md); neither has a baseline argument yet.
+
+The transitions lens also supports compact documents because it uses token text and position.

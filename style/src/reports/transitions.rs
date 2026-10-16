@@ -142,9 +142,6 @@ pub fn report(
     document: &Document,
     options: &TransitionsOptions,
 ) -> Result<TransitionsReport, StyleError> {
-    if !document.token_details {
-        return Err(StyleError::needs_token_details("transitions"));
-    }
     if options.repeat_window == 0 {
         return Err(StyleError::options(
             "repeatWindow must be at least 1 sentence",

@@ -12,7 +12,8 @@ measurement have different eligibility rules and neither needs to compute the ot
 | WASM | `document.transitions(optionsJSON?)` | `document.pronounStarts(optionsJSON?)` |
 | Swift | `document.transitions(optionsJson:) -> TransitionsReport` | `document.pronounStarts(optionsJson:) -> PronounStartsReport` |
 
-Both require token details and return `Result<_, StyleError>` in Rust. Unknown options are errors;
+Pronoun starts requires token details; transitions also works on compact documents. Both return
+`Result<_, StyleError>` in Rust. Unknown options are errors;
 camelCase JSON and snake_case aliases are supported. `minimumSentences` defaults to 50. Each `Split`
 group independently suppresses `percent` below this minimum; counts and spans remain available.
 `lowConfidence` is true below 200 eligible sentences (or a caller's higher minimum). A sentence whose

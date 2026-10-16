@@ -181,6 +181,19 @@ fn windows_and_deduplication() {
         2
     );
     assert_eq!(report.repeats.len(), 2);
+    let compact = analyze_document(
+        tokenizer(),
+        "Therefore, she left; therefore, he stayed. A bird sang. Therefore, she slept.",
+        &DocumentOptions::new().with_token_details(false),
+    );
+    assert_eq!(
+        transitions::report(
+            &compact,
+            &TransitionsOptions::new().with_minimum_sentences(1)
+        )
+        .unwrap(),
+        report
+    );
     let close =
         transitions::report(&doc, &TransitionsOptions::new().with_repeat_window(1)).unwrap();
     assert_eq!(close.repeats.len(), 1);
@@ -218,10 +231,10 @@ fn boundaries_exclusions_and_shared_methods() {
         pronoun_starts::report(&compact, &Default::default()),
         Err(StyleError::NeedsTokenDetails { .. })
     ));
-    assert!(matches!(
-        transitions::report(&compact, &Default::default()),
-        Err(StyleError::NeedsTokenDetails { .. })
-    ));
+    assert_eq!(
+        transitions::report(&compact, &Default::default()).unwrap(),
+        transitions::report(&document("She slept."), &Default::default()).unwrap()
+    );
     let shared = StyleDocument::new(
         tokenizer().clone(),
         Arc::new(StyleResources::new()),

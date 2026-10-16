@@ -169,7 +169,7 @@ measurements: single paragraphs that meet two thresholds are mostly in-scene noi
 
 | Report | Module and entry point | Options | Baseline | Needs readings |
 |---|---|---|---|---|
-| transitions | `transitions::report(&Document, &TransitionsOptions)` | `minimumSentences`, `repeatWindow` | none yet | yes |
+| transitions | `transitions::report(&Document, &TransitionsOptions)` | `minimumSentences`, `repeatWindow` | none yet | no |
 | pronoun starts | `pronoun_starts::report(&Document, &PronounStartsOptions)` | `minimumSentences` | none yet | yes |
 | echoes | `echoes::report(&Document, &EchoOptions)` | `window`, `matchForms` | none | yes |
 | repeated phrases | `repeated_phrases::report(&Document, &RepeatedPhraseOptions)` | `minimumLength`, `maximumLength`, `minimumContentWords`, `minimumOccurrences`, `nearbyWords` | none | yes |

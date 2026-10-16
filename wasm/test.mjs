@@ -345,11 +345,12 @@ eq(invalid.kind, "invalidBaseline", "invalid baseline rejected");
 eq(invalid.report, "sentenceStarts", "error names report");
 eq(styleError(() => checker.styleDocument("text", '{"typo":true}')).kind, "invalidOptions", "document options validated");
 const compactStyle = checker.styleDocument(reportText, '{"includeTokenDetails":false}');
-for (const method of ["echoes", "repeatedPhrases", "dialogueTags", "sentenceStarts", "sensoryBalance", "pacing", "overusedWords", "transitions", "pronounStarts"]) {
+for (const method of ["echoes", "repeatedPhrases", "dialogueTags", "sentenceStarts", "sensoryBalance", "pacing", "overusedWords", "pronounStarts"]) {
   eq(styleError(() => compactStyle[method]()).kind, "needsTokenDetails", `compact rejects ${method}`);
 }
 eq(styleError(() => compactStyle.diction(undefined, '{"hope":1.5}')).kind, "needsTokenDetails", "compact rejects diction");
 eq(JSON.parse(compactStyle.sentenceLength()), JSON.parse(retained.sentenceLength()), "compact length identical");
+eq(JSON.parse(compactStyle.transitions()), JSON.parse(retained.transitions()), "compact transitions identical");
 eq(JSON.parse(compactStyle.cliches()), JSON.parse(retained.cliches()), "compact clichés identical");
 compactStyle.free();
 retained.free();
