@@ -68,6 +68,7 @@ Viewer English Fiction 1-grams, version 20200217
 2026-10-16, licensed under the Creative Commons Attribution 3.0 Unported License
 (https://creativecommons.org/licenses/by/3.0/). writemorebetter summed match
 counts for edition years 1990-2019, lemmatized the part-of-speech-tagged forms
-with its own tokenizer, and kept rates per million words, rounded to three
-significant digits, for content lemmas at or above one per million
+with its own tokenizer, merged British spelling variants into their American
+lemma, and kept rates per million words, rounded to three significant digits,
+for content lemmas at or above one per million
 (bench/style/overused_baseline.py). Google does not endorse writemorebetter.

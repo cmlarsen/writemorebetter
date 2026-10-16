@@ -10,10 +10,15 @@ the repository; it is about 940 MB and is never committed:
     python3 bench/style/overused_baseline.py build SCRATCH/forms.tsv
 
 `extract` sums match counts for edition years 1990-2019. It keeps POS-tagged content forms
-(NOUN, VERB, ADJ, ADV) and the filler forms, and counts the denominator as every untagged 1-gram
-containing a letter or digit, the document's word-token convention. `build` lemmatizes each tagged
-form with the tokenizer's own tagger (bench/tools/wmb-document `lemmatize_forms`), restricting
-readings to the Penn tags of the form's universal tag, then writes the table.
+(NOUN, VERB, ADJ, ADV), the ADP, CONJ and PRT forms and the filler forms, and counts the
+denominator as every untagged 1-gram containing a letter or digit, the document's word-token
+convention. `build` lemmatizes each tagged form with the tokenizer's own tagger
+(bench/tools/wmb-document `lemmatize_forms`), restricting readings to the Penn tags of the form's
+universal tag, folds British spellings into the report's SPELLING_VARIANTS keys, adds ADP, CONJ
+and PRT uses to lemmas that already have content uses, then writes the table.
+
+`--retrieved` defaults to the date the committed table's download was made, so the rebuild is
+byte-identical; pass the new date when rebuilding from a fresh download.
 """
 
 import argparse
@@ -30,8 +35,9 @@ ROOT = Path(__file__).resolve().parents[2]
 OUTPUT = ROOT / 'style/data/baselines/overused-words.json'
 FIRST_YEAR, LAST_YEAR = 1990, 2019
 CONTENT_TAGS = ('NOUN', 'VERB', 'ADJ', 'ADV')
+SHARED_TAGS = ('ADP', 'CONJ', 'PRT')
 FILLER_FORMS = {
-    'that_ADP',
+    'that_ADP', 'That_ADP',
     'just_ADV', 'Just_ADV',
     'really_ADV', 'Really_ADV',
     'very_ADV', 'Very_ADV',
@@ -42,6 +48,7 @@ FILLER_FORMS = {
     'simply_ADV', 'Simply_ADV',
 }
 MINIMUM_FORM_COUNT = 1000
+CAPITALIZED_NOUN_SHARE = 0.1
 TABLE_SIZE = 50000
 MINIMUM_RATE = 1.0
 SIGNIFICANT_DIGITS = 3
@@ -65,7 +72,7 @@ def extract(args):
         for line in source:
             token, _, rest = line.rstrip('\n').partition('\t')
             form, separator, tag = token.rpartition('_')
-            if separator and form and tag in CONTENT_TAGS or token in FILLER_FORMS:
+            if separator and form and tag in CONTENT_TAGS + SHARED_TAGS or token in FILLER_FORMS:
                 count = window_count(rest.split('\t'))
                 if count >= args.minimum or token in FILLER_FORMS:
                     out.write(f'{form}\t{tag}\t{count}\n')
@@ -90,6 +97,11 @@ def rust_list(path, declaration):
     return set(json.loads('[' + body.strip().rstrip(',') + ']'))
 
 
+def rust_pairs(path, declaration):
+    body = path.read_text(encoding='utf-8').split(declaration, 1)[1].split('];', 1)[0]
+    return dict(re.findall(r'\(\s*"([^"]+)",\s*"([^"]+)"\s*\)', body))
+
+
 def excluded_lemmas():
     return (rust_list(ROOT / 'style/src/reports/echoes.rs', 'const FUNCTION_WORDS')
             | rust_list(REPORT_SOURCE, 'pub const EXCLUDED_LEMMAS')
@@ -107,8 +119,10 @@ def build(args):
     rows = lemmatize(args.forms, args.tokenizer)
     words = next(int(count) for form, tag, count, *_ in rows if form == '#words')
     excluded = excluded_lemmas()
+    variants = rust_pairs(REPORT_SOURCE, 'pub const SPELLING_VARIANTS')
     shares = defaultdict(float)
     candidates = []
+    shared = []
     fillers = defaultdict(int)
     lowercase = {(form, tag): int(count) for form, tag, count, *_ in rows if form == form.lower()}
     for form, tag, count, lemmas, proper in rows:
@@ -119,10 +133,14 @@ def build(args):
         if f'{form}_{tag}' in FILLER_FORMS:
             fillers[filler] += count
             continue
-        if proper == '1' or form != filler and count > lowercase.get((filler, tag), 0):
+        share = CAPITALIZED_NOUN_SHARE if tag == 'NOUN' else 1
+        if proper == '1' or form != filler and count > lowercase.get((filler, tag), 0) * share:
             continue
-        options = [lemma for lemma in lemmas.split('|') if lemma and lemma not in excluded]
+        options = list(dict.fromkeys(variants.get(lemma, lemma) for lemma in lemmas.split('|') if lemma and lemma not in excluded))
         if not options:
+            continue
+        if tag in SHARED_TAGS:
+            shared.append((options, count))
             continue
         candidates.append((options, count))
         for lemma in options:
@@ -130,6 +148,10 @@ def build(args):
     totals = defaultdict(int)
     for options, count in candidates:
         totals[max(options, key=lambda lemma: (shares[lemma], lemma))] += count
+    for options, count in shared:
+        known = [lemma for lemma in options if lemma in totals]
+        if known:
+            totals[max(known, key=lambda lemma: (shares[lemma], lemma))] += count
     ranked = sorted(totals.items(), key=lambda item: (-item[1], item[0]))[:args.size]
     lemmas = {lemma: rounded(count * 1e6 / words) for lemma, count in sorted(ranked) if count * 1e6 / words >= args.minimum_rate}
     table = {
@@ -141,7 +163,9 @@ def build(args):
             'years': f'{FIRST_YEAR}-{LAST_YEAR} edition years, volume-weighted (no book or author dimension)',
             'denominator': f'{words} untagged 1-grams containing a letter or digit',
             'lemmatizer': 'writemorebetter en_tokenizer.bin tagger lookup, readings restricted to the Penn tags of the Ngram universal tag; '
-                          'capitalized forms excluded when they have a proper-noun reading or outnumber their lowercase form; ambiguous forms assigned to their most frequent lemma',
+                          f'capitalized forms excluded when they have a proper-noun reading or outnumber their lowercase form (nouns: {CAPITALIZED_NOUN_SHARE:g} of it); '
+                          'ambiguous forms assigned to their most frequent lemma; ADP, CONJ and PRT uses added to lemmas with content uses (a preposition use keeps its content readings in a document); '
+                          'British spellings counted under the American key (overused_words.rs SPELLING_VARIANTS)',
             'tokenizer': args.tokenizer_version,
             'build': 'bench/style/overused_baseline.py',
             'content': f'{len(lemmas)} content lemmas (NOUN, VERB, ADJ, ADV; the report\'s function words, particles and fillers excluded) '

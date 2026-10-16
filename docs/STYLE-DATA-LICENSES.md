@@ -90,6 +90,7 @@ Licenses checked 2026-10-15 (recorded in #246, below). #250 vendors one derived 
   <https://storage.googleapis.com/books/ngrams/books/20200217/eng-fiction/1-00000-of-00001.gz>
   (940,045,192 bytes), retrieved 2026-10-16 without sign-up or click-through. It is not committed.
 - `style/data/baselines/overused-words.json` is derived from it by `bench/style/overused_baseline.py`:
-  per-lemma rates per million words for edition years 1990–2019, rounded to three significant digits.
+  per-lemma rates per million words for edition years 1990–2019, with British spelling variants
+  merged into their American lemma, rounded to three significant digits.
   It holds counts, not text. Its source record names the dataset, version, URL, license, retrieval
   date and build rules, and NOTICE credits Google Books Ngram.

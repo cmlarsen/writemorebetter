@@ -2,7 +2,8 @@ use std::sync::OnceLock;
 
 use nlprule::Tokenizer;
 use writemorebetter_style::reports::overused_words::{
-    report, OverusedWordsBaseline, OverusedWordsOptions, FILLER_WORDS,
+    canonical_spelling, report, OverusedWordsBaseline, OverusedWordsOptions, FILLER_WORDS,
+    SPELLING_VARIANTS,
 };
 use writemorebetter_style::{analyze_document, Document, DocumentOptions, StyleError};
 
@@ -165,6 +166,9 @@ fn inputs_are_validated_and_compact_documents_rejected() {
         OverusedWordsBaseline::new().with_lemma("glance", -1.0),
         OverusedWordsBaseline::new().with_lemma("glance", f64::NAN),
         OverusedWordsBaseline::new().with_filler("glance", 1.0),
+        OverusedWordsBaseline::new().with_lemma("Glance", 10.0),
+        OverusedWordsBaseline::new().with_lemma("o’clock", 10.0),
+        OverusedWordsBaseline::new().with_lemma("grey", 10.0),
     ] {
         match report(&d, &OverusedWordsOptions::new(), Some(&baseline)) {
             Err(StyleError::InvalidBaseline { report, .. }) => assert_eq!(report, "overusedWords"),
@@ -204,4 +208,161 @@ fn bundled_table_covers_fillers_and_common_content_lemmas() {
         .as_str()
         .unwrap()
         .starts_with("CC BY 3.0"));
+}
+
+fn loose() -> OverusedWordsOptions {
+    OverusedWordsOptions::new()
+        .with_minimum_ratio(0.001)
+        .with_minimum_count(1)
+        .with_minimum_reference_per_million(0.0)
+}
+
+fn flags(text: &str, options: &OverusedWordsOptions) -> Vec<(String, usize, f64)> {
+    let d = document(text, &DocumentOptions::new());
+    report(&d, options, OverusedWordsBaseline::bundled())
+        .unwrap()
+        .overused
+        .into_iter()
+        .map(|w| (w.lemma, w.count, w.reference_per_ten_thousand_words))
+        .collect()
+}
+
+const CHAPTER: &str = "The rain kept on through the evening. Somebody had left a cup on the sill. \
+The radio hummed a song nobody in the house could name. Outside, a dog barked twice and stopped. \
+Her brother wrote letters he never sent, and their mother pretended not to know. ";
+
+#[test]
+fn prepositions_compare_against_their_preposition_uses() {
+    let bundled = OverusedWordsBaseline::bundled().unwrap();
+    for (lemma, adverb_and_adjective_only) in [
+        ("above", 20.2),
+        ("near", 72.2),
+        ("inside", 188.0),
+        ("outside", 152.0),
+        ("past", 199.0),
+        ("opposite", 54.6),
+        ("aboard", 1.37),
+    ] {
+        let rate = bundled.rate(lemma).unwrap();
+        assert!(rate > adverb_and_adjective_only * 1.2, "{lemma}: {rate}");
+    }
+    let mut text = CHAPTER.repeat(110);
+    for place in ["door", "fire", "window", "stairs", "gate"] {
+        text.push_str(&format!("She stood near the {place}. "));
+    }
+    let d = document(&text, &DocumentOptions::new());
+    assert!(d.word_count > 4_500, "{}", d.word_count);
+    let near = |options: &OverusedWordsOptions| {
+        report(&d, options, Some(bundled))
+            .unwrap()
+            .overused
+            .into_iter()
+            .find(|w| w.lemma == "near")
+    };
+    assert_eq!(near(&OverusedWordsOptions::new()), None);
+    let near = near(&loose()).unwrap();
+    assert_eq!(near.count, 5);
+    assert!(near.ratio < 4.0, "{}", near.ratio);
+    assert!(near.per_ten_thousand_words / 0.722 > 4.0);
+}
+
+#[test]
+fn british_and_american_spellings_share_one_reference_rate() {
+    let windows = SPELLING_VARIANTS.windows(2);
+    assert!(windows.clone().all(|pair| pair[0].0 < pair[1].0));
+    let bundled = OverusedWordsBaseline::bundled().unwrap();
+    for (british, american) in SPELLING_VARIANTS {
+        assert_eq!(canonical_spelling(british), american);
+        assert_eq!(canonical_spelling(american), american);
+        assert!(!bundled.lemmas.contains_key(british), "{british}");
+        assert_eq!(bundled.rate(british), bundled.rate(american), "{british}");
+    }
+    assert!(bundled.rate("gray").unwrap() > 120.0);
+    let pair = |british: &str, american: &str| {
+        let text = |word: &str| format!("The {word} cat sat. A {word} dog ran. ");
+        let (b, a) = (
+            flags(&text(british), &loose()),
+            flags(&text(american), &loose()),
+        );
+        let find = |found: &[(String, usize, f64)], lemma: &str| {
+            found.iter().find(|(l, _, _)| l == lemma).cloned().unwrap()
+        };
+        let (b, a) = (find(&b, british), find(&a, american));
+        assert_eq!((b.1, b.2), (a.1, a.2), "{british}/{american}");
+    };
+    pair("grey", "gray");
+    pair("colourful", "colorful");
+    let realised = flags(
+        "She realised it. He realized it. They realised it.",
+        &loose(),
+    );
+    let realize = realised.iter().find(|(l, _, _)| l == "realise").unwrap();
+    assert_eq!(realize.1, 3);
+    assert_eq!(Some(realize.2 * 100.0), bundled.rate("realize"));
+}
+
+#[test]
+fn hyphenated_words_count_their_head() {
+    let text = "She half-smiled. He half-smiled back. A well-known face, a blue-grey coat, \
+twenty-five men, a grey dog.";
+    let found = flags(text, &loose());
+    let lemma = |name: &str| found.iter().find(|(l, _, _)| l == name).map(|f| f.1);
+    assert_eq!(lemma("smile"), Some(2));
+    assert_eq!(lemma("know"), Some(1));
+    assert_eq!(lemma("grey"), Some(2));
+    assert!(
+        found
+            .iter()
+            .all(|(l, _, _)| !l.contains('-') && l != "five"),
+        "{found:?}"
+    );
+    let d = document(text, &DocumentOptions::new());
+    let r = report(
+        &d,
+        &loose(),
+        Some(&synthetic().with_lemma("well-known", 10.0)),
+    )
+    .unwrap();
+    assert!(r.overused.iter().any(|w| w.lemma == "well-known"));
+}
+
+#[test]
+fn clause_final_pronoun_that_is_not_a_filler() {
+    let d = document(
+        "He said that. She knew that he lied. “I want that,” she said. It was so cold that we left.",
+        &DocumentOptions::new(),
+    );
+    let r = report(&d, &OverusedWordsOptions::new(), None).unwrap();
+    let that = r.fillers.iter().find(|f| f.word == "that").unwrap();
+    assert_eq!(that.count, 2);
+}
+
+#[test]
+fn minimum_count_scales_with_length_beyond_a_chapter() {
+    let options = OverusedWordsOptions::new();
+    assert_eq!(options.minimum_count_for(0), 5);
+    assert_eq!(options.minimum_count_for(10_000), 5);
+    assert_eq!(options.minimum_count_for(25_000), 8);
+    assert_eq!(options.minimum_count_for(90_000), 15);
+    assert_eq!(
+        options
+            .clone()
+            .with_count_scale_words(0)
+            .minimum_count_for(90_000),
+        5
+    );
+    let mut text = CHAPTER.repeat(450);
+    text.push_str(&"She glanced up. ".repeat(7));
+    let d = document(&text, &DocumentOptions::new());
+    assert!(d.word_count > 20_000);
+    let glance = |options: &OverusedWordsOptions| {
+        let table = OverusedWordsBaseline::new().with_lemma("glance", 10.0);
+        report(&d, options, Some(&table))
+            .unwrap()
+            .overused
+            .iter()
+            .any(|w| w.lemma == "glance")
+    };
+    assert!(!glance(&options));
+    assert!(glance(&options.with_count_scale_words(0)));
 }

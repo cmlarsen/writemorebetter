@@ -1,9 +1,11 @@
+use std::cmp::Reverse;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::OnceLock;
 
 use serde::{Deserialize, Serialize};
 
 use super::echoes::{fold, listed};
+use crate::document::compound_head;
 use crate::error::StyleError;
 use crate::{Document, Span, Token};
 
@@ -19,6 +21,263 @@ pub const EXCLUDED_LEMMAS: [&str; 9] = [
     "around", "away", "back", "down", "like", "off", "out", "round", "up",
 ];
 
+pub const SPELLING_VARIANTS: [(&str, &str); 248] = [
+    ("acknowledgement", "acknowledgment"),
+    ("aeon", "eon"),
+    ("aeroplane", "airplane"),
+    ("ageing", "aging"),
+    ("agonise", "agonize"),
+    ("agonising", "agonizing"),
+    ("amphitheatre", "amphitheater"),
+    ("anaesthesia", "anesthesia"),
+    ("anaesthetic", "anesthetic"),
+    ("analogue", "analog"),
+    ("analyse", "analyze"),
+    ("antagonise", "antagonize"),
+    ("apologise", "apologize"),
+    ("appal", "appall"),
+    ("appetiser", "appetizer"),
+    ("arbour", "arbor"),
+    ("archaeological", "archeological"),
+    ("archaeologist", "archeologist"),
+    ("archaeology", "archeology"),
+    ("ardour", "ardor"),
+    ("armour", "armor"),
+    ("armoured", "armored"),
+    ("armoury", "armory"),
+    ("artefact", "artifact"),
+    ("authorisation", "authorization"),
+    ("authorise", "authorize"),
+    ("axe", "ax"),
+    ("baptise", "baptize"),
+    ("behaviour", "behavior"),
+    ("behavioural", "behavioral"),
+    ("brutalise", "brutalize"),
+    ("calibre", "caliber"),
+    ("candour", "candor"),
+    ("capitalise", "capitalize"),
+    ("catalogue", "catalog"),
+    ("categorise", "categorize"),
+    ("centimetre", "centimeter"),
+    ("centre", "center"),
+    ("characterisation", "characterization"),
+    ("characterise", "characterize"),
+    ("chimaera", "chimera"),
+    ("civilisation", "civilization"),
+    ("civilise", "civilize"),
+    ("civilised", "civilized"),
+    ("clamour", "clamor"),
+    ("colonisation", "colonization"),
+    ("colonise", "colonize"),
+    ("colour", "color"),
+    ("coloured", "colored"),
+    ("colourful", "colorful"),
+    ("colouring", "coloring"),
+    ("colourless", "colorless"),
+    ("cosy", "cozy"),
+    ("criticise", "criticize"),
+    ("crystallise", "crystallize"),
+    ("customise", "customize"),
+    ("defence", "defense"),
+    ("demeanour", "demeanor"),
+    ("demoralise", "demoralize"),
+    ("diarrhoea", "diarrhea"),
+    ("discolour", "discolor"),
+    ("dishonour", "dishonor"),
+    ("dishonourable", "dishonorable"),
+    ("disorganised", "disorganized"),
+    ("distil", "distill"),
+    ("doughnut", "donut"),
+    ("dramatise", "dramatize"),
+    ("empathise", "empathize"),
+    ("emphasise", "emphasize"),
+    ("enamour", "enamor"),
+    ("encyclopaedia", "encyclopedia"),
+    ("endeavour", "endeavor"),
+    ("energise", "energize"),
+    ("enrol", "enroll"),
+    ("enrolment", "enrollment"),
+    ("enthral", "enthrall"),
+    ("faeces", "feces"),
+    ("familiarise", "familiarize"),
+    ("fantasise", "fantasize"),
+    ("favour", "favor"),
+    ("favourable", "favorable"),
+    ("favourably", "favorably"),
+    ("favoured", "favored"),
+    ("favourite", "favorite"),
+    ("fertilise", "fertilize"),
+    ("fertiliser", "fertilizer"),
+    ("fervour", "fervor"),
+    ("fibre", "fiber"),
+    ("finalise", "finalize"),
+    ("flavour", "flavor"),
+    ("flavoured", "flavored"),
+    ("foetal", "fetal"),
+    ("foetid", "fetid"),
+    ("foetus", "fetus"),
+    ("fulfil", "fulfill"),
+    ("fulfilment", "fulfillment"),
+    ("galvanise", "galvanize"),
+    ("generalisation", "generalization"),
+    ("grey", "gray"),
+    ("greyish", "grayish"),
+    ("greyness", "grayness"),
+    ("gruelling", "grueling"),
+    ("haemorrhage", "hemorrhage"),
+    ("harbour", "harbor"),
+    ("harmonise", "harmonize"),
+    ("honour", "honor"),
+    ("honourable", "honorable"),
+    ("honoured", "honored"),
+    ("hospitalise", "hospitalize"),
+    ("humour", "humor"),
+    ("humourless", "humorless"),
+    ("hypnotise", "hypnotize"),
+    ("idealise", "idealize"),
+    ("idolise", "idolize"),
+    ("immobilise", "immobilize"),
+    ("immortalise", "immortalize"),
+    ("instal", "install"),
+    ("instalment", "installment"),
+    ("instil", "instill"),
+    ("institutionalise", "institutionalize"),
+    ("jeopardise", "jeopardize"),
+    ("jeweller", "jeweler"),
+    ("jewellery", "jewelry"),
+    ("judgement", "judgment"),
+    ("kilometre", "kilometer"),
+    ("labour", "labor"),
+    ("laboured", "labored"),
+    ("labourer", "laborer"),
+    ("leukaemia", "leukemia"),
+    ("licence", "license"),
+    ("litre", "liter"),
+    ("lustre", "luster"),
+    ("manoeuvre", "maneuver"),
+    ("materialise", "materialize"),
+    ("maximise", "maximize"),
+    ("meagre", "meager"),
+    ("mediaeval", "medieval"),
+    ("memorise", "memorize"),
+    ("mesmerise", "mesmerize"),
+    ("metre", "meter"),
+    ("millimetre", "millimeter"),
+    ("minimise", "minimize"),
+    ("misdemeanour", "misdemeanor"),
+    ("mobilise", "mobilize"),
+    ("modernise", "modernize"),
+    ("monopolise", "monopolize"),
+    ("motorise", "motorize"),
+    ("mould", "mold"),
+    ("mouldy", "moldy"),
+    ("moustache", "mustache"),
+    ("multicoloured", "multicolored"),
+    ("neighbour", "neighbor"),
+    ("neighbourhood", "neighborhood"),
+    ("neighbouring", "neighboring"),
+    ("neutralise", "neutralize"),
+    ("odour", "odor"),
+    ("offence", "offense"),
+    ("organisation", "organization"),
+    ("organise", "organize"),
+    ("organised", "organized"),
+    ("organiser", "organizer"),
+    ("ostracise", "ostracize"),
+    ("paediatric", "pediatric"),
+    ("paediatrician", "pediatrician"),
+    ("paedophile", "pedophile"),
+    ("panelling", "paneling"),
+    ("paralyse", "paralyze"),
+    ("parlour", "parlor"),
+    ("patronise", "patronize"),
+    ("patronising", "patronizing"),
+    ("personalise", "personalize"),
+    ("plough", "plow"),
+    ("practise", "practice"),
+    ("pretence", "pretense"),
+    ("primaeval", "primeval"),
+    ("programme", "program"),
+    ("publicise", "publicize"),
+    ("pulverise", "pulverize"),
+    ("pyjamas", "pajamas"),
+    ("rancour", "rancor"),
+    ("rationalisation", "rationalization"),
+    ("rationalise", "rationalize"),
+    ("realisation", "realization"),
+    ("realise", "realize"),
+    ("recognise", "recognize"),
+    ("reconnoitre", "reconnoiter"),
+    ("reorganisation", "reorganization"),
+    ("reorganise", "reorganize"),
+    ("reveller", "reveler"),
+    ("revitalise", "revitalize"),
+    ("rigour", "rigor"),
+    ("rumour", "rumor"),
+    ("sabre", "saber"),
+    ("saviour", "savior"),
+    ("savour", "savor"),
+    ("savoury", "savory"),
+    ("scandalise", "scandalize"),
+    ("sceptic", "skeptic"),
+    ("sceptical", "skeptical"),
+    ("scepticism", "skepticism"),
+    ("sceptre", "scepter"),
+    ("scrutinise", "scrutinize"),
+    ("sepulchre", "sepulcher"),
+    ("skilful", "skillful"),
+    ("smoulder", "smolder"),
+    ("socialise", "socialize"),
+    ("sombre", "somber"),
+    ("specialisation", "specialization"),
+    ("specialise", "specialize"),
+    ("specialised", "specialized"),
+    ("spectre", "specter"),
+    ("splendour", "splendor"),
+    ("stabilise", "stabilize"),
+    ("sterilise", "sterilize"),
+    ("succour", "succor"),
+    ("sulphur", "sulfur"),
+    ("summarise", "summarize"),
+    ("symbolise", "symbolize"),
+    ("sympathise", "sympathize"),
+    ("sympathiser", "sympathizer"),
+    ("synchronise", "synchronize"),
+    ("synthesise", "synthesize"),
+    ("tantalise", "tantalize"),
+    ("tantalising", "tantalizing"),
+    ("terrorise", "terrorize"),
+    ("theatre", "theater"),
+    ("theorise", "theorize"),
+    ("traumatise", "traumatize"),
+    ("traveller", "traveler"),
+    ("tumour", "tumor"),
+    ("unauthorised", "unauthorized"),
+    ("uncivilised", "uncivilized"),
+    ("unfavourable", "unfavorable"),
+    ("unsavoury", "unsavory"),
+    ("utilisation", "utilization"),
+    ("utilise", "utilize"),
+    ("valour", "valor"),
+    ("vandalise", "vandalize"),
+    ("vaporise", "vaporize"),
+    ("vapour", "vapor"),
+    ("verbalise", "verbalize"),
+    ("victimise", "victimize"),
+    ("vigour", "vigor"),
+    ("visualise", "visualize"),
+    ("watercolour", "watercolor"),
+    ("whisky", "whiskey"),
+    ("wilful", "willful"),
+    ("womaniser", "womanizer"),
+];
+
+pub fn canonical_spelling(lemma: &str) -> &str {
+    SPELLING_VARIANTS
+        .binary_search_by(|(british, _)| (*british).cmp(lemma))
+        .map_or(lemma, |index| SPELLING_VARIANTS[index].1)
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields, rename_all = "camelCase")]
 #[non_exhaustive]
@@ -31,6 +290,8 @@ pub struct OverusedWordsOptions {
     pub minimum_reference_per_million: f64,
     #[serde(alias = "include_nouns")]
     pub include_nouns: bool,
+    #[serde(alias = "count_scale_words")]
+    pub count_scale_words: usize,
 }
 
 impl Default for OverusedWordsOptions {
@@ -40,6 +301,7 @@ impl Default for OverusedWordsOptions {
             minimum_count: 5,
             minimum_reference_per_million: 10.0,
             include_nouns: false,
+            count_scale_words: 10_000,
         }
     }
 }
@@ -63,6 +325,20 @@ impl OverusedWordsOptions {
     pub fn with_include_nouns(mut self, include: bool) -> Self {
         self.include_nouns = include;
         self
+    }
+    pub fn with_count_scale_words(mut self, words: usize) -> Self {
+        self.count_scale_words = words;
+        self
+    }
+
+    pub fn minimum_count_for(&self, words: usize) -> usize {
+        let minimum = self.minimum_count.max(1);
+        match self.count_scale_words {
+            0 => minimum,
+            scale => {
+                minimum.max((minimum as f64 * (words as f64 / scale as f64).sqrt()).ceil() as usize)
+            }
+        }
     }
 
     fn validate(&self) -> Result<(), StyleError> {
@@ -105,6 +381,10 @@ impl OverusedWordsBaseline {
         self
     }
 
+    pub fn rate(&self, lemma: &str) -> Option<f64> {
+        self.lemmas.get(canonical_spelling(lemma)).copied()
+    }
+
     pub fn bundled() -> Option<&'static Self> {
         static BUNDLED: OnceLock<OverusedWordsBaseline> = OnceLock::new();
         Some(BUNDLED.get_or_init(|| {
@@ -113,6 +393,24 @@ impl OverusedWordsBaseline {
     }
 
     pub fn validate(&self) -> Result<(), StyleError> {
+        for key in self.lemmas.keys() {
+            if fold(key) != *key {
+                return Err(StyleError::baseline(
+                    REPORT,
+                    format!(
+                        "{key} must be lowercase with straight apostrophes, as {:?}",
+                        fold(key)
+                    ),
+                ));
+            }
+            let canonical = canonical_spelling(key);
+            if canonical != key {
+                return Err(StyleError::baseline(
+                    REPORT,
+                    format!("{key} is a spelling variant of {canonical}; give one rate under {canonical}"),
+                ));
+            }
+        }
         for (key, rate) in self.lemmas.iter().chain(&self.fillers) {
             if !(rate.is_finite() && *rate >= 0.0) {
                 return Err(StyleError::baseline(
@@ -168,15 +466,22 @@ pub struct OverusedWordsReport {
     pub fillers: Vec<OverusedWordsFiller>,
 }
 
-fn filler(token: &Token) -> Option<&'static str> {
-    let word = fold(&token.text);
-    let word = FILLER_WORDS.iter().find(|filler| **filler == word)?;
-    let qualifies = if *word == "that" {
-        token.chunks.iter().any(|chunk| chunk == "B-SBAR")
+struct Word<'a> {
+    token: &'a Token,
+    initial: bool,
+    next: Option<&'a Token>,
+}
+
+fn filler(word: &Word) -> Option<&'static str> {
+    let token = word.token;
+    let text = fold(&token.text);
+    let filler = FILLER_WORDS.iter().find(|filler| **filler == text)?;
+    let qualifies = if *filler == "that" {
+        token.chunks.iter().any(|chunk| chunk == "B-SBAR") && word.next.is_some_and(|t| t.is_word)
     } else {
         token.readings.iter().any(|r| r.pos.starts_with("RB"))
     };
-    qualifies.then_some(*word)
+    qualifies.then_some(*filler)
 }
 
 fn capitalized(token: &Token) -> bool {
@@ -193,18 +498,28 @@ fn proper(token: &Token, initial: bool, names: &HashSet<&str>) -> bool {
                 .any(|r| matches!(r.pos.as_str(), "NNP" | "NNPS")))
 }
 
-fn words_with_position(document: &Document) -> impl Iterator<Item = (&Token, bool)> {
+fn words_with_position(document: &Document) -> impl Iterator<Item = Word<'_>> {
     document.sentences().flat_map(|sentence| {
+        let tokens: Vec<&Token> = sentence
+            .tokens
+            .iter()
+            .filter(|t| !t.is_whitespace)
+            .collect();
         let mut initial = true;
-        sentence.tokens.iter().filter_map(move |token| {
-            if token.is_whitespace {
-                return None;
-            }
+        let mut words = Vec::new();
+        for (index, token) in tokens.iter().enumerate() {
             let opens = initial;
             initial =
                 token.is_punctuation && (initial || token.text.contains(['“', '‘', '"', ':', '(']));
-            (token.is_word && !token.is_skipped).then_some((token, opens))
-        })
+            if token.is_word && !token.is_skipped {
+                words.push(Word {
+                    token,
+                    initial: opens,
+                    next: tokens.get(index + 1).copied(),
+                });
+            }
+        }
+        words
     })
 }
 
@@ -216,22 +531,46 @@ fn excluded(lemma: &str) -> bool {
         || EXCLUDED_LEMMAS.contains(&lemma)
 }
 
-fn content_lemma(token: &Token, baseline: &OverusedWordsBaseline) -> Option<(String, bool)> {
+fn candidates<'a>(
+    readings: impl Iterator<Item = (&'a str, &'a str)>,
+) -> Vec<(String, &'static str)> {
+    readings
+        .filter_map(|(lemma, pos)| {
+            if matches!(pos, "NNP" | "NNPS") {
+                return None;
+            }
+            let tag = CONTENT_TAGS.iter().find(|tag| pos.starts_with(**tag))?;
+            Some((fold(lemma), *tag))
+        })
+        .filter(|(lemma, _)| !excluded(lemma))
+        .collect()
+}
+
+fn content_lemma(
+    word: &Word,
+    document: &Document,
+    baseline: &OverusedWordsBaseline,
+) -> Option<(String, bool)> {
+    let token = word.token;
     if token.readings.iter().any(|r| r.pos.starts_with("CD")) {
         return None;
     }
-    let content: Vec<(String, &str)> = token
-        .readings
+    let mut content = candidates(
+        token
+            .readings
+            .iter()
+            .map(|r| (r.lemma.as_str(), r.pos.as_str())),
+    );
+    if !content
         .iter()
-        .filter_map(|r| {
-            if matches!(r.pos.as_str(), "NNP" | "NNPS") {
-                return None;
-            }
-            let tag = CONTENT_TAGS.iter().find(|tag| r.pos.starts_with(**tag))?;
-            Some((fold(&r.lemma), *tag))
-        })
-        .filter(|(lemma, _)| !excluded(lemma))
-        .collect();
+        .any(|(lemma, _)| baseline.rate(lemma).is_some())
+    {
+        if let Some(readings) =
+            compound_head(&token.text).and_then(|head| document.compound_heads.get(&head))
+        {
+            content = candidates(readings.iter().map(|(l, p)| (l.as_str(), p.as_str())));
+        }
+    }
     let chunk = |kind: &str| token.chunks.iter().any(|c| c.contains(kind));
     let family = |tag: &str| content.iter().any(|(_, t)| *t == tag);
     let content: Vec<(String, &str)> = if chunk("-VP") && family("VB") {
@@ -241,7 +580,7 @@ fn content_lemma(token: &Token, baseline: &OverusedWordsBaseline) -> Option<(Str
     } else {
         content
     };
-    let rate = |lemma: &str| baseline.lemmas.get(lemma).copied().unwrap_or(0.0);
+    let rate = |lemma: &str| baseline.rate(lemma).unwrap_or(0.0);
     let lemma = content
         .iter()
         .map(|(lemma, _)| lemma)
@@ -275,29 +614,40 @@ pub fn report(
         baseline.validate()?;
     }
     let words = document.word_count;
-    let mut lemmas: HashMap<String, Vec<Span>> = HashMap::new();
+    let mut lemmas: HashMap<String, (Vec<Span>, BTreeMap<String, usize>)> = HashMap::new();
     let mut fillers: BTreeMap<&str, Vec<Span>> = BTreeMap::new();
     let names: HashSet<&str> = words_with_position(document)
-        .filter(|(token, initial)| !initial && capitalized(token))
-        .map(|(token, _)| token.text.as_str())
+        .filter(|word| !word.initial && capitalized(word.token))
+        .map(|word| word.token.text.as_str())
         .collect();
-    for (token, initial) in words_with_position(document) {
-        if let Some(word) = filler(token) {
-            fillers.entry(word).or_default().push(token.span.clone());
-        } else if let Some(baseline) = baseline.filter(|_| !proper(token, initial, &names)) {
-            match content_lemma(token, baseline) {
+    for word in words_with_position(document) {
+        let token = word.token;
+        if let Some(filler) = filler(&word) {
+            fillers.entry(filler).or_default().push(token.span.clone());
+        } else if let Some(baseline) = baseline.filter(|_| !proper(token, word.initial, &names)) {
+            match content_lemma(&word, document, baseline) {
                 Some((lemma, noun)) if options.include_nouns || !noun => {
-                    lemmas.entry(lemma).or_default().push(token.span.clone());
+                    let key = canonical_spelling(&lemma).to_owned();
+                    let (spans, spellings) = lemmas.entry(key).or_default();
+                    spans.push(token.span.clone());
+                    *spellings.entry(lemma).or_default() += 1;
                 }
                 _ => {}
             }
         }
     }
+    let minimum_count = options.minimum_count_for(words);
     let mut overused: Vec<OverusedWord> = baseline
         .map(|baseline| {
-            lemmas.into_iter().filter_map(|(lemma, spans)| {
-                let reference = *baseline.lemmas.get(&lemma)?;
-                if spans.len() < options.minimum_count.max(1)
+            lemmas.into_iter().filter_map(|(key, (spans, spellings))| {
+                let reference = *baseline.lemmas.get(&key)?;
+                let lemma = spellings
+                    .iter()
+                    .max_by_key(|(spelling, count)| {
+                        (**count, **spelling == key, Reverse(*spelling))
+                    })
+                    .map(|(spelling, _)| spelling.clone())?;
+                if spans.len() < minimum_count
                     || reference <= 0.0
                     || reference < options.minimum_reference_per_million
                 {

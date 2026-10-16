@@ -36,7 +36,19 @@ content lemma:
    head keeps its noun readings. The remaining `NN*`, `VB*`, `JJ*` and `RB*` lemmas are the
    candidates; ambiguous tokens take the candidate with the highest reference rate (*saw* → *see*,
    *found* → *find*).
-4. Nouns are left out unless `includeNouns` is true: a token whose chosen lemma has only noun readings
+4. A hyphenated token whose own readings give no lemma in the table counts as its head, the part after
+   the last hyphen, with the tagger's readings for that word: *half-smiled* → *smile*, *yellow-grey*
+   → *grey*, *well-known* → *know*. Ngram v3 splits hyphenated words, so the reference counts the
+   head the same way. A hyphenated lemma in a custom table (*well-known*) is still matched first.
+5. British spellings count under their American lemma: *grey* and *gray*, *realise* and *realize*,
+   *colour* and *color* share one count and one reference rate. `SPELLING_VARIANTS` in
+   `overused_words.rs` holds the 248 pairs (*-ise/-ize*, *-yse/-yze*, *-isation*, *-our/-or*,
+   *-re/-er*, *-ence/-ense*, *-ogue/-og*, *ae/oe*, single and double *l*, and a short hand list such
+   as *grey, plough, mould, moustache, pyjamas, sceptical, judgement*). They were generated from the
+   lemmatized Ngram forms by those suffix rules and pruned by hand of false pairs (*hour/hor*,
+   *prise/prize*, *canoe/cane*, *timbre/timber*). The flag reports the spelling the document uses
+   most.
+6. Nouns are left out unless `includeNouns` is true: a token whose chosen lemma has only noun readings
    after step 3 is a noun use.
 
 A lemma is flagged when its count is at least `minimumCount`, its reference rate is at least
@@ -46,7 +58,12 @@ A lemma is flagged when its count is at least `minimumCount`, its reference rate
 ratio = (count / words × 1,000,000) / reference per million ≥ minimumRatio
 ```
 
-`words` is the document's word count, the same denominator every report uses. Lemmas missing from
+`words` is the document's word count, the same denominator every report uses. Above
+`countScaleWords` words (10,000 by default) the count threshold grows with the square root of the
+length, `ceil(minimumCount × √(words / countScaleWords))`: 8 at 25,000 words, 15 at 90,000. On the
+25,002-word `moby150k` excerpt that gives 7 flags instead of 26, and 13 instead of 14 on the five
+stories joined (10,286 words). The defaults are calibrated on chapters; run the report per chapter
+for chapter-sized results, or set `countScaleWords` to 0 to turn the scaling off. Lemmas missing from
 the table are never flagged. Flags are sorted by ratio, then count. Each carries the lemma, count,
 `perTenThousandWords`, `referencePerTenThousandWords` (the table rate divided by 100, so both rates
 share a unit), the ratio and every span. A UI can say "you use *glance* 48 times; published fiction
@@ -58,9 +75,23 @@ averages 2.9 per 10,000 words".
 | `minimumCount` | 5 | occurrences in the document |
 | `minimumReferencePerMillion` | 10 | drops rare, archaic and topical words (*bake*, *whale*, *heed*) |
 | `includeNouns` | false | nouns are mostly setting and topic (*island*, *ferry*, *ship*) |
+| `countScaleWords` | 10,000 | length above which `minimumCount` scales with √length; 0 turns it off |
 
 The ratio uses the POS-collapsed reference (noun and verb *smile* share one rate), so excluding noun
 uses from the document count makes the default conservative for noun/verb homographs.
+
+Known gap: a noun used as a modifier that the tagger reads as an adjective still counts as a non-noun
+(*express* in *express car*, *express office*, flagged at 26× in *The Call of the Wild*). Ngram's
+own tags can't separate these. It tags *express* ADJ 304k and NOUN 238k times, but *tender* NOUN
+2.4M and ADJ 183k. A rule that dropped prenominal adjectives whose noun uses rival their adjective
+uses would remove *express*, but also *tender*, *tense*, *evil* and *secret* in *a tender smile*,
+which are the adjectives this lens exists for. On the 18 texts below it removed only *express*, so it
+was not adopted.
+
+The document picks one lemma per token with the chunk restriction above; `echoes` groups words into
+families (`echo_families`) and keeps every family. The same token can therefore get a different
+lemma in the two reports. #248 asked both to read one lemma index. They don't, because the shared
+`lemma_index` lists every reading's lemma and would count an ambiguous token twice here.
 
 This differs from LanguageTool's TOO_OFTEN_USED_* rules (#234, #235), which compare a word's share
 within the text alone and stay in `nlprule` for conformance. It does not read `lemma_index`, which
@@ -77,12 +108,12 @@ and ratio. Sorted by count.
 | *just*, *really*, *very*, *quite* | an `RB` reading | intensifiers and hedges editors cut first |
 | *actually*, *simply* | an `RB` reading | assertion padding |
 | *suddenly*, *somehow* | an `RB` reading | announce an event or skip its cause instead of showing it |
-| *that* | the tokenizer chunks it `B-SBAR`, opening a clause (*knew that he*, *so dark that*) | often omissible; determiners (*that house*) and pronoun *that* are not counted |
+| *that* | the tokenizer chunks it `B-SBAR` and a word follows it, opening a clause (*knew that he*, *so dark that*) | often omissible; determiners (*that house*) and pronoun *that* before punctuation (*He said that.*) are not counted |
 
 The tagger never gives complementizer *that* an `IN` reading, so the chunk decides. The chunker
 also opens some relative clauses with `B-SBAR` (*the advantages that you've had*): in 18 sampled
 Gatsby and story spans, 14 were complementizers, 4 relatives and none determiners. The reference rate is
-Ngram's `that_ADP` (complementizers only), so the *that* ratio reads slightly high.
+Ngram's `that_ADP` and `That_ADP` (complementizers only), so the *that* ratio reads slightly high.
 
 ## Reference table
 
@@ -101,28 +132,46 @@ python3 bench/style/overused_baseline.py build SCRATCH/forms.tsv
 - Match counts are summed over edition years 1990–2019. Ngram has no book or author dimension, so
   the table is volume-weighted.
 - The denominator is every untagged 1-gram containing a letter or digit (97,330,709,341), the
-  document's word predicate. Ngram keeps *don't* as one token where the tokenizer counts two, so
-  document rates are slightly low relative to the reference for contraction-heavy prose.
+  document's word predicate. Ngram v3 splits contractions as the tokenizer does (*do* + *n't*,
+  *she* + *'s*; the one-token *don't* occurs about 5 times per million), so both sides count a
+  contraction as two words.
 - Each `_NOUN`, `_VERB`, `_ADJ` and `_ADV` form with at least 1,000 occurrences is lemmatized by
   `en_tokenizer.bin`'s tagger (`bench/tools/wmb-document` `lemmatize_forms`), keeping readings whose
   Penn tag maps to the form's universal tag. Capitalized forms are dropped when they have a
   proper-noun reading or outnumber their lowercase form (*Daisy*, *Rose*), so names do not inflate
-  common nouns. A form with several lemmas goes to the most frequent one, matching step 3 above.
+  common nouns. Capitalized nouns are also dropped above a tenth of their lowercase form
+  (sentence-initial nouns run at a median 4%), which keeps *Red Sea*, *Main Street* and *Mother* out
+  of *sea*, *street* and *mother*. A form with several lemmas goes to the most frequent one, matching
+  step 3 above.
+- `_ADP`, `_CONJ` and `_PRT` uses are added to a lemma that already has content uses. A preposition
+  keeps its adverb and adjective readings in a document (*near the door* reads `IN`, `JJ`, `RB`), so
+  the document counts every *near*. Without its `_ADP` count the reference held only a fraction of
+  those uses: *above* went from 20.2 to 202 per million, *near* from 72.2 to 254, *inside* from 188 to
+  389, *past* from 199 to 315, *outside* from 152 to 254, *opposite* from 54.6 to 67.5 and *aboard*
+  from 1.37 to 21.4. `_DET` and `_PRON` uses are not added, because the tagger leaves those tokens
+  without a content reading (*half the time* reads `PDT` only), so the document never counts them.
+- British spelling variants are counted under the American key (step 5), so *gray* is 124 per
+  million instead of *grey* 46.1 and *gray* 78.1, and *realize* is 289 instead of 50.3 and 239.
 - Function words, particles and fillers are excluded, matching the report. Filler rates come from
-  the `_ADV` forms and `that_ADP`.
-- The table keeps the 14,720 lemmas at or above 1 per million (a tenth of the default floor), rounded
-  to three significant digits: 238,416 bytes of JSON, 85,608 gzipped. The 50,000 most frequent
-  lemmas would be 1.17 MB, and every lemma below the default floor can never be flagged.
+  the `_ADV` forms and `that_ADP`/`That_ADP`.
+- The table keeps the 14,382 lemmas at or above 1 per million (a tenth of the default floor), rounded
+  to three significant digits: 233,226 bytes of JSON, 78,344 gzipped. Keeping all 45,955 lemmas
+  would take 843,773 bytes, and no lemma below the default floor can ever be flagged.
+- `--retrieved` defaults to the committed download's date so the rebuild is byte-identical; pass the
+  new date when rebuilding from a fresh download.
 
 A caller can pass its own table, for example a genre-specific one, as `{"lemmas": {...},
-"fillers": {...}}` with lowercase lemma keys and rates per million. Filler keys must be from the
-fixed list; rates must be finite and non-negative. `"none"` skips the comparison and returns
-fillers only.
+"fillers": {...}}` with rates per million. Lemma keys must already be folded as the document folds
+them (lowercase, straight apostrophes) and use the American spelling of a listed variant pair (*gray*,
+not *grey*); anything else is rejected with `invalidBaseline` instead of silently never matching.
+Filler keys must be from the fixed list; rates must be finite and non-negative. `"none"` skips the
+comparison and returns fillers only.
 
-Bundled into WASM, the table and report grow the module from 4,482,886 to 4,839,941 bytes after
-`wasm-bindgen` (+357,055, +8.0%; gzipped 1,120,483 → 1,219,768, +99,285) and from 2,537,378 to
-2,817,409 bytes after `wasm-opt -Oz` (+280,031, +11.0%). The table's JSON is 238,416 of those bytes.
-It is parsed once, on the first call.
+Bundled into WASM, the table and report grow the module from 4,473,179 to 4,879,900 bytes after
+`wasm-bindgen` (+406,721, +9.1%; `gzip -9` 1,121,499 → 1,229,415, +107,916) and from 2,538,553 to
+2,835,388 bytes after `wasm-opt -Oz` (+296,835, +11.7%), measured on Linux with Rust's wasm32
+target and binaryen 116. The table's JSON is 233,226 of those bytes; the spelling-variant list and
+the hyphenated-head lookup add about 9 KB and 28 KB. The table is parsed once, on the first call.
 
 ## Calibration and usefulness
 
@@ -135,25 +184,38 @@ GitHub repositories (*The Great Gatsby*, *The Sun Also Rises*, *The Mysterious A
 
 | Setting (ratio, count, floor) | Nouns | Flags per text: median (min–max) | Total over 14 texts |
 |---|---|---:|---:|
-| 4, 5, 0 | included | 17 (6–29) | 244 |
-| 4, 5, 0 | excluded | 5 (2–9) | 76 |
-| 4, 5, 10 | included | 16 (6–28) | 223 |
-| 3, 5, 10 | excluded | 7 (5–10) | 105 |
+| 4, 5, 0 | included | 18.5 (6–29) | 249 |
+| 4, 5, 0 | excluded | 5 (2–9) | 77 |
+| 4, 5, 10 | included | 16.5 (6–28) | 229 |
+| 3, 5, 10 | excluded | 7.5 (5–10) | 106 |
 | 4, 4, 10 | excluded | 9 (3–13) | 124 |
-| **4, 5, 10** | **excluded** | **5 (2–9)** | **75** |
+| **4, 5, 10** | **excluded** | **5 (2–9)** | **76** |
 | 4, 6, 10 | excluded | 3 (0–5) | 41 |
-| 5, 5, 10 | excluded | 4 (2–7) | 60 |
+| 5, 5, 10 | excluded | 4 (2–7) | 61 |
 
-Every one of the 75 default flags was judged as a fiction editor would: *useful* if a line edit
+Every one of the 76 default flags was judged as a fiction editor would: *useful* if a line edit
 would plausibly raise the repetition, *noise* if it is topical, a deliberate refrain, rhetoric or
-quoted material, *wrong* if the lemma or part of speech is wrong.
+quoted material, *wrong* if the lemma or part of speech is wrong. The first table (75 flags) used
+the table before the preposition, spelling-variant, hyphen and capitalized-noun fixes:
 
-| Texts | Flags | Useful | Noise | Wrong |
-|---|---:|---:|---:|---:|
-| Stories 1–5 | 25 | 16 | 9 | 0 |
-| Standard Ebooks chapters | 16 | 8 | 7 | 1 |
-| Moby-Dick windows | 34 | 7 | 26 | 1 |
-| **All** | **75** | **31 (41%)** | **42 (56%)** | **2 (3%)** |
+| Texts | Flags | Useful | Noise | Wrong | Before the fixes |
+|---|---:|---:|---:|---:|---|
+| Stories 1–5 | 26 | 16 | 10 | 0 | 25: 16 / 9 / 0 |
+| Standard Ebooks chapters | 15 | 8 | 6 | 1 | 16: 8 / 7 / 1 |
+| Moby-Dick windows | 35 | 8 | 26 | 1 | 34: 7 / 26 / 1 |
+| **All** | **76** | **32 (42%)** | **42 (55%)** | **2 (3%)** | **75: 31 (41%) / 42 (56%) / 2 (3%)** |
+
+The changes: Gatsby's *inside* (noise) drops from 4.4× to under 4 once its preposition uses are in
+the reference; story 3 gains *stop* (noise, the motel's *nobody stops anymore* refrain); the sermon
+window gains *contain* (useful: *containing* three times, *contains*, *self-containing*, the last
+counted through its head). Moby-Dick's *near* stays at 5.0× (17.6× before), still noise from quoted
+sources. A second set of 15 texts judged in review (the same stories and windows, Gatsby ch. 1,
+*The Maltese Falcon* ch. 1–2, *The House of Mirth* 1.1, *The Call of the Wild* ch. 1) went from 88
+flags (36 useful, 49 noise, 3 wrong) to 90 (38, 50, 2). *Falcon*'s *grey* is now compared with
+*grey* plus *gray*: 22.9× in ch. 1 (43.9× before; seven uses with *blue-grey* and *yellow-grey*)
+and a new, useful 10.1× in ch. 2 (*grey socks*, *the grey suit*, *a blank grey sidewall*,
+*yellow-grey eyes*). *near* there moves from wrong to noise. *express* (the known gap above) is the
+other wrong flag, with *sea* in *going to sea*.
 
 - Useful: the stories' *learn* (*I learned the schedule the way you learn a scar*, in three of five
   stories), *small*, *hold*, *keep*, *laugh*, *sit*, *mean* (*which meant I was awake at three, which
@@ -166,10 +228,10 @@ quoted material, *wrong* if the lemma or part of speech is wrong.
 - Wrong: *form* in *The Age of Innocence* counts the noun *“form”* and *sea* in *going to sea* is
   counted as a non-noun; both are noun uses the chunk restriction missed.
 
-Including nouns adds 148 flags, mostly setting and topic: *ferry*, *island*, *clock*, *bread*,
+Including nouns adds 153 flags, mostly setting and topic: *ferry*, *island*, *clock*, *bread*,
 *whale*-chapter *ship*, *sea*, *bed*, *landlord*. About ten are useful (*way* in the *the way you…*
 similes, *thing*, Gatsby's *murmur*, *sort of*), so nouns stay opt-in.
 
 The filler list needs no threshold. In the same texts *that* (complementizer) runs at 15–66 per
-10,000 words, near the reference 51; Hemingway's *very* stands out at 51 per 10,000 words, 5.7 times
+10,000 words, near the reference 52; Hemingway's *very* stands out at 51 per 10,000 words, 5.7 times
 the reference, and Christie's *suddenly* and *quite* at 3.5 and 3.2 times.
