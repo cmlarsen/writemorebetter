@@ -34,6 +34,30 @@ export interface RepeatedPhraseReport {
   phrases: Array<RepeatedPhrase>;
 }
 
+export interface OverusedWord {
+  lemma: string;
+  count: number;
+  perTenThousandWords: number;
+  referencePerTenThousandWords: number;
+  ratio: number;
+  spans: Array<Span>;
+}
+
+export interface OverusedWordsFiller {
+  word: string;
+  count: number;
+  perTenThousandWords: number;
+  referencePerTenThousandWords: number | null;
+  ratio: number | null;
+  spans: Array<Span>;
+}
+
+export interface OverusedWordsReport {
+  words: number;
+  overused: Array<OverusedWord>;
+  fillers: Array<OverusedWordsFiller>;
+}
+
 export interface ClicheMatch {
   kind: ClicheKind;
   mode: Mode;

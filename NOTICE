@@ -61,3 +61,13 @@ own lists (MIT OR Apache-2.0).
 
 The word lists in style/data/dialogue/ were written for writemorebetter and are
 not taken from any third-party source.
+
+style/data/baselines/overused-words.json is derived from the Google Books Ngram
+Viewer English Fiction 1-grams, version 20200217
+(https://storage.googleapis.com/books/ngrams/books/datasetsv3.html), retrieved
+2026-10-16, licensed under the Creative Commons Attribution 3.0 Unported License
+(https://creativecommons.org/licenses/by/3.0/). writemorebetter summed match
+counts for edition years 1990-2019, lemmatized the part-of-speech-tagged forms
+with its own tokenizer, and kept rates per million words, rounded to three
+significant digits, for content lemmas at or above one per million
+(bench/style/overused_baseline.py). Google does not endorse writemorebetter.

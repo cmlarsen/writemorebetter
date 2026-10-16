@@ -189,6 +189,7 @@ let echoes = try document.echoes()
 let phrases = try document.repeatedPhrases()
 let senses: SensoryBalanceReport = try document.sensoryBalance()
 let diction: DictionReport = try document.diction(table: concretenessTableText)
+let overused = try document.overusedWords()
 ```
 
 Every result is `Codable`, `Equatable` and `Sendable`. Each method takes optional `optionsJson`;
@@ -200,8 +201,8 @@ baseline JSON and return the JSON string directly. Spans carry UTF-16
 `diction` needs a caller-supplied word-to-concreteness table (JSON object or TSV text);
 `dictionJson(optionsJson:table:)` with a nil table throws `CheckError.ReportInput`.
 
-Construction respects compact-document options. Echoes, phrases, dialogue tags, starts, sensory
-balance and diction require token details and throw on compact documents. Reports run on the retained analysis; construct a new
+Construction respects compact-document options. Echoes, phrases, overused words, dialogue tags,
+starts, sensory balance and diction require token details and throw on compact documents. Reports run on the retained analysis; construct a new
 object for changed text/options. See [the per-report API](../docs/STYLE-REPORTS.md#independent-reports-shared-analysis)
 for options, result JSON examples, baselines and Subplot’s recommended default set and opt-in lenses.
 

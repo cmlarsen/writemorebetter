@@ -84,6 +84,30 @@ public struct RepeatedPhraseReport: Codable, Equatable, Sendable {
     public let phrases: [RepeatedPhrase]
 }
 
+public struct OverusedWord: Codable, Equatable, Sendable {
+    public let lemma: String
+    public let count: Int
+    public let perTenThousandWords: Double
+    public let referencePerTenThousandWords: Double
+    public let ratio: Double
+    public let spans: [Span]
+}
+
+public struct OverusedWordsFiller: Codable, Equatable, Sendable {
+    public let word: String
+    public let count: Int
+    public let perTenThousandWords: Double
+    public let referencePerTenThousandWords: Double?
+    public let ratio: Double?
+    public let spans: [Span]
+}
+
+public struct OverusedWordsReport: Codable, Equatable, Sendable {
+    public let words: Int
+    public let overused: [OverusedWord]
+    public let fillers: [OverusedWordsFiller]
+}
+
 public struct ClicheMatch: Codable, Equatable, Sendable {
     public let kind: ClicheKind
     public let mode: Mode
@@ -362,6 +386,9 @@ public extension StyleDocument {
     /// `table` is a word-to-concreteness JSON object or TSV text supplied by the caller.
     func diction(table: String, optionsJson: String? = nil) throws -> DictionReport {
         try decodeStyle(dictionJson(optionsJson: optionsJson, table: table))
+    }
+    func overusedWords(optionsJson: String? = nil, baseline: StyleBaseline = .bundled) throws -> OverusedWordsReport {
+        try decodeStyle(overusedWordsJson(optionsJson: optionsJson, baselineJson: baseline.selector))
     }
 }
 

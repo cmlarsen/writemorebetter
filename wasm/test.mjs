@@ -316,7 +316,7 @@ check(typeof lengthReport.groups.all.meanDifference === "number", "bundled basel
 eq(JSON.parse(retained.sentenceLength(options, "none")).groups.all.meanDifference, null, "baseline disabled per call");
 const custom = JSON.parse(retained.sentenceLength(options, '{"mean":1}'));
 eq(custom.groups.all.meanDifference, custom.groups.all.mean - 1, "custom baseline per call");
-const calls = ["echoes", "repeatedPhrases", "cliches", "dialogueTags", "sentenceLength", "sentenceStarts", "sensoryBalance", "stats"];
+const calls = ["echoes", "repeatedPhrases", "cliches", "dialogueTags", "sentenceLength", "sentenceStarts", "sensoryBalance", "overusedWords", "stats"];
 for (const method of calls) {
   const fresh = checker.styleDocument(reportText);
   eq(JSON.parse(retained[method]()), JSON.parse(fresh[method]()), `shared analysis matches fresh ${method}`);
@@ -345,7 +345,7 @@ eq(invalid.kind, "invalidBaseline", "invalid baseline rejected");
 eq(invalid.report, "sentenceStarts", "error names report");
 eq(styleError(() => checker.styleDocument("text", '{"typo":true}')).kind, "invalidOptions", "document options validated");
 const compactStyle = checker.styleDocument(reportText, '{"includeTokenDetails":false}');
-for (const method of ["echoes", "repeatedPhrases", "dialogueTags", "sentenceStarts", "sensoryBalance"]) {
+for (const method of ["echoes", "repeatedPhrases", "dialogueTags", "sentenceStarts", "sensoryBalance", "overusedWords"]) {
   eq(styleError(() => compactStyle[method]()).kind, "needsTokenDetails", `compact rejects ${method}`);
 }
 eq(styleError(() => compactStyle.diction(undefined, '{"hope":1.5}')).kind, "needsTokenDetails", "compact rejects diction");
@@ -386,8 +386,8 @@ function retainedBaseline(selector) {
   try { return d.sentenceLength('{"minimumSentences":1}', selector); } finally { d.free(); }
 }
 const selectorDoc = checker.styleDocument("“Go,” she said. She ran.");
-for (const method of ["sentenceLength", "sentenceStarts", "dialogueTags"]) {
-  const option = method === "dialogueTags" ? '{"minimumTags":1}' : '{"minimumSentences":1}';
+for (const method of ["sentenceLength", "sentenceStarts", "dialogueTags", "overusedWords"]) {
+  const option = {dialogueTags: '{"minimumTags":1}', overusedWords: '{"minimumCount":1}'}[method] ?? '{"minimumSentences":1}';
   eq(selectorDoc[method](option, null), selectorDoc[method](option), `${method}: real null means bundled`);
   eq(selectorDoc[method](option, "bundled"), selectorDoc[method](option), `${method}: explicit bundled`);
   eq(styleError(() => selectorDoc[method](option, "null")).kind, "invalidBaseline", `${method}: JSON null is not a selector`);
@@ -401,6 +401,20 @@ const customTags = JSON.parse(selectorDoc.dialogueTags('{"minimumTags":1}', '{"s
 eq(customTags.saidAsked.difference, 50, "tags: custom baseline");
 eq(JSON.parse(selectorDoc.dialogueTags('{"minimumTags":1}', "none")).saidAsked.difference, null, "tags: explicit none");
 selectorDoc.free();
+const overusedText = "😀.\u2028She glanced up. She glanced away. She just glanced back, very slowly.";
+const overusedDoc = checker.styleDocument(overusedText);
+const overusedOptions = '{"minimumCount":3,"minimumRatio":2}';
+const overused = JSON.parse(overusedDoc.overusedWords(overusedOptions, '{"lemmas":{"glance":100},"fillers":{"just":2000}}'));
+eq(overused.overused.map(w => [w.lemma, w.count]), [["glance", 3]], "overused: custom table flags");
+for (const span of overused.overused[0].spans) eq(overusedText.slice(span.start, span.end), "glanced", "overused: UTF-16 spans after emoji");
+eq(overused.fillers.map(f => f.word).sort(), ["just", "very"], "overused: fillers");
+eq(overused.fillers.find(f => f.word === "very").ratio, null, "overused: filler without reference");
+const noTable = JSON.parse(overusedDoc.overusedWords(overusedOptions, "none"));
+eq(noTable.overused, [], "overused: no table, no comparison");
+eq(noTable.fillers.length, 2, "overused: fillers run without a table");
+check(JSON.parse(overusedDoc.overusedWords()).fillers.every(f => typeof f.ratio === "number"), "overused: bundled filler rates");
+eq(styleError(() => overusedDoc.overusedWords(undefined, '{"fillers":{"glance":1}}')).report, "overusedWords", "overused: filler keys validated");
+overusedDoc.free();
 
 checkStyleRecords(checker);
 const independent = checker.styleDocument("She ran.");

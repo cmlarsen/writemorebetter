@@ -4,8 +4,8 @@ use nlprule::Tokenizer;
 use serde::de::DeserializeOwned;
 
 use crate::reports::{
-    cliches, dialogue_tags, diction, echoes, repeated_phrases, sensory_balance, sentence_length,
-    sentence_starts, DocumentStats, StyleResources,
+    cliches, dialogue_tags, diction, echoes, overused_words, repeated_phrases, sensory_balance,
+    sentence_length, sentence_starts, DocumentStats, StyleResources,
 };
 use crate::{analyze_document, Document, DocumentOptions, StyleError};
 
@@ -147,5 +147,18 @@ impl StyleDocument {
         let options = options(json)?;
         let table = table.ok_or_else(|| StyleError::missing_table(diction::REPORT))?;
         diction::report(&self.document, &*parsed_table(table)?, &options)
+    }
+
+    pub fn overused_words(
+        &self,
+        json: Option<&str>,
+        baseline_selector: Option<&str>,
+    ) -> Result<overused_words::OverusedWordsReport, StyleError> {
+        let custom = baseline(baseline_selector, || None, overused_words::REPORT)?;
+        let baseline = match baseline_selector {
+            None | Some("bundled") => overused_words::OverusedWordsBaseline::bundled(),
+            _ => custom.as_ref(),
+        };
+        overused_words::report(&self.document, &options(json)?, baseline)
     }
 }
