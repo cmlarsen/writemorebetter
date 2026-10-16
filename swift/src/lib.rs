@@ -674,6 +674,24 @@ impl StyleDocument {
     }
     /// Returns this report on the retained analysis; options default when omitted.
     #[uniffi::method(default(options_json = None))]
+    pub fn transitions_json(&self, options_json: Option<String>) -> Result<String, CheckError> {
+        self.inner
+            .transitions(options_json.as_deref())
+            .map(|report| writemorebetter_style::reports::to_utf16_json(&report))
+            .map_err(|error| CheckError::ReportInput {
+                message: error.to_string(),
+            })
+    }
+    #[uniffi::method(default(options_json = None))]
+    pub fn pronoun_starts_json(&self, options_json: Option<String>) -> Result<String, CheckError> {
+        self.inner
+            .pronoun_starts(options_json.as_deref())
+            .map(|report| writemorebetter_style::reports::to_utf16_json(&report))
+            .map_err(|error| CheckError::ReportInput {
+                message: error.to_string(),
+            })
+    }
+    #[uniffi::method(default(options_json = None))]
     pub fn sensory_balance_json(&self, options_json: Option<String>) -> Result<String, CheckError> {
         self.inner
             .sensory_balance(options_json.as_deref())

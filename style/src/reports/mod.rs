@@ -5,10 +5,12 @@ pub mod echoes;
 mod norms;
 pub mod overused_words;
 pub mod pacing;
+pub mod pronoun_starts;
 pub mod repeated_phrases;
 pub mod sensory_balance;
 pub mod sentence_length;
 pub mod sentence_starts;
+pub mod transitions;
 
 use std::ops::Range;
 use std::sync::OnceLock;

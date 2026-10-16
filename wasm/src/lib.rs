@@ -516,6 +516,20 @@ impl StyleDocument {
             .map(|report| reports::to_utf16_json(&report))
             .map_err(style_error)
     }
+    #[wasm_bindgen(js_name = transitions)]
+    pub fn transitions(&self, options_json: Option<String>) -> Result<String, JsValue> {
+        self.inner
+            .transitions(options_json.as_deref())
+            .map(|report| reports::to_utf16_json(&report))
+            .map_err(style_error)
+    }
+    #[wasm_bindgen(js_name = pronounStarts)]
+    pub fn pronoun_starts(&self, options_json: Option<String>) -> Result<String, JsValue> {
+        self.inner
+            .pronoun_starts(options_json.as_deref())
+            .map(|report| reports::to_utf16_json(&report))
+            .map_err(style_error)
+    }
     #[wasm_bindgen(js_name = sensoryBalance)]
     /// Returns this report on the retained analysis; options default when omitted.
     pub fn sensory_balance(&self, options_json: Option<String>) -> Result<String, JsValue> {
