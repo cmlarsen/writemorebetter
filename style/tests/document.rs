@@ -84,6 +84,39 @@ fn paragraph_boundaries_are_independent_of_sentences() {
 }
 
 #[test]
+fn line_separator_sentence_boundaries_preserve_offsets() {
+    let tokenizer = tokenizer();
+    for hard_wrapped in [false, true] {
+        for (text, count) in [
+            ("😀 She’s home.\u{2028}He waited.", 2),
+            ("“Go!”\u{2028}She said nothing.", 2),
+            ("“Go!”\u{2028}she said.", 2),
+            ("“Go!” \u{2028}she said.", 2),
+            ("“Go!”  \u{2028}she said.", 2),
+            ("“Go!”\t\u{2028}she said.", 2),
+            ("“Go!”\u{a0}\u{2028}she said.", 2),
+            ("‘Go…’ \u{2028}He waited.", 2),
+            ("She waited\u{2028}for him.", 1),
+            ("She waited.\u{2028}\u{2028}He left.", 2),
+        ] {
+            let document = analyze_document(
+                &tokenizer,
+                text,
+                &DocumentOptions::new().with_hard_wrapped(hard_wrapped),
+            );
+            assert_eq!(document.paragraphs.len(), 1, "{text}");
+            assert_eq!(document.sentences().count(), count, "{text}");
+            for sentence in document.sentences() {
+                assert_span(text, &sentence.span, &sentence.text);
+                for token in &sentence.tokens {
+                    assert_span(text, &token.span, &token.text);
+                }
+            }
+        }
+    }
+}
+
+#[test]
 fn dialogue_delimiters_and_apostrophes() {
     for (text, expected) in [
         (

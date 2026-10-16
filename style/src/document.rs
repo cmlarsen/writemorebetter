@@ -750,7 +750,9 @@ fn analyze_separators(
                 && text
                     .get(..byte)
                     .unwrap()
-                    .trim_end_matches([' ', '”', '’', '"', '\''])
+                    .trim_end_matches(|ch: char| {
+                        (ch.is_whitespace() && ch != '\u{2028}') || "”’\"'".contains(ch)
+                    })
                     .ends_with(['.', '!', '?', '…']))
             .then_some(byte + ch.len_utf8())
         })
@@ -758,7 +760,7 @@ fn analyze_separators(
     ends.push(text.len());
     let mut result = Vec::new();
     let mut start = 0;
-    for end in ends {
+    for (chunk, end) in ends.into_iter().enumerate() {
         let prefix = text.get(..start).unwrap();
         let base = Span {
             byte: start..start,
@@ -776,15 +778,21 @@ fn analyze_separators(
                 token.span.char = shifted.char;
                 token.span.utf16 = shifted.utf16;
             }
-            result.push(sentence);
+            result.push((chunk, sentence));
         }
         start = end;
     }
     let mut merged: Vec<nlprule::analysis::AnalysisSentence> = Vec::new();
-    for sentence in result {
-        let after_quote = merged
-            .last()
-            .is_some_and(|previous| previous.text.trim_end().ends_with(['”', '’', '"', '\'']));
+    let mut merged_chunks = Vec::new();
+    for (chunk, sentence) in result {
+        let same_chunk = merged_chunks.last() == Some(&chunk);
+        let after_quote = same_chunk
+            && merged.last().is_some_and(|previous| {
+                previous
+                    .text
+                    .trim_end_matches(|ch: char| ch.is_whitespace() && ch != '\u{2028}')
+                    .ends_with(['”', '’', '"', '\''])
+            });
         let possible_tag = after_quote
             && sentence
                 .tokens
@@ -822,6 +830,7 @@ fn analyze_separators(
             previous.tokens.extend(sentence.tokens);
         } else {
             merged.push(sentence);
+            merged_chunks.push(chunk);
         }
     }
     merged

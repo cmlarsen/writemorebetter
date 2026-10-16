@@ -181,8 +181,8 @@
     }
   },
   "adversarial": {
-    "correct": 94,
-    "cases": 94
+    "correct": 149,
+    "cases": 149
   },
   "injected": {
     "documents": 160,
@@ -306,16 +306,16 @@
           "percent": 0.0
         },
         "other": {
-          "count": 16,
-          "percent": 2.572347266881029
+          "count": 15,
+          "percent": 2.4115755627009645
         },
         "pastParticiple": {
           "count": 0,
           "percent": 0.0
         },
         "subject": {
-          "count": 500,
-          "percent": 80.38585209003216
+          "count": 501,
+          "percent": 80.54662379421222
         },
         "subordinatingConjunction": {
           "count": 8,
@@ -358,8 +358,8 @@
           "percent": 0.468384074941452
         },
         "introductory": {
-          "count": 125,
-          "percent": 14.637002341920375
+          "count": 129,
+          "percent": 15.105386416861826
         },
         "inversion": {
           "count": 9,
@@ -374,8 +374,8 @@
           "percent": 0.819672131147541
         },
         "subject": {
-          "count": 329,
-          "percent": 38.52459016393443
+          "count": 325,
+          "percent": 38.05620608899297
         },
         "subordinatingConjunction": {
           "count": 27,
@@ -384,11 +384,11 @@
       },
       "otherOpeningShapes": {
         "commandLikeOpening": 16,
-        "remainingVerbTaggedOpening": 26,
+        "remainingVerbTaggedOpening": 28,
         "remainingOpenings": 24,
         "punctuationOrMarkupLed": 2,
         "shortFragmentShape": 10,
-        "vocativeOrInterjectionShape": 26,
+        "vocativeOrInterjectionShape": 24,
         "articleLed": 2
       },
       "bundledBaselineComparison": {
