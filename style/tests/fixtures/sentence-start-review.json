@@ -374,5 +374,225 @@
   {
     "text": "As a child she feared the dark.",
     "category": "introductory"
+  },
+  {
+    "text": "Everyone’s a stray out here.",
+    "category": "subject"
+  },
+  {
+    "text": "Nobody’s home.",
+    "category": "subject"
+  },
+  {
+    "text": "The car’s gone.",
+    "category": "subject"
+  },
+  {
+    "text": "Mom’s asleep.",
+    "category": "subject"
+  },
+  {
+    "text": "Everyone's a stray out here.",
+    "category": "subject"
+  },
+  {
+    "text": "Nobody's home.",
+    "category": "subject"
+  },
+  {
+    "text": "The car's gone.",
+    "category": "subject"
+  },
+  {
+    "text": "Mom's asleep.",
+    "category": "subject"
+  },
+  {
+    "text": "The man who wrote that book died.",
+    "category": "subject"
+  },
+  {
+    "text": "The girl who wore that dress smiled.",
+    "category": "subject"
+  },
+  {
+    "text": "Father Mapple rose.",
+    "category": "subject"
+  },
+  {
+    "text": "Nurse Ratched came in.",
+    "category": "subject"
+  },
+  {
+    "text": "Mom’s car broke down.",
+    "category": "subject"
+  },
+  {
+    "text": "The man who wrote that book and read that letter died.",
+    "category": "subject"
+  },
+  {
+    "text": "Mom’s car.",
+    "category": "other"
+  },
+  {
+    "text": "Mom's car.",
+    "category": "other"
+  },
+  {
+    "text": "Mom’s red car.",
+    "category": "other"
+  },
+  {
+    "text": "The man who wrote that book.",
+    "category": "other"
+  },
+  {
+    "text": "Look at X and tell me what you see.",
+    "category": "other"
+  },
+  {
+    "text": "Look at me and tell me what you see.",
+    "category": "other"
+  },
+  {
+    "text": "Listen to me and do what I say.",
+    "category": "other"
+  },
+  {
+    "text": "Father Mapple.",
+    "category": "other"
+  },
+  {
+    "text": "Nurse Ratched.",
+    "category": "other"
+  },
+  {
+    "text": "Hey, wait up.",
+    "category": "introductory"
+  },
+  {
+    "text": "Alas, she was gone.",
+    "category": "introductory"
+  },
+  {
+    "text": "Yeah, I know.",
+    "category": "introductory"
+  },
+  {
+    "text": "Aye, she waited.",
+    "category": "introductory"
+  },
+  {
+    "text": "Aye!",
+    "category": "introductory"
+  },
+  {
+    "text": "Alas, she waited.",
+    "category": "introductory"
+  },
+  {
+    "text": "Alas!",
+    "category": "introductory"
+  },
+  {
+    "text": "Hey, she waited.",
+    "category": "introductory"
+  },
+  {
+    "text": "Hey!",
+    "category": "introductory"
+  },
+  {
+    "text": "Okay, she waited.",
+    "category": "introductory"
+  },
+  {
+    "text": "Okay!",
+    "category": "introductory"
+  },
+  {
+    "text": "Ok, she waited.",
+    "category": "introductory"
+  },
+  {
+    "text": "Ok!",
+    "category": "introductory"
+  },
+  {
+    "text": "Yeah, she waited.",
+    "category": "introductory"
+  },
+  {
+    "text": "Yeah!",
+    "category": "introductory"
+  },
+  {
+    "text": "Yep, she waited.",
+    "category": "introductory"
+  },
+  {
+    "text": "Yep!",
+    "category": "introductory"
+  },
+  {
+    "text": "Nope, she waited.",
+    "category": "introductory"
+  },
+  {
+    "text": "Nope!",
+    "category": "introductory"
+  },
+  {
+    "text": "Hmm, she waited.",
+    "category": "introductory"
+  },
+  {
+    "text": "Hmm!",
+    "category": "introductory"
+  },
+  {
+    "text": "Um, she waited.",
+    "category": "introductory"
+  },
+  {
+    "text": "Um!",
+    "category": "introductory"
+  },
+  {
+    "text": "Uh, she waited.",
+    "category": "introductory"
+  },
+  {
+    "text": "Uh!",
+    "category": "introductory"
+  },
+  {
+    "text": "Hurrah, she waited.",
+    "category": "introductory"
+  },
+  {
+    "text": "Hurrah!",
+    "category": "introductory"
+  },
+  {
+    "text": "Nay, she waited.",
+    "category": "introductory"
+  },
+  {
+    "text": "Nay!",
+    "category": "introductory"
+  },
+  {
+    "text": "Look at X and tell…",
+    "category": "other"
+  },
+  {
+    "text": "The man whose mom’s asleep.",
+    "category": "other"
+  },
+  {
+    "text": "The man whose mom’s asleep is quiet.",
+    "category": "subject"
   }
 ]

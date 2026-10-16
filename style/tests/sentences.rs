@@ -420,10 +420,15 @@ fn reviewed_opening_functions() {
         let text = case["text"].as_str().unwrap();
         let expected: SentenceStartCategory =
             serde_json::from_value(case["category"].clone()).unwrap();
-        let document = analyze_document(&tokenizer, text, &DocumentOptions::new());
-        let category = starts::classify(&document.paragraphs[0].sentences[0]);
-        if category != expected {
-            failures.push(format!("{text}: {category:?} expected {expected:?}"));
+        for input in [
+            text.to_owned(),
+            format!("“{text}”\u{2028}She’s gone—again…"),
+        ] {
+            let document = analyze_document(&tokenizer, &input, &DocumentOptions::new());
+            let category = starts::classify(&document.paragraphs[0].sentences[0]);
+            if category != expected {
+                failures.push(format!("{input}: {category:?} expected {expected:?}"));
+            }
         }
     }
     assert!(failures.is_empty(), "{}", failures.join("\n"));

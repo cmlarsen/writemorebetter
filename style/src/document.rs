@@ -782,9 +782,12 @@ fn analyze_separators(
     }
     let mut merged: Vec<nlprule::analysis::AnalysisSentence> = Vec::new();
     for sentence in result {
-        let after_quote = merged
-            .last()
-            .is_some_and(|previous| previous.text.trim_end().ends_with(['”', '’', '"', '\'']));
+        let after_quote = merged.last().is_some_and(|previous| {
+            previous
+                .text
+                .trim_end_matches(|ch: char| ch.is_whitespace() && ch != '\u{2028}')
+                .ends_with(['”', '’', '"', '\''])
+        });
         let possible_tag = after_quote
             && sentence
                 .tokens

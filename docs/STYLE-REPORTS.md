@@ -353,6 +353,7 @@ Build rules for any baseline:
 
 | Date | Decision | Why |
 |---|---|---|
+| 2026-10-16 | #269: listed dialogue interjections consistently open `introductory`, including bare utterances; retain their opener spans | Skipping comma-led interjections would contradict adjudicated `Ay`, `Oh` and `Yes` labels and lower the required floors. Extend the existing category convention to aye, alas, hey, okay, ok, yeah, yep, nope, hmm, um, uh, hurrah and nay |
 | 2026-10-16 | Owner direction (#275): independent methods on retained Swift/WASM `StyleDocument` objects; remove the combined API; each result owns its counts and sentence rows | Share the expensive analysis while letting Subplot choose its default set and opt-in lenses; typed per-report Swift and TypeScript results |
 | 2026-10-16 | #275: retained documents honor `includeTokenDetails: false`; only clichés and sentence length run on compact documents | Reverses the removed combined binding’s forced full analysis. Keep the default full options for style documents; compact `analyzeDocument` options should not be reused for the recommended report set |
 | 2026-10-14 | Reports live in a `style/` crate in this repo, consuming `analyze()` | One Rust library and one tokenizer per app; keeps `nlprule` a faithful port |

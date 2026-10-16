@@ -365,7 +365,11 @@ fn closing_quote(c: char) -> char {
     }
 }
 
-fn nominal_category(tokens: &[&Token], opening_quotes: &[char]) -> SentenceStartCategory {
+fn nominal_category(
+    tokens: &[&Token],
+    opening_quotes: &[char],
+    imperative: bool,
+) -> SentenceStartCategory {
     let mut dependent = false;
     let mut relative_verb_seen = false;
     let mut relative_auxiliary = false;
@@ -375,6 +379,9 @@ fn nominal_category(tokens: &[&Token], opening_quotes: &[char]) -> SentenceStart
     let mut opening_depth = quotes.len();
     for (index, token) in tokens.iter().enumerate().skip(1) {
         let word = token.text.to_lowercase();
+        if imperative && has(token, &["CC"]) {
+            return SentenceStartCategory::Other;
+        }
         if token.text.chars().all(|c| "\"'“”‘’«»‹›„‟‚‛`".contains(c)) {
             for c in token.text.chars() {
                 if quotes.last() == Some(&c) {
@@ -399,6 +406,11 @@ fn nominal_category(tokens: &[&Token], opening_quotes: &[char]) -> SentenceStart
             "while",
         ]
         .contains(&word.as_str())
+            && !(word == "that"
+                && has(token, &["DT"])
+                && tokens
+                    .get(index + 1)
+                    .is_some_and(|next| has(next, &["NN", "NNS"])))
         {
             dependent = true;
             relative_verb_seen = false;
@@ -427,13 +439,24 @@ fn nominal_category(tokens: &[&Token], opening_quotes: &[char]) -> SentenceStart
         if nonfinite {
             continue;
         }
+        let contracted_predicate = ["'s", "’s"].contains(&word.as_str())
+            && tags(token) == BTreeSet::from(["POS"])
+            && !tokens[index + 1..]
+                .iter()
+                .skip_while(|next| has(next, &["JJ", "JJR", "JJS", "RB", "RBR", "RBS"]))
+                .next()
+                .is_some_and(|next| has(next, &["NN", "NNS", "NNP", "NNPS"]));
         let auxiliary = [
             "am", "is", "are", "was", "were", "be", "been", "being", "do", "does", "did", "have",
             "has", "had",
         ]
         .contains(&word.as_str())
-            || has(token, &["MD"]);
-        if dependent && !relative_verb_seen && (verb_chunk(token) || main_predicate(token)) {
+            || has(token, &["MD"])
+            || contracted_predicate;
+        if dependent
+            && !relative_verb_seen
+            && (verb_chunk(token) || main_predicate(token) || contracted_predicate)
+        {
             relative_verb_seen = true;
             relative_auxiliary = auxiliary;
             if !subject_pronoun(tokens[0]) {
@@ -451,6 +474,7 @@ fn nominal_category(tokens: &[&Token], opening_quotes: &[char]) -> SentenceStart
             && has(tokens[index - 1], &["NNS"])
             && !has(tokens[index - 1], &["VBZ"]);
         if main_predicate(token)
+            || contracted_predicate
             || plural_predicate
             || (subject_pronoun(tokens[0]) && verb_chunk(token))
         {
@@ -501,6 +525,19 @@ pub fn classify(sentence: &Sentence) -> SentenceStartCategory {
         "oh",
         "ah",
         "ay",
+        "aye",
+        "alas",
+        "hey",
+        "okay",
+        "ok",
+        "yeah",
+        "yep",
+        "nope",
+        "hmm",
+        "um",
+        "uh",
+        "hurrah",
+        "nay",
     ]
     .contains(&word.as_str())
         || (word == "no" && second.is_none_or(|t| !t.is_word))
@@ -601,7 +638,7 @@ pub fn classify(sentence: &Sentence) -> SentenceStartCategory {
     ]
     .contains(&word.as_str())
     {
-        return nominal_category(&tokens, &opening_quotes);
+        return nominal_category(&tokens, &opening_quotes, false);
     }
     if has(first, &["IN", "TO"]) && !has(first, &["DT", "WDT", "PRP", "PRP$"]) {
         return SentenceStartCategory::Introductory;
@@ -617,15 +654,18 @@ pub fn classify(sentence: &Sentence) -> SentenceStartCategory {
         })
     {
         if subject(first)
-            && second
-                .is_some_and(|t| has(t, &["IN", "NN", "NNS", "NNP", "NNPS", "JJ", "JJR", "JJS"]))
+            && second.is_some_and(|t| {
+                has(t, &["IN", "NN", "NNS", "NNP", "NNPS", "JJ", "JJR", "JJS"])
+                    || (t.readings.is_empty()
+                        && t.text.chars().next().is_some_and(char::is_uppercase))
+            })
         {
-            return nominal_category(&tokens, &opening_quotes);
+            return nominal_category(&tokens, &opening_quotes, true);
         }
         return SentenceStartCategory::Other;
     }
     if subject(first) {
-        return nominal_category(&tokens, &opening_quotes);
+        return nominal_category(&tokens, &opening_quotes, false);
     }
     if has(first, &["UH"]) {
         return SentenceStartCategory::Introductory;
@@ -634,7 +674,7 @@ pub fn classify(sentence: &Sentence) -> SentenceStartCategory {
         && first.readings.is_empty()
         && first.text.chars().next().is_some_and(char::is_uppercase)
     {
-        return nominal_category(&tokens, &opening_quotes);
+        return nominal_category(&tokens, &opening_quotes, false);
     }
     SentenceStartCategory::Other
 }
