@@ -144,13 +144,13 @@ Surface particles/adverbs `still up down out away here there on off back` cannot
 immediately after NNS also supports a plural-subject predicate when chunking misses it. Subject-case
 pronouns additionally accept verb chunks despite tagger ambiguity. Relative/dependent clauses close
 after their first predicate; auxiliary continuations and coordinated relative verbs remain dependent,
-so the next main predicate can establish a subject. Inside a relative clause, determiner `that` before
-NN/NNS does not reopen the dependent state (`The man who wrote that book died`); outside one it still
+so the next main predicate can establish a subject. Inside a dependent clause, determiner `that` before a
+singular noun does not reopen the dependent state (`The man who wrote that book died`); outside one it still
 opens a complement clause, so `The idea that people lie.` stays other. Comma/semicolon resets that state; post-comma
 subject-pronoun parentheticals and TO-scoped nonfinite verbs are excluded. Nominal/VB-ambiguous openings
 followed by noun/adjective/preposition evidence use the same scan, so `People on the mainland liked…`
 can be subject while `Look at me` remains other. This imperative-branch scan stops at `and`, `or`,
-`but` or `nor` followed by a base-form verb, so a coordinated command (`Look at me and tell me`)
+`but` or `nor` followed (after any pure adverbs) by a base-form verb, so a coordinated command (`Look at me and tell me`)
 cannot supply subject evidence while a coordinated noun phrase (`Pictures of John and Mary hung…`,
 `Father Mapple and his wife rose`) still reaches its predicate. An unknown capitalized
 second token also enters the scan, allowing nominal titles (`Father Mapple rose`, `Nurse Ratched came in`).
@@ -164,7 +164,7 @@ as the opener rather than skipped before a comma; see the #269 decision in STYLE
 This preserves the adjudicated interjection labels and applies the same convention to the added
 dialogue forms. U+2028 after terminal punctuation (including a closing quote) ends a sentence within
 its paragraph; attribution reattachment cannot cross that explicit boundary, with or without
-spaces before the separator. A tag after the boundary (`“Where?”` U+2028 `she asked.`) therefore
+whitespace before the separator. A tag after the boundary (`“Where?”` U+2028 `she asked.`) therefore
 counts as its own short subject-led sentence in the start and length reports; the dialogue-tags
 report still attributes it. Without terminal punctuation U+2028 remains internal whitespace.
 
@@ -307,7 +307,7 @@ is …` stay subject as on origin/main; the last is a known imperative miss. In 
 `“Everyone’s a stray out here,” I said.` moves from other to subject.
 
 All adjudicated per-category F1 values above are unchanged; no floor or ceiling changed. The
-review fixture set now contains 165 cases, each also tested inside curly quotes followed by a U+2028
+review fixture set now contains 174 cases, each also tested inside curly quotes followed by a U+2028
 boundary and a second sentence with a curly apostrophe, em dash and ellipsis; the test asserts the
 split and classifies both sentences. Additional separator tests cover terminal/unterminated
 sentences, quoted attributions, repeated separators, both paragraph modes and byte/char/UTF-16 spans.

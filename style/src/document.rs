@@ -750,7 +750,9 @@ fn analyze_separators(
                 && text
                     .get(..byte)
                     .unwrap()
-                    .trim_end_matches([' ', '”', '’', '"', '\''])
+                    .trim_end_matches(|ch: char| {
+                        (ch.is_whitespace() && ch != '\u{2028}') || "”’\"'".contains(ch)
+                    })
                     .ends_with(['.', '!', '?', '…']))
             .then_some(byte + ch.len_utf8())
         })

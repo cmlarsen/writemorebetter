@@ -382,9 +382,12 @@ fn nominal_category(
         if imperative
             && has(token, &["CC"])
             && ["and", "or", "but", "nor"].contains(&word.as_str())
-            && tokens.get(index + 1).is_some_and(|next| {
-                has(next, &["VB"]) && !has(next, &["NNS", "NNP", "NNPS", "DT", "PRP", "PRP$"])
-            })
+            && tokens[index + 1..]
+                .iter()
+                .find(|next| !(has(next, &["RB"]) && !has(next, &["VB"])))
+                .is_some_and(|next| {
+                    has(next, &["VB"]) && !has(next, &["NNS", "NNP", "NNPS", "DT", "PRP", "PRP$"])
+                })
         {
             return SentenceStartCategory::Other;
         }
@@ -415,9 +418,7 @@ fn nominal_category(
             && !(word == "that"
                 && dependent
                 && has(token, &["DT"])
-                && tokens
-                    .get(index + 1)
-                    .is_some_and(|next| has(next, &["NN", "NNS"])))
+                && tokens.get(index + 1).is_some_and(|next| has(next, &["NN"])))
         {
             dependent = true;
             relative_verb_seen = false;
