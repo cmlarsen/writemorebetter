@@ -230,9 +230,10 @@ impl Regex {
 
 #[cfg(feature = "regex-fancy")]
 mod regex_impl_fancy {
-    pub use fancy_regex::{Captures, Match};
+    pub use fancy_regex::Match;
     use std::error::Error;
-    pub struct Matches<'r, 't>(fancy_regex::Matches<'r, 't>);
+    pub type Captures<'t> = fancy_regex::Captures<'t, str>;
+    pub struct Matches<'r, 't>(fancy_regex::Matches<'r, 't, str>);
 
     impl<'r, 't> Iterator for Matches<'r, 't> {
         type Item = Match<'t>;
@@ -246,7 +247,7 @@ mod regex_impl_fancy {
         }
     }
 
-    pub struct CaptureMatches<'r, 't>(fancy_regex::CaptureMatches<'r, 't>);
+    pub struct CaptureMatches<'r, 't>(fancy_regex::CaptureMatches<'r, 't, str>);
 
     impl<'r, 't> Iterator for CaptureMatches<'r, 't> {
         type Item = Captures<'t>;
