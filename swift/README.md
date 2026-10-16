@@ -190,6 +190,8 @@ let phrases = try document.repeatedPhrases()
 let senses: SensoryBalanceReport = try document.sensoryBalance()
 let diction: DictionReport = try document.diction(table: concretenessTableText)
 let overused = try document.overusedWords()
+let transitions: TransitionsReport = try document.transitions()
+let pronouns: PronounStartsReport = try document.pronounStarts()
 ```
 
 Every result is `Codable`, `Equatable` and `Sendable`. Each method takes optional `optionsJson`;
@@ -201,7 +203,7 @@ baseline JSON and return the JSON string directly. Spans carry UTF-16
 `diction` needs a caller-supplied word-to-concreteness table (JSON object or TSV text);
 `dictionJson(optionsJson:table:)` with a nil table throws `CheckError.ReportInput`.
 
-Construction respects compact-document options. Echoes, phrases, overused words, dialogue tags,
+Construction respects compact-document options. Echoes, phrases, overused words, transitions, pronoun starts, dialogue tags,
 starts, sensory balance and diction require token details and throw on compact documents. Reports run on the retained analysis; construct a new
 object for changed text/options. See [the per-report API](../docs/STYLE-REPORTS.md#independent-reports-shared-analysis)
 for options, result JSON examples, baselines and Subplot’s recommended default set and opt-in lenses.
@@ -210,3 +212,6 @@ A retained moby150k document (149,091 input bytes) holds about **11–12 MB of W
 in the reviewed measurement. Retain the chapter on screen and `free()` its document on navigation;
 Swift callers should drop their retained reference. WASM frees space for reuse by later documents,
 while its linear memory high-water mark does not shrink back to the OS. Avoid caching every chapter.
+
+Transitions and pronoun starts are opt-in descriptive lenses. See [definitions, options and public
+measurements](../docs/STYLE-TRANSITIONS.md); neither has a baseline argument yet.

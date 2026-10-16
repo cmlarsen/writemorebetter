@@ -112,3 +112,24 @@ stories and hard-wrapped mode for Moby. `transitionMatches` and `pronounStarts` 
 `transitionRepeats` and `pronounRuns` are the candidate editorial flags. The committed measurements
 and PR record the counts and spot judgments. Both lenses stay opt-in regardless of whether particular
 sample flags prove useful: no calibrated threshold or bundled baseline exists for either share.
+
+First baseline (31 labeled sentences, 17 transition positives; 6 injected runs, 6 alternating controls):
+all five transition types and injected runs have exact-span precision/recall/F1 **100%**.
+These examples were used during development and do not estimate unseen-text accuracy.
+
+| Text | Sentences | Transition matches | Repeated pairs | Pronoun starts | Pronoun runs |
+|---|---:|---:|---:|---:|---:|
+| story1.txt | 119 | 15 | 1 | 61 | 0 |
+| story2.txt | 131 | 11 | 0 | 74 | 1 |
+| story3.txt | 127 | 10 | 1 | 69 | 1 |
+| story4.txt | 128 | 9 | 1 | 59 | 0 |
+| story5.txt | 117 | 16 | 4 | 63 | 2 |
+| moby150k.txt | 1126 | 201 | 35 | 211 | 1 |
+
+An implementation-author spot review selected the first up to two repeated-transition pairs and
+first up to two pronoun runs per text (12 flags total): **2 useful, 10 noise, 0 wrong**.
+The useful examples were nearby causal explanations in story4 and Moby's four-sentence I-led
+action sequence. Most noise was deliberate spoken repetition, parallel clauses or anaphora.
+Offsets and individual reasons are in `bench/style/transitions-pronouns-review.json`; the sample
+is deterministic, small, single-judge and not blind or representative. These results support
+keeping both reports opt-in and avoiding share highlights without a calibrated baseline.

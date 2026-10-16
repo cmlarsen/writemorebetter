@@ -1,0 +1,154 @@
+{
+  "sampling": "First up to two transition-repeat pairs and first up to two pronoun runs per public text, in source order; single implementation-author spot judgment, not a blind or representative accuracy estimate.",
+  "counts": {
+    "noise": 10,
+    "useful": 2,
+    "wrong": 0
+  },
+  "rows": [
+    {
+      "file": "story1.txt",
+      "kind": "transitionRepeat",
+      "flagIndex": 0,
+      "byte": {
+        "end": 8253,
+        "start": 7972
+      },
+      "word": "because",
+      "judgment": "noise",
+      "reason": "Distinct causal explanations support the ferry narrator; the repeated connector does not distract."
+    },
+    {
+      "file": "story2.txt",
+      "kind": "pronounRun",
+      "flagIndex": 0,
+      "byte": {
+        "end": 9104,
+        "start": 9026
+      },
+      "word": "it",
+      "judgment": "noise",
+      "reason": "Deliberate ticking anaphora reinforces the clock image."
+    },
+    {
+      "file": "story3.txt",
+      "kind": "transitionRepeat",
+      "flagIndex": 0,
+      "byte": {
+        "end": 2988,
+        "start": 2920
+      },
+      "word": "and",
+      "judgment": "noise",
+      "reason": "Conversational and links a question and another speaker’s continuation."
+    },
+    {
+      "file": "story3.txt",
+      "kind": "pronounRun",
+      "flagIndex": 0,
+      "byte": {
+        "end": 5718,
+        "start": 5639
+      },
+      "word": "he",
+      "judgment": "noise",
+      "reason": "Intentional spoken echo of the same discovery across speakers."
+    },
+    {
+      "file": "story4.txt",
+      "kind": "transitionRepeat",
+      "flagIndex": 0,
+      "byte": {
+        "end": 1814,
+        "start": 1538
+      },
+      "word": "because",
+      "judgment": "useful",
+      "reason": "Two nearby because explanations slow an already explanatory hospital passage; worth a writer’s review."
+    },
+    {
+      "file": "story5.txt",
+      "kind": "transitionRepeat",
+      "flagIndex": 0,
+      "byte": {
+        "end": 188,
+        "start": 140
+      },
+      "word": "because",
+      "judgment": "noise",
+      "reason": "Parallel because clauses list distinct reasons within one sentence."
+    },
+    {
+      "file": "story5.txt",
+      "kind": "transitionRepeat",
+      "flagIndex": 1,
+      "byte": {
+        "end": 4812,
+        "start": 4722
+      },
+      "word": "because",
+      "judgment": "noise",
+      "reason": "Repeated causal phrasing connects the narrator’s desire and fear with a deliberate contrast."
+    },
+    {
+      "file": "story5.txt",
+      "kind": "pronounRun",
+      "flagIndex": 0,
+      "byte": {
+        "end": 2588,
+        "start": 2392
+      },
+      "word": "she",
+      "judgment": "noise",
+      "reason": "Ordinary speech about the same gardener keeps a clear subject."
+    },
+    {
+      "file": "story5.txt",
+      "kind": "pronounRun",
+      "flagIndex": 1,
+      "byte": {
+        "end": 6971,
+        "start": 6608
+      },
+      "word": "it",
+      "judgment": "noise",
+      "reason": "Letter-focused It said anaphora is a deliberate structural choice."
+    },
+    {
+      "file": "moby150k.txt",
+      "kind": "transitionRepeat",
+      "flagIndex": 0,
+      "byte": {
+        "end": 31063,
+        "start": 30863
+      },
+      "word": "but",
+      "judgment": "noise",
+      "reason": "But frames successive rhetorical turns about the crowds."
+    },
+    {
+      "file": "moby150k.txt",
+      "kind": "transitionRepeat",
+      "flagIndex": 1,
+      "byte": {
+        "end": 36241,
+        "start": 36026
+      },
+      "word": "and",
+      "judgment": "noise",
+      "reason": "And sustains the conversational accumulation of the narrator’s reasons."
+    },
+    {
+      "file": "moby150k.txt",
+      "kind": "pronounRun",
+      "flagIndex": 0,
+      "byte": {
+        "end": 71795,
+        "start": 71295
+      },
+      "word": "i",
+      "judgment": "useful",
+      "reason": "Four consecutive I-led action sentences, crossing a paragraph, expose a sustained subject-action rhythm."
+    }
+  ]
+}

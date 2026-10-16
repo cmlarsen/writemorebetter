@@ -182,6 +182,8 @@ const phrases = JSON.parse(document.repeatedPhrases());
 const senses = JSON.parse(document.sensoryBalance());
 const diction = JSON.parse(document.diction(undefined, concretenessTableText));
 const overused = JSON.parse(document.overusedWords());
+const transitions = JSON.parse(document.transitions());
+const pronouns = JSON.parse(document.pronounStarts());
 document.free();
 ```
 
@@ -195,7 +197,7 @@ import type { SentenceLengthReport } from "./pkg/writemorebetter_wasm";
 const length: SentenceLengthReport = JSON.parse(document.sentenceLength());
 ```
 
-Construction respects compact-document options. Echoes, phrases, overused words, dialogue tags,
+Construction respects compact-document options. Echoes, phrases, overused words, transitions, pronoun starts, dialogue tags,
 starts, sensory balance and diction require token details and throw on compact documents. Reports run on the retained analysis; construct a new
 object for changed text/options. See [the per-report API](../docs/STYLE-REPORTS.md#independent-reports-shared-analysis)
 for options, result JSON examples, baselines and Subplot’s recommended default set and opt-in lenses.
@@ -204,3 +206,6 @@ A retained moby150k document (149,091 input bytes) holds about **11–12 MB of W
 in the reviewed measurement. Retain the chapter on screen and `free()` its document on navigation;
 Swift callers should drop their retained reference. WASM frees space for reuse by later documents,
 while its linear memory high-water mark does not shrink back to the OS. Avoid caching every chapter.
+
+Transitions and pronoun starts are opt-in descriptive lenses. See [definitions, options and public
+measurements](../docs/STYLE-TRANSITIONS.md); neither has a baseline argument yet.

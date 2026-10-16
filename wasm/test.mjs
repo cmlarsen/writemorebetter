@@ -458,6 +458,10 @@ check(pronouns.groups.all.lowConfidence, "pronouns: small sample marked");
 eq(JSON.parse(lensDoc.pronounStarts()).groups.all.pronounStarts.percent, null, "pronouns: default sample floor");
 eq(styleError(() => lensDoc.pronounStarts('{"typo":1}')).kind, "invalidOptions", "pronouns: unknown option");
 lensDoc.free();
+const pronounGuardDoc = checker.styleDocument("Her coat was red. Hers was blue. Nobody left. This was easy. That’s fine. What’s more, she paid.");
+eq(JSON.parse(pronounGuardDoc.pronounStarts()).starts.map(s => s.pronoun), ["hers", "nobody", "this", "that", "what"], "pronouns: determiners excluded and independent pronouns included");
+eq(JSON.parse(pronounGuardDoc.transitions()).matches[0].phrase, "what's more", "transitions: curly contraction phrase");
+pronounGuardDoc.free();
 
 checkStyleRecords(checker);
 const independent = checker.styleDocument("She ran.");

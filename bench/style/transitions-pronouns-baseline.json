@@ -1,0 +1,133 @@
+{
+  "labels": 31,
+  "injectedDocuments": 12,
+  "transitions": {
+    "patterns": {
+      "addition": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "true_positive": 3,
+        "predicted": 3,
+        "gold": 3
+      },
+      "cause": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "true_positive": 5,
+        "predicted": 5,
+        "gold": 5
+      },
+      "contrast": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "true_positive": 3,
+        "predicted": 3,
+        "gold": 3
+      },
+      "example": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "true_positive": 3,
+        "predicted": 3,
+        "gold": 3
+      },
+      "time": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "true_positive": 3,
+        "predicted": 3,
+        "gold": 3
+      }
+    },
+    "confusion": {
+      "addition": {
+        "addition": 3
+      },
+      "cause": {
+        "cause": 5
+      },
+      "contrast": {
+        "contrast": 3
+      },
+      "example": {
+        "example": 3
+      },
+      "time": {
+        "time": 3
+      }
+    }
+  },
+  "pronounRuns": {
+    "patterns": {
+      "pronoun_run": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "true_positive": 6,
+        "predicted": 6,
+        "gold": 6
+      }
+    },
+    "confusion": {
+      "pronoun_run": {
+        "pronoun_run": 6
+      }
+    }
+  },
+  "naturalRunsDiagnostic": 0,
+  "public": [
+    {
+      "file": "story1.txt",
+      "sentences": 119,
+      "transitionMatches": 15,
+      "transitionRepeats": 1,
+      "pronounStarts": 61,
+      "pronounRuns": 0
+    },
+    {
+      "file": "story2.txt",
+      "sentences": 131,
+      "transitionMatches": 11,
+      "transitionRepeats": 0,
+      "pronounStarts": 74,
+      "pronounRuns": 1
+    },
+    {
+      "file": "story3.txt",
+      "sentences": 127,
+      "transitionMatches": 10,
+      "transitionRepeats": 1,
+      "pronounStarts": 69,
+      "pronounRuns": 1
+    },
+    {
+      "file": "story4.txt",
+      "sentences": 128,
+      "transitionMatches": 9,
+      "transitionRepeats": 1,
+      "pronounStarts": 59,
+      "pronounRuns": 0
+    },
+    {
+      "file": "story5.txt",
+      "sentences": 117,
+      "transitionMatches": 16,
+      "transitionRepeats": 4,
+      "pronounStarts": 63,
+      "pronounRuns": 2
+    },
+    {
+      "file": "moby150k.txt",
+      "sentences": 1126,
+      "transitionMatches": 201,
+      "transitionRepeats": 35,
+      "pronounStarts": 211,
+      "pronounRuns": 1
+    }
+  ]
+}
