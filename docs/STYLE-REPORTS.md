@@ -58,7 +58,7 @@ swift/, wasm/       one binding each, exposing check() + analyze() + analyzeDocu
 | [Repeated phrases](STYLE-ECHOES.md#repeated-phrases) | #245 | lemma n-grams | none |
 | Clichés and redundancies | #246 | phrase lists | none |
 | Transitions, pronoun starts | #247 | #244's classifier, word list | Ngram `_START_` 2- to 4-grams (planned; not yet in #247) |
-| Overused words | #248 | lemma counts | Ngram fiction unigrams, or HTRC per-author counts |
+| [Overused words](STYLE-OVERUSED-WORDS.md), filler words | #248 | lemma counts | Ngram English Fiction 1990–2019 unigrams, lemmatized (bundled) |
 | Dialogue tags | #249 | dialogue spans | published-fiction corpus (owner-run tier 3 command; see [STYLE-DIALOGUE-TAGS.md](STYLE-DIALOGUE-TAGS.md)) |
 | [Sensory balance, diction (concreteness)](STYLE-NORMS.md) | #250 | lemmas, word-norm tables | none; Lancaster norms bundled (CC BY 4.0), concreteness table caller-supplied |
 | Pacing | #251 | dialogue spans, sentence stats | published-fiction corpus, for threshold calibration |
@@ -108,6 +108,7 @@ const echoes = JSON.parse(document.echoes());
 const phrases = JSON.parse(document.repeatedPhrases());
 const senses = JSON.parse(document.sensoryBalance());
 const diction = JSON.parse(document.diction(undefined, concretenessTableText));
+const overused = JSON.parse(document.overusedWords());
 const long = JSON.parse(document.sentenceLength('{"includeLongSentences":true}'));
 const descriptive = JSON.parse(document.sentenceLength(undefined, "none"));
 document.free();
@@ -115,7 +116,7 @@ document.free();
 
 Each method accepts that report's options JSON (omitted means defaults) and returns only its
 result as JSON. `stats()` returns `DocumentStats`. Baseline-aware methods (`sentenceLength`,
-`sentenceStarts`, `dialogueTags`) take a separate optional `baselineJSON`: omit it for bundled data,
+`sentenceStarts`, `dialogueTags`, `overusedWords`) take a separate optional `baselineJSON`: omit it for bundled data,
 pass a baseline object encoded as JSON to override it, use `"bundled"` explicitly, or use
 `"none"` to disable comparisons.
 There is no bundled dialogue-tag baseline yet. `diction` takes no baseline; its second argument is
@@ -123,6 +124,8 @@ the caller's word-to-concreteness table (JSON object or TSV text), which is requ
 throws `missingTable` rather than returning an empty report. Options use camelCase, accept snake_case aliases,
 and reject unknown keys. Overrides never change later calls. Native Rust `report` functions take
 `Option<&Baseline>` explicitly; `XBaseline::bundled()` loads the matching bundled file.
+`OverusedWordsBaseline::bundled()` returns `Option<&'static OverusedWordsBaseline>`, parsed once,
+because its table holds 14,382 lemmas; pass it directly instead of through `.as_ref()`.
 
 Swift has typed `Codable`, `Equatable`, `Sendable` results decoded from the same UTF-16 JSON:
 
@@ -137,6 +140,7 @@ let echoes: EchoReport = try document.echoes()
 let phrases: RepeatedPhraseReport = try document.repeatedPhrases()
 let senses: SensoryBalanceReport = try document.sensoryBalance()
 let diction: DictionReport = try document.diction(table: concretenessTableText)
+let overused: OverusedWordsReport = try document.overusedWords()
 let custom = try document.sentenceLength(baseline: .custom("{\"mean\":13}"))
 let descriptive = try document.sentenceLength(baseline: .none)
 if let match = cliches.matches.first {
@@ -154,8 +158,8 @@ annotate the value decoded with `JSON.parse`.
 
 Subplot chooses which methods to call. Its recommended default set is **clichés, dialogue tags,
 sentence length statistics and monotony, and sentence starts**. **Echoes, repeated phrases,
-long-sentence flags, sensory balance and diction** are opt-in lenses; sensory balance and diction
-stay opt-in until the owner has seen usefulness numbers on real manuscripts. Length statistics and monotony remain available without
+long-sentence flags, overused and filler words, sensory balance and diction** are opt-in lenses;
+sensory balance and diction stay opt-in until the owner has seen usefulness numbers on real manuscripts. Length statistics and monotony remain available without
 `includeLongSentences`. The library has no combined request or default report selection.
 
 | Report | Module and entry point | Options | Baseline | Needs readings |
@@ -168,6 +172,7 @@ stay opt-in until the owner has seen usefulness numbers on real manuscripts. Len
 | sentence starts | `sentence_starts::report(&Document, &SentenceStartsOptions, Option<&SentenceStartsBaseline>)` | `minimumSentences` | bundled | yes |
 | sensory balance | `sensory_balance::report(&Document, &PerceptualNorms, &SensoryBalanceOptions)` | `minimumStrength`, `dominanceMargin`, `sightMargin`, `minimumSenseWords`, `singleSensePercent` | none (norms bundled: `PerceptualNorms::bundled()`) | yes |
 | diction | `diction::report(&Document, &ConcretenessTable, &DictionOptions)` | `abstractBelow`, `minimumRatedWords`, `minimumRunSentences` | none (table caller-supplied: `ConcretenessTable::parse`) | yes |
+| overused words | `overused_words::report(&Document, &OverusedWordsOptions, Option<&OverusedWordsBaseline>)` | `minimumRatio`, `minimumCount`, `minimumReferencePerMillion`, `includeNouns`, `countScaleWords` | bundled; fillers run without one | yes |
 
 Every entry point returns `Result<_, StyleError>`. Type names are prefixed with their report
 (`SentenceLengthReport`, `ClicheMatch`, `DialogueTagVerbClass`, …) so they stay unique in Swift's
@@ -225,6 +230,13 @@ sentences and runs, refer only to that result’s own table:
 
 ```json
 {"matches": [{"kind": "cliche", "mode": "narration", "phrase": "kick the bucket", "source": "no-cliches", "span": {"start": 90, "end": 107}}], "groups": {"all": {"cliches": 1, "redundancies": 0, "words": 19}, "narration": {}, "dialogue": {}}}
+```
+
+`overusedWords` (here `minimumCount` and `minimumRatio` are 1; `fillers` holds records of the same
+shape with `word` instead of `lemma` and nullable reference fields):
+
+```json
+{"words": 19, "overused": [{"lemma": "grin", "count": 2, "perTenThousandWords": 1052.6315789473683, "referencePerTenThousandWords": 1.64, "ratio": 641.8485237483953, "spans": [{"start": 30, "end": 37}, {"start": 42, "end": 49}]}], "fillers": []}
 ```
 
 `dialogueTags`:
@@ -321,7 +333,9 @@ genre-specific one. Default baseline files may ship in `style/data/baselines/`, 
 source and version; each report’s `XBaseline::bundled()` loads its file, so callers never strip the source wrapper
 by hand. They
 are built in the private `cmlarsen/fiction-baseline` repo; each committed baseline file names the build
-commit there. Where the numbers come from:
+commit there. The overused-words table is the exception: it comes from public Ngram counts and is
+rebuilt in this repository by `bench/style/overused_baseline.py` (see
+[STYLE-OVERUSED-WORDS.md](STYLE-OVERUSED-WORDS.md#reference-table)). Where the numbers come from:
 
 1. **Derived, openly licensed datasets (preferred).** These are counts, not text, and they cover modern
    in-copyright fiction:
@@ -383,6 +397,11 @@ Build rules for any baseline:
 | 2026-10-16 | #281 review: norm lookups prefer a verb reading's lemma over a base-form homograph (*felt* → *feel*), figurative and hearsay rules look past whitespace only, the bundled table keeps the 3.5/0.5 floor with haptic leads measured past interoception, defaults stay 4.0 / 1.0 / sight 3.0, and diction marks only narration sentences `abstract` | Past *felt* counted as the fabric and skipped the *feel* rule; *cold* (touch 4.11, interoception 3.53) could never count. Lowering default strength to 3.7 added *turn*, *wake* and *forget* as noise, so *warm*/*crimson* stay opt-in. Blind re-judging: 14/26/20 → 23/30/7 useful/noise/wrong ([STYLE-NORMS.md](STYLE-NORMS.md#re-review-281)) |
 | 2026-10-16 | #250: sensory balance is an opt-in lens over a derived Lancaster table: a sense word's strongest perceptual modality rates ≥ 4.0 and leads the next by ≥ 1.0 (sight by ≥ 3.0); `singleSense` needs ≥ 20 narration sense words and ≥ 85% in one modality | Calibrated on bench/public plus three Standard Ebooks chapters ([STYLE-NORMS.md](STYLE-NORMS.md)): nearly every concrete noun rates visual-dominant, so a uniform margin made sight 75–92% of every scene; the sight margin lifted useful sense words from 13 to 33 of 60 sampled. Published scenes peak at 77% one modality (Gatsby’s multi-sensory dawn), so 85% leaves no false flags on them |
 | 2026-10-16 | #250: diction takes a required caller-supplied concreteness table (JSON or TSV), flags runs of ≥ 3 consecutive abstract narration sentences (mean < 2.5 over ≥ 3 rated words), and errors without a table | Brysbaert is CC BY-NC-ND and stays out of the repository and tests; defaults assume its 1–5 scale. Real-world usefulness depends on the table Subplot supplies, an owner decision |
+| 2026-10-16 | #248: overused words is an opt-in lens with a bundled Ngram English Fiction 1990–2019 lemma table (14,382 lemmas ≥ 1 per million, 233 KB); flag at ratio ≥ 4, count ≥ 5, reference ≥ 10 per million, nouns opt-in | Calibrated to a median of 5 flags (2–9) on 14 public chapter-sized texts; an editor review judged 32/76 useful, 42 noise, 2 wrong. Nouns added 152 mostly topical flags; the floor drops rare, archaic and topical words. See [STYLE-OVERUSED-WORDS.md](STYLE-OVERUSED-WORDS.md) |
+| 2026-10-16 | #248 review: the overused-words reference adds Ngram `_ADP`, `_CONJ` and `_PRT` uses to lemmas with content uses, and folds 248 British spellings into their American lemma on both sides | A document counts prepositional *near*, *above* and *past* because they keep their adverb and adjective readings, so a reference without them inflated ratios up to 10× (*above* 20.2 → 202 per million). *grey* and *realise* had ratios 1.7–4.8× too high for British spelling. See [STYLE-OVERUSED-WORDS.md](STYLE-OVERUSED-WORDS.md#reference-table) |
+| 2026-10-16 | #248 review: above 10,000 words the overused-words `minimumCount` grows with √(words / 10,000), rounded to the nearest count (`countScaleWords`) | The defaults were calibrated on chapters; unscaled, the 25,002-word Moby-Dick excerpt gave 25 flags, and a novel would give dozens. Scaled it gives 7. Chapter-sized input is unchanged |
+| 2026-10-16 | #248 review: noun modifiers the tagger reads as adjectives (*express car*) stay counted; overused words keeps its own one-lemma-per-token choice instead of `lemma_index` or `echo_families` | Ngram's POS tags can't separate them: *tender* is NOUN 2.4M vs ADJ 183k, so a rule that dropped *express* would drop *a tender smile* too. `lemma_index` lists every reading and would double-count ambiguous tokens, so the same token can get a different lemma in echoes |
+| 2026-10-16 | #248: fixed filler list *just, really, very, quite, actually, simply, suddenly, somehow* and clause-opening *that*, reported by rate with or without a table | Short list of the words line editors cut first; rates rather than flags because every writer uses them |
 | 2026-10-16 | #269: listed dialogue interjections consistently open `introductory`, including bare utterances; retain their opener spans | Skipping comma-led interjections would contradict adjudicated `Ay`, `Oh` and `Yes` labels and lower the required floors. Extend the existing category convention to aye, alas, hey, okay, ok, yeah, yep, nope, hmm, um, uh, hurrah and nay |
 | 2026-10-16 | Owner direction (#275): independent methods on retained Swift/WASM `StyleDocument` objects; remove the combined API; each result owns its counts and sentence rows | Share the expensive analysis while letting Subplot choose its default set and opt-in lenses; typed per-report Swift and TypeScript results |
 | 2026-10-16 | #275: retained documents honor `includeTokenDetails: false`; only clichés and sentence length run on compact documents | Reverses the removed combined binding’s forced full analysis. Keep the default full options for style documents; compact `analyzeDocument` options should not be reused for the recommended report set |

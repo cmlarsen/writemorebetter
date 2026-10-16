@@ -350,6 +350,7 @@ final class CheckerTests: XCTestCase {
         XCTAssertEqual(try document.dialogueTags(), try fresh().dialogueTags())
         XCTAssertEqual(try document.sentenceLength(), try fresh().sentenceLength())
         XCTAssertEqual(try document.sentenceStarts(), try fresh().sentenceStarts())
+        XCTAssertEqual(try document.overusedWords(), try fresh().overusedWords())
         XCTAssertThrowsError(try document.sentenceLength(optionsJson: "{\"typo\":1}"))
         XCTAssertThrowsError(try document.sentenceStarts(baseline: .custom("{\"universalPercent\":{\"Noun\":20}}")))
         let compact = checker.styleDocument(text: text, options: DocumentOptions(includeTokenDetails: false))
@@ -359,6 +360,7 @@ final class CheckerTests: XCTestCase {
         XCTAssertThrowsError(try compact.repeatedPhrases())
         XCTAssertThrowsError(try compact.dialogueTags())
         XCTAssertThrowsError(try compact.sentenceStarts())
+        XCTAssertThrowsError(try compact.overusedWords())
         let spanText = "😀.\u{2028}He walked. She was walking. The old lamp glowed. The old lamp broke. The old lamp faded."
         let spanDocument = checker.styleDocument(text: spanText, options: nil)
         let echo = try XCTUnwrap(try spanDocument.echoes().echoes.first { $0.label == "walk" })
@@ -372,10 +374,15 @@ final class CheckerTests: XCTestCase {
         XCTAssertEqual(try document.sentenceLengthJson(optionsJson: nil, baselineJson: nil), try document.sentenceLengthJson(optionsJson: nil, baselineJson: "bundled"))
         XCTAssertEqual(try document.sentenceStartsJson(optionsJson: nil, baselineJson: nil), try document.sentenceStartsJson(optionsJson: nil, baselineJson: "bundled"))
         XCTAssertEqual(try document.dialogueTagsJson(optionsJson: nil, baselineJson: nil), try document.dialogueTagsJson(optionsJson: nil, baselineJson: "bundled"))
+        XCTAssertEqual(try document.overusedWordsJson(optionsJson: nil, baselineJson: nil), try document.overusedWordsJson(optionsJson: nil, baselineJson: "bundled"))
+        XCTAssertEqual(try document.overusedWords(baseline: .none).overused, [])
+        let waited = try document.overusedWords(optionsJson: "{\"minimumCount\":3,\"minimumRatio\":1,\"minimumReferencePerMillion\":0}", baseline: .custom("{\"lemmas\":{\"wait\":0.01}}"))
+        XCTAssertEqual(waited.overused.map(\.lemma), ["wait"])
+        XCTAssertEqual(waited.overused.first?.spans.map { (text as NSString).substring(with: $0.nsRange) }, ["waited", "waited", "waited"])
         XCTAssertTrue(try document.sentenceStarts(optionsJson: "{\"minimumSentences\":1}", baseline: .none).groups.all.universal.allSatisfy { $0.difference == nil })
         XCTAssertNil(try document.dialogueTags(optionsJson: "{\"minimumTags\":1}", baseline: .none).saidAsked.difference)
         XCTAssertEqual(try document.dialogueTags(optionsJson: "{\"minimumTags\":1}", baseline: .custom("{\"saidAskedPercent\":50}")).saidAsked.difference, 50)
-        for method in [document.sentenceLengthJson, document.sentenceStartsJson, document.dialogueTagsJson] {
+        for method in [document.sentenceLengthJson, document.sentenceStartsJson, document.dialogueTagsJson, document.overusedWordsJson] {
             for bad in ["null", "{", "{\"typo\":1}"] {
                 XCTAssertThrowsError(try method(nil, bad)) { error in
                     guard case CheckError.ReportInput(let message) = error else { return XCTFail("unexpected error: \(error)") }
@@ -430,6 +437,11 @@ final class CheckerTests: XCTestCase {
             guard case CheckError.ReportInput(let message) = error else { return XCTFail("unexpected error: \(error)") }
             XCTAssertTrue(message.hasPrefix("diction needs a caller-supplied"))
         }
+        let overusedOptions = "{\"minimumCount\":1,\"minimumRatio\":1,\"minimumReferencePerMillion\":0,\"includeNouns\":true}"
+        try roundTrip(OverusedWordsReport.self, document.overusedWordsJson(optionsJson: overusedOptions, baselineJson: nil))
+        let overused = try document.overusedWords(optionsJson: overusedOptions)
+        XCTAssertFalse(overused.overused.isEmpty)
+        XCTAssertFalse(overused.fillers.isEmpty)
         let length = try document.sentenceLength(optionsJson: lengthOptions)
         let tags = try document.dialogueTags(optionsJson: tagOptions, baseline: .custom(tagBaseline))
         XCTAssertFalse(length.groups.all.longSentences.isEmpty)

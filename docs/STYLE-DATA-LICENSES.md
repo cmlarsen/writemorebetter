@@ -79,3 +79,18 @@ Licenses checked 2026-10-15 (recorded in #246, below). #250 vendors one derived 
   the open-access article (doi 10.3758/s13428-019-01316-z) is CC BY 4.0. The aggregate CSV is about
   17 MB, so a trimmed table (word plus the six perceptual columns) with a NOTICE entry is the likely
   form if #250 vendors it.
+
+## Word frequencies (#248)
+
+- **Google Books Ngram, English Fiction 1-grams, version 20200217 ("v3"): CC BY 3.0, redistributable
+  with attribution.** The dataset page
+  <https://storage.googleapis.com/books/ngrams/books/datasetsv3.html> says, above the download links:
+  "This compilation is licensed under a Creative Commons Attribution 3.0 Unported License" (linking
+  <http://creativecommons.org/licenses/by/3.0/>). The file used is
+  <https://storage.googleapis.com/books/ngrams/books/20200217/eng-fiction/1-00000-of-00001.gz>
+  (940,045,192 bytes), retrieved 2026-10-16 without sign-up or click-through. It is not committed.
+- `style/data/baselines/overused-words.json` is derived from it by `bench/style/overused_baseline.py`:
+  per-lemma rates per million words for edition years 1990–2019, with British spelling variants
+  merged into their American lemma, rounded to three significant digits.
+  It holds counts, not text. Its source record names the dataset, version, URL, license, retrieval
+  date and build rules, and NOTICE credits Google Books Ngram.

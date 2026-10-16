@@ -44,6 +44,7 @@ export function checkStyleRecords(checker) {
     ["DialogueTagReport", document.dialogueTags(tagOptions, tagBaseline)],
     ["SentenceLengthReport", document.sentenceLength(lengthOptions)],
     ["SentenceStartsReport", document.sentenceStarts('{"minimumSentences":1}')],
+    ["OverusedWordsReport", document.overusedWords('{"minimumCount":1,"minimumRatio":1,"minimumReferencePerMillion":0,"includeNouns":true}')],
   ];
   const normText = readFileSync(new URL("../style/tests/fixtures/norm-records.txt", import.meta.url), "utf8");
   const normDocument = checker.styleDocument(normText);

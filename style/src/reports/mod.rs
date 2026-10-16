@@ -3,6 +3,7 @@ pub mod dialogue_tags;
 pub mod diction;
 pub mod echoes;
 mod norms;
+pub mod overused_words;
 pub mod repeated_phrases;
 pub mod sensory_balance;
 pub mod sentence_length;

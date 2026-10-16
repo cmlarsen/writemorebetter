@@ -178,10 +178,34 @@ pub struct Document {
     pub hard_wrapped: bool,
     #[serde(default)]
     pub skip_names_supplied: bool,
+    #[serde(default)]
+    pub compound_heads: BTreeMap<String, Vec<(String, String)>>,
 }
 
 fn token_details_default() -> bool {
     true
+}
+
+pub(crate) fn compound_head(text: &str) -> Option<String> {
+    let (_, head) = text.rsplit_once(['-', '‐'])?;
+    head.chars()
+        .all(char::is_alphabetic)
+        .then(|| head.to_lowercase())
+        .filter(|head| !head.is_empty())
+}
+
+fn head_readings(tokenizer: &Tokenizer, head: &str) -> Vec<(String, String)> {
+    let readings: BTreeSet<(String, String)> = tokenizer
+        .tagger()
+        .get_tags(head)
+        .map(|data| {
+            (
+                data.lemma().as_str().to_owned(),
+                data.pos().as_str().to_owned(),
+            )
+        })
+        .collect();
+    readings.into_iter().collect()
 }
 
 impl Document {
@@ -606,6 +630,7 @@ pub fn analyze_document(tokenizer: &Tokenizer, text: &str, options: &DocumentOpt
         token_details: options.include_token_details,
         skip_names_supplied: !options.skip_names.is_empty(),
         hard_wrapped: options.hard_wrapped,
+        compound_heads: BTreeMap::new(),
     };
     let mut previous_end = 0;
     let mut chapter_start = false;
@@ -677,6 +702,15 @@ pub fn analyze_document(tokenizer: &Tokenizer, text: &str, options: &DocumentOpt
                 let is_skipped = skipped[token_index];
                 if word && !is_skipped {
                     document.word_count += 1;
+                    if options.include_token_details && token.readings.is_empty() {
+                        if let Some(head) = compound_head(&token.text) {
+                            let readings = document.compound_heads.entry(head);
+                            if let std::collections::btree_map::Entry::Vacant(entry) = readings {
+                                let readings = head_readings(tokenizer, entry.key());
+                                entry.insert(readings);
+                            }
+                        }
+                    }
                     for lemma in &indexed_lemmas[token_index] {
                         document
                             .lemma_index

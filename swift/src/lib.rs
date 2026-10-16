@@ -697,4 +697,19 @@ impl StyleDocument {
                 message: error.to_string(),
             })
     }
+    /// Returns this report on the retained analysis; options default when omitted.
+    /// Baseline: omitted/null means bundled; "none" disables comparisons; otherwise pass a JSON object.
+    #[uniffi::method(default(options_json = None, baseline_json = None))]
+    pub fn overused_words_json(
+        &self,
+        options_json: Option<String>,
+        baseline_json: Option<String>,
+    ) -> Result<String, CheckError> {
+        self.inner
+            .overused_words(options_json.as_deref(), baseline_json.as_deref())
+            .map(|report| writemorebetter_style::reports::to_utf16_json(&report))
+            .map_err(|error| CheckError::ReportInput {
+                message: error.to_string(),
+            })
+    }
 }
