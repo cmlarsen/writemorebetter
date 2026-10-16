@@ -21,8 +21,8 @@ and what every report needs to agree:
 - `token_details`: whether token readings and chunks were kept. Reports that need readings (echoes,
   repeated phrases, sentence starts, dialogue tags) return `StyleError::NeedsTokenDetails` for a
   compact document instead of silently degrading.
-- `hard_wrapped`: the paragraph mode the document was built with. The combined report result echoes
-  it as `stats.hardWrapped`.
+- `hard_wrapped`: the paragraph mode the document was built with. `StyleDocument.stats()` echoes
+  it as `hardWrapped`.
 - `sentences()` and `words()` iterate every sentence and every counted word token in document order;
   `Sentence::word_count()` counts `is_word && !is_skipped` tokens. Sentence indexes in reports are
   positions in `sentences()`.
@@ -161,7 +161,7 @@ quoted spans as speech.
 There are two granularities, both built on that one rule:
 
 - **Token:** `Document::mode_at(byte)` is `Mode::Dialogue` when the byte lies inside a speech span.
-  Word splits (`stats.words` in the combined result, clichés `groups.*.words`) and per-match modes
+  Word splits (`StyleDocument.stats().words`, clichés `groups.*.words`) and per-match modes
   (clichés) use it.
 - **Sentence:** `Document::sentence_mode(&sentence)` is the token mode of the sentence's first
   `is_word` token. Sentence length and sentence starts group sentences by it, so a mixed

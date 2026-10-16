@@ -12,9 +12,9 @@ let report = cliches::report(&document, &list, &ClicheOptions::new())?;
 
 The report is the public module `reports::cliches`; nothing is re-exported at the crate root or in
 `reports`. Build the `ClicheList` once per tokenizer and cache it (compiling the bundled list analyzes
-each of its 882 entries). `reports::StyleResources` does that lazily for the combined call, and both
-bindings keep one per `Checker`, so only the first `styleReports` call that selects clichés pays for
-it. `ClicheOptions` has no fields yet; JSON `{}` selects the report.
+each of its 882 entries). `reports::StyleResources` does that lazily, and both
+bindings keep one per `Checker`, so only the first `StyleDocument.cliches()` call pays for
+it. `ClicheOptions` has no fields yet; JSON `{}` uses its defaults.
 `ClicheList::new(&tokenizer, entries)` takes a caller-supplied list instead: each `ClicheEntry` has a
 kind, phrase, source, optional acronym, a fixed-wording flag, an open-slot flag and `not_followed_by`
 guards (each a word or a space-separated word sequence). This is the
@@ -30,7 +30,7 @@ caller-supplied list can compile to fewer patterns than `entries().len()`.
 - `groups`: `Split<ClicheCounts>` (`all`, `narration`, `dialogue`), each with `cliches`,
   `redundancies` and `words` (word tokens outside skipped names, the `Document::word_count`
   convention). `all.words` is the document's word count and the mode `words` are exactly the
-  combined call's `stats.words`.
+  `StyleDocument.stats().words`.
 
 A match is dialogue when its first byte lies inside a **speech** span: the document-level rule every
 report shares (`Document::mode_at`; see [STYLE-DOCUMENT.md](STYLE-DOCUMENT.md#narration-and-dialogue)).

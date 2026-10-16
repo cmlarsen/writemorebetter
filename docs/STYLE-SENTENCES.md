@@ -6,16 +6,14 @@ Part of #244. Rust entry points are `reports::sentence_length::report` and
 `SentenceLengthReport`, `SentenceStartsOptions`, `SentenceStartCategory`, …). Public records are
 non-exhaustive; construct options with `new()` and the `with_*` builders. Native spans retain
 absolute, half-open UTF-8 byte, Unicode scalar and UTF-16 endpoints. Both reports return
-`groups: Split<…>` with `all`, `narration` and `dialogue`. The combined `reports::run` call (and the
-bindings' `styleReports`) evaluates any selection of reports over one document; see
-[STYLE-REPORTS.md](STYLE-REPORTS.md#one-call-for-every-report).
+`groups: Split<…>` with `all`, `narration` and `dialogue`. Each report runs independently on one retained document; see
+[the per-report API](STYLE-REPORTS.md#independent-reports-shared-analysis).
 
-**One sentence table.** Neither report repeats sentence spans. Sentences are numbered in document
-order (paragraph by paragraph), and `reports::sentence_table(&document)` returns one
-`SentenceRow { span, mode, words }` per sentence; the combined result carries it as `sentences`
-whenever a sentence report is selected. Long sentences are indexes into that table, runs are
-`SentenceRun { span, sentences }` (the covering span and the half-open index range), and each
-sentence start names its `sentence` index. `Document::sentences()` iterates in the same order.
+**A sentence table per report.** Each result owns `sentences: Vec<SentenceRow>` with the original
+spans, mode and word counts in document order. Long-sentence indexes, start indexes and run ranges
+refer only to that result's own table. `SentenceRun { span, sentences }` carries a covering span and
+half-open index range. `Document::sentences()` and `reports::sentence_table(&document)` use the same
+order. Each result also owns split `words` counts.
 
 A sentence's mode is the mode of its first `is_word` token (`Document::sentence_mode`): dialogue when
 that token starts inside a **speech** span, the document-level rule every report shares (see
@@ -28,7 +26,7 @@ Each group's own `minimumSentences` (default 50) suppresses shares, means, perce
 differences below that sample. `lowConfidence` is true below 200 eligible sentences, or the configurable display floor when higher. Empty groups never yield NaN.
 
 **Both reports count the same sentences.** Every group's `sentences` is the number of sentences in
-that mode, identical in the two reports and equal to the combined result's `stats.sentences`.
+that mode, identical in the two reports and equal to `StyleDocument.stats().sentences`.
 Length adds `zeroWordSentences`; starts adds `excludedSentences`, the sentences whose first token is
 a skipped name. Start shares and the starts sample threshold use `sentences - excludedSentences`.
 
@@ -78,7 +76,7 @@ a fresh corpus run. No private corpus was accessed for this integration.
 The export has one paragraph per line, with blank lines at scene breaks. `tier3 --sentence-length`
 uses **default line mode**, not hard-wrapped mode. Unpunctuated headings, interrupted dialogue and
 following paragraphs remain separate. `wmb-document --reports TOKENIZER [--hard-wrapped]` defaults
-to line mode; select hard-wrapped only for wrapped public imports such as Moby. The probe explicitly opts in to the long-sentence lens with otherwise default options and bundled baselines and prints the combined result under
+to line mode; select hard-wrapped only for wrapped public imports such as Moby. The probe explicitly opts in to the long-sentence lens with otherwise default options and bundled baselines and prints both independent results under
 `reports`; `wmb-document --defaults` prints those selected options and run thresholds that the Python
 reference reads instead of hardcoding them. The synthetic test
 includes consecutive unpunctuated lines and fails under the old hard-wrapped convention.
@@ -191,30 +189,15 @@ The full distribution and exact source provenance remain in the shipped JSON fil
 
 ## Bindings and one document pass
 
-Use `checker.styleReports(text, requestJson?, documentOptionsJson?)` in WASM, or Swift's
-`styleReports(text:requestJson:documentOptions:)`. An explicit request selects only its non-null
-report members, e.g.:
+Create `checker.styleDocument(text, optionsJSON)` in WASM or Swift's
+`checker.styleDocument(text:options:)`, then call `sentenceLength` and `sentenceStarts`. Both results
+include their own sentence rows and split word counts. Each method accepts report options JSON and
+an optional baseline JSON override. Bundled baselines are used when omitted; the explicit selector `"none"`
+disables comparisons. Swift returns typed Codable results. Spans count UTF-16 units.
 
-```json
-{"sentenceLength":{"minimumSentences":200,"longSentenceWords":40},"sentenceStarts":{"minimumSentences":200},"baselines":"bundled"}
-```
-
-`"baselines": "bundled"` selects the bundled files; an object
-`{"sentenceLength": {...}, "sentenceStarts": {...}}` holds caller baselines in the bundled file's
-`baseline` member format, without its source wrapper. Omitting the request runs every report with
-bundled baselines. One full document is built for all selected reports; reports never require a
-second pass. Output fields and categories are camelCase and every span is `{start,end}` in UTF-16
-code units into the original text. Unknown option, category and tag keys throw.
-
-The per-report `sentenceLength`/`sentenceStarts` binding calls are removed: each rebuilt the
-document, and their results would reference a sentence table they did not return. The combined
-output keeps POS internally even with `includeTokenDetails: false`, emits no per-token detail
-payload, and honors names and paragraph mode. Native Rust callers must keep full token details for
-starts: a compact document makes `sentence_starts::report` return `StyleError::NeedsTokenDetails`,
-because it cannot reconstruct discarded readings. Length works on compact documents.
-`node wasm/sentence-reports-bench.mjs` measures the combined call with both sentence reports and
-bundled baselines on the exact 596,376-byte public workload (Moby excerpt repeated four times, CRLF
-preserved); `--all` selects every report.
+Starts requires token details and rejects compact documents. Length works on compact documents.
+`node wasm/sentence-reports-bench.mjs` measures analysis separately from all six report calls on
+`bench/public/moby150k.txt` with hard-wrapped mode (one warmup, three measured iterations).
 
 ## Adjudicated benchmark status
 
@@ -280,7 +263,12 @@ held-out accuracy claim.
 
 ## Report cost
 
-Native report-only median is **3.741 ms per 149,091 bytes** (3.603–4.513 ms, five calls after one
+**Historical measurements, before #275.** These used the combined API and pre-#275 benchmark
+script; the current script measures analysis and each method separately on moby150k with token
+details enabled. The old 596,376-byte workload and its combined-output sizes below are retained
+for history and cannot be reproduced with the current script.
+
+Native report-only median was **3.741 ms per 149,091 bytes** (3.603–4.513 ms, five calls after one
 warmup); document construction, reports, JSON and IPC have median **1,217.2 ms**. Combined WASM
 median is **5,679.6 ms per 596,376 bytes** (three calls after one warmup), with a 2,820,893-byte JSON
 result and 304,824,320-byte process peak RSS. Both reports share one document pass. Apple M5 Pro,

@@ -16,19 +16,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut output = io::BufWriter::new(stdout.lock());
     match args.first().map(String::as_str) {
         Some("--reports") if args.len() == 2 || (args.len() == 3 && args[2] == "--hard-wrapped") => {
-            use writemorebetter_style::reports::{run, StyleRequest, StyleResources};
+            use writemorebetter_style::reports::{sentence_length, sentence_starts};
             let tokenizer = nlprule::Tokenizer::new(&args[1])?;
-            let resources = StyleResources::new();
-            let defaults = StyleRequest::new();
-            let mut request = StyleRequest::empty();
-            request.sentence_length = defaults.sentence_length.map(|options| options.with_long_sentences(true));
-            request.sentence_starts = defaults.sentence_starts;
-            request.baselines = defaults.baselines;
             for line in io::stdin().lock().lines() {
                 let text: String = serde_json::from_str(&line?)?;
                 let document = analyze_document(&tokenizer, &text, &DocumentOptions::new().with_hard_wrapped(args.len() == 3));
                 let started = Instant::now();
-                let reports = run(&document, &request, &resources, &tokenizer)?;
+                let length = sentence_length::report(&document, &sentence_length::SentenceLengthOptions::new().with_long_sentences(true), sentence_length::SentenceLengthBaseline::bundled().as_ref())?;
+                let starts = sentence_starts::report(&document, &Default::default(), sentence_starts::SentenceStartsBaseline::bundled().as_ref())?;
+                let reports = serde_json::json!({"sentenceLength": length, "sentenceStarts": starts});
                 let reports_ms = started.elapsed().as_secs_f64() * 1000.0;
                 serde_json::to_writer(&mut output, &serde_json::json!({"reports": reports, "reports_ms": reports_ms, "paragraphs": document.paragraphs.len()}))?;
                 writeln!(output)?;
@@ -36,13 +32,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
         Some("--defaults") if args.len() == 1 => {
-            use writemorebetter_style::reports::{sentence_length, sentence_starts, StyleRequest};
-            let request = StyleRequest::new();
+            use writemorebetter_style::reports::{sentence_length, sentence_starts};
             serde_json::to_writer(
                 &mut output,
                 &serde_json::json!({
-                    "sentenceLength": request.sentence_length.map(|options| options.with_long_sentences(true)),
-                    "sentenceStarts": request.sentence_starts,
+                    "sentenceLength": sentence_length::SentenceLengthOptions::new().with_long_sentences(true),
+                    "sentenceStarts": sentence_starts::SentenceStartsOptions::new(),
                     "monotonyMinSentences": sentence_length::MONOTONY_MIN_SENTENCES,
                     "monotonyMaxSpread": sentence_length::MONOTONY_MAX_SPREAD,
                     "sameWordMinSentences": sentence_starts::SAME_WORD_MIN_SENTENCES,

@@ -8,6 +8,7 @@
 //
 // Requires the English binaries in storage/ (see wasm/README.md).
 
+import { checkStyleRecords } from "./style-records-test.mjs";
 import { createRequire } from "node:module";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -300,67 +301,94 @@ check(unknownOption, "unknown document options rejected");
 const unknownDocument = JSON.parse(checker.analyzeDocument("Zzqvorth sang. Zzqvorth sang."));
 eq(unknownDocument.lemma_index.zzqvorth.length, 2, "unknown surface indexed");
 
-const reportText = "😀\n\n“She ran. She left. She slept. She wept.” “Fine,” he said. He grinned at her and he grinned again.";
-const sentenceRequest = JSON.stringify({sentenceLength: {minimumSentences: 4}, sentenceStarts: {minimumSentences: 4}, baselines: "bundled"});
-const together = JSON.parse(checker.styleReports(reportText, sentenceRequest));
-const lengthReport = together.sentenceLength;
-const startReport = together.sentenceStarts;
-const dialogueRows = together.sentences.filter((row) => row.mode === "dialogue");
-eq(dialogueRows.length, 5, "sentence table modes");
-eq(together.stats.sentences.dialogue, 5, "stats count dialogue sentences");
-eq(lengthReport.groups.dialogue.histogram.find((bucket) => bucket.words === 2).sentences, 4, "length uses document words");
-eq(lengthReport.groups.dialogue.monotonyRuns.length, 0, "dialogue is excluded from monotony");
-eq(lengthReport.groups.all.percentiles.map((p) => p.percentile), [5, 25, 50, 75, 95], "percentiles are an ordered array");
-check(typeof lengthReport.groups.all.meanDifference === "number", "bundled length baseline difference");
-eq(startReport.groups.dialogue.categories.find((c) => c.category === "subject").percent, 80, "start subject percent");
-eq(startReport.groups.dialogue.sameWordRuns.length, 0, "dialogue is excluded from same-word runs");
-eq(startReport.groups.all.sentences, lengthReport.groups.all.sentences, "both sentence reports count the same sentences");
+const reportText = "😀.\u2028\n\n“She ran. She left. She slept. She wept.” “Fine,” he said. He grinned at her and he grinned again.";
+const retained = checker.styleDocument(reportText);
+const options = JSON.stringify({minimumSentences: 4});
+const lengthReport = JSON.parse(retained.sentenceLength(options));
+const startReport = JSON.parse(retained.sentenceStarts(options));
+eq(lengthReport.sentences, startReport.sentences, "reports own identical sentence rows");
+eq(lengthReport.sentences.filter(r => r.mode === "dialogue").length, 5, "sentence modes");
+eq(lengthReport.groups.dialogue.histogram.find(b => b.words === 2).sentences, 4, "word histogram");
+eq(startReport.groups.dialogue.categories.find(c => c.category === "subject").percent, 80, "subject percent");
 const firstStart = startReport.starts[1];
-eq(reportText.slice(firstStart.opener.start, firstStart.opener.end), "She", "start opener span");
-eq(together.sentences[firstStart.sentence].mode, "dialogue", "start references the sentence table");
-const compactTogether = JSON.parse(checker.styleReports(reportText, sentenceRequest, JSON.stringify({includeTokenDetails: false})));
-eq(together, compactTogether, "combined compact reports preserve classification");
-const suppressed = JSON.parse(checker.styleReports("She ran.", JSON.stringify({sentenceStarts: {}})));
-eq(suppressed.sentenceStarts.groups.all.categories.find((c) => c.category === "subject").percent, null, "default sample suppression");
-const onlyLength = JSON.parse(checker.styleReports(reportText, JSON.stringify({sentenceLength: {}})));
-check("sentenceLength" in onlyLength && !("sentenceStarts" in onlyLength), "combined request selects reports");
-
-const everything = JSON.parse(checker.styleReports(reportText));
-for (const key of ["stats", "sentences", "cliches", "dialogueTags", "sentenceLength", "sentenceStarts"]) {
-  check(key in everything, `default request includes ${key}`);
+eq(reportText.slice(firstStart.opener.start, firstStart.opener.end), "She", "UTF-16 opener after emoji");
+check(typeof lengthReport.groups.all.meanDifference === "number", "bundled baseline by default");
+eq(JSON.parse(retained.sentenceLength(options, "none")).groups.all.meanDifference, null, "baseline disabled per call");
+const custom = JSON.parse(retained.sentenceLength(options, '{"mean":1}'));
+eq(custom.groups.all.meanDifference, custom.groups.all.mean - 1, "custom baseline per call");
+const calls = ["echoes", "repeatedPhrases", "cliches", "dialogueTags", "sentenceLength", "sentenceStarts", "stats"];
+for (const method of calls) {
+  const fresh = checker.styleDocument(reportText);
+  eq(JSON.parse(retained[method]()), JSON.parse(fresh[method]()), `shared analysis matches fresh ${method}`);
+  fresh.free();
 }
-check(!("echoes" in everything) && !("repeatedPhrases" in everything), "echoes and phrases are opt-in");
-eq(everything.sentenceLength.groups.all.longSentences, [], "long flags are opt-in");
-const longText = Array(50).fill("word").join(" ") + ".";
-eq(JSON.parse(checker.styleReports(longText)).sentenceLength.groups.all.longSentences, [], "default keeps long list empty");
-eq(JSON.parse(checker.styleReports(longText, JSON.stringify({sentenceLength:{includeLongSentences:true}, repeatedPhrases:{}}))).sentenceLength.groups.all.longSentences, [0], "long flags can be opted in");
-check("repeatedPhrases" in JSON.parse(checker.styleReports(longText, JSON.stringify({repeatedPhrases:{}}))), "phrases can be opted in");
-const echoLens = JSON.parse(checker.styleReports(reportText, JSON.stringify({echoes:{}}))).echoes;
-eq(everything.stats.words.all, echoLens.words, "word totals agree");
-eq(everything.cliches.groups.dialogue.words, everything.stats.words.dialogue, "dialogue word split agrees");
-eq(everything.dialogueTags.tags[0].verbText, "said", "dialogue tag verb");
-const quote = everything.dialogueTags.tags[0].quotes[0];
-eq(reportText.slice(quote.start, quote.end), "“Fine,”", "dialogue tag quotes are spans");
-eq(echoLens.echoes.length, 0, "close same-sentence echoes are suppressed");
-const separatedEcho = JSON.parse(checker.styleReports("He walked. She was walking.", JSON.stringify({echoes:{}}))).echoes;
-eq(separatedEcho.echoes[0].label, "walk", "echo label across sentences");
-eq(JSON.parse(checker.styleReports(reportText, undefined)), everything, "cached cliché list gives the same result");
-
-function styleError(text, request, options) {
-  try {
-    checker.styleReports(text, request, options);
-  } catch (error) {
-    return error;
-  }
-  return null;
+const stats = JSON.parse(retained.stats());
+eq(JSON.parse(retained.echoes()).words, stats.words.all, "echo denominator");
+eq(JSON.parse(retained.repeatedPhrases()).words, stats.words.all, "phrase denominator");
+const tags = JSON.parse(retained.dialogueTags());
+eq(reportText.slice(tags.tags[0].quotes[0].start, tags.tags[0].quotes[0].end), "“Fine,”", "UTF-16 tag quote");
+const clicheText = "😀.\u2028She kicked the bucket.";
+const cd = checker.styleDocument(clicheText);
+const match = JSON.parse(cd.cliches()).matches[0];
+eq(clicheText.slice(match.span.start, match.span.end), "kicked the bucket", "UTF-16 cliché after emoji");
+cd.free();
+const long = checker.styleDocument(Array(50).fill("word").join(" ") + ".");
+eq(JSON.parse(long.sentenceLength()).groups.all.longSentences, [], "long lens opt-in");
+eq(JSON.parse(long.sentenceLength('{"includeLongSentences":true}')).groups.all.longSentences, [0], "long lens selected");
+long.free();
+function styleError(call) { try { call(); } catch (error) { return error; } return null; }
+const misspelt = styleError(() => retained.sentenceLength('{"minimumSentneces":1}'));
+check(misspelt instanceof Error && misspelt.name === "StyleError", "typed report error");
+eq(misspelt.kind, "invalidOptions", "unknown options rejected");
+const invalid = styleError(() => retained.sentenceStarts(undefined, '{"universalPercent":{"Noun":20}}'));
+eq(invalid.kind, "invalidBaseline", "invalid baseline rejected");
+eq(invalid.report, "sentenceStarts", "error names report");
+eq(styleError(() => checker.styleDocument("text", '{"typo":true}')).kind, "invalidOptions", "document options validated");
+const compactStyle = checker.styleDocument(reportText, '{"includeTokenDetails":false}');
+for (const method of ["echoes", "repeatedPhrases", "dialogueTags", "sentenceStarts"]) {
+  eq(styleError(() => compactStyle[method]()).kind, "needsTokenDetails", `compact rejects ${method}`);
 }
-const misspelt = styleError("She ran.", '{"sentenceLength":{"minimumSentneces":1}}');
-check(misspelt instanceof Error && misspelt.name === "StyleError", "report errors are StyleError");
-eq(misspelt.kind, "invalidOptions", "report option misspellings rejected");
-const invalidTagKey = styleError("She ran.", JSON.stringify({sentenceStarts: {}, baselines: {sentenceStarts: {universalPercent: {Noun: 20}}}}));
-eq(invalidTagKey.kind, "invalidBaseline", "combined baseline validates universal tag keys");
-eq(invalidTagKey.report, "sentenceStarts", "baseline error names the report");
-eq(styleError("She ran.", undefined, '{"typo":true}').kind, "invalidOptions", "document options use the same error");
+eq(JSON.parse(compactStyle.sentenceLength()), JSON.parse(retained.sentenceLength()), "compact length identical");
+eq(JSON.parse(compactStyle.cliches()), JSON.parse(retained.cliches()), "compact clichés identical");
+compactStyle.free();
+retained.free();
+const spanText = "😀.\u2028He walked. She was walking. The old lamp glowed. The old lamp broke. The old lamp faded.";
+const spanDocument = checker.styleDocument(spanText);
+const echo = JSON.parse(spanDocument.echoes()).echoes.find(e => e.label === "walk");
+eq(spanText.slice(echo.earlier.start, echo.earlier.end), "walked", "UTF-16 earlier echo after emoji");
+eq(spanText.slice(echo.later.start, echo.later.end), "walking", "UTF-16 later echo after emoji");
+const phrase = JSON.parse(spanDocument.repeatedPhrases()).phrases[0];
+for (const span of phrase.spans) eq(spanText.slice(span.start, span.end), "The old lamp", "UTF-16 phrase after emoji");
+spanDocument.free();
+for (const selector of [undefined, null, "bundled"]) {
+  eq(JSON.parse(retainedBaseline(selector)), JSON.parse(retainedBaseline()), "absent/null/bundled baseline selects bundled");
+}
+function retainedBaseline(selector) {
+  const d = checker.styleDocument("She ran. She waited.");
+  try { return d.sentenceLength('{"minimumSentences":1}', selector); } finally { d.free(); }
+}
+const selectorDoc = checker.styleDocument("“Go,” she said. She ran.");
+for (const method of ["sentenceLength", "sentenceStarts", "dialogueTags"]) {
+  const option = method === "dialogueTags" ? '{"minimumTags":1}' : '{"minimumSentences":1}';
+  eq(selectorDoc[method](option, null), selectorDoc[method](option), `${method}: real null means bundled`);
+  eq(selectorDoc[method](option, "bundled"), selectorDoc[method](option), `${method}: explicit bundled`);
+  eq(styleError(() => selectorDoc[method](option, "null")).kind, "invalidBaseline", `${method}: JSON null is not a selector`);
+  const bad = styleError(() => selectorDoc[method](option, "{"));
+  eq(bad.kind, "invalidBaseline", `${method}: malformed baseline`);
+  eq(bad.report, method, `${method}: malformed baseline names report`);
+}
+const noComparison = JSON.parse(selectorDoc.sentenceStarts('{"minimumSentences":1}', "none"));
+check(noComparison.groups.all.universal.every(s => s.difference === null), "starts: explicit none");
+const customTags = JSON.parse(selectorDoc.dialogueTags('{"minimumTags":1}', '{"saidAskedPercent":50}'));
+eq(customTags.saidAsked.difference, 50, "tags: custom baseline");
+eq(JSON.parse(selectorDoc.dialogueTags('{"minimumTags":1}', "none")).saidAsked.difference, null, "tags: explicit none");
+selectorDoc.free();
+
+checkStyleRecords(checker);
+const independent = checker.styleDocument("She ran.");
+checker.free();
+eq(JSON.parse(independent.sentenceStarts()).groups.all.sentences, 1, "document outlives checker");
+independent.free();
 
 if (failures > 0) {
   console.error(`\n${failures} assertion(s) failed`);

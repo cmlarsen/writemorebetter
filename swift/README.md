@@ -176,33 +176,31 @@ unchanged. WASM accepts camelCase/snake_case option names and rejects unknown ke
 
 ## Style reports
 
-`checker.styleReports(text:requestJson:documentOptions:)` is the one entry point for every
-prose report: echoes, repeated phrases, clichés, dialogue tags, sentence length and sentence starts.
-It builds the document once for all selected reports, reuses the cliché list compiled on the first
-call (cached on the `Checker`), and performs no grammar or spelling checks. Omitting the request runs
-statistics, narration runs, dialogue tags and clichés with bundled baselines. Echoes and repeated
-phrases are opt-in lenses selected with `{"echoes":{}}` and `{"repeatedPhrases":{}}`. A request selects only the reports it names:
+Create one retained analysis and call any reports independently:
 
 ```swift
-let json = try checker.styleReports(
-    text: text,
-    requestJson: #"{"sentenceLength": {}, "sentenceStarts": {"minimumSentences": 50}, "baselines": "bundled"}"#,
-    documentOptions: DocumentOptions(skipNames: ["Mara"])
-)
+let document = checker.styleDocument(text: text)
+let length: SentenceLengthReport = try document.sentenceLength()
+let starts: SentenceStartsReport = try document.sentenceStarts()
+let tags: DialogueTagReport = try document.dialogueTags()
+let cliches: ClicheReport = try document.cliches()
+let stats = try document.stats()
+let echoes = try document.echoes()
+let phrases = try document.repeatedPhrases()
 ```
 
-The result has `stats` (word, sentence and dialogue counts every report agrees with), the
-`sentences` table that sentence reports index into, and one member per selected report. Keys and enum
-values are camelCase and every span is `{start, end}` in UTF-16 code units, suitable for `NSRange`.
-Errors throw `CheckError.ReportInput` with a message naming the kind (invalid options, invalid
-baseline for a named report). Typed Swift records mirroring the Rust report types come with the
-bindings follow-up; until then decode the JSON (for example with `Codable` structs). The request schema and one JSON example per
-report are in [STYLE-REPORTS.md](../docs/STYLE-REPORTS.md#one-call-for-every-report).
+Every result is `Codable`, `Equatable` and `Sendable`. Each method takes optional `optionsJson`;
+baseline-aware methods take `baseline: StyleBaseline` (`.bundled`, `.none`, or `.custom(json)`),
+defaulting to `.bundled`. Raw `*Json` methods accept omitted/nil or `"bundled"`, `"none"`, or
+baseline JSON and return the JSON string directly. Spans carry UTF-16
+`start`/exclusive `end` and provide `nsRange`. Each sentence report owns its sentence rows.
 
-The separate `sentenceLength(text:optionsJson:baselineJson:documentOptions:)` and `sentenceStarts(…)` methods are removed: each rebuilt the document,
-and `styleReports` with `{"sentenceLength": {}}` or `{"sentenceStarts": {}}` replaces them.
-`styleReports` always keeps token readings internally, so `includeTokenDetails` does not change its
-output.
+Construction respects compact-document options. Echoes, phrases, dialogue tags and starts require
+token details and throw on compact documents. Reports run on the retained analysis; construct a new
+object for changed text/options. See [the per-report API](../docs/STYLE-REPORTS.md#independent-reports-shared-analysis)
+for options, result JSON examples, baselines and Subplot’s recommended default set and opt-in lenses.
 
-Long-sentence flags are also opt-in: pass `{"sentenceLength":{"includeLongSentences":true}}`.
-Default sentence-length output retains the histogram, percentiles and monotony runs, with an empty `longSentences` list.
+A retained moby150k document (149,091 input bytes) holds about **11–12 MB of WASM linear memory**
+in the reviewed measurement. Retain the chapter on screen and `free()` its document on navigation;
+Swift callers should drop their retained reference. WASM frees space for reuse by later documents,
+while its linear memory high-water mark does not shrink back to the OS. Avoid caching every chapter.

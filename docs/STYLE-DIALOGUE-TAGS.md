@@ -18,10 +18,8 @@ let report = dialogue_tags::report(&document, &DialogueTagOptions::new(), Some(&
 The document needs token details (the default). A compact document (`with_token_details(false)`) has
 no POS readings, so the report returns `StyleError::NeedsTokenDetails` rather than empty tags.
 `skip_names` tokens are treated as names: they can be a tag's subject and are never its verb, so
-`“Go,” said Will.` with `Will` skipped is a *say* tag rather than a modal. The report is part of the
-combined `reports::run` call and the bindings' `styleReports`
-([STYLE-REPORTS.md](STYLE-REPORTS.md#one-call-for-every-report)); typed Swift records come with the
-bindings follow-up.
+`“Go,” said Will.` with `Will` skipped is a *say* tag rather than a modal. The bindings expose `StyleDocument.dialogueTags()` over a retained analysis, with typed Swift
+records ([STYLE-REPORTS.md](STYLE-REPORTS.md#independent-reports-shared-analysis)).
 
 ## Neutral and showy verbs
 

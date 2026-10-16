@@ -6,9 +6,8 @@ never suggest replacement prose. Token details are required; compact documents r
 
 ## Echoes: an opt-in lens
 
-Echoes are a way to inspect nearby repeats in a passage, not an issue list. They are omitted from
-`StyleRequest::new()`, absent-request `run_json`, and the bindings' default `styleReports` call.
-Select them explicitly with `{"echoes":{}}`, or call `echoes::report` directly.
+Echoes are a way to inspect nearby repeats in a passage, not an issue list. Subplot opts into them by calling
+`StyleDocument.echoes()` in the bindings, or `echoes::report` in Rust.
 
 `EchoOptions` retains `window` (30 counted words, inclusive; larger requests are capped at 30) and `matchForms` (true). Every later
 content word links to its nearest matching earlier word within the window. Windows cross paragraph,
@@ -44,8 +43,8 @@ word lists.
 
 ## Repeated phrases
 
-Repeated phrases are an opt-in lens, omitted from `StyleRequest::new()` and absent-request
-`run_json`/`styleReports`. Select `{"repeatedPhrases":{}}` or call `repeated_phrases::report` directly.
+Repeated phrases are an opt-in lens. Call `StyleDocument.repeatedPhrases()` in the bindings or
+`repeated_phrases::report` in Rust.
 The 2026-10-16 re-review measured 97% noise or wrong flags (146 of 150 reviewed); this is a way to
 inspect repetition, rather than a default issue list. Its options are:
 

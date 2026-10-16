@@ -218,6 +218,8 @@ pub struct SentenceLengthGroup {
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct SentenceLengthReport {
+    pub sentences: Vec<super::SentenceRow>,
+    pub words: super::Split<usize>,
     pub groups: Split<SentenceLengthGroup>,
 }
 
@@ -440,6 +442,8 @@ pub fn report(
         group.long_sentences.sort_unstable();
     }
     Ok(SentenceLengthReport {
+        sentences: super::sentence_table(document),
+        words: super::word_split(document),
         groups: Split {
             all: groups.all.finish(
                 options,

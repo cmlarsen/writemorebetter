@@ -67,7 +67,7 @@ cargo run -p writemorebetter-style --release --example usefulness -- \
   bench/public/story4.txt bench/public/story5.txt bench/public/moby150k.txt
 ```
 
-Echoes are explicitly opted in by this counter; the default combined call now omits them. The
+Echoes are explicitly opted in by this counter; Subplot’s recommended default methods omit them. The
 counter uses line mode for stories, hard-wrapped mode for Moby, and no skipped names. Flat `echoes`, `phrases` and `long` fields are explicit lens counts; `defaultFlags` is the final default total, and the snapshot adds separate `default` and `optIn` maps. These are
 workload counts, not editorial judgments.
 
@@ -547,9 +547,10 @@ for #249; the published-fiction baseline is for the owner to produce with this c
 wrapped Moby imports explicitly select `--hard-wrapped`. `--document-probe`, `--tokenizer`, `--out` and
 `--output` select executable, engine data, generated cases and the aggregate score artifact. Reports
 share one full document per probe request; no grammar rules are loaded. The probe runs
-`reports::run` with the **product defaults** (default options, bundled baselines) for the two
-sentence reports and prints `{"reports": <StyleReports with native spans>, "reports_ms", "paragraphs"}`;
-long sentences and run members are indexes into `reports.sentences`. `wmb-document --defaults` prints
+the two per-report Rust functions with default options, bundled baselines and the long-sentence lens
+enabled for evaluation. It prints `{"reports": {"sentenceLength": ..., "sentenceStarts": ...},
+"reports_ms", "paragraphs"}` with native spans; each result owns its `sentences` table, and long
+sentences and run members index that report’s own table. `wmb-document --defaults` prints
 the default options and run thresholds (`longSentenceWords`, `monotonyMinSentences`,
 `monotonyMaxSpread`, `sameWordMinSentences`), and the independent Python reference reads them from
 there rather than hardcoding them, so a change to a default fails as a deliberate decision. The gate

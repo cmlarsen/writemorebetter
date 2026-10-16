@@ -168,30 +168,35 @@ unchanged. WASM accepts camelCase/snake_case option names and rejects unknown ke
 
 ## Style reports
 
-`checker.styleReports(text, requestJSON?, documentOptionsJSON?)` is the one entry point for every
-prose report: echoes, repeated phrases, clichés, dialogue tags, sentence length and sentence starts.
-It builds the document once for all selected reports, reuses the cliché list compiled on the first
-call (cached on the `Checker`), and performs no grammar or spelling checks. Omitting the request runs
-statistics, narration runs, dialogue tags and clichés with bundled baselines. Echoes and repeated
-phrases are opt-in lenses selected with `{"echoes":{}}` and `{"repeatedPhrases":{}}`. A request selects only the reports it names:
+Create one retained analysis and call any reports independently:
 
-```js
-const reports = JSON.parse(checker.styleReports(text, JSON.stringify({
-  sentenceLength: {}, sentenceStarts: {minimumSentences: 50}, dialogueTags: {}, baselines: "bundled",
-}), JSON.stringify({skipNames: ["Mara"]})));
+```javascript
+const document = checker.styleDocument(text, '{"skipNames":["Mara"]}');
+const length = JSON.parse(document.sentenceLength());
+const starts = JSON.parse(document.sentenceStarts());
+const tags = JSON.parse(document.dialogueTags());
+const cliches = JSON.parse(document.cliches());
+const stats = JSON.parse(document.stats());
+const echoes = JSON.parse(document.echoes());
+const phrases = JSON.parse(document.repeatedPhrases());
+document.free();
 ```
 
-The result has `stats` (word, sentence and dialogue counts every report agrees with), the
-`sentences` table that sentence reports index into, and one member per selected report. Keys and enum
-values are camelCase and every span is `{start, end}` in UTF-16 code units, suitable for `slice`.
-Errors throw an `Error` named `StyleError` with a `kind` (`invalidOptions`, `invalidBaseline`,
-`needsTokenDetails`) and, for baselines, the `report`. The request schema and one JSON example per
-report are in [STYLE-REPORTS.md](../docs/STYLE-REPORTS.md#one-call-for-every-report).
+Methods take optional options JSON; baseline-aware methods also take baseline JSON (omitted:
+bundled; JSON object: override; `"none"`: no comparison). Results contain UTF-16 spans. Each
+sentence report owns its sentence rows. Result types ship in the generated package (source: `style-results.d.ts`):
 
-The separate `sentenceLength` and `sentenceStarts` methods are removed: each rebuilt the document,
-and `styleReports` with `{"sentenceLength": {}}` or `{"sentenceStarts": {}}` replaces them.
-`styleReports` always keeps token readings internally, so `includeTokenDetails` does not change its
-output.
+```typescript
+import type { SentenceLengthReport } from "./pkg/writemorebetter_wasm";
+const length: SentenceLengthReport = JSON.parse(document.sentenceLength());
+```
 
-Long-sentence flags are also opt-in: pass `{"sentenceLength":{"includeLongSentences":true}}`.
-Default sentence-length output retains the histogram, percentiles and monotony runs, with an empty `longSentences` list.
+Construction respects compact-document options. Echoes, phrases, dialogue tags and starts require
+token details and throw on compact documents. Reports run on the retained analysis; construct a new
+object for changed text/options. See [the per-report API](../docs/STYLE-REPORTS.md#independent-reports-shared-analysis)
+for options, result JSON examples, baselines and Subplot’s recommended default set and opt-in lenses.
+
+A retained moby150k document (149,091 input bytes) holds about **11–12 MB of WASM linear memory**
+in the reviewed measurement. Retain the chapter on screen and `free()` its document on navigation;
+Swift callers should drop their retained reference. WASM frees space for reuse by later documents,
+while its linear memory high-water mark does not shrink back to the OS. Avoid caching every chapter.

@@ -181,6 +181,7 @@ impl DialogueTagOptions {
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct DialogueTagReport {
+    pub words: super::Split<usize>,
     pub tags: Vec<DialogueTag>,
     pub beats: Vec<DialogueTagActionBeat>,
     pub untagged_runs: Vec<DialogueTagUntaggedRun>,
@@ -1191,6 +1192,7 @@ pub fn report(
         share
     };
     Ok(DialogueTagReport {
+        words: super::word_split(document),
         said_asked: share(
             said_asked,
             baseline.and_then(|b| b.said_asked_percent),

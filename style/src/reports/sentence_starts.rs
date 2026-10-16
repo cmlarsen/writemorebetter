@@ -225,6 +225,8 @@ pub struct SentenceStartsGroup {
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct SentenceStartsReport {
+    pub sentences: Vec<super::SentenceRow>,
+    pub words: super::Split<usize>,
     pub starts: Vec<SentenceStart>,
     pub groups: Split<SentenceStartsGroup>,
 }
@@ -845,6 +847,8 @@ pub fn report(
     }
     flush(&mut groups, previous.take());
     Ok(SentenceStartsReport {
+        sentences: super::sentence_table(document),
+        words: super::word_split(document),
         starts,
         groups: Split {
             all: groups.all.finish(

@@ -320,59 +320,110 @@ final class CheckerTests: XCTestCase {
             }
         }
     }
-    func testSentenceReportsAndCompactOffsets() throws {
+    func testIndependentStyleReports() throws {
         let checker = try checker()
-        let text = "😀\n\n“She ran. She left. She slept. She wept.”"
-        let request = "{\"sentenceLength\":{\"minimumSentences\":4},\"sentenceStarts\":{\"minimumSentences\":4}}"
-        let json = try checker.styleReports(text: text, requestJson: request, documentOptions: nil)
-        let result = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any])
-        let length = try XCTUnwrap(result["sentenceLength"] as? [String: Any])
-        let groups = try XCTUnwrap(length["groups"] as? [String: Any])
-        let dialogue = try XCTUnwrap(groups["dialogue"] as? [String: Any])
-        let runs = try XCTUnwrap(dialogue["monotonyRuns"] as? [[String: Any]])
-        XCTAssertEqual(runs.count, 0)
-        let starts = try XCTUnwrap(result["sentenceStarts"] as? [String: Any])
-        let startGroups = try XCTUnwrap(starts["groups"] as? [String: Any])
-        let speech = try XCTUnwrap(startGroups["dialogue"] as? [String: Any])
-        XCTAssertEqual((speech["sameWordRuns"] as? [Any])?.count, 0)
-        let rows = try XCTUnwrap(result["sentences"] as? [[String: Any]])
-        XCTAssertEqual(rows.filter { $0["mode"] as? String == "dialogue" }.count, 4)
-        let compact = try checker.styleReports(text: text, requestJson: request, documentOptions: DocumentOptions(includeTokenDetails: false))
-        XCTAssertEqual(json, compact)
-        XCTAssertThrowsError(try checker.styleReports(text: text, requestJson: "{\"sentenceLength\":{\"typo\":1}}", documentOptions: nil)) { error in
-            guard case CheckError.ReportInput = error else {
-                return XCTFail("unexpected error: \(error)")
+        let text = "😀.\u{2028}\n\n“Fine,” he said. She kicked the bucket. She waited. She waited. She waited."
+        let document = checker.styleDocument(text: text, options: nil)
+        let stats = try document.stats()
+        let length = try document.sentenceLength(optionsJson: "{\"minimumSentences\":1}")
+        let starts = try document.sentenceStarts(optionsJson: "{\"minimumSentences\":1}")
+        XCTAssertEqual(length.sentences, starts.sentences)
+        XCTAssertEqual(length.words, starts.words)
+        XCTAssertEqual(length.sentences.count, stats.sentences.all)
+        XCTAssertNotNil(length.groups.all.meanDifference)
+        XCTAssertNil(try document.sentenceLength(optionsJson: "{\"minimumSentences\":1}", baseline: .none).groups.all.meanDifference)
+        let custom = try document.sentenceLength(optionsJson: "{\"minimumSentences\":1}", baseline: .custom("{\"mean\":1}"))
+        XCTAssertEqual(custom.groups.all.meanDifference, custom.groups.all.mean.map { $0 - 1 })
+        let cliches = try document.cliches()
+        let match = try XCTUnwrap(cliches.matches.first)
+        XCTAssertEqual((text as NSString).substring(with: match.span.nsRange), "kicked the bucket")
+        let tags = try document.dialogueTags()
+        let quote = try XCTUnwrap(tags.tags.first?.quotes.first)
+        XCTAssertEqual((text as NSString).substring(with: quote.nsRange), "“Fine,”")
+        XCTAssertEqual(try document.echoes().words, stats.words.all)
+        XCTAssertEqual(try document.repeatedPhrases().words, stats.words.all)
+        let fresh = { checker.styleDocument(text: text, options: nil) }
+        XCTAssertEqual(try document.stats(), try fresh().stats())
+        XCTAssertEqual(try document.echoes(), try fresh().echoes())
+        XCTAssertEqual(try document.repeatedPhrases(), try fresh().repeatedPhrases())
+        XCTAssertEqual(try document.cliches(), try fresh().cliches())
+        XCTAssertEqual(try document.dialogueTags(), try fresh().dialogueTags())
+        XCTAssertEqual(try document.sentenceLength(), try fresh().sentenceLength())
+        XCTAssertEqual(try document.sentenceStarts(), try fresh().sentenceStarts())
+        XCTAssertThrowsError(try document.sentenceLength(optionsJson: "{\"typo\":1}"))
+        XCTAssertThrowsError(try document.sentenceStarts(baseline: .custom("{\"universalPercent\":{\"Noun\":20}}")))
+        let compact = checker.styleDocument(text: text, options: DocumentOptions(includeTokenDetails: false))
+        XCTAssertEqual(try compact.cliches(), cliches)
+        XCTAssertEqual(try compact.sentenceLength(), try document.sentenceLength())
+        XCTAssertThrowsError(try compact.echoes())
+        XCTAssertThrowsError(try compact.repeatedPhrases())
+        XCTAssertThrowsError(try compact.dialogueTags())
+        XCTAssertThrowsError(try compact.sentenceStarts())
+        let spanText = "😀.\u{2028}He walked. She was walking. The old lamp glowed. The old lamp broke. The old lamp faded."
+        let spanDocument = checker.styleDocument(text: spanText, options: nil)
+        let echo = try XCTUnwrap(try spanDocument.echoes().echoes.first { $0.label == "walk" })
+        XCTAssertEqual((spanText as NSString).substring(with: echo.earlier.nsRange), "walked")
+        XCTAssertEqual((spanText as NSString).substring(with: echo.later.nsRange), "walking")
+        let phrase = try XCTUnwrap(try spanDocument.repeatedPhrases().phrases.first)
+        for span in phrase.spans {
+            XCTAssertEqual((spanText as NSString).substring(with: span.nsRange), "The old lamp")
+        }
+        XCTAssertEqual(try document.sentenceLength(optionsJson: "{\"minimumSentences\":1}", baseline: .bundled), length)
+        XCTAssertEqual(try document.sentenceLengthJson(optionsJson: nil, baselineJson: nil), try document.sentenceLengthJson(optionsJson: nil, baselineJson: "bundled"))
+        XCTAssertEqual(try document.sentenceStartsJson(optionsJson: nil, baselineJson: nil), try document.sentenceStartsJson(optionsJson: nil, baselineJson: "bundled"))
+        XCTAssertEqual(try document.dialogueTagsJson(optionsJson: nil, baselineJson: nil), try document.dialogueTagsJson(optionsJson: nil, baselineJson: "bundled"))
+        XCTAssertTrue(try document.sentenceStarts(optionsJson: "{\"minimumSentences\":1}", baseline: .none).groups.all.universal.allSatisfy { $0.difference == nil })
+        XCTAssertNil(try document.dialogueTags(optionsJson: "{\"minimumTags\":1}", baseline: .none).saidAsked.difference)
+        XCTAssertEqual(try document.dialogueTags(optionsJson: "{\"minimumTags\":1}", baseline: .custom("{\"saidAskedPercent\":50}")).saidAsked.difference, 50)
+        for method in [document.sentenceLengthJson, document.sentenceStartsJson, document.dialogueTagsJson] {
+            for bad in ["null", "{", "{\"typo\":1}"] {
+                XCTAssertThrowsError(try method(nil, bad)) { error in
+                    guard case CheckError.ReportInput(let message) = error else { return XCTFail("unexpected error: \(error)") }
+                    XCTAssertTrue(message.hasPrefix("invalid "))
+                    XCTAssertTrue(message.contains(" baseline:"))
+                }
             }
         }
+        let long = checker.styleDocument(text: Array(repeating: "word", count: 50).joined(separator: " ") + ".", options: nil)
+        XCTAssertEqual(try long.sentenceLength().groups.all.longSentences, [])
+        XCTAssertEqual(try long.sentenceLength(optionsJson: "{\"includeLongSentences\":true}").groups.all.longSentences, [0])
     }
 
-    func testCombinedStyleReports() throws {
-        let checker = try checker()
-        let text = "“Fine,” he said. He grinned at her and he grinned again."
-        let json = try checker.styleReports(text: text, requestJson: nil, documentOptions: nil)
-        let result = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any])
-        for key in ["stats", "sentences", "cliches", "dialogueTags", "sentenceLength", "sentenceStarts"] {
-            XCTAssertNotNil(result[key], key)
+    func testStyleCodableRecordsDoNotLoseJSONFields() throws {
+        let text = try String(contentsOf: Self.repositoryRoot.appendingPathComponent("style/tests/fixtures/binding-records.txt"), encoding: .utf8)
+        let document = try checker().styleDocument(text: text)
+        let lengthOptions = "{\"minimumSentences\":1,\"includeLongSentences\":true}"
+        let startOptions = "{\"minimumSentences\":1}"
+        let tagOptions = "{\"minimumTags\":1,\"maxUntaggedExchanges\":2}"
+        let tagBaseline = "{\"saidAskedPercent\":50,\"adverbPercent\":10,\"nonSpeechPercent\":5}"
+        func strippedNulls(_ value: Any) -> Any {
+            if let object = value as? [String: Any] { return object.filter { !($0.value is NSNull) }.mapValues(strippedNulls) }
+            if let array = value as? [Any] { return array.map(strippedNulls) }
+            return value
         }
-        XCTAssertNil(result["echoes"])
-        XCTAssertNil(result["repeatedPhrases"])
-        let length = try XCTUnwrap(result["sentenceLength"] as? [String: Any])
-        let groups = try XCTUnwrap(length["groups"] as? [String: Any])
-        let all = try XCTUnwrap(groups["all"] as? [String: Any])
-        XCTAssertEqual(all["longSentences"] as? [Int], [])
-        let longText = Array(repeating: "word", count: 50).joined(separator: " ") + "."
-        let lensJson = try checker.styleReports(text: longText, requestJson: "{\"sentenceLength\":{\"includeLongSentences\":true},\"repeatedPhrases\":{}}", documentOptions: nil)
-        let lens = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(lensJson.utf8)) as? [String: Any])
-        XCTAssertNotNil(lens["repeatedPhrases"])
-        let lensLength = try XCTUnwrap(lens["sentenceLength"] as? [String: Any])
-        let lensGroups = try XCTUnwrap(lensLength["groups"] as? [String: Any])
-        let lensAll = try XCTUnwrap(lensGroups["all"] as? [String: Any])
-        XCTAssertEqual(lensAll["longSentences"] as? [Int], [0])
-        let only = try checker.styleReports(text: text, requestJson: "{\"sentenceLength\":{}}", documentOptions: nil)
-        let selected = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(only.utf8)) as? [String: Any])
-        XCTAssertNotNil(selected["sentenceLength"])
-        XCTAssertNil(selected["sentenceStarts"])
-        XCTAssertEqual(try checker.styleReports(text: text, requestJson: nil, documentOptions: nil), json)
+        func roundTrip<T: Codable>(_ type: T.Type, _ json: String, file: StaticString = #filePath, line: UInt = #line) throws {
+            let data = Data(json.utf8)
+            let value = try JSONDecoder().decode(type, from: data)
+            let encoded = try JSONEncoder().encode(value)
+            let original = strippedNulls(try JSONSerialization.jsonObject(with: data)) as! NSDictionary
+            let actual = strippedNulls(try JSONSerialization.jsonObject(with: encoded)) as! NSDictionary
+            XCTAssertEqual(actual, original, file: file, line: line)
+        }
+        try roundTrip(DocumentStats.self, document.statsJson())
+        try roundTrip(EchoReport.self, document.echoesJson(optionsJson: nil))
+        try roundTrip(RepeatedPhraseReport.self, document.repeatedPhrasesJson(optionsJson: nil))
+        try roundTrip(ClicheReport.self, document.clichesJson(optionsJson: nil))
+        try roundTrip(DialogueTagReport.self, document.dialogueTagsJson(optionsJson: tagOptions, baselineJson: tagBaseline))
+        try roundTrip(SentenceLengthReport.self, document.sentenceLengthJson(optionsJson: lengthOptions, baselineJson: nil))
+        try roundTrip(SentenceStartsReport.self, document.sentenceStartsJson(optionsJson: startOptions, baselineJson: nil))
+        let length = try document.sentenceLength(optionsJson: lengthOptions)
+        let tags = try document.dialogueTags(optionsJson: tagOptions, baseline: .custom(tagBaseline))
+        XCTAssertFalse(length.groups.all.longSentences.isEmpty)
+        XCTAssertFalse(length.groups.all.monotonyRuns.isEmpty)
+        XCTAssertFalse(tags.beats.isEmpty)
+        XCTAssertFalse(tags.untaggedRuns.isEmpty)
+        XCTAssertTrue(tags.tags.contains { $0.adverb != nil })
+        XCTAssertFalse(try document.sentenceStarts(optionsJson: startOptions).groups.all.sameWordRuns.isEmpty)
     }
 
 }

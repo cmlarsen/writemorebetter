@@ -2,7 +2,7 @@ use std::sync::OnceLock;
 
 use nlprule::Tokenizer;
 use writemorebetter_style::reports::{
-    dialogue_tags, echoes, repeated_phrases, sentence_length, sentence_starts, StyleRequest,
+    dialogue_tags, echoes, repeated_phrases, sentence_length, sentence_starts,
 };
 use writemorebetter_style::{analyze_document, Document, DocumentOptions};
 
@@ -126,7 +126,6 @@ fn narration_runs_cross_paragraphs_and_stop_at_scenes_and_dialogue() {
 
 #[test]
 fn echoes_are_opt_in_suppressed_and_never_chain_through_a_third_word() {
-    assert!(StyleRequest::new().echoes.is_none());
     let d = document("“Well, good night,” she said. He said good night. They looked up, down, out, back, off, over. Up, down, out, back, off, over. Mr. Jones saw Mrs. Jones. Better.");
     let r = echoes::report(&d, &Default::default()).unwrap();
     for echo in r.echoes {
@@ -766,28 +765,21 @@ fn defaults_retain_statistics_and_monotony_but_lenses_are_explicit() {
         "She waited. ".repeat(50),
         vec!["word"; 50].join(" ")
     );
-    let tokenizer = Tokenizer::new("../storage/en_tokenizer.bin").unwrap();
     let d = document(&text);
-    let resources = writemorebetter_style::reports::StyleResources::new();
-    let r = writemorebetter_style::reports::run(&d, &StyleRequest::new(), &resources, &tokenizer)
-        .unwrap();
-    assert!(r.repeated_phrases.is_none());
-    assert!(r.echoes.is_none());
-    let group = &r.sentence_length.unwrap().groups.all;
+    let r = sentence_length::report(&d, &Default::default(), None).unwrap();
+    let group = &r.groups.all;
     assert!(group.mean.is_some());
     assert!(!group.monotony_runs.is_empty());
     assert!(group.long_sentences.is_empty());
-    let request = StyleRequest::from_json(
-        r#"{"sentenceLength":{"includeLongSentences":true},"repeatedPhrases":{},"echoes":{}}"#,
+    let r = sentence_length::report(
+        &d,
+        &sentence_length::SentenceLengthOptions::new().with_long_sentences(true),
+        None,
     )
     .unwrap();
-    let r = writemorebetter_style::reports::run(&d, &request, &resources, &tokenizer).unwrap();
-    assert_eq!(
-        r.sentence_length.unwrap().groups.all.long_sentences.len(),
-        1
-    );
-    assert!(r.repeated_phrases.is_some());
-    assert!(r.echoes.is_some());
+    assert_eq!(r.groups.all.long_sentences.len(), 1);
+    assert!(repeated_phrases::report(&d, &Default::default()).is_ok());
+    assert!(echoes::report(&d, &Default::default()).is_ok());
 }
 
 #[test]

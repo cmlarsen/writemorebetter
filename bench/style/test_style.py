@@ -32,9 +32,8 @@ class BenchTests(unittest.TestCase):
                          'categories': [{'category': 'other', 'count': 1}],
                          'universal': [{'tag': 'VERB', 'difference': 1.0}]}
                 return {'paragraphs': self.paragraphs, 'reports': {
-                    'sentences': [{'span': {'byte': {'start': 0, 'end': 16}}}],
                     'sentenceLength': {'groups': {'all': {'meanDifference': 0.5}}},
-                    'sentenceStarts': {'groups': {'all': group},
+                    'sentenceStarts': {'sentences': [{'span': {'byte': {'start': 0, 'end': 16}}}], 'groups': {'all': group},
                                        'starts': [{'category': 'other', 'word': 'call', 'sentence': 0}]}}}
         text = b'CHAPTER 1. Loomings.\r\nCONTENTS\r\n\r\nCHAPTER 1. Loomings.\r\nCall me Ishmael.\r\nThe sea waited.\r\n'
         line, wrapped = Probe(3), Probe(1)

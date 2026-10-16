@@ -8,6 +8,7 @@
 
 use std::collections::HashMap;
 use std::io::Cursor;
+use std::sync::Arc;
 
 use nlprule::{Rules, Tokenizer};
 use serde::Serialize;
@@ -218,9 +219,9 @@ fn utf16_offsets(text: &str, mut wanted: Vec<usize>) -> (HashMap<usize, usize>, 
 /// A grammar and spelling checker over a pre-loaded tokenizer and rule set.
 #[wasm_bindgen]
 pub struct Checker {
-    tokenizer: Tokenizer,
+    tokenizer: Arc<Tokenizer>,
     rules: Rules,
-    style: StyleResources,
+    style: Arc<StyleResources>,
 }
 
 #[wasm_bindgen]
@@ -266,9 +267,9 @@ impl Checker {
         }
 
         Ok(Checker {
-            tokenizer,
+            tokenizer: Arc::new(tokenizer),
             rules,
-            style: StyleResources::new(),
+            style: Arc::new(StyleResources::new()),
         })
     }
 
@@ -357,23 +358,23 @@ impl Checker {
             .map_err(|err| JsValue::from_str(&format!("failed to serialize document: {err}")))
     }
 
-    #[wasm_bindgen(js_name = styleReports)]
-    pub fn style_reports(
+    #[wasm_bindgen(js_name = styleDocument)]
+    /// Retains one analysis. Compact documents support only clichés and sentence length.
+    pub fn style_document(
         &self,
         text: &str,
-        request_json: Option<String>,
-        document_options_json: Option<String>,
-    ) -> Result<String, JsValue> {
-        let options = reports::parse_document_options(document_options_json.as_deref())
-            .map_err(style_error)?;
-        reports::run_json(
-            &self.tokenizer,
-            &self.style,
-            text,
-            request_json.as_deref(),
-            &options,
-        )
-        .map_err(style_error)
+        options_json: Option<String>,
+    ) -> Result<StyleDocument, JsValue> {
+        let options =
+            reports::parse_document_options(options_json.as_deref()).map_err(style_error)?;
+        Ok(StyleDocument {
+            inner: writemorebetter_style::StyleDocument::new(
+                self.tokenizer.clone(),
+                self.style.clone(),
+                text,
+                &options,
+            ),
+        })
     }
 
     /// Adds words to the user dictionary and returns how many were new.
@@ -440,3 +441,82 @@ fn style_error(error: writemorebetter_style::StyleError) -> JsValue {
     }
     js.into()
 }
+
+#[wasm_bindgen]
+pub struct StyleDocument {
+    inner: writemorebetter_style::StyleDocument,
+}
+
+#[wasm_bindgen]
+impl StyleDocument {
+    /// Counts for the retained analysis, returned as DocumentStats JSON.
+    pub fn stats(&self) -> String {
+        reports::to_utf16_json(&self.inner.stats())
+    }
+    #[wasm_bindgen(js_name = echoes)]
+    /// Returns this report on the retained analysis; options default when omitted.
+    pub fn echoes(&self, options_json: Option<String>) -> Result<String, JsValue> {
+        self.inner
+            .echoes(options_json.as_deref())
+            .map(|report| reports::to_utf16_json(&report))
+            .map_err(style_error)
+    }
+    #[wasm_bindgen(js_name = repeatedPhrases)]
+    /// Returns this report on the retained analysis; options default when omitted.
+    pub fn repeated_phrases(&self, options_json: Option<String>) -> Result<String, JsValue> {
+        self.inner
+            .repeated_phrases(options_json.as_deref())
+            .map(|report| reports::to_utf16_json(&report))
+            .map_err(style_error)
+    }
+    #[wasm_bindgen(js_name = cliches)]
+    /// Returns this report on the retained analysis; options default when omitted.
+    pub fn cliches(&self, options_json: Option<String>) -> Result<String, JsValue> {
+        self.inner
+            .cliches(options_json.as_deref())
+            .map(|report| reports::to_utf16_json(&report))
+            .map_err(style_error)
+    }
+    #[wasm_bindgen(js_name = dialogueTags)]
+    /// Returns this report on the retained analysis; options default when omitted.
+    /// Baseline: omitted/null means bundled; "none" disables comparisons; otherwise pass a JSON object.
+    pub fn dialogue_tags(
+        &self,
+        options_json: Option<String>,
+        baseline_json: Option<String>,
+    ) -> Result<String, JsValue> {
+        self.inner
+            .dialogue_tags(options_json.as_deref(), baseline_json.as_deref())
+            .map(|report| reports::to_utf16_json(&report))
+            .map_err(style_error)
+    }
+    #[wasm_bindgen(js_name = sentenceLength)]
+    /// Returns this report on the retained analysis; options default when omitted.
+    /// Baseline: omitted/null means bundled; "none" disables comparisons; otherwise pass a JSON object.
+    pub fn sentence_length(
+        &self,
+        options_json: Option<String>,
+        baseline_json: Option<String>,
+    ) -> Result<String, JsValue> {
+        self.inner
+            .sentence_length(options_json.as_deref(), baseline_json.as_deref())
+            .map(|report| reports::to_utf16_json(&report))
+            .map_err(style_error)
+    }
+    #[wasm_bindgen(js_name = sentenceStarts)]
+    /// Returns this report on the retained analysis; options default when omitted.
+    /// Baseline: omitted/null means bundled; "none" disables comparisons; otherwise pass a JSON object.
+    pub fn sentence_starts(
+        &self,
+        options_json: Option<String>,
+        baseline_json: Option<String>,
+    ) -> Result<String, JsValue> {
+        self.inner
+            .sentence_starts(options_json.as_deref(), baseline_json.as_deref())
+            .map(|report| reports::to_utf16_json(&report))
+            .map_err(style_error)
+    }
+}
+
+#[wasm_bindgen(typescript_custom_section)]
+const STYLE_RESULT_TYPES: &str = include_str!("../style-results.d.ts");
