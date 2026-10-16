@@ -110,3 +110,8 @@ class SentenceProbe(Analyzer):
                                         text=True, encoding='utf-8',
                                         stderr=subprocess.DEVNULL if quiet else None,
                                         env={**os.environ, 'NLPRULE_PARALLELISM': 'off'})
+
+    def defaults(self):
+        result = subprocess.run([str(self.executable), '--defaults'], capture_output=True,
+                                text=True, check=True)
+        return json.loads(result.stdout)

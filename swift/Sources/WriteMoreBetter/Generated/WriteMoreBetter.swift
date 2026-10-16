@@ -607,10 +607,6 @@ public protocol CheckerProtocol: AnyObject, Sendable {
      */
     func removeWords(words: [String])  -> UInt32
     
-    func sentenceLength(text: String, optionsJson: String?, baselineJson: String?, documentOptions: DocumentOptions?) throws  -> String
-    
-    func sentenceStarts(text: String, optionsJson: String?, baselineJson: String?, documentOptions: DocumentOptions?) throws  -> String
-    
     /**
      * Selects the writer's mother tongue (e.g. `"de"`) so the false-friend rules for speakers of
      * that language run; pass `nil` (or an empty string) to turn them off again (the default).
@@ -808,32 +804,6 @@ open func removeWords(words: [String]) -> UInt32  {
     uniffi_writemorebetter_swift_fn_method_checker_remove_words(
             self.uniffiCloneHandle(),
         FfiConverterSequenceString.lower(words),uniffiCallStatus
-    )
-})
-}
-    
-open func sentenceLength(text: String, optionsJson: String?, baselineJson: String?, documentOptions: DocumentOptions?)throws  -> String  {
-    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
-        uniffiCallStatus in
-    uniffi_writemorebetter_swift_fn_method_checker_sentence_length(
-            self.uniffiCloneHandle(),
-        FfiConverterString.lower(text),
-        FfiConverterOptionString.lower(optionsJson),
-        FfiConverterOptionString.lower(baselineJson),
-        FfiConverterOptionTypeDocumentOptions.lower(documentOptions),uniffiCallStatus
-    )
-})
-}
-    
-open func sentenceStarts(text: String, optionsJson: String?, baselineJson: String?, documentOptions: DocumentOptions?)throws  -> String  {
-    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
-        uniffiCallStatus in
-    uniffi_writemorebetter_swift_fn_method_checker_sentence_starts(
-            self.uniffiCloneHandle(),
-        FfiConverterString.lower(text),
-        FfiConverterOptionString.lower(optionsJson),
-        FfiConverterOptionString.lower(baselineJson),
-        FfiConverterOptionTypeDocumentOptions.lower(documentOptions),uniffiCallStatus
     )
 })
 }
@@ -2191,12 +2161,6 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_method_checker_remove_words() != 27495) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_writemorebetter_swift_checksum_method_checker_sentence_length() != 40646) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_writemorebetter_swift_checksum_method_checker_sentence_starts() != 23125) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_method_checker_set_mother_tongue() != 22149) {

@@ -274,6 +274,7 @@ impl From<writemorebetter_style::Document> for Document {
 pub struct Checker {
     tokenizer: Tokenizer,
     rules: RwLock<Rules>,
+    style: writemorebetter_style::reports::StyleResources,
 }
 
 const _: fn() = || {
@@ -352,6 +353,7 @@ impl Checker {
         Ok(Arc::new(Checker {
             tokenizer,
             rules: RwLock::new(rules),
+            style: writemorebetter_style::reports::StyleResources::new(),
         }))
     }
 
@@ -400,78 +402,20 @@ impl Checker {
         request_json: Option<String>,
         document_options: Option<DocumentOptions>,
     ) -> Result<String, CheckError> {
-        let request: writemorebetter_style::reports::SentenceReportsRequest =
-            parse_report_json(request_json)
-                .map_err(|message| CheckError::ReportInput { message })?;
         let input = document_options.unwrap_or_default();
         let options = writemorebetter_style::DocumentOptions::new()
             .with_skip_names(input.skip_names)
             .with_hard_wrapped(input.hard_wrapped);
-        let document = writemorebetter_style::analyze_document(&self.tokenizer, &text, &options);
-        report_json(&writemorebetter_style::reports::sentence_reports(
-            &document, &request,
-        ))
-        .map_err(|message| CheckError::ReportInput { message })
-    }
-
-    pub fn sentence_length(
-        &self,
-        text: String,
-        options_json: Option<String>,
-        baseline_json: Option<String>,
-        document_options: Option<DocumentOptions>,
-    ) -> Result<String, CheckError> {
-        use writemorebetter_style::reports::sentence_length;
-        let options: sentence_length::Options = parse_report_json(options_json)
-            .map_err(|message| CheckError::ReportInput { message })?;
-        let baseline: Option<sentence_length::Baseline> = baseline_json
-            .map(|s| serde_json::from_str(&s))
-            .transpose()
-            .map_err(|e| CheckError::ReportInput {
-                message: e.to_string(),
-            })?;
-        let input = document_options.unwrap_or_default();
-        let document_options = writemorebetter_style::DocumentOptions::new()
-            .with_skip_names(input.skip_names)
-            .with_hard_wrapped(input.hard_wrapped);
-        let document =
-            writemorebetter_style::analyze_document(&self.tokenizer, &text, &document_options);
-        report_json(&sentence_length::report(
-            &document,
+        writemorebetter_style::reports::run_json(
+            &self.tokenizer,
+            &self.style,
+            &text,
+            request_json.as_deref(),
             &options,
-            baseline.as_ref(),
-        ))
-        .map_err(|message| CheckError::ReportInput { message })
-    }
-
-    pub fn sentence_starts(
-        &self,
-        text: String,
-        options_json: Option<String>,
-        baseline_json: Option<String>,
-        document_options: Option<DocumentOptions>,
-    ) -> Result<String, CheckError> {
-        use writemorebetter_style::reports::sentence_starts;
-        let options: sentence_starts::Options = parse_report_json(options_json)
-            .map_err(|message| CheckError::ReportInput { message })?;
-        let baseline: Option<sentence_starts::Baseline> = baseline_json
-            .map(|s| serde_json::from_str(&s))
-            .transpose()
-            .map_err(|e| CheckError::ReportInput {
-                message: e.to_string(),
-            })?;
-        let input = document_options.unwrap_or_default();
-        let document_options = writemorebetter_style::DocumentOptions::new()
-            .with_skip_names(input.skip_names)
-            .with_hard_wrapped(input.hard_wrapped);
-        let document =
-            writemorebetter_style::analyze_document(&self.tokenizer, &text, &document_options);
-        report_json(&sentence_starts::report(
-            &document,
-            &options,
-            baseline.as_ref(),
-        ))
-        .map_err(|message| CheckError::ReportInput { message })
+        )
+        .map_err(|error| CheckError::ReportInput {
+            message: error.to_string(),
+        })
     }
 
     /// Adds words to the user dictionary and returns how many were new.
@@ -637,42 +581,4 @@ mod tests {
         let offsets = Utf16Offsets::new("\u{1F600}");
         assert_eq!(offsets.at(99), 2);
     }
-}
-
-fn parse_report_json<T: serde::de::DeserializeOwned + Default>(
-    json: Option<String>,
-) -> Result<T, String> {
-    json.map(|s| serde_json::from_str(&s))
-        .transpose()
-        .map(|v| v.unwrap_or_default())
-        .map_err(|e| e.to_string())
-}
-
-fn report_json<T: serde::Serialize>(report: &T) -> Result<String, String> {
-    fn utf16(value: &mut serde_json::Value) {
-        match value {
-            serde_json::Value::Object(fields) => {
-                if fields.len() == 3
-                    && fields.contains_key("byte")
-                    && fields.contains_key("char")
-                    && fields.contains_key("utf16")
-                {
-                    *value = fields.remove("utf16").unwrap();
-                } else {
-                    for child in fields.values_mut() {
-                        utf16(child);
-                    }
-                }
-            }
-            serde_json::Value::Array(values) => {
-                for child in values {
-                    utf16(child);
-                }
-            }
-            _ => {}
-        }
-    }
-    let mut value = serde_json::to_value(report).map_err(|e| e.to_string())?;
-    utf16(&mut value);
-    serde_json::to_string(&value).map_err(|e| e.to_string())
 }

@@ -104,7 +104,7 @@
       {
         "verb": "smiled",
         "lemma": "smile",
-        "class": "non_speech",
+        "class": "nonSpeech",
         "position": "after",
         "span": "she smiled",
         "dialogue": [
@@ -114,7 +114,7 @@
       {
         "verb": "nodded",
         "lemma": "nod",
-        "class": "non_speech",
+        "class": "nonSpeech",
         "position": "after",
         "span": "he nodded",
         "dialogue": [

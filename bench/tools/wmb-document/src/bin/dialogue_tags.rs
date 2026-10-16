@@ -5,7 +5,7 @@ use std::ops::Range;
 use serde::Deserialize;
 use serde_json::{json, Value};
 use writemorebetter_style::reports::dialogue_tags::{
-    dialogue_tags, DialogueTagOptions, TagPosition, VerbClass,
+    self, DialogueTagOptions, DialogueTagPosition, DialogueTagVerbClass,
 };
 use writemorebetter_style::{analyze_document, DocumentOptions, Span};
 
@@ -65,11 +65,20 @@ fn first_word(file: &str, report: &str, pattern: &str, span: &Span, text: &str) 
     )
 }
 
-fn name<T: serde::Serialize>(value: T) -> String {
-    serde_json::to_value(value)
-        .ok()
-        .and_then(|value| value.as_str().map(str::to_owned))
-        .unwrap_or_default()
+fn position(position: DialogueTagPosition) -> &'static str {
+    match position {
+        DialogueTagPosition::Before => "before",
+        DialogueTagPosition::After => "after",
+        _ => "split",
+    }
+}
+
+fn class(class: DialogueTagVerbClass) -> &'static str {
+    match class {
+        DialogueTagVerbClass::Speech => "speech",
+        DialogueTagVerbClass::NonSpeech => "non_speech",
+        _ => "unlisted",
+    }
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -85,14 +94,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     for line in io::stdin().lock().lines() {
         let input: Input = serde_json::from_str(&line?)?;
         let document = analyze_document(&tokenizer, &input.text, &DocumentOptions::new());
-        let report = dialogue_tags(&document, &DialogueTagOptions::new());
+        let report = dialogue_tags::report(&document, &DialogueTagOptions::new(), None)?;
         if counts {
             let mut verbs: BTreeMap<String, usize> = BTreeMap::new();
             let mut positions: BTreeMap<String, usize> = BTreeMap::new();
             let mut unlisted = 0;
             for tag in &report.tags {
-                *positions.entry(name(tag.position)).or_default() += 1;
-                if tag.class == VerbClass::Unlisted {
+                *positions
+                    .entry(position(tag.position).to_owned())
+                    .or_default() += 1;
+                if tag.class == DialogueTagVerbClass::Unlisted {
                     unlisted += 1;
                 } else {
                     *verbs.entry(tag.lemma.clone()).or_default() += 1;
@@ -108,13 +119,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     "tagged_spans": report.tagged_spans,
                     "exchanges": report.exchanges,
                     "tags": report.tags.len(),
-                    "said_asked": report.said_asked,
-                    "with_adverb": report.with_adverb,
-                    "non_speech": report.non_speech,
+                    "said_asked": report.said_asked.count,
+                    "with_adverb": report.with_adverb.count,
+                    "non_speech": report.non_speech.count,
                     "unlisted": unlisted,
                     "beats": report.beats.len(),
-                    "untagged_runs": report.untagged_runs.as_ref().map_or(0, Vec::len),
-                    "untagged_run_exchanges": report.untagged_runs.iter().flatten().map(|run| run.exchanges).sum::<usize>(),
+                    "untagged_runs": report.untagged_runs.len(),
+                    "untagged_run_exchanges": report.untagged_runs.iter().map(|run| run.exchanges).sum::<usize>(),
                     "positions": positions,
                     "verbs": verbs,
                 }),
@@ -130,22 +141,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             rows.push(span_record(file, "dialogue_span", "dialogue", span, text));
         }
         for tag in &report.tags {
-            let position = match tag.position {
-                TagPosition::Before => "before",
-                TagPosition::After => "after",
-                _ => "split",
-            };
             rows.push(span_record(
                 file,
                 "dialogue_tag_position",
-                position,
+                position(tag.position),
                 &tag.verb,
                 text,
             ));
             rows.push(span_record(
                 file,
                 "dialogue_tag_verb",
-                &name(tag.class),
+                class(tag.class),
                 &tag.verb,
                 text,
             ));
@@ -163,7 +169,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         for beat in &report.beats {
             rows.push(first_word(file, "dialogue_beat", "beat", &beat.span, text));
         }
-        for run in report.untagged_runs.iter().flatten() {
+        for run in &report.untagged_runs {
             rows.push(span_record(
                 file,
                 "dialogue_untagged_run",

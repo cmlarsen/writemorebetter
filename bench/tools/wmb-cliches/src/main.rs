@@ -4,7 +4,7 @@ use std::time::Instant;
 
 use nlprule::{Rules, Tokenizer};
 use serde::Deserialize;
-use writemorebetter_style::reports::cliches::{cliches, vendored_phrase_entries, PhraseList};
+use writemorebetter_style::reports::cliches::{self, vendored_entries, ClicheList, ClicheOptions};
 use writemorebetter_style::{analyze_document, DocumentOptions};
 
 #[derive(Deserialize)]
@@ -48,7 +48,7 @@ fn covered(
     }
     let stdout = io::stdout();
     let mut output = io::BufWriter::new(stdout.lock());
-    for entry in vendored_phrase_entries() {
+    for entry in vendored_entries() {
         let mut hits = BTreeSet::new();
         for frame in FRAMES {
             let phrase = if frame.starts_with("{}") {
@@ -91,7 +91,7 @@ fn covered(
 }
 
 fn predict(tokenizer: &Tokenizer, hard_wrapped: bool) -> Result<(), Box<dyn std::error::Error>> {
-    let phrases = PhraseList::bundled(tokenizer);
+    let phrases = ClicheList::bundled(tokenizer);
     let options = DocumentOptions::new()
         .with_token_details(false)
         .with_hard_wrapped(hard_wrapped);
@@ -100,7 +100,7 @@ fn predict(tokenizer: &Tokenizer, hard_wrapped: bool) -> Result<(), Box<dyn std:
     for line in io::stdin().lock().lines() {
         let input: Input = serde_json::from_str(&line?)?;
         let document = analyze_document(tokenizer, &input.text, &options);
-        for found in cliches(&document, &phrases).matches {
+        for found in cliches::report(&document, &phrases, &ClicheOptions::new())?.matches {
             serde_json::to_writer(
                 &mut output,
                 &serde_json::json!({
@@ -109,7 +109,7 @@ fn predict(tokenizer: &Tokenizer, hard_wrapped: bool) -> Result<(), Box<dyn std:
                     "utf16": found.span.utf16,
                     "pattern": found.kind,
                     "report": "cliches",
-                    "context": found.context,
+                    "context": found.mode,
                     "phrase": found.phrase,
                 }),
             )?;
@@ -123,7 +123,7 @@ fn predict(tokenizer: &Tokenizer, hard_wrapped: bool) -> Result<(), Box<dyn std:
 fn benchmark(tokenizer: &Tokenizer, path: &str) -> Result<(), Box<dyn std::error::Error>> {
     let text = std::fs::read_to_string(path)?;
     let started = Instant::now();
-    let phrases = PhraseList::bundled(tokenizer);
+    let phrases = ClicheList::bundled(tokenizer);
     let compile_ms = started.elapsed().as_secs_f64() * 1000.0;
     let options = DocumentOptions::new().with_token_details(false);
     let started = Instant::now();
@@ -133,9 +133,10 @@ fn benchmark(tokenizer: &Tokenizer, path: &str) -> Result<(), Box<dyn std::error
     let mut matches = 0;
     for _ in 0..5 {
         let started = Instant::now();
-        matches = std::hint::black_box(cliches(&document, &phrases))
-            .matches
-            .len();
+        matches =
+            std::hint::black_box(cliches::report(&document, &phrases, &ClicheOptions::new())?)
+                .matches
+                .len();
         times_ms.push(started.elapsed().as_secs_f64() * 1000.0);
     }
     times_ms.sort_by(f64::total_cmp);

@@ -5,25 +5,28 @@ tag attached to each quoted span from #243's document pass and reports:
 
 - tag verbs other than *said* and *asked*, with counts (`other_verbs`);
 - manner adverbs on tags (`said softly`), as `DialogueTag::adverb`;
-- tags whose verb cannot produce speech (`“Fine,” she smiled.`), as `VerbClass::NonSpeech`;
+- tags whose verb cannot produce speech (`“Fine,” she smiled.`), as `DialogueTagVerbClass::NonSpeech`;
 - runs of more than 6 untagged exchanges (`untagged_runs`);
 - action beats, counted separately and never flagged (`beats`).
 
 ```rust
-use writemorebetter_style::reports::dialogue_tags::{dialogue_tags, DialogueTagOptions};
-let report = dialogue_tags(&document, &DialogueTagOptions::new());
+use writemorebetter_style::reports::dialogue_tags::{self, DialogueTagBaseline, DialogueTagOptions};
+let baseline = DialogueTagBaseline::new().with_said_asked_percent(80.0);
+let report = dialogue_tags::report(&document, &DialogueTagOptions::new(), Some(&baseline))?;
 ```
 
 The document needs token details (the default). A compact document (`with_token_details(false)`) has
-no POS readings, so it yields no tags or beats, and `untagged_runs` and `untagged_exchanges` are `None`
-rather than flagging every exchange. `skip_names` tokens are treated as names: they can be a tag's subject and are
-never its verb, so `“Go,” said Will.` with `Will` skipped is a *say* tag rather than a modal. No Swift
-or WASM binding is added here; bindings for all reports land together after #244.
+no POS readings, so the report returns `StyleError::NeedsTokenDetails` rather than empty tags.
+`skip_names` tokens are treated as names: they can be a tag's subject and are never its verb, so
+`“Go,” said Will.` with `Will` skipped is a *say* tag rather than a modal. The report is part of the
+combined `reports::run` call and the bindings' `styleReports`
+([STYLE-REPORTS.md](STYLE-REPORTS.md#one-call-for-every-report)); typed Swift records come with the
+bindings follow-up.
 
 ## Method
 
-Each paragraph is split into quoted pieces (the document's dialogue spans) and the narration between
-them. Clause boundaries come from the tokenizer's sentences and from `!`/`?` tokens, cut at the next
+Each paragraph is split into quoted pieces (the document's **speech** spans, `Document::speech`) and
+the narration between them. Clause boundaries come from the tokenizer's sentences and from `!`/`?` tokens, cut at the next
 quote; a `.` alone never ends a clause, so `Mr.` and `St.` stay inside it.
 
 - **After a quote**, the first narration clause is attached when the quote ends in `,`, `:` or `;`, or
@@ -47,17 +50,19 @@ quote; a `.` alone never ends a clause, so `Mr.` and `St.` stay inside it.
   `the old man said`, `she’d said`, `Anna’s mother said`) or inverted (`said the captain`, `said
   he`). The subject is a pronoun, a name, a skipped name, or a short noun phrase (possessives
   included); the verb is a token with a `VB*` reading. A listed verb wins over an unlisted one; an
-  unlisted finite verb is still a tag (`VerbClass::Unlisted`), counted in `other_verbs` but never
+  unlisted finite verb is still a tag (`DialogueTagVerbClass::Unlisted`), counted in `other_verbs` but never
   flagged. `be`, `have` and `do` are never tag verbs. A quote followed directly by a lowercase form
   of one of them, and not preceded by a lead-in verb, is the subject of that verb, not speech:
   `“Yes” was the answer.` and `Her favorite poem, “The Raven,” was long.` have no tag, are not
-  exchanges, and are left out of `speech_spans`. The tag span runs from the subject through the verb,
+  exchanges, and are left out of `speech_spans`. This test and the embedded-quote test below run in
+  the document pass, so every report uses the same speech spans (see
+  [STYLE-DOCUMENT.md](STYLE-DOCUMENT.md#narration-and-dialogue)). The tag span runs from the subject through the verb,
   its particle (`he cut in`) and adverb, with any auxiliaries and adverbs between subject and verb
   (`She had always said`); an auxiliary is included only when nothing but adverbs separates it from the verb, so
   `It was then he said` gives `then he said`. An inverted possessive subject is kept whole
   (`said Anna’s mother`).
 - **Split dialogue** (`“Wait,” she said, “there’s more.”`) is one tag with position `split` and both
-  quotes in `dialogue`. A tag that ends with a full stop before more speech is `after`.
+  quotes in `quotes`. A tag that ends with a full stop before more speech is `after`.
 - **An action beat** is a narration clause touching a quote that is not attached and has a finite verb.
   One clause between two quotes is one beat.
 - **Adverbs** are tokens with an `RB` reading ending in *-ly* next to the verb, after an inverted
@@ -73,9 +78,14 @@ quote; a `.` alone never ends a clause, so `Mr.` and `St.` stay inside it.
   or a beat, because a beat names who acts. A paragraph with no dialogue ends a run. Runs longer than
   `max_untagged_exchanges` (default 6) are reported with their span and quotes.
 
-Percentages (`said_asked_percent`, `adverb_percent`, `non_speech_percent`) are shares of tags and are
-`None` below `min_tags` (default 50). Every report accepts a `DialogueTagBaseline` with the same three
-percentages, echoed in the report so callers can compare. No default baseline ships yet.
+Tags, beats and untagged runs carry `quotes`: the spans of the quotes they attach to, so a binding
+caller never needs the document to resolve them. `saidAsked`, `withAdverb` and `nonSpeech` are
+`Share { count, percent, difference }` records over all tags. `percent` is null below
+`minimum_tags` (default 50). The optional `DialogueTagBaseline` is a separate argument, as for the
+sentence reports, with three optional percentages (`saidAskedPercent`, `adverbPercent`,
+`nonSpeechPercent`, each in 0..=100 or `InvalidBaseline`). `difference` is the share minus the
+baseline in percentage points; the baseline is no longer echoed in the report.
+`DialogueTagBaseline::bundled()` returns `None`: no default baseline ships yet.
 
 ## Word lists
 

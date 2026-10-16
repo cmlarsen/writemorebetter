@@ -4,7 +4,9 @@ use std::ops::Range;
 use nlprule::Tokenizer;
 use serde::{Deserialize, Serialize};
 
-use crate::{Document, Span, Token};
+use super::{word_split, Split};
+use crate::error::StyleError;
+use crate::{Document, Mode, Span, Token};
 
 const NO_CLICHES: &str = include_str!("../../data/cliches/no-cliches.txt");
 const PROSELINT_CLICHES: &str = include_str!("../../data/cliches/proselint.txt");
@@ -82,39 +84,43 @@ const JOINERS: &[&str] = &["-", "‐", "‑", "'"];
 const PHRASE_PUNCTUATION: &[&str] = &[",", ";", ":", "—", "–", "-", "…"];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "camelCase")]
 #[non_exhaustive]
-pub enum PhraseKind {
+pub enum ClicheKind {
     Cliche,
     Redundancy,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields, rename_all = "camelCase")]
 #[non_exhaustive]
-pub enum PhraseContext {
-    Narration,
-    Dialogue,
+pub struct ClicheOptions {}
+
+impl ClicheOptions {
+    pub fn new() -> Self {
+        Self::default()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[non_exhaustive]
-pub struct PhraseEntry {
-    pub kind: PhraseKind,
+pub struct ClicheEntry {
+    pub kind: ClicheKind,
     pub phrase: String,
     pub source: String,
     #[serde(default)]
     pub acronym: Option<String>,
-    #[serde(default)]
+    #[serde(default, alias = "fixed_wording")]
     pub fixed_wording: bool,
-    #[serde(default)]
+    #[serde(default, alias = "open_slot")]
     pub open_slot: bool,
-    #[serde(default)]
+    #[serde(default, alias = "not_followed_by")]
     pub not_followed_by: Vec<String>,
 }
 
-impl PhraseEntry {
-    pub fn new(kind: PhraseKind, phrase: impl Into<String>, source: impl Into<String>) -> Self {
+impl ClicheEntry {
+    pub fn new(kind: ClicheKind, phrase: impl Into<String>, source: impl Into<String>) -> Self {
         Self {
             kind,
             phrase: phrase.into(),
@@ -172,38 +178,39 @@ struct Pattern {
 }
 
 #[derive(Debug, Clone)]
-pub struct PhraseList {
-    entries: Vec<PhraseEntry>,
+pub struct ClicheList {
+    entries: Vec<ClicheEntry>,
     patterns: Vec<Pattern>,
     by_first_key: HashMap<String, Vec<usize>>,
     slot_first: Vec<usize>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 #[non_exhaustive]
-pub struct PhraseMatch {
-    pub kind: PhraseKind,
-    pub context: PhraseContext,
+pub struct ClicheMatch {
+    pub kind: ClicheKind,
+    pub mode: Mode,
     pub phrase: String,
     pub source: String,
     pub span: Span,
-    pub paragraph: usize,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 #[non_exhaustive]
-pub struct PhraseCounts {
+pub struct ClicheCounts {
     pub cliches: usize,
     pub redundancies: usize,
     pub words: usize,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct ClicheReport {
-    pub matches: Vec<PhraseMatch>,
-    pub narration: PhraseCounts,
-    pub dialogue: PhraseCounts,
+    pub matches: Vec<ClicheMatch>,
+    pub groups: Split<ClicheCounts>,
 }
 
 fn normalize(text: &str) -> String {
@@ -220,13 +227,13 @@ pub fn suppressed_phrases() -> Vec<&'static str> {
     lines(SUPPRESSED).collect()
 }
 
-pub fn vendored_phrase_entries() -> Vec<PhraseEntry> {
+pub fn vendored_entries() -> Vec<ClicheEntry> {
     let mut entries = Vec::new();
     for line in lines(NO_CLICHES) {
-        entries.push(PhraseEntry::new(PhraseKind::Cliche, line, "no-cliches"));
+        entries.push(ClicheEntry::new(ClicheKind::Cliche, line, "no-cliches"));
     }
     for line in lines(PROSELINT_CLICHES) {
-        entries.push(PhraseEntry::new(PhraseKind::Cliche, line, "proselint"));
+        entries.push(ClicheEntry::new(ClicheKind::Cliche, line, "proselint"));
     }
     for line in lines(REDUNDANT_ACRONYMS) {
         let Some((acronym, expansion)) = line.split_once('\t') else {
@@ -235,8 +242,8 @@ pub fn vendored_phrase_entries() -> Vec<PhraseEntry> {
         let words: Vec<_> = expansion.split_whitespace().collect();
         for start in 1..words.len() {
             entries.push(
-                PhraseEntry::new(
-                    PhraseKind::Redundancy,
+                ClicheEntry::new(
+                    ClicheKind::Redundancy,
                     format!("{acronym} {}", words[start..].join(" ")),
                     "retext-redundant-acronyms",
                 )
@@ -272,7 +279,7 @@ pub fn vendored_phrase_entries() -> Vec<PhraseEntry> {
             })
             .collect();
         entries.push(
-            PhraseEntry::new(PhraseKind::Redundancy, words.join(" "), "proselint")
+            ClicheEntry::new(ClicheKind::Redundancy, words.join(" "), "proselint")
                 .with_acronym(acronym),
         );
     }
@@ -298,9 +305,9 @@ pub fn vendored_phrase_entries() -> Vec<PhraseEntry> {
     entries
 }
 
-pub fn bundled_phrase_entries() -> Vec<PhraseEntry> {
+pub fn bundled_entries() -> Vec<ClicheEntry> {
     let suppressed: BTreeSet<_> = lines(SUPPRESSED).map(normalize).collect();
-    let mut entries = vendored_phrase_entries();
+    let mut entries = vendored_entries();
     entries.retain(|entry| !suppressed.contains(&normalize(&entry.phrase)));
     entries
 }
@@ -335,7 +342,7 @@ fn hyphen_parts(text: &str) -> Vec<Range<usize>> {
     parts
 }
 
-fn compile(tokenizer: &Tokenizer, index: usize, entry: &PhraseEntry) -> Option<Pattern> {
+fn compile(tokenizer: &Tokenizer, index: usize, entry: &ClicheEntry) -> Option<Pattern> {
     let tokens: Vec<_> = tokenizer
         .analyze(&entry.phrase)
         .into_iter()
@@ -430,12 +437,12 @@ fn compile(tokenizer: &Tokenizer, index: usize, entry: &PhraseEntry) -> Option<P
     })
 }
 
-impl PhraseList {
+impl ClicheList {
     pub fn bundled(tokenizer: &Tokenizer) -> Self {
-        Self::new(tokenizer, bundled_phrase_entries())
+        Self::new(tokenizer, bundled_entries())
     }
 
-    pub fn new(tokenizer: &Tokenizer, entries: Vec<PhraseEntry>) -> Self {
+    pub fn new(tokenizer: &Tokenizer, entries: Vec<ClicheEntry>) -> Self {
         let mut list = Self {
             patterns: Vec::new(),
             by_first_key: HashMap::new(),
@@ -465,7 +472,7 @@ impl PhraseList {
         list
     }
 
-    pub fn entries(&self) -> &[PhraseEntry] {
+    pub fn entries(&self) -> &[ClicheEntry] {
         &self.entries
     }
 
@@ -656,37 +663,24 @@ fn token_keys(document: &Document) -> HashMap<(usize, usize, usize), Vec<&str>> 
     keys
 }
 
-fn span_between(first: &Span, last: &Span) -> Span {
-    Span {
-        byte: first.byte.start..last.byte.end,
-        char: first.char.start..last.char.end,
-        utf16: first.utf16.start..last.utf16.end,
-    }
-}
-
-fn in_dialogue(dialogue: &[Span], byte: usize) -> bool {
-    let index = dialogue.partition_point(|span| span.byte.end <= byte);
-    dialogue
-        .get(index)
-        .is_some_and(|span| span.byte.start <= byte)
-}
-
-pub fn cliches(document: &Document, phrases: &PhraseList) -> ClicheReport {
+pub fn report(
+    document: &Document,
+    phrases: &ClicheList,
+    _options: &ClicheOptions,
+) -> Result<ClicheReport, StyleError> {
     let keys = token_keys(document);
-    let mut report = ClicheReport::default();
+    let mut report = ClicheReport {
+        matches: Vec::new(),
+        groups: word_split(document).map(|words| ClicheCounts {
+            words,
+            ..ClicheCounts::default()
+        }),
+    };
     let mut found = Vec::new();
     for (p, paragraph) in document.paragraphs.iter().enumerate() {
         let mut stream = Vec::new();
         for (s, sentence) in paragraph.sentences.iter().enumerate() {
             for (t, token) in sentence.tokens.iter().enumerate() {
-                if token.is_word && !token.is_skipped {
-                    let counts = if in_dialogue(&document.dialogue, token.span.byte.start) {
-                        &mut report.dialogue
-                    } else {
-                        &mut report.narration
-                    };
-                    counts.words += 1;
-                }
                 if token.is_whitespace {
                     continue;
                 }
@@ -708,7 +702,7 @@ pub fn cliches(document: &Document, phrases: &PhraseList) -> ClicheReport {
                         last.surface == "'" && last.span.byte.end == span.byte.start
                     }) {
                         if normalize(text) == "s" {
-                            last.span = span_between(&last.span, &span);
+                            last.span = Span::covering(&last.span, &span);
                             last.span_text.push_str(text);
                             last.surface = "'s".into();
                             last.is_word = true;
@@ -761,48 +755,40 @@ pub fn cliches(document: &Document, phrases: &PhraseList) -> ClicheReport {
                     })
                     .unwrap_or(start);
                 found.push((
-                    p,
                     pattern.entry,
-                    span_between(&stream[first].span, &stream[end].span),
+                    Span::covering(&stream[first].span, &stream[end].span),
                 ));
             }
         }
     }
     found.sort_by(|a, b| {
-        a.2.byte
+        a.1.byte
             .start
-            .cmp(&b.2.byte.start)
-            .then(b.2.byte.end.cmp(&a.2.byte.end))
-            .then(a.1.cmp(&b.1))
+            .cmp(&b.1.byte.start)
+            .then(b.1.byte.end.cmp(&a.1.byte.end))
+            .then(a.0.cmp(&b.0))
     });
     let mut kept_end = 0;
-    for (paragraph, entry, span) in found {
+    for (entry, span) in found {
         if span.byte.end <= kept_end {
             continue;
         }
         kept_end = span.byte.end;
         let entry = &phrases.entries[entry];
-        let context = if in_dialogue(&document.dialogue, span.byte.start) {
-            PhraseContext::Dialogue
-        } else {
-            PhraseContext::Narration
-        };
-        let counts = match context {
-            PhraseContext::Narration => &mut report.narration,
-            PhraseContext::Dialogue => &mut report.dialogue,
-        };
-        match entry.kind {
-            PhraseKind::Cliche => counts.cliches += 1,
-            PhraseKind::Redundancy => counts.redundancies += 1,
+        let mode = document.mode_at(span.byte.start);
+        for counts in report.groups.all_and_mode_mut(mode) {
+            match entry.kind {
+                ClicheKind::Cliche => counts.cliches += 1,
+                ClicheKind::Redundancy => counts.redundancies += 1,
+            }
         }
-        report.matches.push(PhraseMatch {
+        report.matches.push(ClicheMatch {
             kind: entry.kind,
-            context,
+            mode,
             phrase: entry.phrase.clone(),
             source: entry.source.clone(),
             span,
-            paragraph,
         });
     }
-    report
+    Ok(report)
 }

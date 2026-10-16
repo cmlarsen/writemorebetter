@@ -5,32 +5,41 @@ machine") from vendored phrase lists, with spans, and counts narration and dialo
 It diagnoses only and never suggests replacement wording.
 
 ```rust
-use writemorebetter_style::reports::cliches::{cliches, PhraseList};
-let phrases = PhraseList::bundled(&tokenizer);
-let report = cliches(&document, &phrases);
+use writemorebetter_style::reports::cliches::{self, ClicheList, ClicheOptions};
+let list = ClicheList::bundled(&tokenizer);
+let report = cliches::report(&document, &list, &ClicheOptions::new())?;
 ```
 
 The report is the public module `reports::cliches`; nothing is re-exported at the crate root or in
-`reports`. Build the `PhraseList` once per tokenizer and cache it (compiling the bundled list analyzes
-each of its 882 entries; bindings should do this once, which matters most on WASM and iOS).
-`PhraseList::new(&tokenizer, entries)` takes a caller-supplied list instead: each `PhraseEntry` has a
+`reports`. Build the `ClicheList` once per tokenizer and cache it (compiling the bundled list analyzes
+each of its 882 entries). `reports::StyleResources` does that lazily for the combined call, and both
+bindings keep one per `Checker`, so only the first `styleReports` call that selects clichés pays for
+it. `ClicheOptions` has no fields yet; JSON `{}` selects the report.
+`ClicheList::new(&tokenizer, entries)` takes a caller-supplied list instead: each `ClicheEntry` has a
 kind, phrase, source, optional acronym, a fixed-wording flag, an open-slot flag and `not_followed_by`
 guards (each a word or a space-separated word sequence). This is the
-extension point for a later, owner-approved redundancy list. `PhraseList::len()` counts compiled
+extension point for a later, owner-approved redundancy list. `ClicheList::len()` counts compiled
 patterns; an entry with fewer than two words after an optional leading article is dropped, so a
 caller-supplied list can compile to fewer patterns than `entries().len()`.
 
 ## Output
 
-- `matches`: one `PhraseMatch` per occurrence with `kind` (`cliche` / `redundancy`), `context`
-  (`narration` / `dialogue`), the list `phrase`, its `source`, the paragraph index and an absolute
-  byte/char/UTF-16 `span`.
-- `narration` and `dialogue`: `PhraseCounts` with `cliches`, `redundancies` and `words` (word tokens
-  outside skipped names, the `Document::word_count` convention, so the two `words` sum to it).
+- `matches`: one `ClicheMatch` per occurrence with `kind` (`cliche` / `redundancy`), `mode`
+  (`narration` / `dialogue`), the list `phrase`, its `source` and an absolute byte/char/UTF-16
+  `span`. Matches no longer carry a paragraph index: the span is self-contained.
+- `groups`: `Split<ClicheCounts>` (`all`, `narration`, `dialogue`), each with `cliches`,
+  `redundancies` and `words` (word tokens outside skipped names, the `Document::word_count`
+  convention). `all.words` is the document's word count and the mode `words` are exactly the
+  combined call's `stats.words`.
 
-A match is dialogue when its first byte lies inside one of the document's dialogue spans. Clichés
-in dialogue are often deliberate characterization, so they are reported separately rather than
-suppressed; the caller decides whether to show them.
+A match is dialogue when its first byte lies inside a **speech** span: the document-level rule every
+report shares (`Document::mode_at`; see [STYLE-DOCUMENT.md](STYLE-DOCUMENT.md#narration-and-dialogue)).
+Scare quotes, quoted titles and terms (`He called it “grub”`, `that “honesty is the best policy” was`)
+are narration. Before the unified rule, any quoted span counted, so a cliché quoted as a term was
+reported as dialogue. Speech that follows a non-verb word, as in `—and ‘better safe than sorry,’ he
+said`, is now narration as well, the same call the dialogue-tag report makes. Clichés in dialogue are
+often deliberate characterization, so they are reported separately rather than suppressed; the
+caller decides whether to show them.
 
 ## Matching
 
@@ -53,7 +62,7 @@ suppressed; the caller decides whether to show them.
   `style/data/open-slot.txt`, an owner-authored list of idioms whose plain form is also idiomatic, accept
   `the` or nothing as well, unless the slot is the entry's first word: "air your dirty laundry" also
   matches "aired the dirty laundry" and "aired dirty laundry", and "at my wits end" matches "at wits
-  end". `PhraseEntry::with_open_slot` sets this for caller-supplied entries. In entries naming a body
+  end". `ClicheEntry::with_open_slot` sets this for caller-supplied entries. In entries naming a body
   part (*hair, foot, feet, tongue, wounds*, …) the slot rejects *its*, so "the cat landed on its feet"
   and "the dog licked its wounds" are not flagged; an entry that itself says *its* ("rear its ugly
   head") keeps it. Personal
@@ -107,7 +116,7 @@ for the license check.
 **Redundancy coverage is thin by design.** Only acronym redundancies come from permissively licensed
 sources. proselint's larger redundancy lists (After the Deadline, Garner) and its other cliché lists
 (GNU diction, Garner) were dropped because proselint names a GPL or all-rights-reserved origin for
-them. No replacement list was authored for this PR; add one through `PhraseList::new` or a new data
+them. No replacement list was authored for this PR; add one through `ClicheList::new` or a new data
 file once its origin is approved.
 
 ## Overlap with the grammar checker
@@ -166,7 +175,7 @@ hard-wrapped and default mode).
 
 `bench/tools/wmb-cliches --benchmark TOKENIZER TEXT` on the pinned *Moby-Dick* chapters as one
 document (209,407 words, compact document). Before the review fixes: building the 882-pattern
-`PhraseList` took 441 ms, the report 248 ms (median of 5) and `analyze_document` 45.5 s. After them, on
+`ClicheList` (then `PhraseList`) took 441 ms, the report 248 ms (median of 5) and `analyze_document` 45.5 s. After them, on
 the same machine at load average 64: 3.9 s, 349 ms and 34.2 s. The report stays at about 1% of
 `analyze_document`; the compile time varies most with load. Besides its match list, the report builds a token-to-lemma map from the lemma
 index and one token stream per paragraph.

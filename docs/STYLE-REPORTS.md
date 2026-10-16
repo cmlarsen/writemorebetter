@@ -23,11 +23,11 @@ first consumer.
 nlprule/   the LanguageTool port. Unchanged in scope.
            + analyze(text): sentences and tokens with offsets, lemmas, POS tags, chunks (#242)
 style/     the reports: crate writemorebetter-style, MIT OR Apache-2.0 (#243)
-  src/document.rs   paragraphs, sentences, tokens, quoted-dialogue spans, lemma index
-  src/reports/      one module per report
+  src/document.rs   paragraphs, sentences, tokens, quoted-dialogue spans and speech flags, lemma index
+  src/reports/      one module per report, plus the combined run() / run_json() in mod.rs
   data/             phrase lists and word lists (each credited in NOTICE)
     baselines/      default baselines (source recorded inside each file)
-swift/, wasm/       one binding each, exposing check() + analyze() + the reports
+swift/, wasm/       one binding each, exposing check() + analyze() + analyzeDocument() + styleReports()
 ```
 
 - **Not in `nlprule`.** `nlprule` measures itself by LanguageTool conformance. These reports are not
@@ -43,9 +43,10 @@ swift/, wasm/       one binding each, exposing check() + analyze() + the reports
   says how it differs.
 - **One whole-document pass.** #243's document pass is also the "document statistics" call #234 needs.
   Design it once.
-- **Inputs.** Every report takes the document, its baseline, and an optional skip-list of names
-  (characters, places) that the caller supplies. Skipped names are left out of counts and denominators,
-  not filtered from the output afterwards.
+- **Inputs.** Every report takes the document (built once with an optional skip-list of names,
+  characters and places, that the caller supplies), its options and, where it has one, its baseline
+  as a separate argument. Skipped names are left out of counts and denominators, not filtered from the
+  output afterwards.
 
 ## Reports
 
@@ -68,11 +69,162 @@ patterns and priority, ambiguity allocation, dialogue grouping, baseline compari
 public regression measurements. The fine start categories use a documented deterministic priority;
 the Ngram universal-12 comparison allocates ambiguous starts fractionally.
 
+## One call for every report
+
+`reports::run` builds nothing itself: it takes one `Document` and runs the reports a `StyleRequest`
+selects. `reports::run_json` is the same call from text to JSON, and both bindings' `styleReports`
+are thin wrappers over it, so the document pass (the dominant cost) runs once however many reports
+are selected.
+
+```rust
+use writemorebetter_style::reports::{run, run_json, StyleRequest, StyleResources};
+
+let resources = StyleResources::new(); // keep one per tokenizer; it caches the compiled cliché list
+let document = analyze_document(&tokenizer, text, &DocumentOptions::new());
+let reports = run(&document, &StyleRequest::new(), &resources, &tokenizer)?; // StyleReports
+let json = run_json(&tokenizer, &resources, text, Some(r#"{"echoes":{}}"#), &DocumentOptions::new())?;
+```
+
+| Report | Module and entry point | Options | Baseline | Needs readings |
+|---|---|---|---|---|
+| echoes | `echoes::report(&Document, &EchoOptions)` | `window`, `matchForms` | none | yes |
+| repeated phrases | `repeated_phrases::report(&Document, &RepeatedPhraseOptions)` | `minimumLength`, `maximumLength`, `minimumContentWords` | none | yes |
+| clichés | `cliches::report(&Document, &ClicheList, &ClicheOptions)` | none yet | none | no |
+| dialogue tags | `dialogue_tags::report(&Document, &DialogueTagOptions, Option<&DialogueTagBaseline>)` | `maxUntaggedExchanges`, `minimumTags` | caller only | yes |
+| sentence length | `sentence_length::report(&Document, &SentenceLengthOptions, Option<&SentenceLengthBaseline>)` | `minimumSentences`, `longSentenceWords` | bundled | no |
+| sentence starts | `sentence_starts::report(&Document, &SentenceStartsOptions, Option<&SentenceStartsBaseline>)` | `minimumSentences` | bundled | yes |
+
+Every entry point returns `Result<_, StyleError>`. Type names are prefixed with their report
+(`SentenceLengthReport`, `ClicheMatch`, `DialogueTagVerbClass`, …) so they stay unique in Swift's
+and TypeScript's flat namespaces; shared vocabulary is `Span`, `Mode`, `Split<T>`, `Share`,
+`SentenceRow`, `SentenceRun`, `DocumentStats` and `StyleError`. Options are `#[non_exhaustive]` and
+built with `new()` plus `with_*` builders.
+
+### Request
+
+`StyleRequest::new()` (and an absent `requestJson`) selects every report with default options and
+bundled baselines. A JSON request selects exactly the non-null report members it names:
+
+```json
+{"echoes": {}, "repeatedPhrases": {"minimumContentWords": 1}, "cliches": {}, "dialogueTags": {"minimumTags": 50},
+ "sentenceLength": {"longSentenceWords": 40}, "sentenceStarts": {}, "baselines": "bundled"}
+```
+
+`baselines` is `"bundled"`, `null`/absent (no baselines), or an object with any of `sentenceLength`,
+`sentenceStarts` and `dialogueTags`, each in the bundled file's `baseline` member format.
+`StyleBaselines::bundled()` and each `XBaseline::bundled()` load the files under
+`style/data/baselines/` (dialogue tags has none yet, so its `bundled()` is `None`). Option and request
+keys are camelCase, also accepting their snake_case names; unknown keys are errors.
+
+### Errors
+
+`StyleError` has three kinds: `invalidOptions` (unparseable request or document options, unknown
+keys), `invalidBaseline` (with `report`: a percentage outside 0..=100, a non-finite or negative
+length, an unknown percentile or universal tag) and `needsTokenDetails` (with `report`: a compact
+document given to a report that needs readings). `run` validates the whole request before running
+any report. WASM throws a JS `Error` named `StyleError` with `kind` and `report` properties; Swift
+throws `CheckError.ReportInput` with the same message.
+
+### Result
+
+`StyleReports` has `stats`, `sentences` and one member per selected report. Unselected reports are
+omitted from JSON. `run_json` and the bindings serialize every `Span` as its UTF-16 `{start, end}`
+(native Rust spans keep `byte`, `char` and `utf16`). The examples below come from running the call on
+`“Fine,” Mara said softly. She grinned and grinned.⏎The old lamp lit the old lamp room. He kicked
+the bucket.` with `Mara` skipped, every report selected, low sample minimums and bundled baselines.
+Arrays are cut to their first entries.
+
+`stats` (`DocumentStats`) holds the shared counts every report agrees with:
+
+```json
+{"paragraphs": 2, "hardWrapped": false, "tokenDetails": true, "words": {"all": 19, "narration": 18, "dialogue": 1},
+ "sentences": {"all": 4, "narration": 3, "dialogue": 1}, "dialogueSpans": 1, "speechSpans": 1}
+```
+
+`sentences` is the one sentence table (present when a sentence report is selected); reports refer to
+sentences by index into it:
+
+```json
+[{"span": {"start": 0, "end": 26}, "mode": "dialogue", "words": 3}, {"span": {"start": 26, "end": 50}, "mode": "narration", "words": 4}]
+```
+
+`echoes`:
+
+```json
+{"echoes": [{"key": "grin", "label": "grin", "earlier": {"start": 30, "end": 37}, "later": {"start": 42, "end": 49}, "distance": 2}],
+ "words": 19, "perThousandWords": 157.89473684210526}
+```
+
+`repeatedPhrases`:
+
+```json
+{"phrases": [{"keys": ["the", "old", "lamp"], "labels": ["the", "old", "lamp"], "count": 2, "spans": [{"start": 51, "end": 63}, {"start": 68, "end": 80}]}]}
+```
+
+`cliches` (`narration` and `dialogue` groups have the same shape as `all`):
+
+```json
+{"matches": [{"kind": "cliche", "mode": "narration", "phrase": "kick the bucket", "source": "no-cliches", "span": {"start": 90, "end": 107}}],
+ "groups": {"all": {"cliches": 1, "redundancies": 0, "words": 19}, "narration": {}, "dialogue": {}}}
+```
+
+`dialogueTags`:
+
+```json
+{"tags": [{"span": {"start": 8, "end": 24}, "clause": {"start": 8, "end": 25}, "verb": {"start": 13, "end": 17}, "verbText": "said",
+           "lemma": "say", "class": "speech", "position": "after", "adverb": {"start": 18, "end": 24}, "quotes": [{"start": 0, "end": 7}]}],
+ "beats": [], "untaggedRuns": [], "otherVerbs": [], "dialogueSpans": 1, "speechSpans": 1, "taggedSpans": 1, "exchanges": 1,
+ "untaggedExchanges": 0, "saidAsked": {"count": 1, "percent": 100.0, "difference": null},
+ "withAdverb": {"count": 1, "percent": 100.0, "difference": null}, "nonSpeech": {"count": 0, "percent": 0.0, "difference": null}}
+```
+
+Beats are `{"span", "quotes"}`, untagged runs `{"span", "quotes", "exchanges"}` and other verbs
+`{"lemma", "class", "count"}`; `class` is `speech`, `nonSpeech` or `unlisted` and `position` is
+`before`, `after` or `split`.
+
+`sentenceLength` (every group has the same shape as `all`):
+
+```json
+{"groups": {"all": {"sentences": 4, "zeroWordSentences": 0, "histogram": [{"words": 3, "sentences": 1}, {"words": 4, "sentences": 2}],
+  "mean": 4.75, "meanDifference": -8.150118525896554, "percentiles": [{"percentile": 5, "value": 3.15, "difference": 1.4415492957746479}],
+  "longSentences": [], "monotonyRuns": []}, "narration": {}, "dialogue": {}}}
+```
+
+`longSentences` are sentence indexes; `monotonyRuns` are `{"span", "sentences": {"start", "end"}}`.
+
+`sentenceStarts` (every group has the same shape as `all`; `sameWordRuns` are runs like length's):
+
+```json
+{"starts": [{"sentence": 0, "opener": {"start": 1, "end": 5}, "word": "fine", "category": "adverb", "ambiguous": true,
+             "universalCandidates": ["ADJ", "ADV", "NOUN", "VERB"]}],
+ "groups": {"all": {"sentences": 4, "excludedSentences": 0, "ambiguousStarts": 1, "unknownStarts": 0,
+  "categories": [{"category": "subject", "count": 3, "percent": 75.0, "difference": null}],
+  "universal": [{"tag": "DET", "weight": 1.0, "percent": 25.0, "difference": 12.9}], "sameWordRuns": []}, "narration": {}, "dialogue": {}}}
+```
+
+### Conventions
+
+- Keys and enum values are camelCase on the wire. The `analyzeDocument` JSON and the Rust
+  `Document` serialization keep their shipped snake_case.
+- Every item a UI highlights carries a self-contained `span`; nothing refers to `Document` internals
+  by index. The only indexes are into the result's own `sentences` table.
+- Aggregates split by mode use `Split<T>` (`all`, `narration`, `dialogue`), with one mode definition
+  for every report ([STYLE-DOCUMENT.md](STYLE-DOCUMENT.md#narration-and-dialogue)).
+- Shares are percentages, null below the report's `minimum*` sample, with `difference` in
+  percentage points against the baseline (null without one). Rates are `perThousandWords`.
+- Maps are arrays of records (`histogram`, `percentiles`, `categories`, `universal`), so Swift
+  `Codable` and TypeScript types need no string-keyed dictionaries; counts are integers except the
+  fractional universal `weight`.
+- Results from different `Document`s are not mergeable (echo and phrase keys depend on the whole
+  document); analyze the unit the UI shows.
+
 ## Baselines
 
 A baseline is the expected value in published fiction: category shares, rates per 1,000 words, or word
-frequencies. **Every report takes its baseline as an input**, so a caller can swap in a genre-specific one.
-Default baseline files may ship in `style/data/baselines/`, each recording its source and version. They
+frequencies. **Every report with a baseline takes it as a separate input**, so a caller can swap in a
+genre-specific one. Default baseline files may ship in `style/data/baselines/`, each recording its
+source and version; `StyleBaselines::bundled()` loads them, so callers never strip the source wrapper
+by hand. They
 are built in the private `cmlarsen/fiction-baseline` repo; each committed baseline file names the build
 commit there. Where the numbers come from:
 
@@ -140,6 +292,9 @@ Build rules for any baseline:
 | 2026-10-15 | Vendor phrase lists only when the list's own origin is permissive (#246): no-cliches, retext-redundant-acronyms, and proselint's `hell.py`/`ras_syndrome.py`; drop proselint's GNU diction, After the Deadline, Garner, Wallace and Nordquist lists | proselint's BSD relicense does not clear the original authors' rights; see [STYLE-DATA-LICENSES.md](STYLE-DATA-LICENSES.md) |
 | 2026-10-15 | Report clichés in dialogue separately, not suppressed (#246) | Clichés in dialogue are often deliberate characterization; the caller decides; see [STYLE-CLICHES.md](STYLE-CLICHES.md) |
 | 2026-10-15 | Brysbaert concreteness ratings are a caller-supplied input; the Lancaster Sensorimotor Norms may be vendored (#250) | CC BY-NC-ND 3.0 vs CC BY 4.0; see [STYLE-DATA-LICENSES.md](STYLE-DATA-LICENSES.md) |
+| 2026-10-16 | One public API for all reports before the bindings freeze it: report-prefixed type names, camelCase JSON, baselines as a separate argument, spans instead of document indexes, one sentence table, and `reports::run`/`run_json` as the single combined entry point | Swift and TypeScript types share one flat namespace, and separate per-report binding calls rebuilt the document each time |
+| 2026-10-16 | One narration/dialogue definition, computed in the document pass: a quote is speech unless it is embedded or the subject of a copula | The sentence reports, clichés and dialogue tags disagreed on the same passages |
+| 2026-10-16 | Reports that need readings reject compact documents (`StyleError::NeedsTokenDetails`) | Echoes, repeated phrases, sentence starts and dialogue tags silently degraded on them |
 
 ## Accuracy benchmarks
 

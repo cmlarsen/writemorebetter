@@ -319,31 +319,44 @@ final class CheckerTests: XCTestCase {
     func testSentenceReportsAndCompactOffsets() throws {
         let checker = try checker()
         let text = "😀\n\n“She ran. She left. She slept. She wept.”"
-        let options = "{\"minimumSentences\":4}"
-        let lengths = try checker.sentenceLength(text: text, optionsJson: options, baselineJson: nil, documentOptions: nil)
-        let length = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(lengths.utf8)) as? [String: Any])
-        let dialogue = try XCTUnwrap(length["dialogue"] as? [String: Any])
-        let runs = try XCTUnwrap(dialogue["monotonyRuns"] as? [[String: Int]])
+        let request = "{\"sentenceLength\":{\"minimumSentences\":4},\"sentenceStarts\":{\"minimumSentences\":4}}"
+        let json = try checker.styleReports(text: text, requestJson: request, documentOptions: nil)
+        let result = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any])
+        let length = try XCTUnwrap(result["sentenceLength"] as? [String: Any])
+        let groups = try XCTUnwrap(length["groups"] as? [String: Any])
+        let dialogue = try XCTUnwrap(groups["dialogue"] as? [String: Any])
+        let runs = try XCTUnwrap(dialogue["monotonyRuns"] as? [[String: Any]])
         XCTAssertEqual(runs.count, 1)
-        XCTAssertTrue((text as NSString).substring(with: NSRange(location: runs[0]["start"]!, length: runs[0]["end"]! - runs[0]["start"]!)).contains("She wept"))
-        let starts = try checker.sentenceStarts(text: text, optionsJson: options, baselineJson: nil, documentOptions: nil)
-        let compact = try checker.sentenceStarts(text: text, optionsJson: options, baselineJson: nil, documentOptions: DocumentOptions(includeTokenDetails: false))
-        XCTAssertEqual(starts, compact)
-        let result = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(starts.utf8)) as? [String: Any])
-        let speech = try XCTUnwrap(result["dialogue"] as? [String: Any])
+        let span = try XCTUnwrap(runs[0]["span"] as? [String: Int])
+        XCTAssertTrue((text as NSString).substring(with: NSRange(location: span["start"]!, length: span["end"]! - span["start"]!)).contains("She wept"))
+        let starts = try XCTUnwrap(result["sentenceStarts"] as? [String: Any])
+        let startGroups = try XCTUnwrap(starts["groups"] as? [String: Any])
+        let speech = try XCTUnwrap(startGroups["dialogue"] as? [String: Any])
         XCTAssertEqual((speech["sameWordRuns"] as? [Any])?.count, 1)
-        XCTAssertThrowsError(try checker.sentenceLength(text: text, optionsJson: "{\"typo\":1}", baselineJson: nil, documentOptions: nil))
+        let rows = try XCTUnwrap(result["sentences"] as? [[String: Any]])
+        XCTAssertEqual(rows.filter { $0["mode"] as? String == "dialogue" }.count, 4)
+        let compact = try checker.styleReports(text: text, requestJson: request, documentOptions: DocumentOptions(includeTokenDetails: false))
+        XCTAssertEqual(json, compact)
+        XCTAssertThrowsError(try checker.styleReports(text: text, requestJson: "{\"sentenceLength\":{\"typo\":1}}", documentOptions: nil)) { error in
+            guard case CheckError.ReportInput = error else {
+                return XCTFail("unexpected error: \(error)")
+            }
+        }
     }
 
     func testCombinedStyleReports() throws {
         let checker = try checker()
-        let text = "😀\n\n“She ran. She left. She slept. She wept.”"
-        let json = try checker.styleReports(text: text, requestJson: "{\"sentenceLength\":{},\"sentenceStarts\":{}}", documentOptions: nil)
+        let text = "“Fine,” he said. He grinned at her and he grinned again."
+        let json = try checker.styleReports(text: text, requestJson: nil, documentOptions: nil)
         let result = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any])
-        XCTAssertNotNil(result["sentenceLength"])
-        XCTAssertNotNil(result["sentenceStarts"])
-        let compact = try checker.styleReports(text: text, requestJson: "{\"sentenceLength\":{},\"sentenceStarts\":{}}", documentOptions: DocumentOptions(includeTokenDetails: false))
-        XCTAssertEqual(json, compact)
+        for key in ["stats", "sentences", "echoes", "repeatedPhrases", "cliches", "dialogueTags", "sentenceLength", "sentenceStarts"] {
+            XCTAssertNotNil(result[key], key)
+        }
+        let only = try checker.styleReports(text: text, requestJson: "{\"sentenceLength\":{}}", documentOptions: nil)
+        let selected = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(only.utf8)) as? [String: Any])
+        XCTAssertNotNil(selected["sentenceLength"])
+        XCTAssertNil(selected["sentenceStarts"])
+        XCTAssertEqual(try checker.styleReports(text: text, requestJson: nil, documentOptions: nil), json)
     }
 
 }

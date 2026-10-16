@@ -13,6 +13,23 @@ let document = analyze_document(&tokenizer, text, &options);
 Public Rust records are `#[non_exhaustive]`; construct options with `new()`/`default()` and the builders
 `with_skip_names`, `with_token_details`, and `with_hard_wrapped`. Reports take `&Document`.
 
+Besides paragraphs, `dialogue`, `lemma_index` and `word_count`, the document records how it was built
+and what every report needs to agree:
+
+- `speech: Vec<bool>`, parallel to `dialogue`: whether each quoted span is speech (see
+  [Narration and dialogue](#narration-and-dialogue)).
+- `token_details`: whether token readings and chunks were kept. Reports that need readings (echoes,
+  repeated phrases, sentence starts, dialogue tags) return `StyleError::NeedsTokenDetails` for a
+  compact document instead of silently degrading.
+- `hard_wrapped`: the paragraph mode the document was built with. The combined report result echoes
+  it as `stats.hardWrapped`.
+- `sentences()` and `words()` iterate every sentence and every counted word token in document order;
+  `Sentence::word_count()` counts `is_word && !is_skipped` tokens. Sentence indexes in reports are
+  positions in `sentences()`.
+
+The Rust `Document` serializes with snake_case keys, like the shipped `analyzeDocument` JSON, which is
+unchanged. Report records serialize camelCase (see [STYLE-REPORTS.md](STYLE-REPORTS.md#conventions)).
+
 ## Paragraphs and offsets
 
 The input is one original string. By default, each nonempty line is one paragraph: LF, CRLF,
@@ -96,9 +113,40 @@ with the same opening mark (excluding listed elisions). This accepts the standar
 convention, but can join unrelated paragraphs after a missing closer, as in `"Unclosed⏎"Reply," he said.`
 Otherwise the **entire unfinished span is dropped**, including any carried prefix; the final
 unterminated paragraph is dropped too. Later paragraphs start with fresh state.
-A malformed straight quote can still confuse pairing within its own paragraph. Scare quotes can
-count as dialogue; dash-led speech is outside this detector's scope. All adversarial review probe rows
-are checked in as invented fixtures under `style/tests/fixtures/review-dialogue.json`.
+A malformed straight quote can still confuse pairing within its own paragraph. Scare quotes are
+dialogue spans here and are classified as non-speech below; dash-led speech is outside this
+detector's scope. All adversarial review probe rows are checked in as invented fixtures under
+`style/tests/fixtures/review-dialogue.json`.
+
+## Narration and dialogue
+
+Every report uses one definition, computed once in the document pass. A dialogue span is **speech**
+unless one of two tests marks it as a quoted term:
+
+- **Embedded:** the token right before the quote's opening mark, in the paragraph where it opens, is a
+  word other than a lead-in verb (a listed speech or non-speech verb outside
+  `style/data/dialogue/object-verbs.txt`). `He called it “grub” and ate.`, `She pressed “Send.”`,
+  `She said that “honesty is the best policy” was…` and titles after a determiner are not speech.
+- **Copula subject:** the quote closes and the next token starts with a lowercase form of *be*,
+  *have* or *do*, and no lead-in verb precedes it: `“Yes” was the answer.`
+
+The tests need POS readings, so they run before a compact document discards them; compact and full
+documents have identical `speech`. A span continued across paragraphs is classified once, by its
+opening and closing paragraphs. Speech after a conjunction (`—and ‘better safe than sorry,’ he
+said`) is misread as embedded, which is the dialogue-tag report's long-standing limitation.
+
+There are two granularities, both built on that one rule:
+
+- **Token:** `Document::mode_at(byte)` is `Mode::Dialogue` when the byte lies inside a speech span.
+  Word splits (`stats.words` in the combined result, clichés `groups.*.words`) and per-match modes
+  (clichés) use it.
+- **Sentence:** `Document::sentence_mode(&sentence)` is the token mode of the sentence's first
+  `is_word` token. Sentence length and sentence starts group sentences by it, so a mixed
+  narration/speech sentence belongs wholly to its opening mode.
+
+Echoes and repeated phrases ignore mode. The dialogue-tag report reads speech spans as its quotes.
+`style/tests/cross_report.rs` checks on shared passages that every report's word, sentence and
+dialogue counts agree with this definition.
 
 ## Bindings and memory
 
@@ -109,10 +157,13 @@ paragraphs. Swift options fields have defaults; WASM accepts snake_case or camel
 and rejects unknown keys instead of silently ignoring misspellings.
 
 Set `include_token_details: false` (`includeTokenDetails: false` in Swift/camelCase JSON) to discard
-per-token readings/chunks after constructing the index. WASM omits those JSON keys; Swift returns
-empty arrays. Counts, lemma positions, text, spans and token flags remain identical. Reports needing
-POS/chunk information must request full details. This reduces returned object/JSON size, but tokenization
-and index construction still run. See [measured native/WASM novel-length time and memory](STYLE-DOCUMENT-BENCHMARKS.md).
+per-token readings/chunks after constructing the index and classifying speech, paragraph by
+paragraph. WASM omits those JSON keys; Swift returns empty arrays. Counts, lemma positions, speech
+flags, text, spans and token flags remain identical. Reports needing POS/chunk information reject a
+compact document with `StyleError::NeedsTokenDetails`. This reduces returned object/JSON size, but
+tokenization and index construction still run. The speech classification keeps one paragraph's
+readings until that paragraph is classified: on the hard-wrapped Moby excerpt compact peak RSS went
+from 59.5 to 62.7 MB (native, shared machine). See [measured native/WASM novel-length time and memory](STYLE-DOCUMENT-BENCHMARKS.md).
 Run document analysis off the UI thread. Spelling dictionary additions do not supply tokenizer readings.
 
 ## Shared statistics

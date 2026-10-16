@@ -1,15 +1,63 @@
+use std::cell::Cell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::ops::Range;
 
 use nlprule::{analysis::AnalysisSpan, Tokenizer};
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[non_exhaustive]
 pub struct Span {
     pub byte: Range<usize>,
     pub char: Range<usize>,
     pub utf16: Range<usize>,
+}
+
+thread_local! {
+    static UTF16_SPANS: Cell<bool> = const { Cell::new(false) };
+}
+
+// While set, every Span serializes as its UTF-16 range alone; see reports::to_utf16_json.
+pub(crate) fn with_utf16_spans<T>(serialize: impl FnOnce() -> T) -> T {
+    struct Reset(bool);
+    impl Drop for Reset {
+        fn drop(&mut self) {
+            UTF16_SPANS.with(|flag| flag.set(self.0));
+        }
+    }
+    let _reset = Reset(UTF16_SPANS.with(|flag| flag.replace(true)));
+    serialize()
+}
+
+impl Serialize for Span {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeStruct;
+        if UTF16_SPANS.with(Cell::get) {
+            return self.utf16.serialize(serializer);
+        }
+        let mut span = serializer.serialize_struct("Span", 3)?;
+        span.serialize_field("byte", &self.byte)?;
+        span.serialize_field("char", &self.char)?;
+        span.serialize_field("utf16", &self.utf16)?;
+        span.end()
+    }
+}
+
+impl Span {
+    pub fn covering(first: &Span, last: &Span) -> Span {
+        Span {
+            byte: first.byte.start..last.byte.end,
+            char: first.char.start..last.char.end,
+            utf16: first.utf16.start..last.utf16.end,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Mode {
+    Narration,
+    Dialogue,
 }
 
 impl From<AnalysisSpan> for Span {
@@ -99,13 +147,72 @@ pub struct Paragraph {
     pub sentences: Vec<Sentence>,
 }
 
+impl Sentence {
+    pub fn words(&self) -> impl Iterator<Item = &Token> {
+        self.tokens
+            .iter()
+            .filter(|token| token.is_word && !token.is_skipped)
+    }
+
+    pub fn word_count(&self) -> usize {
+        self.words().count()
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[non_exhaustive]
 pub struct Document {
     pub paragraphs: Vec<Paragraph>,
     pub dialogue: Vec<Span>,
+    #[serde(default)]
+    pub speech: Vec<bool>,
     pub lemma_index: BTreeMap<String, Vec<TokenPosition>>,
     pub word_count: usize,
+    #[serde(default = "token_details_default")]
+    pub token_details: bool,
+    #[serde(default)]
+    pub hard_wrapped: bool,
+}
+
+fn token_details_default() -> bool {
+    true
+}
+
+impl Document {
+    pub fn sentences(&self) -> impl Iterator<Item = &Sentence> {
+        self.paragraphs
+            .iter()
+            .flat_map(|paragraph| &paragraph.sentences)
+    }
+
+    pub fn words(&self) -> impl Iterator<Item = &Token> {
+        self.sentences().flat_map(Sentence::words)
+    }
+
+    pub fn is_speech(&self, dialogue: usize) -> bool {
+        self.speech.get(dialogue).copied().unwrap_or(true)
+    }
+
+    pub fn mode_at(&self, byte: usize) -> Mode {
+        let index = self.dialogue.partition_point(|span| span.byte.end <= byte);
+        if self
+            .dialogue
+            .get(index)
+            .is_some_and(|span| span.byte.start <= byte && self.is_speech(index))
+        {
+            Mode::Dialogue
+        } else {
+            Mode::Narration
+        }
+    }
+
+    pub fn sentence_mode(&self, sentence: &Sentence) -> Mode {
+        sentence
+            .tokens
+            .iter()
+            .find(|token| token.is_word)
+            .map_or(Mode::Narration, |first| self.mode_at(first.span.byte.start))
+    }
 }
 
 pub fn is_word(text: &str) -> bool {
@@ -238,14 +345,63 @@ fn multiword_end(tokens: &[nlprule::analysis::AnalysisToken], start: usize, lemm
         .map_or(start, |(end, _)| end)
 }
 
+#[derive(Default)]
+struct SpeechEvidence {
+    tokens: bool,
+    embedded: bool,
+    after_lead_in: bool,
+    copula_subject: bool,
+}
+
+fn speech_evidence(paragraph: &Paragraph, dialogue: &[Span], evidence: &mut [SpeechEvidence]) {
+    use crate::reports::dialogue_tags::{lead_in, starts_copula};
+    let items: Vec<&Token> = paragraph
+        .sentences
+        .iter()
+        .flat_map(|sentence| &sentence.tokens)
+        .filter(|token| !token.is_whitespace)
+        .collect();
+    let range = &paragraph.span.byte;
+    let first = dialogue.partition_point(|span| span.byte.end <= range.start);
+    for (index, span) in dialogue
+        .iter()
+        .enumerate()
+        .skip(first)
+        .take_while(|(_, span)| span.byte.start < range.end)
+    {
+        let start = items.partition_point(|token| token.span.byte.start < span.byte.start);
+        let end = items.partition_point(|token| token.span.byte.end <= span.byte.end);
+        if start >= end {
+            continue;
+        }
+        let found = &mut evidence[index];
+        found.tokens = true;
+        if span.byte.start >= range.start {
+            let previous = start.checked_sub(1).map(|previous| items[previous]);
+            found.embedded =
+                previous.is_some_and(|previous| previous.is_word && !lead_in(previous));
+            found.after_lead_in = previous.is_some_and(lead_in);
+        }
+        if span.byte.end <= range.end {
+            found.copula_subject = items.get(end).is_some_and(|next| starts_copula(next));
+        }
+    }
+}
+
 pub fn analyze_document(tokenizer: &Tokenizer, text: &str, options: &DocumentOptions) -> Document {
     let skipped = name_forms(&options.skip_names);
     let paragraphs = paragraph_spans_mode(text, options.hard_wrapped);
+    let dialogue = detect_dialogue(text, &paragraphs);
+    let mut evidence: Vec<SpeechEvidence> =
+        dialogue.iter().map(|_| SpeechEvidence::default()).collect();
     let mut document = Document {
         paragraphs: Vec::new(),
-        dialogue: detect_dialogue(text, &paragraphs),
+        dialogue,
+        speech: Vec::new(),
         lemma_index: BTreeMap::new(),
         word_count: 0,
+        token_details: options.include_token_details,
+        hard_wrapped: options.hard_wrapped,
     };
     for span in paragraphs {
         let paragraph_text = text.get(span.byte.clone()).unwrap();
@@ -311,16 +467,8 @@ pub fn analyze_document(tokenizer: &Tokenizer, text: &str, options: &DocumentOpt
                 tokens.push(Token {
                     text: token.text,
                     span: shift(token.span, &span),
-                    readings: if options.include_token_details {
-                        token.readings
-                    } else {
-                        Vec::new()
-                    },
-                    chunks: if options.include_token_details {
-                        token.chunks
-                    } else {
-                        Vec::new()
-                    },
+                    readings: token.readings,
+                    chunks: token.chunks,
                     is_whitespace: token.is_whitespace,
                     is_punctuation: token.is_punctuation,
                     is_word: word,
@@ -333,12 +481,30 @@ pub fn analyze_document(tokenizer: &Tokenizer, text: &str, options: &DocumentOpt
                 tokens,
             });
         }
-        document.paragraphs.push(Paragraph {
+        let mut paragraph = Paragraph {
             text: paragraph_text.to_owned(),
             span,
             sentences,
-        });
+        };
+        speech_evidence(&paragraph, &document.dialogue, &mut evidence);
+        if !options.include_token_details {
+            for token in paragraph
+                .sentences
+                .iter_mut()
+                .flat_map(|sentence| &mut sentence.tokens)
+            {
+                token.readings = Vec::new();
+                token.chunks = Vec::new();
+            }
+        }
+        document.paragraphs.push(paragraph);
     }
+    document.speech = evidence
+        .iter()
+        .map(|found| {
+            found.tokens && !found.embedded && !(found.copula_subject && !found.after_lead_in)
+        })
+        .collect();
     document
 }
 

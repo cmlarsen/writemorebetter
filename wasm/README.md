@@ -166,13 +166,28 @@ unchanged. WASM accepts camelCase/snake_case option names and rejects unknown ke
 [the document conventions](../docs/STYLE-DOCUMENT.md) and
 [novel-length time/memory measurements](../docs/STYLE-DOCUMENT-BENCHMARKS.md).
 
+## Style reports
 
-Sentence length and sentence starts are exposed as `sentenceLength` and `sentenceStarts`, returning
-JSON with camelCase report fields and `{start,end}` spans in UTF-16 code units. Both accept optional
-JSON report options and a caller baseline; see [sentence report definitions](../docs/STYLE-SENTENCES.md)
-for signatures, sample suppression, compact options and the baseline schema. Each call builds one
-shared document for its report and performs no grammar/spelling checks.
+`checker.styleReports(text, requestJSON?, documentOptionsJSON?)` is the one entry point for every
+prose report: echoes, repeated phrases, clichés, dialogue tags, sentence length and sentence starts.
+It builds the document once for all selected reports, reuses the cliché list compiled on the first
+call (cached on the `Checker`), and performs no grammar or spelling checks. Omitting the request runs
+every report with bundled baselines; a request selects only the reports it names:
 
-Prefer `styleReports` when requesting both sentence reports: one document pass serves the selected
-`sentenceLength`/`sentenceStarts` request members. Individual methods each rebuild the document.
-See the definitions doc for the request/baseline schema and the adjudicated `other` fragment category.
+```js
+const reports = JSON.parse(checker.styleReports(text, JSON.stringify({
+  sentenceLength: {}, sentenceStarts: {minimumSentences: 200}, dialogueTags: {}, baselines: "bundled",
+}), JSON.stringify({skipNames: ["Mara"]})));
+```
+
+The result has `stats` (word, sentence and dialogue counts every report agrees with), the
+`sentences` table that sentence reports index into, and one member per selected report. Keys and enum
+values are camelCase and every span is `{start, end}` in UTF-16 code units, suitable for `slice`.
+Errors throw an `Error` named `StyleError` with a `kind` (`invalidOptions`, `invalidBaseline`,
+`needsTokenDetails`) and, for baselines, the `report`. The request schema and one JSON example per
+report are in [STYLE-REPORTS.md](../docs/STYLE-REPORTS.md#one-call-for-every-report).
+
+The separate `sentenceLength` and `sentenceStarts` methods are removed: each rebuilt the document,
+and `styleReports` with `{"sentenceLength": {}}` or `{"sentenceStarts": {}}` replaces them.
+`styleReports` always keeps token readings internally, so `includeTokenDetails` does not change its
+output.

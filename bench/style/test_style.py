@@ -28,10 +28,14 @@ class BenchTests(unittest.TestCase):
                 self.paragraphs, self.calls = paragraphs, []
             def analyze(self, text):
                 self.calls.append(text)
-                return {'paragraphs': self.paragraphs,
-                        'starts': {'all': {'sentenceCount': 1, 'categories': {'other': {'count': 1}},
-                                           'starts': [{'category': 'other', 'word': 'call',
-                                                       'span': {'byte': {'start': 0, 'end': 16}}}]}}}
+                group = {'sentences': 1, 'excludedSentences': 0,
+                         'categories': [{'category': 'other', 'count': 1}],
+                         'universal': [{'tag': 'VERB', 'difference': 1.0}]}
+                return {'paragraphs': self.paragraphs, 'reports': {
+                    'sentences': [{'span': {'byte': {'start': 0, 'end': 16}}}],
+                    'sentenceLength': {'groups': {'all': {'meanDifference': 0.5}}},
+                    'sentenceStarts': {'groups': {'all': group},
+                                       'starts': [{'category': 'other', 'word': 'call', 'sentence': 0}]}}}
         text = b'CHAPTER 1. Loomings.\r\nCONTENTS\r\n\r\nCHAPTER 1. Loomings.\r\nCall me Ishmael.\r\n'
         line, wrapped = Probe(4), Probe(1)
         with patch.object(Path, 'read_bytes', return_value=text):
@@ -48,9 +52,15 @@ class BenchTests(unittest.TestCase):
     def test_sentence_distribution_gate_rejects_large_other_share(self):
         from sentences import check_public_distribution
         distributions = {'stories': {'categories': {'other': {'percent': 2.8}}},
-                         'mobyDick': {'categories': {'other': {'percent': 14.81}}}}
+                         'mobyDick': {'categories': {'other': {'percent': 14.81}},
+                                      'bundledBaselineComparison': {'meanDifference': 1.2,
+                                                                    'universalDifferences': 11}}}
         ceilings = {'stories': 5.0, 'mobyDick': 16.0}
         check_public_distribution(distributions, ceilings)
+        distributions['mobyDick']['bundledBaselineComparison']['meanDifference'] = None
+        with self.assertRaisesRegex(ValueError, 'bundled baselines'):
+            check_public_distribution(distributions, ceilings)
+        distributions['mobyDick']['bundledBaselineComparison']['meanDifference'] = 1.2
         distributions['mobyDick']['categories']['other']['percent'] = 17.0
         with self.assertRaisesRegex(ValueError, 'mobyDick/other'):
             check_public_distribution(distributions, ceilings)

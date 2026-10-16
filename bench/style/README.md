@@ -498,7 +498,15 @@ for #249; the published-fiction baseline is for the owner to produce with this c
 `wmb-document --reports TOKENIZER [--hard-wrapped]` probe. Its default is **one paragraph per line**;
 wrapped Moby imports explicitly select `--hard-wrapped`. `--document-probe`, `--tokenizer`, `--out` and
 `--output` select executable, engine data, generated cases and the aggregate score artifact. Reports
-share one full document per probe request; no grammar rules are loaded.
+share one full document per probe request; no grammar rules are loaded. The probe runs
+`reports::run` with the **product defaults** (default options, bundled baselines) for the two
+sentence reports and prints `{"reports": <StyleReports with native spans>, "reports_ms", "paragraphs"}`;
+long sentences and run members are indexes into `reports.sentences`. `wmb-document --defaults` prints
+the default options and run thresholds (`longSentenceWords`, `monotonyMinSentences`,
+`monotonyMaxSpread`, `sameWordMinSentences`), and the independent Python reference reads them from
+there rather than hardcoding them, so a change to a default fails as a deliberate decision. The gate
+also checks that the narrative Moby cut, with default options and bundled baselines, yields a length
+mean difference and all 11 universal differences (`bundledBaselineComparison`).
 
 ### Labels and adjudication
 

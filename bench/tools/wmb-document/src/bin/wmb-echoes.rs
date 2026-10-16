@@ -2,9 +2,19 @@ use std::io::{self, BufRead, Write};
 use std::time::Instant;
 
 use serde::Deserialize;
-use writemorebetter_style::reports::echoes::{echoes, EchoOptions};
-use writemorebetter_style::reports::phrases::{repeated_phrases, PhraseOptions};
-use writemorebetter_style::{analyze_document, DocumentOptions, Span};
+use writemorebetter_style::reports::echoes::{self, EchoOptions, EchoReport};
+use writemorebetter_style::reports::repeated_phrases::{
+    self, RepeatedPhraseOptions, RepeatedPhraseReport,
+};
+use writemorebetter_style::{analyze_document, Document, DocumentOptions, Span};
+
+fn echoes(document: &Document, options: &EchoOptions) -> EchoReport {
+    echoes::report(document, options).expect("full document")
+}
+
+fn repeated_phrases(document: &Document, options: &RepeatedPhraseOptions) -> RepeatedPhraseReport {
+    repeated_phrases::report(document, options).expect("full document")
+}
 
 #[derive(Deserialize)]
 struct Input {
@@ -43,13 +53,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             let text = std::fs::read_to_string(text)?;
             let tokenizer = nlprule::Tokenizer::new(tokenizer)?;
-            let phrase_options = PhraseOptions::new();
+            let phrase_options = RepeatedPhraseOptions::new();
             let options =
                 DocumentOptions::new().with_hard_wrapped(rest.iter().any(|arg| arg == "--hard-wrapped"));
             let warmup = analyze_document(&tokenizer, &text, &options);
             drop(std::hint::black_box((
                 echoes(&warmup, &EchoOptions::new()),
-                repeated_phrases(&warmup, &PhraseOptions::new()),
+                repeated_phrases(&warmup, &RepeatedPhraseOptions::new()),
             )));
             let words = warmup.word_count;
             drop(warmup);
@@ -68,7 +78,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 phrases_ms.push(started.elapsed().as_secs_f64() * 1000.0);
                 (echo_count, density, phrase_count) = (
                     report.echoes.len(),
-                    report.density_per_1000,
+                    report.per_thousand_words,
                     phrases.phrases.len(),
                 );
             }
@@ -90,7 +100,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             writeln!(output)?;
         }
         [tokenizer, rest @ ..] if !tokenizer.starts_with("--") => {
-            let mut phrase_options = PhraseOptions::new();
+            let mut phrase_options = RepeatedPhraseOptions::new();
             let mut document_options = DocumentOptions::new();
             let mut flags = rest.iter();
             while let Some(flag) = flags.next() {
@@ -98,7 +108,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     "--hard-wrapped" => document_options = document_options.with_hard_wrapped(true),
                     "--min-content-words" => {
                         let count = flags.next().ok_or("missing count")?.parse()?;
-                        phrase_options = phrase_options.with_min_content_words(count);
+                        phrase_options = phrase_options.with_minimum_content_words(count);
                     }
                     _ => return Err(format!("unknown option {flag}").into()),
                 }

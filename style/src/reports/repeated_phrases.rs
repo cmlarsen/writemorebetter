@@ -3,46 +3,50 @@ use std::collections::{HashMap, HashSet};
 use serde::{Deserialize, Serialize};
 
 use super::echoes::{fold, Lexicon};
+use crate::error::StyleError;
 use crate::{Document, Span, Token};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(default, deny_unknown_fields)]
+pub(crate) const REPORT: &str = "repeatedPhrases";
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields, rename_all = "camelCase")]
 #[non_exhaustive]
-pub struct PhraseOptions {
-    #[serde(alias = "minLength")]
-    pub min_length: usize,
-    #[serde(alias = "maxLength")]
-    pub max_length: usize,
-    #[serde(alias = "minContentWords")]
-    pub min_content_words: usize,
+pub struct RepeatedPhraseOptions {
+    #[serde(alias = "minimum_length")]
+    pub minimum_length: usize,
+    #[serde(alias = "maximum_length")]
+    pub maximum_length: usize,
+    #[serde(alias = "minimum_content_words")]
+    pub minimum_content_words: usize,
 }
 
-impl Default for PhraseOptions {
+impl Default for RepeatedPhraseOptions {
     fn default() -> Self {
         Self {
-            min_length: 2,
-            max_length: 5,
-            min_content_words: 2,
+            minimum_length: 2,
+            maximum_length: 5,
+            minimum_content_words: 2,
         }
     }
 }
 
-impl PhraseOptions {
+impl RepeatedPhraseOptions {
     pub fn new() -> Self {
         Self::default()
     }
-    pub fn with_length(mut self, min_length: usize, max_length: usize) -> Self {
-        self.min_length = min_length;
-        self.max_length = max_length;
+    pub fn with_length(mut self, minimum_length: usize, maximum_length: usize) -> Self {
+        self.minimum_length = minimum_length;
+        self.maximum_length = maximum_length;
         self
     }
-    pub fn with_min_content_words(mut self, min_content_words: usize) -> Self {
-        self.min_content_words = min_content_words;
+    pub fn with_minimum_content_words(mut self, minimum_content_words: usize) -> Self {
+        self.minimum_content_words = minimum_content_words;
         self
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct RepeatedPhrase {
     pub keys: Vec<String>,
@@ -52,8 +56,9 @@ pub struct RepeatedPhrase {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 #[non_exhaustive]
-pub struct PhraseReport {
+pub struct RepeatedPhraseReport {
     pub phrases: Vec<RepeatedPhrase>,
 }
 
@@ -71,18 +76,20 @@ fn close_segment(units: &mut [Unit], segment: &mut usize) {
     *segment = end;
 }
 
-pub fn repeated_phrases(document: &Document, options: &PhraseOptions) -> PhraseReport {
+pub fn report(
+    document: &Document,
+    options: &RepeatedPhraseOptions,
+) -> Result<RepeatedPhraseReport, StyleError> {
+    if !document.token_details {
+        return Err(StyleError::needs_token_details(REPORT));
+    }
     let lexicon = Lexicon::new(document);
     let mut ids: HashMap<String, u32> = HashMap::new();
     let mut names = Vec::new();
     let mut keys = Vec::new();
     let mut units: Vec<Unit> = Vec::new();
     let mut segment = 0;
-    for sentence in document
-        .paragraphs
-        .iter()
-        .flat_map(|paragraph| &paragraph.sentences)
-    {
+    for sentence in document.sentences() {
         for token in sentence.tokens.iter().filter(|token| token.is_word) {
             if token.is_skipped {
                 close_segment(&mut units, &mut segment);
@@ -108,12 +115,12 @@ pub fn repeated_phrases(document: &Document, options: &PhraseOptions) -> PhraseR
         close_segment(&mut units, &mut segment);
     }
 
-    let min_length = options.min_length.max(1);
+    let min_length = options.minimum_length.max(1);
     let longest = (0..units.len())
         .map(|start| units[start].end - start)
         .max()
         .unwrap_or(0);
-    let max_length = options.max_length.min(longest);
+    let max_length = options.maximum_length.min(longest);
     let mut phrases: Vec<(usize, RepeatedPhrase)> = Vec::new();
     let mut longer: HashSet<usize> = HashSet::new();
     for length in (min_length..=max_length).rev() {
@@ -125,7 +132,7 @@ pub fn repeated_phrases(document: &Document, options: &PhraseOptions) -> PhraseR
                     .iter()
                     .filter(|unit| !unit.function)
                     .count()
-                    >= options.min_content_words.max(1)
+                    >= options.minimum_content_words.max(1)
             {
                 grams
                     .entry(&keys[start..end])
@@ -148,13 +155,10 @@ pub fn repeated_phrases(document: &Document, options: &PhraseOptions) -> PhraseR
             let spans: Vec<Span> = starts
                 .iter()
                 .map(|start| {
-                    let head = &units[*start].token.span;
-                    let tail = &units[start + length - 1].token.span;
-                    Span {
-                        byte: head.byte.start..tail.byte.end,
-                        char: head.char.start..tail.char.end,
-                        utf16: head.utf16.start..tail.utf16.end,
-                    }
+                    Span::covering(
+                        &units[*start].token.span,
+                        &units[start + length - 1].token.span,
+                    )
                 })
                 .collect();
             let labels = (0..length)
@@ -185,7 +189,7 @@ pub fn repeated_phrases(document: &Document, options: &PhraseOptions) -> PhraseR
             .then(right.keys.len().cmp(&left.keys.len()))
             .then(left_start.cmp(right_start))
     });
-    PhraseReport {
+    Ok(RepeatedPhraseReport {
         phrases: phrases.into_iter().map(|(_, phrase)| phrase).collect(),
-    }
+    })
 }
