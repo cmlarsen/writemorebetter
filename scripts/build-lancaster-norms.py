@@ -12,17 +12,18 @@ import sys
 SHA256 = '445d363fb1f9f3e50b86d88e2f46cdc9a22b5dd8a713ce4e7be2a773d57f43c5'
 COLUMNS = [('Visual', 'v'), ('Auditory', 'a'), ('Haptic', 'h'), ('Olfactory', 'o'),
            ('Gustatory', 'g'), ('Interoceptive', 'i')]
-MINIMUM_STRENGTH = 4.0
-MINIMUM_MARGIN = 1.0
+MINIMUM_STRENGTH = 3.5
+MINIMUM_MARGIN = 0.5
 
 HEADER = f"""\
 # Derived from the Lancaster Sensorimotor Norms (Lynott, Connell, Brysbaert, Brand & Carney, 2020),
 # https://osf.io/7emr6/, file Lancaster_sensorimotor_norms_for_39707_words.csv (sha256 {SHA256}),
 # licensed CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Changes: single words only,
 # lowercased; only words whose strongest perceptual modality rates at least {MINIMUM_STRENGTH} and leads the
-# next modality by at least {MINIMUM_MARGIN}; columns reduced to the dominant modality (v visual, a auditory,
-# h haptic, o olfactory, g gustatory, i interoceptive), its mean strength and its lead over the
-# second modality, both in tenths of a rating point (0-50). Built by scripts/build-lancaster-norms.py.
+# next modality by at least {MINIMUM_MARGIN}, not counting interoception as the next modality of a haptic
+# word; columns reduced to the dominant modality (v visual, a auditory, h haptic, o olfactory,
+# g gustatory, i interoceptive), its mean strength and that lead, both in tenths of a rating point
+# (0-50). Built by scripts/build-lancaster-norms.py.
 """
 
 
@@ -40,7 +41,8 @@ def main():
                 continue
             ranked = sorted(((float(row[f'{name}.mean']), letter) for name, letter in COLUMNS),
                             key=lambda item: -item[0])
-            (top, letter), (second, _) = ranked[0], ranked[1]
+            top, letter = ranked[0]
+            second = next(mean for mean, other in ranked[1:] if (letter, other) != ('h', 'i'))
             if top >= MINIMUM_STRENGTH and top - second >= MINIMUM_MARGIN:
                 rows[word] = (letter, round(top * 10), round((top - second) * 10))
     with open(out, 'w', encoding='utf-8', newline='\n') as handle:

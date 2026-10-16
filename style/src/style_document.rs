@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use nlprule::Tokenizer;
 use serde::de::DeserializeOwned;
@@ -21,6 +21,17 @@ fn options<T: DeserializeOwned + Default>(json: Option<&str>) -> Result<T, Style
         .transpose()
         .map(Option::unwrap_or_default)
         .map_err(StyleError::options)
+}
+
+fn parsed_table(text: &str) -> Result<Arc<diction::ConcretenessTable>, StyleError> {
+    static LAST: Mutex<Option<(String, Arc<diction::ConcretenessTable>)>> = Mutex::new(None);
+    let mut last = LAST.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    if let Some((_, table)) = last.as_ref().filter(|(cached, _)| cached == text) {
+        return Ok(table.clone());
+    }
+    let table = Arc::new(diction::ConcretenessTable::parse(text)?);
+    *last = Some((text.to_owned(), table.clone()));
+    Ok(table)
 }
 
 fn baseline<T: DeserializeOwned>(
@@ -135,10 +146,6 @@ impl StyleDocument {
     ) -> Result<diction::DictionReport, StyleError> {
         let options = options(json)?;
         let table = table.ok_or_else(|| StyleError::missing_table(diction::REPORT))?;
-        diction::report(
-            &self.document,
-            &diction::ConcretenessTable::parse(table)?,
-            &options,
-        )
+        diction::report(&self.document, &*parsed_table(table)?, &options)
     }
 }

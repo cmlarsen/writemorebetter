@@ -10,6 +10,7 @@ discuss
 discussion
 explain
 explanation
+feeling
 full
 joke
 language
@@ -18,14 +19,18 @@ little
 mention
 narrative
 opinion
+pose
 preach
 question
+read
 rumor
 side
 sort
 speech
 story
 swear
+tale
+tales
 telling
 together
 up

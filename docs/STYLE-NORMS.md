@@ -16,34 +16,45 @@ let diction = diction::report(&document, &table, &Default::default())?;
 the bindings are `sensoryBalance(optionsJSON)` / `diction(optionsJSON, tableText)` in WASM and
 `sensoryBalance(optionsJson:)` / `diction(table:optionsJson:)` in Swift. Both need token readings
 and reject compact documents. On the hard-wrapped moby150k document (native release build, 12-core
-Linux), sensory balance takes 14 ms after a one-time 1.4 ms table load, and diction 13 ms plus 13 ms
-to parse a 36,800-word TSV table, which every call does.
+Linux), sensory balance takes 15 ms after a one-time 3.0 ms table load, and diction 11 ms plus 11 ms
+to parse a 36,800-word TSV table the first time it is passed. `StyleDocument::diction` keeps the
+last parsed table and reuses it while callers pass the same text, so a lens refresh with an
+unchanged table skips the parse (the bindings still copy the text across the boundary).
 
 ## Word lookup
 
 Both reports look up every counted word (skipped names excluded) by lemma, using the document's
 readings. The POS family is chosen as echoes chooses it (chunk and `-ing` disambiguation, falling
-back to every content family) and the token's lemmas in that family are looked up; when exactly one
-is in the table it is used, when several are the one equal to the surface form is used, and when
-none is the lowercase surface form is tried. Tokens without readings use the surface form.
+back to every content family) and the token's lemmas in that family are looked up. When the family
+has a verb reading whose lemma differs from the surface form, only those lemmas are candidates: past
+*felt* is *feel*, not the verb *to felt*, and *saw* in a verb chunk is *see* (in a noun phrase,
+*the felt* and *the saw* keep their own lemmas). When exactly one candidate is in the table it is
+used, when several are the one equal to the surface form is used, and when none is the lowercase
+surface form is tried, unless it is itself the lemma of a rejected reading. Tokens without readings
+use the surface form. A hyphenated compound with no entry of its own (*red-hot*, *sweet-smelling*,
+*dance-music*) is looked up by its last part, then its first, and keeps the whole token's span.
 Excluded: echoes' function-word list, *say/ask/tell/talk/speak/reply/answer*, tokens whose readings
 are all proper nouns, and capitalized words that do not open a sentence (after an opening quote,
 bracket, dash or colon counts as opening). The last rule keeps character names such as *Daisy* out of
 the counts when no skip list is supplied; supply `skipNames` to also drop sentence-initial names.
 
-Because candidate lemmas are filtered by table membership, a smaller table can resolve a token that a
-larger one leaves ambiguous: shrinking the bundled table from the 3.5/0.5 floor to the shipped
-4.0/1.0 floor added 2.5% sense words on the public texts, mostly *-ing* forms (*holding*,
-*ticking*, *creaking*).
+Because ties between candidates are broken by table membership, a table that lacks a word's base
+lemma can still resolve the inflected form differently; verb forms no longer depend on it, which
+is why *holding*, *breathing* and *laughing* now resolve to *hold*, *breathe* and *laugh* whichever
+table is loaded.
 
 ## Sensory balance
 
 `style/data/norms/lancaster-perceptual.tsv` is derived from the Lancaster Sensorimotor Norms by
 `scripts/build-lancaster-norms.py`. Each line is `word`, dominant modality letter, its mean strength
-and its lead over the second-strongest modality, both in tenths (0–50). Only single lowercase words
-whose dominant modality rates ≥ 4.0 and leads by ≥ 1.0 ship: 4,492 words, 76,301 bytes (26,994
-gzipped). Options can tighten these thresholds; values below them select nothing more from the
-bundled table. `PerceptualNorms::from_tsv` loads a caller table in the same format.
+and its lead over the second-strongest modality, both in tenths (0–50). For a haptic word the lead
+is measured over the strongest modality other than interoception: touch and interoception co-rate
+on temperature and bodily-contact words (*cold* is haptic 4.11, interoceptive 3.53), so the plain
+lead dropped *cold*, *heat* and *warmth* although no other sense competes. Single lowercase words
+whose dominant modality rates ≥ 3.5 and leads by ≥ 0.5 ship: 11,450 words, 192,986 bytes (65,954
+with `gzip -9`). The table is looser than the default options so that options can loosen as well as
+tighten; values below 3.5/0.5 select nothing more. `PerceptualNorms::from_tsv` loads a caller table
+in the same format (a leading UTF-8 BOM is ignored).
 
 Modalities map Visual → `sight`, Auditory → `sound`, Haptic → `touch`, Olfactory → `smell`,
 Gustatory → `taste`, Interoceptive → `interoception`. Interoception in these norms includes named
@@ -51,10 +62,25 @@ emotions (*fear*, *joy*, *love*) as well as bodily states (*ache*, *tired*).
 
 A **sense word** is a looked-up word whose dominant modality has strength ≥ `minimumStrength` (4.0)
 and leads the next modality by ≥ `dominanceMargin` (1.0); sight words must lead by ≥ `sightMargin`
-(3.0). Lemmas in `style/data/norms/not-sensory.txt` (our own list of generic and speech-act words the
-norms rate perceptual, such as *way*, *up*, *story*, *explain*) never count, nor do *see* and *feel*
-followed by a clause or comparison (*that*, *if*, *how*, *like*, *as*, …) or *feel* followed by an
-adjective (*felt ashamed*).
+(3.0). Lemmas in `style/data/norms/not-sensory.txt` (our own list of generic, speech-act and
+reading words the norms rate perceptual, such as *way*, *up*, *story*, *tale*, *read*, *explain*,
+the emotion noun *feeling*, and *pose* from dialect *s’pose*) never count. Neither do these uses,
+judged on the next word or two when only whitespace separates them (a comma or other punctuation
+breaks the link; double spaces and hard-wrapped line breaks do not):
+
+- *see* and *feel* followed by a clause or comparison (*that*, *if*, *how*, *like*, *as*, …), and
+  *feel* followed by an adjective or past participle (*felt ashamed*, *felt obliged*);
+- *look* followed by *like*, *as if* or *as though*, and *sound* followed by *as if* or *as though*
+  (appearance, not sight);
+- *hear* followed by *that*, *of*, *about* or *from* (hearsay);
+- a flat adverb (an adjective spelling with its own adverb reading, such as *pretty* or *hard*)
+  used as an intensifier before an adjective or adverb outside a noun phrase (*pretty soon*,
+  *pretty cold*), or heading an adverb phrase not after *be* (*tried hard*; *the ground was hard*
+  still counts).
+
+With the default options *warm* (3.7), *crimson* (3.75) and *scarlet* (3.6) are in the table but
+below `minimumStrength`; `minimumStrength: 3.5` counts them, at the cost of generic words such as
+*turn*, *wake*, *forget* and *dream* (see the calibration below).
 
 The result has `senseWords` (span, lemma, modality, strength, mode), document `groups`, and the same
 `groups` per `chapters` and `scenes`: `words`, `senseWords` and all six `modalities` as
@@ -94,6 +120,35 @@ one-sided is Gatsby's dawn (77% sight: "grey-turning, gold-turning light… ghos
 sing among the blue leaves"), which is plainly multi-sensory, then Moby's New Bedford street (73%).
 85% therefore leaves no false flags on these texts while still flagging a scene that is all sight.
 
+#### Re-review (#281)
+
+An independent review sampled three other Standard Ebooks chapters: Crane, *The Red Badge of
+Courage* ch. 1 (`stephen-crane_the-red-badge-of-courage` `ebe3876c`), Wharton, *Ethan Frome* ch. 1
+(`edith-wharton_ethan-frome` `480cd944`) and Fitzgerald, *The Great Gatsby* ch. 1 (`fe47c8c0`).
+It found 24 useful, 22 noise and 14 wrong sense words in 60, mostly past *felt* read as the fabric,
+hearsay *heard*, *looked as if*, *read*, *tales*, *pretty soon* and *s’pose*. The fixes above were
+judged by one judge, blind to which build each span came from, on 60 spans drawn with seed 281 from
+each three-chapter set:
+
+| Sample (60 sense words) | Before #281 fixes | After |
+|---|---|---|
+| Crane, Wharton, Gatsby ch. 1 | 14 useful, 26 noise, 20 wrong | **23 / 30 / 7** |
+| Chopin, London, Gatsby ch. 8 | 21 / 31 / 8 | **24 / 28 / 8** |
+
+This judge is stricter than the earlier rows: filter verbs (*looked at*, *heard*, *saw her*),
+stage business (*laughed*, *nodded*) and epithets (*the tall soldier*) count as noise. A sample of 60
+moves with any change to the pool, so every changed span in the six chapters was also judged. Of
+963 sense words, 53 were dropped (42 wrong, 7 noise, 4 useful: *hurting*, *breathing quickly*,
+*flew*, *withered*) and 46 added (21 useful, such as *cold* surface, *colder*, *amber-tinted*,
+*snow-white*, *dance-music*; 17 noise; 8 wrong, such as *cold cash*, *cold judgment*, *eagle-eyed*,
+*half-muffled* as wrapped up). Recall on the opening three paragraphs of *Ethan Frome* (24
+hand-marked sensory words) rose from 13 to 15 (*cold* twice). *snow* (sight 4.10, touch 3.62) and
+*windy* (touch 3.76, sound 3.59) stay out: each splits two senses, so the margins reject them by
+design.
+
+Perception verbs still make up a large share: *look*, *see*, *hear* and *feel* are counted when
+literal, and editors usually treat them as filter words. Reporting them separately is a follow-up.
+
 Reproduce (prints shares, scenes with ≥ 20 sense words and, with `WMB_SENSE_WORDS=1`, every sense
 word in context):
 
@@ -117,13 +172,16 @@ in tests. `diction` needs a caller-supplied table; without one every entry point
   distributed text file).
 
 Words are trimmed and lowercased (curly apostrophes folded); ratings must be finite; an empty table
-is `invalidTable`. Defaults assume a 1 (abstract) – 5 (concrete) scale; set `abstractBelow` for other
-scales. The table is parsed on every call.
+is `invalidTable`. A leading UTF-8 BOM (common in tables saved from Excel) is ignored. Defaults
+assume a 1 (abstract) – 5 (concrete) scale; set `abstractBelow` for other scales.
 
 Each row of `sentences` has `span`, `mode`, `words`, `ratedWords` and `mean` (null below
-`minimumRatedWords`, 3), and `abstract` (mean < `abstractBelow`, 2.5). `paragraphs` give the same
+`minimumRatedWords`, 3), and `abstract` (mean < `abstractBelow`, 2.5, in a narration sentence that
+neither opens in nor contains speech; dialogue keeps its `mean` but is never `abstract`, because
+speech is naturally abstract and would otherwise dominate the highlights). `paragraphs` give the same
 mean over their sentences' rated words plus their range in `sentences`. `groups` hold sentence,
-rated-word and abstract-sentence counts and the mean over all rated words. `abstractRuns` are
+rated-word and abstract-sentence counts and the mean over all rated words (the dialogue group's
+abstract count is therefore 0). `abstractRuns` are
 `SentenceRun`s of at least `minimumRunSentences` (3) consecutive abstract **narration** sentences:
 sentences without a mean neither extend nor break a run, while a rated concrete sentence, a sentence
 opening in or containing speech, a scene break and the document end close it.
@@ -142,4 +200,19 @@ p10 3.39), so the 2.5 default flags nothing on it; the review used `abstractBelo
 The useful run is London's summary of Buck ("the dignity that comes of good living and universal
 respect… a sated aristocrat"); the noise run is Ishmael's comic rumination about sharing a bed with
 the harpooneer. Single abstract sentences are mostly correct but unremarkable, so runs are the flag.
+
+The #281 re-review sampled 20 abstract sentences from the Crane, Wharton and Gatsby ch. 1 chapters
+with the same proxy and threshold. Before the fixes, 9 of its 10 noise items were dialogue ("Let’s go
+back, Tom."). Same judge, seed 281, before and after:
+
+| Flag | Before #281 fixes | After |
+|---|---|---|
+| Abstract sentences in those chapters | 68 | 40 |
+| 20 sampled: useful / noise / wrong | 7 / 11 / 2 | **15 / 3 / 2** |
+| Abstract runs (all texts): useful / noise | 2 / 1 | 2 / 1 |
+
+The useful runs are London's Buck summary and Crane's "He tried to mathematically prove to himself
+that he would not run from a battle…" interior block (five sentences after the fixes: its opening
+"He lay in his bunk" now rates *lay* as the verb *lie*, which the proxy rates concrete). The
+remaining wrong items are concrete sentences with few rated words ("Four others stood waiting.").
 Real-world usefulness depends on the table Subplot supplies, which is an owner decision.

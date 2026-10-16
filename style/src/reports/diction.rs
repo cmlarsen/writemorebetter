@@ -36,7 +36,11 @@ impl ConcretenessTable {
     }
 
     pub fn parse(text: &str) -> Result<Self, StyleError> {
-        if text.trim_start().starts_with('{') {
+        if text
+            .trim_start_matches('\u{feff}')
+            .trim_start()
+            .starts_with('{')
+        {
             Self::from_json(text)
         } else {
             Self::from_tsv(text)
@@ -45,12 +49,14 @@ impl ConcretenessTable {
 
     pub fn from_json(text: &str) -> Result<Self, StyleError> {
         let ratings: HashMap<String, f64> =
-            serde_json::from_str(text).map_err(|error| StyleError::table(REPORT, error))?;
+            serde_json::from_str(text.trim_start_matches('\u{feff}'))
+                .map_err(|error| StyleError::table(REPORT, error))?;
         Self::new(ratings)
     }
 
     pub fn from_tsv(text: &str) -> Result<Self, StyleError> {
         let mut lines = text
+            .trim_start_matches('\u{feff}')
             .lines()
             .enumerate()
             .filter(|(_, line)| !line.trim().is_empty());
@@ -234,16 +240,18 @@ pub fn report(
         for sentence in &paragraph.sentences {
             let mode = document.sentence_mode(sentence);
             let (mut sum, mut rated) = (0.0, 0);
-            for (token, at_start) in norms::words(sentence) {
+            for word in norms::words(sentence) {
                 if let Some(norms::Found { value: rating, .. }) =
-                    norms::lookup(token, at_start, |word| table.ratings.get(word))
+                    norms::lookup(word.token, word.at_start, |word| table.ratings.get(word))
                 {
                     sum += rating;
                     rated += 1;
                 }
             }
             let sentence_mean = mean(sum, rated, minimum);
-            let is_abstract = sentence_mean.is_some_and(|m| m < options.abstract_below);
+            let narration = mode == Mode::Narration && !document.sentence_has_speech(sentence);
+            let is_abstract =
+                narration && sentence_mean.is_some_and(|m| m < options.abstract_below);
             for group in totals.all_and_mode_mut(mode) {
                 group.0 += sum;
                 group.1 += rated;
@@ -261,7 +269,7 @@ pub fn report(
                 is_abstract,
             });
             let index = sentences.len() - 1;
-            if mode == Mode::Dialogue || document.sentence_has_speech(sentence) {
+            if !narration {
                 close(&mut run, &sentences, minimum_run, &mut runs);
             } else if is_abstract {
                 run.push(index);

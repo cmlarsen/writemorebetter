@@ -43,9 +43,18 @@ Licenses checked 2026-10-15 (recorded in #246, below). #250 vendors one derived 
   (commit `d8db5afa`, added 2023-01-03), whose size matches OSF's published listing for `48wsc`.
   `scripts/build-lancaster-norms.py` refuses any input with a different sha256. Re-verify against
   OSF's own download when it is reachable.
+- **OSF recheck (2026-10-16, #281).** OSF was still unreachable from the build machine:
+  `https://osf.io/download/48wsc/` timed out after 90 s and `https://api.osf.io/v2/files/48wsc/`
+  returned HTTP 500, so the pinned sha256 could not be compared with OSF's own copy. The #281 review
+  corroborated the mirror independently: concepticon/norare-data's `Lynott-2020-Sensorimotor.tsv`,
+  downloaded by that project from `https://osf.io/48wsc/download`, agrees on all six perceptual
+  means for every one of the 2,708 shared words, and a third-party listing of OSF's files gives the
+  same 17,196,336-byte size. The BergelsonLab copy fetched again for #281 still has the pinned sha256.
 - **Changes** (recorded in the file header and NOTICE): single words only, lowercased; only words
-  whose strongest perceptual modality rates ≥ 4.0 and leads the next by ≥ 1.0; columns reduced to
-  that modality, its mean strength and its lead, in tenths. 4,492 of 39,707 entries; 76,301 bytes.
+  whose strongest perceptual modality rates ≥ 3.5 and leads the next by ≥ 0.5, not counting
+  interoception as the next modality of a haptic word; columns reduced to that modality, its mean
+  strength and that lead, in tenths. 11,450 of 39,707 entries; 192,986 bytes. The build is
+  byte-reproducible from the pinned CSV.
   The raw CSV is not committed.
 - **Concreteness** stays caller-supplied. Tests use invented ratings only, and the usefulness review
   used a proxy derived locally from the Lancaster norms, never Brysbaert's ratings.

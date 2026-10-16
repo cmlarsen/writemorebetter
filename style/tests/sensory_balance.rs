@@ -244,6 +244,8 @@ fn bundled_table_loads_and_validation_rejects_bad_input() {
         sensory_balance::report(&compact, &norms(), &options()),
         Err(StyleError::NeedsTokenDetails { .. })
     ));
+    let bom = PerceptualNorms::from_tsv("\u{feff}lamp\tv\t46\t32\n").unwrap();
+    assert_eq!(bom.get("lamp").unwrap().modality, SensoryModality::Sight);
     for bad in [
         "lamp\tv\t46",
         "lamp\tq\t46\t32",
@@ -255,4 +257,128 @@ fn bundled_table_loads_and_validation_rejects_bad_input() {
             Err(StyleError::InvalidTable { .. })
         ));
     }
+}
+
+fn bundled(text: &str, options: &SensoryBalanceOptions) -> Vec<(String, String, SensoryModality)> {
+    let report =
+        sensory_balance::report(&document(text), PerceptualNorms::bundled(), options).unwrap();
+    report
+        .sense_words
+        .iter()
+        .map(|word| {
+            (
+                text[word.span.byte.clone()].to_owned(),
+                word.lemma.clone(),
+                word.modality,
+            )
+        })
+        .collect()
+}
+
+fn surfaces(found: &[(String, String, SensoryModality)]) -> Vec<&str> {
+    found
+        .iter()
+        .map(|(surface, _, _)| surface.as_str())
+        .collect()
+}
+
+#[test]
+fn bundled_past_tense_verbs_resolve_to_the_verb_not_the_noun() {
+    use SensoryModality::*;
+    let text = "I felt ashamed. I felt like a thief. He felt obliged to stay. She felt the bark. \
+                The felt was green. He saw the ship. They heard the bells. She rose and left.";
+    let found = bundled(text, &options());
+    let lemmas: Vec<_> = found
+        .iter()
+        .map(|(surface, lemma, modality)| (surface.as_str(), lemma.as_str(), *modality))
+        .collect();
+    assert_eq!(
+        lemmas,
+        [
+            ("felt", "feel", Touch),
+            ("bark", "bark", Sound),
+            ("felt", "felt", Touch),
+            ("green", "green", Sight),
+            ("saw", "see", Sight),
+            ("heard", "hear", Sound),
+            ("bells", "bell", Sound),
+        ]
+    );
+}
+
+#[test]
+fn bundled_figurative_rules_skip_whitespace_but_not_punctuation() {
+    let text =
+        "I feel  ashamed. I see  that it matters. Instantly I felt  a shock. I felt, ashamed.";
+    assert_eq!(surfaces(&bundled(text, &options())), ["felt", "felt"]);
+    let wrapped = "Then I felt\r\nashamed of it, and I heard\r\nthat she left.\r\n";
+    let report = sensory_balance::report(
+        &analyze_document(
+            tokenizer(),
+            wrapped,
+            &DocumentOptions::new().with_hard_wrapped(true),
+        ),
+        PerceptualNorms::bundled(),
+        &options(),
+    )
+    .unwrap();
+    assert!(report.sense_words.is_empty());
+}
+
+#[test]
+fn bundled_appearance_hearsay_reading_and_flat_adverbs_are_not_imagery() {
+    let text = "It looked as if it would rain. It looked as though he slept. She looked like her \
+                mother. It sounded as if they wept. He heard that the war was over. They heard of \
+                it. She read the letter. They told tales. Pretty soon we left. It was pretty cold. \
+                He tried hard. I s’pose so.";
+    assert_eq!(surfaces(&bundled(text, &options())), ["cold"]);
+    let literal = "She looked at the red sky. He heard the bells. A pretty girl smiled. \
+                   The ground was hard.";
+    assert_eq!(
+        surfaces(&bundled(literal, &options())),
+        ["looked", "red", "sky", "heard", "bells", "pretty", "hard"]
+    );
+}
+
+#[test]
+fn bundled_compounds_fall_back_to_their_parts_with_the_whole_span() {
+    let text = "It was red-hot and ice-cold, sweet-smelling, with dance-music and well-known men.";
+    let found = bundled(text, &options());
+    assert_eq!(
+        found
+            .iter()
+            .map(|(surface, lemma, _)| (surface.as_str(), lemma.as_str()))
+            .collect::<Vec<_>>(),
+        [
+            ("red-hot", "hot"),
+            ("ice-cold", "cold"),
+            ("sweet-smelling", "smelling"),
+            ("dance-music", "music"),
+        ]
+    );
+}
+
+#[test]
+fn bundled_table_keeps_temperature_and_colour_words_for_looser_options() {
+    use SensoryModality::*;
+    let bundled_norms = PerceptualNorms::bundled();
+    for (word, modality) in [
+        ("cold", Touch),
+        ("warm", Touch),
+        ("heat", Touch),
+        ("crimson", Sight),
+        ("scarlet", Sight),
+    ] {
+        assert_eq!(
+            bundled_norms.get(word).unwrap().modality,
+            modality,
+            "{word}"
+        );
+    }
+    let text = "The cold wind. A warm crimson glow.";
+    assert_eq!(surfaces(&bundled(text, &options())), ["cold", "glow"]);
+    assert_eq!(
+        surfaces(&bundled(text, &options().with_minimum_strength(3.5))),
+        ["cold", "warm", "crimson", "glow"]
+    );
 }

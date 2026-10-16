@@ -76,7 +76,7 @@ fn runs_need_consecutive_abstract_narration_and_break_at_concrete_dialogue_and_s
         "The lamp lit the stone by the river.",
         abstract_sentence,
         abstract_sentence,
-        "“Hope is truth,” she said.",
+        "“The truth is an idea of freedom,” she said.",
         abstract_sentence,
         abstract_sentence,
     ]
@@ -103,6 +103,10 @@ fn runs_need_consecutive_abstract_narration_and_break_at_concrete_dialogue_and_s
         .collect();
     assert_eq!(runs, [0..4, 5..7, 8..10, 10..12]);
     assert_eq!(two.sentences[7].mode, writemorebetter_style::Mode::Dialogue);
+    assert!(two.sentences[7].mean.is_some_and(|mean| mean < 2.5));
+    assert!(!two.sentences[7].is_abstract);
+    assert_eq!(two.groups.dialogue.abstract_sentences, 0);
+    assert_eq!(two.groups.all.abstract_sentences, 9);
 }
 
 #[test]
@@ -117,6 +121,23 @@ fn tsv_tables_accept_two_columns_or_a_brysbaert_style_header() {
     assert_eq!(header.get("lamp"), Some(4.7));
     assert_eq!(header.get("idea"), Some(1.5));
     let named = ConcretenessTable::parse("word\tconcreteness\nlamp\t3\n").unwrap();
+    for bom in [
+        "\u{feff}Word\tConc.M\nlamp\t4.7\n",
+        "\u{feff}lamp\t4.7\n",
+        "\u{feff}{\"lamp\": 4.7}",
+    ] {
+        assert_eq!(
+            ConcretenessTable::parse(bom).unwrap().get("lamp"),
+            Some(4.7),
+            "{bom:?}"
+        );
+    }
+    assert_eq!(
+        ConcretenessTable::from_json("\u{feff}{\"lamp\": 4.7}")
+            .unwrap()
+            .len(),
+        1
+    );
     assert_eq!(named.get("lamp"), Some(3.0));
     assert_eq!(table().get("velvet"), Some(4.2));
     for bad in [
@@ -166,6 +187,21 @@ fn lemmas_names_and_unicode_spans() {
 }
 
 #[test]
+fn past_tense_verbs_are_rated_by_the_verb_lemma() {
+    let table =
+        ConcretenessTable::parse(r#"{"feel": 2.0, "felt": 4.9, "see": 3.0, "saw": 4.8}"#).unwrap();
+    let text = "I felt it. He saw it. The felt was there. The saw was there.";
+    let r = diction::report(
+        &document(text),
+        &table,
+        &DictionOptions::new().with_minimum_rated_words(1),
+    )
+    .unwrap();
+    let means: Vec<_> = r.sentences.iter().map(|s| s.mean.unwrap()).collect();
+    assert_eq!(means, [2.0, 3.0, 4.9, 4.8]);
+}
+
+#[test]
 fn missing_and_invalid_tables_are_errors_not_empty_reports() {
     let style = StyleDocument::new(
         Arc::new(Tokenizer::new("../storage/en_tokenizer.bin").unwrap()),
@@ -198,6 +234,16 @@ fn missing_and_invalid_tables_are_errors_not_empty_reports() {
         .diction(Some(r#"{"minimum_rated_words":1}"#), Some(INVENTED))
         .unwrap();
     assert!(report.sentences[0].is_abstract);
+    for (table, abstract_sentence) in [
+        (r#"{"hope": 4.5, "idea": 4.5}"#, false),
+        (INVENTED, true),
+        (INVENTED, true),
+    ] {
+        let again = style
+            .diction(Some(r#"{"minimumRatedWords":1}"#), Some(table))
+            .unwrap();
+        assert_eq!(again.sentences[0].is_abstract, abstract_sentence);
+    }
     let compact = analyze_document(
         tokenizer(),
         "Hope.",

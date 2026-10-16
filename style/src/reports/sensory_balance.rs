@@ -4,6 +4,7 @@ use std::sync::OnceLock;
 use serde::{Deserialize, Serialize};
 
 use crate::error::StyleError;
+use crate::reports::echoes::fold;
 use crate::reports::{norms, word_split, Split};
 use crate::{Document, Mode, Span, Token};
 
@@ -59,7 +60,7 @@ impl PerceptualNorms {
 
     pub fn from_tsv(text: &str) -> Result<Self, StyleError> {
         let mut words = HashMap::new();
-        for (number, line) in text.lines().enumerate() {
+        for (number, line) in text.trim_start_matches('\u{feff}').lines().enumerate() {
             if line.starts_with('#') || line.trim().is_empty() {
                 continue;
             }
@@ -94,7 +95,7 @@ impl PerceptualNorms {
                     .ok_or_else(invalid)
             };
             words.insert(
-                crate::reports::echoes::fold(word),
+                fold(word),
                 PerceptualNorm {
                     modality,
                     strength: tenths(strength)?,
@@ -314,17 +315,44 @@ fn classify(norm: &PerceptualNorm, options: &SensoryBalanceOptions) -> bool {
     norm.strength >= options.minimum_strength && norm.margin >= margin
 }
 
-fn figurative(lemma: &str, next: Option<&Token>) -> bool {
-    matches!(lemma, "see" | "feel")
-        && next.is_some_and(|next| {
-            let word = crate::reports::echoes::fold(&next.text);
+fn reads(token: &Token, tag: &str) -> bool {
+    token.readings.iter().any(|r| r.pos.starts_with(tag))
+}
+
+fn figurative(lemma: &str, next: Option<&Token>, after_next: Option<&Token>) -> bool {
+    let Some(next) = next else {
+        return false;
+    };
+    let word = fold(&next.text);
+    let as_if = word == "as"
+        && after_next.is_some_and(|after| matches!(fold(&after.text).as_str(), "if" | "though"));
+    match lemma {
+        "see" | "feel" => {
             matches!(
                 word.as_str(),
                 "that" | "if" | "whether" | "how" | "why" | "what" | "like" | "as"
             ) || (lemma == "feel"
-                && next.readings.iter().any(|r| r.pos.starts_with("JJ"))
-                && !next.readings.iter().any(|r| r.pos.starts_with("NN")))
-        })
+                && (reads(next, "JJ") || reads(next, "VBN"))
+                && !reads(next, "NN"))
+        }
+        "look" => word == "like" || as_if,
+        "sound" => as_if,
+        "hear" => matches!(word.as_str(), "that" | "of" | "about" | "from"),
+        _ => false,
+    }
+}
+
+fn flat_adverb(token: &Token, previous: Option<&Token>, next: Option<&Token>) -> bool {
+    let surface = fold(&token.text);
+    let flat = reads(token, "JJ")
+        && token
+            .readings
+            .iter()
+            .any(|r| r.pos.starts_with("RB") && fold(&r.lemma) == surface);
+    let in_chunk = |kind: &str| token.chunks.iter().any(|chunk| chunk.contains(kind));
+    flat && ((!in_chunk("-NP") && next.is_some_and(|next| reads(next, "JJ") || reads(next, "RB")))
+        || (in_chunk("ADVP")
+            && !previous.is_some_and(|previous| previous.readings.iter().any(|r| r.lemma == "be"))))
 }
 
 pub fn report(
@@ -360,40 +388,52 @@ pub fn report(
             });
             unit.last = paragraph.span.clone();
         }
-        let words: Vec<_> = paragraph.sentences.iter().flat_map(norms::words).collect();
-        for (index, &(token, at_start)) in words.iter().enumerate() {
-            let mode = document.mode_at(token.span.byte.start);
-            let next = words
-                .get(index + 1)
-                .map(|(next, _)| *next)
-                .filter(|next| next.span.byte.start <= token.span.byte.end + 1);
-            let sense = norms::lookup(token, at_start, |word| norms_table.words.get(word))
-                .filter(|found| {
-                    !not_sensory(&found.lemma)
-                        && !figurative(&found.lemma, next)
-                        && classify(found.value, options)
-                })
-                .map(|found| (found.lemma, (found.value.modality, found.value.strength)));
-            for tally in [
-                &mut total,
-                &mut chapter.as_mut().unwrap().tally,
-                &mut scene.as_mut().unwrap().tally,
-            ] {
-                for group in tally.all_and_mode_mut(mode) {
-                    group.words += 1;
-                    if let Some((_, (modality, _))) = &sense {
-                        group.counts[*modality as usize] += 1;
+        for sentence in &paragraph.sentences {
+            let words: Vec<_> = norms::words(sentence).collect();
+            let joined = |index: usize| {
+                words
+                    .get(index)
+                    .filter(|word| word.follows_word)
+                    .map(|word| word.token)
+            };
+            for (index, word) in words.iter().enumerate() {
+                let token = word.token;
+                let mode = document.mode_at(token.span.byte.start);
+                let previous = index
+                    .checked_sub(1)
+                    .filter(|_| word.follows_word)
+                    .map(|previous| words[previous].token);
+                let next = joined(index + 1);
+                let after_next = next.and(joined(index + 2));
+                let sense = norms::lookup(token, word.at_start, |word| norms_table.words.get(word))
+                    .filter(|found| {
+                        !not_sensory(&found.lemma)
+                            && !figurative(&found.lemma, next, after_next)
+                            && !flat_adverb(token, previous, next)
+                            && classify(found.value, options)
+                    })
+                    .map(|found| (found.lemma, (found.value.modality, found.value.strength)));
+                for tally in [
+                    &mut total,
+                    &mut chapter.as_mut().unwrap().tally,
+                    &mut scene.as_mut().unwrap().tally,
+                ] {
+                    for group in tally.all_and_mode_mut(mode) {
+                        group.words += 1;
+                        if let Some((_, (modality, _))) = &sense {
+                            group.counts[*modality as usize] += 1;
+                        }
                     }
                 }
-            }
-            if let Some((lemma, (modality, strength))) = sense {
-                sense_words.push(SenseWord {
-                    span: token.span.clone(),
-                    lemma,
-                    modality,
-                    strength,
-                    mode,
-                });
+                if let Some((lemma, (modality, strength))) = sense {
+                    sense_words.push(SenseWord {
+                        span: token.span.clone(),
+                        lemma,
+                        modality,
+                        strength,
+                        mode,
+                    });
+                }
             }
         }
     }
