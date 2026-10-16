@@ -24,6 +24,42 @@ JSONL objects with `file` and `text`, and emits one JSONL object per detected sp
 `utf16`, and `pattern: "dialogue"`. This mode needs no tokenizer. `--output PATH` saves tier 1's
 aggregate JSON. See [document measurements](../../docs/STYLE-DOCUMENT-BENCHMARKS.md) for native timing.
 
+## Usefulness revision (2026-10-16)
+
+The owner decisions on #241 change report defaults and scope. The source pins, gold labels and
+labeler provenance remain frozen. Rebaselines record the intended changes rather than claiming
+better editorial precision from synthetic injections:
+
+- Echoes: precision remains 1.0 and all far controls remain zero; dev recall is 59/60 and test 61/62.
+  Honorific suppression removes *ladies/Ladies* in dev and say/ask suppression removes
+  *asking/Asking* in test. Natural-copy recall is 25/26 in each split.
+- Repeated phrases: precision remains 1.0; recall is 38/40 dev and 36/40 test. The six removed
+  two-use injections are 326–502 counted words apart, beyond the new 300-word proximity band.
+- Dialogue: tag position, verb class and adverb floors are unchanged. Two newly detected standalone
+  attribution beats (*I nodded*, *She smiled*) are missing from the frozen paragraph-edge labels.
+  Beat precision becomes 9/13 (69.23%), recall stays 9/10, and F1 becomes 78.26%; the two older false
+  beat predictions remain diagnostic. The reason is also stored in `dialogue-tags-baseline.json`.
+- Sentences: the independent long-sentence reference now implements top 3 plus above-own-p95,
+  retaining the 40-word candidate floor. All labeled and injected F1 floors remain unchanged.
+  The paragraph-mode check excludes documented heading/citation/marker lines and retains its
+  swapped-mode regression test. Updated public distribution measurements exclude headings.
+- Synthetic tier 3 self-tests now expect omitted headings and no flag on an eight-exchange run.
+  No real-corpus calibration was run for this revision. Bundled author bands remain empty and
+  never highlight until the owner supplies chapter-window values.
+
+`usefulness-counts.json` records per-report before/after counts for all six `bench/public` texts,
+against main `42f658d`. Reproduce the after counts with:
+
+```sh
+cargo run -p writemorebetter-style --release --example usefulness -- \
+  bench/public/story1.txt bench/public/story2.txt bench/public/story3.txt \
+  bench/public/story4.txt bench/public/story5.txt bench/public/moby150k.txt
+```
+
+Echoes are explicitly opted in by this counter; the default combined call now omits them. The
+counter uses line mode for stories, hard-wrapped mode for Moby, and no skipped names. These are
+workload counts, not editorial judgments.
+
 ## Download provenance and splits
 
 `sources.json` is the lockfile: every download has a tag or commit, URL, SHA-256 and original license

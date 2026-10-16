@@ -1,15 +1,16 @@
 {
-  "source": "bench/style/echoes.py on pinned Standard Ebooks Pride and Prejudice and Moby-Dick passages; English 6.6 tokenizer; measured 2026-10-15 after the PR #265 review (union-find keys, per-spelling function words, natural-word and homograph injections, dev/test split)",
+  "source": "bench/style/echoes.py on pinned Standard Ebooks Pride and Prejudice and Moby-Dick passages; English 6.6 tokenizer; usefulness revision 2026-10-16",
+  "rebaselineReasons": ["Honorific suppression intentionally drops ladies/Ladies in dev; say/ask suppression drops asking/Asking in test. These affect both echo and natural_injections scores.", "The frequency/proximity rule removes two dev and four test two-use phrase injections, measured 326-502 counted words apart. Precision and all far controls remain strict."],
   "floors": {
     "dev": {
-      "echo": {"precision": 1.0, "recall": 1.0, "true_positive": 60},
-      "natural_injections": {"precision": 1.0, "recall": 1.0, "true_positive": 26},
-      "repeated_phrase": {"precision": 1.0, "recall": 1.0, "true_positive": 40}
+      "echo": {"precision": 1.0, "recall": 0.9833333333333333, "true_positive": 59},
+      "natural_injections": {"precision": 1.0, "recall": 0.9615384615384616, "true_positive": 25},
+      "repeated_phrase": {"precision": 1.0, "recall": 0.95, "true_positive": 38}
     },
     "test": {
-      "echo": {"precision": 1.0, "recall": 1.0, "true_positive": 62},
-      "natural_injections": {"precision": 1.0, "recall": 1.0, "true_positive": 26},
-      "repeated_phrase": {"precision": 1.0, "recall": 1.0, "true_positive": 40}
+      "echo": {"precision": 1.0, "recall": 0.9838709677419355, "true_positive": 61},
+      "natural_injections": {"precision": 1.0, "recall": 0.9615384615384616, "true_positive": 25},
+      "repeated_phrase": {"precision": 1.0, "recall": 0.9, "true_positive": 36}
     }
   }
 }

@@ -88,10 +88,10 @@ let json = run_json(&tokenizer, &resources, text, Some(r#"{"echoes":{}}"#), &Doc
 | Report | Module and entry point | Options | Baseline | Needs readings |
 |---|---|---|---|---|
 | echoes | `echoes::report(&Document, &EchoOptions)` | `window`, `matchForms` | none | yes |
-| repeated phrases | `repeated_phrases::report(&Document, &RepeatedPhraseOptions)` | `minimumLength`, `maximumLength`, `minimumContentWords` | none | yes |
+| repeated phrases | `repeated_phrases::report(&Document, &RepeatedPhraseOptions)` | `minimumLength`, `maximumLength`, `minimumContentWords`, `minimumOccurrences`, `nearbyWords` | none | yes |
 | clichés | `cliches::report(&Document, &ClicheList, &ClicheOptions)` | none yet | none | no |
 | dialogue tags | `dialogue_tags::report(&Document, &DialogueTagOptions, Option<&DialogueTagBaseline>)` | `maxUntaggedExchanges`, `minimumTags` | caller only | yes |
-| sentence length | `sentence_length::report(&Document, &SentenceLengthOptions, Option<&SentenceLengthBaseline>)` | `minimumSentences`, `longSentenceWords` | bundled | no |
+| sentence length | `sentence_length::report(&Document, &SentenceLengthOptions, Option<&SentenceLengthBaseline>)` | `minimumSentences`, `longSentenceWords`, `longestPerChapter` | bundled | no |
 | sentence starts | `sentence_starts::report(&Document, &SentenceStartsOptions, Option<&SentenceStartsBaseline>)` | `minimumSentences` | bundled | yes |
 
 Every entry point returns `Result<_, StyleError>`. Type names are prefixed with their report
@@ -102,8 +102,8 @@ built with `new()` plus `with_*` builders.
 
 ### Request
 
-`StyleRequest::new()` (and an absent `requestJson`) selects every report with default options and
-bundled baselines. A JSON request selects exactly the non-null report members it names:
+`StyleRequest::new()` (and an absent `requestJson`) selects every report except echoes, with default
+options and bundled baselines. Echoes are an opt-in nearby-repeat lens: select `{"echoes":{}}` explicitly. A JSON request selects exactly the non-null report members it names:
 
 ```json
 {"echoes": {}, "repeatedPhrases": {"minimumContentWords": 1}, "cliches": {}, "dialogueTags": {"minimumTags": 50},
@@ -172,10 +172,11 @@ sentences by index into it:
 
 ```json
 {"tags": [{"span": {"start": 8, "end": 24}, "clause": {"start": 8, "end": 25}, "verb": {"start": 13, "end": 17}, "verbText": "said",
-           "lemma": "say", "class": "speech", "position": "after", "adverb": {"start": 18, "end": 24}, "quotes": [{"start": 0, "end": 7}]}],
- "beats": [], "untaggedRuns": [], "otherVerbs": [], "dialogueSpans": 1, "speechSpans": 1, "taggedSpans": 1, "exchanges": 1,
- "untaggedExchanges": 0, "saidAsked": {"count": 1, "percent": 100.0, "difference": null},
- "withAdverb": {"count": 1, "percent": 100.0, "difference": null}, "nonSpeech": {"count": 0, "percent": 0.0, "difference": null}}
+           "lemma": "say", "class": "speech", "showy": false, "position": "after", "adverb": {"start": 18, "end": 24}, "quotes": [{"start": 0, "end": 7}]}],
+ "beats": [], "untaggedRuns": [], "otherVerbs": [], "neutralVerbs": [{"lemma":"say","class":"speech","count":1}],
+ "showyVerbs": [], "lowConfidence": true, "dialogueSpans": 1, "speechSpans": 1, "taggedSpans": 1, "exchanges": 1,
+ "untaggedExchanges": 0, "saidAsked": {"count": 1, "percent": 100.0, "difference": null, "highlighted": false},
+ "withAdverb": {"count": 1, "percent": 100.0, "difference": null, "highlighted": false}, "nonSpeech": {"count": 0, "percent": 0.0, "difference": null, "highlighted": false}}
 ```
 
 Beats are `{"span", "quotes"}`, untagged runs `{"span", "quotes", "exchanges"}` and other verbs
@@ -186,7 +187,7 @@ Beats are `{"span", "quotes"}`, untagged runs `{"span", "quotes", "exchanges"}` 
 
 ```json
 {"groups": {"all": {"sentences": 4, "zeroWordSentences": 0, "histogram": [{"words": 3, "sentences": 1}, {"words": 4, "sentences": 2}],
-  "mean": 4.75, "meanDifference": -8.150118525896554, "percentiles": [{"percentile": 5, "value": 3.15, "difference": 1.4415492957746479}],
+  "lowConfidence": true, "mean": 4.75, "meanDifference": -8.150118525896554, "meanHighlighted": false, "percentiles": [{"percentile": 5, "value": 3.15, "difference": 1.4415492957746479, "highlighted": false}],
   "longSentences": [], "monotonyRuns": []}, "narration": {}, "dialogue": {}}}
 ```
 
@@ -197,9 +198,9 @@ Beats are `{"span", "quotes"}`, untagged runs `{"span", "quotes", "exchanges"}` 
 ```json
 {"starts": [{"sentence": 0, "opener": {"start": 1, "end": 5}, "word": "fine", "category": "adverb", "ambiguous": true,
              "universalCandidates": ["ADJ", "ADV", "NOUN", "VERB"]}],
- "groups": {"all": {"sentences": 4, "excludedSentences": 0, "ambiguousStarts": 1, "unknownStarts": 0,
-  "categories": [{"category": "subject", "count": 3, "percent": 75.0, "difference": null}],
-  "universal": [{"tag": "DET", "weight": 1.0, "percent": 25.0, "difference": 12.9}], "sameWordRuns": []}, "narration": {}, "dialogue": {}}}
+ "groups": {"all": {"sentences": 4, "lowConfidence": true, "excludedSentences": 0, "ambiguousStarts": 1, "unknownStarts": 0,
+  "categories": [{"category": "subject", "count": 3, "percent": 75.0, "difference": null, "highlighted": false}],
+  "universal": [{"tag": "DET", "weight": 1.0, "percent": 25.0, "difference": 12.9, "highlighted": false}], "sameWordRuns": []}, "narration": {}, "dialogue": {}}}
 ```
 
 ### Conventions
@@ -211,7 +212,10 @@ Beats are `{"span", "quotes"}`, untagged runs `{"span", "quotes", "exchanges"}` 
 - Aggregates split by mode use `Split<T>` (`all`, `narration`, `dialogue`), with one mode definition
   for every report ([STYLE-DOCUMENT.md](STYLE-DOCUMENT.md#narration-and-dialogue)).
 - Shares are percentages, null below the report's `minimum*` sample, with `difference` in
-  percentage points against the baseline (null without one). Rates are `perThousandWords`.
+  percentage points against the baseline (null without one). A difference is descriptive;
+  only `highlighted` (or length's `meanHighlighted`) warrants a baseline highlight, strictly outside
+  the author's p5–p95 band for that mode. Missing bands never highlight. `lowConfidence` is true below
+  200 eligible sentences or 50 tags; statistics display from 50 sentences or 15 tags. Rates are `perThousandWords`.
 - Maps are arrays of records (`histogram`, `percentiles`, `categories`, `universal`), so Swift
   `Codable` and TypeScript types need no string-keyed dictionaries; counts are integers except the
   fractional universal `weight`.
@@ -219,6 +223,32 @@ Beats are `{"span", "quotes"}`, untagged runs `{"span", "quotes", "exchanges"}` 
   document); analyze the unit the UI shows.
 
 ## Baselines
+
+### Author percentile bands
+
+Sentence baselines retain their existing top-level blended reference values for `all`. Optional
+`narration` and `dialogue` reference objects use the same measure fields (length: `mean`,
+`percentiles`; starts: `categoryPercent`, `universalPercent`). They are never filled from the blended
+reference. The root `bands` is split into `all`, `narration` and `dialogue`; each measure maps to
+`PercentileBand { p5, p95 }`. For example:
+
+```json
+{"mean":13,"narration":{"mean":17},"dialogue":{"mean":9},
+ "bands":{"all":{"mean":{"p5":9,"p95":19}},
+          "narration":{"mean":{"p5":12,"p95":24}},
+          "dialogue":{"mean":{"p5":5,"p95":14}}}}
+```
+
+These illustrative values are synthetic, not published calibration. Length's `bands.*.percentiles`
+maps sentence percentile keys (`5`, `25`, `50`, `75`, `95`) to author bands. Starts' band maps use the
+same categories and universal tags as its reference values. Missing modes/measures are allowed;
+missing bands never highlight. Bounds must be finite, nonnegative and ordered, and share bounds
+cannot exceed 100. Equality at either boundary does not highlight.
+
+Bundled files expose all three band containers with null/empty placeholders. The owner will replace
+them with author-weighted chapter-window calibration values; the old pooled author mean percentiles
+are not silently substituted. Synthetic regression tests exercise both sides, boundary equality,
+mode isolation and invalid bounds. Confidence flags are separate from these population comparisons.
 
 A baseline is the expected value in published fiction: category shares, rates per 1,000 words, or word
 frequencies. **Every report with a baseline takes it as a separate input**, so a caller can swap in a
@@ -292,6 +322,11 @@ Build rules for any baseline:
 | 2026-10-15 | Vendor phrase lists only when the list's own origin is permissive (#246): no-cliches, retext-redundant-acronyms, and proselint's `hell.py`/`ras_syndrome.py`; drop proselint's GNU diction, After the Deadline, Garner, Wallace and Nordquist lists | proselint's BSD relicense does not clear the original authors' rights; see [STYLE-DATA-LICENSES.md](STYLE-DATA-LICENSES.md) |
 | 2026-10-15 | Report clichés in dialogue separately, not suppressed (#246) | Clichés in dialogue are often deliberate characterization; the caller decides; see [STYLE-CLICHES.md](STYLE-CLICHES.md) |
 | 2026-10-15 | Brysbaert concreteness ratings are a caller-supplied input; the Lancaster Sensorimotor Norms may be vendored (#250) | CC BY-NC-ND 3.0 vs CC BY 4.0; see [STYLE-DATA-LICENSES.md](STYLE-DATA-LICENSES.md) |
+| 2026-10-15 | Echoes are an opt-in lens with say/ask, name/honorific, particle and heading suppressions; no transitive ambiguous-reading chains | The writer review found 97% noise; deliberate repetition is not an issue list |
+| 2026-10-15 | Baseline highlights require a value outside the published-author p5–p95 band for its measure and narration/dialogue mode | Blended averages and small deltas mislead novelists; ship non-highlighting placeholder bands until owner chapter-window calibration |
+| 2026-10-15 | Show sentence statistics from 50 sentences and tag percentages from 15 tags, with low-confidence flags below 200 sentences / 50 tags | Short chapters need statistics while exposing their smaller samples |
+| 2026-10-15 | Flag only showy dialogue verbs; report neutral verbs as counts | Reply, answer, whisper, shout and similar ordinary attributions are not prose problems |
+| 2026-10-15 | Narration runs cross paragraphs; repeated phrases need frequency/proximity and merged overlaps; long sentences use top 3 per chapter plus candidates above the writer's p95; untagged runs need more than 12 exchanges | Apply the writer review's engineering fixes while leaving the licensed cliché lists unchanged |
 | 2026-10-16 | One public API for all reports before the bindings freeze it: report-prefixed type names, camelCase JSON, baselines as a separate argument, spans instead of document indexes, one sentence table, and `reports::run`/`run_json` as the single combined entry point | Swift and TypeScript types share one flat namespace, and separate per-report binding calls rebuilt the document each time |
 | 2026-10-16 | One narration/dialogue definition, computed in the document pass: a quote is speech unless it is embedded or the subject of a copula | The sentence reports, clichés and dialogue tags disagreed on the same passages |
 | 2026-10-16 | Reports that need readings reject compact documents (`StyleError::NeedsTokenDetails`) | Echoes, repeated phrases, sentence starts and dialogue tags silently degraded on them |

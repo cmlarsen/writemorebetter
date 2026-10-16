@@ -19,12 +19,14 @@ sentence start names its `sentence` index. `Document::sentences()` iterates in t
 
 A sentence's mode is the mode of its first `is_word` token (`Document::sentence_mode`): dialogue when
 that token starts inside a **speech** span, the document-level rule every report shares (see
-[STYLE-DOCUMENT.md](STYLE-DOCUMENT.md#narration-and-dialogue)). Scare quotes, titles and quoted
-subjects such as `“Yes” was the answer.` are narration. Mixed narration/speech sentences belong
-wholly to that opening mode. Runs stop at paragraph and mode boundaries; length's `all` group may
-cross mode boundaries within a paragraph. Counts and spans remain available at every sample size.
-Each group's own `minimumSentences` (default 200) suppresses shares, means, percentiles and
-differences below that sample. Empty groups never yield NaN.
+[STYLE-DOCUMENT.md](STYLE-DOCUMENT.md#narration-and-dialogue)). Scare quotes, titles and unpunctuated quoted
+subjects such as `“Yes” was the answer.` are narration. Punctuated passive speech such as
+`“Go,” was the answer.` is dialogue. Mixed narration/speech sentences belong
+wholly to that opening mode. Monotony and same-opener runs are narration-only. They cross ordinary paragraph breaks and stop at
+dialogue, recognized headings and scene breaks (blank lines in line mode; two blank lines in hard-wrapped mode). Counts and spans remain available at every sample size.
+Each group's own `minimumSentences` (default 50) suppresses shares, means, percentiles and
+differences below that sample. `lowConfidence` is true below 200 eligible sentences, independently
+of the configurable display floor. Empty groups never yield NaN.
 
 **Both reports count the same sentences.** Every group's `sentences` is the number of sentences in
 that mode, identical in the two reports and equal to the combined result's `stats.sentences`.
@@ -35,8 +37,12 @@ a skipped name. Start shares and the starts sample threshold use `sentences - ex
 
 Words are exactly `is_word && !is_skipped` document tokens (`Sentence::word_count`). Unicode
 letters/numbers count; clitics count separately, while punctuation and emoji do not. Zero-word
-sentences remain in the histogram and are counted in `zeroWordSentences`. Long sentences have **at
-least** `longSentenceWords` words (default 40). Each group returns `sentences`, a `histogram` of
+sentences remain in the histogram and are counted in `zeroWordSentences`. Long-sentence candidates have **at least** `longSentenceWords` words (default 40). The default
+selection is the top N per chapter (`longestPerChapter: 3`) plus any candidate strictly above that
+chapter's own 95th percentile, interpolated over all its sentences. Ties in the top N use document
+order; equality at p95 alone does not qualify. Chapter headings start a new selection unit; without
+headings the input is one chapter. A chapter with no 40-word candidates produces no long flags.
+Lower the candidate floor explicitly when a UI wants a pure longest-sentences lens. Each group returns `sentences`, a `histogram` of
 `{words, sentences}` buckets in ascending order, `mean` and `meanDifference`, `percentiles` as
 `{percentile, value, difference}` rows for 5/25/50/75/95, `longSentences` (sentence indexes) and
 `monotonyRuns`.
@@ -47,7 +53,12 @@ A monotony run is an inclusion-maximal contiguous interval of at least four sent
 "within ±2 words of each other": 8/10/8/10 qualifies; 8/12/8/12 does not. Drift is not permitted.
 Overlapping maximal intervals can be returned; nested suffixes are not. A sliding multiset keeps the
 scan linear in sentence count apart from logarithmic updates. Percentiles 5/25/50/75/95 interpolate
-at `(n−1)*p/100`. Differences subtract the matching baseline statistic. Baseline `percentiles` keys
+at `(n−1)*p/100`. Differences subtract the matching baseline statistic. Per-mode differences require a separately supplied
+`narration` or `dialogue` reference; a blended reference is used only for `all`.
+`meanHighlighted` and each percentile's `highlighted` are true only strictly outside the matching
+mode's author p5–p95 band. Missing bands never highlight, and the bundled bands are placeholders pending
+owner chapter-window calibration. These author bands describe variation across published authors,
+not the within-chapter sentence percentiles used to select long sentences. Baseline `percentiles` keys
 must be 5, 25, 50, 75 or 95 and values finite and non-negative; anything else is
 `StyleError::InvalidBaseline` instead of being ignored. `SentenceLengthBaseline::bundled()` returns
 the bundled file's `baseline` member.
@@ -259,14 +270,14 @@ The Moby gate measures narrative **from the second exact `CHAPTER 1. Loomings.` 
 first occurrence is a contents entry; the second starts at **UTF-8 byte 28,824**. Matching is by text,
 not a hard-coded offset; the marker, occurrence and measured offset are recorded in the artifact.
 This excludes contents, etymology and extracts, but retains the narrative chapter headings. The cut
-contains 120,267 bytes, 202 blank-line paragraphs and 878 sentences. It is separate from the timing
+contains 120,267 bytes; after heading exclusion it has 190 prose paragraphs and 854 sentences. It is separate from the timing
 workload, which remains the complete unchanged 149,091-byte file.
 
-Stories have **16/615 other (2.60%)**, ceiling **5%**. Narrative-only Moby has **130/878 other
-(14.81%)**, ceiling **16%**, a 1.19 percentage-point margin. Top mutually exclusive narrative other
+Stories have **16/622 other (2.57%)**, ceiling **5%**. Narrative-only Moby has **106/854 other
+(12.41%)**, ceiling **16%**, a 3.59 percentage-point margin. Top mutually exclusive narrative other
 surface shapes are 26 remaining verb-tagged openings (including literary/archaic constructions),
-26 vocative/interjection shapes, 16 command-like openers, 14 short fragment shapes, 12 chapter-number
-headings, 10 article-led starts, 2 punctuation/markup-led starts, and 24 remaining openings. These
+26 vocative/interjection shapes, 16 command-like openers, 10 short fragment shapes, no chapter-number
+headings, 2 article-led starts, 2 punctuation/markup-led starts, and 24 remaining openings. These
 are structural diagnostics, not independently adjudicated grammatical labels. Full counts/shares,
 source modes, paragraph counts and cut provenance are in `sentence-measurements.json`; ceilings are
 in `sentence-floors.json`. The sanity check complements the development F1 floors and makes no

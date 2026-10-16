@@ -136,10 +136,10 @@
         "gold": 5
       },
       "introductory": {
-        "precision": 1.0,
-        "recall": 1.0,
-        "f1": 1.0,
-        "true_positive": 2,
+        "precision": 0.5,
+        "recall": 0.5,
+        "f1": 0.5,
+        "true_positive": 1,
         "predicted": 2,
         "gold": 2
       },
@@ -152,20 +152,25 @@
         "gold": 1
       },
       "subject": {
-        "precision": 1.0,
+        "precision": 0.9629629629629629,
         "recall": 1.0,
-        "f1": 1.0,
+        "f1": 0.9811320754716981,
         "true_positive": 26,
-        "predicted": 26,
+        "predicted": 27,
         "gold": 26
       }
     },
     "confusion": {
+      "__none__": {
+        "introductory": 1,
+        "subject": 1
+      },
       "coordinatingConjunction": {
         "coordinatingConjunction": 5
       },
       "introductory": {
-        "introductory": 2
+        "introductory": 1,
+        "__none__": 1
       },
       "other": {
         "other": 1
@@ -227,7 +232,7 @@
   },
   "publicDistribution": {
     "stories": {
-      "sentences": 615,
+      "sentences": 622,
       "inputs": [
         {
           "file": "story1.txt",
@@ -235,7 +240,7 @@
           "bytes": 11521,
           "lineEndings": "LF",
           "paragraphs": 96,
-          "sentences": 117,
+          "sentences": 119,
           "cut": null
         },
         {
@@ -244,7 +249,7 @@
           "bytes": 10366,
           "lineEndings": "LF",
           "paragraphs": 96,
-          "sentences": 130,
+          "sentences": 131,
           "cut": null
         },
         {
@@ -262,7 +267,7 @@
           "bytes": 11093,
           "lineEndings": "LF",
           "paragraphs": 93,
-          "sentences": 126,
+          "sentences": 128,
           "cut": null
         },
         {
@@ -271,22 +276,22 @@
           "bytes": 9384,
           "lineEndings": "LF",
           "paragraphs": 86,
-          "sentences": 115,
+          "sentences": 117,
           "cut": null
         }
       ],
       "categories": {
         "adverb": {
           "count": 24,
-          "percent": 3.902439024390244
+          "percent": 3.8585209003215435
         },
         "coordinatingConjunction": {
-          "count": 25,
-          "percent": 4.065040650406504
+          "count": 26,
+          "percent": 4.180064308681672
         },
         "gerund": {
           "count": 2,
-          "percent": 0.3252032520325203
+          "percent": 0.3215434083601286
         },
         "infinitive": {
           "count": 0,
@@ -294,7 +299,7 @@
         },
         "introductory": {
           "count": 46,
-          "percent": 7.479674796747967
+          "percent": 7.395498392282958
         },
         "inversion": {
           "count": 0,
@@ -302,32 +307,32 @@
         },
         "other": {
           "count": 16,
-          "percent": 2.6016260162601625
+          "percent": 2.572347266881029
         },
         "pastParticiple": {
           "count": 0,
           "percent": 0.0
         },
         "subject": {
-          "count": 494,
-          "percent": 80.32520325203252
+          "count": 500,
+          "percent": 80.38585209003216
         },
         "subordinatingConjunction": {
           "count": 8,
-          "percent": 1.3008130081300813
+          "percent": 1.2861736334405145
         }
       }
     },
     "mobyDick": {
-      "sentences": 878,
+      "sentences": 854,
       "inputs": [
         {
           "file": "moby150k.txt",
           "hardWrapped": true,
           "bytes": 120267,
           "lineEndings": "CRLF",
-          "paragraphs": 202,
-          "sentences": 878,
+          "paragraphs": 190,
+          "sentences": 854,
           "cut": {
             "marker": "CHAPTER 1. Loomings.",
             "occurrence": 2,
@@ -338,57 +343,56 @@
       "categories": {
         "adverb": {
           "count": 89,
-          "percent": 10.136674259681094
+          "percent": 10.421545667447306
         },
         "coordinatingConjunction": {
           "count": 135,
-          "percent": 15.375854214123008
+          "percent": 15.807962529274004
         },
         "gerund": {
           "count": 23,
-          "percent": 2.6195899772209565
+          "percent": 2.693208430913349
         },
         "infinitive": {
           "count": 4,
-          "percent": 0.45558086560364464
+          "percent": 0.468384074941452
         },
         "introductory": {
           "count": 125,
-          "percent": 14.236902050113896
+          "percent": 14.637002341920375
         },
         "inversion": {
           "count": 9,
-          "percent": 1.0250569476082005
+          "percent": 1.053864168618267
         },
         "other": {
-          "count": 130,
-          "percent": 14.806378132118452
+          "count": 106,
+          "percent": 12.412177985948478
         },
         "pastParticiple": {
           "count": 7,
-          "percent": 0.7972665148063781
+          "percent": 0.819672131147541
         },
         "subject": {
           "count": 329,
-          "percent": 37.47152619589977
+          "percent": 38.52459016393443
         },
         "subordinatingConjunction": {
           "count": 27,
-          "percent": 3.075170842824601
+          "percent": 3.161592505854801
         }
       },
       "otherOpeningShapes": {
-        "chapterNumberHeading": 12,
-        "shortFragmentShape": 14,
         "commandLikeOpening": 16,
         "remainingVerbTaggedOpening": 26,
         "remainingOpenings": 24,
         "punctuationOrMarkupLed": 2,
-        "articleLed": 10,
-        "vocativeOrInterjectionShape": 26
+        "shortFragmentShape": 10,
+        "vocativeOrInterjectionShape": 26,
+        "articleLed": 2
       },
       "bundledBaselineComparison": {
-        "meanDifference": 11.36639628048158,
+        "meanDifference": 11.995666017428972,
         "universalDifferences": 11
       }
     }

@@ -219,7 +219,11 @@ for (const paragraph of document.paragraphs) {
       ...token, start: token.start - paragraph.start, end: token.end - paragraph.start,
     })),
   }));
-  eq(projected, JSON.parse(checker.analyze(paragraph.text)), "document retains every analysis field");
+  if (!paragraph.text.includes("\u2028")) {
+    eq(projected, JSON.parse(checker.analyze(paragraph.text)), "ordinary document paragraphs retain analysis fields");
+  } else {
+    eq(paragraph.sentences.length, 2, "terminal U+2028 separates document sentences");
+  }
   for (const sentence of paragraph.sentences) {
     eq(documentText.slice(sentence.start, sentence.end), sentence.text, "document sentence UTF-16 span");
     eq(sentence.tokens.map((token) => token.text).join(""), sentence.text, "document tokens partition sentence");
@@ -305,14 +309,11 @@ const dialogueRows = together.sentences.filter((row) => row.mode === "dialogue")
 eq(dialogueRows.length, 5, "sentence table modes");
 eq(together.stats.sentences.dialogue, 5, "stats count dialogue sentences");
 eq(lengthReport.groups.dialogue.histogram.find((bucket) => bucket.words === 2).sentences, 4, "length uses document words");
-eq(lengthReport.groups.dialogue.monotonyRuns.length, 1, "length monotony run");
-const run = lengthReport.groups.dialogue.monotonyRuns[0];
-check(reportText.slice(run.span.start, run.span.end).includes("She wept"), "report UTF-16 spans after emoji");
-eq(run.sentences, {start: 1, end: 6}, "monotony run sentence indices");
+eq(lengthReport.groups.dialogue.monotonyRuns.length, 0, "dialogue is excluded from monotony");
 eq(lengthReport.groups.all.percentiles.map((p) => p.percentile), [5, 25, 50, 75, 95], "percentiles are an ordered array");
 check(typeof lengthReport.groups.all.meanDifference === "number", "bundled length baseline difference");
 eq(startReport.groups.dialogue.categories.find((c) => c.category === "subject").percent, 80, "start subject percent");
-eq(startReport.groups.dialogue.sameWordRuns.length, 1, "same-word run");
+eq(startReport.groups.dialogue.sameWordRuns.length, 0, "dialogue is excluded from same-word runs");
 eq(startReport.groups.all.sentences, lengthReport.groups.all.sentences, "both sentence reports count the same sentences");
 const firstStart = startReport.starts[1];
 eq(reportText.slice(firstStart.opener.start, firstStart.opener.end), "She", "start opener span");
@@ -325,15 +326,17 @@ const onlyLength = JSON.parse(checker.styleReports(reportText, JSON.stringify({s
 check("sentenceLength" in onlyLength && !("sentenceStarts" in onlyLength), "combined request selects reports");
 
 const everything = JSON.parse(checker.styleReports(reportText));
-for (const key of ["stats", "sentences", "echoes", "repeatedPhrases", "cliches", "dialogueTags", "sentenceLength", "sentenceStarts"]) {
+for (const key of ["stats", "sentences", "repeatedPhrases", "cliches", "dialogueTags", "sentenceLength", "sentenceStarts"]) {
   check(key in everything, `default request includes ${key}`);
 }
-eq(everything.stats.words.all, everything.echoes.words, "word totals agree");
+check(!("echoes" in everything), "echoes are opt-in");
+const echoLens = JSON.parse(checker.styleReports(reportText, JSON.stringify({echoes:{}}))).echoes;
+eq(everything.stats.words.all, echoLens.words, "word totals agree");
 eq(everything.cliches.groups.dialogue.words, everything.stats.words.dialogue, "dialogue word split agrees");
 eq(everything.dialogueTags.tags[0].verbText, "said", "dialogue tag verb");
 const quote = everything.dialogueTags.tags[0].quotes[0];
 eq(reportText.slice(quote.start, quote.end), "“Fine,”", "dialogue tag quotes are spans");
-eq(everything.echoes.echoes[0].label, "grin", "echo label");
+eq(echoLens.echoes[0].label, "grin", "echo label");
 eq(JSON.parse(checker.styleReports(reportText, undefined)), everything, "cached cliché list gives the same result");
 
 function styleError(text, request, options) {

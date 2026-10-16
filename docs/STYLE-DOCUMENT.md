@@ -41,7 +41,17 @@ lines or U+2029 separate them. The public Moby excerpt is hard-wrapped CRLF text
 paragraphs are lines, not literary paragraphs. The LitBank probe explicitly uses hard-wrapped mode.
 
 Paragraph spans exclude separating line endings and preserve indentation/trailing spaces. Each
-paragraph is analyzed independently, so headings and fragments cannot merge into later paragraphs.
+paragraph is analyzed independently. Recognized Chapter/Book/Part headings, Markdown headings,
+all-capital short lines without sentence punctuation, scene-marker lines, and marked epigraph
+citations are excluded from every report. In hard-wrapped mode these lines remain separate before
+filtering. Other short fragments are retained: an arbitrary unpunctuated sentence cannot reliably
+be distinguished from a title.
+
+Paragraphs record `scene_break_before` and `chapter_start`. Blank lines in line mode, two blank
+lines in hard-wrapped mode, U+2029 and excluded heading/marker lines end narration runs. Ordinary
+paragraphs remain separate but do not end runs. U+2028 stays inside the paragraph and ends a
+sentence after terminal punctuation. Bare speech attributions split after a closing quote are
+reattached to that speech sentence; all offsets still point into the original text.
 Sentence/token spans retain the tokenizer's whitespace conventions and need not cover trailing
 paragraph whitespace. All Rust spans contain absolute, half-open UTF-8 byte, Unicode scalar (`char`)
 and UTF-16 ranges into the original input. Hard-wrapped mode preserves the input and all offsets.
@@ -61,7 +71,8 @@ keeps lowercase `will`; `will` accepts all three. Matching uses spelling and cas
 `skip_names: ["Will"]`, sentence-initial `Will you come?` and shouted `I WILL NOT GO` also skip the
 modal. A tagger-aware distinction is deferred. Curly/straight apostrophes and whitespace in names
 are normalized. Multi-token names, including possessive entries with no spaces, match contiguous
-whole token sequences within a sentence. An immediately adjacent possessive clitic (`'s`, `’s`,
+whole token sequences within a sentence. A preceding common honorific (Mr., Mrs., Ms., Dr., M., Monsieur, Madame and related forms) is
+skipped with a supplied surname, including its intervening period and whitespace. An immediately adjacent possessive clitic (`'s`, `’s`,
 `'`, `’`) following a skipped name is also skipped. No Unicode canonical normalization is implied.
 Skipped tokens remain with `is_skipped`, but contribute neither to `word_count` nor `lemma_index`.
 
@@ -132,8 +143,15 @@ unless one of two tests marks it as a quoted term:
 
 The tests need POS readings, so they run before a compact document discards them; compact and full
 documents have identical `speech`. A span continued across paragraphs is classified once, by its
-opening and closing paragraphs. Speech after a conjunction (`—and ‘better safe than sorry,’ he
-said`) is misread as embedded, which is the dialogue-tag report's long-standing limitation.
+opening and closing paragraphs. A following listed attribution keeps speech after a conjunction
+(`—and ‘better safe than sorry,’ he said`) in dialogue. Comma/exclamation/question endings exempt
+passive reported speech from the copula test (`“Go,” was the answer.`); explicit title-noun contexts
+still suppress titles. A cry/shout followed by a punctuated quote also counts as speech.
+
+On the public hard-wrapped Moby excerpt, #271 counted 183 of 196 quoted spans as speech. The
+usefulness fix restores the four reported attributions, including the Bulkington cry; nine titles,
+inn signs and quoted descriptions remain narration. This intentionally does not classify all 196
+quoted spans as speech.
 
 There are two granularities, both built on that one rule:
 

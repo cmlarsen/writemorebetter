@@ -90,6 +90,39 @@ pub(crate) fn fold(text: &str) -> String {
 
 fn listed(word: &str) -> bool {
     FUNCTION_WORDS.binary_search(&word).is_ok()
+        || matches!(
+            word.trim_end_matches('.'),
+            "say"
+                | "said"
+                | "says"
+                | "saying"
+                | "ask"
+                | "asked"
+                | "asks"
+                | "asking"
+                | "mr"
+                | "mrs"
+                | "ms"
+                | "miss"
+                | "dr"
+                | "prof"
+                | "sir"
+                | "lady"
+                | "lord"
+                | "m"
+                | "mme"
+                | "mlle"
+                | "monsieur"
+                | "madame"
+                | "mademoiselle"
+                | "up"
+                | "down"
+                | "out"
+                | "back"
+                | "off"
+                | "over"
+                | "away"
+        )
 }
 
 fn lemmas(token: &Token) -> BTreeSet<String> {
@@ -114,14 +147,6 @@ pub(crate) struct Lexicon {
     families: HashMap<String, String>,
 }
 
-fn root(parent: &mut [usize], mut node: usize) -> usize {
-    while parent[node] != node {
-        parent[node] = parent[parent[node]];
-        node = parent[node];
-    }
-    node
-}
-
 impl Lexicon {
     pub(crate) fn new(document: &Document) -> Self {
         let mut spellings: HashMap<String, Spelling> = HashMap::new();
@@ -144,48 +169,19 @@ impl Lexicon {
             entry.lemmas.extend(lemmas(token));
         }
         let mut function = HashSet::new();
-        let mut nodes: HashMap<String, usize> = HashMap::new();
-        let mut parent: Vec<usize> = Vec::new();
-        let mut node = |name: String, parent: &mut Vec<usize>| {
-            *nodes.entry(name).or_insert_with(|| {
-                parent.push(parent.len());
-                parent.len() - 1
-            })
-        };
-        let mut members = Vec::new();
+        let mut families = HashMap::new();
         for (spelling, entry) in spellings {
             if entry.function || listed(&spelling) || entry.content * 2 < entry.occurrences {
                 function.insert(spelling);
                 continue;
             }
-            let own = node(format!("s:{spelling}"), &mut parent);
-            for lemma in entry.lemmas.iter().chain([&spelling]) {
-                let other = node(format!("l:{lemma}"), &mut parent);
-                let (left, right) = (root(&mut parent, own), root(&mut parent, other));
-                parent[left] = right;
-            }
-            members.push((spelling, own, entry.lemmas));
+            let key = if entry.lemmas.len() == 1 {
+                entry.lemmas.into_iter().next().unwrap()
+            } else {
+                spelling.clone()
+            };
+            families.insert(spelling, key);
         }
-        let mut names: HashMap<usize, String> = HashMap::new();
-        for (spelling, own, lemmas) in &members {
-            let family = root(&mut parent, *own);
-            let candidate = lemmas.iter().next().unwrap_or(spelling);
-            names
-                .entry(family)
-                .and_modify(|name| {
-                    if candidate < name {
-                        candidate.clone_into(name);
-                    }
-                })
-                .or_insert_with(|| candidate.clone());
-        }
-        let families = members
-            .into_iter()
-            .map(|(spelling, own, _)| {
-                let name = names[&root(&mut parent, own)].clone();
-                (spelling, name)
-            })
-            .collect();
         Self { function, families }
     }
 
@@ -239,12 +235,17 @@ pub fn report(document: &Document, options: &EchoOptions) -> Result<EchoReport, 
         if lexicon.is_function(token) {
             continue;
         }
-        let family = if options.match_forms {
-            lexicon.family(token)
+        let mut candidates = if options.match_forms {
+            lemmas(token)
         } else {
-            fold(&token.text)
+            BTreeSet::new()
         };
-        if let Some((earlier, previous)) = last.get(&family) {
+        candidates.insert(fold(&token.text));
+        let nearest = candidates
+            .iter()
+            .filter_map(|key| last.get(key).map(|previous| (key, previous)))
+            .max_by_key(|(_, (index, _))| *index);
+        if let Some((family, (earlier, previous))) = nearest {
             let distance = index - earlier;
             if distance <= options.window {
                 echoes.push(Echo {
@@ -260,7 +261,9 @@ pub fn report(document: &Document, options: &EchoOptions) -> Result<EchoReport, 
                 });
             }
         }
-        last.insert(family, (index, token));
+        for key in candidates {
+            last.insert(key, (index, token));
+        }
     }
     let words = document.word_count;
     let per_thousand_words = if words == 0 {

@@ -171,14 +171,16 @@ fn lengths_runs_thresholds_baselines_and_skips() {
     let document = analyze_document(&tokenizer, text, &DocumentOptions::new());
     let options = SentenceLengthOptions::new()
         .with_minimum_sentences(4)
-        .with_long_sentence_words(2);
-    let baseline: SentenceLengthBaseline =
-        serde_json::from_str(r#"{"mean":3,"percentiles":{"50":3}}"#).unwrap();
+        .with_long_sentence_words(2)
+        .with_longest_per_chapter(20);
+    let baseline: SentenceLengthBaseline = serde_json::from_str(
+        r#"{"mean":3,"percentiles":{"50":3},"dialogue":{"mean":3,"percentiles":{"50":3}}}"#,
+    )
+    .unwrap();
     let result = length::report(&document, &options, Some(&baseline)).unwrap();
     let groups = &result.groups;
     assert_eq!(groups.narration.monotony_runs.len(), 1);
-    assert_eq!(groups.dialogue.monotony_runs.len(), 1);
-    assert_eq!(groups.dialogue.monotony_runs[0].sentences, 4..8);
+    assert!(groups.dialogue.monotony_runs.is_empty());
     assert!(groups
         .dialogue
         .histogram
@@ -194,7 +196,7 @@ fn lengths_runs_thresholds_baselines_and_skips() {
         .unwrap();
     assert_eq!(median.difference, Some(-1.0));
     let starts = starts::report(&document, &SentenceStartsOptions::new(), None).unwrap();
-    assert_eq!(starts.groups.all.same_word_runs.len(), 2);
+    assert_eq!(starts.groups.all.same_word_runs.len(), 1);
     for span in groups
         .all
         .monotony_runs
@@ -339,10 +341,10 @@ fn bundled_baselines_are_loadable_and_keep_missing_values_unavailable() {
 #[test]
 fn sample_floor_is_per_group_and_long_threshold_is_inclusive() {
     let tokenizer = Tokenizer::new("../storage/en_tokenizer.bin").unwrap();
-    let text = "She ran. ".repeat(199);
+    let text = "She ran. ".repeat(49);
     let small = analyze_document(&tokenizer, &text, &DocumentOptions::new());
     let report = starts::report(&small, &SentenceStartsOptions::new(), None).unwrap();
-    assert_eq!(report.groups.narration.sentences, 199);
+    assert_eq!(report.groups.narration.sentences, 49);
     assert!(
         category(&report.groups.narration, SentenceStartCategory::Subject)
             .share
@@ -362,7 +364,7 @@ fn sample_floor_is_per_group_and_long_threshold_is_inclusive() {
         category(&report.groups.narration, SentenceStartCategory::Subject)
             .share
             .count,
-        200
+        50
     );
     assert_eq!(report.groups.dialogue.sentences, 2);
     assert!(

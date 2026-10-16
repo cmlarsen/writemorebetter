@@ -172,11 +172,12 @@ unchanged. WASM accepts camelCase/snake_case option names and rejects unknown ke
 prose report: echoes, repeated phrases, clichés, dialogue tags, sentence length and sentence starts.
 It builds the document once for all selected reports, reuses the cliché list compiled on the first
 call (cached on the `Checker`), and performs no grammar or spelling checks. Omitting the request runs
-every report with bundled baselines; a request selects only the reports it names:
+every report except echoes with bundled baselines; echoes are an opt-in lens selected with
+`{"echoes":{}}`. A request selects only the reports it names:
 
 ```js
 const reports = JSON.parse(checker.styleReports(text, JSON.stringify({
-  sentenceLength: {}, sentenceStarts: {minimumSentences: 200}, dialogueTags: {}, baselines: "bundled",
+  sentenceLength: {}, sentenceStarts: {minimumSentences: 50}, dialogueTags: {}, baselines: "bundled",
 }), JSON.stringify({skipNames: ["Mara"]})));
 ```
 

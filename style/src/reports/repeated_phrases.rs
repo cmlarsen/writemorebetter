@@ -18,6 +18,10 @@ pub struct RepeatedPhraseOptions {
     pub maximum_length: usize,
     #[serde(alias = "minimum_content_words")]
     pub minimum_content_words: usize,
+    #[serde(alias = "minimum_occurrences")]
+    pub minimum_occurrences: usize,
+    #[serde(alias = "nearby_words")]
+    pub nearby_words: usize,
 }
 
 impl Default for RepeatedPhraseOptions {
@@ -26,6 +30,8 @@ impl Default for RepeatedPhraseOptions {
             minimum_length: 2,
             maximum_length: 5,
             minimum_content_words: 2,
+            minimum_occurrences: 3,
+            nearby_words: 300,
         }
     }
 }
@@ -41,6 +47,14 @@ impl RepeatedPhraseOptions {
     }
     pub fn with_minimum_content_words(mut self, minimum_content_words: usize) -> Self {
         self.minimum_content_words = minimum_content_words;
+        self
+    }
+    pub fn with_minimum_occurrences(mut self, count: usize) -> Self {
+        self.minimum_occurrences = count;
+        self
+    }
+    pub fn with_nearby_words(mut self, words: usize) -> Self {
+        self.nearby_words = words;
         self
     }
 }
@@ -89,14 +103,21 @@ pub fn report(
     let mut keys = Vec::new();
     let mut units: Vec<Unit> = Vec::new();
     let mut segment = 0;
+    let tags = super::dialogue_tags::report(
+        document,
+        &super::dialogue_tags::DialogueTagOptions::new(),
+        None,
+    )?;
+    let tag_verbs: HashSet<usize> = tags.tags.iter().map(|t| t.verb.byte.start).collect();
     for sentence in document.sentences() {
         for token in sentence.tokens.iter().filter(|token| token.is_word) {
-            if token.is_skipped {
-                close_segment(&mut units, &mut segment);
-                continue;
-            }
-            let function = lexicon.is_function(token);
-            let key = if function {
+            let masked = token.is_skipped || tag_verbs.contains(&token.span.byte.start);
+            let function = masked || lexicon.is_function(token);
+            let key = if token.is_skipped {
+                "<name>".into()
+            } else if masked {
+                "<tag>".into()
+            } else if function {
                 fold(&token.text)
             } else {
                 lexicon.family(token)
@@ -146,6 +167,13 @@ pub fn report(
                 continue;
             }
             let starts = [vec![first], later].concat();
+            if starts.len() < options.minimum_occurrences.max(2)
+                && !starts
+                    .windows(2)
+                    .any(|pair| pair[1] - pair[0] <= options.nearby_words)
+            {
+                continue;
+            }
             repeated.extend(starts.iter().copied());
             if starts.iter().all(|start| {
                 longer.contains(start) || (*start > 0 && longer.contains(&(start - 1)))
@@ -163,7 +191,11 @@ pub fn report(
                 .collect();
             let labels = (0..length)
                 .map(|offset| {
-                    if units[first + offset].function {
+                    if gram[offset] == *ids.get("<name>").unwrap_or(&u32::MAX) {
+                        "<name>".into()
+                    } else if gram[offset] == *ids.get("<tag>").unwrap_or(&u32::MAX) {
+                        "<tag>".into()
+                    } else if units[first + offset].function {
                         fold(&units[first + offset].token.text)
                     } else {
                         lexicon.label(starts.iter().map(|start| units[start + offset].token))
@@ -182,6 +214,39 @@ pub fn report(
         }
         longer = repeated;
     }
+    phrases.sort_by_key(|(first, phrase)| (*first, std::cmp::Reverse(phrase.keys.len())));
+    let mut merged: Vec<(usize, RepeatedPhrase)> = Vec::new();
+    for (first, phrase) in phrases {
+        if let Some((previous, longer)) = merged.iter_mut().rev().find(|(previous, longer)| {
+            *previous <= first
+                && first < *previous + longer.keys.len()
+                && longer.count == phrase.count
+                && longer
+                    .spans
+                    .iter()
+                    .zip(&phrase.spans)
+                    .all(|(a, b)| a.byte.start <= b.byte.start && b.byte.start < a.byte.end)
+        }) {
+            let offset = first - *previous;
+            let overlap = longer
+                .keys
+                .len()
+                .saturating_sub(offset)
+                .min(phrase.keys.len());
+            if longer.keys[offset..offset + overlap] == phrase.keys[..overlap] {
+                longer.keys.extend_from_slice(&phrase.keys[overlap..]);
+                longer.labels.extend_from_slice(&phrase.labels[overlap..]);
+                for (a, b) in longer.spans.iter_mut().zip(phrase.spans) {
+                    if b.byte.end > a.byte.end {
+                        *a = Span::covering(a, &b);
+                    }
+                }
+                continue;
+            }
+        }
+        merged.push((first, phrase));
+    }
+    let mut phrases = merged;
     phrases.sort_by(|(left_start, left), (right_start, right)| {
         right
             .count

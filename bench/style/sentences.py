@@ -103,7 +103,13 @@ def reference_patterns(file, text, sentences, defaults):
         return {'file': file, 'pattern': pattern,
                 'byte': {'start': sentences[start]['span']['byte']['start'], 'end': sentences[end-1]['span']['byte']['end']},
                 'utf16': {'start': sentences[start]['span']['utf16']['start'], 'end': sentences[end-1]['span']['utf16']['end']}}
-    result = [span(i, i+1, 'longSentence') for i, n in enumerate(lengths) if n >= long_words]
+    ranked = sorted(range(len(lengths)), key=lambda i: (-lengths[i], i))
+    ordered = sorted(lengths)
+    position = (len(ordered) - 1) * .95
+    low = int(position)
+    p95 = ordered[low] + (ordered[min(low+1, len(ordered)-1)] - ordered[low]) * (position-low) if ordered else 0
+    top = set(ranked[:defaults['sentenceLength']['longestPerChapter']])
+    result = [span(i, i+1, 'longSentence') for i, n in enumerate(lengths) if n >= long_words and (i in top or n > p95)]
     windows = [(a,b) for a in range(len(lengths)) for b in range(a+run_min,len(lengths)+1)
                if max(lengths[a:b]) - min(lengths[a:b]) <= spread]
     result.extend(span(a,b,'monotony') for a,b in windows if not any(c <= a and b <= d and (a,b) != (c,d) for c,d in windows))
@@ -194,6 +200,24 @@ def injected(probe, out, analyzer):
             **score(gold, predictions, {r['file'] for r in documents})}
 
 
+def paragraph_count(text, wrapped):
+    def excluded(line):
+        line = line.strip()
+        return (bool(re.match(r'(?i)^(chapter|book|part)\s+(?:[0-9ivxlcdm]+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty)\b', line)) and len(line.split()) <= 10
+                or line.startswith('#')
+                or bool(line) and all(c.isspace() or c in '*#—-_=·•' for c in line)
+                or line.startswith('—') and line[1:].lstrip().startswith('_')
+                or line.isupper() and len(line.split()) <= 10 and not any(c in line for c in '“”\".!?'))
+    count, continuing = 0, False
+    for line in text.split('\n'):
+        if not line.strip() or excluded(line):
+            continuing = False
+        else:
+            count += not wrapped or not continuing
+            continuing = True
+    return count
+
+
 def public_distribution(line_probe, wrapped_probe):
     from collections import Counter
     groups = {}
@@ -218,9 +242,7 @@ def public_distribution(line_probe, wrapped_probe):
             result = probe.analyze(text)
             reports = result['reports']
             starts = reports['sentenceStarts']['groups']['all']
-            lines = [bool(line.strip()) for line in text.split('\n')]
-            expected_paragraphs = sum(nonblank and (not wrapped or i == 0 or not lines[i - 1])
-                                      for i, nonblank in enumerate(lines))
+            expected_paragraphs = paragraph_count(text, wrapped)
             if result['paragraphs'] != expected_paragraphs:
                 raise ValueError(f'{file}: paragraph mode does not match source wrapping')
             inputs.append({'file': file, 'hardWrapped': wrapped, 'bytes': len(data),

@@ -58,6 +58,7 @@ fn resources() -> &'static StyleResources {
 
 fn request() -> StyleRequest {
     let mut request = StyleRequest::new();
+    request.echoes = Some(Default::default());
     request.sentence_length = Some(SentenceLengthOptions::new().with_minimum_sentences(1));
     request.sentence_starts = Some(SentenceStartsOptions::new().with_minimum_sentences(1));
     request
@@ -360,7 +361,6 @@ fn json_request_selects_reports_and_baselines() {
     for key in [
         "stats",
         "sentences",
-        "echoes",
         "repeatedPhrases",
         "cliches",
         "dialogueTags",
@@ -369,6 +369,7 @@ fn json_request_selects_reports_and_baselines() {
     ] {
         assert!(all.get(key).is_some(), "{key}");
     }
+    assert!(all.get("echoes").is_none());
     let percentile = &all["sentenceLength"]["groups"]["all"]["percentiles"][2];
     assert_eq!(percentile["percentile"], 50);
     assert!(percentile["value"].is_null());

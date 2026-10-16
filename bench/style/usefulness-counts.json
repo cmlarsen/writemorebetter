@@ -1,0 +1,270 @@
+{
+  "base": "42f658d",
+  "measured": "2026-10-16",
+  "inputs": "bench/public only; line mode for story1-5, hard-wrapped CRLF Moby",
+  "notes": [
+    "Echoes are explicitly opted in for this comparison; default echo flags now zero.",
+    "Before verbFlags counts listed speech verbs other than say/ask; after counts showy verbs only. Non-speech tags are zero on these inputs.",
+    "Counts describe workload, not editorial precision. No skipped names supplied."
+  ],
+  "texts": [
+    {
+      "file": "bench/public/story1.txt",
+      "before": {
+        "adverbs": 0,
+        "cliches": 0,
+        "echoes": 98,
+        "file": "bench/public/story1.txt",
+        "long": 4,
+        "monotony": 0,
+        "nonSpeech": 0,
+        "openers": 0,
+        "phrases": 16,
+        "sentences": {
+          "all": 117,
+          "dialogue": 36,
+          "narration": 81
+        },
+        "speechSpans": 34,
+        "untagged": 0,
+        "verbFlags": 0,
+        "words": 2209
+      },
+      "after": {
+        "adverbs": 0,
+        "cliches": 0,
+        "echoes": 78,
+        "file": "bench/public/story1.txt",
+        "long": 4,
+        "monotony": 0,
+        "nonSpeech": 0,
+        "openers": 1,
+        "phrases": 3,
+        "sentences": {
+          "all": 119,
+          "dialogue": 37,
+          "narration": 82
+        },
+        "speechSpans": 34,
+        "untagged": 0,
+        "verbFlags": 0,
+        "words": 2209
+      }
+    },
+    {
+      "file": "bench/public/story2.txt",
+      "before": {
+        "adverbs": 0,
+        "cliches": 0,
+        "echoes": 107,
+        "file": "bench/public/story2.txt",
+        "long": 0,
+        "monotony": 0,
+        "nonSpeech": 0,
+        "openers": 2,
+        "phrases": 9,
+        "sentences": {
+          "all": 130,
+          "dialogue": 40,
+          "narration": 90
+        },
+        "speechSpans": 36,
+        "untagged": 0,
+        "verbFlags": 0,
+        "words": 2038
+      },
+      "after": {
+        "adverbs": 0,
+        "cliches": 0,
+        "echoes": 84,
+        "file": "bench/public/story2.txt",
+        "long": 0,
+        "monotony": 1,
+        "nonSpeech": 0,
+        "openers": 2,
+        "phrases": 5,
+        "sentences": {
+          "all": 131,
+          "dialogue": 40,
+          "narration": 91
+        },
+        "speechSpans": 36,
+        "untagged": 0,
+        "verbFlags": 0,
+        "words": 2038
+      }
+    },
+    {
+      "file": "bench/public/story3.txt",
+      "before": {
+        "adverbs": 0,
+        "cliches": 0,
+        "echoes": 98,
+        "file": "bench/public/story3.txt",
+        "long": 1,
+        "monotony": 0,
+        "nonSpeech": 0,
+        "openers": 0,
+        "phrases": 17,
+        "sentences": {
+          "all": 127,
+          "dialogue": 44,
+          "narration": 83
+        },
+        "speechSpans": 40,
+        "untagged": 0,
+        "verbFlags": 1,
+        "words": 2008
+      },
+      "after": {
+        "adverbs": 0,
+        "cliches": 0,
+        "echoes": 72,
+        "file": "bench/public/story3.txt",
+        "long": 0,
+        "monotony": 2,
+        "nonSpeech": 0,
+        "openers": 0,
+        "phrases": 6,
+        "sentences": {
+          "all": 127,
+          "dialogue": 44,
+          "narration": 83
+        },
+        "speechSpans": 40,
+        "untagged": 0,
+        "verbFlags": 0,
+        "words": 2008
+      }
+    },
+    {
+      "file": "bench/public/story4.txt",
+      "before": {
+        "adverbs": 0,
+        "cliches": 1,
+        "echoes": 116,
+        "file": "bench/public/story4.txt",
+        "long": 2,
+        "monotony": 0,
+        "nonSpeech": 0,
+        "openers": 2,
+        "phrases": 29,
+        "sentences": {
+          "all": 126,
+          "dialogue": 28,
+          "narration": 98
+        },
+        "speechSpans": 25,
+        "untagged": 0,
+        "verbFlags": 1,
+        "words": 2175
+      },
+      "after": {
+        "adverbs": 0,
+        "cliches": 1,
+        "echoes": 102,
+        "file": "bench/public/story4.txt",
+        "long": 0,
+        "monotony": 1,
+        "nonSpeech": 0,
+        "openers": 2,
+        "phrases": 8,
+        "sentences": {
+          "all": 128,
+          "dialogue": 28,
+          "narration": 100
+        },
+        "speechSpans": 25,
+        "untagged": 0,
+        "verbFlags": 0,
+        "words": 2175
+      }
+    },
+    {
+      "file": "bench/public/story5.txt",
+      "before": {
+        "adverbs": 0,
+        "cliches": 0,
+        "echoes": 114,
+        "file": "bench/public/story5.txt",
+        "long": 1,
+        "monotony": 0,
+        "nonSpeech": 0,
+        "openers": 2,
+        "phrases": 29,
+        "sentences": {
+          "all": 115,
+          "dialogue": 32,
+          "narration": 83
+        },
+        "speechSpans": 28,
+        "untagged": 0,
+        "verbFlags": 1,
+        "words": 1856
+      },
+      "after": {
+        "adverbs": 0,
+        "cliches": 0,
+        "echoes": 85,
+        "file": "bench/public/story5.txt",
+        "long": 0,
+        "monotony": 0,
+        "nonSpeech": 0,
+        "openers": 2,
+        "phrases": 5,
+        "sentences": {
+          "all": 117,
+          "dialogue": 32,
+          "narration": 85
+        },
+        "speechSpans": 28,
+        "untagged": 0,
+        "verbFlags": 0,
+        "words": 1856
+      }
+    },
+    {
+      "file": "bench/public/moby150k.txt",
+      "before": {
+        "adverbs": 0,
+        "cliches": 6,
+        "echoes": 1168,
+        "file": "bench/public/moby150k.txt",
+        "long": 157,
+        "monotony": 3,
+        "nonSpeech": 0,
+        "openers": 6,
+        "phrases": 284,
+        "sentences": {
+          "all": 1408,
+          "dialogue": 360,
+          "narration": 1048
+        },
+        "speechSpans": 183,
+        "untagged": 3,
+        "verbFlags": 17,
+        "words": 25743
+      },
+      "after": {
+        "adverbs": 1,
+        "cliches": 6,
+        "echoes": 935,
+        "file": "bench/public/moby150k.txt",
+        "long": 66,
+        "monotony": 0,
+        "nonSpeech": 0,
+        "openers": 4,
+        "phrases": 88,
+        "sentences": {
+          "all": 1114,
+          "dialogue": 365,
+          "narration": 749
+        },
+        "speechSpans": 187,
+        "untagged": 0,
+        "verbFlags": 2,
+        "words": 24967
+      }
+    }
+  ]
+}

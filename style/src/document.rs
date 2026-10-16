@@ -145,6 +145,10 @@ pub struct Paragraph {
     pub text: String,
     pub span: Span,
     pub sentences: Vec<Sentence>,
+    #[serde(default)]
+    pub scene_break_before: bool,
+    #[serde(default)]
+    pub chapter_start: bool,
 }
 
 impl Sentence {
@@ -213,6 +217,18 @@ impl Document {
             .find(|token| token.is_word)
             .map_or(Mode::Narration, |first| self.mode_at(first.span.byte.start))
     }
+
+    pub(crate) fn sentence_has_speech(&self, sentence: &Sentence) -> bool {
+        let first = self
+            .dialogue
+            .partition_point(|span| span.byte.end <= sentence.span.byte.start);
+        self.dialogue
+            .iter()
+            .enumerate()
+            .skip(first)
+            .take_while(|(_, span)| span.byte.start < sentence.span.byte.end)
+            .any(|(i, _)| self.is_speech(i))
+    }
 }
 
 pub fn is_word(text: &str) -> bool {
@@ -275,7 +291,106 @@ fn skipped_tokens(
             }
         }
     }
+    for index in 0..tokens.len() {
+        if !skipped[index] {
+            continue;
+        }
+        let mut previous = index;
+        while previous > 0
+            && (tokens[previous - 1].is_whitespace || tokens[previous - 1].text == ".")
+        {
+            previous -= 1;
+        }
+        if previous > 0 && honorific(&tokens[previous - 1].text) {
+            skipped[previous - 1..index].fill(true);
+        }
+    }
     skipped
+}
+
+pub(crate) fn honorific(text: &str) -> bool {
+    matches!(
+        text.trim_end_matches('.').to_lowercase().as_str(),
+        "mr" | "mrs"
+            | "ms"
+            | "miss"
+            | "dr"
+            | "prof"
+            | "sir"
+            | "lady"
+            | "lord"
+            | "m"
+            | "mme"
+            | "mlle"
+            | "monsieur"
+            | "madame"
+            | "mademoiselle"
+    )
+}
+
+fn chapter_heading(text: &str) -> bool {
+    let lower = text.trim().to_lowercase();
+    ["chapter ", "book ", "part "]
+        .iter()
+        .filter_map(|prefix| lower.strip_prefix(prefix))
+        .any(|rest| {
+            rest.split_whitespace().next().is_some_and(|word| {
+                let word = word.trim_matches(|c: char| !c.is_alphanumeric());
+                !word.is_empty()
+                    && (word.chars().all(|c| c.is_ascii_digit())
+                        || word.chars().all(|c| "ivxlcdm".contains(c))
+                        || matches!(
+                            word,
+                            "one"
+                                | "two"
+                                | "three"
+                                | "four"
+                                | "five"
+                                | "six"
+                                | "seven"
+                                | "eight"
+                                | "nine"
+                                | "ten"
+                                | "eleven"
+                                | "twelve"
+                                | "thirteen"
+                                | "fourteen"
+                                | "fifteen"
+                                | "sixteen"
+                                | "seventeen"
+                                | "eighteen"
+                                | "nineteen"
+                                | "twenty"
+                        ))
+            })
+        })
+        && lower.split_whitespace().count() <= 10
+}
+
+fn heading(text: &str) -> bool {
+    let text = text.trim();
+    chapter_heading(text)
+        || text.starts_with('#')
+        || (!text.is_empty()
+            && text
+                .chars()
+                .all(|c| c.is_whitespace() || "*#—-_=·•".contains(c)))
+        || text
+            .strip_prefix('—')
+            .is_some_and(|rest| rest.trim_start().starts_with('_'))
+        || (text.chars().any(char::is_uppercase)
+            && !text.chars().any(char::is_lowercase)
+            && text.split_whitespace().count() <= 10
+            && !text.contains(['“', '”', '"', '.', '!', '?']))
+}
+
+pub(crate) fn scene_gap(text: &str, hard_wrapped: bool) -> bool {
+    if text.contains('\u{2029}') {
+        return true;
+    }
+    let breaks =
+        text.matches('\n').count() + text.matches('\r').count() - text.matches("\r\n").count();
+    breaks >= if hard_wrapped { 3 } else { 2 }
 }
 
 fn shift(span: AnalysisSpan, base: &Span) -> Span {
@@ -351,6 +466,8 @@ struct SpeechEvidence {
     embedded: bool,
     after_lead_in: bool,
     copula_subject: bool,
+    attributed: bool,
+    exclaimed: bool,
 }
 
 fn speech_evidence(paragraph: &Paragraph, dialogue: &[Span], evidence: &mut [SpeechEvidence]) {
@@ -383,7 +500,33 @@ fn speech_evidence(paragraph: &Paragraph, dialogue: &[Span], evidence: &mut [Spe
             found.after_lead_in = previous.is_some_and(lead_in);
         }
         if span.byte.end <= range.end {
-            found.copula_subject = items.get(end).is_some_and(|next| starts_copula(next));
+            let speech_punctuation = items[start..end]
+                .iter()
+                .rev()
+                .skip(1)
+                .find(|t| t.is_word || t.is_punctuation)
+                .is_some_and(|t| t.text.chars().any(|c| ",!?".contains(c)));
+            found.exclaimed = items[start..end]
+                .iter()
+                .rev()
+                .skip(1)
+                .find(|t| t.is_word || t.is_punctuation)
+                .is_some_and(|t| t.text.chars().any(|c| "!?".contains(c)))
+                && items[..start].iter().rev().take(3).any(|t| {
+                    matches!(
+                        t.text.to_lowercase().as_str(),
+                        "cry" | "shout" | "call" | "cries" | "shouts"
+                    )
+                });
+            let titled = items[..start].iter().rev().take(4).any(|t| {
+                matches!(
+                    t.text.to_lowercase().as_str(),
+                    "poem" | "book" | "novel" | "story" | "title" | "song"
+                )
+            });
+            found.copula_subject = (!speech_punctuation || titled)
+                && items.get(end).is_some_and(|next| starts_copula(next));
+            found.attributed = crate::reports::dialogue_tags::following_tag(&items[end..], false);
         }
     }
 }
@@ -403,11 +546,28 @@ pub fn analyze_document(tokenizer: &Tokenizer, text: &str, options: &DocumentOpt
         token_details: options.include_token_details,
         hard_wrapped: options.hard_wrapped,
     };
+    let mut previous_end = 0;
+    let mut chapter_start = false;
+    let mut skipped_heading = false;
     for span in paragraphs {
         let paragraph_text = text.get(span.byte.clone()).unwrap();
+        if heading(paragraph_text) {
+            chapter_start |= chapter_heading(paragraph_text);
+            skipped_heading = true;
+            continue;
+        }
+        let scene_break_before = skipped_heading
+            || scene_gap(
+                text.get(previous_end..span.byte.start).unwrap(),
+                options.hard_wrapped,
+            );
+        previous_end = span.byte.end;
+        skipped_heading = false;
         let paragraph_index = document.paragraphs.len();
         let mut sentences = Vec::new();
-        for (sentence_index, sentence) in tokenizer.analyze(paragraph_text).into_iter().enumerate()
+        for (sentence_index, sentence) in analyze_separators(tokenizer, paragraph_text)
+            .into_iter()
+            .enumerate()
         {
             let mut tokens = Vec::new();
             let skipped = skipped_tokens(&sentence.tokens, &skipped);
@@ -485,7 +645,10 @@ pub fn analyze_document(tokenizer: &Tokenizer, text: &str, options: &DocumentOpt
             text: paragraph_text.to_owned(),
             span,
             sentences,
+            scene_break_before,
+            chapter_start,
         };
+        chapter_start = false;
         speech_evidence(&paragraph, &document.dialogue, &mut evidence);
         if !options.include_token_details {
             for token in paragraph
@@ -502,10 +665,101 @@ pub fn analyze_document(tokenizer: &Tokenizer, text: &str, options: &DocumentOpt
     document.speech = evidence
         .iter()
         .map(|found| {
-            found.tokens && !found.embedded && !(found.copula_subject && !found.after_lead_in)
+            found.tokens
+                && (found.attributed
+                    || found.exclaimed
+                    || (!found.embedded && !(found.copula_subject && !found.after_lead_in)))
         })
         .collect();
     document
+}
+
+fn analyze_separators(
+    tokenizer: &Tokenizer,
+    text: &str,
+) -> Vec<nlprule::analysis::AnalysisSentence> {
+    let mut ends: Vec<_> = text
+        .char_indices()
+        .filter_map(|(byte, ch)| {
+            (ch == '\u{2028}'
+                && text
+                    .get(..byte)
+                    .unwrap()
+                    .trim_end_matches([' ', '”', '’', '"', '\''])
+                    .ends_with(['.', '!', '?', '…']))
+            .then_some(byte + ch.len_utf8())
+        })
+        .collect();
+    ends.push(text.len());
+    let mut result = Vec::new();
+    let mut start = 0;
+    for end in ends {
+        let prefix = text.get(..start).unwrap();
+        let base = Span {
+            byte: start..start,
+            char: prefix.chars().count()..prefix.chars().count(),
+            utf16: prefix.encode_utf16().count()..prefix.encode_utf16().count(),
+        };
+        for mut sentence in tokenizer.analyze(text.get(start..end).unwrap()) {
+            let shifted = shift(sentence.span.clone(), &base);
+            sentence.span.byte = shifted.byte;
+            sentence.span.char = shifted.char;
+            sentence.span.utf16 = shifted.utf16;
+            for token in &mut sentence.tokens {
+                let shifted = shift(token.span.clone(), &base);
+                token.span.byte = shifted.byte;
+                token.span.char = shifted.char;
+                token.span.utf16 = shifted.utf16;
+            }
+            result.push(sentence);
+        }
+        start = end;
+    }
+    let mut merged: Vec<nlprule::analysis::AnalysisSentence> = Vec::new();
+    for sentence in result {
+        let after_quote = merged
+            .last()
+            .is_some_and(|previous| previous.text.trim_end().ends_with(['”', '’', '"', '\'']));
+        let possible_tag = after_quote
+            && sentence
+                .tokens
+                .iter()
+                .find(|token| !token.is_whitespace)
+                .is_some_and(|token| is_word(&token.text));
+        let tokens = if possible_tag {
+            sentence
+                .tokens
+                .iter()
+                .map(|token| Token {
+                    text: token.text.clone(),
+                    span: token.span.clone().into(),
+                    readings: token.readings.clone(),
+                    chunks: token.chunks.clone(),
+                    is_whitespace: token.is_whitespace,
+                    is_punctuation: token.is_punctuation,
+                    is_word: is_word(&token.text),
+                    is_skipped: false,
+                })
+                .collect::<Vec<_>>()
+        } else {
+            Vec::new()
+        };
+        let refs = tokens
+            .iter()
+            .filter(|token| !token.is_whitespace)
+            .collect::<Vec<_>>();
+        if possible_tag && crate::reports::dialogue_tags::following_tag(&refs, true) {
+            let previous = merged.last_mut().unwrap();
+            previous.span.byte.end = sentence.span.byte.end;
+            previous.span.char.end = sentence.span.char.end;
+            previous.span.utf16.end = sentence.span.utf16.end;
+            previous.text = text.get(previous.span.byte.clone()).unwrap().to_owned();
+            previous.tokens.extend(sentence.tokens);
+        } else {
+            merged.push(sentence);
+        }
+    }
+    merged
 }
 
 fn paragraph_spans_mode(text: &str, hard_wrapped: bool) -> Vec<Span> {
@@ -519,7 +773,11 @@ fn paragraph_spans_mode(text: &str, hard_wrapped: bool) -> Vec<Span> {
             let gap = text.get(previous.byte.end..line.byte.start).unwrap();
             let breaks =
                 gap.matches('\n').count() + gap.matches('\r').count() - gap.matches("\r\n").count();
-            if breaks < 2 && !gap.contains('\u{2029}') {
+            if breaks < 2
+                && !gap.contains('\u{2029}')
+                && !heading(text.get(line.byte.clone()).unwrap())
+                && !heading(text.get(previous.byte.clone()).unwrap())
+            {
                 previous.byte.end = line.byte.end;
                 previous.char.end = line.char.end;
                 previous.utf16.end = line.utf16.end;

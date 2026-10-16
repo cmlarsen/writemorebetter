@@ -21,6 +21,7 @@ use sentence_length::{SentenceLengthBaseline, SentenceLengthOptions, SentenceLen
 use sentence_starts::{SentenceStartsBaseline, SentenceStartsOptions, SentenceStartsReport};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, bound(deserialize = "T: Deserialize<'de> + Default"))]
 #[non_exhaustive]
 pub struct Split<T> {
     pub all: T,
@@ -66,6 +67,7 @@ pub struct Share {
     pub count: usize,
     pub percent: Option<f64>,
     pub difference: Option<f64>,
+    pub highlighted: bool,
 }
 
 impl Share {
@@ -75,7 +77,43 @@ impl Share {
             count,
             percent,
             difference: percent.zip(baseline).map(|(a, b)| a - b),
+            highlighted: false,
         }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct PercentileBand {
+    pub p5: f64,
+    pub p95: f64,
+}
+
+impl PercentileBand {
+    pub fn new(p5: f64, p95: f64) -> Self {
+        Self { p5, p95 }
+    }
+
+    pub(crate) fn validate(&self, report: &str, maximum: f64) -> Result<(), StyleError> {
+        if self.p5.is_finite()
+            && self.p95.is_finite()
+            && self.p5 >= 0.0
+            && self.p5 <= self.p95
+            && self.p95 <= maximum
+        {
+            Ok(())
+        } else {
+            Err(StyleError::baseline(
+                report,
+                "bands require 0 <= p5 <= p95 within the measure's range",
+            ))
+        }
+    }
+
+    pub(crate) fn highlights(band: Option<&Self>, value: Option<f64>) -> bool {
+        band.zip(value)
+            .is_some_and(|(band, value)| value < band.p5 || value > band.p95)
     }
 }
 
@@ -259,7 +297,7 @@ pub struct StyleRequest {
 impl Default for StyleRequest {
     fn default() -> Self {
         Self {
-            echoes: Some(EchoOptions::new()),
+            echoes: None,
             repeated_phrases: Some(RepeatedPhraseOptions::new()),
             cliches: Some(ClicheOptions::new()),
             dialogue_tags: Some(DialogueTagOptions::new()),

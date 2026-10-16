@@ -178,7 +178,7 @@ def self_test(probe):
         assert result['units'] == 3 and result['authors'] == 2 and result['authors_with_tags'] == 2
         assert result['totals']['tags'] == 5 and result['totals']['said_asked'] == 3
         assert result['totals']['non_speech'] == 1 and result['totals']['with_adverb'] == 1
-        assert result['totals']['untagged_runs'] == 1 and result['totals']['untagged_run_exchanges'] == 8
+        assert result['totals']['untagged_runs'] == 0 and result['totals']['untagged_run_exchanges'] == 0
         said = result['author_means']['said_asked_percent']
         assert said['authors'] == 2 and abs(said['mean'] - 37.5) < 1e-9
         assert result['author_means']['adverb_percent']['percentiles']['50'] == 12.5

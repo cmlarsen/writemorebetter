@@ -3,7 +3,7 @@ use std::sync::OnceLock;
 
 use serde::{Deserialize, Serialize};
 
-use super::{SentenceRun, Share, Split};
+use super::{PercentileBand, SentenceRun, Share, Split};
 use crate::error::{percent_in_range, StyleError};
 use crate::{Document, Mode, Sentence, Span, Token};
 
@@ -52,9 +52,17 @@ pub struct SentenceStartsOptions {
 impl Default for SentenceStartsOptions {
     fn default() -> Self {
         Self {
-            minimum_sentences: 200,
+            minimum_sentences: 50,
         }
     }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields, rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct SentenceStartsBands {
+    pub category_percent: BTreeMap<SentenceStartCategory, PercentileBand>,
+    pub universal_percent: BTreeMap<String, PercentileBand>,
 }
 
 impl SentenceStartsOptions {
@@ -75,6 +83,9 @@ pub struct SentenceStartsBaseline {
     pub category_percent: BTreeMap<SentenceStartCategory, f64>,
     #[serde(alias = "universal_percent")]
     pub universal_percent: BTreeMap<String, f64>,
+    pub bands: Split<SentenceStartsBands>,
+    pub narration: Option<Box<SentenceStartsBaseline>>,
+    pub dialogue: Option<Box<SentenceStartsBaseline>>,
 }
 
 impl SentenceStartsBaseline {
@@ -118,6 +129,20 @@ impl SentenceStartsBaseline {
             }
             percent_in_range(REPORT, "universalPercent", *value)?;
         }
+        for bands in [&self.bands.all, &self.bands.narration, &self.bands.dialogue] {
+            for band in bands.category_percent.values() {
+                band.validate(REPORT, 100.0)?;
+            }
+            for (tag, band) in &bands.universal_percent {
+                if !UNIVERSAL_TAGS.contains(&tag.as_str()) {
+                    return Err(StyleError::baseline(REPORT, "unknown universal band tag"));
+                }
+                band.validate(REPORT, 100.0)?;
+            }
+        }
+        for baseline in [&self.narration, &self.dialogue].into_iter().flatten() {
+            baseline.validate()?;
+        }
         Ok(())
     }
 }
@@ -151,6 +176,7 @@ pub struct SentenceStartUniversalShare {
     pub weight: f64,
     pub percent: Option<f64>,
     pub difference: Option<f64>,
+    pub highlighted: bool,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -158,6 +184,7 @@ pub struct SentenceStartUniversalShare {
 #[non_exhaustive]
 pub struct SentenceStartsGroup {
     pub sentences: usize,
+    pub low_confidence: bool,
     pub excluded_sentences: usize,
     pub ambiguous_starts: usize,
     pub unknown_starts: usize,
@@ -609,12 +636,14 @@ impl Builder {
         self,
         options: &SentenceStartsOptions,
         baseline: Option<&SentenceStartsBaseline>,
+        bands: Option<&SentenceStartsBands>,
     ) -> SentenceStartsGroup {
         let eligible = self.sentences - self.excluded;
         let enough = eligible >= options.minimum_sentences && eligible != 0;
         let known = eligible - self.unknown;
         SentenceStartsGroup {
             sentences: self.sentences,
+            low_confidence: eligible < 200,
             excluded_sentences: self.excluded,
             ambiguous_starts: self.ambiguous,
             unknown_starts: self.unknown,
@@ -622,12 +651,19 @@ impl Builder {
                 .into_iter()
                 .map(|category| SentenceStartCategoryShare {
                     category,
-                    share: Share::new(
-                        self.categories.get(&category).copied().unwrap_or(0),
-                        eligible,
-                        enough,
-                        baseline.and_then(|b| b.category_percent.get(&category).copied()),
-                    ),
+                    share: {
+                        let mut share = Share::new(
+                            self.categories.get(&category).copied().unwrap_or(0),
+                            eligible,
+                            enough,
+                            baseline.and_then(|b| b.category_percent.get(&category).copied()),
+                        );
+                        share.highlighted = PercentileBand::highlights(
+                            bands.and_then(|b| b.category_percent.get(&category)),
+                            share.percent,
+                        );
+                        share
+                    },
                 })
                 .collect(),
             universal: UNIVERSAL_TAGS
@@ -642,6 +678,10 @@ impl Builder {
                         difference: percent
                             .zip(baseline.and_then(|b| b.universal_percent.get(tag)))
                             .map(|(a, b)| a - b),
+                        highlighted: PercentileBand::highlights(
+                            bands.and_then(|b| b.universal_percent.get(tag)),
+                            percent,
+                        ),
                     }
                 })
                 .collect(),
@@ -660,7 +700,7 @@ struct Run {
 
 fn flush(groups: &mut Split<Builder>, run: Option<Run>) {
     if let Some(run) = run {
-        if run.last + 1 - run.first >= SAME_WORD_MIN_SENTENCES {
+        if run.mode == Mode::Narration && run.last + 1 - run.first >= SAME_WORD_MIN_SENTENCES {
             for group in groups.all_and_mode_mut(run.mode) {
                 group.runs.push(SentenceRun {
                     span: run.span.clone(),
@@ -685,8 +725,11 @@ pub fn report(
     let mut groups: Split<Builder> = Split::default();
     let mut starts = Vec::new();
     let mut index = 0;
+    let mut previous: Option<Run> = None;
     for paragraph in &document.paragraphs {
-        let mut previous: Option<Run> = None;
+        if paragraph.scene_break_before {
+            flush(&mut groups, previous.take());
+        }
         for sentence in &paragraph.sentences {
             let sentence_index = index;
             index += 1;
@@ -728,6 +771,11 @@ pub fn report(
             for group in groups.all_and_mode_mut(mode) {
                 group.add(&start);
             }
+            if document.sentence_has_speech(sentence) {
+                flush(&mut groups, previous.take());
+                starts.push(start);
+                continue;
+            }
             if let Some(word) = start.word.as_ref() {
                 if let Some(run) = &mut previous {
                     if *word == run.word && mode == run.mode {
@@ -748,10 +796,24 @@ pub fn report(
             });
             starts.push(start);
         }
-        flush(&mut groups, previous.take());
     }
+    flush(&mut groups, previous.take());
     Ok(SentenceStartsReport {
         starts,
-        groups: groups.map(|group| group.finish(options, baseline)),
+        groups: Split {
+            all: groups
+                .all
+                .finish(options, baseline, baseline.map(|b| &b.bands.all)),
+            narration: groups.narration.finish(
+                options,
+                baseline.and_then(|b| b.narration.as_deref()),
+                baseline.map(|b| &b.bands.narration),
+            ),
+            dialogue: groups.dialogue.finish(
+                options,
+                baseline.and_then(|b| b.dialogue.as_deref()),
+                baseline.map(|b| &b.bands.dialogue),
+            ),
+        },
     })
 }

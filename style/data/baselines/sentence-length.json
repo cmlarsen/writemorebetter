@@ -12,7 +12,15 @@
     "word_convention": "Document is_word tokens excluding skipped names; punctuation excluded, clitics count separately; no skip names supplied for calibration",
     "paragraph_mode": "one paragraph per line; blank lines at scene breaks"
   },
+  "bandStatus": "placeholder: no highlighting until owner chapter-window calibration; existing authorMeanPercentiles are not chapter-window bands",
   "baseline": {
+    "bands": {
+      "all": {"mean": null, "percentiles": {}},
+      "narration": {"mean": null, "percentiles": {}},
+      "dialogue": {"mean": null, "percentiles": {}}
+    },
+    "narration": null,
+    "dialogue": null,
     "mean": 12.900118525896554,
     "percentiles": {
       "5": 1.708450704225352,

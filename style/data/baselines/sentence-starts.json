@@ -27,7 +27,15 @@
     "scope": "all fiction, narration and dialogue blended",
     "build_commit": "a54a2e2fe22c46fdb862fd9c928a788ccfe12de2"
   },
+  "bandStatus": "placeholder: no highlighting until owner chapter-window calibration; split reference values pending",
   "baseline": {
+    "bands": {
+      "all": {"categoryPercent": {}, "universalPercent": {}},
+      "narration": {"categoryPercent": {}, "universalPercent": {}},
+      "dialogue": {"categoryPercent": {}, "universalPercent": {}}
+    },
+    "narration": null,
+    "dialogue": null,
     "categoryPercent": {},
     "universalPercent": {
       "PRON": 35.31,
