@@ -94,3 +94,9 @@ Licenses checked 2026-10-15 (recorded in #246, below). #250 vendors one derived 
   merged into their American lemma, rounded to three significant digits.
   It holds counts, not text. Its source record names the dataset, version, URL, license, retrieval
   date and build rules, and NOTICE credits Google Books Ngram.
+
+## Pacing cognition lemmas (#251)
+
+`style/data/pacing/cognition.txt`, version 1 (2026-10-16), is an original authored list of
+22 cognition/interior verb lemmas, including British and American spellings. It is MIT OR
+Apache-2.0 with the engine, contains no third-party data, and is credited in NOTICE.

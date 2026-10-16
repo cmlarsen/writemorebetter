@@ -2,6 +2,7 @@ export interface Span { start: number; end: number; }
 export type Mode = "narration" | "dialogue";
 export interface Split<T> { all: T; narration: T; dialogue: T; }
 export interface SentenceRange { start: number; end: number; }
+export interface PacingParagraphRange { start: number; end: number; }
 
 export type ClicheKind = "cliche" | "redundancy";
 export type DialogueTagPosition = "before" | "after" | "split";
@@ -293,4 +294,35 @@ export interface DictionReport {
   paragraphs: Array<DictionParagraph>;
   groups: Split<DictionGroup>;
   abstractRuns: Array<SentenceRun>;
+}
+
+export type PacingSignal = "sentenceLength" | "pastPerfect" | "cognition";
+export interface PacingSignals {
+  words: Split<number>;
+  sentences: number;
+  verbPhrases: number;
+  pastPerfect: number;
+  cognition: number;
+  dialoguePercent: number | null;
+  meanSentenceLength: number | null;
+  pastPerfectPercent: number | null;
+  cognitionPercent: number | null;
+}
+export interface PacingParagraph {
+  span: Span;
+  sceneBreakBefore: boolean;
+  signals: PacingSignals;
+  hasSpeech: boolean;
+  triggeredSignals: Array<PacingSignal>;
+}
+export interface PacingRun {
+  span: Span;
+  paragraphs: PacingParagraphRange;
+  signals: PacingSignals;
+  triggeredSignals: Array<PacingSignal>;
+}
+export interface PacingReport {
+  words: Split<number>;
+  paragraphs: Array<PacingParagraph>;
+  slowRuns: Array<PacingRun>;
 }
