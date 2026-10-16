@@ -51,8 +51,12 @@ export function checkStyleRecords(checker) {
   const table = '{"hope": 1.5, "idea": 1.6, "freedom": 1.3, "lamp": 4.8}';
   results.push(["SensoryBalanceReport", normDocument.sensoryBalance('{"minimumSenseWords":1}')]);
   results.push(["DictionReport", normDocument.diction(undefined, table)]);
+  const pacingText = readFileSync(new URL("../style/tests/fixtures/pacing.txt", import.meta.url), "utf8");
+  const pacingDocument = checker.styleDocument(pacingText);
+  results.push(["PacingReport", pacingDocument.pacing()]);
   for (const [type, json] of results) validate(JSON.parse(json), type, type);
   normDocument.free();
+  pacingDocument.free();
   assert.deepEqual([...visited].sort(), [...interfaces.keys()].sort(), "fixture exercises every declared result record");
   const stats = JSON.parse(document.stats());
   assert.throws(() => validate({ ...stats, bogus: true }, "DocumentStats", "negative control"));

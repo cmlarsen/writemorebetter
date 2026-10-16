@@ -4,8 +4,8 @@ use nlprule::Tokenizer;
 use serde::de::DeserializeOwned;
 
 use crate::reports::{
-    cliches, dialogue_tags, diction, echoes, overused_words, repeated_phrases, sensory_balance,
-    sentence_length, sentence_starts, DocumentStats, StyleResources,
+    cliches, dialogue_tags, diction, echoes, overused_words, pacing, repeated_phrases,
+    sensory_balance, sentence_length, sentence_starts, DocumentStats, StyleResources,
 };
 use crate::{analyze_document, Document, DocumentOptions, StyleError};
 
@@ -137,6 +137,10 @@ impl StyleDocument {
             sensory_balance::PerceptualNorms::bundled(),
             &options(json)?,
         )
+    }
+
+    pub fn pacing(&self, json: Option<&str>) -> Result<pacing::PacingReport, StyleError> {
+        pacing::report(&self.document, &options(json)?)
     }
 
     pub fn diction(

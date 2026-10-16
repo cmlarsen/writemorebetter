@@ -316,7 +316,7 @@ check(typeof lengthReport.groups.all.meanDifference === "number", "bundled basel
 eq(JSON.parse(retained.sentenceLength(options, "none")).groups.all.meanDifference, null, "baseline disabled per call");
 const custom = JSON.parse(retained.sentenceLength(options, '{"mean":1}'));
 eq(custom.groups.all.meanDifference, custom.groups.all.mean - 1, "custom baseline per call");
-const calls = ["echoes", "repeatedPhrases", "cliches", "dialogueTags", "sentenceLength", "sentenceStarts", "sensoryBalance", "overusedWords", "stats"];
+const calls = ["echoes", "repeatedPhrases", "cliches", "dialogueTags", "sentenceLength", "sentenceStarts", "sensoryBalance", "pacing", "overusedWords", "stats"];
 for (const method of calls) {
   const fresh = checker.styleDocument(reportText);
   eq(JSON.parse(retained[method]()), JSON.parse(fresh[method]()), `shared analysis matches fresh ${method}`);
@@ -345,7 +345,7 @@ eq(invalid.kind, "invalidBaseline", "invalid baseline rejected");
 eq(invalid.report, "sentenceStarts", "error names report");
 eq(styleError(() => checker.styleDocument("text", '{"typo":true}')).kind, "invalidOptions", "document options validated");
 const compactStyle = checker.styleDocument(reportText, '{"includeTokenDetails":false}');
-for (const method of ["echoes", "repeatedPhrases", "dialogueTags", "sentenceStarts", "sensoryBalance", "overusedWords"]) {
+for (const method of ["echoes", "repeatedPhrases", "dialogueTags", "sentenceStarts", "sensoryBalance", "pacing", "overusedWords"]) {
   eq(styleError(() => compactStyle[method]()).kind, "needsTokenDetails", `compact rejects ${method}`);
 }
 eq(styleError(() => compactStyle.diction(undefined, '{"hope":1.5}')).kind, "needsTokenDetails", "compact rejects diction");
@@ -415,6 +415,19 @@ eq(noTable.fillers.length, 2, "overused: fillers run without a table");
 check(JSON.parse(overusedDoc.overusedWords()).fillers.every(f => typeof f.ratio === "number"), "overused: bundled filler rates");
 eq(styleError(() => overusedDoc.overusedWords(undefined, '{"fillers":{"glance":1}}')).report, "overusedWords", "overused: filler keys validated");
 overusedDoc.free();
+
+
+const pacingText = "😀 She remembered that he had gone… She knew that he had been alone.\nShe wondered why he had forgotten. She had never understood why he had gone.\nShe recalled how he had known. She had imagined that he had remembered.";
+const pacingDocument = checker.styleDocument(pacingText);
+const pacingReport = JSON.parse(pacingDocument.pacing());
+eq(pacingReport.slowRuns.length, 1, "backstory pacing run");
+eq(pacingReport.slowRuns[0].paragraphs, {start: 0, end: 3}, "pacing row range");
+eq(pacingText.slice(pacingReport.slowRuns[0].span.start, pacingReport.slowRuns[0].span.end), pacingText, "UTF-16 pacing run");
+check(pacingReport.slowRuns[0].triggeredSignals.includes("pastPerfect"), "pacing explains past perfect");
+eq(pacingReport.words, JSON.parse(pacingDocument.stats()).words, "pacing word convention");
+eq(styleError(() => pacingDocument.pacing('{"minimumParagraphs":0}')).kind, "invalidOptions", "pacing options validated");
+eq(styleError(() => pacingDocument.pacing('{"typo":0}')).kind, "invalidOptions", "pacing unknown options rejected");
+pacingDocument.free();
 
 checkStyleRecords(checker);
 const independent = checker.styleDocument("She ran.");

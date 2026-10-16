@@ -416,6 +416,9 @@ final class CheckerTests: XCTestCase {
             let actual = strippedNulls(try JSONSerialization.jsonObject(with: encoded)) as! NSDictionary
             XCTAssertEqual(actual, original, file: file, line: line)
         }
+        let pacingText = try String(contentsOf: Self.repositoryRoot.appendingPathComponent("style/tests/fixtures/pacing.txt"), encoding: .utf8)
+        let pacingDocument = try checker().styleDocument(text: pacingText)
+        try roundTrip(PacingReport.self, pacingDocument.pacingJson())
         try roundTrip(DocumentStats.self, document.statsJson())
         try roundTrip(EchoReport.self, document.echoesJson(optionsJson: nil))
         try roundTrip(RepeatedPhraseReport.self, document.repeatedPhrasesJson(optionsJson: nil))
@@ -450,6 +453,22 @@ final class CheckerTests: XCTestCase {
         XCTAssertFalse(tags.untaggedRuns.isEmpty)
         XCTAssertTrue(tags.tags.contains { $0.adverb != nil })
         XCTAssertFalse(try document.sentenceStarts(optionsJson: startOptions).groups.all.sameWordRuns.isEmpty)
+    }
+
+    func testPacingLens() throws {
+        let text = "😀 She remembered that he had gone… She knew that he had been alone.\nShe wondered why he had forgotten. She had never understood why he had gone.\nShe recalled how he had known. She had imagined that he had remembered."
+        let document = try checker().styleDocument(text: text)
+        let pacing = try document.pacing()
+        XCTAssertEqual(pacing.slowRuns.count, 1)
+        let run = try XCTUnwrap(pacing.slowRuns.first)
+        XCTAssertEqual(run.paragraphs.start, 0)
+        XCTAssertEqual(run.paragraphs.end, 3)
+        XCTAssertEqual((text as NSString).substring(with: run.span.nsRange), text)
+        XCTAssertTrue(run.triggeredSignals.contains(.pastPerfect))
+        XCTAssertEqual(pacing.words, try document.stats().words)
+        let roundTrip = try JSONDecoder().decode(PacingReport.self, from: Data(document.pacingJson().utf8))
+        XCTAssertEqual(roundTrip, pacing)
+        XCTAssertThrowsError(try document.pacing(optionsJson: "{\"minimumParagraphs\":0}"))
     }
 
 }

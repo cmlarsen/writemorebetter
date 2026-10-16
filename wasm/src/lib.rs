@@ -524,6 +524,14 @@ impl StyleDocument {
             .map(|report| reports::to_utf16_json(&report))
             .map_err(style_error)
     }
+    #[wasm_bindgen(js_name = pacing)]
+    /// Returns the opt-in pacing lens on the retained analysis.
+    pub fn pacing(&self, options_json: Option<String>) -> Result<String, JsValue> {
+        self.inner
+            .pacing(options_json.as_deref())
+            .map(|report| reports::to_utf16_json(&report))
+            .map_err(style_error)
+    }
     #[wasm_bindgen(js_name = diction)]
     /// Returns this report on the retained analysis; options default when omitted.
     /// Table: a word-to-concreteness JSON object or TSV text; omitting it is a missingTable error.

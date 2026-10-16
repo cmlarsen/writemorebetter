@@ -788,3 +788,35 @@ and equal author weighting at both scales, weighted percentiles, the window rule
 percentiles, rejection of unlisted probe keys and of non-string author keys, and suppression of
 argparse and runtime errors in thirteen argument shapes, including `--e PATH` with no subcommand.
 CI runs only the self-test; no private corpus or export was read to build this.
+
+## Pacing (#251)
+
+```sh
+python3 bench/style/run.py tier2 pacing --gate
+python3 bench/style/run.py tier3 --pacing --self-test
+python3 bench/style/pacing.py # public texts only; downloads pinned Standard Ebooks chapters to .cache
+python3 bench/style/run.py tier3 --pacing --export /approved/export # owner only
+```
+
+The dedicated `bench/tools/wmb-document` `pacing` JSONL probe runs the actual Rust report;
+`--document-probe` (tier 2) or `--probe` (tier 3) selects an existing executable. CI gates
+`pacing-baseline.json`: 45 cases with 20 exact byte/UTF-16 gold run spans, using injected
+backstory (three-paragraph, contracted Unicode, >400-word single paragraph, and hard-wrapped)
+among untouched paragraphs from each of `bench/public/story1.txt`–`story5.txt`. Negative
+controls cover untouched opening passages, action, dialogue, short exposition and scene breaks.
+These are development/regression fixtures, not held-out literary accuracy. The injections use
+one deliberately strong authored backstory passage, so perfect scores do not establish recall on
+natural exposition. Default thresholds and public flag distributions are recorded in
+[STYLE-PACING.md](../../docs/STYLE-PACING.md).
+
+Tier 3 is an owner-run calibration entry point with no shipped published-fiction baseline.
+The export layout is `units.jsonl` plus `units/<unit_id>.txt`, one paragraph per line;
+`author_key` pools all of an author's units. Output is aggregate-only: pooled per-paragraph
+signal distributions (mean and p0/5/25/50/75/95/100, each paragraph weighted equally), equally
+weighted distributions of author signal means and of per-author flag rates (share of paragraphs
+inside runs, runs per thousand words), and the share of authors with any run. Null
+denominators are omitted for that measure. There are no per-author rows or exact word totals.
+It emits no text, titles, identifiers or author keys; a fixed output-key
+allowlist and numeric-value check guard serialization, probe stderr is discarded, and run.py
+suppresses all tier 3 argument/runtime errors. CI runs only synthetic `--self-test`, which
+checks author pooling and sentinel metadata suppression. No private data was accessed for #251.

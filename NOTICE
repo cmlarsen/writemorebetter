@@ -72,3 +72,7 @@ with its own tokenizer, merged British spelling variants into their American
 lemma, and kept rates per million words, rounded to three significant digits,
 for content lemmas at or above one per million
 (bench/style/overused_baseline.py). Google does not endorse writemorebetter.
+
+style/data/pacing/cognition.txt is an original writemorebetter lemma list,
+version 1 (2026-10-16), licensed MIT OR Apache-2.0. It is not derived from
+third-party dictionaries or rule resources.
