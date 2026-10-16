@@ -503,10 +503,12 @@ def synthetic_text(seed, paragraphs, dialogue=True):
 
 
 def self_test(probe, started=None):
-    lexical = probe.measure('She glanced. ' * 6 + 'It was red. ' * 20
-                            + 'An idea, a belief, a truth. ' * 3)
+    lexical = probe.measure('She glanced. ' * 6 + 'It was red. ' * 20 + 'It was very cold. ' * 3
+                            + 'She just left. ' + 'An idea, a belief, a truth. ' * 3)
     assert lexical['overused_words']['overused'] >= 1
+    assert lexical['overused_words']['fillers'] == 4
     assert lexical['sensory_balance']['modalities']['sight'] == 26
+    assert lexical['sensory_balance']['modalities']['touch'] == 3
     assert lexical['sensory_balance']['single_sense'] == 1
     assert lexical['diction']['abstract_sentences'] == 3
     assert lexical['diction']['abstract_runs'] == 1
