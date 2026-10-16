@@ -336,7 +336,9 @@ eq(everything.cliches.groups.dialogue.words, everything.stats.words.dialogue, "d
 eq(everything.dialogueTags.tags[0].verbText, "said", "dialogue tag verb");
 const quote = everything.dialogueTags.tags[0].quotes[0];
 eq(reportText.slice(quote.start, quote.end), "“Fine,”", "dialogue tag quotes are spans");
-eq(echoLens.echoes[0].label, "grin", "echo label");
+eq(echoLens.echoes.length, 0, "close same-sentence echoes are suppressed");
+const separatedEcho = JSON.parse(checker.styleReports("He walked. She was walking.", JSON.stringify({echoes:{}}))).echoes;
+eq(separatedEcho.echoes[0].label, "walk", "echo label across sentences");
 eq(JSON.parse(checker.styleReports(reportText, undefined)), everything, "cached cliché list gives the same result");
 
 function styleError(text, request, options) {

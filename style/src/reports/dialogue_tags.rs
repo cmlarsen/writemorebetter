@@ -539,7 +539,14 @@ impl<'a> Paragraph<'a> {
                 break;
             }
         }
-        self.adverb_at(words.get(position))
+        let candidate = self.adverb_at(words.get(position))?;
+        if words.get(position + 1).is_some_and(|&next| {
+            let token = self.items[next].token;
+            has_pos(token, "JJ") || has_pos(token, "VBN")
+        }) {
+            return None;
+        }
+        Some(candidate)
     }
 
     fn adverb_after_object(&self, words: &[usize], position: usize) -> Option<usize> {
@@ -1015,36 +1022,27 @@ pub fn report(
         builder.paragraph = Some(paragraph);
         if paragraph.pieces.is_empty()
             && !document.paragraphs[index].scene_break_before
-            && paragraph
-                .items
-                .iter()
-                .filter(|item| item.token.is_word)
-                .count()
-                <= 12
-            && paragraph.items.iter().any(|item| {
-                item.token.readings.iter().any(|reading| {
-                    reading.pos.starts_with("VB")
-                        && matches!(
-                            reading.lemma.as_str(),
-                            "cut"
-                                | "interrupt"
-                                | "nod"
-                                | "shake"
-                                | "smile"
-                                | "shrug"
-                                | "answer"
-                                | "reply"
-                        )
+            && paragraph.items.iter().filter(|i| i.token.is_word).count() <= 12
+            && !paragraph.items.iter().any(|i| {
+                matches!(
+                    i.token.text.to_lowercase().as_str(),
+                    "not" | "n't" | "n’t" | "never" | "didn’t" | "didn't"
+                )
+            })
+            && paragraph.items.iter().any(|i| {
+                i.token.readings.iter().any(|r| {
+                    r.pos.starts_with("VB") && matches!(r.lemma.as_str(), "cut" | "interrupt")
                 })
             })
         {
-            if let Some(previous) = index
-                .checked_sub(1)
-                .and_then(|i| paragraphs[i].pieces.last())
-                .filter(|piece| piece.ends)
+            if let Some(next) = paragraphs
+                .get(index + 1)
+                .and_then(|p| p.pieces.first())
+                .filter(|p| p.starts)
+                .filter(|_| !document.paragraphs[index + 1].scene_break_before)
             {
                 let clause = paragraph.head(&(0..paragraph.items.len()));
-                builder.beat(clause, vec![previous.dialogue]);
+                builder.beat(clause, vec![next.dialogue]);
             }
         }
         let following = paragraphs
@@ -1169,7 +1167,7 @@ pub fn report(
     };
     let neutral_verbs = counts(&|lemma, _| lists().neutral.contains(lemma));
     let showy_verbs = counts(&|lemma, class| {
-        lists().showy.contains(lemma) || class == DialogueTagVerbClass::NonSpeech
+        lists().showy.contains(lemma) && class != DialogueTagVerbClass::NonSpeech
     });
     let mut other_verbs: Vec<DialogueTagVerbCount> = verbs
         .into_iter()
@@ -1210,7 +1208,7 @@ pub fn report(
         ),
         neutral_verbs,
         showy_verbs,
-        low_confidence: tags.len() < 50,
+        low_confidence: tags.len() < 50.max(options.minimum_tags),
         dialogue_spans: document.dialogue.len(),
         speech_spans,
         tagged_spans: tagged.len(),

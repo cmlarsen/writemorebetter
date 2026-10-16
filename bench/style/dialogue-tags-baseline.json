@@ -1,7 +1,6 @@
 {
   "source": "bench/style/labels/dialogue-tags.jsonl over the four pinned Standard Ebooks passages in bench/style/dialogue_tags.py (dev and test splits combined)",
-  "measured": "2026-10-16, English 6.6 tokenizer",
-  "rebaselineReasons": ["Standalone attribution paragraphs now count as action beats, as requested in the writer review: the frozen paragraph-edge labels omit I nodded and She smiled in styles-1. This adds two correct but unlabeled beat predictions; retain the frozen gold and labeler provenance, and document the resulting precision change. The two pre-existing false beat predictions remain diagnostic."],
+  "measured": "2026-10-15, English 6.6 tokenizer",
   "floors": {
     "dialogue_tag_position": {
       "after": {
@@ -41,9 +40,9 @@
     },
     "dialogue_beat": {
       "beat": {
-        "precision": 0.6923076923076923,
+        "precision": 0.8181818181818182,
         "recall": 0.9,
-        "f1": 0.7826086956521738
+        "f1": 0.8571428571428571
       },
       "tag": {
         "precision": 1.0,

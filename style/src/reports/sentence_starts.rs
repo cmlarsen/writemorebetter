@@ -78,17 +78,45 @@ impl SentenceStartsOptions {
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields, rename_all = "camelCase")]
 #[non_exhaustive]
+pub struct SentenceStartsReference {
+    #[serde(alias = "category_percent")]
+    pub category_percent: BTreeMap<SentenceStartCategory, f64>,
+    #[serde(alias = "universal_percent")]
+    pub universal_percent: BTreeMap<String, f64>,
+}
+
+impl SentenceStartsReference {
+    fn validate(&self) -> Result<(), StyleError> {
+        SentenceStartsBaseline {
+            category_percent: self.category_percent.clone(),
+            universal_percent: self.universal_percent.clone(),
+            ..Default::default()
+        }
+        .validate()
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields, rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct SentenceStartsBaseline {
     #[serde(alias = "category_percent")]
     pub category_percent: BTreeMap<SentenceStartCategory, f64>,
     #[serde(alias = "universal_percent")]
     pub universal_percent: BTreeMap<String, f64>,
     pub bands: Split<SentenceStartsBands>,
-    pub narration: Option<Box<SentenceStartsBaseline>>,
-    pub dialogue: Option<Box<SentenceStartsBaseline>>,
+    pub narration: Option<SentenceStartsReference>,
+    pub dialogue: Option<SentenceStartsReference>,
 }
 
 impl SentenceStartsBaseline {
+    fn reference(&self) -> SentenceStartsReference {
+        SentenceStartsReference {
+            category_percent: self.category_percent.clone(),
+            universal_percent: self.universal_percent.clone(),
+        }
+    }
+
     pub fn new() -> Self {
         Self::default()
     }
@@ -635,7 +663,7 @@ impl Builder {
     fn finish(
         self,
         options: &SentenceStartsOptions,
-        baseline: Option<&SentenceStartsBaseline>,
+        baseline: Option<&SentenceStartsReference>,
         bands: Option<&SentenceStartsBands>,
     ) -> SentenceStartsGroup {
         let eligible = self.sentences - self.excluded;
@@ -643,7 +671,7 @@ impl Builder {
         let known = eligible - self.unknown;
         SentenceStartsGroup {
             sentences: self.sentences,
-            low_confidence: eligible < 200,
+            low_confidence: eligible < 200.max(options.minimum_sentences),
             excluded_sentences: self.excluded,
             ambiguous_starts: self.ambiguous,
             unknown_starts: self.unknown,
@@ -691,6 +719,9 @@ impl Builder {
 }
 
 struct Run {
+    second: Option<String>,
+    same_two: bool,
+    rhetorical: bool,
     word: String,
     mode: Mode,
     span: Span,
@@ -700,7 +731,11 @@ struct Run {
 
 fn flush(groups: &mut Split<Builder>, run: Option<Run>) {
     if let Some(run) = run {
-        if run.mode == Mode::Narration && run.last + 1 - run.first >= SAME_WORD_MIN_SENTENCES {
+        if run.mode == Mode::Narration
+            && run.last + 1 - run.first >= SAME_WORD_MIN_SENTENCES
+            && !run.same_two
+            && !run.rhetorical
+        {
             for group in groups.all_and_mode_mut(run.mode) {
                 group.runs.push(SentenceRun {
                     span: run.span.clone(),
@@ -776,11 +811,19 @@ pub fn report(
                 starts.push(start);
                 continue;
             }
+            let second = sentence.words().nth(1).map(|t| t.text.to_lowercase());
+            let rhetorical = sentence
+                .text
+                .trim_end()
+                .trim_end_matches(['”', '"', '\''])
+                .ends_with(['?', '!']);
             if let Some(word) = start.word.as_ref() {
                 if let Some(run) = &mut previous {
                     if *word == run.word && mode == run.mode {
                         run.span = Span::covering(&run.span, &sentence.span);
                         run.last = sentence_index;
+                        run.same_two &= run.second == second;
+                        run.rhetorical &= rhetorical;
                         starts.push(start);
                         continue;
                     }
@@ -788,6 +831,9 @@ pub fn report(
             }
             flush(&mut groups, previous.take());
             previous = start.word.clone().map(|word| Run {
+                second,
+                same_two: true,
+                rhetorical,
                 word,
                 mode,
                 span: sentence.span.clone(),
@@ -801,17 +847,19 @@ pub fn report(
     Ok(SentenceStartsReport {
         starts,
         groups: Split {
-            all: groups
-                .all
-                .finish(options, baseline, baseline.map(|b| &b.bands.all)),
+            all: groups.all.finish(
+                options,
+                baseline.map(|b| b.reference()).as_ref(),
+                baseline.map(|b| &b.bands.all),
+            ),
             narration: groups.narration.finish(
                 options,
-                baseline.and_then(|b| b.narration.as_deref()),
+                baseline.and_then(|b| b.narration.as_ref()),
                 baseline.map(|b| &b.bands.narration),
             ),
             dialogue: groups.dialogue.finish(
                 options,
-                baseline.and_then(|b| b.dialogue.as_deref()),
+                baseline.and_then(|b| b.dialogue.as_ref()),
                 baseline.map(|b| &b.bands.dialogue),
             ),
         },

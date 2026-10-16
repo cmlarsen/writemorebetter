@@ -10,13 +10,13 @@ Echoes are a way to inspect nearby repeats in a passage, not an issue list. They
 `StyleRequest::new()`, absent-request `run_json`, and the bindings' default `styleReports` call.
 Select them explicitly with `{"echoes":{}}`, or call `echoes::report` directly.
 
-`EchoOptions` retains `window` (50 counted words, inclusive) and `matchForms` (true). Every later
+`EchoOptions` retains `window` (30 counted words, inclusive; larger requests are capped at 30) and `matchForms` (true). Every later
 content word links to its nearest matching earlier word within the window. Windows cross paragraph,
-sentence and dialogue boundaries. Counts and density remain available for existing consumers; density
+sentence boundaries. Same-sentence pairs within ten words are suppressed, as are quoted pairs in different paragraphs (a conservative dialogue-turn proxy; speaker identity is not inferred). Counts and density remain available for existing consumers; density
 is descriptive and must not be presented as a quality score.
 
-Default suppressions include say/ask inflections, common honorifics (Mr., Mrs., Ms., Dr., M.,
-Monsieur, Madame and related forms), and particles (up, down, out, back, off, over, away).
+Default suppressions include say/ask inflections, honorifics before capitalized words (Mr., Mrs., Ms., Dr., M.,
+Monsieur, Madame and related forms; ordinary *miss* and *ladies* remain content), and particles (up, down, out, back, off, over, away).
 Caller-supplied skipped names and their preceding honorifics are excluded from document counts.
 Recognized headings and scene-marker lines are removed in the document pass. Callers should pass
 their character/place lists through `DocumentOptions::with_skip_names`; this crate cannot read
@@ -25,11 +25,10 @@ an application's character database.
 ### Matching and ambiguity
 
 Spelling is lowercased with curly apostrophes folded to straight apostrophes. With `matchForms`,
-two tokens match only through a directly shared single-word lemma or spelling. No transitive graph
+two tokens match through identical spelling, or a single unambiguous content lemma with the same noun/verb/adjective/adverb POS family. Comparative and superlative readings do not supply lemma keys. No transitive graph
 connects different readings: a third token such as *better* cannot join *good* to *well*, and *saw*
 cannot join *seen* to *saws*. An ambiguous token still yields at most one echo, against the nearest
-matching token. Direct homograph matches can remain ambiguous; the report does not invent a POS
-disambiguation. Exact repeated spellings always match. With `matchForms:false`, only spelling matches.
+matching token. Ambiguous readings keep only their spelling key; a lemma never matches an unrelated surface key. Exact repeated spellings always match. With `matchForms:false`, only spelling matches.
 
 The echo's `key` is the directly shared matching key; `label` names the matched words, preferring
 a shared lemma that is also a matched spelling. Keys are no longer transitive, document-wide word
@@ -40,7 +39,7 @@ families. Every echo includes `earlier`, `later` and `distance`.
 The owner-authored closed-class list excludes determiners, pronouns, auxiliaries, prepositions and
 light adverbs. A spelling is also excluded if it has a number reading or most occurrences have no
 noun, verb, adjective or adverb reading with an unlisted lemma. Unknown words count as content.
-The new suppressions apply independently of POS ambiguity. Nothing comes from external linguistic
+Echo-only suppressions do not apply to repeated phrases. Nothing comes from external linguistic
 word lists.
 
 ## Repeated phrases
@@ -54,23 +53,25 @@ word lists.
 | `minimumContentWords` | 2 | Unmasked content words required |
 | `minimumOccurrences` | 3 | Uses required anywhere in the document |
 | `nearbyWords` | 300 | Two uses also qualify when this close |
+| `automaticNames` | false | Infer recurring mid-sentence capitalized names when no roster was supplied |
 
 Options accept snake_case aliases and have Rust builders. Candidate lengths are clamped to the
 longest sentence. Phrases do not cross sentences. Distance counts word tokens, including masked
-names; punctuation does not count. Punctuation inside a sentence is ignored.
+names; punctuation does not count. Commas, semicolons, dashes, ellipses and closing quotes end n-grams.
 
-Skipped names become `<name>` positions and detected tag verbs become `<tag>` positions instead
-of breaking the sentence or contributing content words. This preserves gestures such as *shrugged
-her shoulders* next to an attribution. Display labels use the placeholders too. Other function
+Skipped names become `<name>` positions instead of contributing content words. Attribution verbs
+remain content, so *Piglet said that* and phrasal verbs such as *I got up* remain eligible.
+With `automaticNames:true`, capitalized tokens with proper-noun readings recurring mid-sentence are
+masked when `skip_names` is empty. This optional heuristic is a fallback for Subplot's character
+roster; any nonempty caller roster disables it, even if its names do not occur in the passage. Other function
 positions use spelling; unambiguous content lemmas inflect together, while ambiguous spellings keep
 their own key instead of joining different readings transitively.
 
 A candidate qualifies with at least three uses, or at least two within 300 words. Wholly contained
-shorter repeats are suppressed when every occurrence is covered. Overlapping candidates whose
+shorter repeats are suppressed when they overlap a longer retained repeat, including different occurrence sets. Overlapping candidates whose
 corresponding occurrences all overlap and whose keys agree are merged into one span per occurrence,
 even beyond `maximumLength`. A repeated clause therefore yields one entry rather than several
-overlapping five-grams. Different occurrence sets stay separate, preserving a shorter gesture that
-also occurs on its own.
+overlapping five-grams. Longest retained phrases take priority over nested or overlapping shorter entries.
 
 `RepeatedPhraseReport.phrases` returns `keys`, `labels`, `count` and `spans`, ordered by count,
 length and first occurrence. Each span includes punctuation between its first and last word.

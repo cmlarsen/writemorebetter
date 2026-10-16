@@ -91,7 +91,7 @@ class FlagRateTests(unittest.TestCase):
         dialogue = chapter['reports']['sentence_length']['baseline_comparison']['dialogue']['mean']
         self.assertEqual((dialogue['eligible_share'], dialogue['difference']), (0, None))
         pron = manuscript['reports']['sentence_starts']['baseline_comparison']['all']['universal']['PRON']
-        self.assertAlmostEqual(pron['difference']['mean'], 100 - 35.31)
+        self.assertAlmostEqual(pron['difference']['mean'], 100 - flag_rates.baseline(flag_rates.STARTS_BASELINE)['universalPercent']['PRON'])
         self.assertEqual(manuscript['reports']['sentence_starts']['measures']['all']['universal']['PRON']['mean'], 100)
         self.assertNotIn(SENTINEL, json.dumps(result))
         self.assertTrue(numeric_only(result))

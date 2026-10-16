@@ -324,15 +324,15 @@
       }
     },
     "mobyDick": {
-      "sentences": 854,
+      "sentences": 878,
       "inputs": [
         {
           "file": "moby150k.txt",
           "hardWrapped": true,
           "bytes": 120267,
           "lineEndings": "CRLF",
-          "paragraphs": 190,
-          "sentences": 854,
+          "paragraphs": 202,
+          "sentences": 878,
           "cut": {
             "marker": "CHAPTER 1. Loomings.",
             "occurrence": 2,
@@ -343,57 +343,58 @@
       "categories": {
         "adverb": {
           "count": 89,
-          "percent": 10.421545667447306
+          "percent": 10.136674259681094
         },
         "coordinatingConjunction": {
           "count": 135,
-          "percent": 15.807962529274004
+          "percent": 15.375854214123008
         },
         "gerund": {
           "count": 23,
-          "percent": 2.693208430913349
+          "percent": 2.6195899772209565
         },
         "infinitive": {
           "count": 4,
-          "percent": 0.468384074941452
+          "percent": 0.45558086560364464
         },
         "introductory": {
           "count": 125,
-          "percent": 14.637002341920375
+          "percent": 14.236902050113896
         },
         "inversion": {
           "count": 9,
-          "percent": 1.053864168618267
+          "percent": 1.0250569476082005
         },
         "other": {
-          "count": 106,
-          "percent": 12.412177985948478
+          "count": 130,
+          "percent": 14.806378132118452
         },
         "pastParticiple": {
           "count": 7,
-          "percent": 0.819672131147541
+          "percent": 0.7972665148063781
         },
         "subject": {
           "count": 329,
-          "percent": 38.52459016393443
+          "percent": 37.47152619589977
         },
         "subordinatingConjunction": {
           "count": 27,
-          "percent": 3.161592505854801
+          "percent": 3.075170842824601
         }
       },
       "otherOpeningShapes": {
+        "chapterNumberHeading": 12,
+        "shortFragmentShape": 14,
         "commandLikeOpening": 16,
         "remainingVerbTaggedOpening": 26,
         "remainingOpenings": 24,
         "punctuationOrMarkupLed": 2,
-        "shortFragmentShape": 10,
-        "vocativeOrInterjectionShape": 26,
-        "articleLed": 2
+        "articleLed": 10,
+        "vocativeOrInterjectionShape": 26
       },
       "bundledBaselineComparison": {
-        "meanDifference": 11.995666017428972,
-        "universalDifferences": 11
+        "meanDifference": 11.48602659841754,
+        "universalDifferences": 12
       }
     }
   }

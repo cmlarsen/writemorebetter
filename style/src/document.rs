@@ -176,6 +176,8 @@ pub struct Document {
     pub token_details: bool,
     #[serde(default)]
     pub hard_wrapped: bool,
+    #[serde(default)]
+    pub skip_names_supplied: bool,
 }
 
 fn token_details_default() -> bool {
@@ -329,48 +331,107 @@ pub(crate) fn honorific(text: &str) -> bool {
 }
 
 fn chapter_heading(text: &str) -> bool {
-    let lower = text.trim().to_lowercase();
-    ["chapter ", "book ", "part "]
-        .iter()
-        .filter_map(|prefix| lower.strip_prefix(prefix))
-        .any(|rest| {
-            rest.split_whitespace().next().is_some_and(|word| {
-                let word = word.trim_matches(|c: char| !c.is_alphanumeric());
-                !word.is_empty()
-                    && (word.chars().all(|c| c.is_ascii_digit())
-                        || word.chars().all(|c| "ivxlcdm".contains(c))
-                        || matches!(
-                            word,
-                            "one"
-                                | "two"
-                                | "three"
-                                | "four"
-                                | "five"
-                                | "six"
-                                | "seven"
-                                | "eight"
-                                | "nine"
-                                | "ten"
-                                | "eleven"
-                                | "twelve"
-                                | "thirteen"
-                                | "fourteen"
-                                | "fifteen"
-                                | "sixteen"
-                                | "seventeen"
-                                | "eighteen"
-                                | "nineteen"
-                                | "twenty"
-                        ))
-            })
+    let text = text.trim().trim_start_matches('#').trim();
+    if text.contains(['.', '!', '?', '“', '”', '"']) || text.split_whitespace().count() > 10 {
+        return false;
+    }
+    let mut words = text.split_whitespace();
+    if !words
+        .next()
+        .is_some_and(|w| matches!(w.to_lowercase().as_str(), "chapter" | "part" | "book"))
+    {
+        return false;
+    }
+    let Some(number) = words.next() else {
+        return false;
+    };
+    let values: Vec<i32> = number
+        .chars()
+        .map(|c| match c {
+            'M' => 1000,
+            'D' => 500,
+            'C' => 100,
+            'L' => 50,
+            'X' => 10,
+            'V' => 5,
+            'I' => 1,
+            _ => 0,
         })
-        && lower.split_whitespace().count() <= 10
+        .collect();
+    let value: i32 = values
+        .iter()
+        .enumerate()
+        .map(|(i, v)| {
+            if values.get(i + 1).is_some_and(|next| next > v) {
+                -v
+            } else {
+                *v
+            }
+        })
+        .sum();
+    let roman = (1..=3999).contains(&value) && {
+        let mut n = value;
+        let mut result = String::new();
+        for (value, symbol) in [
+            (1000, "M"),
+            (900, "CM"),
+            (500, "D"),
+            (400, "CD"),
+            (100, "C"),
+            (90, "XC"),
+            (50, "L"),
+            (40, "XL"),
+            (10, "X"),
+            (9, "IX"),
+            (5, "V"),
+            (4, "IV"),
+            (1, "I"),
+        ] {
+            while n >= value {
+                result.push_str(symbol);
+                n -= value;
+            }
+        }
+        number == result
+    };
+    let numbered = number.chars().all(|c| c.is_ascii_digit())
+        || roman
+        || matches!(
+            number.to_lowercase().as_str(),
+            "one"
+                | "two"
+                | "three"
+                | "four"
+                | "five"
+                | "six"
+                | "seven"
+                | "eight"
+                | "nine"
+                | "ten"
+                | "eleven"
+                | "twelve"
+                | "thirteen"
+                | "fourteen"
+                | "fifteen"
+                | "sixteen"
+                | "seventeen"
+                | "eighteen"
+                | "nineteen"
+                | "twenty"
+        );
+    numbered
+        && words.all(|w| {
+            w.chars().next().is_some_and(char::is_uppercase)
+                || matches!(w, "of" | "the" | "and" | "a" | "in")
+        })
 }
 
 fn heading(text: &str) -> bool {
     let text = text.trim();
     chapter_heading(text)
-        || text.starts_with('#')
+        || (text.starts_with('#')
+            && text.split_whitespace().count() <= 10
+            && !text.contains(['.', '!', '?']))
         || (!text.is_empty()
             && text
                 .chars()
@@ -378,19 +439,15 @@ fn heading(text: &str) -> bool {
         || text
             .strip_prefix('—')
             .is_some_and(|rest| rest.trim_start().starts_with('_'))
-        || (text.chars().any(char::is_uppercase)
-            && !text.chars().any(char::is_lowercase)
-            && text.split_whitespace().count() <= 10
-            && !text.contains(['“', '”', '"', '.', '!', '?']))
 }
 
-pub(crate) fn scene_gap(text: &str, hard_wrapped: bool) -> bool {
+pub(crate) fn scene_gap(text: &str, _hard_wrapped: bool) -> bool {
     if text.contains('\u{2029}') {
         return true;
     }
     let breaks =
         text.matches('\n').count() + text.matches('\r').count() - text.matches("\r\n").count();
-    breaks >= if hard_wrapped { 3 } else { 2 }
+    breaks >= 3
 }
 
 fn shift(span: AnalysisSpan, base: &Span) -> Span {
@@ -544,6 +601,7 @@ pub fn analyze_document(tokenizer: &Tokenizer, text: &str, options: &DocumentOpt
         lemma_index: BTreeMap::new(),
         word_count: 0,
         token_details: options.include_token_details,
+        skip_names_supplied: !options.skip_names.is_empty(),
         hard_wrapped: options.hard_wrapped,
     };
     let mut previous_end = 0;
@@ -551,6 +609,10 @@ pub fn analyze_document(tokenizer: &Tokenizer, text: &str, options: &DocumentOpt
     let mut skipped_heading = false;
     for span in paragraphs {
         let paragraph_text = text.get(span.byte.clone()).unwrap();
+        if chapter_heading(&paragraph_text.replace('.', "")) {
+            chapter_start = true;
+            skipped_heading = true;
+        }
         if heading(paragraph_text) {
             chapter_start |= chapter_heading(paragraph_text);
             skipped_heading = true;

@@ -22,6 +22,8 @@ pub struct SentenceLengthOptions {
     pub long_sentence_words: usize,
     #[serde(alias = "longest_per_chapter")]
     pub longest_per_chapter: usize,
+    #[serde(alias = "include_above_percentile")]
+    pub include_above_percentile: bool,
 }
 
 impl Default for SentenceLengthOptions {
@@ -30,6 +32,7 @@ impl Default for SentenceLengthOptions {
             minimum_sentences: 50,
             long_sentence_words: 40,
             longest_per_chapter: 3,
+            include_above_percentile: false,
         }
     }
 }
@@ -44,6 +47,10 @@ impl SentenceLengthOptions {
     }
     pub fn with_long_sentence_words(mut self, words: usize) -> Self {
         self.long_sentence_words = words;
+        self
+    }
+    pub fn with_above_percentile(mut self, enabled: bool) -> Self {
+        self.include_above_percentile = enabled;
         self
     }
     pub fn with_longest_per_chapter(mut self, count: usize) -> Self {
@@ -63,15 +70,41 @@ pub struct SentenceLengthBands {
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields, rename_all = "camelCase")]
 #[non_exhaustive]
+pub struct SentenceLengthReference {
+    pub mean: Option<f64>,
+    pub percentiles: BTreeMap<u8, f64>,
+}
+
+impl SentenceLengthReference {
+    fn validate(&self) -> Result<(), StyleError> {
+        SentenceLengthBaseline {
+            mean: self.mean,
+            percentiles: self.percentiles.clone(),
+            ..Default::default()
+        }
+        .validate()
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields, rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct SentenceLengthBaseline {
     pub mean: Option<f64>,
     pub percentiles: BTreeMap<u8, f64>,
     pub bands: Split<SentenceLengthBands>,
-    pub narration: Option<Box<SentenceLengthBaseline>>,
-    pub dialogue: Option<Box<SentenceLengthBaseline>>,
+    pub narration: Option<SentenceLengthReference>,
+    pub dialogue: Option<SentenceLengthReference>,
 }
 
 impl SentenceLengthBaseline {
+    fn reference(&self) -> SentenceLengthReference {
+        SentenceLengthReference {
+            mean: self.mean,
+            percentiles: self.percentiles.clone(),
+        }
+    }
+
     pub fn new() -> Self {
         Self::default()
     }
@@ -203,7 +236,7 @@ impl Builder {
     fn finish(
         mut self,
         options: &SentenceLengthOptions,
-        baseline: Option<&SentenceLengthBaseline>,
+        baseline: Option<&SentenceLengthReference>,
         bands: Option<&SentenceLengthBands>,
     ) -> SentenceLengthGroup {
         let sentences = self.lengths.len();
@@ -221,7 +254,7 @@ impl Builder {
             mean,
             mean_difference: mean.zip(baseline.and_then(|b| b.mean)).map(|(a, b)| a - b),
             mean_highlighted: PercentileBand::highlights(bands.and_then(|b| b.mean.as_ref()), mean),
-            low_confidence: sentences < 200,
+            low_confidence: sentences < 200.max(options.minimum_sentences),
             percentiles: PERCENTILES
                 .into_iter()
                 .map(|p| {
@@ -343,6 +376,17 @@ pub fn report(
             chapter += 1;
         }
         for sentence in &paragraph.sentences {
+            let quoted = document.dialogue.iter().any(|q| {
+                q.byte.start < sentence.span.byte.end && sentence.span.byte.start < q.byte.end
+            });
+            let block = paragraph.text.trim_start().starts_with('>')
+                || paragraph.text.starts_with("    ")
+                || (paragraph.text.chars().any(char::is_uppercase)
+                    && !paragraph.text.chars().any(char::is_lowercase));
+            if quoted || block {
+                index += 1;
+                continue;
+            }
             chapters.entry(chapter).or_default().push((
                 index,
                 sentence.word_count(),
@@ -358,7 +402,8 @@ pub fn report(
         let p95 = percentile(&lengths, 95).unwrap_or(0.0);
         for (rank, &(index, words, mode)) in sentences.iter().enumerate() {
             if words >= options.long_sentence_words
-                && (rank < options.longest_per_chapter || words as f64 > p95)
+                && (rank < options.longest_per_chapter
+                    || (options.include_above_percentile && words as f64 > p95))
             {
                 for group in groups.all_and_mode_mut(mode) {
                     group.long_sentences.push(index);
@@ -371,17 +416,19 @@ pub fn report(
     }
     Ok(SentenceLengthReport {
         groups: Split {
-            all: groups
-                .all
-                .finish(options, baseline, baseline.map(|b| &b.bands.all)),
+            all: groups.all.finish(
+                options,
+                baseline.map(|b| b.reference()).as_ref(),
+                baseline.map(|b| &b.bands.all),
+            ),
             narration: groups.narration.finish(
                 options,
-                baseline.and_then(|b| b.narration.as_deref()),
+                baseline.and_then(|b| b.narration.as_ref()),
                 baseline.map(|b| &b.bands.narration),
             ),
             dialogue: groups.dialogue.finish(
                 options,
-                baseline.and_then(|b| b.dialogue.as_deref()),
+                baseline.and_then(|b| b.dialogue.as_ref()),
                 baseline.map(|b| &b.bands.dialogue),
             ),
         },

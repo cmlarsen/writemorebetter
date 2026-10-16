@@ -22,6 +22,8 @@ pub struct RepeatedPhraseOptions {
     pub minimum_occurrences: usize,
     #[serde(alias = "nearby_words")]
     pub nearby_words: usize,
+    #[serde(alias = "automatic_names")]
+    pub automatic_names: bool,
 }
 
 impl Default for RepeatedPhraseOptions {
@@ -32,6 +34,7 @@ impl Default for RepeatedPhraseOptions {
             minimum_content_words: 2,
             minimum_occurrences: 3,
             nearby_words: 300,
+            automatic_names: false,
         }
     }
 }
@@ -51,6 +54,10 @@ impl RepeatedPhraseOptions {
     }
     pub fn with_minimum_occurrences(mut self, count: usize) -> Self {
         self.minimum_occurrences = count;
+        self
+    }
+    pub fn with_automatic_names(mut self, enabled: bool) -> Self {
+        self.automatic_names = enabled;
         self
     }
     pub fn with_nearby_words(mut self, words: usize) -> Self {
@@ -103,20 +110,37 @@ pub fn report(
     let mut keys = Vec::new();
     let mut units: Vec<Unit> = Vec::new();
     let mut segment = 0;
-    let tags = super::dialogue_tags::report(
-        document,
-        &super::dialogue_tags::DialogueTagOptions::new(),
-        None,
-    )?;
-    let tag_verbs: HashSet<usize> = tags.tags.iter().map(|t| t.verb.byte.start).collect();
+    let mut capitals: HashMap<String, usize> = HashMap::new();
+    if options.automatic_names && !document.skip_names_supplied {
+        for sentence in document.sentences() {
+            for token in sentence.words().skip(1) {
+                if token.text.chars().next().is_some_and(char::is_uppercase)
+                    && token.readings.iter().any(|r| r.pos.starts_with("NNP"))
+                {
+                    *capitals.entry(fold(&token.text)).or_default() += 1;
+                }
+            }
+        }
+    }
     for sentence in document.sentences() {
-        for token in sentence.tokens.iter().filter(|token| token.is_word) {
-            let masked = token.is_skipped || tag_verbs.contains(&token.span.byte.start);
+        for token in &sentence.tokens {
+            if !token.is_word {
+                if token
+                    .text
+                    .contains([',', ';', '—', '–', '-', '…', '.', '”', '"'])
+                    || token.text.contains("...")
+                {
+                    close_segment(&mut units, &mut segment);
+                }
+                continue;
+            }
+            let masked = token.is_skipped
+                || capitals
+                    .get(&fold(&token.text))
+                    .is_some_and(|count| *count >= 2);
             let function = masked || lexicon.is_function(token);
-            let key = if token.is_skipped {
+            let key = if masked {
                 "<name>".into()
-            } else if masked {
-                "<tag>".into()
             } else if function {
                 fold(&token.text)
             } else {
@@ -246,7 +270,22 @@ pub fn report(
         }
         merged.push((first, phrase));
     }
-    let mut phrases = merged;
+    merged.sort_by_key(|(first, phrase)| (std::cmp::Reverse(phrase.keys.len()), *first));
+    let mut selected: Vec<(usize, RepeatedPhrase)> = Vec::new();
+    for entry in merged {
+        if selected.iter().any(|(_, longer)| {
+            longer.keys.len() > entry.1.keys.len()
+                && entry.1.spans.iter().any(|short| {
+                    longer.spans.iter().any(|long| {
+                        long.byte.start < short.byte.end && short.byte.start < long.byte.end
+                    })
+                })
+        }) {
+            continue;
+        }
+        selected.push(entry);
+    }
+    let mut phrases = selected;
     phrases.sort_by(|(left_start, left), (right_start, right)| {
         right
             .count

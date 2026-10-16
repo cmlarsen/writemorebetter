@@ -186,7 +186,7 @@ fn lengths_runs_thresholds_baselines_and_skips() {
         .histogram
         .iter()
         .any(|bucket| bucket.words == 2 && bucket.sentences == 4));
-    assert_eq!(groups.dialogue.long_sentences, vec![4, 5, 6, 7]);
+    assert!(groups.dialogue.long_sentences.is_empty());
     assert_eq!(groups.dialogue.mean_difference, Some(-1.0));
     let median = groups
         .dialogue
@@ -327,8 +327,8 @@ fn bundled_baselines_are_loadable_and_keep_missing_values_unavailable() {
     let starts = SentenceStartsBaseline::bundled().unwrap();
     assert_eq!(starts, parsed);
     starts.validate().unwrap();
-    assert!((starts.universal_percent.values().sum::<f64>() - 99.99).abs() < 1e-9);
-    assert!(!starts.universal_percent.contains_key("."));
+    assert!((starts.universal_percent.values().sum::<f64>() - 100.0).abs() < 1e-9);
+    assert!(starts.universal_percent.contains_key("."));
     let file: serde_json::Value =
         serde_json::from_str(include_str!("../data/baselines/sentence-length.json")).unwrap();
     let parsed: SentenceLengthBaseline = serde_json::from_value(file["baseline"].clone()).unwrap();

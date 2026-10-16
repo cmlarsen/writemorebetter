@@ -245,10 +245,12 @@ same categories and universal tags as its reference values. Missing modes/measur
 missing bands never highlight. Bounds must be finite, nonnegative and ordered, and share bounds
 cannot exceed 100. Equality at either boundary does not highlight.
 
-Bundled files expose all three band containers with null/empty placeholders. The owner will replace
-them with author-weighted chapter-window calibration values; the old pooled author mean percentiles
-are not silently substituted. Synthetic regression tests exercise both sides, boundary equality,
-mode isolation and invalid bounds. Confidence flags are separate from these population comparisons.
+Bundled files contain the owner-supplied 2026-10-16 author-weighted chapter-window p5/p95 bands,
+with exact source provenance and the full percentile sets preserved in `calibration`. Baseline means
+and category shares are the same calibration's matching-mode reference means. Per-mode references
+accept only measures, not nested modes or bands. Missing measures still never highlight. Synthetic
+chapter tests check published medians and values beyond p95 in all three modes, alongside boundary
+and invalid-band tests. Confidence labels are independent of population comparisons.
 
 A baseline is the expected value in published fiction: category shares, rates per 1,000 words, or word
 frequencies. **Every report with a baseline takes it as a separate input**, so a caller can swap in a
@@ -323,6 +325,8 @@ Build rules for any baseline:
 | 2026-10-15 | Report clichés in dialogue separately, not suppressed (#246) | Clichés in dialogue are often deliberate characterization; the caller decides; see [STYLE-CLICHES.md](STYLE-CLICHES.md) |
 | 2026-10-15 | Brysbaert concreteness ratings are a caller-supplied input; the Lancaster Sensorimotor Norms may be vendored (#250) | CC BY-NC-ND 3.0 vs CC BY 4.0; see [STYLE-DATA-LICENSES.md](STYLE-DATA-LICENSES.md) |
 | 2026-10-15 | Echoes are an opt-in lens with say/ask, name/honorific, particle and heading suppressions; no transitive ambiguous-reading chains | The writer review found 97% noise; deliberate repetition is not an issue list |
+| 2026-10-16 | Use the owner-supplied chapter-window bands, preserving full aggregate provenance | Integrates #270 calibration without accessing private data; strict p5/p95 highlighting per mode |
+| 2026-10-16 | Narrow neutral tags; cried remains showy; top-three unquoted long sentences; punctuation-bounded longest phrases; conservative headings and two-blank-line scenes | Owner follow-up to the #273 usefulness review; optional name fallback and p95 lens preserve caller control |
 | 2026-10-15 | Baseline highlights require a value outside the published-author p5–p95 band for its measure and narration/dialogue mode | Blended averages and small deltas mislead novelists; ship non-highlighting placeholder bands until owner chapter-window calibration |
 | 2026-10-15 | Show sentence statistics from 50 sentences and tag percentages from 15 tags, with low-confidence flags below 200 sentences / 50 tags | Short chapters need statistics while exposing their smaller samples |
 | 2026-10-15 | Flag only showy dialogue verbs; report neutral verbs as counts | Reply, answer, whisper, shout and similar ordinary attributions are not prose problems |

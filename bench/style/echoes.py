@@ -53,7 +53,7 @@ VOCABULARY = {
 DEV_PASSAGES = 20
 ABBREVIATION = re.compile(r'\b(?:Mr|Mrs|Ms|Dr|St|Messrs|Mme|Capt|Col|Gen|Rev)\.$')
 PASSAGES_PER_BOOK = 40
-NEAR = (12, 35)
+NEAR = (12, 25)
 FAR = 70
 
 
@@ -222,25 +222,38 @@ def phrase_case(index, clean):
     prefix, singular, plural = next(
         phrases[(index + offset) % len(phrases)] for offset in range(len(phrases))
         if absent(clean, [*phrases[(index + offset) % len(phrases)]]))
-    first_phrase = prefix + singular
-    variant = index % 3
+    phrase = prefix + singular
+    variant = index % 5
     if variant == 0:
-        second_phrase = prefix + plural
+        phrases_at = [(points[0], phrase), (points[1], prefix + plural)]
     elif variant == 1:
-        words = prefix.split()
-        second_phrase = ' '.join(words[:2]) + ', ' + ' '.join(words[2:]) + ' ' + singular
+        phrases_at = [(points[0], phrase), (points[-1], phrase)]
+    elif variant == 2:
+        phrases_at = [(point, phrase) for point in (points[0], points[len(points)//2], points[-1])]
+    elif variant == 3:
+        phrase = 'I got up'
+        phrases_at = [(point, phrase) for point in (points[0], points[len(points)//2], points[-1])]
     else:
-        second_phrase = first_phrase
-    first = first_phrase[0].upper() + first_phrase[1:] + '.'
-    second = ('“' + second_phrase[0].upper() + second_phrase[1:] + '!”' if variant == 2
-              else second_phrase[0].upper() + second_phrase[1:] + '.')
-    insertions = [(points[0], first), (points[-1], second)]
-    text, (first_at, second_at) = insert(clean, insertions)
-    spans = []
-    for at, phrase in ((first_at, first_phrase), (second_at, second_phrase)):
-        start = text.index(phrase[0].upper() + phrase[1:], at)
-        spans.append(offsets(text, start, start + len(phrase)))
-    return text, insertions, [{'pattern': 'repeated_phrase', 'report': 'repeated_phrases', 'spans': spans}]
+        phrase = 'Piglet said that'
+        phrases_at = [(point, phrase) for point in (points[0], points[len(points)//2], points[-1])]
+    insertions = [(at, phrase[0].upper() + phrase[1:] + '.') for at, phrase in phrases_at]
+    text, positions = insert(clean, insertions)
+    spans = [offsets(text, at, at + len(phrase)) for at, (_, phrase) in zip(positions, phrases_at)]
+    far = variant == 1 and words_between(text, positions[0], positions[-1]) > 300
+    gold = [] if far else [{'pattern': 'repeated_phrase', 'report': 'repeated_phrases', 'spans': spans}]
+    return text, insertions, gold
+
+
+def phrase_far_case(index, clean):
+    pool = VOCABULARY[split_of(index)]['phrases']
+    prefix, singular, _ = next(entry for entry in pool if absent(clean, entry))
+    phrase = prefix + singular
+    points = boundaries(clean)
+    insertions = [(points[0], phrase.capitalize() + '.'),
+                  (points[len(points)//2], 'They waited. ' * 151),
+                  (points[-1], phrase.capitalize() + '.')]
+    text, _ = insert(clean, insertions)
+    return text, insertions, []
 
 
 def generate(out):
@@ -253,7 +266,7 @@ def generate(out):
         documents.append({'file': base + '-clean.txt', 'source': book, 'split': split, 'injected': False})
         (out / (base + '-clean.txt')).write_text(clean, encoding='utf-8')
         builders = (('echo', echo_case), ('natural', lambda i, c: natural_case(i, c, excluded)),
-                    ('phrase', phrase_case))
+                    ('phrase', phrase_case), ('phrase-far', phrase_far_case))
         for suffix, builder in builders:
             case = builder(index, clean)
             if case is None:
@@ -261,7 +274,7 @@ def generate(out):
             text, insertions, answers = case
             file = f'{base}-{suffix}.txt'
             (out / file).write_text(text, encoding='utf-8')
-            control = suffix != 'phrase' and index % 3 == 0
+            control = not answers
             documents.append({'file': file, 'source': book, 'split': split, 'injected': True,
                               'kind': suffix, 'clean': base + '-clean.txt', 'control': control})
             cases.append({'file': file, 'clean': base + '-clean.txt', 'insertions': insertions})
@@ -290,7 +303,7 @@ def new_flags(cases, texts, predictions):
         by_file.setdefault(row['file'], []).append(row)
     result, lost = [], {'echo': 0, 'repeated_phrase': 0}
     for case in cases:
-        pattern = 'repeated_phrase' if case['file'].endswith('-phrase.txt') else 'echo'
+        pattern = 'repeated_phrase' if '-phrase' in case['file'] else 'echo'
         clean = {shift_spans(char_spans(texts[case['clean']], row), case['insertions'])
                  for row in by_file.get(case['clean'], []) if row['pattern'] == pattern}
         injected = {char_spans(texts[case['file']], row): row
@@ -322,12 +335,12 @@ def evaluate(documents, gold, cases, texts, predictions):
                 pattern, {'precision': 1.0, 'recall': 1.0, 'f1': 1.0, 'true_positive': 0,
                           'predicted': 0, 'gold': 0})
             result[split][pattern] = scored
-        for kind in ('echo', 'natural'):
-            kind_files = {d['file'] for d in documents if d['split'] == split and d.get('kind') == kind}
-            kind_flags = [row for row in in_split if row['file'] in kind_files and row['pattern'] == 'echo']
+        for kind in ('echo', 'natural', 'phrase'):
+            kind_files = {d['file'] for d in documents if d['split'] == split and (d.get('kind') == kind or kind == 'phrase' and d.get('kind') == 'phrase-far')}
+            kind_flags = [row for row in in_split if row['file'] in kind_files and row['pattern'] == ('repeated_phrase' if kind == 'phrase' else 'echo')]
             kind_gold = [row for row in expected if row['file'] in kind_files]
-            result[split][f'{kind}_injections'] = score(kind_gold, kind_flags, files, report='echoes')[
-                'patterns'].get('echo', {'predicted': 0, 'gold': 0})
+            result[split][f'{kind}_injections'] = score(kind_gold, kind_flags, files, report='repeated_phrases' if kind == 'phrase' else 'echoes')[
+                'patterns'].get('repeated_phrase' if kind == 'phrase' else 'echo', {'predicted': 0, 'gold': 0})
             result[split][f'{kind}_far_controls'] = sum(d['file'] in kind_files and d['control'] for d in documents)
             expected_keys = {identity(row) for row in kind_gold}
             result[split][f'{kind}_far_control_flags'] = sum(
@@ -365,7 +378,7 @@ def main():
                     for pattern, metrics in patterns.items()
                     for metric, floor in metrics.items() if result[split][pattern][metric] < floor - 1e-12]
         failures += [f'{split} {kind} far controls produced echo flags'
-                     for split in ('dev', 'test') for kind in ('echo', 'natural')
+                     for split in ('dev', 'test') for kind in ('echo', 'natural', 'phrase')
                      if result[split][f'{kind}_far_control_flags']]
         if failures:
             raise SystemExit('echoes gate failed: ' + '; '.join(failures))

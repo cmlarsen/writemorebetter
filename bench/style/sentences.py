@@ -109,7 +109,7 @@ def reference_patterns(file, text, sentences, defaults):
     low = int(position)
     p95 = ordered[low] + (ordered[min(low+1, len(ordered)-1)] - ordered[low]) * (position-low) if ordered else 0
     top = set(ranked[:defaults['sentenceLength']['longestPerChapter']])
-    result = [span(i, i+1, 'longSentence') for i, n in enumerate(lengths) if n >= long_words and (i in top or n > p95)]
+    result = [span(i, i+1, 'longSentence') for i, n in enumerate(lengths) if n >= long_words and (i in top or defaults['sentenceLength']['includeAbovePercentile'] and n > p95)]
     windows = [(a,b) for a in range(len(lengths)) for b in range(a+run_min,len(lengths)+1)
                if max(lengths[a:b]) - min(lengths[a:b]) <= spread]
     result.extend(span(a,b,'monotony') for a,b in windows if not any(c <= a and b <= d and (a,b) != (c,d) for c,d in windows))
@@ -118,7 +118,9 @@ def reference_patterns(file, text, sentences, defaults):
         end = start + 1
         while end < len(starts) and starts[end] == starts[start]:
             end += 1
-        if end - start >= same_min:
+        two_words = [tuple(re.findall(r"[\w’']+", sentence['text'].lower())[:2]) for sentence in sentences[start:end]]
+        rhetorical = all(sentence['text'].rstrip().endswith(('?', '!')) for sentence in sentences[start:end])
+        if end - start >= same_min and len(set(two_words)) > 1 and not rhetorical:
             result.append(span(start,end,'sameWord'))
         start = end
     return result
@@ -147,7 +149,7 @@ def injected(probe, out, analyzer):
         clean = row['text'].strip()
         phrase = clean[:-1].replace(',', '')
         for pattern, text in [('monotony', ' '.join([clean] * 4)),
-                              ('sameWord', ' '.join([clean] * 3)),
+                              ('sameWord', ' '.join([clean, clean.split()[0] + ' something changed.', clean.split()[0] + ' nothing moved.'])),
                               ('longSentence', ' '.join([phrase] * 12) + '.')]:
             file = f'{i:03}-{pattern}'
             documents.append({'file': file, 'source': row['file'], 'text': text})
@@ -203,11 +205,17 @@ def injected(probe, out, analyzer):
 def paragraph_count(text, wrapped):
     def excluded(line):
         line = line.strip()
-        return (bool(re.match(r'(?i)^(chapter|book|part)\s+(?:[0-9ivxlcdm]+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty)\b', line)) and len(line.split()) <= 10
-                or line.startswith('#')
+        plain = line.lstrip('#').strip()
+        words = plain.split()
+        number = words[1] if len(words) > 1 else ''
+        roman = re.fullmatch(r'M{0,3}(CM|CD|D?C{0,3})(XC|XL|L?X{0,3})(IX|IV|V?I{0,3})', number)
+        chapter = bool(words and words[0].lower() in ('chapter', 'book', 'part') and number and
+                       (number.isdigit() or roman or number.lower() in 'one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty'.split()) and
+                       all(w[0].isupper() or w in ('of', 'the', 'and', 'a', 'in') for w in words[2:]))
+        return (chapter and len(words) <= 10 and not any(c in plain for c in '.!?“”"')
+                or line.startswith('#') and len(words) <= 10 and not any(c in line for c in '.!?')
                 or bool(line) and all(c.isspace() or c in '*#—-_=·•' for c in line)
-                or line.startswith('—') and line[1:].lstrip().startswith('_')
-                or line.isupper() and len(line.split()) <= 10 and not any(c in line for c in '“”\".!?'))
+                or line.startswith('—') and line[1:].lstrip().startswith('_'))
     count, continuing = 0, False
     for line in text.split('\n'):
         if not line.strip() or excluded(line):
@@ -290,7 +298,7 @@ def check_public_distribution(distributions, ceilings):
         if distributions[group]['categories']['other']['percent'] > ceiling:
             raise ValueError(f'{group}/other share exceeds {ceiling}% sanity ceiling')
     comparison = distributions['mobyDick']['bundledBaselineComparison']
-    if comparison['meanDifference'] is None or comparison['universalDifferences'] != 11:
+    if comparison['meanDifference'] is None or comparison['universalDifferences'] != 12:
         raise ValueError('default options with bundled baselines no longer yield differences')
 
 

@@ -26,9 +26,10 @@ bindings follow-up.
 ## Neutral and showy verbs
 
 All parsed tags remain in `tags`; `otherVerbs` remains a descriptive count for compatibility.
-Use `tag.showy` or `showyVerbs` for verb flags. `neutralVerbs` includes said/asked, replied,
-answered, told, added, continued, called, whispered, shouted, muttered, cried, began, went on,
-agreed, explained, repeated and similar ordinary attributions. The separate owner-authored
+Use `tag.showy` for individual verb flags. `showyVerbs` counts speech bookisms; non-speech verbs are counted separately in `nonSpeech`, so the aggregates do not duplicate them. `neutralVerbs` includes said/asked, replied,
+answered, told, added, continued, called, whispered, shouted, muttered, repeated and went on.
+Cried, explained, demanded, inquired, urged, remarked and other recognized attributions are showy.
+The separate implementation-authored
 `neutral-verbs.txt` and `showy-verbs.txt` lists contain no copied material.
 Showy verbs include hissed, chortled, snarled, ejaculated, growled and breathed; non-speech tags
 such as laughed, sighed and smiled are also showy. Unlisted verbs are counted and never flagged.

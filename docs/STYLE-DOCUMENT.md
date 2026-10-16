@@ -42,16 +42,21 @@ paragraphs are lines, not literary paragraphs. The LitBank probe explicitly uses
 
 Paragraph spans exclude separating line endings and preserve indentation/trailing spaces. Each
 paragraph is analyzed independently. Recognized Chapter/Book/Part headings, Markdown headings,
-all-capital short lines without sentence punctuation, scene-marker lines, and marked epigraph
+scene-marker lines and marked epigraph
 citations are excluded from every report. In hard-wrapped mode these lines remain separate before
 filtering. Other short fragments are retained: an arbitrary unpunctuated sentence cannot reliably
 be distinguished from a title.
 
-Paragraphs record `scene_break_before` and `chapter_start`. Blank lines in line mode, two blank
-lines in hard-wrapped mode, U+2029 and excluded heading/marker lines end narration runs. Ordinary
+Paragraphs record `scene_break_before` and `chapter_start`. Two or more blank lines in either mode, U+2029 and excluded heading/marker lines end narration runs. Ordinary
 paragraphs remain separate but do not end runs. U+2028 stays inside the paragraph and ends a
 sentence after terminal punctuation. Bare speech attributions split after a closing quote are
-reattached to that speech sentence; all offsets still point into the original text.
+reattached to that speech sentence; all offsets still point into the original text. This style segmentation
+can differ from `analyze()`: for example, `“Where?” I asked.` is one style sentence, while grammar
+analysis may split its attribution. Map grammar suggestions by absolute spans, not sentence indexes.
+A single blank line separates paragraphs and does not imply a scene break. Chapter/Book/Part lines
+must be short, lack terminal punctuation and use a number or a valid uppercase Roman numeral followed
+by title-shaped words. Markdown chapter headings also start a chapter. Punctuated numbered chapter titles can mark chapter boundaries while remaining in descriptive statistics. Bare signs and sound effects
+such as `I`, `BANG` and `NO VACANCY` remain prose; arbitrary capitalized lines are not deleted.
 Sentence/token spans retain the tokenizer's whitespace conventions and need not cover trailing
 paragraph whitespace. All Rust spans contain absolute, half-open UTF-8 byte, Unicode scalar (`char`)
 and UTF-16 ranges into the original input. Hard-wrapped mode preserves the input and all offsets.

@@ -44,7 +44,7 @@ pub struct EchoOptions {
 impl Default for EchoOptions {
     fn default() -> Self {
         Self {
-            window: 50,
+            window: 30,
             match_forms: true,
         }
     }
@@ -90,48 +90,64 @@ pub(crate) fn fold(text: &str) -> String {
 
 fn listed(word: &str) -> bool {
     FUNCTION_WORDS.binary_search(&word).is_ok()
-        || matches!(
-            word.trim_end_matches('.'),
-            "say"
-                | "said"
-                | "says"
-                | "saying"
-                | "ask"
-                | "asked"
-                | "asks"
-                | "asking"
-                | "mr"
-                | "mrs"
-                | "ms"
-                | "miss"
-                | "dr"
-                | "prof"
-                | "sir"
-                | "lady"
-                | "lord"
-                | "m"
-                | "mme"
-                | "mlle"
-                | "monsieur"
-                | "madame"
-                | "mademoiselle"
-                | "up"
-                | "down"
-                | "out"
-                | "back"
-                | "off"
-                | "over"
-                | "away"
-        )
+}
+
+fn echo_lemmas(token: &Token) -> BTreeSet<String> {
+    let candidates: BTreeSet<_> = token
+        .readings
+        .iter()
+        .filter(|r| CONTENT_TAGS.iter().any(|tag| r.pos.starts_with(tag)))
+        .map(|r| fold(&r.lemma))
+        .filter(|lemma| !lemma.is_empty() && !lemma.contains(char::is_whitespace))
+        .collect();
+    let categories: BTreeSet<_> = token
+        .readings
+        .iter()
+        .filter_map(|r| CONTENT_TAGS.iter().find(|tag| r.pos.starts_with(**tag)))
+        .collect();
+    if candidates.len() == 1
+        && categories.len() == 1
+        && !token
+            .readings
+            .iter()
+            .any(|r| matches!(r.pos.as_str(), "JJR" | "JJS" | "RBR" | "RBS"))
+    {
+        candidates
+    } else {
+        BTreeSet::new()
+    }
 }
 
 fn lemmas(token: &Token) -> BTreeSet<String> {
     token
         .readings
         .iter()
-        .map(|reading| fold(&reading.lemma))
-        .filter(|lemma| !lemma.is_empty() && !lemma.contains(char::is_whitespace))
+        .map(|r| fold(&r.lemma))
+        .filter(|l| !l.is_empty() && !l.contains(char::is_whitespace))
         .collect()
+}
+
+fn suppressed(token: &Token, next: Option<&&Token>) -> bool {
+    let word = fold(&token.text);
+    matches!(
+        word.as_str(),
+        "say"
+            | "said"
+            | "says"
+            | "saying"
+            | "ask"
+            | "asked"
+            | "asks"
+            | "asking"
+            | "up"
+            | "down"
+            | "out"
+            | "back"
+            | "off"
+            | "over"
+            | "away"
+    ) || (crate::document::honorific(&word)
+        && next.is_some_and(|t| t.text.chars().next().is_some_and(char::is_uppercase)))
 }
 
 #[derive(Default)]
@@ -231,30 +247,58 @@ pub fn report(document: &Document, options: &EchoOptions) -> Result<EchoReport, 
     let lexicon = Lexicon::new(document);
     let mut last: HashMap<String, (usize, &Token)> = HashMap::new();
     let mut echoes = Vec::new();
-    for (index, token) in document.words().enumerate() {
-        if lexicon.is_function(token) {
+    let tokens: Vec<_> = document.words().collect();
+    for (index, token) in tokens.iter().copied().enumerate() {
+        if lexicon.is_function(token) || suppressed(token, tokens.get(index + 1)) {
             continue;
         }
         let mut candidates = if options.match_forms {
-            lemmas(token)
+            let pos = token
+                .readings
+                .iter()
+                .find_map(|r| CONTENT_TAGS.iter().find(|tag| r.pos.starts_with(**tag)))
+                .copied()
+                .unwrap_or("");
+            echo_lemmas(token)
+                .into_iter()
+                .map(|lemma| format!("lemma:{pos}:{lemma}"))
+                .collect()
         } else {
             BTreeSet::new()
         };
-        candidates.insert(fold(&token.text));
+        candidates.insert(format!("surface:{}", fold(&token.text)));
         let nearest = candidates
             .iter()
             .filter_map(|key| last.get(key).map(|previous| (key, previous)))
             .max_by_key(|(_, (index, _))| *index);
         if let Some((family, (earlier, previous))) = nearest {
             let distance = index - earlier;
-            if distance <= options.window {
+            let same_sentence = document.sentences().any(|s| {
+                s.span.byte.start <= previous.span.byte.start
+                    && token.span.byte.end <= s.span.byte.end
+            });
+            let turn = |t: &Token| {
+                document.paragraphs.iter().position(|p| {
+                    p.span.byte.start <= t.span.byte.start && t.span.byte.end <= p.span.byte.end
+                })
+            };
+            let quoted = |t: &Token| {
+                document
+                    .dialogue
+                    .iter()
+                    .any(|s| s.byte.start <= t.span.byte.start && t.span.byte.end <= s.byte.end)
+            };
+            if distance <= options.window.min(30)
+                && !(same_sentence && distance <= 10)
+                && !(quoted(previous) && quoted(token) && turn(previous) != turn(token))
+            {
                 echoes.push(Echo {
                     label: if options.match_forms {
                         lexicon.label([*previous, token])
                     } else {
-                        family.clone()
+                        family.rsplit(':').next().unwrap().to_owned()
                     },
-                    key: family.clone(),
+                    key: family.rsplit(':').next().unwrap().to_owned(),
                     earlier: previous.span.clone(),
                     later: token.span.clone(),
                     distance,

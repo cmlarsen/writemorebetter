@@ -23,10 +23,9 @@ that token starts inside a **speech** span, the document-level rule every report
 subjects such as `“Yes” was the answer.` are narration. Punctuated passive speech such as
 `“Go,” was the answer.` is dialogue. Mixed narration/speech sentences belong
 wholly to that opening mode. Monotony and same-opener runs are narration-only. They cross ordinary paragraph breaks and stop at
-dialogue, recognized headings and scene breaks (blank lines in line mode; two blank lines in hard-wrapped mode). Counts and spans remain available at every sample size.
+dialogue, recognized headings and scene breaks (explicit markers or two-plus blank lines in either mode). Counts and spans remain available at every sample size.
 Each group's own `minimumSentences` (default 50) suppresses shares, means, percentiles and
-differences below that sample. `lowConfidence` is true below 200 eligible sentences, independently
-of the configurable display floor. Empty groups never yield NaN.
+differences below that sample. `lowConfidence` is true below 200 eligible sentences, or the configurable display floor when higher. Empty groups never yield NaN.
 
 **Both reports count the same sentences.** Every group's `sentences` is the number of sentences in
 that mode, identical in the two reports and equal to the combined result's `stats.sentences`.
@@ -38,8 +37,11 @@ a skipped name. Start shares and the starts sample threshold use `sentences - ex
 Words are exactly `is_word && !is_skipped` document tokens (`Sentence::word_count`). Unicode
 letters/numbers count; clitics count separately, while punctuation and emoji do not. Zero-word
 sentences remain in the histogram and are counted in `zeroWordSentences`. Long-sentence candidates have **at least** `longSentenceWords` words (default 40). The default
-selection is the top N per chapter (`longestPerChapter: 3`) plus any candidate strictly above that
-chapter's own 95th percentile, interpolated over all its sentences. Ties in the top N use document
+selection is only the top N per chapter (`longestPerChapter: 3`). Set `includeAbovePercentile:true`
+(or `with_above_percentile(true)`) to also include candidates above the writer's own chapter p95.
+Quoted material, Markdown block quotes, indented blocks and all-capital inscriptions are excluded
+from candidates; their sentences remain in descriptive statistics. The optional p95 is calculated
+over the unquoted candidate pool, including sentences below the 40-word floor. Ties in the top N use document
 order; equality at p95 alone does not qualify. Chapter headings start a new selection unit; without
 headings the input is one chapter. A chapter with no 40-word candidates produces no long flags.
 Lower the candidate floor explicitly when a UI wants a pure longest-sentences lens. Each group returns `sentences`, a `histogram` of
@@ -56,22 +58,19 @@ scan linear in sentence count apart from logarithmic updates. Percentiles 5/25/5
 at `(n−1)*p/100`. Differences subtract the matching baseline statistic. Per-mode differences require a separately supplied
 `narration` or `dialogue` reference; a blended reference is used only for `all`.
 `meanHighlighted` and each percentile's `highlighted` are true only strictly outside the matching
-mode's author p5–p95 band. Missing bands never highlight, and the bundled bands are placeholders pending
-owner chapter-window calibration. These author bands describe variation across published authors,
+mode's author p5–p95 band. Missing bands never highlight, and the bundled bands use the owner-supplied 2026-10-16 chapter-window calibration. These author bands describe variation across published authors,
 not the within-chapter sentence percentiles used to select long sentences. Baseline `percentiles` keys
 must be 5, 25, 50, 75 or 95 and values finite and non-negative; anything else is
 `StyleError::InvalidBaseline` instead of being ignored. `SentenceLengthBaseline::bundled()` returns
 the bundled file's `baseline` member.
 
-The bundled length baseline is owner-calibrated on 2026-10-15 with this branch's corrected line-mode
-command: `cmlarsen/fiction-baseline` commit `b464cac1193a3555957fa2784a1ddfd553de505b`,
-EXTRACTOR_VERSION 1, 210 units, 71 author units, **663,457 sentences**, equal author weights.
-The mean is **12.900118525896554 words**. Mean within-author sentence percentiles are 5th
-1.708450704225352, 25th 5.721830985915493, median 10.71830985915493, 75th 17.8556338028169,
-95th 31.122535211267603. Its mean agrees numerically with the owner-supplied Ngram English Fiction
-1990–2019 mean **12.66 words excluding punctuation** (+0.2401 words) and HTRC author mean **13.12**
-(−0.2199). These are contextual comparisons: tokenization, sampling and HTRC's page-boundary sentence
-convention still differ, so the bundled report-calibrated baseline is the appropriate denominator.
+The bundled files preserve the exact owner-supplied `source` block and all seven calibration
+percentiles under `calibration`. Runtime bands use p5 and p95 separately for all/narration/dialogue;
+reference deltas subtract each measure's author-weighted mean. The calibration uses #270 at `273e7b5`,
+1,559 chapter windows of 2,000–6,000 words from 210 units and 71 author units, with equal author
+weights. Eligible length/start samples are 1,515 all, 980 narration and 614 dialogue. Calibration
+predates this PR's segmentation refinements; provenance records that version rather than claiming
+a fresh corpus run. No private corpus was accessed for this integration.
 
 The export has one paragraph per line, with blank lines at scene breaks. `tier3 --sentence-length`
 uses **default line mode**, not hard-wrapped mode. Unpunctuated headings, interrupted dialogue and
@@ -94,6 +93,9 @@ This is a distribution report, with configurable statistics and no correction su
 not call or duplicate the engine's TOO_LONG_SENTENCE matcher.
 
 ## Start definitions and ambiguity
+
+Same-opener runs omit deliberate anaphora when every sentence ends in `?`/`!` or every sentence
+shares its first two words.
 
 Fine classification skips whitespace and stacked leading quotation tokens composed of characters
 from `" ' “ ” ‘ ’ « » ‹ › „ ‟ ‚ ‛` and backtick. Other leading punctuation is retained. A skipped
@@ -180,19 +182,10 @@ still uses all eligible sentences, leaving unknown-selection bias visible. The R
 agreement check covers every mapped tag plus internal normalizations, ORD, `_apostrophe_contraction_`
 and unknowns. Baseline universal keys must be one of the 12 tags, and every baseline percentage must
 be finite and in 0..=100; violations are `StyleError::InvalidBaseline`.
-`SentenceStartsBaseline::bundled()` returns the bundled Ngram baseline.
-
-The bundled Ngram baseline is English Fiction 2020, edition years 1990–2019, volume-weighted and
-blended across narration/dialogue. Both subgroups compare to that same blended population. Fine
-category differences need a caller fine baseline; universal VERB cannot supply a gerund/inversion
-expectation. Differences are percentage points. Missing punctuation baseline values stay unavailable;
-published values are not renormalized.
-
-Same-word runs are at least three (`SAME_WORD_MIN_SENTENCES`) consecutive sentences with the same
-lowercase first-word token.
-Punctuation/no-word starts and paragraph/mode changes break them. This returns complete run spans and
-statistics, with no builtin exception lists or corrections; it does not duplicate
-ENGLISH_WORD_REPEAT_BEGINNING_RULE.
+`SentenceStartsBaseline::bundled()` returns the owner-calibrated chapter-window reference and
+all/narration/dialogue bands described above. Fine-category and universal-12 references both use
+the same calibration; they no longer mix a blended Ngram reference into per-mode comparisons.
+The full distribution and exact source provenance remain in the shipped JSON files.
 
 ## Bindings and one document pass
 
@@ -270,13 +263,13 @@ The Moby gate measures narrative **from the second exact `CHAPTER 1. Loomings.` 
 first occurrence is a contents entry; the second starts at **UTF-8 byte 28,824**. Matching is by text,
 not a hard-coded offset; the marker, occurrence and measured offset are recorded in the artifact.
 This excludes contents, etymology and extracts, but retains the narrative chapter headings. The cut
-contains 120,267 bytes; after heading exclusion it has 190 prose paragraphs and 854 sentences. It is separate from the timing
+contains 120,267 bytes; with conservative heading retention it has 202 prose paragraphs and 878 sentences. It is separate from the timing
 workload, which remains the complete unchanged 149,091-byte file.
 
-Stories have **16/622 other (2.57%)**, ceiling **5%**. Narrative-only Moby has **106/854 other
-(12.41%)**, ceiling **16%**, a 3.59 percentage-point margin. Top mutually exclusive narrative other
+Stories have **16/622 other (2.57%)**, ceiling **5%**. Narrative-only Moby has **130/878 other
+(14.81%)**, ceiling **16%**, a 1.19 percentage-point margin. Top mutually exclusive narrative other
 surface shapes are 26 remaining verb-tagged openings (including literary/archaic constructions),
-26 vocative/interjection shapes, 16 command-like openers, 10 short fragment shapes, no chapter-number
+26 vocative/interjection shapes, 16 command-like openers, 14 short fragment shapes, 12 chapter-number
 headings, 2 article-led starts, 2 punctuation/markup-led starts, and 24 remaining openings. These
 are structural diagnostics, not independently adjudicated grammatical labels. Full counts/shares,
 source modes, paragraph counts and cut provenance are in `sentence-measurements.json`; ceilings are

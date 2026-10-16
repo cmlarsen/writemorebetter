@@ -29,8 +29,8 @@ fn bands_highlight_only_outside_the_matching_mode_and_validate() {
     assert!(r.groups.dialogue.mean_highlighted);
     assert_eq!(r.groups.narration.mean_difference, Some(0.0));
     assert_eq!(r.groups.dialogue.mean_difference, Some(0.0));
-    let bundled = sentence_length::SentenceLengthBaseline::bundled().unwrap();
-    let r = sentence_length::report(&d, &options, Some(&bundled)).unwrap();
+    let missing = sentence_length::SentenceLengthBaseline::new();
+    let r = sentence_length::report(&d, &options, Some(&missing)).unwrap();
     assert!(!r.groups.all.mean_highlighted);
     assert!(r.groups.narration.mean_difference.is_none());
     let baseline =
@@ -79,7 +79,13 @@ fn sample_floors_have_independent_confidence_labels() {
 
 #[test]
 fn narration_runs_cross_paragraphs_and_stop_at_scenes_and_dialogue() {
-    for (separator, expected) in [("\n", 1), ("\n\n", 0), ("\n“Go!”\n", 0), ("\n* * *\n", 0)] {
+    for (separator, expected) in [
+        ("\n", 1),
+        ("\n\n", 1),
+        ("\n\n\n", 0),
+        ("\n“Go!”\n", 0),
+        ("\n* * *\n", 0),
+    ] {
         let text = ["She waited.", "She left.", "She slept.", "She wept."].join(separator);
         let d = document(&text);
         assert_eq!(
@@ -165,7 +171,7 @@ fn long_sentences_use_rank_and_the_writers_own_distribution_per_chapter() {
         .join("\n");
     let d = document(&text);
     let r = sentence_length::report(&d, &Default::default(), None).unwrap();
-    assert_eq!(r.groups.all.long_sentences, vec![95, 96, 97, 98, 99]);
+    assert_eq!(r.groups.all.long_sentences, vec![97, 98, 99]);
     let d = document(&format!(
         "Chapter One\n{text}\nChapter Two\n{}.",
         vec!["word"; 40].join(" ")
@@ -177,7 +183,7 @@ fn long_sentences_use_rank_and_the_writers_own_distribution_per_chapter() {
             .all
             .long_sentences
             .len(),
-        6
+        4
     );
 }
 
@@ -197,7 +203,7 @@ fn speech_attributions_and_tag_manner_spans() {
         "{spans:?}"
     );
     assert_eq!(r.with_adverb.count, 1);
-    assert_eq!(r.showy_verbs.iter().map(|v| v.count).sum::<usize>(), 2);
+    assert_eq!(r.showy_verbs.iter().map(|v| v.count).sum::<usize>(), 1);
     assert!(r.neutral_verbs.iter().any(|v| v.lemma == "say"));
     assert!(!r.tags.iter().any(|v| v.lemma == "reflect"));
     for text in [
@@ -239,22 +245,32 @@ fn neutral_counts_showy_verbs_and_untagged_threshold() {
         assert_eq!(r.tags[0].showy, showy, "{verb}");
         assert_eq!(
             r.showy_verbs.iter().map(|v| v.count).sum::<usize>(),
-            usize::from(showy),
+            usize::from(showy && r.tags[0].class != dialogue_tags::DialogueTagVerbClass::NonSpeech),
             "{verb}"
         );
     }
     for n in [12, 13] {
-        let r = dialogue_tags::report(&document(&"“Wait.”\n".repeat(n)), &Default::default(), None)
+        for separator in ["\n", "\n\n"] {
+            let r = dialogue_tags::report(
+                &document(&format!("“Wait.”{separator}").repeat(n)),
+                &Default::default(),
+                None,
+            )
             .unwrap();
-        assert_eq!(r.untagged_runs.len(), usize::from(n > 12));
+            assert_eq!(r.untagged_runs.len(), usize::from(n > 12));
+        }
     }
     let r = dialogue_tags::report(
-        &document("“Wait.”\nThe magistrate cut her short."),
+        &document("“Wait.”\nThe magistrate cut her short.\n“No.”"),
         &Default::default(),
         None,
     )
     .unwrap();
     assert_eq!(r.beats.len(), 1);
+    assert_eq!(
+        r.beats[0].quotes,
+        vec![document("“Wait.”\nThe magistrate cut her short.\n“No.”").dialogue[1].clone()]
+    );
 }
 
 #[test]
@@ -272,4 +288,291 @@ fn skipped_surnames_cover_honorifics_and_ordinary_prose_is_not_a_heading() {
     let d = document("Part of it was missing.\nBook the next train.\nChapter One\nShe left.");
     assert_eq!(d.paragraphs.len(), 3);
     assert_eq!(d.sentences().count(), 3);
+}
+
+#[test]
+fn published_median_chapters_do_not_highlight_and_beyond_p95_does() {
+    let calibration: serde_json::Value =
+        serde_json::from_str(include_str!("../data/baselines/sentence-length.json")).unwrap();
+    let starts_calibration: serde_json::Value =
+        serde_json::from_str(include_str!("../data/baselines/sentence-starts.json")).unwrap();
+    let lengths = sentence_length::SentenceLengthBaseline::bundled().unwrap();
+    let starts = sentence_starts::SentenceStartsBaseline::bundled().unwrap();
+    for mode in ["all", "narration", "dialogue"] {
+        for extreme in [false, true] {
+            let p = if extreme { "95" } else { "50" };
+            let mean = calibration["calibration"][mode]["mean"]["percentiles"][p]
+                .as_f64()
+                .unwrap()
+                + if extreme { 2.0 } else { 0.0 };
+            let pron = starts_calibration["calibration"][mode]["universal"]["PRON"]["percentiles"]
+                [p]
+                .as_f64()
+                .unwrap()
+                + if extreme { 5.0 } else { 0.0 };
+            let total = (mean * 200.0).round() as usize;
+            let pron_count = (pron * 2.0).round() as usize;
+            let text = (0..200)
+                .map(|i| {
+                    let count = total / 200 + usize::from(i < total % 200);
+                    let sentence = format!(
+                        "{} {}.",
+                        if i < pron_count { "She" } else { "Trees" },
+                        vec!["waited"; count - 1].join(" ")
+                    );
+                    if mode == "dialogue" {
+                        format!("“{sentence}”")
+                    } else {
+                        sentence
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join("\n");
+            let d = document(&text);
+            let l = sentence_length::report(&d, &Default::default(), Some(&lengths)).unwrap();
+            let s = sentence_starts::report(&d, &Default::default(), Some(&starts)).unwrap();
+            let (l, s) = match mode {
+                "narration" => (&l.groups.narration, &s.groups.narration),
+                "dialogue" => (&l.groups.dialogue, &s.groups.dialogue),
+                _ => (&l.groups.all, &s.groups.all),
+            };
+            assert_eq!(l.sentences, 200, "{mode}");
+            assert_eq!(l.mean_highlighted, extreme, "length {mode}: {:?}", l.mean);
+            let pron = s.universal.iter().find(|r| r.tag == "PRON").unwrap();
+            assert_eq!(pron.highlighted, extreme, "starts {mode}: {pron:?}");
+        }
+    }
+}
+
+#[test]
+fn reviewed_bookisms_are_showy_including_all_three_cried_occurrences() {
+    for (source, verbs) in [
+        ("Moby", vec!["demanded", "cried", "cried", "exclaimed"]),
+        (
+            "Psmith",
+            vec![
+                "urged",
+                "explained",
+                "explained",
+                "inquired",
+                "pleaded",
+                "echoed",
+            ],
+        ),
+        ("Links", vec!["cried", "inquired", "remarked"]),
+    ] {
+        for verb in verbs {
+            let r = dialogue_tags::report(
+                &document(&format!("“Fine,” he {verb}.")),
+                &Default::default(),
+                None,
+            )
+            .unwrap();
+            assert_eq!(r.tags.len(), 1, "{source}: {verb}");
+            assert!(r.tags[0].showy, "{source}: {verb}");
+            assert_eq!(r.showy_verbs.iter().map(|v| v.count).sum::<usize>(), 1);
+        }
+    }
+}
+
+#[test]
+fn phrase_suppressions_boundaries_and_automatic_roster_fallback() {
+    for text in [
+        "I got up. I got up again. I got up at last.",
+        "She never came back. She never came back. She never came back.",
+        "Piglet said that it was late. Piglet said that it was late. Piglet said that it was late.",
+    ] {
+        let r = repeated_phrases::report(&document(text), &Default::default()).unwrap();
+        let target = if text.starts_with("I got") {
+            "got up"
+        } else if text.starts_with("She never") {
+            "came back"
+        } else {
+            "Piglet said that"
+        };
+        assert!(
+            r.phrases.iter().any(|p| p.count == 3
+                && p.spans
+                    .iter()
+                    .all(|span| text.get(span.byte.clone()).unwrap().contains(target))),
+            "{text}: {r:?}"
+        );
+    }
+    for separator in [",", ";", "—", "…", "...", "”"] {
+        let text = format!(
+            "Bright{separator} silver. Bright{separator} silver. Bright{separator} silver."
+        );
+        let r = repeated_phrases::report(&document(&text), &Default::default()).unwrap();
+        assert!(r.phrases.is_empty(), "{text}: {r:?}");
+    }
+    let text =
+        "They saw Mara Jones waiting. They saw Mara Jones waiting. They saw Mara Jones waiting.";
+    let options = repeated_phrases::RepeatedPhraseOptions::new().with_automatic_names(true);
+    let r = repeated_phrases::report(&document(text), &options).unwrap();
+    assert!(r
+        .phrases
+        .iter()
+        .all(|p| !p.keys.iter().any(|k| k == "mara" || k == "jones")));
+    let d = analyze_document(
+        &Tokenizer::new("../storage/en_tokenizer.bin").unwrap(),
+        text,
+        &DocumentOptions::new().with_skip_names(vec!["Other".into()]),
+    );
+    let r = repeated_phrases::report(&d, &options).unwrap();
+    assert!(r.phrases.iter().any(|p| p.keys.iter().any(|k| k == "mara")));
+}
+
+#[test]
+fn headings_preserve_prose_signs_and_mark_markdown_chapters() {
+    for text in [
+        "Part civil servant, part spy.",
+        "Part mild amusement, part dread.",
+        "Book one was a disaster.",
+        "BANG",
+        "NO VACANCY",
+        "I",
+    ] {
+        let d = document(text);
+        assert_eq!(d.paragraphs.len(), 1, "{text}");
+        assert!(d.word_count > 0, "{text}");
+    }
+    let d = document("CHAPTER 1. Loomings.\nShe waited.");
+    assert!(d.paragraphs[0].chapter_start);
+    assert_eq!(d.paragraphs.len(), 2);
+    let d = document("## Chapter Two\nShe waited.");
+    assert!(d.paragraphs[0].chapter_start);
+    let d = document("“Where?” I asked.");
+    assert_eq!(d.sentences().count(), 1);
+}
+
+#[test]
+fn echo_ambiguity_titles_window_and_turns_have_positive_controls() {
+    for text in [
+        "The leaves fell. She left.",
+        "He was better. She was well.",
+        "He was good. She was best.",
+        "The stranger arrived. It was strange.",
+        "He uttered words. It was utter nonsense.",
+        "The guard rested. A rest was needed.",
+        "He was late. She arrived later.",
+        "The makings were scattered. She was making bread.",
+        "She liked it. It looked like rain.",
+        "Good morning. He was better.",
+    ] {
+        let r = echoes::report(&document(text), &Default::default()).unwrap();
+        assert!(r.echoes.is_empty(), "{text}: {r:?}");
+    }
+    for text in [
+        "The ladies came in. The ladies sat down.",
+        "I miss her. I miss him.",
+        "He walked. She was walking.",
+    ] {
+        assert!(
+            !echoes::report(&document(text), &Default::default())
+                .unwrap()
+                .echoes
+                .is_empty(),
+            "{text}"
+        );
+    }
+    for text in [
+        "Miss Jones came. Miss Smith left.",
+        "The lantern lit the lantern.",
+        "“The lantern.”\n“Another lantern.”",
+    ] {
+        assert!(
+            echoes::report(&document(text), &Default::default())
+                .unwrap()
+                .echoes
+                .is_empty(),
+            "{text}"
+        );
+    }
+}
+
+#[test]
+fn anaphora_is_suppressed_but_varied_second_words_still_flag() {
+    for text in [
+        "The clock started. The clock stopped. The clock ticked.",
+        "Why wait? Why leave! Why stay?",
+    ] {
+        assert!(
+            sentence_starts::report(&document(text), &Default::default(), None)
+                .unwrap()
+                .groups
+                .all
+                .same_word_runs
+                .is_empty()
+        );
+    }
+    assert_eq!(
+        sentence_starts::report(
+            &document("The thermos fell. The meeting ended. The broker left."),
+            &Default::default(),
+            None
+        )
+        .unwrap()
+        .groups
+        .all
+        .same_word_runs
+        .len(),
+        1
+    );
+}
+
+#[test]
+fn long_sentence_options_exclude_quotes_blocks_and_preserve_percentile_option() {
+    let short = "She waited. ".repeat(200);
+    let long = format!("{}.", vec!["word"; 42].join(" "));
+    let d = document(&format!("{short}{}", vec![long.clone(); 10].join("\n")));
+    let r = sentence_length::report(&d, &Default::default(), None).unwrap();
+    assert_eq!(r.groups.all.long_sentences.len(), 3);
+    let r = sentence_length::report(
+        &d,
+        &sentence_length::SentenceLengthOptions::new().with_above_percentile(true),
+        None,
+    )
+    .unwrap();
+    assert_eq!(r.groups.all.long_sentences.len(), 10);
+    let d = document(&format!("“{long}”\n> {long}\n    {long}\n{long}"));
+    let r = sentence_length::report(&d, &Default::default(), None).unwrap();
+    assert_eq!(r.groups.all.long_sentences.len(), 1);
+}
+
+#[test]
+fn beats_introduce_following_speech_and_manner_does_not_modify_adjective() {
+    for text in [
+        "“You coming?” she asked.\nI nodded.",
+        "“Where?” he asked.\nShe didn’t answer.",
+        "“No.”\nShe did not interrupt.\n“Yes.”",
+        "“No.”\nShe didn’t interrupt.\n“Yes.”",
+    ] {
+        assert!(
+            dialogue_tags::report(&document(text), &Default::default(), None)
+                .unwrap()
+                .beats
+                .is_empty(),
+            "{text}"
+        );
+    }
+    let text = "“Fine,” said Eve, politely uninterested.";
+    assert_eq!(
+        dialogue_tags::report(&document(text), &Default::default(), None)
+            .unwrap()
+            .with_adverb
+            .count,
+        0
+    );
+    assert!(
+        serde_json::from_str::<sentence_length::SentenceLengthBaseline>(
+            r#"{"narration":{"bands":{}}}"#
+        )
+        .is_err()
+    );
+    assert!(
+        serde_json::from_str::<sentence_starts::SentenceStartsBaseline>(
+            r#"{"dialogue":{"dialogue":{}}}"#
+        )
+        .is_err()
+    );
 }

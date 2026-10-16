@@ -30,22 +30,25 @@ The owner decisions on #241 change report defaults and scope. The source pins, g
 labeler provenance remain frozen. Rebaselines record the intended changes rather than claiming
 better editorial precision from synthetic injections:
 
-- Echoes: precision remains 1.0 and all far controls remain zero; dev recall is 59/60 and test 61/62.
-  Honorific suppression removes *ladies/Ladies* in dev and say/ask suppression removes
-  *asking/Asking* in test. Natural-copy recall is 25/26 in each split.
-- Repeated phrases: precision remains 1.0; recall is 38/40 dev and 36/40 test. The six removed
-  two-use injections are 326–502 counted words apart, beyond the new 300-word proximity band.
-- Dialogue: tag position, verb class and adverb floors are unchanged. Two newly detected standalone
-  attribution beats (*I nodded*, *She smiled*) are missing from the frozen paragraph-edge labels.
-  Beat precision becomes 9/13 (69.23%), recall stays 9/10, and F1 becomes 78.26%; the two older false
-  beat predictions remain diagnostic. The reason is also stored in `dialogue-tags-baseline.json`.
-- Sentences: the independent long-sentence reference now implements top 3 plus above-own-p95,
-  retaining the 40-word candidate floor. All labeled and injected F1 floors remain unchanged.
-  The paragraph-mode check excludes documented heading/citation/marker lines and retains its
-  swapped-mode regression test. Updated public distribution measurements exclude headings.
-- Synthetic tier 3 self-tests now expect omitted headings and no flag on an eight-exchange run.
-  No real-corpus calibration was run for this revision. Bundled author bands remain empty and
-  never highlight until the owner supplies chapter-window values.
+- Echoes: precision remains 1.0 and all far controls remain zero. With the 30-word cap,
+  conservative POS/lemma matching and quoted-turn suppression, dev recall is 43/58 and test 48/61.
+  Near injections now span 12–25 regex words; tokenized clitics can push them outside 30. Exact
+  *ladies* and *miss* repeats are restored by positional honorific suppression and positive fixtures.
+  Natural-copy recall is 25/26 in each split; quoted-turn copies of *arched* and *toasted* are suppressed.
+- Repeated phrases: injections now distinguish three uses, two near uses and separate distant-pair
+  negative controls. Phrasal verbs and *Piglet said that* are included. In-scope recall and precision
+  are 100%; the former distant-pair recall reduction is removed. Rust fixtures cover punctuation
+  boundaries, longest-overlap selection and the optional name fallback.
+- Dialogue: all frozen floors remain unchanged, including beat precision 9/11 and recall 9/10.
+  Response beats such as *I nodded* and *She smiled* no longer attribute the preceding speaker.
+  Interrupt-type standalone beats attach to the following quote and skip negated clauses.
+- Sentences: the independent reference uses top-three unquoted candidates by default and checks
+  deliberate anaphora separately. Labeled/injected F1 floors remain unchanged. Heading counting
+  preserves signs and ordinary prose; a single blank line no longer breaks narration runs.
+- Synthetic tier 3 self-tests cover a 13-exchange untagged run. All 36 Python tests pass. The new
+  owner-supplied chapter-window bands and full percentiles are preserved with exact provenance;
+  no private calibration inputs were accessed. Calibration used #270's segmentation, predating
+  this PR's refinements. Synthetic median/p95 chapters verify matching-mode highlights.
 
 `usefulness-counts.json` records per-report before/after counts for all six `bench/public` texts,
 against main `42f658d`. Reproduce the after counts with:
@@ -724,15 +727,15 @@ What counts as one flag:
 |---|---|---|
 | Sentence length | each long sentence (≥ `longSentenceWords`, default 40) and each monotony run | `long_sentence`, `monotony_run`, `total` per group |
 | Sentence starts | each same-word start run (≥ 3 sentences) | `same_word_run` per group |
-| Echoes | each echo (default window 50) | `distance` band in words (`1_5`, `6_10`, `11_25`, `26_50`); `form`: `same_form` if the two words have the same case-folded spelling, else `different_form` |
-| Repeated phrases | each distinct repeated phrase; `occurrence` counts every occurrence separately | `length` in words (2–5) |
+| Echoes | each opt-in echo (default and maximum window 30) | `distance` band in words (`1_5`, `6_10`, `11_25`, `26_50`); `form`: `same_form` if the two words have the same case-folded spelling, else `different_form` |
+| Repeated phrases | each distinct repeated phrase; `occurrence` counts every occurrence separately | `length` in words (merged phrases can exceed 5; numeric length keys are allowed) |
 | Clichés | each match | `kind` (cliché/redundancy) × group, `source` list, `patterns` per bundled entry with at least one flag (`patterns_with_flags` counts them) |
-| Dialogue tags | each tag with a listed speech verb other than *say*/*ask* (`other_speech_verb`), each non-speech tag, each tag adverb, each untagged run (> 6 exchanges) | those four categories; `patterns` per listed verb lemma except *say*/*ask*. One tag can carry two flags (verb and adverb). Unflagged context (`tags`, `said_asked`, `unlisted_verb`, `beats`) is under `context_per_1000_words`, in the same shape |
+| Dialogue tags | each tag with a listed speech verb other than *say*/*ask* (`other_speech_verb`, a legacy calibration category; UI flags use showy verbs), each non-speech tag, each tag adverb, each untagged run (> 12 exchanges) | those four categories; `patterns` per listed verb lemma except *say*/*ask*. One tag can carry two flags (verb and adverb). Unflagged context (`tags`, `said_asked`, `unlisted_verb`, `beats`) is under `context_per_1000_words`, in the same shape |
 
 ### Baseline measures and comparisons
 
 Sentence length and sentence starts compare a document with their shipped baselines. The report
-returns a measure only when the group has at least `minimumSentences` (200) sentences; that sample
+returns a measure only when the group has at least `minimumSentences` (50) sentences; that sample
 (a window, or an author's pooled manuscripts) is then **eligible**.
 
 - **`measures`** gives, for `all`/`narration`/`dialogue`, the distribution over eligible samples of
@@ -751,10 +754,10 @@ returns a measure only when the group has at least `minimumSentences` (200) sent
   0.5/1/2/3/5 words (length) or 1/2/5/10 percentage points (starts). Fine categories have no shipped
   baseline, so their comparisons appear only if a `categoryPercent` baseline is shipped.
 
-Neither report applies a magnitude threshold: it shows every comparison on an eligible document. So
+Reports return differences on eligible documents and highlight only outside the matching p5–p95 band. The calibration adapter retains all comparison values for measurement. So
 `eligible_share` in `chapter` is the share of windows on which the report would show a comparison,
 and the threshold sweep is there to choose one. In `manuscript`, `eligible_share` tests each
-author's pooled sample against the 200-sentence bar, which is nearly always met. The self-test checks
+author's pooled sample against the 50-sentence bar, which is nearly always met. The self-test checks
 the harness's histogram mean and percentile differences and universal percentages against the
 report's own `meanDifference`, percentile differences and `percent` on one document.
 

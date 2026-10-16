@@ -1,50 +1,391 @@
 {
   "source": {
-    "status": "owner calibrated",
-    "dataset": "cmlarsen/fiction-baseline published-fiction export",
-    "version": "fb export; EXTRACTOR_VERSION 1",
-    "recorded": "2026-10-15",
-    "build_commit": "b464cac1193a3555957fa2784a1ddfd553de505b",
-    "units": 210,
-    "author_units": 71,
-    "sentences": 663457,
-    "weighting": "equal weight per author after pooling units within author; mean of within-author sentence percentiles",
-    "word_convention": "Document is_word tokens excluding skipped names; punctuation excluded, clitics count separately; no skip names supplied for calibration",
-    "paragraph_mode": "one paragraph per line; blank lines at scene breaks"
+    "dataset": "cmlarsen/fiction-baseline export at b464cac (EXTRACTOR_VERSION 1), 210 units, 71 author units",
+    "tool": "writemorebetter PR #270 tier3 --flag-rates at 273e7b5",
+    "run_date": "2026-10-16",
+    "scope": "chapter windows (scene-break split, 2,000-6,000 words), author-weighted (each author counts equally)",
+    "window_rule": {
+      "scene_break_words": 3000,
+      "maximum_words": 6000,
+      "minimum_words": 2000
+    },
+    "samples": 1559
   },
-  "bandStatus": "placeholder: no highlighting until owner chapter-window calibration; existing authorMeanPercentiles are not chapter-window bands",
   "baseline": {
     "bands": {
-      "all": {"mean": null, "percentiles": {}},
-      "narration": {"mean": null, "percentiles": {}},
-      "dialogue": {"mean": null, "percentiles": {}}
+      "all": {
+        "mean": {
+          "p5": 8.542637323536756,
+          "p95": 18.287731780201526
+        },
+        "percentiles": {
+          "5": {
+            "p5": 0,
+            "p95": 3
+          },
+          "25": {
+            "p5": 3,
+            "p95": 8
+          },
+          "50": {
+            "p5": 7,
+            "p95": 15
+          },
+          "75": {
+            "p5": 12,
+            "p95": 26
+          },
+          "95": {
+            "p5": 21,
+            "p95": 42.451063953488195
+          }
+        }
+      },
+      "narration": {
+        "mean": {
+          "p5": 9.794083937892518,
+          "p95": 21.31850629701724
+        },
+        "percentiles": {
+          "5": {
+            "p5": 0,
+            "p95": 4
+          },
+          "25": {
+            "p5": 3,
+            "p95": 11
+          },
+          "50": {
+            "p5": 8,
+            "p95": 18.55771134520669
+          },
+          "75": {
+            "p5": 14,
+            "p95": 29
+          },
+          "95": {
+            "p5": 23,
+            "p95": 44.911838823529365
+          }
+        }
+      },
+      "dialogue": {
+        "mean": {
+          "p5": 6.158286629503297,
+          "p95": 13.314167886489322
+        },
+        "percentiles": {
+          "5": {
+            "p5": 1,
+            "p95": 3
+          },
+          "25": {
+            "p5": 3,
+            "p95": 6.692571505071552
+          },
+          "50": {
+            "p5": 5,
+            "p95": 11
+          },
+          "75": {
+            "p5": 8,
+            "p95": 18.850378787878885
+          },
+          "95": {
+            "p5": 14,
+            "p95": 31.763933566433664
+          }
+        }
+      }
     },
-    "narration": null,
-    "dialogue": null,
-    "mean": 12.900118525896554,
+    "mean": 12.780488207960591,
     "percentiles": {
-      "5": 1.708450704225352,
-      "25": 5.721830985915493,
-      "50": 10.71830985915493,
-      "75": 17.8556338028169,
-      "95": 31.122535211267603
-    }
-  },
-  "authorMeanPercentiles": {
-    "5": 9.132177061891108,
-    "25": 10.962953629559518,
-    "50": 12.469159962310647,
-    "75": 14.144080564492402,
-    "95": 18.40828033296507
-  },
-  "referenceMeans": {
-    "ngram1990to2019": {
-      "mean": 12.66,
-      "word_convention": "words excluding punctuation; owner supplied"
+      "5": 1.7863418355295033,
+      "25": 5.768323390207307,
+      "50": 10.693053888189395,
+      "75": 17.650433436655323,
+      "95": 30.525519657186678
     },
-    "htrcAuthorMean": {
-      "mean": 13.12,
-      "note": "published approximate author mean; tokenization and page-based sentence conventions differ"
+    "narration": {
+      "mean": 14.407007216666566,
+      "percentiles": {
+        "5": 1.9900333628699898,
+        "25": 6.907327161162283,
+        "50": 12.622257930995975,
+        "75": 19.85030813422601,
+        "95": 32.73208538612682
+      }
+    },
+    "dialogue": {
+      "mean": 9.364042525385544,
+      "percentiles": {
+        "5": 1.5177588120899392,
+        "25": 4.480261741702631,
+        "50": 7.83007731693808,
+        "75": 12.661826242171678,
+        "95": 22.160227567385707
+      }
     }
-  }
+  },
+  "calibration": {
+    "all": {
+      "5": {
+        "samples": 1515,
+        "authors": 68,
+        "mean": 1.7863418355295033,
+        "percentiles": {
+          "5": 0,
+          "10": 0,
+          "25": 1,
+          "50": 2,
+          "75": 2,
+          "90": 3,
+          "95": 3
+        }
+      },
+      "25": {
+        "samples": 1515,
+        "authors": 68,
+        "mean": 5.768323390207307,
+        "percentiles": {
+          "5": 3,
+          "10": 4,
+          "25": 5,
+          "50": 6,
+          "75": 7,
+          "90": 8,
+          "95": 8
+        }
+      },
+      "50": {
+        "samples": 1515,
+        "authors": 68,
+        "mean": 10.693053888189395,
+        "percentiles": {
+          "5": 7,
+          "10": 8,
+          "25": 9,
+          "50": 10.5,
+          "75": 12,
+          "90": 14,
+          "95": 15
+        }
+      },
+      "75": {
+        "samples": 1515,
+        "authors": 68,
+        "mean": 17.650433436655323,
+        "percentiles": {
+          "5": 12,
+          "10": 13,
+          "25": 15,
+          "50": 17,
+          "75": 20,
+          "90": 23,
+          "95": 26
+        }
+      },
+      "95": {
+        "samples": 1515,
+        "authors": 68,
+        "mean": 30.525519657186678,
+        "percentiles": {
+          "5": 21,
+          "10": 22,
+          "25": 25,
+          "50": 30,
+          "75": 35,
+          "90": 40,
+          "95": 42.451063953488195
+        }
+      },
+      "mean": {
+        "samples": 1515,
+        "authors": 68,
+        "mean": 12.780488207960591,
+        "percentiles": {
+          "5": 8.542637323536756,
+          "10": 9.369791735088356,
+          "25": 10.631141581567489,
+          "50": 12.504927947001988,
+          "75": 14.492585081950448,
+          "90": 16.280567421806186,
+          "95": 18.287731780201526
+        }
+      }
+    },
+    "narration": {
+      "5": {
+        "samples": 980,
+        "authors": 66,
+        "mean": 1.9900333628699898,
+        "percentiles": {
+          "5": 0,
+          "10": 0,
+          "25": 0.02540423037672753,
+          "50": 2,
+          "75": 3,
+          "90": 4,
+          "95": 4
+        }
+      },
+      "25": {
+        "samples": 980,
+        "authors": 66,
+        "mean": 6.907327161162283,
+        "percentiles": {
+          "5": 3,
+          "10": 4,
+          "25": 5,
+          "50": 7,
+          "75": 8,
+          "90": 10,
+          "95": 11
+        }
+      },
+      "50": {
+        "samples": 980,
+        "authors": 66,
+        "mean": 12.622257930995975,
+        "percentiles": {
+          "5": 8,
+          "10": 9,
+          "25": 10,
+          "50": 12,
+          "75": 14.496324810596118,
+          "90": 17,
+          "95": 18.55771134520669
+        }
+      },
+      "75": {
+        "samples": 980,
+        "authors": 66,
+        "mean": 19.85030813422601,
+        "percentiles": {
+          "5": 14,
+          "10": 15,
+          "25": 17,
+          "50": 20,
+          "75": 22,
+          "90": 26,
+          "95": 29
+        }
+      },
+      "95": {
+        "samples": 980,
+        "authors": 66,
+        "mean": 32.73208538612682,
+        "percentiles": {
+          "5": 23,
+          "10": 23.904511018509453,
+          "25": 27,
+          "50": 32,
+          "75": 37.69999999999999,
+          "90": 41.59254789379867,
+          "95": 44.911838823529365
+        }
+      },
+      "mean": {
+        "samples": 980,
+        "authors": 66,
+        "mean": 14.407007216666566,
+        "percentiles": {
+          "5": 9.794083937892518,
+          "10": 10.695574193381155,
+          "25": 11.949855328447754,
+          "50": 14.029406832927876,
+          "75": 16.337280744903133,
+          "90": 18.47233934251325,
+          "95": 21.31850629701724
+        }
+      }
+    },
+    "dialogue": {
+      "5": {
+        "samples": 614,
+        "authors": 44,
+        "mean": 1.5177588120899392,
+        "percentiles": {
+          "5": 1,
+          "10": 1,
+          "25": 1,
+          "50": 1,
+          "75": 2,
+          "90": 2,
+          "95": 3
+        }
+      },
+      "25": {
+        "samples": 614,
+        "authors": 44,
+        "mean": 4.480261741702631,
+        "percentiles": {
+          "5": 3,
+          "10": 3,
+          "25": 4,
+          "50": 4,
+          "75": 5,
+          "90": 6,
+          "95": 6.692571505071552
+        }
+      },
+      "50": {
+        "samples": 614,
+        "authors": 44,
+        "mean": 7.83007731693808,
+        "percentiles": {
+          "5": 5,
+          "10": 5.056768586681713,
+          "25": 7,
+          "50": 8,
+          "75": 9,
+          "90": 10,
+          "95": 11
+        }
+      },
+      "75": {
+        "samples": 614,
+        "authors": 44,
+        "mean": 12.661826242171678,
+        "percentiles": {
+          "5": 8,
+          "10": 9,
+          "25": 11,
+          "50": 12,
+          "75": 14.25,
+          "90": 17,
+          "95": 18.850378787878885
+        }
+      },
+      "95": {
+        "samples": 614,
+        "authors": 44,
+        "mean": 22.160227567385707,
+        "percentiles": {
+          "5": 14,
+          "10": 15.171317139001374,
+          "25": 19,
+          "50": 22,
+          "75": 25,
+          "90": 28.885338541666723,
+          "95": 31.763933566433664
+        }
+      },
+      "mean": {
+        "samples": 614,
+        "authors": 44,
+        "mean": 9.364042525385544,
+        "percentiles": {
+          "5": 6.158286629503297,
+          "10": 6.724732432676363,
+          "25": 7.881537680382626,
+          "50": 9.165484785338952,
+          "75": 10.597203003463157,
+          "90": 12.170521728136826,
+          "95": 13.314167886489322
+        }
+      }
+    }
+  },
+  "bandStatus": "Owner-supplied author-weighted chapter-window p5/p95 bands, 2026-10-16; calibration used #270 at 273e7b5, before #273 segmentation refinements."
 }
