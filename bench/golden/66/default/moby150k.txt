@@ -532,7 +532,6 @@
 945 | SPELLCHECK/SINGLE | "Randolphs" -> ["Randolph"] | Possibly misspelled word.
 945 | SPELLCHECK/SINGLE | "Hardicanutes" -> ["Hardecanute"] | Possibly misspelled word.
 956 | GRAMMAR/ARTICLE_ADJECTIVE_OF/8 | "less" -> [] | The phrase 'the less of' is not correct. Use a noun, not an adjective, between 'the' and 'of'.
-961 | CONFUSED_WORDS/OTHER_OTHERS/0 | "other" -> ["others"] | It seems that the plural noun others fits better in this context.
 973 | SPELLCHECK/SINGLE | "marvellous" -> ["marvelous"] | Possibly misspelled word.
 975 | BUILTIN/UPPERCASE_SENTENCE_START | "how" -> ["How"] | This sentence does not start with an uppercase letter.
 980 | GRAMMAR/HEAD_COMPOUNDS/0 | "head winds" -> ["headwinds"] | The word headwinds is spelled as one word.
@@ -692,7 +691,6 @@
 1737 | SPELLCHECK/SINGLE | "Queequeg" -> [] | Possibly misspelled word.
 1740 | SPELLCHECK/SINGLE | "parti-coloured" -> ["parti-colored"] | Possibly misspelled word.
 1749 | SPELLCHECK/SINGLE | "Queequeg" -> [] | Possibly misspelled word.
-1759 | SPELLCHECK/SINGLE | "21st" -> ["1st"] | Possibly misspelled word.
 1761 | GRAMMAR/STAIRS_COMPOUNDS/0 | "up stairs" -> ["upstairs"] | Did you mean upstairs?
 1762 | REDUNDANCY/SO_AS_TO/0 | "so as to" -> ["to"] | 'So as to' expresses purpose and is used in formal texts. Consider using to.
 1766 | BUILTIN/UPPERCASE_SENTENCE_START | "the" -> ["The"] | This sentence does not start with an uppercase letter.

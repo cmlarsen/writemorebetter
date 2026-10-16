@@ -38,6 +38,24 @@ the structure, the baseline data sources, and the decisions behind them. Trackin
 - Report memory (peak RSS) and check time for the English binaries when touching the tagger, speller, or
   rule loading. Baseline: nlprule 0.6.4 English, ~145 MB loaded.
 
+## Rule fixes
+
+- `bench/tools/gates.sh` runs every gate above (conformance, public and private recall with the
+  private flag diff since its last run, golden files) and prints one summary. Run it after each
+  data rebuild.
+- `bench/tools/parity.py "text"` shows which of writemorebetter, LanguageTool 6.6 (local) and
+  LanguageTool's API flag each span. The API leg sends the text out, so use it only on sentences
+  you wrote; `--no-api` otherwise.
+- `bench/tools/corpus_scan.py` runs the probe over a local published-fiction corpus and ranks,
+  samples and diffs the flags; `run --only RULE --grep REGEX` checks one rule in minutes.
+- Before writing a fix, check whether LanguageTool fixed it after 6.6 (released 2025-03-27): list
+  the commits that touch the file, e.g.
+  `gh api 'repos/languagetool-org/languagetool/commits?path=languagetool-language-modules/en/src/main/resources/org/languagetool/rules/en/grammar.xml&since=2025-03-27'`,
+  or search them for the rule id. Backport into `build/lt-rules/` and list the edit in that
+  directory's README.
+- `target/release/test --list-failing` names failing conformance rules; `RUST_LOG=warn` prints
+  the failing examples.
+
 ## Scope
 
 English first. Other languages come later as data plus per-language builtins behind a per-language

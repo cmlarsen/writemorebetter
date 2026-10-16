@@ -59,8 +59,38 @@ fn main() {
             profile.name, unmatched
         );
     }
+    let only: Option<Vec<String>> = std::env::var("ONLY").ok().map(|only| {
+        only.split(',')
+            .map(|prefix| prefix.trim().to_owned())
+            .filter(|prefix| !prefix.is_empty())
+            .collect()
+    });
+    if let Some(prefixes) = &only {
+        let keep = |id: &str| {
+            let name = id.split_once('/').map_or(id, |(_, name)| name);
+            prefixes
+                .iter()
+                .any(|prefix| id.starts_with(prefix.as_str()) || name.starts_with(prefix.as_str()))
+        };
+        for rule in rules.rules_mut() {
+            if !keep(&rule.id().to_string()) {
+                rule.disable();
+            }
+        }
+        for rule in rules.builtins_mut() {
+            if !keep(&format!("BUILTIN/{}", rule.id())) {
+                rule.disable();
+            }
+        }
+        println!("only {:?}: {} rules enabled", prefixes, enabled(&rules));
+    }
+    let spell_wanted = only.as_ref().map_or(true, |prefixes| {
+        prefixes.iter().any(|prefix| {
+            prefix.starts_with("SPELLCHECK") || "SPELLCHECK".starts_with(prefix.as_str())
+        })
+    });
     let variant = std::env::var("SPELL").unwrap_or_else(|_| "en_US".into());
-    if !variant.is_empty() {
+    if spell_wanted && !variant.is_empty() {
         let t = Instant::now();
         rules.spell_mut().options_mut().variant = Some(rules.spell().variant(&variant).unwrap());
         println!(

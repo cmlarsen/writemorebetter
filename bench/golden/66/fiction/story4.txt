@@ -1,5 +1,4 @@
 7 | SPELLCHECK/SINGLE | "Aduke" -> ["Duke"] | Possibly misspelled word.
-10 | PUNCTUATION/COMMA_COMPOUND_SENTENCE_2/4 | " and" -> [", and"] | Use a comma before "and" if it connects two independent clauses (unless they are closely connected and short).
 13 | SPELLCHECK/SINGLE | "succesful" -> ["successful"] | Possibly misspelled word.
 14 | SPELLCHECK/SINGLE | "Aduke" -> ["Duke"] | Possibly misspelled word.
 16 | SPELLCHECK/SINGLE | "truely" -> ["truly"] | Possibly misspelled word.

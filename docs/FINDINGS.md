@@ -244,6 +244,20 @@ data only (`scripts/build-data.sh`). The LT 5.2 columns below are kept as histor
 | Check time, same text (same run, machine under load) | 2.21 s | 2.16 s | 2.63 s |
 | Data on disk (tokenizer + rules) | 11.6 + 7.6 MB | 14.6 + 7.9 MB | 11.9 + 12.6 MB |
 
+Update 2026-10-15: `grammar.xml` is now a fork of LT 6.6's (`build/lt-rules/en/`, edits listed in its
+README). Its new rules and antipatterns raise LT 6.6 recall to **50 / 50** private (194 flags, fiction
+profile) and **60 / 60** public. Grammar conformance is 6,085 / 6,085 runnable rules. The three n-gram
+confusions above are now caught by narrow pattern rules for the contexts in the corpus, not by an
+n-gram model, so other contexts for those word pairs still go unflagged.
+
+Update 2026-10-16: on 7.5M words of published fiction (210 units, 70 authors, extracted locally and
+never committed), the largest false positive was the spaced ellipsis ". . .": about 9,500
+`COMMA_PARENTHESIS_WHITESPACE` flags and most of 6,006 `UPPERCASE_SENTENCE_START` flags. LT 6.6
+flags it the same way; LT fixed it after 6.6, and the fix is ported (forked `segment.srx` plus the
+builtin). Words with digits (1,590 flags in 117 units) are no longer spell checked, and the fiction
+profile disables `COMMA_COMPOUND_SENTENCE_2` (1,166 flags for 61 authors). Private flags drop from
+194 to 178 with recall unchanged at 50 / 50.
+
 On the private drafts, LT 6.6 rules miss only the three n-gram confusions (out of scope on-device) and one
 grammar error. What closed the gap: the speller (M0); inflection synthesis for `<match postag_replace>`
 (M4C); LT 6.6 rule structure (M4D); no-suggestion rules and typed examples (M4F); LT 6.6's contraction
