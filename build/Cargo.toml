@@ -12,7 +12,7 @@ categories = ["science", "text-processing"]
 [dependencies]
 flate2 = "1"
 thiserror = "1"
-zip = "0.5.9"
+zip = { version = "9", default-features = false, features = ["deflate"] }
 directories = "3"
 reqwest = { version = "0.11", default_features = false, features = ["blocking", "rustls-tls"] }
 nlprule = { path = "../nlprule", features = ["compile"], version = "0.9.0" } # BUILD_BINDINGS_COMMENT
