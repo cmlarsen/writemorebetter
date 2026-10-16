@@ -15,6 +15,28 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let stdout = io::stdout();
     let mut output = io::BufWriter::new(stdout.lock());
     match args.first().map(String::as_str) {
+        Some("--reports") if args.len() == 2 || (args.len() == 3 && args[2] == "--hard-wrapped") => {
+            use writemorebetter_style::reports::{sentence_length, sentence_starts};
+            let tokenizer = nlprule::Tokenizer::new(&args[1])?;
+            for line in io::stdin().lock().lines() {
+                let text: String = serde_json::from_str(&line?)?;
+                let document = analyze_document(&tokenizer, &text, &DocumentOptions::new().with_hard_wrapped(args.len() == 3));
+                let mut length_options = sentence_length::Options::new();
+                length_options.minimum_sentences = 0;
+                let started = Instant::now();
+                let length = sentence_length::report(&document, &length_options, None);
+                let starts = sentence_starts::report(&document, &sentence_starts::Options::new(), None);
+                let reports_ms = started.elapsed().as_secs_f64() * 1000.0;
+                serde_json::to_writer(&mut output, &serde_json::json!({"length": length, "starts": starts, "reports_ms": reports_ms, "paragraphs": document.paragraphs.len()}))?;
+                writeln!(output)?;
+                output.flush()?;
+            }
+        }
+        Some("--penn-map") if args.len() == 1 => {
+            let tags: Vec<String> = serde_json::from_reader(io::stdin())?;
+            let mapping: std::collections::BTreeMap<_,_> = tags.iter().map(|tag| (tag, writemorebetter_style::reports::sentence_starts::penn_to_universal(tag))).collect();
+            serde_json::to_writer(&mut output, &mapping)?;
+        }
         Some("--dialogue") if args.len() == 1 => {
             for line in io::stdin().lock().lines() {
                 let input: Input = serde_json::from_str(&line?)?;

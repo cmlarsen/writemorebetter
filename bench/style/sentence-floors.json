@@ -1,0 +1,23 @@
+{
+  "labeled": {
+    "adverb": 0.9032258064516129,
+    "coordinatingConjunction": 1.0,
+    "gerund": 1.0,
+    "infinitive": 1.0,
+    "introductory": 0.9454545454545454,
+    "inversion": 1.0,
+    "other": 0.8085106382978723,
+    "pastParticiple": 0.8571428571428571,
+    "subject": 0.9696969696969697,
+    "subordinatingConjunction": 1.0
+  },
+  "injected": {
+    "longSentence": 1.0,
+    "monotony": 1.0,
+    "sameWord": 1.0
+  },
+  "publicOtherPercentCeilings": {
+    "stories": 5.0,
+    "mobyDick": 16.0
+  }
+}

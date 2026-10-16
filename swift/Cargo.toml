@@ -13,6 +13,8 @@ crate-type = ["cdylib", "lib"]
 writemorebetter-style = { path = "../style" }
 nlprule = { path = "../nlprule" }
 thiserror = "1"
+serde = "1"
+serde_json = "1"
 uniffi = "0.32.2"
 
 [features]

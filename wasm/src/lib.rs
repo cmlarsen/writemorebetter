@@ -351,6 +351,84 @@ impl Checker {
             .map_err(|err| JsValue::from_str(&format!("failed to serialize document: {err}")))
     }
 
+    #[wasm_bindgen(js_name = styleReports)]
+    pub fn style_reports(
+        &self,
+        text: &str,
+        request_json: Option<String>,
+        document_options_json: Option<String>,
+    ) -> Result<String, JsValue> {
+        let request: writemorebetter_style::reports::SentenceReportsRequest =
+            parse_report_json(request_json).map_err(|message| JsValue::from_str(&message))?;
+        let mut options: writemorebetter_style::DocumentOptions =
+            parse_report_json(document_options_json)
+                .map_err(|message| JsValue::from_str(&message))?;
+        options.include_token_details = true;
+        let document = writemorebetter_style::analyze_document(&self.tokenizer, text, &options);
+        report_json(&writemorebetter_style::reports::sentence_reports(
+            &document, &request,
+        ))
+        .map_err(|message| JsValue::from_str(&message))
+    }
+
+    #[wasm_bindgen(js_name = sentenceLength)]
+    pub fn sentence_length(
+        &self,
+        text: &str,
+        options_json: Option<String>,
+        baseline_json: Option<String>,
+        document_options_json: Option<String>,
+    ) -> Result<String, JsValue> {
+        use writemorebetter_style::reports::sentence_length;
+        let options: sentence_length::Options =
+            parse_report_json(options_json).map_err(|message| JsValue::from_str(&message))?;
+        let baseline: Option<sentence_length::Baseline> = baseline_json
+            .map(|s| serde_json::from_str(&s))
+            .transpose()
+            .map_err(|e| JsValue::from_str(&format!("invalid baseline: {e}")))?;
+        let mut document_options: writemorebetter_style::DocumentOptions =
+            parse_report_json(document_options_json)
+                .map_err(|message| JsValue::from_str(&message))?;
+        document_options.include_token_details = true;
+        let document =
+            writemorebetter_style::analyze_document(&self.tokenizer, text, &document_options);
+        report_json(&sentence_length::report(
+            &document,
+            &options,
+            baseline.as_ref(),
+        ))
+        .map_err(|message| JsValue::from_str(&message))
+    }
+
+    #[wasm_bindgen(js_name = sentenceStarts)]
+    pub fn sentence_starts(
+        &self,
+        text: &str,
+        options_json: Option<String>,
+        baseline_json: Option<String>,
+        document_options_json: Option<String>,
+    ) -> Result<String, JsValue> {
+        use writemorebetter_style::reports::sentence_starts;
+        let options: sentence_starts::Options =
+            parse_report_json(options_json).map_err(|message| JsValue::from_str(&message))?;
+        let baseline: Option<sentence_starts::Baseline> = baseline_json
+            .map(|s| serde_json::from_str(&s))
+            .transpose()
+            .map_err(|e| JsValue::from_str(&format!("invalid baseline: {e}")))?;
+        let mut document_options: writemorebetter_style::DocumentOptions =
+            parse_report_json(document_options_json)
+                .map_err(|message| JsValue::from_str(&message))?;
+        document_options.include_token_details = true;
+        let document =
+            writemorebetter_style::analyze_document(&self.tokenizer, text, &document_options);
+        report_json(&sentence_starts::report(
+            &document,
+            &options,
+            baseline.as_ref(),
+        ))
+        .map_err(|message| JsValue::from_str(&message))
+    }
+
     /// Adds words to the user dictionary and returns how many were new.
     ///
     /// Use it for character names, invented places and coinages so the speller stops flagging
@@ -399,4 +477,42 @@ impl Checker {
         serde_json::to_string(&self.rules.mother_tongues())
             .map_err(|err| JsValue::from_str(&format!("failed to serialize mother tongues: {err}")))
     }
+}
+
+fn parse_report_json<T: serde::de::DeserializeOwned + Default>(
+    json: Option<String>,
+) -> Result<T, String> {
+    json.map(|s| serde_json::from_str(&s))
+        .transpose()
+        .map(|v| v.unwrap_or_default())
+        .map_err(|e| e.to_string())
+}
+
+fn report_json<T: serde::Serialize>(report: &T) -> Result<String, String> {
+    fn utf16(value: &mut serde_json::Value) {
+        match value {
+            serde_json::Value::Object(fields) => {
+                if fields.len() == 3
+                    && fields.contains_key("byte")
+                    && fields.contains_key("char")
+                    && fields.contains_key("utf16")
+                {
+                    *value = fields.remove("utf16").unwrap();
+                } else {
+                    for child in fields.values_mut() {
+                        utf16(child);
+                    }
+                }
+            }
+            serde_json::Value::Array(values) => {
+                for child in values {
+                    utf16(child);
+                }
+            }
+            _ => {}
+        }
+    }
+    let mut value = serde_json::to_value(report).map_err(|e| e.to_string())?;
+    utf16(&mut value);
+    serde_json::to_string(&value).map_err(|e| e.to_string())
 }

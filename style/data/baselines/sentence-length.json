@@ -1,0 +1,42 @@
+{
+  "source": {
+    "status": "owner calibrated",
+    "dataset": "cmlarsen/fiction-baseline published-fiction export",
+    "version": "fb export; EXTRACTOR_VERSION 1",
+    "recorded": "2026-10-15",
+    "build_commit": "b464cac1193a3555957fa2784a1ddfd553de505b",
+    "units": 210,
+    "author_units": 71,
+    "sentences": 663457,
+    "weighting": "equal weight per author after pooling units within author; mean of within-author sentence percentiles",
+    "word_convention": "Document is_word tokens excluding skipped names; punctuation excluded, clitics count separately; no skip names supplied for calibration",
+    "paragraph_mode": "one paragraph per line; blank lines at scene breaks"
+  },
+  "baseline": {
+    "mean": 12.900118525896554,
+    "percentiles": {
+      "5": 1.708450704225352,
+      "25": 5.721830985915493,
+      "50": 10.71830985915493,
+      "75": 17.8556338028169,
+      "95": 31.122535211267603
+    }
+  },
+  "authorMeanPercentiles": {
+    "5": 9.132177061891108,
+    "25": 10.962953629559518,
+    "50": 12.469159962310647,
+    "75": 14.144080564492402,
+    "95": 18.40828033296507
+  },
+  "referenceMeans": {
+    "ngram1990to2019": {
+      "mean": 12.66,
+      "word_convention": "words excluding punctuation; owner supplied"
+    },
+    "htrcAuthorMean": {
+      "mean": 13.12,
+      "note": "published approximate author mean; tokenization and page-based sentence conventions differ"
+    }
+  }
+}

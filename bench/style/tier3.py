@@ -55,7 +55,7 @@ def calibrate(analyzer, export, baseline):
                 author['words'] += len(words)
                 author['tokens'] += sum(t['is_punctuation'] or any(ch.isalnum() for ch in t['text'])
                                         for t in tokens)
-                candidates = start_candidates(tokens)
+                candidates = start_candidates(tokens, skip_punctuation=True)
                 add_start(author['starts'], author['fractional'], candidates)
                 author['unresolved'] += len(candidates) != 1
                 author['unknown'] += not candidates
@@ -87,7 +87,7 @@ def calibrate(analyzer, export, baseline):
             'sentence_length': lengths, 'sentence_start': starts,
             'length_comparison': {
                 'ngram_mean': baseline['google_ngram']['mean_tokens_per_sentence'],
-                'ngram_gap': mean - baseline['google_ngram']['mean_tokens_per_sentence'],
+                'ngram_gap': lengths['without_punctuation' if not baseline['google_ngram']['tokens_include_punctuation'] else 'with_punctuation']['mean'] - baseline['google_ngram']['mean_tokens_per_sentence'],
                 'htrc_author_mean': baseline['htrc']['author_mean_tokens_per_sentence'],
                 'htrc_author_mean_gap': mean - baseline['htrc']['author_mean_tokens_per_sentence'],
                 'htrc_author_median': baseline['htrc']['author_median_tokens_per_sentence'],
@@ -138,3 +138,46 @@ def run(analyzer, args):
     if not numeric_only(result):
         raise ValueError('non-numeric aggregate')
     print(json.dumps(result, indent=2, allow_nan=False))
+
+
+def calibrate_sentence_length(probe, export):
+    authors = defaultdict(list)
+    seen = set()
+    for row in jsonl(export / 'units.jsonl'):
+        unit = row['unit_id']
+        if not isinstance(unit, str) or Path(unit).name != unit or unit in ('.', '..') or unit in seen:
+            raise ValueError('invalid or duplicate unit identifier')
+        seen.add(unit)
+        text = (export / 'units' / (unit + '.txt')).read_text(encoding='utf-8')
+        result = probe.analyze(text)
+        authors[row['author_key']].extend(s['words'] for s in result['length']['all']['sentences'])
+    usable = [words for words in authors.values() if words]
+    if not usable:
+        raise ValueError('no measurable sentences')
+    means = [statistics.mean(words) for words in usable]
+    return {'authors': len(usable), 'sentences': sum(map(len, usable)),
+            'baseline': {'mean': statistics.mean(means),
+                         'percentiles': {str(p): statistics.mean(percentile(words, p) for words in usable)
+                                         for p in (5, 25, 50, 75, 95)}},
+            'authorMeanPercentiles': {str(p): percentile(means, p) for p in (5,25,50,75,95)}}
+
+
+def sentence_length_self_test(probe):
+    with tempfile.TemporaryDirectory(prefix='style-synthetic-') as temporary:
+        export = Path(temporary)
+        (export / 'units').mkdir()
+        rows = []
+        for unit, author, text in (('a', 'one', '“She runs.”\n\nHe walks.\n'),
+                                   ('b', 'one', 'Birds fly.\n'),
+                                   ('c', 'two', 'The small birds fly.\n')):
+            rows.append({'unit_id': unit, 'author_key': author, 'title': 'PRIVATE_SENTINEL'})
+            (export / 'units' / (unit + '.txt')).write_text(text)
+        (export / 'units.jsonl').write_text('\n'.join(json.dumps(row) for row in rows))
+        split = probe.analyze('Chapter One\nShe ran to the door\n“Wait—”\n“No.”\nHe left. Then he came back.\n')
+        assert [s['words'] for s in split['length']['all']['sentences']] == [2, 5, 1, 1, 2, 4]
+        result = calibrate_sentence_length(probe, export)
+        assert result['authors'] == 2 and result['sentences'] == 4
+        assert result['baseline']['mean'] == 3
+        assert result['baseline']['percentiles']['50'] == 3
+        assert numeric_only(result) and 'PRIVATE_SENTINEL' not in json.dumps(result)
+        return result

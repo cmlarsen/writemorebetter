@@ -1,0 +1,50 @@
+{
+  "source": {
+    "source": "Google Books Ngram English Fiction",
+    "version": "2020 (v3)",
+    "edition_years": [
+      1990,
+      2019
+    ],
+    "weighting": "volume-weighted; no author dimension",
+    "first_word_convention": "skip one leading punctuation token; resolved first words only; universal 12 tags",
+    "first_word_percent": {
+      "PRON": 35.31,
+      "NOUN": 17.27,
+      "DET": 12.1,
+      "ADV": 9.13,
+      "VERB": 7.47,
+      "ADP": 6.93,
+      "CONJ": 5.26,
+      "X": 3.13,
+      "ADJ": 1.85,
+      "NUM": 1.18,
+      "PRT": 0.36
+    },
+    "url": "https://books.google.com/ngrams/info",
+    "source_record": "Owner supplied from cmlarsen/fiction-baseline docs/datasets/google-ngram-eng-fiction.md; 2026-10-15",
+    "license": "CC BY 3.0",
+    "scope": "all fiction, narration and dialogue blended",
+    "build_commit": "a54a2e2fe22c46fdb862fd9c928a788ccfe12de2"
+  },
+  "baseline": {
+    "categoryPercent": {},
+    "universalPercent": {
+      "PRON": 35.31,
+      "NOUN": 17.27,
+      "DET": 12.1,
+      "ADV": 9.13,
+      "VERB": 7.47,
+      "ADP": 6.93,
+      "CONJ": 5.26,
+      "X": 3.13,
+      "ADJ": 1.85,
+      "NUM": 1.18,
+      "PRT": 0.36
+    }
+  },
+  "missingTags": [
+    "."
+  ],
+  "note": "Published shares sum to 99.99 due to rounding. No resolved-first-word punctuation row is available; its difference remains null."
+}

@@ -491,3 +491,112 @@ also suppresses argument errors for any command line that contains `tier3`, in a
 builds a synthetic export in a temporary directory and checks counts, author weighting and that no
 metadata leaks. CI runs only the self-test. No private corpus or fiction-baseline export was read
 for #249; the published-fiction baseline is for the owner to produce with this command.
+
+## Sentence reports (#244)
+
+`python3 bench/style/run.py tier2 sentences --gate` runs the actual Rust reports through the persistent
+`wmb-document --reports TOKENIZER [--hard-wrapped]` probe. Its default is **one paragraph per line**;
+wrapped Moby imports explicitly select `--hard-wrapped`. `--document-probe`, `--tokenizer`, `--out` and
+`--output` select executable, engine data, generated cases and the aggregate score artifact. Reports
+share one full document per probe request; no grammar rules are loaded.
+
+### Labels and adjudication
+
+The original 332 Standard Ebooks rows in `labels/sentence-starts.jsonl` are now **two-labeler with
+coordinator adjudication**. Before adjudication at head `1ace3bc`, the implementing Codex labeler and
+an independent Claude labeler agreed on **305/332 (91.87%), Cohen's kappa 0.873**. The second labeler
+flagged 76 rows ambiguous; all 27 disagreements were among those rows. It wrote labels before opening
+existing labels, Rust code or predictions, but read the definitions document, which doubles as the
+classifier rule table: it was **not fully blind to the heuristic**.
+
+The coordinator adopted nine semantic corrections (After all x2, As a professional man, Much as,
+Now that, Oppressively competent, This time, Ten to one, There you go), and decided that the 15
+verbless NP fragments plus two Nonsense utterances belong to **other**, not subject. Existing five
+subjectless verb/imperative examples also use other. Each record preserves the independent label and
+ambiguity flag and records adjudication. The main sentence-start gate is **no longer provisional**:
+`sentence-floors.json` is rebaselined against these corrected labels. These are development/regression
+agreement figures, not held-out accuracy; rules were tuned against these development rows. Row-specific
+`ten to one`, `this time` and fronted RB+JJ rules have been removed; any resulting gold-score losses are
+accepted in the new floors. The set and fixtures were used during classifier development.
+
+The initial sample consists of 150 analyzer sentence spans from each book, minus two chapter-heading
+fragments, plus 34 implementer-selected rare gerund/infinitive/participle openings. It remains skewed
+and rare categories have small denominators. Full P/R/F1 and confusion counts are committed in
+`sentence-measurements.json`. Definitions and the classifier's limits are in
+[STYLE-SENTENCES.md](../../docs/STYLE-SENTENCES.md).
+
+A **separate** 34-sentence dialogue-heavy diagnostic sample in `sentence-starts-modern.jsonl` comes
+from this repository's invented public `story1.txt` and `story2.txt`; records carry exact source blob
+IDs and source/local offsets. It is still single-labeler and is not pooled into the adjudicated floors.
+`style/tests/fixtures/sentence-start-review.json` covers the review's imperative/fragment cases and
+positive counterparts; these are strict product fixtures, not inferred labels. The fixtures are regression examples used during the fixes, not held-out accuracy; no unit test
+requires matching every adjudicated development-label row.
+
+### Public sources and injected suites
+
+Standard Ebooks sources are *The Blue Castle* (1926), pinned at
+`08942ee29ed0abd918f7c47268806bdeb5f6188b`, and *The Murder of Roger Ackroyd* (1926), pinned at
+`e3f77eb999de92aa16afcaf6f145c40677927bed`. Neither book appears in the pinned LitBank set.
+`sources.json` records archive SHA-256 values, URLs and CC0 dedication links; the underlying works
+are public domain in the US. Numeric chapter order and `<p>` text joined with two line feeds define
+the initial four-chapter source offsets; curated records instead address a named chapter/paragraph.
+`verify_labels()` checks every excerpt and endpoint. Public-domain excerpts are an explicit exception
+to the older harness policy against committing downloaded text. No private corpus was accessed.
+
+Forty simple source sentences generate three separate structural injections: four repetitions for
+monotony, three for same-word starts, and twelve concatenated copies with internal terminal punctuation
+removed for long sentences. Controls are now **40 untouched natural passages with at least four
+sentences**, not trivially short single sentences. An independent Python reference enumerates maximal
+pairwise-within-two-word windows, long spans and same-word runs from analysis tokens. Naturally
+occurring control patterns are included in gold and printed as `naturalDiagnostics`; they are not
+assumed absent or called writing errors. Exact byte/UTF-16 scoring counts duplicate predictions as
+false positives. Each modified suite scores its own target plus all natural controls.
+
+The universal map agreement check includes all Penn mappings, normalization variants, ORD,
+`_apostrophe_contraction_`, PCT and unknowns. Unsupported tags remain unmapped in both implementations.
+
+### Natural distribution sanity gate
+
+The distribution gate uses each public input's actual paragraph convention. `story1.txt`–`story5.txt`
+are LF, one paragraph per line: `hardWrapped: false` (96/96/96/93/86 paragraphs). Moby is hard-wrapped
+CRLF: `hardWrapped: true`, with CRLF preserved. The probe returns its actual paragraph count; the
+harness independently checks the count against the selected source layout, and a regression test
+fails if the two modes are swapped.
+
+The Moby gate measures narrative **from the second exact `CHAPTER 1. Loomings.` line onward**. The
+first occurrence is a contents entry; the second starts at **UTF-8 byte 28,824**. Matching is by text,
+not a hard-coded offset; the marker, occurrence and measured offset are recorded in the artifact.
+This excludes contents, etymology and extracts, but retains the narrative chapter headings. The cut
+contains 120,267 bytes, 202 blank-line paragraphs and 878 sentences. It is separate from the timing
+workload, which remains the complete unchanged 149,091-byte file.
+
+Stories have **16/615 other (2.60%)**, ceiling **5%**. Narrative-only Moby has **130/878 other
+(14.81%)**, ceiling **16%**, a 1.19 percentage-point margin. Top mutually exclusive narrative other
+surface shapes are 26 remaining verb-tagged openings (including literary/archaic constructions),
+26 vocative/interjection shapes, 16 command-like openers, 14 short fragment shapes, 12 chapter-number
+headings, 10 article-led starts, 2 punctuation/markup-led starts, and 24 remaining openings. These
+are structural diagnostics, not independently adjudicated grammatical labels. Full counts/shares,
+source modes, paragraph counts and cut provenance are in `sentence-measurements.json`; ceilings are
+in `sentence-floors.json`. The sanity check complements the development F1 floors and makes no
+held-out accuracy claim.
+
+### Owner-only length calibration
+
+```sh
+python3 bench/style/run.py tier3 --sentence-length --self-test
+python3 bench/style/run.py tier3 --sentence-length --export /approved/export
+```
+
+The export has **one paragraph per line**, with blank scene breaks. Calibration uses the report's
+own `is_word && !is_skipped` counting in default line mode. The self-test includes consecutive
+unpunctuated heading/narration lines and interrupted dialogue, and fails if hard-wrapped mode merges
+them. Authors pool units first; baseline means and within-author sentence percentiles average authors
+equally. `authorMeanPercentiles` is a separate author-distribution diagnostic. Output is numeric
+aggregate JSON only, with all error/argparse details suppressed whenever tier3 appears anywhere in
+argv. Sentinel tests cover invalid options before and after the subcommand.
+
+The owner supplied the actual calibrated provenance: 2026-10-15,
+fiction-baseline `b464cac1193a3555957fa2784a1ddfd553de505b`, EXTRACTOR_VERSION 1, 210 units,
+71 author units, 663,457 sentences. `style/data/baselines/sentence-length.json` now records the
+12.900118525896554-word mean and separate sentence/author-mean percentiles. The earlier hard-wrapped
+calibration is invalid. No worker read private exports, titles, authors or unit IDs.
