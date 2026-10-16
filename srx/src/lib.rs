@@ -319,11 +319,7 @@ impl Rule {
                 (Matcher::Fancy(regex), _) => {
                     let captures = match regex.captures_from_pos(text, start) {
                         Ok(Some(captures)) => captures,
-                        Ok(None) => break,
-                        Err(_) => {
-                            start += text[start..].chars().next().map_or(1, char::len_utf8);
-                            continue;
-                        }
+                        Ok(None) | Err(_) => break,
                     };
                     let Some(found) = captures.get(0) else {
                         break;
@@ -604,6 +600,20 @@ mod tests {
             rules.rules[0].match_indices(&text),
             vec![filler.len() + "Wait 2 hr. ".len()]
         );
+    }
+
+    #[test]
+    fn look_around_rule_errors_stop_the_scan() {
+        let regex_str = rule_pattern(r"\s(?!(on|it))\p{L}{1,2}\.\s", r"\p{Ll}");
+        let regex = fancy_regex::RegexBuilder::new(&regex_str)
+            .backtrack_limit(1)
+            .build()
+            .expect("test rule is valid");
+        let mut rule = Rule::from_pattern(regex_str, false).expect("test rule is valid");
+        rule.regex = Matcher::Fancy(Arc::new(regex));
+        let text = "\u{201c}Wait\u{2026}\u{201d} she said\u{2014}2 hr. or so. ".repeat(200);
+
+        assert_eq!(rule.match_indices(&text), Vec::<usize>::new());
     }
 
     #[test]
