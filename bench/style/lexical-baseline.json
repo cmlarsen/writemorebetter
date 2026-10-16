@@ -1,0 +1,274 @@
+{
+  "dev": {
+    "split": "dev",
+    "documents": 840,
+    "paired_controls": 840,
+    "changed_controls": 0,
+    "reports": {
+      "overusedWords": {
+        "patterns": {
+          "blink": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "true_positive": 360,
+            "predicted": 360,
+            "gold": 360
+          },
+          "glance": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "true_positive": 360,
+            "predicted": 360,
+            "gold": 360
+          },
+          "shrug": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "true_positive": 360,
+            "predicted": 360,
+            "gold": 360
+          }
+        },
+        "confusion": {
+          "blink": {
+            "blink": 360
+          },
+          "glance": {
+            "glance": 360
+          },
+          "shrug": {
+            "shrug": 360
+          }
+        }
+      },
+      "sensoryBalance": {
+        "patterns": {
+          "interoception": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "true_positive": 60,
+            "predicted": 60,
+            "gold": 60
+          },
+          "sight": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "true_positive": 60,
+            "predicted": 60,
+            "gold": 60
+          },
+          "smell": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "true_positive": 60,
+            "predicted": 60,
+            "gold": 60
+          },
+          "sound": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "true_positive": 60,
+            "predicted": 60,
+            "gold": 60
+          },
+          "taste": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "true_positive": 60,
+            "predicted": 60,
+            "gold": 60
+          },
+          "touch": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "true_positive": 60,
+            "predicted": 60,
+            "gold": 60
+          }
+        },
+        "confusion": {
+          "interoception": {
+            "interoception": 60
+          },
+          "sight": {
+            "sight": 60
+          },
+          "smell": {
+            "smell": 60
+          },
+          "sound": {
+            "sound": 60
+          },
+          "taste": {
+            "taste": 60
+          },
+          "touch": {
+            "touch": 60
+          }
+        }
+      },
+      "diction": {
+        "patterns": {
+          "abstract": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "true_positive": 180,
+            "predicted": 180,
+            "gold": 180
+          }
+        },
+        "confusion": {
+          "abstract": {
+            "abstract": 180
+          }
+        }
+      }
+    }
+  },
+  "test": {
+    "split": "test",
+    "documents": 838,
+    "paired_controls": 838,
+    "changed_controls": 0,
+    "reports": {
+      "overusedWords": {
+        "patterns": {
+          "blink": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "true_positive": 360,
+            "predicted": 360,
+            "gold": 360
+          },
+          "glance": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "true_positive": 354,
+            "predicted": 354,
+            "gold": 354
+          },
+          "shrug": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "true_positive": 360,
+            "predicted": 360,
+            "gold": 360
+          }
+        },
+        "confusion": {
+          "blink": {
+            "blink": 360
+          },
+          "glance": {
+            "glance": 354
+          },
+          "shrug": {
+            "shrug": 360
+          }
+        }
+      },
+      "sensoryBalance": {
+        "patterns": {
+          "interoception": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "true_positive": 60,
+            "predicted": 60,
+            "gold": 60
+          },
+          "sight": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "true_positive": 60,
+            "predicted": 60,
+            "gold": 60
+          },
+          "smell": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "true_positive": 60,
+            "predicted": 60,
+            "gold": 60
+          },
+          "sound": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "true_positive": 60,
+            "predicted": 60,
+            "gold": 60
+          },
+          "taste": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "true_positive": 60,
+            "predicted": 60,
+            "gold": 60
+          },
+          "touch": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "true_positive": 60,
+            "predicted": 60,
+            "gold": 60
+          }
+        },
+        "confusion": {
+          "interoception": {
+            "interoception": 60
+          },
+          "sight": {
+            "sight": 60
+          },
+          "smell": {
+            "smell": 60
+          },
+          "sound": {
+            "sound": 60
+          },
+          "taste": {
+            "taste": 60
+          },
+          "touch": {
+            "touch": 60
+          }
+        }
+      },
+      "diction": {
+        "patterns": {
+          "abstract": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "true_positive": 180,
+            "predicted": 180,
+            "gold": 180
+          }
+        },
+        "confusion": {
+          "abstract": {
+            "abstract": 180
+          }
+        }
+      }
+    }
+  }
+}

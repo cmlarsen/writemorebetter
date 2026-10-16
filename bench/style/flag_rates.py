@@ -24,11 +24,14 @@ STARTS_BASELINE = BASELINES / 'sentence-starts.json'
 TAG_FLAGS = ('other_speech_verb', 'non_speech_verb', 'manner_adverb', 'untagged_run')
 TAG_CONTEXT = ('tags', 'said_asked', 'unlisted_verb', 'beats')
 STAGES = ('document', 'sentence_length', 'sentence_starts', 'echoes', 'repeated_phrases', 'cliches',
-          'dialogue_tags')
+          'dialogue_tags', 'overused_words', 'sensory_balance', 'diction')
 FINE = ('subject', 'adverb', 'gerund', 'infinitive', 'subordinatingConjunction', 'coordinatingConjunction',
         'pastParticiple', 'inversion', 'introductory', 'other')
 UNIVERSAL = ('ADJ', 'ADP', 'ADV', 'CONJ', 'DET', 'NOUN', 'NUM', 'PRON', 'PRT', 'VERB', '.', 'X')
-STRUCTURE = frozenset(GROUPS + LENGTH_STATISTICS + TAG_FLAGS + TAG_CONTEXT + STAGES + FINE + UNIVERSAL
+LEXICAL_KEYS = ('overused_words', 'sensory_balance', 'diction', 'overused', 'occurrences', 'fillers',
+                'sense_words', 'single_sense', 'modalities', 'sight', 'sound', 'touch', 'smell', 'taste',
+                'interoception', 'abstract_sentences', 'abstract_runs', 'rated_words', 'rating_sum', 'mean_rating')
+STRUCTURE = frozenset(LEXICAL_KEYS + GROUPS + LENGTH_STATISTICS + TAG_FLAGS + TAG_CONTEXT + STAGES + FINE + UNIVERSAL
                       + tuple(WINDOW_RULE) + (
     'units', 'authors', 'samples', 'words', 'mean', 'percentiles', 'run', 'seconds', 'probe_peak_rss_bytes',
     'harness_peak_rss_bytes', 'stage_seconds', 'defaults', 'window_rule', 'chapter', 'manuscript',
@@ -43,12 +46,12 @@ STRUCTURE = frozenset(GROUPS + LENGTH_STATISTICS + TAG_FLAGS + TAG_CONTEXT + STA
 
 
 class FlagProbe:
-    def __init__(self, executable, tokenizer):
+    def __init__(self, executable, tokenizer, diction_table):
         self.vocabulary = json.loads(subprocess.run(
             [str(executable), '--vocabulary', str(tokenizer)], capture_output=True, text=True,
             encoding='utf-8', check=True).stdout)
         self.process = subprocess.Popen(
-            [str(executable), str(tokenizer), str(LENGTH_BASELINE), str(STARTS_BASELINE)],
+            [str(executable), str(tokenizer), str(LENGTH_BASELINE), str(STARTS_BASELINE), str(diction_table)],
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True,
             encoding='utf-8', env={**os.environ, 'NLPRULE_PARALLELISM': 'off'})
         self.peak_rss_bytes = None
@@ -392,12 +395,28 @@ def dialogue_tags(samples):
             'top_categories': ranked(categories), 'top_patterns': ranked(verbs)}
 
 
+def lexical_reports(samples):
+    reports = {
+        'overused_words': {'categories': family(samples, ('overused_words',),
+                                                ('overused', 'occurrences', 'fillers'))},
+        'sensory_balance': {'categories': family(samples, ('sensory_balance',),
+                                                 ('sense_words', 'single_sense')),
+                            'modalities': family(samples, ('sensory_balance', 'modalities'),
+                                                 ('sight', 'sound', 'touch', 'smell', 'taste', 'interoception'))},
+        'diction': {'categories': family(samples, ('diction',), ('abstract_sentences', 'abstract_runs')),
+                    'mean_rating': spread([(author, get(data, 'diction', 'rating_sum') / get(data, 'diction', 'rated_words'))
+                                           for author, data in samples if get(data, 'diction', 'rated_words')])},
+    }
+    return reports
+
+
 def section(samples, defaults, length_baseline, starts_baseline):
     return {'samples': len(samples), 'sample_words': spread([(author, words(data)) for author, data in samples]),
             'reports': {'sentence_length': sentence_length(samples, length_baseline, defaults),
                         'sentence_starts': sentence_starts(samples, starts_baseline, defaults),
                         'echoes': echoes(samples), 'repeated_phrases': repeated_phrases(samples),
-                        'cliches': cliches(samples), 'dialogue_tags': dialogue_tags(samples)}}
+                        'cliches': cliches(samples), 'dialogue_tags': dialogue_tags(samples),
+                        **lexical_reports(samples)}}
 
 
 def aggregate(count, authors, chapters, vocabulary, length_baseline, starts_baseline):
@@ -534,6 +553,9 @@ def self_test(probe, started=None):
         assert chapter['reports']['sentence_length']['baseline_comparison']['all']['mean']['eligible_share'] > 0
         assert result['run']['probe_peak_rss_bytes'] > 0 and result['run']['seconds'] > 0
         assert 'sentinel' not in output.lower() and temporary not in output
+        for name in ('overused_words', 'sensory_balance', 'diction'):
+            assert name in reports and name in chapter['reports']
+        assert reports['sensory_balance']['categories']['sense_words']['flagged_share'] == 1
         assert numeric_only(result)
         return result
 
@@ -543,7 +565,10 @@ def run(args):
         raise ValueError('choose one tier 3 mode')
     executable = args.probe or probe_build()
     started = time.perf_counter()
-    probe = FlagProbe(executable, args.tokenizer)
+    table = ROOT / 'bench/style/diction-synthetic.json' if args.self_test else args.diction_table
+    if table is None:
+        raise ValueError('owner must supply a diction table')
+    probe = FlagProbe(executable, args.tokenizer, table)
     try:
         if args.self_test:
             result = self_test(probe, started)

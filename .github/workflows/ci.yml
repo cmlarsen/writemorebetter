@@ -100,6 +100,10 @@ jobs:
           python3 bench/style/run.py dialogue-tags tier2 --probe bench/tools/wmb-document/target/release/dialogue_tags
           python3 bench/style/run.py dialogue-tags tier3 --self-test --probe bench/tools/wmb-document/target/release/dialogue_tags
 
+      - name: Style lexical report accuracy gates (256)
+        run: |
+          python3 bench/style/lexical.py --gate --probe bench/tools/wmb-document/target/release/lexical_reports
+
       - name: Disambiguation conformance
         env:
           RUST_LOG: WARN

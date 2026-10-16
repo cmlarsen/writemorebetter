@@ -438,3 +438,16 @@ and conditional mean tag count not to rise. Sentence-start total absolute fracti
 22.5595 pp ceiling, including 1 pp of explicit slack; per-tag biases remain diagnostic. LitBank original-prose test
 quote-span precision/recall/F1 is 85.3205% / 92.1817% / 88.6185% after #261 tentative-opener recovery. The benchmark README preserves initial vs reviewed numbers and conventions.
 Tier 3 real-corpus calibration remains owner-only and emits aggregate numbers exclusively.
+
+The #256 completion audit is in [`bench/style/AUDIT-256.md`](../bench/style/AUDIT-256.md).
+All nine merged reports now have tier 2 coverage: the existing sentence, echo/phrase, cliché and
+dialogue suites plus `lexical.py` for overused words, sensory balance and caller-table diction.
+The lexical first test split scores 100% P/R/F1 per category (354 glance occurrences, 360 each
+shrug/blink, 60 per sensory modality, 180 abstract sentences), with zero changes on 838 paired
+untouched prefixes; development has 840 cases. These are injection regression scores, not editorial
+accuracy. CI gates the fixed category floors and coverage in `lexical-baseline.json`.
+Tier 3 flag-rate calibration now covers all nine reports, including sensory modalities, overused/filler
+counts and rated-word-weighted diction means, and requires an owner-supplied diction table for real
+runs. Only synthetic self-tests ran here. Approximately 300 independent, owner-adjudicated judgment
+labels per report and actual owner-only calibration for new reports remain owed; the README lists
+existing model-label provenance explicitly, so #256 is referenced and remains open.

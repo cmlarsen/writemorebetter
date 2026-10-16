@@ -15,7 +15,9 @@ use writemorebetter_style::reports::echoes::{report as echoes, EchoOptions};
 use writemorebetter_style::reports::repeated_phrases::{
     report as repeated_phrases, RepeatedPhraseOptions as PhraseOptions,
 };
-use writemorebetter_style::reports::{sentence_length, sentence_starts};
+use writemorebetter_style::reports::{
+    diction, overused_words, sensory_balance, sentence_length, sentence_starts,
+};
 use writemorebetter_style::{analyze_document, DocumentOptions, Mode};
 
 const ECHO_BANDS: [(usize, &str); 4] = [(5, "1_5"), (10, "6_10"), (25, "11_25"), (50, "26_50")];
@@ -152,18 +154,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             writeln!(output)?;
             return Ok(());
         }
-        [tokenizer, length, starts] => (
+        [tokenizer, length, starts, _table] => (
             nlprule::Tokenizer::new(tokenizer)?,
             baseline::<sentence_length::SentenceLengthBaseline>(length)?,
             baseline::<sentence_starts::SentenceStartsBaseline>(starts)?,
         ),
         _ => {
             return Err(
-                "usage: flag_rates TOKENIZER LENGTH_BASELINE STARTS_BASELINE < texts.jsonl | flag_rates --vocabulary TOKENIZER"
+                "usage: flag_rates TOKENIZER LENGTH_BASELINE STARTS_BASELINE DICTION_TABLE < texts.jsonl | flag_rates --vocabulary TOKENIZER"
                     .into(),
             )
         }
     };
+    let diction_table = diction::ConcretenessTable::parse(&std::fs::read_to_string(&args[3])?)?;
     let phrase_list = PhraseList::bundled(&tokenizer);
     let speech: Vec<&str> = speech_verbs().collect();
     let non_speech: Vec<&str> = non_speech_verbs().collect();
@@ -197,6 +200,27 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         lap("cliches", &mut timing);
         let tag_report = dialogue_tags(&document, &DialogueTagOptions::new(), None)?;
         lap("dialogue_tags", &mut timing);
+        let overused = overused_words::report(
+            &document,
+            &overused_words::OverusedWordsOptions::new(),
+            overused_words::OverusedWordsBaseline::bundled(),
+        )?;
+        lap("overused_words", &mut timing);
+        let sensory = sensory_balance::report(
+            &document,
+            sensory_balance::PerceptualNorms::bundled(),
+            &sensory_balance::SensoryBalanceOptions::new(),
+        )?;
+        lap("sensory_balance", &mut timing);
+        let diction = diction::report(&document, &diction_table, &diction::DictionOptions::new())?;
+        lap("diction", &mut timing);
+        let modalities: BTreeMap<String, usize> = sensory
+            .groups
+            .all
+            .modalities
+            .iter()
+            .map(|share| (name(share.modality), share.count))
+            .collect();
 
         let mut bands: BTreeMap<&str, usize> = ECHO_BANDS.iter().map(|(_, n)| (*n, 0)).collect();
         let mut forms: BTreeMap<&str, usize> =
@@ -271,6 +295,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             &json!({
                 "words": document.word_count,
                 "timing_ms": timing,
+                "overused_words": {
+                    "overused": overused.overused.len(),
+                    "occurrences": overused.overused.iter().map(|word| word.count).sum::<usize>(),
+                    "fillers": overused.fillers.iter().map(|word| word.count).sum::<usize>(),
+                },
+                "sensory_balance": {
+                    "sense_words": sensory.sense_words.len(),
+                    "single_sense": sensory.scenes.iter().filter(|scene| scene.single_sense.is_some()).count(),
+                    "modalities": modalities,
+                },
+                "diction": {
+                    "abstract_sentences": diction.groups.all.abstract_sentences,
+                    "abstract_runs": diction.abstract_runs.len(),
+                    "rated_words": diction.groups.all.rated_words,
+                    "rating_sum": diction.groups.all.mean.unwrap_or(0.0) * diction.groups.all.rated_words as f64,
+                },
                 "sentence_length": {
                     "all": length_group(&length.groups.all),
                     "narration": length_group(&length.groups.narration),
