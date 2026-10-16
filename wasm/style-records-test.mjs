@@ -54,7 +54,12 @@ export function checkStyleRecords(checker) {
   const pacingText = readFileSync(new URL("../style/tests/fixtures/pacing.txt", import.meta.url), "utf8");
   const pacingDocument = checker.styleDocument(pacingText);
   results.push(["PacingReport", pacingDocument.pacing()]);
+  const transitionText = readFileSync(new URL("../style/tests/fixtures/transition-records.txt", import.meta.url), "utf8");
+  const transitionDocument = checker.styleDocument(transitionText);
+  results.push(["TransitionsReport", transitionDocument.transitions('{"minimumSentences":1}')]);
+  results.push(["PronounStartsReport", transitionDocument.pronounStarts('{"minimumSentences":1}')]);
   for (const [type, json] of results) validate(JSON.parse(json), type, type);
+  transitionDocument.free();
   normDocument.free();
   pacingDocument.free();
   assert.deepEqual([...visited].sort(), [...interfaces.keys()].sort(), "fixture exercises every declared result record");

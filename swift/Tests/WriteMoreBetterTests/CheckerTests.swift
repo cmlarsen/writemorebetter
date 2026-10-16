@@ -426,6 +426,13 @@ final class CheckerTests: XCTestCase {
         try roundTrip(DialogueTagReport.self, document.dialogueTagsJson(optionsJson: tagOptions, baselineJson: tagBaseline))
         try roundTrip(SentenceLengthReport.self, document.sentenceLengthJson(optionsJson: lengthOptions, baselineJson: nil))
         try roundTrip(SentenceStartsReport.self, document.sentenceStartsJson(optionsJson: startOptions, baselineJson: nil))
+        let transitionText = try String(contentsOf: Self.repositoryRoot.appendingPathComponent("style/tests/fixtures/transition-records.txt"), encoding: .utf8)
+        let transitionDocument = try checker().styleDocument(text: transitionText)
+        try roundTrip(TransitionsReport.self, transitionDocument.transitionsJson(optionsJson: "{\"minimumSentences\":1}"))
+        try roundTrip(PronounStartsReport.self, transitionDocument.pronounStartsJson(optionsJson: "{\"minimumSentences\":1}"))
+        XCTAssertEqual(try transitionDocument.transitions().repeats.count, 1)
+        XCTAssertEqual(try transitionDocument.pronounStarts().groups.narration.runs.count, 1)
+        XCTAssertEqual(try transitionDocument.pronounStarts().groups.dialogue.runs.count, 1)
         let normText = try String(contentsOf: Self.repositoryRoot.appendingPathComponent("style/tests/fixtures/norm-records.txt"), encoding: .utf8)
         let normDocument = try checker().styleDocument(text: normText)
         let table = "{\"hope\": 1.5, \"idea\": 1.6, \"freedom\": 1.3, \"lamp\": 4.8}"

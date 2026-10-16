@@ -325,3 +325,78 @@ export interface PacingReport {
   paragraphs: Array<PacingParagraph>;
   slowRuns: Array<PacingRun>;
 }
+
+export type TransitionType = "contrast" | "cause" | "time" | "addition" | "example";
+
+export interface TransitionMatch {
+  span: Span;
+  sentence: number;
+  phrase: string;
+  kind: TransitionType;
+  opening: boolean;
+  mode: Mode;
+}
+
+export interface TransitionRepeat {
+  span: Span;
+  phrase: string;
+  spans: Array<Span>;
+  sentences: Array<number>;
+  mode: Mode;
+}
+
+export interface TransitionTypeShare {
+  kind: TransitionType;
+  containing: Share;
+  opening: Share;
+}
+
+export interface TransitionsGroup {
+  sentences: number;
+  lowConfidence: boolean;
+  containing: Share;
+  opening: Share;
+  types: Array<TransitionTypeShare>;
+}
+
+export interface TransitionsReport {
+  matches: Array<TransitionMatch>;
+  repeats: Array<TransitionRepeat>;
+  groups: Split<TransitionsGroup>;
+}
+
+export interface PronounStart {
+  span: Span;
+  sentence: number;
+  pronoun: string;
+  mode: Mode;
+}
+
+export interface PronounStartsRun {
+  span: Span;
+  pronoun: string;
+  sentences: SentenceRange;
+  mode: Mode;
+}
+
+export interface PronounStartsShare {
+  pronoun: string;
+  count: number;
+  percent: number | null;
+  difference: number | null;
+  highlighted: boolean;
+}
+
+export interface PronounStartsGroup {
+  sentences: number;
+  excludedSentences: number;
+  lowConfidence: boolean;
+  pronounStarts: Share;
+  pronouns: Array<PronounStartsShare>;
+  runs: Array<PronounStartsRun>;
+}
+
+export interface PronounStartsReport {
+  starts: Array<PronounStart>;
+  groups: Split<PronounStartsGroup>;
+}

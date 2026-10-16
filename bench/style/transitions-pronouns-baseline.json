@@ -1,0 +1,162 @@
+{
+  "labels": 62,
+  "injectedDocuments": 14,
+  "transitions": {
+    "patterns": {
+      "addition": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "true_positive": 7,
+        "predicted": 7,
+        "gold": 7
+      },
+      "cause": {
+        "precision": 1.0,
+        "recall": 0.9090909090909091,
+        "f1": 0.9523809523809523,
+        "true_positive": 10,
+        "predicted": 10,
+        "gold": 11
+      },
+      "contrast": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "true_positive": 10,
+        "predicted": 10,
+        "gold": 10
+      },
+      "example": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "true_positive": 4,
+        "predicted": 4,
+        "gold": 4
+      },
+      "time": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "true_positive": 5,
+        "predicted": 5,
+        "gold": 5
+      }
+    },
+    "confusion": {
+      "addition": {
+        "addition": 7
+      },
+      "cause": {
+        "cause": 10,
+        "__none__": 1
+      },
+      "contrast": {
+        "contrast": 10
+      },
+      "example": {
+        "example": 4
+      },
+      "time": {
+        "time": 5
+      }
+    }
+  },
+  "pronounRuns": {
+    "patterns": {
+      "pronoun_run": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "true_positive": 5,
+        "predicted": 5,
+        "gold": 5
+      }
+    },
+    "confusion": {
+      "pronoun_run": {
+        "pronoun_run": 5
+      }
+    }
+  },
+  "transitionRepeats": {
+    "patterns": {
+      "transition_repeat": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "true_positive": 4,
+        "predicted": 4,
+        "gold": 4
+      }
+    },
+    "confusion": {
+      "transition_repeat": {
+        "transition_repeat": 4
+      }
+    }
+  },
+  "naturalDiagnostic": {
+    "pronounRuns": 0,
+    "transitionRepeats": 1
+  },
+  "public": [
+    {
+      "file": "story1.txt",
+      "sentences": 119,
+      "transitionMatches": 15,
+      "transitionRepeats": 1,
+      "pronounStarts": 61,
+      "pronounRuns": 0
+    },
+    {
+      "file": "story2.txt",
+      "sentences": 131,
+      "transitionMatches": 11,
+      "transitionRepeats": 0,
+      "pronounStarts": 74,
+      "pronounRuns": 0
+    },
+    {
+      "file": "story3.txt",
+      "sentences": 127,
+      "transitionMatches": 10,
+      "transitionRepeats": 0,
+      "pronounStarts": 69,
+      "pronounRuns": 0
+    },
+    {
+      "file": "story4.txt",
+      "sentences": 128,
+      "transitionMatches": 9,
+      "transitionRepeats": 1,
+      "pronounStarts": 59,
+      "pronounRuns": 0
+    },
+    {
+      "file": "story5.txt",
+      "sentences": 117,
+      "transitionMatches": 16,
+      "transitionRepeats": 4,
+      "pronounStarts": 61,
+      "pronounRuns": 1
+    },
+    {
+      "file": "moby150k.txt",
+      "sentences": 1126,
+      "transitionMatches": 183,
+      "transitionRepeats": 33,
+      "pronounStarts": 211,
+      "pronounRuns": 0
+    },
+    {
+      "file": "pride-ch1-6",
+      "sentences": 411,
+      "transitionMatches": 50,
+      "transitionRepeats": 0,
+      "pronounStarts": 137,
+      "pronounRuns": 1
+    }
+  ]
+}

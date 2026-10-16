@@ -131,6 +131,20 @@ impl StyleDocument {
         sentence_starts::report(&self.document, &options(json)?, baseline.as_ref())
     }
 
+    pub fn transitions(
+        &self,
+        json: Option<&str>,
+    ) -> Result<crate::reports::transitions::TransitionsReport, StyleError> {
+        crate::reports::transitions::report(&self.document, &options(json)?)
+    }
+
+    pub fn pronoun_starts(
+        &self,
+        json: Option<&str>,
+    ) -> Result<crate::reports::pronoun_starts::PronounStartsReport, StyleError> {
+        crate::reports::pronoun_starts::report(&self.document, &options(json)?)
+    }
+
     pub fn sensory_balance(
         &self,
         json: Option<&str>,

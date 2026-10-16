@@ -435,3 +435,87 @@ public extension StyleDocument {
 private func decodeStyle<T: Decodable>(_ json: String) throws -> T {
     try JSONDecoder().decode(T.self, from: Data(json.utf8))
 }
+
+public enum TransitionType: String, Codable, Sendable { case contrast, cause, time, addition, example }
+
+public struct TransitionMatch: Codable, Equatable, Sendable {
+    public let span: Span
+    public let sentence: Int
+    public let phrase: String
+    public let kind: TransitionType
+    public let opening: Bool
+    public let mode: Mode
+}
+
+public struct TransitionRepeat: Codable, Equatable, Sendable {
+    public let span: Span
+    public let phrase: String
+    public let spans: [Span]
+    public let sentences: [Int]
+    public let mode: Mode
+}
+
+public struct TransitionTypeShare: Codable, Equatable, Sendable {
+    public let kind: TransitionType
+    public let containing: Share
+    public let opening: Share
+}
+
+public struct TransitionsGroup: Codable, Equatable, Sendable {
+    public let sentences: Int
+    public let lowConfidence: Bool
+    public let containing: Share
+    public let opening: Share
+    public let types: [TransitionTypeShare]
+}
+
+public struct TransitionsReport: Codable, Equatable, Sendable {
+    public let matches: [TransitionMatch]
+    public let repeats: [TransitionRepeat]
+    public let groups: Split<TransitionsGroup>
+}
+
+public struct PronounStart: Codable, Equatable, Sendable {
+    public let span: Span
+    public let sentence: Int
+    public let pronoun: String
+    public let mode: Mode
+}
+
+public struct PronounStartsRun: Codable, Equatable, Sendable {
+    public let span: Span
+    public let pronoun: String
+    public let sentences: SentenceRange
+    public let mode: Mode
+}
+
+public struct PronounStartsShare: Codable, Equatable, Sendable {
+    public let pronoun: String
+    public let count: Int
+    public let percent: Double?
+    public let difference: Double?
+    public let highlighted: Bool
+}
+
+public struct PronounStartsGroup: Codable, Equatable, Sendable {
+    public let sentences: Int
+    public let excludedSentences: Int
+    public let lowConfidence: Bool
+    public let pronounStarts: Share
+    public let pronouns: [PronounStartsShare]
+    public let runs: [PronounStartsRun]
+}
+
+public struct PronounStartsReport: Codable, Equatable, Sendable {
+    public let starts: [PronounStart]
+    public let groups: Split<PronounStartsGroup>
+}
+
+public extension StyleDocument {
+    func transitions(optionsJson: String? = nil) throws -> TransitionsReport {
+        try decodeStyle(transitionsJson(optionsJson: optionsJson))
+    }
+    func pronounStarts(optionsJson: String? = nil) throws -> PronounStartsReport {
+        try decodeStyle(pronounStartsJson(optionsJson: optionsJson))
+    }
+}

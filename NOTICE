@@ -76,3 +76,6 @@ for content lemmas at or above one per million
 style/data/pacing/cognition.txt is an original writemorebetter lemma list,
 version 1 (2026-10-16), licensed MIT OR Apache-2.0. It is not derived from
 third-party dictionaries or rule resources.
+
+Transition inventory (style/data/transitions.tsv): written for writemorebetter, 2026.
+Copyright writemorebetter contributors; MIT OR Apache-2.0. No third-party list or rule data.

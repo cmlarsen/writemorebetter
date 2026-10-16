@@ -316,7 +316,7 @@ check(typeof lengthReport.groups.all.meanDifference === "number", "bundled basel
 eq(JSON.parse(retained.sentenceLength(options, "none")).groups.all.meanDifference, null, "baseline disabled per call");
 const custom = JSON.parse(retained.sentenceLength(options, '{"mean":1}'));
 eq(custom.groups.all.meanDifference, custom.groups.all.mean - 1, "custom baseline per call");
-const calls = ["echoes", "repeatedPhrases", "cliches", "dialogueTags", "sentenceLength", "sentenceStarts", "sensoryBalance", "pacing", "overusedWords", "stats"];
+const calls = ["echoes", "repeatedPhrases", "cliches", "dialogueTags", "sentenceLength", "sentenceStarts", "sensoryBalance", "pacing", "overusedWords", "transitions", "pronounStarts", "stats"];
 for (const method of calls) {
   const fresh = checker.styleDocument(reportText);
   eq(JSON.parse(retained[method]()), JSON.parse(fresh[method]()), `shared analysis matches fresh ${method}`);
@@ -345,11 +345,12 @@ eq(invalid.kind, "invalidBaseline", "invalid baseline rejected");
 eq(invalid.report, "sentenceStarts", "error names report");
 eq(styleError(() => checker.styleDocument("text", '{"typo":true}')).kind, "invalidOptions", "document options validated");
 const compactStyle = checker.styleDocument(reportText, '{"includeTokenDetails":false}');
-for (const method of ["echoes", "repeatedPhrases", "dialogueTags", "sentenceStarts", "sensoryBalance", "pacing", "overusedWords"]) {
+for (const method of ["echoes", "repeatedPhrases", "dialogueTags", "sentenceStarts", "sensoryBalance", "pacing", "overusedWords", "pronounStarts"]) {
   eq(styleError(() => compactStyle[method]()).kind, "needsTokenDetails", `compact rejects ${method}`);
 }
 eq(styleError(() => compactStyle.diction(undefined, '{"hope":1.5}')).kind, "needsTokenDetails", "compact rejects diction");
 eq(JSON.parse(compactStyle.sentenceLength()), JSON.parse(retained.sentenceLength()), "compact length identical");
+eq(JSON.parse(compactStyle.transitions()), JSON.parse(retained.transitions()), "compact transitions identical");
 eq(JSON.parse(compactStyle.cliches()), JSON.parse(retained.cliches()), "compact clichés identical");
 compactStyle.free();
 retained.free();
@@ -441,6 +442,35 @@ eq(pacingReport.words, JSON.parse(pacingDocument.stats()).words, "pacing word co
 eq(styleError(() => pacingDocument.pacing('{"minimumParagraphs":0}')).kind, "invalidOptions", "pacing options validated");
 eq(styleError(() => pacingDocument.pacing('{"typo":0}')).kind, "invalidOptions", "pacing unknown options rejected");
 pacingDocument.free();
+
+const lensText = "😀.\u2028“AS A RESULT, she’s tired—still… fine.”\u2028As a result, she left. As a result, she slept.\nShe was home. She was tired.\n\nShe was done.";
+const lensDoc = checker.styleDocument(lensText);
+const transitions = JSON.parse(lensDoc.transitions('{"minimumSentences":1}'));
+eq(transitions.matches.length, 3, "transitions: multiword matches");
+for (const match of transitions.matches) eq(lensText.slice(match.span.start, match.span.end).toLowerCase(), "as a result", "transitions: UTF-16 phrase span");
+eq(transitions.repeats.length, 1, "transitions: no mode bridging");
+eq(JSON.parse(lensDoc.transitions('{"repeatWindow":1}')).repeats.length, 0, "transitions: repeat window override");
+eq(styleError(() => lensDoc.transitions('{"repeatWindow":0}')).kind, "invalidOptions", "transitions: zero window rejected");
+const pronouns = JSON.parse(lensDoc.pronounStarts('{"minimumSentences":1}'));
+eq(pronouns.groups.narration.runs.length, 1, "pronouns: run crosses paragraph");
+eq(pronouns.groups.narration.runs[0].pronoun, "she", "pronouns: named run");
+eq(pronouns.groups.all.pronounStarts.difference, null, "pronouns: no baseline");
+check(pronouns.groups.all.lowConfidence, "pronouns: small sample marked");
+eq(JSON.parse(lensDoc.pronounStarts()).groups.all.pronounStarts.percent, null, "pronouns: default sample floor");
+eq(styleError(() => lensDoc.pronounStarts('{"typo":1}')).kind, "invalidOptions", "pronouns: unknown option");
+lensDoc.free();
+const pronounGuardDoc = checker.styleDocument("Her coat was red. Hers was blue. Nobody left. This was easy. That’s fine. One evening it rained. What’s more, she paid.");
+eq(JSON.parse(pronounGuardDoc.pronounStarts()).starts.map(s => s.pronoun), ["hers", "nobody", "this", "that"], "pronouns: determiners, nominal one and what’s more excluded");
+eq(JSON.parse(pronounGuardDoc.transitions()).matches[0].phrase, "what's more", "transitions: curly contraction phrase");
+pronounGuardDoc.free();
+const turnsDoc = checker.styleDocument("“She left,” I said.\n\n“She did,” he said.\n\n“She will,” I said.");
+const turnPronouns = JSON.parse(turnsDoc.pronounStarts('{"minimumSentences":1}'));
+eq([turnPronouns.starts.length, turnPronouns.groups.dialogue.runs.length], [3, 0], "pronouns: dialogue turns reset runs");
+turnsDoc.free();
+const repeatTurnsDoc = checker.styleDocument("“But I can’t,” she said.\n\n“But you must,” he said.\n\n“But why?” she asked.");
+const turnTransitions = JSON.parse(repeatTurnsDoc.transitions());
+eq([turnTransitions.matches.length, turnTransitions.repeats.length], [3, 0], "transitions: dialogue turns reset repeats");
+repeatTurnsDoc.free();
 
 checkStyleRecords(checker);
 const independent = checker.styleDocument("She ran.");
