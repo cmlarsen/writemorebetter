@@ -213,7 +213,7 @@ pub fn get_build_dir<P: AsRef<Path>>(lang_code: &str, out_dir: P) -> Result<()> 
             None => continue,
         };
 
-        if (&*file.name()).ends_with('/') {
+        if file.is_dir() {
             fs::create_dir_all(&outpath)?;
         } else {
             if let Some(p) = outpath.parent() {
