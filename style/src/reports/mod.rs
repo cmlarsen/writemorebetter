@@ -4,6 +4,7 @@ pub mod diction;
 pub mod echoes;
 mod norms;
 pub mod overused_words;
+pub mod pacing;
 pub mod repeated_phrases;
 pub mod sensory_balance;
 pub mod sentence_length;

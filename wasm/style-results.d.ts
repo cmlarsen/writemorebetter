@@ -294,3 +294,37 @@ export interface DictionReport {
   groups: Split<DictionGroup>;
   abstractRuns: Array<SentenceRun>;
 }
+
+export type PacingSignal = "sentenceLength" | "pastPerfect" | "cognition";
+export interface PacingSignals {
+  words: Split<number>;
+  sentences: number;
+  verbPhrases: number;
+  pastPerfect: number;
+  cognition: number;
+  dialoguePercent: number | null;
+  meanSentenceLength: number | null;
+  pastPerfectPercent: number | null;
+  cognitionPercent: number | null;
+}
+export interface PacingParagraph {
+  span: Span;
+  sceneBreakBefore: boolean;
+  signals: PacingSignals;
+  hasSpeech: boolean;
+  triggeredSignals: Array<PacingSignal>;
+  slow: boolean;
+}
+export interface PacingRun {
+  span: Span;
+  paragraphs: PacingParagraphRange;
+  signals: PacingSignals;
+  triggeredSignals: Array<PacingSignal>;
+}
+export interface PacingReport {
+  words: Split<number>;
+  paragraphs: Array<PacingParagraph>;
+  slowRuns: Array<PacingRun>;
+}
+
+export interface PacingParagraphRange { start: number; end: number; }

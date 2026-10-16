@@ -345,6 +345,40 @@ public struct DictionReport: Codable, Equatable, Sendable {
     public let abstractRuns: [SentenceRun]
 }
 
+public enum PacingSignal: String, Codable, Equatable, Sendable {
+    case sentenceLength, pastPerfect, cognition
+}
+public struct PacingSignals: Codable, Equatable, Sendable {
+    public let words: Split<Int>
+    public let sentences: Int
+    public let verbPhrases: Int
+    public let pastPerfect: Int
+    public let cognition: Int
+    public let dialoguePercent: Double?
+    public let meanSentenceLength: Double?
+    public let pastPerfectPercent: Double?
+    public let cognitionPercent: Double?
+}
+public struct PacingParagraph: Codable, Equatable, Sendable {
+    public let span: Span
+    public let sceneBreakBefore: Bool
+    public let signals: PacingSignals
+    public let hasSpeech: Bool
+    public let triggeredSignals: [PacingSignal]
+    public let slow: Bool
+}
+public struct PacingRun: Codable, Equatable, Sendable {
+    public let span: Span
+    public let paragraphs: PacingParagraphRange
+    public let signals: PacingSignals
+    public let triggeredSignals: [PacingSignal]
+}
+public struct PacingReport: Codable, Equatable, Sendable {
+    public let words: Split<Int>
+    public let paragraphs: [PacingParagraph]
+    public let slowRuns: [PacingRun]
+}
+
 /// Explicit baseline selection for a single report call. Custom input is a baseline JSON object.
 public enum StyleBaseline: Equatable, Sendable {
     case bundled
@@ -380,6 +414,9 @@ public extension StyleDocument {
     func sentenceStarts(optionsJson: String? = nil, baseline: StyleBaseline = .bundled) throws -> SentenceStartsReport {
         try decodeStyle(sentenceStartsJson(optionsJson: optionsJson, baselineJson: baseline.selector))
     }
+    func pacing(optionsJson: String? = nil) throws -> PacingReport {
+        try decodeStyle(pacingJson(optionsJson: optionsJson))
+    }
     func sensoryBalance(optionsJson: String? = nil) throws -> SensoryBalanceReport {
         try decodeStyle(sensoryBalanceJson(optionsJson: optionsJson))
     }
@@ -394,4 +431,9 @@ public extension StyleDocument {
 
 private func decodeStyle<T: Decodable>(_ json: String) throws -> T {
     try JSONDecoder().decode(T.self, from: Data(json.utf8))
+}
+
+public struct PacingParagraphRange: Codable, Equatable, Sendable {
+    public let start: Int
+    public let end: Int
 }
