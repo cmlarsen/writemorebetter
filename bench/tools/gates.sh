@@ -11,6 +11,8 @@ Usage: bench/tools/gates.sh [--bins DIR] [--corpus DIR] [--skip-golden]
   public        bench/tools/public_recall.py against the CI floor
   private       recall on the private corpus (fiction profile) and the flag diff
                 against the previous gates run
+  style         bench/style tier 1 gate (sentence boundaries, tags, LitBank
+                dialogue), when bench/style/.cache has the datasets
   golden        bench/tools/golden.sh --check and chunker_golden.sh --check
 
 --bins defaults to storage. --corpus defaults to bench/corpus, or the main
@@ -127,6 +129,20 @@ if [ -f "$corpus/truth.json" ]; then
     fi
 else
     record private skip "no truth.json under $corpus"
+fi
+
+echo "== style tier 1" >&2
+if [ -f bench/style/.cache/en_ewt-ud-test.conllu ]; then
+    cargo build --release --manifest-path bench/tools/wmb-analyze/Cargo.toml >/dev/null 2>>"$work/build.log"
+    cargo build --release --manifest-path bench/tools/wmb-document/Cargo.toml >/dev/null 2>>"$work/build.log"
+    if out=$(python3 bench/style/run.py tier1 --gate --analyzer bench/tools/wmb-analyze/target/release/wmb-analyze \
+        --document-probe bench/tools/wmb-document/target/release/wmb-document 2>&1); then
+        record style ok "tier 1 floors met"
+    else
+        record style FAIL "$(echo "$out" | grep -m1 -E 'regression|Error' || echo 'see bench/style/run.py tier1 --gate')"
+    fi
+else
+    record style skip "no bench/style/.cache datasets (CI downloads them)"
 fi
 
 if [ $golden -eq 1 ]; then

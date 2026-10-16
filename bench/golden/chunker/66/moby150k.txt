@@ -5209,7 +5209,6 @@
 @	ponderous	JJ	I-NP
 @	tail	NN	I-NP
 @	.	.	O
-@	...	:	O
 2	5		“
 5	9		Like
 10	17	B-NP-singular,E-NP-singular	Spencer
@@ -5227,9 +5226,11 @@
 80	89	I-NP-singular	ponderous
 90	94	E-NP-singular	tail
 94	95	O	.
-96	97		.
-97	98		.
-98	99		.
+## sentence
+@	...	:	O
+0	1		.
+1	2		.
+2	3		.
 ## sentence
 @	Their	PRP$	B-NP
 @	fixed	VBN	I-NP

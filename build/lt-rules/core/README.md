@@ -27,7 +27,10 @@ unzip -p data/cache/LanguageTool-6.6/libs/languagetool-core.jar \
   backported from LanguageTool commit
   [`458ff9e655`](https://github.com/languagetool-org/languagetool/commit/458ff9e655)
   (after 6.6). One keeps the dots of the run in one sentence; the other keeps the
-  run and a following word that is not uppercase in one sentence. LanguageTool
+  run and a following word that is not uppercase in one sentence. The first
+  rule's `afterbreak` is narrowed from `\.` to `\.(?!\.)`, so a sentence that
+  ends in " ." still breaks before one that starts with "..." (a gold
+  boundary in the UD English EWT test set). LanguageTool
   6.6 split the sentence at every dot, so the run was flagged as a space before
   a full stop and the next lowercase word as a sentence start. The same
   commit's `IMMUNIZE_ELLIPSIS` disambiguation rule is implemented in the
