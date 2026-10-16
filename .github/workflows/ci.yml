@@ -101,6 +101,8 @@ jobs:
           python3 bench/style/run.py tier3 --flag-rates --self-test --probe bench/tools/wmb-document/target/release/flag_rates
           python3 bench/style/run.py dialogue-tags tier2 --probe bench/tools/wmb-document/target/release/dialogue_tags
           python3 bench/style/run.py dialogue-tags tier3 --self-test --probe bench/tools/wmb-document/target/release/dialogue_tags
+          cargo build -p writemorebetter-style --release --example norm_reports
+          python3 bench/style/norms.py --probe target/release/examples/norm_reports
 
       - name: Style lexical report accuracy gates (256)
         run: |

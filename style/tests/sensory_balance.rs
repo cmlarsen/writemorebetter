@@ -342,7 +342,8 @@ fn bundled_appearance_hearsay_reading_and_flat_adverbs_are_not_imagery() {
 
 #[test]
 fn bundled_compounds_fall_back_to_their_parts_with_the_whole_span() {
-    let text = "It was red-hot and ice-cold, sweet-smelling, with dance-music and well-known men.";
+    let text = "It was red-hot and ice-cold, sweet-smelling, with dance-music and well-known men. \
+                It was hard-boiled, with a looking-glass.";
     let found = bundled(text, &options());
     assert_eq!(
         found

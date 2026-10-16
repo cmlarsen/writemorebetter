@@ -36,16 +36,18 @@ has a verb reading whose lemma differs from the surface form, only those lemmas 
 used, when several are the one equal to the surface form is used, and when none is the lowercase
 surface form is tried, unless it is itself the lemma of a rejected reading. Regular `-s`, `-ed` and
 `-ing` forms (including a dropped final `e`) may fall back even when the surface has its own reading.
-Sensory lookup treats a rating below the selected strength or margin as absent before making that
-fallback; diction uses every rating. Thus *creaking* keeps its stronger surface rating when *creak*
-is too weak, while past *felt* and *saw* keep their verb lemmas and never fall back to the homographs. Tokens without readings
-use the surface form. A hyphenated compound with no entry of its own (*red-hot*, *sweet-smelling*,
+For single words, sensory lookup treats a rating below the selected strength or margin as absent
+before making that fallback; diction uses every rating. Thus *creaking* keeps its stronger surface rating when *creak*
+is too weak, while past *felt* and *saw* keep their verb lemmas and never fall back to the homographs.
+Tokens without readings use the surface form. A hyphenated compound with no entry of its own (*red-hot*, *sweet-smelling*,
 *dance-music*) is looked up by its last part, then its first, and keeps the whole token’s span. Compounds ending in
 `-eyed`, `-looking`, `-tinted` or `-clothed` use only their first part (*red-eyed*, *amber-tinted*,
 *blue-clothed*); `-blooded`, `-hearted`, `-heartedness` and `-outs` have no part fallback. These
 suffix guards reject *eagle-eyed*, *dubious-looking*, *cold-blooded*, *hard-heartedness* and
 *look-outs*. Direct whole-word entries still take precedence; other lexicalized compounds can still
-be misread, and *half-muffled* remains context-dependent (wrapped up versus a muted sound).
+be misread. Compound part selection uses table membership before applying the thresholds, so an
+ineligible last part never makes a misleading first part win (*hard-boiled*, *looking-glass*).
+*half-muffled* remains context-dependent (wrapped up versus a muted sound).
 Excluded: echoes' function-word list, *say/ask/tell/talk/speak/reply/answer*, tokens whose readings
 are all proper nouns, and capitalized words that do not open a sentence (after an opening quote,
 bracket, dash or colon counts as opening). The last rule keeps character names such as *Daisy* out of
@@ -63,7 +65,8 @@ and its lead over the second-strongest modality, both in floored tenths (0–50)
 is measured over the strongest modality other than interoception: touch and interoception co-rate
 on temperature and bodily-contact words (*cold* is haptic 4.11, interoceptive 3.53), so the plain
 lead dropped *cold*, *heat* and *warmth* although no other sense competes. Single lowercase words
-whose dominant modality rates ≥ 3.5 and leads by ≥ 0.5 ship. The #282 build has 11,456 words, 193,102 bytes (66,055 with `gzip -9`).
+whose dominant modality rates ≥ 3.5 and leads by ≥ 0.5 ship. The #282 build has 11,456 words,
+193,102 bytes (66,055 with `gzip -9`).
 Decimal arithmetic preserves exact CSV boundaries; flooring tenths prevents rounding a word below
 4.0/1.0 into the defaults. Custom thresholds between tenths are conservative by less than 0.1; the
 public TSV format stays unchanged. The table is looser than the default options so that options can loosen as well as
@@ -78,7 +81,8 @@ A **sense word** is a looked-up word whose dominant modality has strength ≥ `m
 and leads the next modality by ≥ `dominanceMargin` (1.0); sight words must lead by ≥ `sightMargin`
 (3.0). Lemmas in `style/data/norms/not-sensory.txt` (our own list of generic, speech-act and
 reading words the norms rate perceptual, such as *way*, *up*, *story*, *tale*, *read*, *explain*,
-the emotion noun *feeling*, and *pose* from dialect *s’pose*) never count. Speech verbs identified as dialogue attributions by the shared `dialogue_tags`
+the emotion noun *feeling*, and *pose* from dialect *s’pose*) never count. Speech verbs identified as
+dialogue attributions by the shared `dialogue_tags`
 report also never count, even with a caller table that rates them strongly; a literal sound elsewhere
 (*the thunder grumbled*) remains eligible. Neither do these uses,
 judged on the next word or two when only whitespace separates them (a comma or other punctuation
@@ -134,10 +138,11 @@ clear the margin (*house*, *valley*, *mainland*), named emotions, and size words
 Remaining errors are figurative senses the norms cannot separate: *sound* as plumbing a depth,
 *green* as inexperienced, *booming* a gold find, *black distress*.
 
-No published scene reaches the flag: of 20 scenes with ≥ 20 narration sense words, the most
+In the initial calibration, no published scene reached the flag: of 20 scenes with ≥ 20 narration sense words, the most
 one-sided is Gatsby's dawn (77% sight: "grey-turning, gold-turning light… ghostly birds began to
 sing among the blue leaves"), which is plainly multi-sensory, then Moby's New Bedford street (73%).
-85% therefore leaves no false flags on these texts while still flagging a scene that is all sight.
+85% therefore left no false flags on that sample while still flagging a synthetic all-sight scene.
+The expanded #282 measurement below revisits whether this silence is useful.
 
 #### Re-review (#281)
 
@@ -166,8 +171,8 @@ hand-marked sensory words) rose from 13 to 15 (*cold* twice). *snow* (sight 4.10
 design.
 
 Remaining F3 limitations: *Do you see?* can mean understand, and a bare adverb (*felt dreadfully*)
-does not establish an adjective complement. Longer modifier chains, noun-reading ambiguity and
-figurative adjectives (*cold judgment*, *cloudy meanings*) still need semantic context.
+does not establish an adjective complement. Longer modifier chains, noun-reading ambiguity, abstract nominal complements (*feeling vague relief*)
+and figurative adjectives (*cold judgment*, *cloudy meanings*) still need semantic context.
 
 Perception verbs still make up a large share: *look*, *see*, *hear* and *feel* are counted when
 literal, and editors usually treat them as filter words. Reporting them separately is a follow-up.
@@ -180,6 +185,122 @@ cargo run -p writemorebetter-style --release --example norm_reports -- \
   bench/public/story1.txt bench/public/story2.txt bench/public/story3.txt \
   bench/public/story4.txt bench/public/story5.txt bench/public/moby150k.txt
 ```
+
+### Follow-up measurement (#282, 2026-10-16)
+
+The before build is `d0fe086` (the merged #281 behavior); its nine-text total reproduces the
+re-review’s **1,588** sense words exactly. After the changes it is **1,624**. The nine texts are the
+six `bench/public` files and the same Crane, Wharton and Gatsby chapter 1 files used by the re-review.
+No private text or Brysbaert data was accessed.
+
+**N1 policy:** keep the verb lemma when it has an eligible rating; otherwise permit the surface
+fallback, with the rejected-homograph protection above. On those nine texts this restores 13
+candidate hits: *creaking* +1, *ticking* +2, *knocking* +1, *pricking* +1, *dimmed* +1, *withered* +1,
+*flew* +5 and *breathing* +1. Reading all 13 in context: **10 useful, 2 noise, 1 wrong**. The wrong
+one is a pricking conscience; knocking hats off and the withered old man are stage business/an
+epithet. This recovers the reported imagery without preferring every surface over an eligible
+base verb. The tradeoff is real: *holding* adds 10 mostly mundane actions, *watching* adds eight
+filter verbs, and *reflected* adds two cognitive uses. Separate filter-verb reporting remains deferred.
+
+**N2 thresholds:** the exact-decimal, floored build changes the raw default-qualifying set from
+2,069 to 2,034 entries: **35 subthreshold entries removed**, no additions to that set. The review’s
+46-word comparison also included deliberate haptic additions and floating-point boundary artifacts.
+In the CSV *excited* and *pudding* have an exact 1.0 lead, so they correctly remain eligible; the
+invented-data build test checks this boundary. Exact 0.5 build boundaries retain six additional
+rows (11,450 → 11,456). Flooring preserves the integer-tenths TSV contract; arbitrary thresholds
+between tenths can conservatively reject a rating less than 0.1 above the threshold.
+
+One judge used the re-review’s criteria: sensory imagery is useful; filter verbs, stage business,
+setting nouns, named emotions and epithets are noise; figurative uses, hearsay, homographs and speech
+acts are wrong. Fresh samples draw 60 sense words from the three review chapters in Crane / Wharton /
+Gatsby order with Python `Random(281)`. These judgments were not blind. Changing the pool changes
+the sampled spans, so the complete changed-span audit is the more direct comparison.
+
+| Review chapters | Before | After |
+|---|---:|---:|
+| Sense words | 549 | 552 |
+| Fresh 60: useful / noise / wrong | 21 / 27 / 12 | **13 / 39 / 8** |
+| Every removed span: useful / noise / wrong | **3 / 1 / 13** (17 removed) | — |
+| Every added span: useful / noise / wrong | — | **4 / 13 / 3** (20 added) |
+| Diction abstract sentences (same Lancaster proxy, 3.39 threshold) | 40 | 40 |
+| Diction sample of 20: useful / noise / wrong | 15 / 3 / 2 | 15 / 3 / 2 |
+| Diction runs across all nine texts | 2 (1 useful, 1 noise) | 2 (1 useful, 1 noise) |
+
+The changed-span net is **+1 useful, +12 noise, −10 wrong**, not a precision win. The fresh sample’s
+useful count falls; do not interpret the repairs as making this an issue list. The additions’ three
+wrong hits are *feeling vague relief* and cognitive *reflected* twice. Useful losses are *drawl*
+(now below the unrounded strength threshold), adjectival *a whispered “Listen”* (the shared
+attribution detector reads it as a tag), and *her voice sang* introducing quoted speech. Existing
+semantic ambiguity and attribution detection errors remain; *half-muffled* as wrapped up also remains
+wrong. These costs are retained explicitly rather than tuning to this sample. Diction’s 20 sampled
+sentences are identical before/after, as are the two runs; the proxy still does not establish
+usefulness with the owner’s eventual table.
+
+### singleSense — pending owner decision
+
+**Recommendation: remove the flag; retain the per-scene modality distribution as an opt-in lens.**
+No defaults or result fields change in #282: `singleSensePercent` stays 85 and the owner decides.
+
+Expanded public-only sample: **243,160 words, 191 scenes, 114 eligible scenes** (≥ 20 narration sense
+words). It includes `bench/public` and every chapter of five Standard Ebooks books, fetched at bench
+time into ignored `bench/style/out/282/se/`. These are chapter/scene units from the document model,
+not arbitrary windows; paragraphs occupy one line and `<hr/>` becomes two blank lines. Headings and
+notes are omitted. This is a scene-weighted historical-fiction sample, not a modern-author baseline.
+
+| Standard Ebooks repository | Pinned commit | Chapters |
+|---|---|---:|
+| `stephen-crane_the-red-badge-of-courage` | `ebe3876cf6d0d93428c247a67076dc927d03ccb8` | 24 |
+| `edith-wharton_ethan-frome` | `480cd944a5951a87f342956152aa9bfa6a97ff45` | 9 |
+| `f-scott-fitzgerald_the-great-gatsby` | `fe47c8c04f5175d45f9410f4e3ca64c257ae0acc` | 9 |
+| `kate-chopin_the-awakening` | `49955125aa51c4d268543f96f2a1094058b4574d` | 39 |
+| `jack-london_the-call-of-the-wild` | `561cc9334d5d9ea203ce9310b1d27a8b0f12cc3f` | 7 |
+
+Sources are `https://github.com/standardebooks/<repository>/tree/<commit>/src/epub/text`.
+No fetched prose is committed. Minimum top-modality share is 27.27%, median 55.56%, maximum 81.48%.
+
+| Top-modality share among eligible scenes | Scenes |
+|---|---:|
+| < 50% | 42 |
+| 50–<60% | 35 |
+| 60–<70% | 26 |
+| 70–<75% | 7 |
+| 75–<80% | 3 |
+| 80–<85% | 1 |
+| ≥ 85% | 0 |
+
+| Flag threshold | Scenes firing | Judged useful |
+|---|---:|---:|
+| 85% (unchanged default) | 0 | 0 |
+| 80% | 1 | 0 |
+| 75% | 4 | 0 |
+| 70% | 11 | 0 |
+
+Every scene firing at any tested threshold was read in full (the 11 scenes at 70% include all higher
+threshold candidates). All were judged noise as writer-facing warnings:
+
+| Scene (zero-based index within the chapter/file) | Top share | Why a warning is unhelpful |
+|---|---:|---|
+| *Ethan Frome* 8, scene 1 | 81.48% sight (22/27) | Ethan’s walk is intentionally visual; bird-call, laughter and the boy chirping coexist with light/road/house counts |
+| *Gatsby* 8, scene 3 | 79.41% sight (27/34) | Dawn, singing birds, clicking footsteps and the hot day-coach; already multi-sensory |
+| *Gatsby* 9, scene 5 | 78.79% sight (26/33) | Deliberate visual coda with remembered music/laughter and physical beach/sand action |
+| Moby excerpt, scene 62 | 76.19% sight (16/21) | Father Mapple and the pulpit are visual descriptions; nautical “taste” is figurative and contributes noise |
+| *Gatsby* 7, scene 4 | 73.33% sight (33/45) | Night vigil, rustling trees, voices, cold chicken and physical touch |
+| *The Awakening* 29 | 72.73% sight (16/22) | Moving-house action and room/house/filter-verb counts, not a sensory deficiency |
+| *Gatsby* 9, scene 3 | 72.09% sight (31/43) | Winter memories include cold air, bells, voices and wet laundry |
+| *Gatsby* 4, scene 1 | 71.70% sight (38/53) | Car/city description with horn melody and motorcycle sound; many “see/look” tokens |
+| Moby excerpt, scene 60 | 70.97% sight (22/31) | New Bedford street description includes howling and the extended musk/smell image |
+| *The Awakening* 1 | 70.59% sight (36/51) | Opens with parrots, whistling, piano and high voices; visual share is not missing sound |
+| *The Awakening* 12 | 70.45% sight (31/44) | Coffee/taste, sun biting the skin and ocean roar alongside purposeful colour description |
+
+85% gives no evidence of a useful positive; lowering it produces warnings on purposeful published
+scenes. An all-sight synthetic fixture still fires, which proves mechanics rather than writer value.
+This supports removing the flag, pending the owner’s decision, rather than lowering it on these data.
+
+Reproduce the synthetic suite with `python3 bench/style/norms.py` after building the `norm_reports`
+example. For public calibration, set `WMB_NORM_JSON` to an ignored output directory and run the
+example on the six public files plus the pinned books’ chapter files. Count eligible `scenes` using
+`groups.narration.senseWords >= 20`; top share is the maximum modality count divided by that count,
+without rounding before threshold comparison. The before probe was built and retained before edits.
 
 ## Diction
 

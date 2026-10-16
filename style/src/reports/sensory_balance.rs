@@ -434,13 +434,14 @@ pub fn report(
                     norms_table
                         .words
                         .get(word)
-                        .filter(|norm| classify(norm, options))
+                        .filter(|norm| token.text.contains('-') || classify(norm, options))
                 })
                 .filter(|found| {
                     !not_sensory(&found.lemma)
                         && !speech_tags.contains(&token.span.byte.start)
                         && !figurative(&found.lemma, &following)
                         && !flat_adverb(token, previous, next)
+                        && classify(found.value, options)
                 })
                 .map(|found| (found.lemma, (found.value.modality, found.value.strength)));
                 for tally in [
