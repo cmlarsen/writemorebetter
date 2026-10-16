@@ -995,12 +995,16 @@ the owner decision to remove `singleSense` are recorded in [STYLE-NORMS.md](../.
 ## Transitions and pronoun starts (#247)
 
 `python3 bench/style/transitions_pronouns.py --gate` builds the native example probe and scores
-`labels/transitions.jsonl` (original, hand-labeled development examples) with exact byte/UTF-16 spans
-for all five types. It also injects six paragraph-crossing pronoun runs and six alternating-pronoun
-controls before the first six pinned public-domain passages per book. Scene boundaries isolate each
-injection from its unchanged public source; natural source runs are diagnostic counts. The first
-regression baseline is `transitions-pronouns-baseline.json`; all scored patterns require F1 = 1, and
-CI checks measurement drift. `--probe PATH` reuses an existing `transition_reports` example binary.
-The output under ignored `out/transitions-pronouns/` holds exact gold/prediction rows and aggregate
-measurements, including candidate flag counts on all six `bench/public` texts. See
+`labels/transitions.jsonl` (original, hand-labeled development examples, including known misses) with
+exact byte/UTF-16 spans for all five types. It also appends 14 varied fixtures, each once, after a
+different pinned public-domain passage with only a paragraph break, and scores pronoun runs and
+transition repeats in them: positives (same-two-word runs across a paragraph, contractions, U+2028,
+one speaker's dialogue, rhetorical questions, repeated connectors) and controls (a run `sameWordRuns`
+already reports, two-speaker exchanges, alternating pronouns, nominal `One`, determiner `Her`). Flags
+that start in the unchanged source are diagnostic counts. It also records candidate flag counts on all
+six `bench/public` texts and Pride and Prejudice chapters 1–6. The gate fails when any measurement
+differs from `transitions-pronouns-baseline.json`, which includes the scores, so improvements and
+regressions both require an inspected rebaseline. `--probe PATH` reuses an existing
+`transition_reports` example binary. The output under ignored `out/transitions-pronouns/` holds exact
+gold/prediction rows and aggregate measurements. See
 [definitions and limitations](../../docs/STYLE-TRANSITIONS.md).

@@ -1,8 +1,17 @@
 {
-  "sampling": "First up to two transition-repeat pairs and first up to two pronoun runs per public text, in source order; single implementation-author spot judgment, not a blind or representative accuracy estimate.",
+  "sampling": "Every candidate flag (transition-repeat pairs and pronoun runs) with default options on story1–5, moby150k and Pride and Prejudice chapters 1–6 (Standard Ebooks, paragraphs joined by blank lines, chapters by ***), after the #247 review fixes. Single implementation-author judgment, not blind. Useful: a line editor would plausibly point it out (the same connector in adjacent sentences or three uses within two sentences, not deliberate parallelism). Noise: accurate but not worth attention. Wrong: rests on a non-transition match.",
+  "before": {
+    "flags": 55,
+    "counts": {
+      "noise": 49,
+      "useful": 5,
+      "wrong": 1
+    },
+    "note": "Same judge and rule over the 55 flags at f00baf2. The fixes removed 15 flags and added 1: 10 cross-speaker dialogue flags (noise), 3 narration runs identical to sameWordRuns (2 noise anaphora, 1 useful I-run that sameWordRuns still reports), 1 dialogue-mode But pair bridging paragraphs (noise) and the prepositional besides pair (wrong) were removed; story5 P0 (noise) is the single-speaker part of a removed cross-speaker run."
+  },
   "counts": {
-    "noise": 10,
-    "useful": 2,
+    "noise": 37,
+    "useful": 4,
     "wrong": 0
   },
   "rows": [
@@ -15,44 +24,9 @@
         "start": 7972
       },
       "word": "because",
+      "mode": "narration",
       "judgment": "noise",
-      "reason": "Distinct causal explanations support the ferry narrator; the repeated connector does not distract."
-    },
-    {
-      "file": "story2.txt",
-      "kind": "pronounRun",
-      "flagIndex": 0,
-      "byte": {
-        "end": 9104,
-        "start": 9026
-      },
-      "word": "it",
-      "judgment": "noise",
-      "reason": "Deliberate ticking anaphora reinforces the clock image."
-    },
-    {
-      "file": "story3.txt",
-      "kind": "transitionRepeat",
-      "flagIndex": 0,
-      "byte": {
-        "end": 2988,
-        "start": 2920
-      },
-      "word": "and",
-      "judgment": "noise",
-      "reason": "Conversational and links a question and another speaker’s continuation."
-    },
-    {
-      "file": "story3.txt",
-      "kind": "pronounRun",
-      "flagIndex": 0,
-      "byte": {
-        "end": 5718,
-        "start": 5639
-      },
-      "word": "he",
-      "judgment": "noise",
-      "reason": "Intentional spoken echo of the same discovery across speakers."
+      "reason": "Two causal explanations two sentences apart; the connector does not distract."
     },
     {
       "file": "story4.txt",
@@ -63,8 +37,9 @@
         "start": 1538
       },
       "word": "because",
-      "judgment": "useful",
-      "reason": "Two nearby because explanations slow an already explanatory hospital passage; worth a writer’s review."
+      "mode": "narration",
+      "judgment": "noise",
+      "reason": "Two sentences apart; each because carries a distinct explanation."
     },
     {
       "file": "story5.txt",
@@ -75,8 +50,9 @@
         "start": 140
       },
       "word": "because",
+      "mode": "narration",
       "judgment": "noise",
-      "reason": "Parallel because clauses list distinct reasons within one sentence."
+      "reason": "Deliberate same-sentence parallel: because … and because."
     },
     {
       "file": "story5.txt",
@@ -87,8 +63,35 @@
         "start": 4722
       },
       "word": "because",
+      "mode": "narration",
+      "judgment": "useful",
+      "reason": "Three because clauses across two adjacent sentences; an editor would likely point at the cluster."
+    },
+    {
+      "file": "story5.txt",
+      "kind": "transitionRepeat",
+      "flagIndex": 2,
+      "byte": {
+        "end": 4843,
+        "start": 4805
+      },
+      "word": "because",
+      "mode": "narration",
       "judgment": "noise",
-      "reason": "Repeated causal phrasing connects the narrator’s desire and fear with a deliberate contrast."
+      "reason": "Same-sentence parallel pair inside the T1 cluster."
+    },
+    {
+      "file": "story5.txt",
+      "kind": "transitionRepeat",
+      "flagIndex": 3,
+      "byte": {
+        "end": 5384,
+        "start": 4836
+      },
+      "word": "because",
+      "mode": "narration",
+      "judgment": "noise",
+      "reason": "Four sentences apart; distinct explanations."
     },
     {
       "file": "story5.txt",
@@ -96,23 +99,12 @@
       "flagIndex": 0,
       "byte": {
         "end": 2588,
-        "start": 2392
+        "start": 2438
       },
       "word": "she",
+      "mode": "dialogue",
       "judgment": "noise",
-      "reason": "Ordinary speech about the same gardener keeps a clear subject."
-    },
-    {
-      "file": "story5.txt",
-      "kind": "pronounRun",
-      "flagIndex": 1,
-      "byte": {
-        "end": 6971,
-        "start": 6608
-      },
-      "word": "it",
-      "judgment": "noise",
-      "reason": "Letter-focused It said anaphora is a deliberate structural choice."
+      "reason": "One speaker’s three She-led sentences about the same person; natural speech."
     },
     {
       "file": "moby150k.txt",
@@ -123,8 +115,9 @@
         "start": 30863
       },
       "word": "but",
+      "mode": "narration",
       "judgment": "noise",
-      "reason": "But frames successive rhetorical turns about the crowds."
+      "reason": "Common connector but repeated 4 sentences apart in rhetorical prose."
     },
     {
       "file": "moby150k.txt",
@@ -135,20 +128,425 @@
         "start": 36026
       },
       "word": "and",
+      "mode": "narration",
       "judgment": "noise",
-      "reason": "And sustains the conversational accumulation of the narrator’s reasons."
+      "reason": "Common connector and repeated 2 sentences apart in rhetorical prose."
     },
     {
       "file": "moby150k.txt",
+      "kind": "transitionRepeat",
+      "flagIndex": 2,
+      "byte": {
+        "end": 37465,
+        "start": 36878
+      },
+      "word": "because",
+      "mode": "narration",
+      "judgment": "noise",
+      "reason": "Common connector because repeated 4 sentences apart in rhetorical prose."
+    },
+    {
+      "file": "moby150k.txt",
+      "kind": "transitionRepeat",
+      "flagIndex": 3,
+      "byte": {
+        "end": 45262,
+        "start": 44870
+      },
+      "word": "but",
+      "mode": "narration",
+      "judgment": "noise",
+      "reason": "Common connector but repeated 4 sentences apart in rhetorical prose."
+    },
+    {
+      "file": "moby150k.txt",
+      "kind": "transitionRepeat",
+      "flagIndex": 4,
+      "byte": {
+        "end": 50482,
+        "start": 50210
+      },
+      "word": "but",
+      "mode": "narration",
+      "judgment": "useful",
+      "reason": "Adjacent narration sentences both open with But."
+    },
+    {
+      "file": "moby150k.txt",
+      "kind": "transitionRepeat",
+      "flagIndex": 5,
+      "byte": {
+        "end": 51289,
+        "start": 50479
+      },
+      "word": "but",
+      "mode": "narration",
+      "judgment": "noise",
+      "reason": "Common connector but repeated 4 sentences apart in rhetorical prose."
+    },
+    {
+      "file": "moby150k.txt",
+      "kind": "transitionRepeat",
+      "flagIndex": 6,
+      "byte": {
+        "end": 51440,
+        "start": 51286
+      },
+      "word": "but",
+      "mode": "narration",
+      "judgment": "noise",
+      "reason": "Common connector but repeated 2 sentences apart in rhetorical prose."
+    },
+    {
+      "file": "moby150k.txt",
+      "kind": "transitionRepeat",
+      "flagIndex": 7,
+      "byte": {
+        "end": 63200,
+        "start": 62899
+      },
+      "word": "but",
+      "mode": "narration",
+      "judgment": "noise",
+      "reason": "Common connector but repeated 2 sentences apart in rhetorical prose."
+    },
+    {
+      "file": "moby150k.txt",
+      "kind": "transitionRepeat",
+      "flagIndex": 8,
+      "byte": {
+        "end": 67023,
+        "start": 66543
+      },
+      "word": "and",
+      "mode": "dialogue",
+      "judgment": "noise",
+      "reason": "Common connector and repeated 2 sentences apart in rhetorical prose."
+    },
+    {
+      "file": "moby150k.txt",
+      "kind": "transitionRepeat",
+      "flagIndex": 9,
+      "byte": {
+        "end": 68911,
+        "start": 68569
+      },
+      "word": "but",
+      "mode": "dialogue",
+      "judgment": "noise",
+      "reason": "Common connector but repeated 3 sentences apart in rhetorical prose."
+    },
+    {
+      "file": "moby150k.txt",
+      "kind": "transitionRepeat",
+      "flagIndex": 10,
+      "byte": {
+        "end": 71150,
+        "start": 70682
+      },
+      "word": "but",
+      "mode": "narration",
+      "judgment": "noise",
+      "reason": "Common connector but repeated 4 sentences apart in rhetorical prose."
+    },
+    {
+      "file": "moby150k.txt",
+      "kind": "transitionRepeat",
+      "flagIndex": 11,
+      "byte": {
+        "end": 72819,
+        "start": 72003
+      },
+      "word": "but",
+      "mode": "narration",
+      "judgment": "noise",
+      "reason": "Common connector but repeated 4 sentences apart in rhetorical prose."
+    },
+    {
+      "file": "moby150k.txt",
+      "kind": "transitionRepeat",
+      "flagIndex": 12,
+      "byte": {
+        "end": 74871,
+        "start": 74325
+      },
+      "word": "but",
+      "mode": "narration",
+      "judgment": "noise",
+      "reason": "Common connector but repeated 4 sentences apart in rhetorical prose."
+    },
+    {
+      "file": "moby150k.txt",
+      "kind": "transitionRepeat",
+      "flagIndex": 13,
+      "byte": {
+        "end": 77565,
+        "start": 76992
+      },
+      "word": "but",
+      "mode": "narration",
+      "judgment": "noise",
+      "reason": "Common connector but repeated 3 sentences apart in rhetorical prose."
+    },
+    {
+      "file": "moby150k.txt",
+      "kind": "transitionRepeat",
+      "flagIndex": 14,
+      "byte": {
+        "end": 79599,
+        "start": 78754
+      },
+      "word": "but",
+      "mode": "narration",
+      "judgment": "noise",
+      "reason": "Common connector but repeated 4 sentences apart in rhetorical prose."
+    },
+    {
+      "file": "moby150k.txt",
+      "kind": "transitionRepeat",
+      "flagIndex": 15,
+      "byte": {
+        "end": 80292,
+        "start": 79596
+      },
+      "word": "but",
+      "mode": "narration",
+      "judgment": "noise",
+      "reason": "Common connector but repeated 4 sentences apart in rhetorical prose."
+    },
+    {
+      "file": "moby150k.txt",
+      "kind": "transitionRepeat",
+      "flagIndex": 16,
+      "byte": {
+        "end": 95768,
+        "start": 95327
+      },
+      "word": "but",
+      "mode": "narration",
+      "judgment": "noise",
+      "reason": "Common connector but repeated 3 sentences apart in rhetorical prose."
+    },
+    {
+      "file": "moby150k.txt",
+      "kind": "transitionRepeat",
+      "flagIndex": 17,
+      "byte": {
+        "end": 97275,
+        "start": 96992
+      },
+      "word": "but",
+      "mode": "narration",
+      "judgment": "noise",
+      "reason": "Common connector but repeated 3 sentences apart in rhetorical prose."
+    },
+    {
+      "file": "moby150k.txt",
+      "kind": "transitionRepeat",
+      "flagIndex": 18,
+      "byte": {
+        "end": 100774,
+        "start": 100422
+      },
+      "word": "and",
+      "mode": "narration",
+      "judgment": "noise",
+      "reason": "Common connector and repeated 2 sentences apart in rhetorical prose."
+    },
+    {
+      "file": "moby150k.txt",
+      "kind": "transitionRepeat",
+      "flagIndex": 19,
+      "byte": {
+        "end": 105877,
+        "start": 105487
+      },
+      "word": "but",
+      "mode": "narration",
+      "judgment": "noise",
+      "reason": "Common connector but repeated 3 sentences apart in rhetorical prose."
+    },
+    {
+      "file": "moby150k.txt",
+      "kind": "transitionRepeat",
+      "flagIndex": 20,
+      "byte": {
+        "end": 106151,
+        "start": 105874
+      },
+      "word": "but",
+      "mode": "narration",
+      "judgment": "noise",
+      "reason": "Common connector but repeated 3 sentences apart in rhetorical prose."
+    },
+    {
+      "file": "moby150k.txt",
+      "kind": "transitionRepeat",
+      "flagIndex": 21,
+      "byte": {
+        "end": 110983,
+        "start": 110621
+      },
+      "word": "but",
+      "mode": "narration",
+      "judgment": "noise",
+      "reason": "Common connector but repeated 2 sentences apart in rhetorical prose."
+    },
+    {
+      "file": "moby150k.txt",
+      "kind": "transitionRepeat",
+      "flagIndex": 22,
+      "byte": {
+        "end": 115455,
+        "start": 114851
+      },
+      "word": "but",
+      "mode": "dialogue",
+      "judgment": "noise",
+      "reason": "Common connector but repeated 4 sentences apart in rhetorical prose."
+    },
+    {
+      "file": "moby150k.txt",
+      "kind": "transitionRepeat",
+      "flagIndex": 23,
+      "byte": {
+        "end": 123234,
+        "start": 123119
+      },
+      "word": "but",
+      "mode": "dialogue",
+      "judgment": "noise",
+      "reason": "Common connector but repeated 2 sentences apart in rhetorical prose."
+    },
+    {
+      "file": "moby150k.txt",
+      "kind": "transitionRepeat",
+      "flagIndex": 24,
+      "byte": {
+        "end": 123864,
+        "start": 123231
+      },
+      "word": "but",
+      "mode": "dialogue",
+      "judgment": "noise",
+      "reason": "Common connector but repeated 3 sentences apart in rhetorical prose."
+    },
+    {
+      "file": "moby150k.txt",
+      "kind": "transitionRepeat",
+      "flagIndex": 25,
+      "byte": {
+        "end": 124126,
+        "start": 123861
+      },
+      "word": "but",
+      "mode": "dialogue",
+      "judgment": "noise",
+      "reason": "Common connector but repeated 3 sentences apart in rhetorical prose."
+    },
+    {
+      "file": "moby150k.txt",
+      "kind": "transitionRepeat",
+      "flagIndex": 26,
+      "byte": {
+        "end": 127273,
+        "start": 127160
+      },
+      "word": "and",
+      "mode": "dialogue",
+      "judgment": "noise",
+      "reason": "Adjacent And openers inside the sermon’s deliberate rhetoric."
+    },
+    {
+      "file": "moby150k.txt",
+      "kind": "transitionRepeat",
+      "flagIndex": 27,
+      "byte": {
+        "end": 140443,
+        "start": 140228
+      },
+      "word": "but",
+      "mode": "narration",
+      "judgment": "noise",
+      "reason": "Common connector but repeated 3 sentences apart in rhetorical prose."
+    },
+    {
+      "file": "moby150k.txt",
+      "kind": "transitionRepeat",
+      "flagIndex": 28,
+      "byte": {
+        "end": 140671,
+        "start": 140507
+      },
+      "word": "and",
+      "mode": "narration",
+      "judgment": "noise",
+      "reason": "Common connector and repeated 2 sentences apart in rhetorical prose."
+    },
+    {
+      "file": "moby150k.txt",
+      "kind": "transitionRepeat",
+      "flagIndex": 29,
+      "byte": {
+        "end": 144608,
+        "start": 143702
+      },
+      "word": "because",
+      "mode": "narration",
+      "judgment": "noise",
+      "reason": "Common connector because repeated 3 sentences apart in rhetorical prose."
+    },
+    {
+      "file": "moby150k.txt",
+      "kind": "transitionRepeat",
+      "flagIndex": 30,
+      "byte": {
+        "end": 146541,
+        "start": 146405
+      },
+      "word": "but",
+      "mode": "narration",
+      "judgment": "useful",
+      "reason": "Adjacent narration sentences both open with But."
+    },
+    {
+      "file": "moby150k.txt",
+      "kind": "transitionRepeat",
+      "flagIndex": 31,
+      "byte": {
+        "end": 147722,
+        "start": 147564
+      },
+      "word": "but",
+      "mode": "narration",
+      "judgment": "noise",
+      "reason": "Common connector but repeated 2 sentences apart in rhetorical prose."
+    },
+    {
+      "file": "moby150k.txt",
+      "kind": "transitionRepeat",
+      "flagIndex": 32,
+      "byte": {
+        "end": 148140,
+        "start": 147719
+      },
+      "word": "but",
+      "mode": "narration",
+      "judgment": "noise",
+      "reason": "Common connector but repeated 2 sentences apart in rhetorical prose."
+    },
+    {
+      "file": "pride-ch1-6",
       "kind": "pronounRun",
       "flagIndex": 0,
       "byte": {
-        "end": 71795,
-        "start": 71295
+        "end": 21840,
+        "start": 21156
       },
-      "word": "i",
+      "word": "they",
+      "mode": "narration",
       "judgment": "useful",
-      "reason": "Four consecutive I-led action sentences, crossing a paragraph, expose a sustained subject-action rhythm."
+      "reason": "Three consecutive They were descriptions of the Bingley sisters; sameWordRuns suppresses same-two-word runs, so only this lens shows it."
     }
   ]
 }

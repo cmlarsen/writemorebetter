@@ -110,6 +110,8 @@ const senses = JSON.parse(document.sensoryBalance());
 const pacing = JSON.parse(document.pacing());
 const diction = JSON.parse(document.diction(undefined, concretenessTableText));
 const overused = JSON.parse(document.overusedWords());
+const transitions = JSON.parse(document.transitions('{"repeatWindow":5}'));
+const pronouns = JSON.parse(document.pronounStarts());
 const long = JSON.parse(document.sentenceLength('{"includeLongSentences":true}'));
 const descriptive = JSON.parse(document.sentenceLength(undefined, "none"));
 document.free();
@@ -143,6 +145,8 @@ let senses: SensoryBalanceReport = try document.sensoryBalance()
 let pacing: PacingReport = try document.pacing()
 let diction: DictionReport = try document.diction(table: concretenessTableText)
 let overused: OverusedWordsReport = try document.overusedWords()
+let transitions: TransitionsReport = try document.transitions()
+let pronouns: PronounStartsReport = try document.pronounStarts()
 let custom = try document.sentenceLength(baseline: .custom("{\"mean\":13}"))
 let descriptive = try document.sentenceLength(baseline: .none)
 if let match = cliches.matches.first {
@@ -245,6 +249,26 @@ shape with `word` instead of `lemma` and nullable reference fields):
 
 ```json
 {"words": 19, "overused": [{"lemma": "grin", "count": 2, "perTenThousandWords": 1052.6315789473683, "referencePerTenThousandWords": 1.64, "ratio": 641.8485237483953, "spans": [{"start": 30, "end": 37}, {"start": 42, "end": 49}]}], "fillers": []}
+```
+
+`transitions` (the fixture has no transition, so `matches` and `repeats` are empty; each `types`
+row is `{"kind", "containing", "opening"}` for contrast, cause, time, addition and example):
+
+```json
+{"matches": [], "repeats": [], "groups": {"all": {"sentences": 4, "lowConfidence": true, "containing": {"count": 0, "percent": 0.0, "difference": null, "highlighted": false}, "opening": {"count": 0, "percent": 0.0, "difference": null, "highlighted": false}, "types": [{"kind": "contrast", "containing": {"count": 0, "percent": 0.0, "difference": null, "highlighted": false}, "opening": {"count": 0, "percent": 0.0, "difference": null, "highlighted": false}}]}, "narration": {}, "dialogue": {}}}
+```
+
+For `However, she slept. However, he woke.`, a match and a repeat are:
+
+```json
+{"span": {"start": 0, "end": 7}, "sentence": 0, "phrase": "however", "kind": "contrast", "opening": true, "mode": "narration"}
+{"span": {"start": 0, "end": 27}, "phrase": "however", "spans": [{"start": 0, "end": 7}, {"start": 20, "end": 27}], "sentences": [0, 1], "mode": "narration"}
+```
+
+`pronounStarts` (runs are `{"span", "pronoun", "sentences": {"start", "end"}, "mode"}`):
+
+```json
+{"starts": [{"span": {"start": 26, "end": 29}, "sentence": 1, "pronoun": "she", "mode": "narration"}, {"span": {"start": 87, "end": 89}, "sentence": 3, "pronoun": "he", "mode": "narration"}], "groups": {"all": {"sentences": 4, "excludedSentences": 0, "lowConfidence": true, "pronounStarts": {"count": 2, "percent": 50.0, "difference": null, "highlighted": false}, "pronouns": [{"pronoun": "he", "count": 1, "percent": 25.0, "difference": null, "highlighted": false}, {"pronoun": "she", "count": 1, "percent": 25.0, "difference": null, "highlighted": false}], "runs": []}, "narration": {}, "dialogue": {}}}
 ```
 
 `dialogueTags`:
@@ -406,6 +430,7 @@ Build rules for any baseline:
 | 2026-10-16 | #284 review: pacing rows carry no per-paragraph verdict, verb heads need a verb-phrase chunk, past perfect skips adverbs with a lexical verb reading (*had still not forgotten*), and a failed pooled sequence reports its longest passing window | A seeded sample of 40 two-signal rows judged 15 useful / 25 noise, so a UI highlights only runs. The chunk rule removes *up*, *home*, *wrong* from the denominator (128 two-signal rows, default runs still 1). Without the window fallback, appending two reflective paragraphs could erase a flagged run. See [STYLE-PACING.md](STYLE-PACING.md) |
 | 2026-10-16 | #251: pacing is an opt-in lens over shared paragraphs and speech, requiring two signals and ≥3 paragraphs or >400 words; authored cognition list, configurable 18-word / 20% / 20% thresholds | Public-only measurement chooses conservative defaults; published-fiction calibration remains owner-run and no baseline or prose-quality judgment ships. See [STYLE-PACING.md](STYLE-PACING.md) |
 | 2026-10-16 | #282: preserve eligible participle surface ratings, floor decimal norms, share speech-tag detection, guard lexicalized compound suffixes, and keep sensory defaults unchanged | Nine-text imagery recovery restores 13 candidate hits (10 useful); changed-span audit nets +1 useful, +12 noise, −10 wrong. Expanded public calibration: 114 eligible scenes, flags at 85/80/75/70% = 0/1/4/11, none useful. See the next row for `singleSense` ([STYLE-NORMS.md](STYLE-NORMS.md#singlesense-removed)) |
+| 2026-10-16 | #247 review: in dialogue, each paragraph is a speaker turn that resets pronoun runs and the transition repeat window; `thus`, `besides`, `however` and `instead` get sense guards; name-led sentences stay in the transitions denominator. **Pending owner confirmation:** the pronoun-start lens leaves out narration runs that `sentence_starts.sameWordRuns` already reports, and keeps pronoun shares, single-speaker dialogue runs and the runs `sameWordRuns` suppresses | 10 of 18 dialogue flags in public text spanned two speakers (echoes uses the same paragraph proxy). Three of four narration pronoun runs were identical to the default flag, so enabling the lens showed one span twice. See [definitions](STYLE-TRANSITIONS.md) |
 | 2026-10-16 | #247: independent opt-in transitions and pronoun-start lenses; original transition inventory; no baseline yet; pronoun runs cross ordinary paragraphs and include dialogue, rhetorical and repeated-two-word uses | Descriptive census differs from the default `sameWordRuns` editorial signal; scene/chapter/mode boundaries reset runs; 50-sentence shares and low confidence below 200 follow #241. See [definitions](STYLE-TRANSITIONS.md) |
 | 2026-10-16 | #281 review: norm lookups prefer a verb reading's lemma over a base-form homograph (*felt* → *feel*), figurative and hearsay rules look past whitespace only, the bundled table keeps the 3.5/0.5 floor with haptic leads measured past interoception, defaults stay 4.0 / 1.0 / sight 3.0, and diction marks only narration sentences `abstract` | Past *felt* counted as the fabric and skipped the *feel* rule; *cold* (touch 4.11, interoception 3.53) could never count. Lowering default strength to 3.7 added *turn*, *wake* and *forget* as noise, so *warm*/*crimson* stay opt-in. Blind re-judging: 14/26/20 → 23/30/7 useful/noise/wrong ([STYLE-NORMS.md](STYLE-NORMS.md#re-review-281)) |
 | 2026-10-16 | #250: sensory balance is an opt-in lens over a derived Lancaster table: a sense word's strongest perceptual modality rates ≥ 4.0 and leads the next by ≥ 1.0 (sight by ≥ 3.0); `singleSense` needs ≥ 20 narration sense words and ≥ 85% in one modality | Calibrated on bench/public plus three Standard Ebooks chapters ([STYLE-NORMS.md](STYLE-NORMS.md)): nearly every concrete noun rates visual-dominant, so a uniform margin made sight 75–92% of every scene; the sight margin lifted useful sense words from 13 to 33 of 60 sampled. Published scenes peak at 77% one modality (Gatsby’s multi-sensory dawn), so 85% leaves no false flags on them |

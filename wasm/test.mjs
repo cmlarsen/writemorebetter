@@ -443,7 +443,7 @@ eq(styleError(() => pacingDocument.pacing('{"minimumParagraphs":0}')).kind, "inv
 eq(styleError(() => pacingDocument.pacing('{"typo":0}')).kind, "invalidOptions", "pacing unknown options rejected");
 pacingDocument.free();
 
-const lensText = "😀.\u2028“AS A RESULT, she’s tired—still… fine.”\u2028As a result, she left. As a result, she slept.\nShe walked home. She slept.\n\nShe woke early.";
+const lensText = "😀.\u2028“AS A RESULT, she’s tired—still… fine.”\u2028As a result, she left. As a result, she slept.\nShe was home. She was tired.\n\nShe was done.";
 const lensDoc = checker.styleDocument(lensText);
 const transitions = JSON.parse(lensDoc.transitions('{"minimumSentences":1}'));
 eq(transitions.matches.length, 3, "transitions: multiword matches");
@@ -459,10 +459,18 @@ check(pronouns.groups.all.lowConfidence, "pronouns: small sample marked");
 eq(JSON.parse(lensDoc.pronounStarts()).groups.all.pronounStarts.percent, null, "pronouns: default sample floor");
 eq(styleError(() => lensDoc.pronounStarts('{"typo":1}')).kind, "invalidOptions", "pronouns: unknown option");
 lensDoc.free();
-const pronounGuardDoc = checker.styleDocument("Her coat was red. Hers was blue. Nobody left. This was easy. That’s fine. What’s more, she paid.");
-eq(JSON.parse(pronounGuardDoc.pronounStarts()).starts.map(s => s.pronoun), ["hers", "nobody", "this", "that", "what"], "pronouns: determiners excluded and independent pronouns included");
+const pronounGuardDoc = checker.styleDocument("Her coat was red. Hers was blue. Nobody left. This was easy. That’s fine. One evening it rained. What’s more, she paid.");
+eq(JSON.parse(pronounGuardDoc.pronounStarts()).starts.map(s => s.pronoun), ["hers", "nobody", "this", "that"], "pronouns: determiners, nominal one and what’s more excluded");
 eq(JSON.parse(pronounGuardDoc.transitions()).matches[0].phrase, "what's more", "transitions: curly contraction phrase");
 pronounGuardDoc.free();
+const turnsDoc = checker.styleDocument("“She left,” I said.\n\n“She did,” he said.\n\n“She will,” I said.");
+const turnPronouns = JSON.parse(turnsDoc.pronounStarts('{"minimumSentences":1}'));
+eq([turnPronouns.starts.length, turnPronouns.groups.dialogue.runs.length], [3, 0], "pronouns: dialogue turns reset runs");
+turnsDoc.free();
+const repeatTurnsDoc = checker.styleDocument("“But I can’t,” she said.\n\n“But you must,” he said.\n\n“But why?” she asked.");
+const turnTransitions = JSON.parse(repeatTurnsDoc.transitions());
+eq([turnTransitions.matches.length, turnTransitions.repeats.length], [3, 0], "transitions: dialogue turns reset repeats");
+repeatTurnsDoc.free();
 
 checkStyleRecords(checker);
 const independent = checker.styleDocument("She ran.");

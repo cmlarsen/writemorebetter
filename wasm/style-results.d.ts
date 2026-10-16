@@ -353,7 +353,6 @@ export interface TransitionTypeShare {
 
 export interface TransitionsGroup {
   sentences: number;
-  excludedSentences: number;
   lowConfidence: boolean;
   containing: Share;
   opening: Share;

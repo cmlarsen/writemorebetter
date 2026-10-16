@@ -463,7 +463,6 @@ public struct TransitionTypeShare: Codable, Equatable, Sendable {
 
 public struct TransitionsGroup: Codable, Equatable, Sendable {
     public let sentences: Int
-    public let excludedSentences: Int
     public let lowConfidence: Bool
     public let containing: Share
     public let opening: Share
