@@ -61,7 +61,7 @@ swift/, wasm/       one binding each, exposing check() + analyze() + analyzeDocu
 | [Overused words](STYLE-OVERUSED-WORDS.md), filler words | #248 | lemma counts | Ngram English Fiction 1990–2019 unigrams, lemmatized (bundled) |
 | Dialogue tags | #249 | dialogue spans | published-fiction corpus (owner-run tier 3 command; see [STYLE-DIALOGUE-TAGS.md](STYLE-DIALOGUE-TAGS.md)) |
 | [Sensory balance, diction (concreteness)](STYLE-NORMS.md) | #250 | lemmas, word-norm tables | none; Lancaster norms bundled (CC BY 4.0), concreteness table caller-supplied |
-| Pacing | #251 | dialogue spans, sentence stats | published-fiction corpus, for threshold calibration |
+| [Pacing](STYLE-PACING.md) | #251 | speech spans, sentence stats, POS | none; heuristic thresholds, owner-run calibration pending |
 
 Sentence length and sentence starts are public modules under `style::reports`, with no flattened
 crate-root exports. [Sentence report definitions](STYLE-SENTENCES.md) specify word counting, Penn
@@ -107,6 +107,7 @@ const stats = JSON.parse(document.stats());
 const echoes = JSON.parse(document.echoes());
 const phrases = JSON.parse(document.repeatedPhrases());
 const senses = JSON.parse(document.sensoryBalance());
+const pacing = JSON.parse(document.pacing());
 const diction = JSON.parse(document.diction(undefined, concretenessTableText));
 const overused = JSON.parse(document.overusedWords());
 const long = JSON.parse(document.sentenceLength('{"includeLongSentences":true}'));
@@ -139,6 +140,7 @@ let stats: DocumentStats = try document.stats()
 let echoes: EchoReport = try document.echoes()
 let phrases: RepeatedPhraseReport = try document.repeatedPhrases()
 let senses: SensoryBalanceReport = try document.sensoryBalance()
+let pacing: PacingReport = try document.pacing()
 let diction: DictionReport = try document.diction(table: concretenessTableText)
 let overused: OverusedWordsReport = try document.overusedWords()
 let custom = try document.sentenceLength(baseline: .custom("{\"mean\":13}"))
@@ -158,7 +160,8 @@ annotate the value decoded with `JSON.parse`.
 
 Subplot chooses which methods to call. Its recommended default set is **clichés, dialogue tags,
 sentence length statistics and monotony, and sentence starts**. **Echoes, repeated phrases,
-long-sentence flags, overused and filler words, sensory balance and diction** are opt-in lenses;
+long-sentence flags, overused and filler words, sensory balance, diction and pacing** are opt-in lenses;
+Pacing thresholds are heuristic and uncalibrated against published fiction;
 sensory balance and diction stay opt-in until the owner has seen usefulness numbers on real manuscripts. Length statistics and monotony remain available without
 `includeLongSentences`. The library has no combined request or default report selection.
 
@@ -173,6 +176,7 @@ sensory balance and diction stay opt-in until the owner has seen usefulness numb
 | sensory balance | `sensory_balance::report(&Document, &PerceptualNorms, &SensoryBalanceOptions)` | `minimumStrength`, `dominanceMargin`, `sightMargin`, `minimumSenseWords`, `singleSensePercent` | none (norms bundled: `PerceptualNorms::bundled()`) | yes |
 | diction | `diction::report(&Document, &ConcretenessTable, &DictionOptions)` | `abstractBelow`, `minimumRatedWords`, `minimumRunSentences` | none (table caller-supplied: `ConcretenessTable::parse`) | yes |
 | overused words | `overused_words::report(&Document, &OverusedWordsOptions, Option<&OverusedWordsBaseline>)` | `minimumRatio`, `minimumCount`, `minimumReferencePerMillion`, `includeNouns`, `countScaleWords` | bundled; fillers run without one | yes |
+| pacing | `pacing::report(&Document, &PacingOptions)` | `minimumParagraphs`, `moreThanWords`, `minimumSentenceLength`, `minimumPastPerfectPercent`, `minimumCognitionPercent` | none | yes |
 
 Every entry point returns `Result<_, StyleError>`. Type names are prefixed with their report
 (`SentenceLengthReport`, `ClicheMatch`, `DialogueTagVerbClass`, …) so they stay unique in Swift's
@@ -394,6 +398,7 @@ Build rules for any baseline:
 
 | Date | Decision | Why |
 |---|---|---|
+| 2026-10-16 | #251: pacing is an opt-in lens over shared paragraphs and speech, requiring two signals and ≥3 paragraphs or >400 words; authored cognition list, configurable 18-word / 20% / 20% thresholds | Public-only measurement chooses conservative defaults; published-fiction calibration remains owner-run and no baseline or prose-quality judgment ships. See [STYLE-PACING.md](STYLE-PACING.md) |
 | 2026-10-16 | #281 review: norm lookups prefer a verb reading's lemma over a base-form homograph (*felt* → *feel*), figurative and hearsay rules look past whitespace only, the bundled table keeps the 3.5/0.5 floor with haptic leads measured past interoception, defaults stay 4.0 / 1.0 / sight 3.0, and diction marks only narration sentences `abstract` | Past *felt* counted as the fabric and skipped the *feel* rule; *cold* (touch 4.11, interoception 3.53) could never count. Lowering default strength to 3.7 added *turn*, *wake* and *forget* as noise, so *warm*/*crimson* stay opt-in. Blind re-judging: 14/26/20 → 23/30/7 useful/noise/wrong ([STYLE-NORMS.md](STYLE-NORMS.md#re-review-281)) |
 | 2026-10-16 | #250: sensory balance is an opt-in lens over a derived Lancaster table: a sense word's strongest perceptual modality rates ≥ 4.0 and leads the next by ≥ 1.0 (sight by ≥ 3.0); `singleSense` needs ≥ 20 narration sense words and ≥ 85% in one modality | Calibrated on bench/public plus three Standard Ebooks chapters ([STYLE-NORMS.md](STYLE-NORMS.md)): nearly every concrete noun rates visual-dominant, so a uniform margin made sight 75–92% of every scene; the sight margin lifted useful sense words from 13 to 33 of 60 sampled. Published scenes peak at 77% one modality (Gatsby’s multi-sensory dawn), so 85% leaves no false flags on them |
 | 2026-10-16 | #250: diction takes a required caller-supplied concreteness table (JSON or TSV), flags runs of ≥ 3 consecutive abstract narration sentences (mean < 2.5 over ≥ 3 rated words), and errors without a table | Brysbaert is CC BY-NC-ND and stays out of the repository and tests; defaults assume its 1–5 scale. Real-world usefulness depends on the table Subplot supplies, an owner decision |

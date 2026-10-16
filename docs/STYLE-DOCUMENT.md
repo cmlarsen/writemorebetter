@@ -19,7 +19,7 @@ and what every report needs to agree:
 - `speech: Vec<bool>`, parallel to `dialogue`: whether each quoted span is speech (see
   [Narration and dialogue](#narration-and-dialogue)).
 - `token_details`: whether token readings and chunks were kept. Reports that need readings (echoes,
-  repeated phrases, sentence starts, dialogue tags) return `StyleError::NeedsTokenDetails` for a
+  repeated phrases, sentence starts, dialogue tags, pacing) return `StyleError::NeedsTokenDetails` for a
   compact document instead of silently degrading.
 - `hard_wrapped`: the paragraph mode the document was built with. `StyleDocument.stats()` echoes
   it as `hardWrapped`.

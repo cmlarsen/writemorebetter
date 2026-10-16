@@ -29,9 +29,9 @@ impl Default for PacingOptions {
         Self {
             minimum_paragraphs: 3,
             more_than_words: 400,
-            minimum_sentence_length: 25.0,
-            minimum_past_perfect_percent: 30.0,
-            minimum_cognition_percent: 30.0,
+            minimum_sentence_length: 18.0,
+            minimum_past_perfect_percent: 20.0,
+            minimum_cognition_percent: 20.0,
         }
     }
 }
@@ -192,7 +192,7 @@ fn verb(token: &Token) -> bool {
     token.is_word
         && !token.is_skipped
         && token.readings.iter().any(|r| r.pos.starts_with("VB"))
-        && (!token.chunks.iter().any(|c| c.ends_with("-NP"))
+        && (!token.chunks.iter().any(|c| c.contains("-NP"))
             || token.chunks.iter().any(|c| c.ends_with("-VP")))
 }
 
@@ -201,7 +201,10 @@ fn cognition(token: &Token) -> bool {
         .readings
         .iter()
         .filter(|r| r.pos.starts_with("VB"))
-        .any(|r| COGNITION.lines().any(|lemma| lemma == fold(&r.lemma)))
+        .any(|r| {
+            let candidate = fold(&r.lemma);
+            COGNITION.lines().any(|lemma| lemma == candidate)
+        })
 }
 
 fn next_verb(tokens: &[&Token], index: usize) -> Option<usize> {
@@ -294,8 +297,7 @@ pub fn report(document: &Document, options: &PacingOptions) -> Result<PacingRepo
         let mut signals = PacingSignals::default();
         let mut has_speech = false;
         for sentence in &paragraph.sentences {
-            let words = sentence.word_count();
-            signals.sentences += usize::from(words > 0);
+            signals.sentences += 1;
             for token in sentence.words() {
                 signals.words.all += 1;
                 *signals

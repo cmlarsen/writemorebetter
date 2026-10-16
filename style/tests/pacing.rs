@@ -71,6 +71,10 @@ fn scenes_headings_dialogue_and_nonqualifying_paragraphs_end_runs() {
 
 #[test]
 fn word_cutoff_is_strict_and_options_are_validated() {
+    let four_hundred = format!("{} She.", vec!["She had remembered."; 133].join(" "));
+    assert_eq!(report(&four_hundred).words.all, 400);
+    assert!(report(&four_hundred).slow_runs.is_empty());
+    assert_eq!(report(&(four_hundred + " She.")).slow_runs.len(), 1);
     let text = BACKSTORY.lines().next().unwrap();
     let document = analyze_document(tokenizer(), text, &DocumentOptions::new());
     let words = document.word_count;
