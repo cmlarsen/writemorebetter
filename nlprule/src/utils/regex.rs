@@ -233,28 +233,90 @@ mod regex_impl_fancy {
     pub use fancy_regex::Match;
     use std::error::Error;
     pub type Captures<'t> = fancy_regex::Captures<'t, str>;
-    pub struct Matches<'r, 't>(fancy_regex::Matches<'r, 't, str>);
+
+    const BACKTRACK_LIMIT: usize = 1_000_000;
+    const BACKTRACKS_PER_BYTE: usize = 100;
+
+    fn is_backtrack_limit(error: &fancy_regex::Error) -> bool {
+        matches!(
+            error,
+            fancy_regex::Error::RuntimeError(fancy_regex::RuntimeError::BacktrackLimitExceeded)
+        )
+    }
+
+    fn scaled(regex: &fancy_regex::Regex, text: &str) -> Option<fancy_regex::Regex> {
+        fancy_regex::RegexBuilder::new(regex.as_str())
+            .backtrack_limit(
+                BACKTRACK_LIMIT.saturating_add(BACKTRACKS_PER_BYTE.saturating_mul(text.len())),
+            )
+            .build()
+            .ok()
+    }
+
+    pub struct Matches<'r, 't> {
+        matches: fancy_regex::Matches<'r, 't, str>,
+        yielded: usize,
+        rest: Option<std::vec::IntoIter<Match<'t>>>,
+    }
 
     impl<'r, 't> Iterator for Matches<'r, 't> {
         type Item = Match<'t>;
 
         fn next(&mut self) -> Option<Self::Item> {
-            match self.0.next() {
-                Some(Ok(mat)) => Some(mat),
+            if let Some(rest) = &mut self.rest {
+                return rest.next();
+            }
+            match self.matches.next() {
+                Some(Ok(mat)) => {
+                    self.yielded += 1;
+                    Some(mat)
+                }
+                Some(Err(error)) if is_backtrack_limit(&error) => {
+                    let text = self.matches.text();
+                    let rest = scaled(self.matches.regex(), text).map_or_else(Vec::new, |regex| {
+                        regex
+                            .find_iter(text)
+                            .skip(self.yielded)
+                            .map_while(Result::ok)
+                            .collect()
+                    });
+                    self.rest.insert(rest.into_iter()).next()
+                }
                 // stop if an error is encountered
                 None | Some(Err(_)) => None,
             }
         }
     }
 
-    pub struct CaptureMatches<'r, 't>(fancy_regex::CaptureMatches<'r, 't, str>);
+    pub struct CaptureMatches<'r, 't> {
+        captures: fancy_regex::CaptureMatches<'r, 't, str>,
+        yielded: usize,
+        rest: Option<std::vec::IntoIter<Captures<'t>>>,
+    }
 
     impl<'r, 't> Iterator for CaptureMatches<'r, 't> {
         type Item = Captures<'t>;
 
         fn next(&mut self) -> Option<Self::Item> {
-            match self.0.next() {
-                Some(Ok(caps)) => Some(caps),
+            if let Some(rest) = &mut self.rest {
+                return rest.next();
+            }
+            match self.captures.next() {
+                Some(Ok(caps)) => {
+                    self.yielded += 1;
+                    Some(caps)
+                }
+                Some(Err(error)) if is_backtrack_limit(&error) => {
+                    let text = self.captures.text();
+                    let rest = scaled(self.captures.regex(), text).map_or_else(Vec::new, |regex| {
+                        regex
+                            .captures_iter(text)
+                            .skip(self.yielded)
+                            .map_while(Result::ok)
+                            .collect()
+                    });
+                    self.rest.insert(rest.into_iter()).next()
+                }
                 // stop if an error is encountered
                 None | Some(Err(_)) => None,
             }
@@ -275,15 +337,29 @@ mod regex_impl_fancy {
 
         pub fn is_match(&self, text: &str) -> bool {
             // errors are treated as non-matches
-            self.regex.is_match(text).unwrap_or(false)
+            match self.regex.is_match(text) {
+                Ok(is_match) => is_match,
+                Err(error) if is_backtrack_limit(&error) => scaled(&self.regex, text)
+                    .and_then(|regex| regex.is_match(text).ok())
+                    .unwrap_or(false),
+                Err(_) => false,
+            }
         }
 
         pub fn captures_iter<'r, 't>(&'r self, text: &'t str) -> CaptureMatches<'r, 't> {
-            CaptureMatches(self.regex.captures_iter(text))
+            CaptureMatches {
+                captures: self.regex.captures_iter(text),
+                yielded: 0,
+                rest: None,
+            }
         }
 
         pub fn find_iter<'r, 't>(&'r self, text: &'t str) -> Matches<'r, 't> {
-            Matches(self.regex.find_iter(text))
+            Matches {
+                matches: self.regex.find_iter(text),
+                yielded: 0,
+                rest: None,
+            }
         }
 
         pub fn captures_len(&self) -> usize {
@@ -293,6 +369,9 @@ mod regex_impl_fancy {
         pub fn captures<'t>(&self, text: &'t str) -> Option<Captures<'t>> {
             match self.regex.captures(text) {
                 Ok(Some(captures)) => Some(captures),
+                Err(error) if is_backtrack_limit(&error) => {
+                    scaled(&self.regex, text).and_then(|regex| regex.captures(text).ok().flatten())
+                }
                 // errors treated as not matching
                 Ok(None) | Err(_) => None,
             }
@@ -708,5 +787,81 @@ mod short_cache_tests {
         let other = Regex::new("^NO$".into());
         assert!(other.is_match("NO"));
         assert!(!regex.is_match("NO"));
+    }
+}
+
+#[cfg(test)]
+mod long_text_tests {
+    use super::*;
+
+    fn long_text() -> (String, Vec<usize>) {
+        let filler = "\u{201c}z\u{2026}\u{201d} \u{2014} ".repeat(200_000);
+        let text = format!("ab {filler}ab abc ab\u{2028}");
+        let tail = "ab ".len() + filler.len();
+        (text, vec![0, tail, tail + "ab abc ".len()])
+    }
+
+    #[test]
+    fn look_around_matches_survive_long_text_without_a_match() {
+        let regex = Regex::new(r"(?<![a-z])ab(?!c)".into());
+        let (text, starts) = long_text();
+        let tail = &text[starts[1]..];
+
+        assert_eq!(
+            regex
+                .captures(tail)
+                .and_then(|captures| captures.get(0))
+                .map(|m| m.start()),
+            Some(0)
+        );
+        assert_eq!(
+            regex
+                .find_iter(&text)
+                .map(|m| m.start())
+                .collect::<Vec<_>>(),
+            starts
+        );
+        assert_eq!(
+            regex
+                .captures_iter(&text)
+                .filter_map(|captures| captures.get(0).map(|m| m.start()))
+                .collect::<Vec<_>>(),
+            starts
+        );
+        assert_eq!(
+            regex.replace_all(&text, "X").matches('X').count(),
+            starts.len()
+        );
+    }
+
+    #[test]
+    fn look_around_matches_after_a_long_prefix_without_a_match() {
+        let regex = Regex::new(r"(?<![a-z])ab(?!c)".into());
+        let (text, starts) = long_text();
+        let from_filler = &text["ab ".len()..];
+
+        assert_eq!(
+            regex
+                .captures(from_filler)
+                .and_then(|captures| captures.get(0))
+                .map(|m| m.start() + "ab ".len()),
+            Some(starts[1])
+        );
+    }
+}
+
+#[cfg(all(test, feature = "regex-fancy", not(feature = "regex-onig")))]
+mod fancy_long_text_tests {
+    use super::regex_impl_fancy::Regex;
+
+    #[test]
+    fn is_match_survives_a_long_prefix_without_a_match() {
+        let regex = Regex::new(r"(?<![a-z])ab(?!c)").expect("valid pattern");
+        let text = format!(
+            "{}ab",
+            "\u{201c}z\u{2026}\u{201d} \u{2014} ".repeat(200_000)
+        );
+
+        assert!(regex.is_match(&text));
     }
 }
