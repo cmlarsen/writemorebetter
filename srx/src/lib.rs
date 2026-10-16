@@ -102,6 +102,12 @@ pub(crate) fn build_regex(pattern: &str) -> Result<Regex, regex_automata::meta::
         .build(pattern)
 }
 
+fn build_fancy_regex(pattern: &str) -> Result<fancy_regex::Regex, fancy_regex::Error> {
+    fancy_regex::RegexBuilder::new(pattern)
+        .backtrack_limit(usize::MAX)
+        .build()
+}
+
 #[cfg(feature = "from_xml")]
 mod from_xml;
 #[cfg(feature = "from_xml")]
@@ -261,7 +267,7 @@ impl Rule {
                 (Matcher::Automata(regex), split_group)
             }
             Err(error) => {
-                let regex = fancy_regex::Regex::new(&regex_str).map_err(|_| Box::new(error))?;
+                let regex = build_fancy_regex(&regex_str).map_err(|_| Box::new(error))?;
                 let split_group = regex
                     .capture_names()
                     .position(|name| name == Some(AFTER_BREAK_GROUP))
@@ -570,6 +576,33 @@ mod tests {
                 "Go on. ",
                 "now\u{2026}"
             ]
+        );
+    }
+
+    #[test]
+    fn look_around_rules_scan_long_text_without_a_match() {
+        let rules = rules_for(&[(
+            r"[\.\s ](?!(on|it))\p{L}{1,2}\.[\s ]",
+            r"[\p{N}\p{Ll}]",
+            false,
+        )]);
+        let filler = "\u{201c}She walked to the door\u{2026}\u{201d} he said\u{2014}then left. "
+            .repeat(30_000);
+        let text = format!("{filler}Wait 2 hr. or so");
+        let Matcher::Fancy(regex) = &rules.rules[0].regex else {
+            panic!("look-around rule must compile with fancy-regex");
+        };
+
+        let found = regex
+            .captures_from_pos(&text, 0)
+            .expect("a long scan must not hit the backtrack limit")
+            .and_then(|captures| captures.get(0))
+            .map(|found| found.start());
+
+        assert_eq!(found, Some(filler.len() + "Wait 2".len()));
+        assert_eq!(
+            rules.rules[0].match_indices(&text),
+            vec![filler.len() + "Wait 2 hr. ".len()]
         );
     }
 
