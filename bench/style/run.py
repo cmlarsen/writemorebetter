@@ -9,8 +9,16 @@ import sys
 from common import Analyzer, DocumentProbe, SentenceProbe, ROOT
 
 
+PRIVATE_OPTIONS = ('--export', '--flag-rates')
+
+
 def private(argv):
-    return 'tier3' in argv[1:]
+    for arg in argv[1:]:
+        option = arg.split('=', 1)[0]
+        if arg == 'tier3' or option.startswith(('--fl', '--ex')) or (
+                len(option) > 2 and any(name.startswith(option) for name in PRIVATE_OPTIONS)):
+            return True
+    return False
 
 
 def main():
@@ -38,9 +46,11 @@ def main():
     cliches.add_argument('--probe', type=Path)
     cliches.add_argument('--tokenizer', type=Path, default=ROOT / 'storage/en_tokenizer.bin')
     cliches.add_argument('--out', type=Path, default=ROOT / 'bench/style/out/cliches')
-    three = sub.add_parser('tier3')
+    three = sub.add_parser('tier3', allow_abbrev=False)
     three.add_argument('--self-test', action='store_true')
     three.add_argument('--sentence-length', action='store_true')
+    three.add_argument('--flag-rates', action='store_true')
+    three.add_argument('--probe', type=Path)
     three.add_argument('--document-probe', type=Path)
     three.add_argument('--export', type=Path)
     three.add_argument('--baseline', type=Path, default=ROOT / 'bench/style/published-baseline.json')
@@ -74,6 +84,10 @@ def main():
     if args.tier == 'cliches':
         import cliches
         cliches.run(args)
+        return
+    if args.tier == 'tier3' and args.flag_rates:
+        import flag_rates
+        flag_rates.run(args)
         return
     if args.tier == 'tier3' and args.sentence_length:
         import tier3

@@ -10,6 +10,7 @@ python3 bench/style/run.py tier1 --split dev
 python3 bench/style/run.py tier1 --gate
 python3 bench/style/run.py tier2 smoke
 python3 bench/style/run.py tier3 --self-test
+python3 bench/style/run.py tier3 --flag-rates --self-test
 python3 -m unittest discover -s bench/style -p 'test_*.py'
 ```
 
@@ -608,3 +609,134 @@ fiction-baseline `b464cac1193a3555957fa2784a1ddfd553de505b`, EXTRACTOR_VERSION 1
 71 author units, 663,457 sentences. `style/data/baselines/sentence-length.json` now records the
 12.900118525896554-word mean and separate sentence/author-mean percentiles. The earlier hard-wrapped
 calibration is invalid. No worker read private exports, titles, authors or unit IDs.
+
+## Flag-rate calibration (#241)
+
+```sh
+python3 bench/style/run.py tier3 --flag-rates --self-test
+python3 bench/style/run.py tier3 --flag-rates --export /path/to/fiction-baseline/out   # owner only
+```
+
+This measures how often every style report flags published fiction, at the scale Subplot runs the
+reports: per chapter and per manuscript. It reads the tier 3 export layout (`units.jsonl` plus
+`units/<unit_id>.txt`, one paragraph per line, blank lines at scene breaks) and uses only
+`author_key` (a nonempty string) and `unit_id`. The probe `flag_rates` in `bench/tools/wmb-document`
+(built automatically; `--probe PATH` selects a prebuilt one) builds each document with default
+`DocumentOptions` (line mode, token details, no skipped names). It runs all six reports with their
+default options: sentence length and sentence starts with the shipped
+`style/data/baselines/sentence-length.json` and `sentence-starts.json`, echoes, repeated phrases, the
+bundled cliché/redundancy list, and dialogue tags (no dialogue-tag baseline ships). The probe returns
+counts only.
+
+Output is one JSON object of numbers. Its keys come from a fixed allowlist: structure names, report
+categories, the percentile, sweep and phrase-length digits in use, and the reports' **public list
+vocabulary** (bundled cliché entries and sources, listed dialogue speech/non-speech verb lemmas),
+which the probe prints with `--vocabulary`. Any other key fails the run, so echo keys,
+repeated-phrase keys, unlisted verbs, matched text, titles, author names, unit ids and paths cannot
+reach stdout. Probe stderr is discarded. Every argparse or runtime error, including interrupts,
+prints only `calibration failed; details suppressed to protect source metadata` whenever argv
+contains `tier3`, an argument starting with `--fl` or `--ex`, or any abbreviation of `--export` or
+`--flag-rates` such as `--e` (with or without `=value`). The `tier3` subparser also rejects
+abbreviated options (`allow_abbrev=False`).
+
+### Two scales
+
+- **`chapter`**: each unit is cut into chapter-sized **windows**, and every report runs on each
+  window as its own document. The export has no chapter markers, so the rule uses its scene
+  structure. Walk the unit's paragraphs, counting words as whitespace-separated tokens containing a
+  letter or digit. Close the current window **at a scene break once it holds at least 3,000 words**,
+  or **at any paragraph boundary once it holds at least 6,000 words**. A final remainder under 2,000
+  words merges into the unit's previous window, so windows normally hold 3,000–6,000 words (a few up
+  to about 8,000). A unit shorter than 2,000 words is a single window. Scene breaks inside a window
+  are kept as blank lines. Samples are windows, weighted **1 / (that author's window count)** so
+  every author counts equally. `window_rule` echoes the three thresholds.
+- **`manuscript`**: each whole unit runs as one document, and its counts are pooled within its
+  author, as in the first version of this command. Samples are authors, one each.
+
+Each section reports `samples`, `sample_words` (distribution of document words), and the same
+`reports` block. Repeated phrases (no window; a phrase counts once it occurs twice anywhere) and, to
+a small degree, echoes (function words are decided per document) **depend on document length**, so
+use `chapter` rates for chapter-level thresholds. The other flags count local patterns and barely
+change between scales.
+
+### Definitions
+
+- **Distribution** (`mean`, `percentiles` 5/10/25/50/75/90/95, `samples`, `authors`): a weighted
+  mean, and weighted percentiles by linear interpolation between the samples' cumulative-weight
+  midpoints, rescaled so the smallest sample sits at 0 and the largest at 100. With equal weights (the `manuscript` section) this
+  is exactly the `(n−1)·p/100` rule used elsewhere. Samples whose denominator is zero (for example,
+  no dialogue) are left out of that distribution only, and the remaining samples are reweighted so
+  each contributing author still counts equally.
+- **`per_1000_words`**: flags × 1000 / words for each sample.
+- **`flagged_share`**: the weighted share of samples with at least one flag in that category, among
+  samples with a nonzero denominator. In `chapter` this is the share of windows the report would
+  flag; in `manuscript` it is the share of authors.
+- **Narration and dialogue.** Only sentence length, sentence starts and clichés distinguish them.
+  Sentence reports assign a whole sentence by its first word, and their denominator is the words in
+  that group's sentences (`is_word && !is_skipped`). Clichés assign each match and word by its own
+  position (the report's `narration`/`dialogue` word counts). `all` is both together.
+- **Top categories / top patterns**: `{name: rank}` for the 10 highest mean per-1,000-word rates,
+  rank 1 highest, rate above zero. Names are categories or list vocabulary, never matched text.
+- **`defaults`** echoes the report option defaults in force. **`run`** gives wall-clock `seconds`
+  from probe start (after any `cargo build`) through aggregation, `stage_seconds` summed per report
+  inside the probe over both scales, and peak RSS in bytes of the probe process (`os.wait4`) and of
+  the Python harness.
+
+What counts as one flag:
+
+| Report | Flags | Categories / patterns |
+|---|---|---|
+| Sentence length | each long sentence (≥ `longSentenceWords`, default 40) and each monotony run | `long_sentence`, `monotony_run`, `total` per group |
+| Sentence starts | each same-word start run (≥ 3 sentences) | `same_word_run` per group |
+| Echoes | each echo (default window 50) | `distance` band in words (`1_5`, `6_10`, `11_25`, `26_50`); `form`: `same_form` if the two words have the same case-folded spelling, else `different_form` |
+| Repeated phrases | each distinct repeated phrase; `occurrence` counts every occurrence separately | `length` in words (2–5) |
+| Clichés | each match | `kind` (cliché/redundancy) × group, `source` list, `patterns` per bundled entry with at least one flag (`patterns_with_flags` counts them) |
+| Dialogue tags | each tag with a listed speech verb other than *say*/*ask* (`other_speech_verb`), each non-speech tag, each tag adverb, each untagged run (> 6 exchanges) | those four categories; `patterns` per listed verb lemma except *say*/*ask*. One tag can carry two flags (verb and adverb). Unflagged context (`tags`, `said_asked`, `unlisted_verb`, `beats`) is under `context_per_1000_words`, in the same shape |
+
+### Baseline measures and comparisons
+
+Sentence length and sentence starts compare a document with their shipped baselines. The report
+returns a measure only when the group has at least `minimumSentences` (200) sentences; that sample
+(a window, or an author's pooled manuscripts) is then **eligible**.
+
+- **`measures`** gives, for `all`/`narration`/`dialogue`, the distribution over eligible samples of
+  the measures themselves, at the 5/10/25/50/75/90/95th percentiles:
+  - sentence length: the sample's `mean` and its 5/25/50/75/95th sentence-length percentiles, in
+    words, with the report's interpolation at `(n−1)·p/100` over its sentence histogram;
+  - sentence starts: each universal-12 tag's share (fractional count ÷ (sentences − unknown starts)
+    × 100) under `universal`, and each fine category's share (count ÷ sentences × 100) under `fine`.
+
+  In `chapter` these are per-window distributions; in `manuscript`, per-author distributions. A
+  band such as "outside the published 5th–95th range" can be read straight from these percentiles.
+- **`baseline_comparison`**: per statistic, or per universal tag that the baseline has (the `.` tag
+  has none), `difference` = measure − baseline over eligible samples (words or percentage points);
+  `eligible_share`, the weighted share of all samples that are eligible; and
+  `share_abs_difference_at_least`, the weighted share of all samples whose |difference| is at least
+  0.5/1/2/3/5 words (length) or 1/2/5/10 percentage points (starts). Fine categories have no shipped
+  baseline, so their comparisons appear only if a `categoryPercent` baseline is shipped.
+
+Neither report applies a magnitude threshold: it shows every comparison on an eligible document. So
+`eligible_share` in `chapter` is the share of windows on which the report would show a comparison,
+and the threshold sweep is there to choose one. In `manuscript`, `eligible_share` tests each
+author's pooled sample against the 200-sentence bar, which is nearly always met. The self-test checks
+the harness's histogram mean and percentile differences and universal percentages against the
+report's own `meanDifference`, percentile differences and `percent` on one document.
+
+### Cost and self-test
+
+Each unit is analyzed twice, once whole and once as windows. A single pass costs about 45 µs per
+export word on an idle Apple M5 Pro (two synthetic 501,054-byte units, 180,780 words, took 8.3 s
+before windows were added), almost all of it in document construction, and window passes cost the
+same per word. The full run therefore takes about 90 µs per word: about 13 minutes for an export of
+8.6 million words (663,457 sentences at 12.9 words), and longer on a loaded machine. Peak probe RSS
+depends on the longest unit: 170 MB at 90,000 words.
+
+`--self-test` generates seeded synthetic text in a temporary directory (four units, three authors,
+dialogue, clichés, long sentences, monotony and start runs, scene breaks, a made-up sentinel word
+repeated in the text) with sentinel strings in every metadata field. It asserts the window rule,
+the cross-check above, several expected shares at both scales, numeric-only output, and that no
+sentinel string or temporary path appears in the output. `test_flag_rates.py` covers author pooling
+and equal author weighting at both scales, weighted percentiles, the window rule, histogram
+percentiles, rejection of unlisted probe keys and of non-string author keys, and suppression of
+argparse and runtime errors in thirteen argument shapes, including `--e PATH` with no subcommand.
+CI runs only the self-test; no private corpus or export was read to build this.
