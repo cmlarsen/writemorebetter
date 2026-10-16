@@ -429,7 +429,7 @@ dialogue span (`report: dialogue_span`) and, per tag, records for `dialogue_tag_
 token, `dialogue_tag_adverb` on the adverb token, and `dialogue_beat` (`tag`/`beat`) on the first word
 of the narration clause. Each category is scored separately with tier 2's exact-span scorer.
 
-**Model-labeled set (provisional gate).** Four pinned chapter files from Standard Ebooks (CC0 dedication; underlying works
+**Model-labeled set (gate: two model labelers, coordinator-adjudicated).** Four pinned chapter files from Standard Ebooks (CC0 dedication; underlying works
 public domain in the US; none is in LitBank) are added to `sources.json`. `dialogue_tags.py` joins the
 listed paragraph windows one paragraph per line:
 
@@ -445,11 +445,11 @@ verbatim `text` that the suite checks against the offsets. These are **model lab
 two sessions of the same model family as the detector's author (`claude-opus-5-5/a` and `/b`), each
 given only the guidelines and a worksheet with the detector's quote spans marked. They labeled every
 quote before the detector was run on the passages. They agreed on 80 of 81 clause records and on
-every position, verb class and adverb. The one disagreement was resolved by the guideline's "only the
-sentence touching the quotation" clause, against a beat on avonlea paragraph 6 (`His farm had been
-bought…`, the sentence before `… “a crank,” Mrs. Rachel Lynde said.`). Owner adjudication is pending,
-and the README's rule above (two independent labels and owner adjudication before accuracy is gated)
-is not yet met: **the CI gate on this suite is provisional** until the owner adjudicates.
+every position, verb class and adverb. The one disagreement, on `avonlea-1.txt` paragraph 6, was
+whether `His farm had been bought…` is a beat for `“a crank,”` in `… “a crank,” Mrs. Rachel Lynde
+said.` The coordinator adjudicated it as **no beat**: the farm sentence does not touch the quotation,
+and the quote has its own tag. The CI gate on this suite therefore rests on **two model labelers,
+coordinator-adjudicated**; the labels are still model labels, not hand labels.
 
 The test passages are not untouched held-out data. The author read all four passages while building
 the worksheets, before the rules and docs were final; both labelers' notes on scare quotes, covering

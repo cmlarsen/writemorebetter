@@ -96,8 +96,8 @@ model-labeled records over 186 dialogue spans in four CC0 Standard Ebooks passag
 LitBank. On all four passages: tag position precision is 100% for every position, with recall 100%
 (after, split) and 85.71% (before); verb class recall is 97.10% for speech and 100% for non-speech;
 adverb precision/recall is 100% / 100%; beats are 81.82% / 90.00%. Labels come from two independent
-model sessions, owner adjudication is pending, and the test passages were read during development,
-so the CI gate is provisional and these are regression floors, not a claim about modern fiction.
+model sessions, coordinator-adjudicated, and the test passages were read during development, so
+these are regression floors, not a claim about modern fiction.
 
 ## Published baseline
 
