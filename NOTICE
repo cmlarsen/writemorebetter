@@ -40,7 +40,21 @@ license text is in style/data/licenses/.
   Deadline, GPL-2.0; Garner's Modern American Usage; Richard Nordquist; David
   Foster Wallace).
 
-style/data/suppressed.txt, style/data/fixed-wording.txt,
+style/data/norms/lancaster-perceptual.tsv is derived from the Lancaster
+Sensorimotor Norms: Lynott, D., Connell, L., Brysbaert, M., Brand, J., &
+Carney, J. (2020). The Lancaster Sensorimotor Norms: multidimensional measures
+of perceptual and action strength for 40,000 English words. Behavior Research
+Methods, 52, 1271-1291. https://doi.org/10.3758/s13428-019-01316-z. Data from
+https://osf.io/7emr6/ (file Lancaster_sensorimotor_norms_for_39707_words.csv,
+sha256 445d363fb1f9f3e50b86d88e2f46cdc9a22b5dd8a713ce4e7be2a773d57f43c5,
+retrieved 2026-10-16), licensed under the Creative Commons Attribution 4.0
+International License (https://creativecommons.org/licenses/by/4.0/).
+Changes: single words only, lowercased; only words whose strongest perceptual
+modality rates at least 4.0 and leads the next modality by at least 1.0;
+columns reduced to that modality, its mean strength and its lead, in tenths of
+a rating point. The authors do not endorse writemorebetter.
+
+style/data/norms/not-sensory.txt, style/data/suppressed.txt, style/data/fixed-wording.txt,
 style/data/literal-guards.txt and style/data/open-slot.txt are writemorebetter's
 own lists (MIT OR Apache-2.0).
 

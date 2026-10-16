@@ -6,6 +6,7 @@ export interface SentenceRange { start: number; end: number; }
 export type ClicheKind = "cliche" | "redundancy";
 export type DialogueTagPosition = "before" | "after" | "split";
 export type DialogueTagVerbClass = "speech" | "nonSpeech" | "unlisted";
+export type SensoryModality = "sight" | "sound" | "touch" | "smell" | "taste" | "interoception";
 export type SentenceStartCategory = "subject" | "adverb" | "gerund" | "infinitive" | "subordinatingConjunction" | "coordinatingConjunction" | "pastParticiple" | "inversion" | "introductory" | "other";
 export interface Echo {
   key: string;
@@ -203,3 +204,69 @@ export interface DocumentStats {
   speechSpans: number;
 }
 
+export interface SenseWord {
+  span: Span;
+  lemma: string;
+  modality: SensoryModality;
+  strength: number;
+  mode: Mode;
+}
+
+export interface SensoryShare {
+  modality: SensoryModality;
+  count: number;
+  percent: number | null;
+}
+
+export interface SensoryGroup {
+  words: number;
+  senseWords: number;
+  modalities: Array<SensoryShare>;
+}
+
+export interface SensoryUnit {
+  span: Span;
+  chapter: number;
+  groups: Split<SensoryGroup>;
+  singleSense: SensoryModality | null;
+}
+
+export interface SensoryBalanceReport {
+  words: Split<number>;
+  senseWords: Array<SenseWord>;
+  groups: Split<SensoryGroup>;
+  chapters: Array<SensoryUnit>;
+  scenes: Array<SensoryUnit>;
+}
+
+export interface DictionSentence {
+  span: Span;
+  mode: Mode;
+  words: number;
+  ratedWords: number;
+  mean: number | null;
+  abstract: boolean;
+}
+
+export interface DictionParagraph {
+  span: Span;
+  sentences: SentenceRange;
+  ratedWords: number;
+  mean: number | null;
+}
+
+export interface DictionGroup {
+  sentences: number;
+  ratedWords: number;
+  mean: number | null;
+  abstractSentences: number;
+}
+
+export interface DictionReport {
+  words: Split<number>;
+  tableWords: number;
+  sentences: Array<DictionSentence>;
+  paragraphs: Array<DictionParagraph>;
+  groups: Split<DictionGroup>;
+  abstractRuns: Array<SentenceRun>;
+}

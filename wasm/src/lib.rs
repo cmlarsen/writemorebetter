@@ -516,6 +516,27 @@ impl StyleDocument {
             .map(|report| reports::to_utf16_json(&report))
             .map_err(style_error)
     }
+    #[wasm_bindgen(js_name = sensoryBalance)]
+    /// Returns this report on the retained analysis; options default when omitted.
+    pub fn sensory_balance(&self, options_json: Option<String>) -> Result<String, JsValue> {
+        self.inner
+            .sensory_balance(options_json.as_deref())
+            .map(|report| reports::to_utf16_json(&report))
+            .map_err(style_error)
+    }
+    #[wasm_bindgen(js_name = diction)]
+    /// Returns this report on the retained analysis; options default when omitted.
+    /// Table: a word-to-concreteness JSON object or TSV text; omitting it is a missingTable error.
+    pub fn diction(
+        &self,
+        options_json: Option<String>,
+        table: Option<String>,
+    ) -> Result<String, JsValue> {
+        self.inner
+            .diction(options_json.as_deref(), table.as_deref())
+            .map(|report| reports::to_utf16_json(&report))
+            .map_err(style_error)
+    }
 }
 
 #[wasm_bindgen(typescript_custom_section)]

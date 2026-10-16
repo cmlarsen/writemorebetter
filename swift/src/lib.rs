@@ -672,4 +672,29 @@ impl StyleDocument {
                 message: error.to_string(),
             })
     }
+    /// Returns this report on the retained analysis; options default when omitted.
+    #[uniffi::method(default(options_json = None))]
+    pub fn sensory_balance_json(&self, options_json: Option<String>) -> Result<String, CheckError> {
+        self.inner
+            .sensory_balance(options_json.as_deref())
+            .map(|report| writemorebetter_style::reports::to_utf16_json(&report))
+            .map_err(|error| CheckError::ReportInput {
+                message: error.to_string(),
+            })
+    }
+    /// Returns this report on the retained analysis; options default when omitted.
+    /// Table: a word-to-concreteness JSON object or TSV text; nil throws a missing-table error.
+    #[uniffi::method(default(options_json = None, table = None))]
+    pub fn diction_json(
+        &self,
+        options_json: Option<String>,
+        table: Option<String>,
+    ) -> Result<String, CheckError> {
+        self.inner
+            .diction(options_json.as_deref(), table.as_deref())
+            .map(|report| writemorebetter_style::reports::to_utf16_json(&report))
+            .map_err(|error| CheckError::ReportInput {
+                message: error.to_string(),
+            })
+    }
 }

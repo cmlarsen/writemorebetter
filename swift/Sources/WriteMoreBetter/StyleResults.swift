@@ -49,6 +49,15 @@ public enum SentenceStartCategory: String, Codable, Sendable {
     case other
 }
 
+public enum SensoryModality: String, Codable, Sendable {
+    case sight
+    case sound
+    case touch
+    case smell
+    case taste
+    case interoception
+}
+
 public struct Echo: Codable, Equatable, Sendable {
     public let key: String
     public let label: String
@@ -245,6 +254,73 @@ public struct DocumentStats: Codable, Equatable, Sendable {
     public let speechSpans: Int
 }
 
+public struct SenseWord: Codable, Equatable, Sendable {
+    public let span: Span
+    public let lemma: String
+    public let modality: SensoryModality
+    public let strength: Double
+    public let mode: Mode
+}
+
+public struct SensoryShare: Codable, Equatable, Sendable {
+    public let modality: SensoryModality
+    public let count: Int
+    public let percent: Double?
+}
+
+public struct SensoryGroup: Codable, Equatable, Sendable {
+    public let words: Int
+    public let senseWords: Int
+    public let modalities: [SensoryShare]
+}
+
+public struct SensoryUnit: Codable, Equatable, Sendable {
+    public let span: Span
+    public let chapter: Int
+    public let groups: Split<SensoryGroup>
+    public let singleSense: SensoryModality?
+}
+
+public struct SensoryBalanceReport: Codable, Equatable, Sendable {
+    public let words: Split<Int>
+    public let senseWords: [SenseWord]
+    public let groups: Split<SensoryGroup>
+    public let chapters: [SensoryUnit]
+    public let scenes: [SensoryUnit]
+}
+
+public struct DictionSentence: Codable, Equatable, Sendable {
+    public let span: Span
+    public let mode: Mode
+    public let words: Int
+    public let ratedWords: Int
+    public let mean: Double?
+    public let abstract: Bool
+}
+
+public struct DictionParagraph: Codable, Equatable, Sendable {
+    public let span: Span
+    public let sentences: SentenceRange
+    public let ratedWords: Int
+    public let mean: Double?
+}
+
+public struct DictionGroup: Codable, Equatable, Sendable {
+    public let sentences: Int
+    public let ratedWords: Int
+    public let mean: Double?
+    public let abstractSentences: Int
+}
+
+public struct DictionReport: Codable, Equatable, Sendable {
+    public let words: Split<Int>
+    public let tableWords: Int
+    public let sentences: [DictionSentence]
+    public let paragraphs: [DictionParagraph]
+    public let groups: Split<DictionGroup>
+    public let abstractRuns: [SentenceRun]
+}
+
 /// Explicit baseline selection for a single report call. Custom input is a baseline JSON object.
 public enum StyleBaseline: Equatable, Sendable {
     case bundled
@@ -279,6 +355,13 @@ public extension StyleDocument {
     }
     func sentenceStarts(optionsJson: String? = nil, baseline: StyleBaseline = .bundled) throws -> SentenceStartsReport {
         try decodeStyle(sentenceStartsJson(optionsJson: optionsJson, baselineJson: baseline.selector))
+    }
+    func sensoryBalance(optionsJson: String? = nil) throws -> SensoryBalanceReport {
+        try decodeStyle(sensoryBalanceJson(optionsJson: optionsJson))
+    }
+    /// `table` is a word-to-concreteness JSON object or TSV text supplied by the caller.
+    func diction(table: String, optionsJson: String? = nil) throws -> DictionReport {
+        try decodeStyle(dictionJson(optionsJson: optionsJson, table: table))
     }
 }
 

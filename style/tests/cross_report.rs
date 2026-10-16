@@ -423,6 +423,15 @@ fn retained_documents_match_separate_analyses_and_validate_calls() {
             shared.sentence_starts(None, None),
             build().sentence_starts(None, None)
         );
+        assert_eq!(shared.sensory_balance(None), build().sensory_balance(None));
+        let sensory = shared.sensory_balance(None).unwrap();
+        assert_eq!(sensory.words, shared.stats().words);
+        assert_eq!(sensory.groups.all.words, sensory.words.all);
+        let table = Some(r#"{"lamp": 4.8, "idea": 1.6}"#);
+        assert_eq!(shared.diction(None, table), build().diction(None, table));
+        let diction = shared.diction(None, table).unwrap();
+        assert_eq!(diction.words, shared.stats().words);
+        assert_eq!(diction.sentences.len(), shared.stats().sentences.all);
     }
     let shared = StyleDocument::new(
         tokenizer.clone(),
@@ -508,4 +517,16 @@ fn retained_documents_match_separate_analyses_and_validate_calls() {
     assert!(compact.repeated_phrases(None).is_err());
     assert!(compact.dialogue_tags(None, None).is_err());
     assert!(compact.sentence_starts(None, None).is_err());
+    assert!(matches!(
+        compact.sensory_balance(None),
+        Err(StyleError::NeedsTokenDetails { .. })
+    ));
+    assert!(matches!(
+        compact.diction(None, Some(r#"{"lamp": 4.8}"#)),
+        Err(StyleError::NeedsTokenDetails { .. })
+    ));
+    assert!(matches!(
+        compact.diction(None, None),
+        Err(StyleError::MissingTable { .. })
+    ));
 }

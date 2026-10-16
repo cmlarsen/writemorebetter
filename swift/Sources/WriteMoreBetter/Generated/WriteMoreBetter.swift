@@ -929,6 +929,12 @@ public protocol StyleDocumentProtocol: AnyObject, Sendable {
     
     /**
      * Returns this report on the retained analysis; options default when omitted.
+     * Table: a word-to-concreteness JSON object or TSV text; nil throws a missing-table error.
+     */
+    func dictionJson(optionsJson: String?, table: String?) throws  -> String
+    
+    /**
+     * Returns this report on the retained analysis; options default when omitted.
      */
     func echoesJson(optionsJson: String?) throws  -> String
     
@@ -936,6 +942,11 @@ public protocol StyleDocumentProtocol: AnyObject, Sendable {
      * Returns this report on the retained analysis; options default when omitted.
      */
     func repeatedPhrasesJson(optionsJson: String?) throws  -> String
+    
+    /**
+     * Returns this report on the retained analysis; options default when omitted.
+     */
+    func sensoryBalanceJson(optionsJson: String?) throws  -> String
     
     /**
      * Returns this report on the retained analysis; options default when omitted.
@@ -1038,6 +1049,21 @@ open func dialogueTagsJson(optionsJson: String? = nil, baselineJson: String? = n
     
     /**
      * Returns this report on the retained analysis; options default when omitted.
+     * Table: a word-to-concreteness JSON object or TSV text; nil throws a missing-table error.
+     */
+open func dictionJson(optionsJson: String? = nil, table: String? = nil)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_method_styledocument_diction_json(
+            self.uniffiCloneHandle(),
+        FfiConverterOptionString.lower(optionsJson),
+        FfiConverterOptionString.lower(table),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * Returns this report on the retained analysis; options default when omitted.
      */
 open func echoesJson(optionsJson: String? = nil)throws  -> String  {
     return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
@@ -1056,6 +1082,19 @@ open func repeatedPhrasesJson(optionsJson: String? = nil)throws  -> String  {
     return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
         uniffiCallStatus in
     uniffi_writemorebetter_swift_fn_method_styledocument_repeated_phrases_json(
+            self.uniffiCloneHandle(),
+        FfiConverterOptionString.lower(optionsJson),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * Returns this report on the retained analysis; options default when omitted.
+     */
+open func sensoryBalanceJson(optionsJson: String? = nil)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_method_styledocument_sensory_balance_json(
             self.uniffiCloneHandle(),
         FfiConverterOptionString.lower(optionsJson),uniffiCallStatus
     )
@@ -2426,10 +2465,16 @@ private let initializationResult: InitializationResult = {
     if (uniffi_writemorebetter_swift_checksum_method_styledocument_dialogue_tags_json() != 30832) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_writemorebetter_swift_checksum_method_styledocument_diction_json() != 48265) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_writemorebetter_swift_checksum_method_styledocument_echoes_json() != 31563) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_method_styledocument_repeated_phrases_json() != 39140) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_writemorebetter_swift_checksum_method_styledocument_sensory_balance_json() != 44119) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_method_styledocument_sentence_length_json() != 11222) {

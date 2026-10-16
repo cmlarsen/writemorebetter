@@ -4,8 +4,8 @@ use nlprule::Tokenizer;
 use serde::de::DeserializeOwned;
 
 use crate::reports::{
-    cliches, dialogue_tags, echoes, repeated_phrases, sentence_length, sentence_starts,
-    DocumentStats, StyleResources,
+    cliches, dialogue_tags, diction, echoes, repeated_phrases, sensory_balance, sentence_length,
+    sentence_starts, DocumentStats, StyleResources,
 };
 use crate::{analyze_document, Document, DocumentOptions, StyleError};
 
@@ -115,5 +115,30 @@ impl StyleDocument {
             sentence_starts::REPORT,
         )?;
         sentence_starts::report(&self.document, &options(json)?, baseline.as_ref())
+    }
+
+    pub fn sensory_balance(
+        &self,
+        json: Option<&str>,
+    ) -> Result<sensory_balance::SensoryBalanceReport, StyleError> {
+        sensory_balance::report(
+            &self.document,
+            sensory_balance::PerceptualNorms::bundled(),
+            &options(json)?,
+        )
+    }
+
+    pub fn diction(
+        &self,
+        json: Option<&str>,
+        table: Option<&str>,
+    ) -> Result<diction::DictionReport, StyleError> {
+        let options = options(json)?;
+        let table = table.ok_or_else(|| StyleError::missing_table(diction::REPORT))?;
+        diction::report(
+            &self.document,
+            &diction::ConcretenessTable::parse(table)?,
+            &options,
+        )
     }
 }

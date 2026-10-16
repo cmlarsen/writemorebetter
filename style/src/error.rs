@@ -13,6 +13,8 @@ pub enum StyleError {
     InvalidOptions { message: String },
     InvalidBaseline { report: String, message: String },
     NeedsTokenDetails { report: String },
+    MissingTable { report: String },
+    InvalidTable { report: String, message: String },
 }
 
 impl StyleError {
@@ -26,6 +28,19 @@ impl StyleError {
         Self::InvalidBaseline {
             report: report.to_owned(),
             message: message.to_string(),
+        }
+    }
+
+    pub(crate) fn table(report: &str, message: impl fmt::Display) -> Self {
+        Self::InvalidTable {
+            report: report.to_owned(),
+            message: message.to_string(),
+        }
+    }
+
+    pub(crate) fn missing_table(report: &str) -> Self {
+        Self::MissingTable {
+            report: report.to_owned(),
         }
     }
 
@@ -47,6 +62,13 @@ impl fmt::Display for StyleError {
                 f,
                 "{report} needs token readings; analyze the document with include_token_details"
             ),
+            Self::MissingTable { report } => write!(
+                f,
+                "{report} needs a caller-supplied word table (a JSON object or TSV of word and rating); none was given"
+            ),
+            Self::InvalidTable { report, message } => {
+                write!(f, "invalid {report} table: {message}")
+            }
         }
     }
 }

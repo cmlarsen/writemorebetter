@@ -31,7 +31,27 @@ commit, the OSF license record, or the authors' and publisher's pages.
 
 ## Word norms (#250)
 
-Research only; nothing is vendored in #246.
+Licenses checked 2026-10-15 (recorded in #246, below). #250 vendors one derived table:
+
+| File | Source | Version | License | Retrieved |
+|---|---|---|---|---|
+| `style/data/norms/lancaster-perceptual.tsv` | Lancaster Sensorimotor Norms, OSF project <https://osf.io/7emr6/>, Data component <https://osf.io/rwhs6/>, file `Lancaster_sensorimotor_norms_for_39707_words.csv` (<https://osf.io/download/48wsc/>) | the 39,707-word aggregate release accompanying Lynott et al. (2020); sha256 `445d363fb1f9f3e50b86d88e2f46cdc9a22b5dd8a713ce4e7be2a773d57f43c5`, 17,196,336 bytes | CC BY 4.0 | 2026-10-16 |
+
+- **How it was obtained.** On 2026-10-16 the OSF API and download routes returned HTTP 500 or timed
+  out for several hours. The CSV was taken from a verbatim copy in
+  [BergelsonLab/BlindToddlerVocabulary](https://github.com/BergelsonLab/BlindToddlerVocabulary/blob/d8db5afa7e480b0eaadc01f8df83d6007568a766/data/Norms/Lancaster_sensorimotor_norms_for_39707_words.csv)
+  (commit `d8db5afa`, added 2023-01-03), whose size matches OSF's published listing for `48wsc`.
+  `scripts/build-lancaster-norms.py` refuses any input with a different sha256. Re-verify against
+  OSF's own download when it is reachable.
+- **Changes** (recorded in the file header and NOTICE): single words only, lowercased; only words
+  whose strongest perceptual modality rates ≥ 4.0 and leads the next by ≥ 1.0; columns reduced to
+  that modality, its mean strength and its lead, in tenths. 4,492 of 39,707 entries; 76,301 bytes.
+  The raw CSV is not committed.
+- **Concreteness** stays caller-supplied. Tests use invented ratings only, and the usefulness review
+  used a proxy derived locally from the Lancaster norms, never Brysbaert's ratings.
+- `style/data/norms/not-sensory.txt` is writemorebetter's own list (MIT OR Apache-2.0).
+
+### License research (#246)
 
 - **Brysbaert, Warriner & Kuperman (2014) concreteness ratings: CC BY-NC-ND 3.0, so not
   redistributable here.** The authors' release page (Center for Reading Research, Ghent University;
