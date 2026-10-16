@@ -27,7 +27,7 @@ def map_agreement(probe):
 def opening_agreement(probe, analyzer):
     for text in ['“—and then he left.”', '…and then he left.', '(She ran.)', '*She* ran.', 'She ran.']:
         analysis = analyzer.analyze(text)
-        starts = probe.analyze(text)['starts']['all']['starts']
+        starts = probe.analyze(text)['reports']['sentenceStarts']['starts']
         if len(analysis) != len(starts):
             raise ValueError('start convention sentence count mismatch')
         for sentence, start in zip(analysis, starts):
@@ -72,10 +72,11 @@ def labeled(probe, path=LABELS):
     gold, predictions = [], []
     for row in rows:
         gold.append({key: row[key] for key in ('file', 'byte', 'utf16', 'pattern')})
-        report = probe.analyze(row['text'])
-        for start in report['starts']['all']['starts']:
+        report = probe.analyze(row['text'])['reports']
+        for start in report['sentenceStarts']['starts']:
+            span = report['sentences'][start['sentence']]['span']
             predictions.append({'file': row['file'], 'pattern': start['category'],
-                                'byte': start['span']['byte'], 'utf16': start['span']['utf16']})
+                                'byte': span['byte'], 'utf16': span['utf16']})
     return {'sentences': len(rows), **score(gold, predictions, {r['file'] for r in rows})}
 
 
@@ -83,37 +84,49 @@ def adversarial(probe):
     cases = json.loads((ROOT / 'style/tests/fixtures/sentence-start-review.json').read_text())
     correct = 0
     for case in cases:
-        result = probe.analyze(case['text'])['starts']['all']['starts']
+        result = probe.analyze(case['text'])['reports']['sentenceStarts']['starts']
         correct += bool(result and result[0]['category'] == case['category'])
     if correct != len(cases):
         raise ValueError('reviewed opening-function fixture regressed')
     return {'correct': correct, 'cases': len(cases)}
 
 
-def reference_patterns(file, text, sentences):
+def reference_patterns(file, text, sentences, defaults):
     # Independent interval enumeration over analysis tokens, not report predictions.
+    long_words = defaults['sentenceLength']['longSentenceWords']
+    run_min = defaults['monotonyMinSentences']
+    spread = defaults['monotonyMaxSpread']
+    same_min = defaults['sameWordMinSentences']
     lengths = [sum(any(c.isalnum() for c in t['text']) for t in s['tokens']) for s in sentences]
     starts = [next((t['text'].lower() for t in s['tokens'] if not t['is_whitespace']), '') for s in sentences]
     def span(start, end, pattern):
         return {'file': file, 'pattern': pattern,
                 'byte': {'start': sentences[start]['span']['byte']['start'], 'end': sentences[end-1]['span']['byte']['end']},
                 'utf16': {'start': sentences[start]['span']['utf16']['start'], 'end': sentences[end-1]['span']['utf16']['end']}}
-    result = [span(i, i+1, 'longSentence') for i, n in enumerate(lengths) if n >= 40]
-    windows = [(a,b) for a in range(len(lengths)) for b in range(a+4,len(lengths)+1)
-               if max(lengths[a:b]) - min(lengths[a:b]) <= 2]
+    result = [span(i, i+1, 'longSentence') for i, n in enumerate(lengths) if n >= long_words]
+    windows = [(a,b) for a in range(len(lengths)) for b in range(a+run_min,len(lengths)+1)
+               if max(lengths[a:b]) - min(lengths[a:b]) <= spread]
     result.extend(span(a,b,'monotony') for a,b in windows if not any(c <= a and b <= d and (a,b) != (c,d) for c,d in windows))
     start = 0
     while start < len(starts):
         end = start + 1
         while end < len(starts) and starts[end] == starts[start]:
             end += 1
-        if end - start >= 3:
+        if end - start >= same_min:
             result.append(span(start,end,'sameWord'))
         start = end
     return result
 
 
+def pattern_spans(report):
+    length = report['sentenceLength']['groups']['all']
+    return {'monotony': [run['span'] for run in length['monotonyRuns']],
+            'sameWord': [run['span'] for run in report['sentenceStarts']['groups']['all']['sameWordRuns']],
+            'longSentence': [report['sentences'][index]['span'] for index in length['longSentences']]}
+
+
 def injected(probe, out, analyzer):
+    defaults = probe.defaults()
     rows = jsonl(LABELS)
     selected = []
     for source in ('blue_castle', 'ackroyd'):
@@ -134,10 +147,7 @@ def injected(probe, out, analyzer):
             documents.append({'file': file, 'source': row['file'], 'text': text})
             if pattern != 'control':
                 gold.append({'file': file, 'pattern': pattern, **offsets(text, 0, len(text))})
-            report = probe.analyze(text)
-            spans = {'monotony': report['length']['all']['monotonyRuns'],
-                     'sameWord': report['starts']['all']['sameWordRuns'],
-                     'longSentence': [r['span'] for r in report['length']['all']['longSentences']]}
+            spans = pattern_spans(probe.analyze(text)['reports'])
             # Each suite scores its target plus every untouched control.
             for target in ('monotony', 'sameWord', 'longSentence'):
                 if pattern not in ('control', target):
@@ -161,14 +171,11 @@ def injected(probe, out, analyzer):
                         continue
                     file = f'{source}-natural-{count:03}'
                     documents.append({'file': file, 'source': chapter.name, 'text': text})
-                    expected = reference_patterns(file, text, sentences)
+                    expected = reference_patterns(file, text, sentences, defaults)
                     gold.extend(expected)
                     for item in expected:
                         natural[item['pattern']] += 1
-                    result = probe.analyze(text)
-                    predicted = {'monotony': result['length']['all']['monotonyRuns'],
-                                 'sameWord': result['starts']['all']['sameWordRuns'],
-                                 'longSentence': [r['span'] for r in result['length']['all']['longSentences']]}
+                    predicted = pattern_spans(probe.analyze(text)['reports'])
                     for target, spans in predicted.items():
                         predictions.extend({'file': file, 'pattern': target, 'byte': s['byte'], 'utf16': s['utf16']} for s in spans)
                     count += 1
@@ -209,7 +216,8 @@ def public_distribution(line_probe, wrapped_probe):
                 data = data[byte_start:]
                 text = data.decode('utf-8')
             result = probe.analyze(text)
-            starts = result['starts']['all']
+            reports = result['reports']
+            starts = reports['sentenceStarts']['groups']['all']
             lines = [bool(line.strip()) for line in text.split('\n')]
             expected_paragraphs = sum(nonblank and (not wrapped or i == 0 or not lines[i - 1])
                                       for i, nonblank in enumerate(lines))
@@ -217,13 +225,16 @@ def public_distribution(line_probe, wrapped_probe):
                 raise ValueError(f'{file}: paragraph mode does not match source wrapping')
             inputs.append({'file': file, 'hardWrapped': wrapped, 'bytes': len(data),
                            'lineEndings': 'CRLF' if b'\r\n' in data else 'LF',
-                           'paragraphs': result['paragraphs'], 'sentences': starts['sentenceCount'], 'cut': cut})
-            counts.update({category: int(value['count']) for category, value in starts['categories'].items()})
+                           'paragraphs': result['paragraphs'], 'sentences': starts['sentences'] - starts['excludedSentences'], 'cut': cut})
+            counts.update({share['category']: share['count'] for share in starts['categories']})
             if group == 'mobyDick':
-                for start in starts['starts']:
+                groups_baseline = {'meanDifference': reports['sentenceLength']['groups']['all']['meanDifference'],
+                                   'universalDifferences': sum(share['difference'] is not None
+                                                               for share in starts['universal'])}
+                for start in reports['sentenceStarts']['starts']:
                     if start['category'] != 'other':
                         continue
-                    span = start['span']['byte']
+                    span = reports['sentences'][start['sentence']]['span']['byte']
                     excerpt = data[span['start']:span['end']].decode('utf-8').lstrip()
                     if re.match(r'CHAPTER\s+\d', excerpt):
                         shape = 'chapterNumberHeading'
@@ -248,6 +259,7 @@ def public_distribution(line_probe, wrapped_probe):
             for category, count in sorted(counts.items())}}
         if group == 'mobyDick':
             groups[group]['otherOpeningShapes'] = dict(shapes)
+            groups[group]['bundledBaselineComparison'] = groups_baseline
     return groups
 
 
@@ -255,6 +267,9 @@ def check_public_distribution(distributions, ceilings):
     for group, ceiling in ceilings.items():
         if distributions[group]['categories']['other']['percent'] > ceiling:
             raise ValueError(f'{group}/other share exceeds {ceiling}% sanity ceiling')
+    comparison = distributions['mobyDick']['bundledBaselineComparison']
+    if comparison['meanDifference'] is None or comparison['universalDifferences'] != 11:
+        raise ValueError('default options with bundled baselines no longer yield differences')
 
 
 def run(args):

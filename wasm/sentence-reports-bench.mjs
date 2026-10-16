@@ -7,17 +7,19 @@ const checker = new Checker(readFileSync("storage/en_tokenizer.bin"), readFileSy
 const excerpt = readFileSync("bench/public/moby150k.txt", "utf8");
 const text = Array(4).fill(excerpt).join("\r\n\r\n");
 const options = JSON.stringify({hardWrapped: true, includeTokenDetails: false});
-checker.styleReports(text, undefined, options);
+const all = process.argv[2] === "--all";
+const request = all ? undefined : JSON.stringify({sentenceLength: {}, sentenceStarts: {}, baselines: "bundled"});
+checker.styleReports(text, request, options);
 const timesMs = [];
 let bytes = 0;
 for (let i = 0; i < 3; i++) {
   const started = performance.now();
-  const result = checker.styleReports(text, undefined, options);
+  const result = checker.styleReports(text, request, options);
   timesMs.push(performance.now() - started);
   const parsed = JSON.parse(result);
   if (!parsed.sentenceLength || !parsed.sentenceStarts) throw new Error("missing combined report");
   bytes = Buffer.byteLength(result);
 }
-console.log(JSON.stringify({inputBytes: Buffer.byteLength(text), iterations: 3, warmups: 1, timesMs,
+console.log(JSON.stringify({reports: all ? "all" : "sentences", inputBytes: Buffer.byteLength(text), iterations: 3, warmups: 1, timesMs,
   medianMs: [...timesMs].sort((a,b) => a-b)[1], jsonBytes: bytes, peakRssBytes: process.resourceUsage().maxRSS * 1024}, null, 2));
 checker.free();

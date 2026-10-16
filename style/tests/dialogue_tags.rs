@@ -1,10 +1,10 @@
 use nlprule::Tokenizer;
 use serde_json::Value;
 use writemorebetter_style::reports::dialogue_tags::{
-    dialogue_tags, non_speech_verbs, speech_verbs, DialogueTagBaseline, DialogueTagOptions,
-    DialogueTagReport, VerbClass,
+    self, non_speech_verbs, speech_verbs, DialogueTagBaseline, DialogueTagOptions,
+    DialogueTagReport, DialogueTagVerbClass,
 };
-use writemorebetter_style::{analyze_document, Document, DocumentOptions, Span};
+use writemorebetter_style::{analyze_document, Document, DocumentOptions, Span, StyleError};
 
 fn tokenizer() -> Tokenizer {
     Tokenizer::new("../storage/en_tokenizer.bin").unwrap()
@@ -40,14 +40,21 @@ fn report(tokenizer: &Tokenizer, text: &str, names: Vec<String>) -> (Document, D
     (document, report)
 }
 
-fn quotes(text: &str, document: &Document, indexes: &[usize]) -> Vec<Value> {
-    indexes
+fn dialogue_tags(document: &Document, options: &DialogueTagOptions) -> DialogueTagReport {
+    dialogue_tags::report(document, options, None).unwrap()
+}
+
+fn quotes(text: &str, document: &Document, spans: &[Span]) -> Vec<Value> {
+    spans
         .iter()
-        .map(|&index| Value::from(surface(text, &document.dialogue[index])))
+        .map(|span| {
+            assert!(document.dialogue.contains(span));
+            Value::from(surface(text, span))
+        })
         .collect()
 }
 
-fn class(class: VerbClass) -> String {
+fn class(class: DialogueTagVerbClass) -> String {
     serde_json::to_value(class)
         .unwrap()
         .as_str()
@@ -74,7 +81,7 @@ fn annotated_passages() {
                     "class": class(tag.class),
                     "position": serde_json::to_value(tag.position).unwrap(),
                     "span": surface(text, &tag.span),
-                    "dialogue": quotes(text, &document, &tag.dialogue),
+                    "dialogue": quotes(text, &document, &tag.quotes),
                 });
                 assert_eq!(tag.verb_text, surface(text, &tag.verb));
                 if let Some(adverb) = &tag.adverb {
@@ -91,7 +98,7 @@ fn annotated_passages() {
             .map(|beat| {
                 serde_json::json!({
                     "span": surface(text, &beat.span),
-                    "dialogue": quotes(text, &document, &beat.dialogue),
+                    "dialogue": quotes(text, &document, &beat.quotes),
                 })
             })
             .collect();
@@ -102,11 +109,9 @@ fn annotated_passages() {
         assert_eq!(Value::Array(beats), expected, "{name}: beats");
         let runs: Vec<Value> = report
             .untagged_runs
-            .as_ref()
-            .unwrap()
             .iter()
             .map(|run| {
-                assert_eq!(run.dialogue.len(), run.exchanges);
+                assert_eq!(run.quotes.len(), run.exchanges);
                 serde_json::json!({"exchanges": run.exchanges, "span": surface(text, &run.span)})
             })
             .collect();
@@ -114,7 +119,7 @@ fn annotated_passages() {
         assert_eq!(Value::Array(runs), expected, "{name}: runs");
         if let Some(expected) = fixture.get("untagged_exchanges") {
             assert_eq!(
-                report.untagged_exchanges.unwrap() as u64,
+                report.untagged_exchanges as u64,
                 expected.as_u64().unwrap(),
                 "{name}: untagged exchanges"
             );
@@ -132,10 +137,10 @@ fn counts_and_percentages() {
     assert_eq!(report.dialogue_spans, 4);
     assert_eq!(report.tagged_spans, 4);
     assert_eq!(report.exchanges, 4);
-    assert_eq!(report.said_asked, 2);
-    assert_eq!(report.with_adverb, 1);
-    assert_eq!(report.non_speech, 1);
-    assert_eq!(report.said_asked_percent, None);
+    assert_eq!(report.said_asked.count, 2);
+    assert_eq!(report.with_adverb.count, 1);
+    assert_eq!(report.non_speech.count, 1);
+    assert_eq!(report.said_asked.percent, None);
     let others: Vec<(&str, usize)> = report
         .other_verbs
         .iter()
@@ -143,17 +148,26 @@ fn counts_and_percentages() {
         .collect();
     assert_eq!(others, [("hiss", 1), ("shrug", 1)]);
     let document = analyze_document(&tokenizer, text, &DocumentOptions::new());
-    let baseline = DialogueTagBaseline::new(80.0, 5.0, 1.0);
-    let report = dialogue_tags(
+    let baseline = DialogueTagBaseline::new()
+        .with_said_asked_percent(80.0)
+        .with_adverb_percent(5.0);
+    let report = dialogue_tags::report(
         &document,
-        &DialogueTagOptions::new()
-            .with_min_tags(4)
-            .with_baseline(baseline.clone()),
-    );
-    assert_eq!(report.said_asked_percent, Some(50.0));
-    assert_eq!(report.adverb_percent, Some(25.0));
-    assert_eq!(report.non_speech_percent, Some(25.0));
-    assert_eq!(report.baseline, Some(baseline));
+        &DialogueTagOptions::new().with_minimum_tags(4),
+        Some(&baseline),
+    )
+    .unwrap();
+    assert_eq!(report.said_asked.percent, Some(50.0));
+    assert_eq!(report.said_asked.difference, Some(-30.0));
+    assert_eq!(report.with_adverb.percent, Some(25.0));
+    assert_eq!(report.with_adverb.difference, Some(20.0));
+    assert_eq!(report.non_speech.percent, Some(25.0));
+    assert_eq!(report.non_speech.difference, None);
+    let invalid = DialogueTagBaseline::new().with_non_speech_percent(101.0);
+    assert!(matches!(
+        dialogue_tags::report(&document, &DialogueTagOptions::new(), Some(&invalid)),
+        Err(StyleError::InvalidBaseline { .. })
+    ));
 }
 
 #[test]
@@ -178,11 +192,12 @@ fn untagged_run_threshold_is_configurable() {
         &document,
         &DialogueTagOptions::new().with_max_untagged_exchanges(2),
     );
-    let runs = report.untagged_runs.unwrap();
+    let runs = report.untagged_runs;
     assert_eq!(runs.len(), 1);
     assert_eq!(runs[0].exchanges, 3);
+    assert_eq!(runs[0].quotes, document.dialogue);
     let report = dialogue_tags(&document, &DialogueTagOptions::new());
-    assert!(report.untagged_runs.unwrap().is_empty());
+    assert!(report.untagged_runs.is_empty());
 }
 
 #[test]
@@ -193,11 +208,11 @@ fn continued_speech_is_one_exchange() {
     assert_eq!(document.dialogue.len(), 1);
     assert_eq!(report.exchanges, 1);
     assert_eq!(report.tags.len(), 1);
-    assert_eq!(report.tags[0].dialogue, [0]);
+    assert_eq!(report.tags[0].quotes, document.dialogue);
 }
 
 #[test]
-fn compact_documents_report_no_runs() {
+fn compact_documents_are_rejected() {
     let tokenizer = tokenizer();
     let text = (1..=8)
         .map(|n| format!("“Line {n},” she said."))
@@ -206,16 +221,19 @@ fn compact_documents_report_no_runs() {
     let full = analyze_document(&tokenizer, &text, &DocumentOptions::new());
     let report = dialogue_tags(&full, &DialogueTagOptions::new());
     assert_eq!(report.tags.len(), 8);
-    assert_eq!(report.untagged_exchanges, Some(0));
+    assert_eq!(report.untagged_exchanges, 0);
     let compact = analyze_document(
         &tokenizer,
         &text,
         &DocumentOptions::new().with_token_details(false),
     );
-    let report = dialogue_tags(&compact, &DialogueTagOptions::new());
-    assert!(report.tags.is_empty());
-    assert!(report.untagged_runs.is_none());
-    assert_eq!(report.untagged_exchanges, None);
+    assert_eq!(compact.speech, full.speech);
+    assert_eq!(
+        dialogue_tags::report(&compact, &DialogueTagOptions::new(), None),
+        Err(StyleError::NeedsTokenDetails {
+            report: "dialogueTags".into()
+        })
+    );
 }
 
 #[test]
@@ -242,7 +260,7 @@ fn quoted_subjects_of_a_copula_are_not_speech_spans() {
     assert_eq!(report.dialogue_spans, 3);
     assert_eq!(report.speech_spans, 1);
     assert_eq!(report.exchanges, 1);
-    assert_eq!(report.untagged_exchanges, Some(0));
+    assert_eq!(report.untagged_exchanges, 0);
 }
 
 #[test]
@@ -251,7 +269,19 @@ fn baseline_accepts_camel_case() {
         r#"{"saidAskedPercent": 80.0, "adverbPercent": 5.0, "nonSpeechPercent": 1.0}"#,
     )
     .unwrap();
-    assert_eq!(baseline, DialogueTagBaseline::new(80.0, 5.0, 1.0));
+    assert_eq!(
+        baseline,
+        DialogueTagBaseline::new()
+            .with_said_asked_percent(80.0)
+            .with_adverb_percent(5.0)
+            .with_non_speech_percent(1.0)
+    );
+    let partial: DialogueTagBaseline =
+        serde_json::from_str(r#"{"said_asked_percent": 80.0}"#).unwrap();
+    assert_eq!(
+        partial,
+        DialogueTagBaseline::new().with_said_asked_percent(80.0)
+    );
 }
 
 #[test]

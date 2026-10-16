@@ -1,14 +1,19 @@
 use std::collections::{BTreeMap, BTreeSet};
+use std::sync::OnceLock;
 
 use serde::{Deserialize, Serialize};
 
-use super::{covering, dialogue};
-use crate::{Document, Sentence, Span, Token};
+use super::{SentenceRun, Share, Split};
+use crate::error::{percent_in_range, StyleError};
+use crate::{Document, Mode, Sentence, Span, Token};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub(crate) const REPORT: &str = "sentenceStarts";
+pub const SAME_WORD_MIN_SENTENCES: usize = 3;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
-pub enum Category {
+pub enum SentenceStartCategory {
     Subject,
     Adverb,
     Gerund,
@@ -20,102 +25,153 @@ pub enum Category {
     Introductory,
     Other,
 }
-pub const CATEGORIES: [Category; 10] = [
-    Category::Subject,
-    Category::Adverb,
-    Category::Gerund,
-    Category::Infinitive,
-    Category::SubordinatingConjunction,
-    Category::CoordinatingConjunction,
-    Category::PastParticiple,
-    Category::Inversion,
-    Category::Introductory,
-    Category::Other,
+pub const CATEGORIES: [SentenceStartCategory; 10] = [
+    SentenceStartCategory::Subject,
+    SentenceStartCategory::Adverb,
+    SentenceStartCategory::Gerund,
+    SentenceStartCategory::Infinitive,
+    SentenceStartCategory::SubordinatingConjunction,
+    SentenceStartCategory::CoordinatingConjunction,
+    SentenceStartCategory::PastParticiple,
+    SentenceStartCategory::Inversion,
+    SentenceStartCategory::Introductory,
+    SentenceStartCategory::Other,
 ];
 pub const UNIVERSAL_TAGS: [&str; 12] = [
     "ADJ", "ADP", "ADV", "CONJ", "DET", "NOUN", "NUM", "PRON", "PRT", "VERB", ".", "X",
 ];
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields, rename_all = "camelCase")]
 #[non_exhaustive]
-pub struct Options {
+pub struct SentenceStartsOptions {
+    #[serde(alias = "minimum_sentences")]
     pub minimum_sentences: usize,
 }
-impl Default for Options {
+
+impl Default for SentenceStartsOptions {
     fn default() -> Self {
         Self {
             minimum_sentences: 200,
         }
     }
 }
-impl Options {
+
+impl SentenceStartsOptions {
     pub fn new() -> Self {
         Self::default()
     }
+    pub fn with_minimum_sentences(mut self, sentences: usize) -> Self {
+        self.minimum_sentences = sentences;
+        self
+    }
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields, rename_all = "camelCase")]
 #[non_exhaustive]
-pub struct Baseline {
-    pub category_percent: BTreeMap<Category, f64>,
-    #[serde(deserialize_with = "universal_baseline")]
+pub struct SentenceStartsBaseline {
+    #[serde(alias = "category_percent")]
+    pub category_percent: BTreeMap<SentenceStartCategory, f64>,
+    #[serde(alias = "universal_percent")]
     pub universal_percent: BTreeMap<String, f64>,
 }
-fn universal_baseline<'de, D: serde::Deserializer<'de>>(
-    deserializer: D,
-) -> Result<BTreeMap<String, f64>, D::Error> {
-    let values = BTreeMap::<String, f64>::deserialize(deserializer)?;
-    if values.iter().any(|(tag, value)| {
-        !UNIVERSAL_TAGS.contains(&tag.as_str())
-            || !value.is_finite()
-            || !(0.0..=100.0).contains(value)
-    }) {
-        return Err(serde::de::Error::custom(
-            "universal baseline requires universal-12 keys and percentages in 0..=100",
-        ));
+
+impl SentenceStartsBaseline {
+    pub fn new() -> Self {
+        Self::default()
     }
-    Ok(values)
+
+    pub fn with_category_percent(mut self, category: SentenceStartCategory, percent: f64) -> Self {
+        self.category_percent.insert(category, percent);
+        self
+    }
+
+    pub fn with_universal_percent(mut self, tag: impl Into<String>, percent: f64) -> Self {
+        self.universal_percent.insert(tag.into(), percent);
+        self
+    }
+
+    pub fn bundled() -> Option<Self> {
+        static BUNDLED: OnceLock<SentenceStartsBaseline> = OnceLock::new();
+        Some(
+            BUNDLED
+                .get_or_init(|| {
+                    super::bundled_baseline(include_str!(
+                        "../../data/baselines/sentence-starts.json"
+                    ))
+                })
+                .clone(),
+        )
+    }
+
+    pub fn validate(&self) -> Result<(), StyleError> {
+        for value in self.category_percent.values() {
+            percent_in_range(REPORT, "categoryPercent", *value)?;
+        }
+        for (tag, value) in &self.universal_percent {
+            if !UNIVERSAL_TAGS.contains(&tag.as_str()) {
+                return Err(StyleError::baseline(
+                    REPORT,
+                    format!("universalPercent keys must be universal-12 tags, got {tag:?}"),
+                ));
+            }
+            percent_in_range(REPORT, "universalPercent", *value)?;
+        }
+        Ok(())
+    }
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
-pub struct Count {
-    pub count: f64,
-    pub percent: Option<f64>,
-    pub difference_percentage_points: Option<f64>,
-    pub spans: Vec<Span>,
-}
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-#[non_exhaustive]
-pub struct Start {
-    pub span: Span,
+pub struct SentenceStart {
+    pub sentence: usize,
+    pub opener: Option<Span>,
     pub word: Option<String>,
-    pub category: Category,
+    pub category: SentenceStartCategory,
     pub ambiguous: bool,
     pub universal_candidates: BTreeSet<String>,
 }
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
-pub struct Group {
-    pub sentence_count: usize,
+pub struct SentenceStartCategoryShare {
+    pub category: SentenceStartCategory,
+    #[serde(flatten)]
+    pub share: Share,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct SentenceStartUniversalShare {
+    pub tag: String,
+    pub weight: f64,
+    pub percent: Option<f64>,
+    pub difference: Option<f64>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct SentenceStartsGroup {
+    pub sentences: usize,
+    pub excluded_sentences: usize,
     pub ambiguous_starts: usize,
     pub unknown_starts: usize,
-    pub categories: BTreeMap<Category, Count>,
-    pub universal: BTreeMap<String, Count>,
-    pub starts: Vec<Start>,
-    pub same_word_runs: Vec<Span>,
+    pub categories: Vec<SentenceStartCategoryShare>,
+    pub universal: Vec<SentenceStartUniversalShare>,
+    pub same_word_runs: Vec<SentenceRun>,
 }
-#[derive(Debug, Clone, Serialize, Deserialize)]
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 #[non_exhaustive]
-pub struct Report {
-    pub all: Group,
-    pub narration: Group,
-    pub dialogue: Group,
+pub struct SentenceStartsReport {
+    pub starts: Vec<SentenceStart>,
+    pub groups: Split<SentenceStartsGroup>,
 }
 
 pub fn normalize_pos(pos: &str) -> &str {
@@ -252,7 +308,7 @@ fn closing_quote(c: char) -> char {
     }
 }
 
-fn nominal_category(tokens: &[&Token], opening_quotes: &[char]) -> Category {
+fn nominal_category(tokens: &[&Token], opening_quotes: &[char]) -> SentenceStartCategory {
     let mut dependent = false;
     let mut relative_verb_seen = false;
     let mut relative_auxiliary = false;
@@ -269,7 +325,7 @@ fn nominal_category(tokens: &[&Token], opening_quotes: &[char]) -> Category {
                     if opening_depth > quotes.len() {
                         opening_depth = quotes.len();
                         if opening_depth == 0 {
-                            return Category::Other;
+                            return SentenceStartCategory::Other;
                         }
                     }
                 } else {
@@ -341,14 +397,14 @@ fn nominal_category(tokens: &[&Token], opening_quotes: &[char]) -> Category {
             || plural_predicate
             || (subject_pronoun(tokens[0]) && verb_chunk(token))
         {
-            return Category::Subject;
+            return SentenceStartCategory::Subject;
         }
     }
-    Category::Other
+    SentenceStartCategory::Other
 }
 
 /// Deterministic opening-function heuristic; see STYLE-SENTENCES.md for priority and limits.
-pub fn classify(sentence: &Sentence) -> Category {
+pub fn classify(sentence: &Sentence) -> SentenceStartCategory {
     let opening_quotes: Vec<_> = sentence
         .tokens
         .iter()
@@ -360,10 +416,10 @@ pub fn classify(sentence: &Sentence) -> Category {
         .collect();
     let tokens = opening_tokens(sentence);
     let Some(first) = tokens.first() else {
-        return Category::Other;
+        return SentenceStartCategory::Other;
     };
     if first.is_skipped {
-        return Category::Other;
+        return SentenceStartCategory::Other;
     }
     let second = tokens.get(1).copied();
     let word = first.text.to_lowercase();
@@ -392,13 +448,13 @@ pub fn classify(sentence: &Sentence) -> Category {
     .contains(&word.as_str())
         || (word == "no" && second.is_none_or(|t| !t.is_word))
     {
-        return Category::Introductory;
+        return SentenceStartCategory::Introductory;
     }
     if has(first, &["TO"]) && second.is_some_and(|t| has(t, &["VB"])) {
-        return Category::Infinitive;
+        return SentenceStartCategory::Infinitive;
     }
     if words.starts_with("much as ") || words.starts_with("now that ") || words == "now that" {
-        return Category::SubordinatingConjunction;
+        return SentenceStartCategory::SubordinatingConjunction;
     }
     if [
         "although", "because", "if", "unless", "though", "whereas", "while", "when", "whenever",
@@ -407,40 +463,40 @@ pub fn classify(sentence: &Sentence) -> Category {
     .contains(&word.as_str())
         && has(first, &["IN", "WRB", "CC", "DT", "WDT", "WP", "RB"])
     {
-        return Category::SubordinatingConjunction;
+        return SentenceStartCategory::SubordinatingConjunction;
     }
     if ["once", "since", "after", "before", "until", "as"].contains(&word.as_str()) {
         return if clause(&tokens[1..]) || (words.starts_with("as far as ") && clause(&tokens[3..]))
         {
-            Category::SubordinatingConjunction
+            SentenceStartCategory::SubordinatingConjunction
         } else {
-            Category::Introductory
+            SentenceStartCategory::Introductory
         };
     }
     if word == "for" {
         return if has(first, &["CC"])
             && second.is_some_and(|t| subject_pronoun(t) || existential(t))
         {
-            Category::CoordinatingConjunction
+            SentenceStartCategory::CoordinatingConjunction
         } else {
-            Category::Introductory
+            SentenceStartCategory::Introductory
         };
     }
     if has(first, &["CC"]) && ["and", "but", "or", "nor", "yet", "so"].contains(&word.as_str()) {
-        return Category::CoordinatingConjunction;
+        return SentenceStartCategory::CoordinatingConjunction;
     }
     if has(first, &["VBG"]) {
         return if has(first, &["NN", "NNS"]) && second.is_some_and(finite) {
-            Category::Subject
+            SentenceStartCategory::Subject
         } else {
-            Category::Gerund
+            SentenceStartCategory::Gerund
         };
     }
     if has(first, &["VBN"])
         && !has(first, &["VB", "VBP"])
         && (!has(first, &["VBD"]) || second.is_some_and(|t| t.text == "," || has(t, &["IN"])))
     {
-        return Category::PastParticiple;
+        return SentenceStartCategory::PastParticiple;
     }
     let auxiliary = [
         "am", "is", "are", "was", "were", "do", "does", "did", "have", "has", "had", "can",
@@ -464,13 +520,13 @@ pub fn classify(sentence: &Sentence) -> Category {
         })
         && (question || !["do", "have"].contains(&word.as_str()))
     {
-        return Category::Inversion;
+        return SentenceStartCategory::Inversion;
     }
     if word == "there" {
         return if second.is_some_and(finite) {
-            Category::Subject
+            SentenceStartCategory::Subject
         } else {
-            Category::Adverb
+            SentenceStartCategory::Adverb
         };
     }
     if [
@@ -491,10 +547,10 @@ pub fn classify(sentence: &Sentence) -> Category {
         return nominal_category(&tokens, &opening_quotes);
     }
     if has(first, &["IN", "TO"]) && !has(first, &["DT", "WDT", "PRP", "PRP$"]) {
-        return Category::Introductory;
+        return SentenceStartCategory::Introductory;
     }
     if has(first, &["RB", "RBR", "RBS", "WRB"]) {
-        return Category::Adverb;
+        return SentenceStartCategory::Adverb;
     }
     if has(first, &["VB", "VBD", "VBP", "VBZ", "MD"])
         && !second.is_some_and(|t| {
@@ -509,13 +565,13 @@ pub fn classify(sentence: &Sentence) -> Category {
         {
             return nominal_category(&tokens, &opening_quotes);
         }
-        return Category::Other;
+        return SentenceStartCategory::Other;
     }
     if subject(first) {
         return nominal_category(&tokens, &opening_quotes);
     }
     if has(first, &["UH"]) {
-        return Category::Introductory;
+        return SentenceStartCategory::Introductory;
     }
     if first.is_word
         && first.readings.is_empty()
@@ -523,67 +579,139 @@ pub fn classify(sentence: &Sentence) -> Category {
     {
         return nominal_category(&tokens, &opening_quotes);
     }
-    Category::Other
+    SentenceStartCategory::Other
 }
 
-fn add(group: &mut Group, start: &Start) {
-    group.sentence_count += 1;
-    group.ambiguous_starts += usize::from(start.ambiguous);
-    group.unknown_starts += usize::from(start.universal_candidates.is_empty());
-    let count = group.categories.entry(start.category).or_default();
-    count.count += 1.0;
-    count.spans.push(start.span.clone());
-    for tag in &start.universal_candidates {
-        let count = group.universal.entry(tag.clone()).or_default();
-        count.count += 1.0 / start.universal_candidates.len() as f64;
-        count.spans.push(start.span.clone());
-    }
-    group.starts.push(start.clone());
+#[derive(Default)]
+struct Builder {
+    sentences: usize,
+    excluded: usize,
+    ambiguous: usize,
+    unknown: usize,
+    categories: BTreeMap<SentenceStartCategory, usize>,
+    universal: BTreeMap<&'static str, f64>,
+    runs: Vec<SentenceRun>,
 }
-fn finish(group: &mut Group, options: &Options, baseline: Option<&Baseline>) {
-    for category in CATEGORIES {
-        group.categories.entry(category).or_default();
+
+impl Builder {
+    fn add(&mut self, start: &SentenceStart) {
+        self.ambiguous += usize::from(start.ambiguous);
+        self.unknown += usize::from(start.universal_candidates.is_empty());
+        *self.categories.entry(start.category).or_default() += 1;
+        for tag in &start.universal_candidates {
+            let tag = UNIVERSAL_TAGS.iter().find(|known| *known == tag).unwrap();
+            *self.universal.entry(tag).or_default() +=
+                1.0 / start.universal_candidates.len() as f64;
+        }
     }
-    for tag in UNIVERSAL_TAGS {
-        group.universal.entry(tag.into()).or_default();
-    }
-    let enough = group.sentence_count >= options.minimum_sentences && group.sentence_count != 0;
-    for (category, count) in &mut group.categories {
-        count.percent = enough.then(|| 100.0 * count.count / group.sentence_count as f64);
-        count.difference_percentage_points = count
-            .percent
-            .zip(baseline.and_then(|b| b.category_percent.get(category)))
-            .map(|(a, b)| a - b);
-    }
-    let known = group.sentence_count - group.unknown_starts;
-    for (tag, count) in &mut group.universal {
-        count.percent = (enough && known > 0).then(|| 100.0 * count.count / known as f64);
-        count.difference_percentage_points = count
-            .percent
-            .zip(baseline.and_then(|b| b.universal_percent.get(tag)))
-            .map(|(a, b)| a - b);
+
+    fn finish(
+        self,
+        options: &SentenceStartsOptions,
+        baseline: Option<&SentenceStartsBaseline>,
+    ) -> SentenceStartsGroup {
+        let eligible = self.sentences - self.excluded;
+        let enough = eligible >= options.minimum_sentences && eligible != 0;
+        let known = eligible - self.unknown;
+        SentenceStartsGroup {
+            sentences: self.sentences,
+            excluded_sentences: self.excluded,
+            ambiguous_starts: self.ambiguous,
+            unknown_starts: self.unknown,
+            categories: CATEGORIES
+                .into_iter()
+                .map(|category| SentenceStartCategoryShare {
+                    category,
+                    share: Share::new(
+                        self.categories.get(&category).copied().unwrap_or(0),
+                        eligible,
+                        enough,
+                        baseline.and_then(|b| b.category_percent.get(&category).copied()),
+                    ),
+                })
+                .collect(),
+            universal: UNIVERSAL_TAGS
+                .into_iter()
+                .map(|tag| {
+                    let weight = self.universal.get(tag).copied().unwrap_or(0.0);
+                    let percent = (enough && known > 0).then(|| 100.0 * weight / known as f64);
+                    SentenceStartUniversalShare {
+                        tag: tag.to_owned(),
+                        weight,
+                        percent,
+                        difference: percent
+                            .zip(baseline.and_then(|b| b.universal_percent.get(tag)))
+                            .map(|(a, b)| a - b),
+                    }
+                })
+                .collect(),
+            same_word_runs: self.runs,
+        }
     }
 }
 
-pub fn report(document: &Document, options: &Options, baseline: Option<&Baseline>) -> Report {
-    let mut result = Report {
-        all: Group::default(),
-        narration: Group::default(),
-        dialogue: Group::default(),
-    };
+struct Run {
+    word: String,
+    mode: Mode,
+    span: Span,
+    first: usize,
+    last: usize,
+}
+
+fn flush(groups: &mut Split<Builder>, run: Option<Run>) {
+    if let Some(run) = run {
+        if run.last + 1 - run.first >= SAME_WORD_MIN_SENTENCES {
+            for group in groups.all_and_mode_mut(run.mode) {
+                group.runs.push(SentenceRun {
+                    span: run.span.clone(),
+                    sentences: run.first..run.last + 1,
+                });
+            }
+        }
+    }
+}
+
+pub fn report(
+    document: &Document,
+    options: &SentenceStartsOptions,
+    baseline: Option<&SentenceStartsBaseline>,
+) -> Result<SentenceStartsReport, StyleError> {
+    if !document.token_details {
+        return Err(StyleError::needs_token_details(REPORT));
+    }
+    if let Some(baseline) = baseline {
+        baseline.validate()?;
+    }
+    let mut groups: Split<Builder> = Split::default();
+    let mut starts = Vec::new();
+    let mut index = 0;
     for paragraph in &document.paragraphs {
-        let mut previous: Option<(String, bool, Span, usize)> = None;
+        let mut previous: Option<Run> = None;
         for sentence in &paragraph.sentences {
+            let sentence_index = index;
+            index += 1;
+            let mode = document.sentence_mode(sentence);
+            for group in groups.all_and_mode_mut(mode) {
+                group.sentences += 1;
+            }
             let tokens = opening_tokens(sentence);
-            let first = tokens.first().copied().filter(|t| !t.is_skipped);
+            if tokens.first().is_some_and(|t| t.is_skipped) {
+                for group in groups.all_and_mode_mut(mode) {
+                    group.excluded += 1;
+                }
+                flush(&mut groups, previous.take());
+                continue;
+            }
+            let first = tokens.first().copied();
             let universal_first = tokens
                 .get(usize::from(
                     tokens.first().is_some_and(|t| t.is_punctuation),
                 ))
                 .copied()
                 .filter(|t| !t.is_skipped);
-            let start = Start {
-                span: sentence.span.clone(),
+            let start = SentenceStart {
+                sentence: sentence_index,
+                opener: first.map(|t| t.span.clone()),
                 word: first.filter(|t| t.is_word).map(|t| t.text.to_lowercase()),
                 category: classify(sentence),
                 ambiguous: first.is_some_and(|t| tags(t).len() > 1),
@@ -597,50 +725,33 @@ pub fn report(document: &Document, options: &Options, baseline: Option<&Baseline
                     })
                     .unwrap_or_default(),
             };
-            let speech = dialogue(document, sentence);
-            if tokens.first().is_some_and(|t| t.is_skipped) {
-                flush(&mut result, previous.take());
-                continue;
+            for group in groups.all_and_mode_mut(mode) {
+                group.add(&start);
             }
-            add(&mut result.all, &start);
-            add(
-                if speech {
-                    &mut result.dialogue
-                } else {
-                    &mut result.narration
-                },
-                &start,
-            );
             if let Some(word) = start.word.as_ref() {
-                if let Some((last, mode, span, count)) = &mut previous {
-                    if word == last && speech == *mode {
-                        *span = covering(span, &start.span);
-                        *count += 1;
+                if let Some(run) = &mut previous {
+                    if *word == run.word && mode == run.mode {
+                        run.span = Span::covering(&run.span, &sentence.span);
+                        run.last = sentence_index;
+                        starts.push(start);
                         continue;
                     }
                 }
             }
-            flush(&mut result, previous.take());
-            previous = start.word.map(|word| (word, speech, start.span, 1));
+            flush(&mut groups, previous.take());
+            previous = start.word.clone().map(|word| Run {
+                word,
+                mode,
+                span: sentence.span.clone(),
+                first: sentence_index,
+                last: sentence_index,
+            });
+            starts.push(start);
         }
-        flush(&mut result, previous.take());
+        flush(&mut groups, previous.take());
     }
-    for group in [&mut result.all, &mut result.narration, &mut result.dialogue] {
-        finish(group, options, baseline);
-    }
-    result
-}
-fn flush(result: &mut Report, run: Option<(String, bool, Span, usize)>) {
-    if let Some((_, speech, span, count)) = run {
-        if count >= 3 {
-            result.all.same_word_runs.push(span.clone());
-            (if speech {
-                &mut result.dialogue
-            } else {
-                &mut result.narration
-            })
-            .same_word_runs
-            .push(span);
-        }
-    }
+    Ok(SentenceStartsReport {
+        starts,
+        groups: groups.map(|group| group.finish(options, baseline)),
+    })
 }

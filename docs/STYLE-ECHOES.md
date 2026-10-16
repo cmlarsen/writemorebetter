@@ -4,26 +4,29 @@ Issue [#245](https://github.com/cmlarsen/writemorebetter/issues/245). Both repor
 document pass from [#243](STYLE-DOCUMENT.md) and return spans; neither suggests replacement words.
 
 ```rust
-use writemorebetter_style::reports::echoes::{echoes, EchoOptions};
-use writemorebetter_style::reports::phrases::{repeated_phrases, PhraseOptions};
+use writemorebetter_style::reports::{echoes, repeated_phrases};
 use writemorebetter_style::{analyze_document, DocumentOptions};
 
 let options = DocumentOptions::new().with_skip_names(vec!["Mara".into()]);
 let document = analyze_document(&tokenizer, text, &options);
-let echo_report = echoes(&document, &EchoOptions::new().with_window(50));
-let phrase_report = repeated_phrases(&document, &PhraseOptions::new());
+let echo_report = echoes::report(&document, &echoes::EchoOptions::new().with_window(50))?;
+let phrase_report =
+    repeated_phrases::report(&document, &repeated_phrases::RepeatedPhraseOptions::new())?;
 ```
 
-`EchoOptions` has `window` (default 50 words) and `match_forms` (default true; JSON alias
-`matchForms`). `PhraseOptions` has `min_length` and `max_length` (default 2 and 5; set both with
-`with_length`) and `min_content_words` (default 2), with camelCase JSON aliases. A `max_length`
-beyond the document's longest sentence is clamped to it, so any value, `usize::MAX` included, is safe. Both reports need the document's token readings, which the default
-`include_token_details: true` keeps. With compact documents, function words are recognized only by
-the built-in list and words match by spelling. Swift and WASM bindings land in a follow-up.
+`EchoOptions` has `window` (default 50 words) and `match_forms` (default true; JSON `matchForms`).
+`RepeatedPhraseOptions` has `minimum_length` and `maximum_length` (default 2 and 5; set both with
+`with_length`) and `minimum_content_words` (default 2). JSON uses camelCase (`minimumLength`) and
+also accepts the snake_case names. A `maximum_length` beyond the document's longest sentence is
+clamped to it, so any value, `usize::MAX` included, is safe. Both reports need the document's token
+readings, which the default `include_token_details: true` keeps. A compact document returns
+`StyleError::NeedsTokenDetails` instead of silently matching by spelling only. Both reports are part
+of the combined `reports::run` call and the bindings' `styleReports` (see
+[STYLE-REPORTS.md](STYLE-REPORTS.md#one-call-for-every-report)). They ignore narration/dialogue mode.
 
 ## Words
 
-A word is a token the document counts in `word_count`: it contains a letter or digit and is not a
+A word is a token the document counts in `word_count` (`Document::words()`): it contains a letter or digit and is not a
 skipped name. Clitics count separately (`can’t` is `ca` + `n’t`), so densities use the same
 denominator as every other report.
 
@@ -108,23 +111,23 @@ Each echo links the later word to the **nearest** earlier occurrence of its key,
 only, so `walked` no longer echoes `walking`.
 
 `EchoReport` returns every echo (`key`, `label`, the `earlier` and `later` spans, `distance`), the
-`word_count` and `density_per_1000 = echoes × 1000 / word_count`. Empty documents report 0.
+document's `words` and `perThousandWords = echoes × 1000 / words`. Empty documents report 0.
 
 ## Repeated phrases
 
-A phrase is a run of `min_length`–`max_length` consecutive words (default 2–5) inside one sentence,
+A phrase is a run of `minimum_length`–`maximum_length` consecutive words (default 2–5) inside one sentence,
 compared by family. Punctuation inside the sentence is ignored, so `turned to the window` repeats as
 `turns, to the window`. A sentence end or a skipped name breaks the run. A phrase is **repeated** if
 it occurs at least twice in the document. The report drops:
 
-- phrases with fewer than `min_content_words` content words (default 2; see below), and
+- phrases with fewer than `minimum_content_words` content words (default 2; see below), and
 - phrases whose every occurrence lies inside an occurrence of a repeated phrase one word longer.
   This applies transitively, so a phrase inside a longer repeat is dropped. A phrase that also occurs
   on its own is kept with **all** its occurrences: in `The old grey house… The old grey house… A grey
   house…`, both `the old grey house` (2) and `grey house` (3) are reported.
 
-A repeat longer than `max_length` appears as overlapping phrases of that length. Each span runs from
-the first word's start to the last word's end, including the punctuation between them. `PhraseReport`
+A repeat longer than `maximum_length` appears as overlapping phrases of that length. Each span runs from
+the first word's start to the last word's end, including the punctuation between them. `RepeatedPhraseReport`
 lists `keys` and `labels` (as above), `count` and every span, ordered by count, then length, then first
 occurrence.
 
@@ -132,11 +135,11 @@ occurrence.
 that definition an article plus a noun is a repeated phrase, and on the Moby excerpt such pairs fill
 the list: of 1,977 repeated phrases (hard-wrapped paragraphs), 19 of the top 20 are one content word
 plus function words.
-`min_content_words: 2` is a deliberate refinement, so a reported phrase repeats a combination of
-words, not one word that the echoes report already covers. `with_min_content_words(1)` restores the
-issue's definition.
+`minimum_content_words: 2` is a deliberate refinement, so a reported phrase repeats a combination of
+words, not one word that the echoes report already covers. `with_minimum_content_words(1)` restores
+the issue's definition.
 
-| # | `min_content_words: 1` (#245 as written), 1,977 phrases | | `min_content_words: 2` (default), 284 phrases | |
+| # | `minimum_content_words: 1` (#245 as written), 1,977 phrases | | `minimum_content_words: 2` (default), 284 phrases | |
 |---:|---|---:|---|---:|
 | 1 | the whale | 45 | new bedford | 14 |
 | 2 | the sea | 29 | sperm whale | 9 |

@@ -1,6 +1,6 @@
 use nlprule::Tokenizer;
 use writemorebetter_style::{
-    analyze_document, dialogue_spans, is_word, paragraph_spans, DocumentOptions, Span,
+    analyze_document, dialogue_spans, is_word, paragraph_spans, DocumentOptions, Mode, Span,
 };
 
 fn tokenizer() -> Tokenizer {
@@ -362,4 +362,45 @@ fn hard_wrapped_paragraphs_preserve_offsets() {
     );
     assert_span(text, &document.dialogue[0], "“First wrapped\r\nline.”");
     assert!(dialogue_spans(text).is_empty());
+}
+
+#[test]
+fn speech_flags_and_modes_are_shared_by_every_report() {
+    let tokenizer = tokenizer();
+    let text = "He called it “grub” and ate.\n“Yes” was the answer.\nShe said, “Go—now…”\u{2028}“Wait,” she said. Then she left.";
+    let document = analyze_document(&tokenizer, text, &DocumentOptions::new());
+    let quotes: Vec<_> = document
+        .dialogue
+        .iter()
+        .map(|span| &text[span.byte.clone()])
+        .collect();
+    assert_eq!(quotes, ["“grub”", "“Yes”", "“Go—now…”", "“Wait,”"]);
+    assert_eq!(document.speech, [false, false, true, true]);
+    assert!(document.token_details);
+    assert!(!document.hard_wrapped);
+    let at = |needle: &str| document.mode_at(text.find(needle).unwrap());
+    assert_eq!(at("grub"), Mode::Narration);
+    assert_eq!(at("Yes"), Mode::Narration);
+    assert_eq!(at("now"), Mode::Dialogue);
+    assert_eq!(at("Then"), Mode::Narration);
+    assert_eq!(at("Wait"), Mode::Dialogue);
+    let modes: Vec<_> = document
+        .sentences()
+        .map(|sentence| document.sentence_mode(sentence))
+        .collect();
+    assert_eq!(modes.first(), Some(&Mode::Narration));
+    assert_eq!(
+        document.words().count(),
+        document.sentences().map(|s| s.word_count()).sum::<usize>()
+    );
+    let compact = analyze_document(
+        &tokenizer,
+        text,
+        &DocumentOptions::new()
+            .with_token_details(false)
+            .with_hard_wrapped(true),
+    );
+    assert!(!compact.token_details);
+    assert!(compact.hard_wrapped);
+    assert_eq!(compact.speech, document.speech);
 }

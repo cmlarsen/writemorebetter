@@ -2,19 +2,23 @@ use std::sync::OnceLock;
 
 use nlprule::Tokenizer;
 use writemorebetter_style::reports::cliches::{
-    bundled_phrase_entries, cliches, suppressed_phrases, vendored_phrase_entries, ClicheReport,
-    PhraseContext, PhraseEntry, PhraseKind, PhraseList,
+    self, bundled_entries, suppressed_phrases, vendored_entries, ClicheEntry, ClicheKind,
+    ClicheList, ClicheOptions, ClicheReport,
 };
-use writemorebetter_style::{analyze_document, DocumentOptions, Span};
+use writemorebetter_style::{analyze_document, Document, DocumentOptions, Mode, Span};
 
 fn tokenizer() -> &'static Tokenizer {
     static TOKENIZER: OnceLock<Tokenizer> = OnceLock::new();
     TOKENIZER.get_or_init(|| Tokenizer::new("../storage/en_tokenizer.bin").unwrap())
 }
 
-fn bundled() -> &'static PhraseList {
-    static LIST: OnceLock<PhraseList> = OnceLock::new();
-    LIST.get_or_init(|| PhraseList::bundled(tokenizer()))
+fn bundled() -> &'static ClicheList {
+    static LIST: OnceLock<ClicheList> = OnceLock::new();
+    LIST.get_or_init(|| ClicheList::bundled(tokenizer()))
+}
+
+fn cliches(document: &Document, list: &ClicheList) -> ClicheReport {
+    cliches::report(document, list, &ClicheOptions::new()).unwrap()
 }
 
 fn report(text: &str, options: &DocumentOptions) -> ClicheReport {
@@ -43,7 +47,7 @@ fn assert_span(text: &str, span: &Span, expected: &str) {
     );
 }
 
-fn found(text: &str, options: &DocumentOptions) -> Vec<(String, String, PhraseContext)> {
+fn found(text: &str, options: &DocumentOptions) -> Vec<(String, String, Mode)> {
     report(text, options)
         .matches
         .into_iter()
@@ -56,7 +60,7 @@ fn found(text: &str, options: &DocumentOptions) -> Vec<(String, String, PhraseCo
             (
                 found.phrase,
                 text.get(found.span.byte).unwrap().to_owned(),
-                found.context,
+                found.mode,
             )
         })
         .collect()
@@ -206,33 +210,17 @@ fn typography() {
         (
             "don't count your chickens",
             "Don’t count your chickens",
-            PhraseContext::Dialogue,
+            Mode::Dialogue,
         ),
-        (
-            "under the weather",
-            "under the weather",
-            PhraseContext::Narration,
-        ),
+        ("under the weather", "under the weather", Mode::Narration),
         (
             "better safe than sorry",
             "better safe than sorry",
-            PhraseContext::Dialogue,
+            Mode::Narration,
         ),
-        (
-            "tip of the iceberg",
-            "tip of the iceberg",
-            PhraseContext::Narration,
-        ),
-        (
-            "ATM teller machine",
-            "ATM teller machines",
-            PhraseContext::Dialogue,
-        ),
-        (
-            "ABS braking system",
-            "ABS braking systems",
-            PhraseContext::Dialogue,
-        ),
+        ("tip of the iceberg", "tip of the iceberg", Mode::Narration),
+        ("ATM teller machine", "ATM teller machines", Mode::Dialogue),
+        ("ABS braking system", "ABS braking systems", Mode::Dialogue),
     ];
     assert_eq!(
         matches,
@@ -247,16 +235,20 @@ fn typography() {
 fn narration_and_dialogue_are_counted_separately() {
     let text = "He kicked the bucket. “Better safe than sorry,” she said. The GPS system failed.";
     let result = report(text, &DocumentOptions::new());
-    assert_eq!(result.narration.cliches, 1);
-    assert_eq!(result.narration.redundancies, 1);
-    assert_eq!(result.dialogue.cliches, 1);
-    assert_eq!(result.dialogue.redundancies, 0);
+    let groups = &result.groups;
+    assert_eq!(groups.narration.cliches, 1);
+    assert_eq!(groups.narration.redundancies, 1);
+    assert_eq!(groups.dialogue.cliches, 1);
+    assert_eq!(groups.dialogue.redundancies, 0);
+    assert_eq!(groups.all.cliches, 2);
+    assert_eq!(groups.all.redundancies, 1);
     let document = analyze_document(tokenizer(), text, &DocumentOptions::new());
     assert_eq!(
-        result.narration.words + result.dialogue.words,
+        groups.narration.words + groups.dialogue.words,
         document.word_count
     );
-    assert_eq!(result.dialogue.words, 4);
+    assert_eq!(groups.all.words, document.word_count);
+    assert_eq!(groups.dialogue.words, 4);
 }
 
 #[test]
@@ -288,8 +280,8 @@ fn longer_matches_absorb_contained_ones() {
 fn entries_already_covered_by_grammar_rules_are_dropped() {
     let suppressed = suppressed_phrases();
     assert!(suppressed.contains(&"ATM machine"));
-    let vendored = vendored_phrase_entries();
-    let bundled = bundled_phrase_entries();
+    let vendored = vendored_entries();
+    let bundled = bundled_entries();
     assert!(vendored.iter().any(|entry| entry.phrase == "ATM machine"));
     assert!(!bundled
         .iter()
@@ -300,17 +292,17 @@ fn entries_already_covered_by_grammar_rules_are_dropped() {
 
 #[test]
 fn bundled_lists_are_complete() {
-    let entries = bundled_phrase_entries();
-    let count = |source: &str, kind: PhraseKind| {
+    let entries = bundled_entries();
+    let count = |source: &str, kind: ClicheKind| {
         entries
             .iter()
             .filter(|entry| entry.source == source && entry.kind == kind)
             .count()
     };
-    assert_eq!(count("no-cliches", PhraseKind::Cliche), 697);
-    assert_eq!(count("proselint", PhraseKind::Cliche), 1);
-    assert!(count("retext-redundant-acronyms", PhraseKind::Redundancy) > 100);
-    assert_eq!(vendored_phrase_entries().len(), 889);
+    assert_eq!(count("no-cliches", ClicheKind::Cliche), 697);
+    assert_eq!(count("proselint", ClicheKind::Cliche), 1);
+    assert!(count("retext-redundant-acronyms", ClicheKind::Redundancy) > 100);
+    assert_eq!(vendored_entries().len(), 889);
     assert_eq!(entries.len(), 882);
     assert_eq!(bundled().len(), entries.len());
 }
@@ -318,7 +310,7 @@ fn bundled_lists_are_complete() {
 #[test]
 fn guard_and_slot_lists_name_vendored_entries() {
     let normalize = |text: &str| text.replace(['’', '‘'], "'").to_lowercase();
-    let vendored: Vec<_> = vendored_phrase_entries()
+    let vendored: Vec<_> = vendored_entries()
         .iter()
         .map(|entry| normalize(&entry.phrase))
         .collect();
@@ -340,10 +332,10 @@ fn guard_and_slot_lists_name_vendored_entries() {
 
 #[test]
 fn callers_can_supply_their_own_list() {
-    let list = PhraseList::new(
+    let list = ClicheList::new(
         tokenizer(),
-        vec![PhraseEntry::new(
-            PhraseKind::Redundancy,
+        vec![ClicheEntry::new(
+            ClicheKind::Redundancy,
             "past history",
             "custom",
         )],
@@ -412,7 +404,7 @@ fn open_slot_entries_accept_the_or_nothing() {
         vec![(
             "go him one better".to_owned(),
             "go Mara Quinn one better".to_owned(),
-            PhraseContext::Narration
+            Mode::Narration
         )]
     );
 }
@@ -522,10 +514,10 @@ fn literal_body_part_uses_are_guarded() {
 
 #[test]
 fn caller_entries_naming_its_keep_it() {
-    let list = PhraseList::new(
+    let list = ClicheList::new(
         tokenizer(),
-        vec![PhraseEntry::new(
-            PhraseKind::Cliche,
+        vec![ClicheEntry::new(
+            ClicheKind::Cliche,
             "rear its ugly head",
             "custom",
         )],
@@ -566,7 +558,7 @@ fn lookback_takes_only_articles_and_possessives() {
     );
 }
 
-type Expected = (&'static str, &'static str, PhraseContext);
+type Expected = (&'static str, &'static str, Mode);
 
 #[test]
 fn review_adversarial_cases() {
@@ -578,77 +570,41 @@ fn review_adversarial_cases() {
             "He kicks the bucket. They are kicking the bucket. He has kicked the bucket.",
             &plain,
             &[
-                (
-                    "kick the bucket",
-                    "kicks the bucket",
-                    PhraseContext::Narration,
-                ),
-                (
-                    "kick the bucket",
-                    "kicking the bucket",
-                    PhraseContext::Narration,
-                ),
-                (
-                    "kick the bucket",
-                    "kicked the bucket",
-                    PhraseContext::Narration,
-                ),
+                ("kick the bucket", "kicks the bucket", Mode::Narration),
+                ("kick the bucket", "kicking the bucket", Mode::Narration),
+                ("kick the bucket", "kicked the bucket", Mode::Narration),
             ],
         ),
         (
             "KICKED THE BUCKET. Kicked The Bucket.",
             &plain,
             &[
-                (
-                    "kick the bucket",
-                    "KICKED THE BUCKET",
-                    PhraseContext::Narration,
-                ),
-                (
-                    "kick the bucket",
-                    "Kicked The Bucket",
-                    PhraseContext::Narration,
-                ),
+                ("kick the bucket", "KICKED THE BUCKET", Mode::Narration),
+                ("kick the bucket", "Kicked The Bucket", Mode::Narration),
             ],
         ),
         ("He kicked the\nbucket.", &plain, &[]),
         (
             "He kicked the\nbucket.",
             &hard,
-            &[(
-                "kick the bucket",
-                "kicked the\nbucket",
-                PhraseContext::Narration,
-            )],
+            &[("kick the bucket", "kicked the\nbucket", Mode::Narration)],
         ),
         (
             "He kicked the\r\nbucket.",
             &hard,
-            &[(
-                "kick the bucket",
-                "kicked the\r\nbucket",
-                PhraseContext::Narration,
-            )],
+            &[("kick the bucket", "kicked the\r\nbucket", Mode::Narration)],
         ),
         ("He kicked the\u{2029}bucket.", &plain, &[]),
         ("He kicked the\n\nbucket.", &hard, &[]),
         (
             "He kicked the\u{a0}bucket.",
             &plain,
-            &[(
-                "kick the bucket",
-                "kicked the\u{a0}bucket",
-                PhraseContext::Narration,
-            )],
+            &[("kick the bucket", "kicked the\u{a0}bucket", Mode::Narration)],
         ),
         (
             "He kicked\tthe  bucket.",
             &plain,
-            &[(
-                "kick the bucket",
-                "kicked\tthe  bucket",
-                PhraseContext::Narration,
-            )],
+            &[("kick the bucket", "kicked\tthe  bucket", Mode::Narration)],
         ),
         (
             "He kicked the—bucket. He was under the — weather.",
@@ -658,11 +614,7 @@ fn review_adversarial_cases() {
         (
             "He kicked the - bucket.",
             &plain,
-            &[(
-                "kick the bucket",
-                "kicked the - bucket",
-                PhraseContext::Narration,
-            )],
+            &[("kick the bucket", "kicked the - bucket", Mode::Narration)],
         ),
         (
             "All in a day’s work. All in a day's work. All in a days work.",
@@ -671,12 +623,12 @@ fn review_adversarial_cases() {
                 (
                     "all in a day's work",
                     "All in a day’s work",
-                    PhraseContext::Narration,
+                    Mode::Narration,
                 ),
                 (
                     "all in a day's work",
                     "All in a day's work",
-                    PhraseContext::Narration,
+                    Mode::Narration,
                 ),
             ],
         ),
@@ -684,27 +636,19 @@ fn review_adversarial_cases() {
             "The Gps system. The GPS System. THE GPS SYSTEM FAILED. The GPSs system.",
             &plain,
             &[
-                ("GPS system", "GPS System", PhraseContext::Narration),
-                ("GPS system", "GPS SYSTEM", PhraseContext::Narration),
+                ("GPS system", "GPS System", Mode::Narration),
+                ("GPS system", "GPS SYSTEM", Mode::Narration),
             ],
         ),
         (
             "“The PIN numbers,” she said. “ATM teller machines!”",
             &plain,
-            &[(
-                "ATM teller machine",
-                "ATM teller machines",
-                PhraseContext::Dialogue,
-            )],
+            &[("ATM teller machine", "ATM teller machines", Mode::Dialogue)],
         ),
         (
             "He had, as she put it, “kicked the bucket.” Then he “kicked” the bucket.",
             &plain,
-            &[(
-                "kick the bucket",
-                "kicked the bucket",
-                PhraseContext::Dialogue,
-            )],
+            &[("kick the bucket", "kicked the bucket", Mode::Dialogue)],
         ),
         (
             "“Better safe\u{2028}than sorry,” she said.",
@@ -712,18 +656,14 @@ fn review_adversarial_cases() {
             &[(
                 "better safe than sorry",
                 "Better safe\u{2028}than sorry",
-                PhraseContext::Dialogue,
+                Mode::Dialogue,
             )],
         ),
         ("They kicked the Bucket.", &names, &[]),
         (
             "It was a kick-the-bucket moment.",
             &plain,
-            &[(
-                "kick the bucket",
-                "kick-the-bucket",
-                PhraseContext::Narration,
-            )],
+            &[("kick the bucket", "kick-the-bucket", Mode::Narration)],
         ),
         (
             "It was the calm before the storm before the storm.",
@@ -731,7 +671,7 @@ fn review_adversarial_cases() {
             &[(
                 "calm before the storm",
                 "calm before the storm",
-                PhraseContext::Narration,
+                Mode::Narration,
             )],
         ),
         (
@@ -741,9 +681,9 @@ fn review_adversarial_cases() {
                 (
                     "every dog has its day",
                     "Every dog has its days",
-                    PhraseContext::Narration,
+                    Mode::Narration,
                 ),
-                ("busy as a bee", "busy as a bee", PhraseContext::Narration),
+                ("busy as a bee", "busy as a bee", Mode::Narration),
             ],
         ),
         ("He kicked “the bucket”.", &plain, &[]),

@@ -1,9 +1,19 @@
 use std::sync::OnceLock;
 
 use nlprule::Tokenizer;
-use writemorebetter_style::reports::echoes::{echoes, EchoOptions, EchoReport};
-use writemorebetter_style::reports::phrases::{repeated_phrases, PhraseOptions, PhraseReport};
-use writemorebetter_style::{analyze_document, Document, DocumentOptions, Span};
+use writemorebetter_style::reports::echoes::{self, EchoOptions, EchoReport};
+use writemorebetter_style::reports::repeated_phrases::{
+    self, RepeatedPhraseOptions, RepeatedPhraseReport,
+};
+use writemorebetter_style::{analyze_document, Document, DocumentOptions, Span, StyleError};
+
+fn echoes(document: &Document, options: &EchoOptions) -> EchoReport {
+    echoes::report(document, options).unwrap()
+}
+
+fn repeated_phrases(document: &Document, options: &RepeatedPhraseOptions) -> RepeatedPhraseReport {
+    repeated_phrases::report(document, options).unwrap()
+}
 
 fn tokenizer() -> &'static Tokenizer {
     static TOKENIZER: OnceLock<Tokenizer> = OnceLock::new();
@@ -58,7 +68,7 @@ fn triple(lemma: &str, earlier: &str, later: &str) -> (String, String, String) {
     (lemma.into(), earlier.into(), later.into())
 }
 
-fn phrase_texts(text: &str, report: &PhraseReport) -> Vec<(String, Vec<String>)> {
+fn phrase_texts(text: &str, report: &RepeatedPhraseReport) -> Vec<(String, Vec<String>)> {
     report
         .phrases
         .iter()
@@ -72,12 +82,16 @@ fn phrase_texts(text: &str, report: &PhraseReport) -> Vec<(String, Vec<String>)>
         .collect()
 }
 
-fn phrases_with(text: &str, names: &[&str], options: &PhraseOptions) -> Vec<(String, Vec<String>)> {
+fn phrases_with(
+    text: &str,
+    names: &[&str],
+    options: &RepeatedPhraseOptions,
+) -> Vec<(String, Vec<String>)> {
     phrase_texts(text, &repeated_phrases(&document(text, names), options))
 }
 
 fn phrases_of(text: &str, names: &[&str]) -> Vec<(String, Vec<String>)> {
-    phrases_with(text, names, &PhraseOptions::new())
+    phrases_with(text, names, &RepeatedPhraseOptions::new())
 }
 
 #[test]
@@ -89,8 +103,8 @@ fn echoes_match_by_lemma_and_report_both_spans() {
         vec![triple("walk", "walked", "walking")]
     );
     assert_eq!(report.echoes[0].distance, 7);
-    assert_eq!(report.word_count, 10);
-    assert_eq!(report.density_per_1000, 100.0);
+    assert_eq!(report.words, 10);
+    assert_eq!(report.per_thousand_words, 100.0);
 }
 
 #[test]
@@ -140,7 +154,7 @@ fn function_words_and_auxiliaries_do_not_echo() {
                 The one he had was the one she had. They would do it, and they did.";
     assert!(echo_text(text, &[], &EchoOptions::new()).is_empty());
     assert!(
-        repeated_phrases(&document(text, &[]), &PhraseOptions::new())
+        repeated_phrases(&document(text, &[]), &RepeatedPhraseOptions::new())
             .phrases
             .is_empty()
     );
@@ -190,7 +204,7 @@ fn skipped_names_neither_echo_nor_count() {
     let text = "Mara saw Mara’s reflection.";
     let skipped = echoes(&document(text, &["Mara"]), &EchoOptions::new());
     assert!(skipped.echoes.is_empty());
-    assert_eq!(skipped.word_count, 2);
+    assert_eq!(skipped.words, 2);
     assert_eq!(
         echo_text(text, &[], &EchoOptions::new()),
         vec![triple("mara", "Mara", "Mara")]
@@ -215,11 +229,13 @@ fn echo_spans_survive_fiction_typography() {
 fn empty_document_has_zero_density() {
     let report = echoes(&document("", &[]), &EchoOptions::new());
     assert!(report.echoes.is_empty());
-    assert_eq!(report.word_count, 0);
-    assert_eq!(report.density_per_1000, 0.0);
-    assert!(repeated_phrases(&document("…", &[]), &PhraseOptions::new())
-        .phrases
-        .is_empty());
+    assert_eq!(report.words, 0);
+    assert_eq!(report.per_thousand_words, 0.0);
+    assert!(
+        repeated_phrases(&document("…", &[]), &RepeatedPhraseOptions::new())
+            .phrases
+            .is_empty()
+    );
 }
 
 #[test]
@@ -280,7 +296,11 @@ fn phrases_are_capped_at_five_tokens_and_stay_inside_sentences() {
     );
     let text = "The ship sank. Fast. The ship. Sank fast.";
     assert_eq!(
-        phrases_with(text, &[], &PhraseOptions::new().with_min_content_words(1)),
+        phrases_with(
+            text,
+            &[],
+            &RepeatedPhraseOptions::new().with_minimum_content_words(1)
+        ),
         vec![(
             "the ship".into(),
             vec!["The ship".into(), "The ship".into()]
@@ -293,7 +313,11 @@ fn stopword_only_ngrams_are_dropped() {
     assert!(phrases_of("It was in the morning. It was in the night.", &[]).is_empty());
     let text = "It was in the end of the day. It was in the end of the night.";
     assert!(phrases_of(text, &[]).is_empty());
-    let phrases = phrases_with(text, &[], &PhraseOptions::new().with_min_content_words(1));
+    let phrases = phrases_with(
+        text,
+        &[],
+        &RepeatedPhraseOptions::new().with_minimum_content_words(1),
+    );
     assert_eq!(
         phrases,
         vec![
@@ -378,13 +402,13 @@ fn phrases_need_two_content_words_by_default() {
             vec!["An open door".into(), "an open door".into()]
         )]
     );
-    let issue_definition = PhraseOptions::new().with_min_content_words(1);
+    let issue_definition = RepeatedPhraseOptions::new().with_minimum_content_words(1);
     let phrases = phrases_with(text, &[], &issue_definition);
     assert!(phrases.contains(&(
         "the door".into(),
         vec!["The door".into(), "the door".into()]
     )));
-    let lengths = PhraseOptions::new().with_length(2, 2);
+    let lengths = RepeatedPhraseOptions::new().with_length(2, 2);
     let text = "The old grey house stood. The old grey house fell.";
     assert_eq!(
         phrases_with(text, &[], &lengths),
@@ -399,7 +423,7 @@ fn phrases_need_two_content_words_by_default() {
             ),
         ]
     );
-    assert!(phrases_with(text, &[], &PhraseOptions::new().with_length(3, 2)).is_empty());
+    assert!(phrases_with(text, &[], &RepeatedPhraseOptions::new().with_length(3, 2)).is_empty());
 }
 
 #[test]
@@ -519,10 +543,10 @@ fn oversized_phrase_lengths_are_clamped_to_the_longest_sentence() {
     let text = "The old grey house stood. The old grey house stood.";
     let default = phrases_of(text, &[]);
     for max_length in [6, 1_000_000, usize::MAX] {
-        let options = PhraseOptions::new().with_length(2, max_length);
+        let options = RepeatedPhraseOptions::new().with_length(2, max_length);
         assert_eq!(phrases_with(text, &[], &options), default);
     }
-    let options = PhraseOptions::new().with_length(usize::MAX, usize::MAX);
+    let options = RepeatedPhraseOptions::new().with_length(usize::MAX, usize::MAX);
     assert!(phrases_with(text, &[], &options).is_empty());
 }
 
@@ -559,8 +583,32 @@ fn keys_name_the_family_and_labels_name_the_matched_words() {
             );
         }
     }
-    let phrases = repeated_phrases(&document, &PhraseOptions::new().with_min_content_words(1));
+    let phrases = repeated_phrases(
+        &document,
+        &RepeatedPhraseOptions::new().with_minimum_content_words(1),
+    );
     for phrase in &phrases.phrases {
         assert_eq!(phrase.keys.len(), phrase.labels.len());
     }
+}
+
+#[test]
+fn compact_documents_are_rejected_instead_of_degrading() {
+    let compact = analyze_document(
+        tokenizer(),
+        "The lamp lit the lamp.",
+        &DocumentOptions::new().with_token_details(false),
+    );
+    assert_eq!(
+        echoes::report(&compact, &EchoOptions::new()),
+        Err(StyleError::NeedsTokenDetails {
+            report: "echoes".into()
+        })
+    );
+    assert_eq!(
+        repeated_phrases::report(&compact, &RepeatedPhraseOptions::new()),
+        Err(StyleError::NeedsTokenDetails {
+            report: "repeatedPhrases".into()
+        })
+    );
 }

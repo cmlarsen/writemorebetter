@@ -1,30 +1,56 @@
 # Sentence reports
 
-Part of #244. Rust entry points are `style::reports::sentence_length::report` and
-`style::reports::sentence_starts::report`: `&Document`, options and an optional baseline. Public
-records are non-exhaustive; construct options with `new()`/`Default`. Native spans retain absolute,
-half-open UTF-8 byte, Unicode scalar and UTF-16 endpoints. Both return all/narration/dialogue groups.
-`reports::sentence_reports` accepts a `SentenceReportsRequest` and evaluates selected reports over
-one existing document. Bindings expose the corresponding **single-pass** `styleReports` call.
+Part of #244. Rust entry points are `reports::sentence_length::report` and
+`reports::sentence_starts::report`: `&Document`, options and an optional baseline, returning
+`Result<_, StyleError>`. Types are report-prefixed (`SentenceLengthOptions`, `SentenceLengthBaseline`,
+`SentenceLengthReport`, `SentenceStartsOptions`, `SentenceStartCategory`, …). Public records are
+non-exhaustive; construct options with `new()` and the `with_*` builders. Native spans retain
+absolute, half-open UTF-8 byte, Unicode scalar and UTF-16 endpoints. Both reports return
+`groups: Split<…>` with `all`, `narration` and `dialogue`. The combined `reports::run` call (and the
+bindings' `styleReports`) evaluates any selection of reports over one document; see
+[STYLE-REPORTS.md](STYLE-REPORTS.md#one-call-for-every-report).
 
-A sentence belongs to dialogue when its first `is_word` token starts inside a document dialogue
-span. Mixed narration/speech sentences belong wholly to that opening mode. Runs stop at paragraph
-and mode boundaries; length's `all` group may cross mode boundaries within a paragraph. Counts and
-spans remain available at every sample size. Each group's own `minimumSentences` (default 200)
-suppresses shares, means, percentiles and differences below that sample. Empty groups never yield NaN.
+**One sentence table.** Neither report repeats sentence spans. Sentences are numbered in document
+order (paragraph by paragraph), and `reports::sentence_table(&document)` returns one
+`SentenceRow { span, mode, words }` per sentence; the combined result carries it as `sentences`
+whenever a sentence report is selected. Long sentences are indexes into that table, runs are
+`SentenceRun { span, sentences }` (the covering span and the half-open index range), and each
+sentence start names its `sentence` index. `Document::sentences()` iterates in the same order.
+
+A sentence's mode is the mode of its first `is_word` token (`Document::sentence_mode`): dialogue when
+that token starts inside a **speech** span, the document-level rule every report shares (see
+[STYLE-DOCUMENT.md](STYLE-DOCUMENT.md#narration-and-dialogue)). Scare quotes, titles and quoted
+subjects such as `“Yes” was the answer.` are narration. Mixed narration/speech sentences belong
+wholly to that opening mode. Runs stop at paragraph and mode boundaries; length's `all` group may
+cross mode boundaries within a paragraph. Counts and spans remain available at every sample size.
+Each group's own `minimumSentences` (default 200) suppresses shares, means, percentiles and
+differences below that sample. Empty groups never yield NaN.
+
+**Both reports count the same sentences.** Every group's `sentences` is the number of sentences in
+that mode, identical in the two reports and equal to the combined result's `stats.sentences`.
+Length adds `zeroWordSentences`; starts adds `excludedSentences`, the sentences whose first token is
+a skipped name. Start shares and the starts sample threshold use `sentences - excludedSentences`.
 
 ## Length and calibration
 
-Words are exactly `is_word && !is_skipped` document tokens. Unicode letters/numbers count; clitics
-count separately, while punctuation and emoji do not. Zero-word sentences remain in the histogram.
-Long sentences have **at least** `longSentenceWords` words (default 40).
+Words are exactly `is_word && !is_skipped` document tokens (`Sentence::word_count`). Unicode
+letters/numbers count; clitics count separately, while punctuation and emoji do not. Zero-word
+sentences remain in the histogram and are counted in `zeroWordSentences`. Long sentences have **at
+least** `longSentenceWords` words (default 40). Each group returns `sentences`, a `histogram` of
+`{words, sentences}` buckets in ascending order, `mean` and `meanDifference`, `percentiles` as
+`{percentile, value, difference}` rows for 5/25/50/75/95, `longSentences` (sentence indexes) and
+`monotonyRuns`.
 
-A monotony run is an inclusion-maximal contiguous interval of at least four sentences whose
-**maximum minus minimum length is at most two words**. This is the owner's pairwise reading of
+A monotony run is an inclusion-maximal contiguous interval of at least four sentences
+(`MONOTONY_MIN_SENTENCES`) whose **maximum minus minimum length is at most two words**
+(`MONOTONY_MAX_SPREAD`). This is the owner's pairwise reading of
 "within ±2 words of each other": 8/10/8/10 qualifies; 8/12/8/12 does not. Drift is not permitted.
 Overlapping maximal intervals can be returned; nested suffixes are not. A sliding multiset keeps the
 scan linear in sentence count apart from logarithmic updates. Percentiles 5/25/50/75/95 interpolate
-at `(n−1)*p/100`. Differences subtract the matching caller baseline statistic.
+at `(n−1)*p/100`. Differences subtract the matching baseline statistic. Baseline `percentiles` keys
+must be 5, 25, 50, 75 or 95 and values finite and non-negative; anything else is
+`StyleError::InvalidBaseline` instead of being ignored. `SentenceLengthBaseline::bundled()` returns
+the bundled file's `baseline` member.
 
 The bundled length baseline is owner-calibrated on 2026-10-15 with this branch's corrected line-mode
 command: `cmlarsen/fiction-baseline` commit `b464cac1193a3555957fa2784a1ddfd553de505b`,
@@ -39,7 +65,10 @@ convention still differ, so the bundled report-calibrated baseline is the approp
 The export has one paragraph per line, with blank lines at scene breaks. `tier3 --sentence-length`
 uses **default line mode**, not hard-wrapped mode. Unpunctuated headings, interrupted dialogue and
 following paragraphs remain separate. `wmb-document --reports TOKENIZER [--hard-wrapped]` defaults
-to line mode; select hard-wrapped only for wrapped public imports such as Moby. The synthetic test
+to line mode; select hard-wrapped only for wrapped public imports such as Moby. The probe runs the
+product defaults (default options, bundled baselines) and prints the combined result under
+`reports`; `wmb-document --defaults` prints the default options and run thresholds that the Python
+reference reads instead of hardcoding them. The synthetic test
 includes consecutive unpunctuated lines and fails under the old hard-wrapped convention.
 
 Calibration pools units within each author, then averages each author's sentence mean and each
@@ -57,8 +86,9 @@ not call or duplicate the engine's TOO_LONG_SENTENCE matcher.
 
 Fine classification skips whitespace and stacked leading quotation tokens composed of characters
 from `" ' “ ” ‘ ’ « » ‹ › „ ‟ ‚ ‛` and backtick. Other leading punctuation is retained. A skipped
-name at that original first token excludes the sentence from fine counts/denominators and breaks
-runs; the next token is not promoted. Length still measures that sentence's remaining words.
+name at that original first token excludes the sentence from fine counts/denominators (it is
+counted in `excludedSentences`) and breaks runs; the next token is not promoted. Length still
+measures that sentence's remaining words.
 
 The adjudicated targets are grammatical opening functions, rather than the classifier's predictions:
 
@@ -114,11 +144,15 @@ nominal subjects followed by a finite verb (including `Running was hard`) use su
 other VBG openings use gerund. Gold is not generated from predictions, but these rules were tuned
 against the development examples; neither floors nor reviewed fixtures are held-out accuracy.
 
-Fine categories assign one count per eligible sentence, including other. `ambiguousStarts` counts
-first tokens with multiple distinct normalized Penn tags, even if they map to one universal tag.
-Ambiguous readings are retained. Each start returns its category, span and universal candidate set.
-The ambiguity flag describes the fine quote-skipped token, even when universal allocation skips one
-additional punctuation token and uses the following word.
+Fine categories assign one integer count per eligible sentence, including other. `categories` is
+an array of `{category, count, percent, difference}` in the fixed category order. `ambiguousStarts`
+counts first tokens with multiple distinct normalized Penn tags, even if they map to one universal
+tag. Ambiguous readings are retained. The report's `starts` list has one entry per eligible
+sentence: its `sentence` index, `opener` (the span of the classified first token after leading
+quotes, not the whole sentence), lowercase `word`, `category`, `ambiguous` and
+`universalCandidates`. The ambiguity flag describes the fine quote-skipped token, even when universal
+allocation skips one additional punctuation token and uses the following word. Per-category span
+lists are gone; filter `starts` by category instead.
 
 ## Universal baseline and repeated words
 
@@ -128,11 +162,14 @@ This includes ellipses, dashes, brackets and asterisks. A punctuation-only token
 it cannot borrow a word from another sentence. Fine categories and same-word runs keep their own
 quote-only opening convention. EWT keeps its frozen quote-only gold/prediction convention; the Ngram comparison in tier 3 explicitly selects the punctuation-skipping convention. Rust/Python opening parity is tested.
 
-Distinct mapped candidate tags receive `1/N` count; duplicate readings mapping to one tag count once.
+Distinct mapped candidate tags receive `1/N` weight; duplicate readings mapping to one tag count once.
+`universal` is an array of `{tag, weight, percent, difference}` in the fixed universal-12 order.
 Unknowns get no allocation and are counted. Percentages divide by known starts; the sample threshold
 still uses all eligible sentences, leaving unknown-selection bias visible. The Rust/Python Penn map
 agreement check covers every mapped tag plus internal normalizations, ORD, `_apostrophe_contraction_`
-and unknowns. Baseline universal keys must be one of the 12 tags, with finite percentages in 0..=100.
+and unknowns. Baseline universal keys must be one of the 12 tags, and every baseline percentage must
+be finite and in 0..=100; violations are `StyleError::InvalidBaseline`.
+`SentenceStartsBaseline::bundled()` returns the bundled Ngram baseline.
 
 The bundled Ngram baseline is English Fiction 2020, edition years 1990–2019, volume-weighted and
 blended across narration/dialogue. Both subgroups compare to that same blended population. Fine
@@ -140,33 +177,38 @@ category differences need a caller fine baseline; universal VERB cannot supply a
 expectation. Differences are percentage points. Missing punctuation baseline values stay unavailable;
 published values are not renormalized.
 
-Same-word runs are at least three consecutive sentences with the same lowercase first-word token.
+Same-word runs are at least three (`SAME_WORD_MIN_SENTENCES`) consecutive sentences with the same
+lowercase first-word token.
 Punctuation/no-word starts and paragraph/mode changes break them. This returns complete run spans and
 statistics, with no builtin exception lists or corrections; it does not duplicate
 ENGLISH_WORD_REPEAT_BEGINNING_RULE.
 
 ## Bindings and one document pass
 
-Prefer `checker.styleReports(text, requestJson?, documentOptionsJson?)` in WASM, or Swift's
-`styleReports(text:requestJson:documentOptions:)`. Omitted request JSON selects both reports. An explicit
-request selects only its non-null report fields, e.g.:
+Use `checker.styleReports(text, requestJson?, documentOptionsJson?)` in WASM, or Swift's
+`styleReports(text:requestJson:documentOptions:)`. An explicit request selects only its non-null
+report members, e.g.:
 
 ```json
-{"sentenceLength":{"minimumSentences":200,"longSentenceWords":40},"sentenceStarts":{"minimumSentences":200}}
+{"sentenceLength":{"minimumSentences":200,"longSentenceWords":40},"sentenceStarts":{"minimumSentences":200},"baselines":"bundled"}
 ```
 
-Optional `sentenceLengthBaseline` and `sentenceStartsBaseline` members hold the corresponding bundled
-file's **baseline member**, without its source wrapper. The result has `sentenceLength` and/or
-`sentenceStarts`. One shared full document is built for all selected reports; no persistent text
-cache is needed. Output fields/categories are camelCase and every span is `{start,end}` in UTF-16
-code units into the original text. Unknown option/category/tag keys throw.
+`"baselines": "bundled"` selects the bundled files; an object
+`{"sentenceLength": {...}, "sentenceStarts": {...}}` holds caller baselines in the bundled file's
+`baseline` member format, without its source wrapper. Omitting the request runs every report with
+bundled baselines. One full document is built for all selected reports; reports never require a
+second pass. Output fields and categories are camelCase and every span is `{start,end}` in UTF-16
+code units into the original text. Unknown option, category and tag keys throw.
 
-Individual `sentenceLength`/`sentenceStarts` calls remain available, each building its own document;
-calling both separately repeats the expensive analysis. Combined output retains POS internally even
-with `includeTokenDetails: false`, emits no per-token detail payload, and honors names/paragraph mode.
-Native Rust callers must retain full token details for starts; a compact document cannot reconstruct
-discarded readings. `node wasm/sentence-reports-bench.mjs` measures the combined call on the exact
-596,376-byte public workload (Moby excerpt repeated four times, CRLF preserved).
+The per-report `sentenceLength`/`sentenceStarts` binding calls are removed: each rebuilt the
+document, and their results would reference a sentence table they did not return. The combined
+output keeps POS internally even with `includeTokenDetails: false`, emits no per-token detail
+payload, and honors names and paragraph mode. Native Rust callers must keep full token details for
+starts: a compact document makes `sentence_starts::report` return `StyleError::NeedsTokenDetails`,
+because it cannot reconstruct discarded readings. Length works on compact documents.
+`node wasm/sentence-reports-bench.mjs` measures the combined call with both sentence reports and
+bundled baselines on the exact 596,376-byte public workload (Moby excerpt repeated four times, CRLF
+preserved); `--all` selects every report.
 
 ## Adjudicated benchmark status
 
@@ -238,3 +280,9 @@ median is **5,679.6 ms per 596,376 bytes** (three calls after one warmup), with 
 result and 304,824,320-byte process peak RSS. Both reports share one document pass. Apple M5 Pro,
 Rust 1.97.1 release, original hard-wrapped CRLF Moby import; shared-machine observational timing.
 Raw samples and measurement boundaries are committed in `bench/style/sentence-timing.json`.
+
+The sentence table (2026-10-16) shrank the combined WASM output on that workload from 2,820,893 to
+1,216,687 bytes and process peak RSS from 273 to 187 MB, at the same median time (12.57 s before,
+12.53 s after, measured back to back at load average 29–31 on the same machine; the absolute times
+are load-bound and not comparable with the numbers above). All six reports together return
+5,806,036 bytes in 13.06 s on the same run.

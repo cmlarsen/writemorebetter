@@ -4,7 +4,11 @@ use std::sync::OnceLock;
 
 use serde::{Deserialize, Serialize};
 
+use super::Share;
+use crate::error::{percent_in_range, StyleError};
 use crate::{Document, Span, Token};
+
+pub(crate) const REPORT: &str = "dialogueTags";
 
 const SUBJECT_PRONOUNS: &[&str] = &["i", "you", "he", "she", "it", "we", "they", "one"];
 const DETERMINERS: &[&str] = &[
@@ -21,24 +25,25 @@ const OBJECT_PRONOUNS: &[&str] = &["me", "him", "her", "us", "them", "you", "it"
 const MAX_SUBJECT: usize = 5;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "camelCase")]
 #[non_exhaustive]
-pub enum TagPosition {
+pub enum DialogueTagPosition {
     Before,
     After,
     Split,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "camelCase")]
 #[non_exhaustive]
-pub enum VerbClass {
+pub enum DialogueTagVerbClass {
     Speech,
     NonSpeech,
     Unlisted,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct DialogueTag {
     pub span: Span,
@@ -46,74 +51,100 @@ pub struct DialogueTag {
     pub verb: Span,
     pub verb_text: String,
     pub lemma: String,
-    pub class: VerbClass,
-    pub position: TagPosition,
+    pub class: DialogueTagVerbClass,
+    pub position: DialogueTagPosition,
     pub adverb: Option<Span>,
-    pub dialogue: Vec<usize>,
+    pub quotes: Vec<Span>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 #[non_exhaustive]
-pub struct ActionBeat {
+pub struct DialogueTagActionBeat {
     pub span: Span,
-    pub dialogue: Vec<usize>,
+    pub quotes: Vec<Span>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 #[non_exhaustive]
-pub struct UntaggedRun {
+pub struct DialogueTagUntaggedRun {
     pub span: Span,
-    pub dialogue: Vec<usize>,
+    pub quotes: Vec<Span>,
     pub exchanges: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 #[non_exhaustive]
-pub struct VerbCount {
+pub struct DialogueTagVerbCount {
     pub lemma: String,
-    pub class: VerbClass,
+    pub class: DialogueTagVerbClass,
     pub count: usize,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields, rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct DialogueTagBaseline {
-    #[serde(alias = "saidAskedPercent")]
-    pub said_asked_percent: f64,
-    #[serde(alias = "adverbPercent")]
-    pub adverb_percent: f64,
-    #[serde(alias = "nonSpeechPercent")]
-    pub non_speech_percent: f64,
+    #[serde(alias = "said_asked_percent")]
+    pub said_asked_percent: Option<f64>,
+    #[serde(alias = "adverb_percent")]
+    pub adverb_percent: Option<f64>,
+    #[serde(alias = "non_speech_percent")]
+    pub non_speech_percent: Option<f64>,
 }
 
 impl DialogueTagBaseline {
-    pub fn new(said_asked_percent: f64, adverb_percent: f64, non_speech_percent: f64) -> Self {
-        Self {
-            said_asked_percent,
-            adverb_percent,
-            non_speech_percent,
+    pub fn new() -> Self {
+        Self::default()
+    }
+    pub fn with_said_asked_percent(mut self, percent: f64) -> Self {
+        self.said_asked_percent = Some(percent);
+        self
+    }
+    pub fn with_adverb_percent(mut self, percent: f64) -> Self {
+        self.adverb_percent = Some(percent);
+        self
+    }
+    pub fn with_non_speech_percent(mut self, percent: f64) -> Self {
+        self.non_speech_percent = Some(percent);
+        self
+    }
+
+    pub fn bundled() -> Option<Self> {
+        None
+    }
+
+    pub fn validate(&self) -> Result<(), StyleError> {
+        for (name, value) in [
+            ("saidAskedPercent", self.said_asked_percent),
+            ("adverbPercent", self.adverb_percent),
+            ("nonSpeechPercent", self.non_speech_percent),
+        ] {
+            if let Some(value) = value {
+                percent_in_range(REPORT, name, value)?;
+            }
         }
+        Ok(())
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(default, deny_unknown_fields)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields, rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct DialogueTagOptions {
-    #[serde(alias = "maxUntaggedExchanges")]
+    #[serde(alias = "max_untagged_exchanges")]
     pub max_untagged_exchanges: usize,
-    #[serde(alias = "minTags")]
-    pub min_tags: usize,
-    pub baseline: Option<DialogueTagBaseline>,
+    #[serde(alias = "minimum_tags")]
+    pub minimum_tags: usize,
 }
 
 impl Default for DialogueTagOptions {
     fn default() -> Self {
         Self {
             max_untagged_exchanges: 6,
-            min_tags: 50,
-            baseline: None,
+            minimum_tags: 50,
         }
     }
 }
@@ -126,35 +157,28 @@ impl DialogueTagOptions {
         self.max_untagged_exchanges = exchanges;
         self
     }
-    pub fn with_min_tags(mut self, tags: usize) -> Self {
-        self.min_tags = tags;
-        self
-    }
-    pub fn with_baseline(mut self, baseline: DialogueTagBaseline) -> Self {
-        self.baseline = Some(baseline);
+    pub fn with_minimum_tags(mut self, tags: usize) -> Self {
+        self.minimum_tags = tags;
         self
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct DialogueTagReport {
     pub tags: Vec<DialogueTag>,
-    pub beats: Vec<ActionBeat>,
-    pub untagged_runs: Option<Vec<UntaggedRun>>,
-    pub other_verbs: Vec<VerbCount>,
+    pub beats: Vec<DialogueTagActionBeat>,
+    pub untagged_runs: Vec<DialogueTagUntaggedRun>,
+    pub other_verbs: Vec<DialogueTagVerbCount>,
     pub dialogue_spans: usize,
     pub speech_spans: usize,
     pub tagged_spans: usize,
     pub exchanges: usize,
-    pub untagged_exchanges: Option<usize>,
-    pub said_asked: usize,
-    pub with_adverb: usize,
-    pub non_speech: usize,
-    pub said_asked_percent: Option<f64>,
-    pub adverb_percent: Option<f64>,
-    pub non_speech_percent: Option<f64>,
-    pub baseline: Option<DialogueTagBaseline>,
+    pub untagged_exchanges: usize,
+    pub said_asked: Share,
+    pub with_adverb: Share,
+    pub non_speech: Share,
 }
 
 struct Lists {
@@ -207,7 +231,7 @@ struct Piece {
 struct Parse {
     verb: usize,
     lemma: String,
-    class: VerbClass,
+    class: DialogueTagVerbClass,
     adverb: Option<usize>,
     extent: Range<usize>,
 }
@@ -300,10 +324,10 @@ fn takes_object(lemma: &str) -> bool {
     lists().object.contains(lemma)
 }
 
-fn lead_in(token: &Token) -> bool {
+pub(crate) fn lead_in(token: &Token) -> bool {
     is_verb(token) && {
         let (lemma, class, _) = verb_lemma(token, None);
-        class != VerbClass::Unlisted && !takes_object(&lemma)
+        class != DialogueTagVerbClass::Unlisted && !takes_object(&lemma)
     }
 }
 
@@ -319,7 +343,7 @@ fn ends_sentence(token: &Token) -> bool {
             .all(|ch| matches!(ch, '.' | '!' | '?' | '…'))
 }
 
-fn verb_lemma(token: &Token, next: Option<&Token>) -> (String, VerbClass, bool) {
+fn verb_lemma(token: &Token, next: Option<&Token>) -> (String, DialogueTagVerbClass, bool) {
     let lists = lists();
     let particle = next
         .filter(|next| next.is_word)
@@ -332,8 +356,8 @@ fn verb_lemma(token: &Token, next: Option<&Token>) -> (String, VerbClass, bool) 
         .map(|reading| reading.lemma.to_lowercase())
         .collect();
     for (set, class) in [
-        (&lists.speech, VerbClass::Speech),
-        (&lists.non_speech, VerbClass::NonSpeech),
+        (&lists.speech, DialogueTagVerbClass::Speech),
+        (&lists.non_speech, DialogueTagVerbClass::NonSpeech),
     ] {
         if let Some(particle) = &particle {
             if let Some(lemma) = lemmas
@@ -349,15 +373,15 @@ fn verb_lemma(token: &Token, next: Option<&Token>) -> (String, VerbClass, bool) 
         }
     }
     let lemma = lemmas.into_iter().next().unwrap_or_else(|| lower(token));
-    (lemma, VerbClass::Unlisted, false)
+    (lemma, DialogueTagVerbClass::Unlisted, false)
 }
 
 fn listed(token: &Token, next: Option<&Token>) -> bool {
-    is_verb(token) && verb_lemma(token, next).1 != VerbClass::Unlisted
+    is_verb(token) && verb_lemma(token, next).1 != DialogueTagVerbClass::Unlisted
 }
 
 fn span_of(items: &[Item], range: Range<usize>) -> Span {
-    join(
+    Span::covering(
         &items[range.start].token.span,
         &items[range.end - 1].token.span,
     )
@@ -368,14 +392,6 @@ fn first_word(items: &[Item], clause: &Range<usize>) -> usize {
         .clone()
         .find(|&index| items[index].token.is_word)
         .unwrap_or(clause.start)
-}
-
-fn join(first: &Span, last: &Span) -> Span {
-    Span {
-        byte: first.byte.start..last.byte.end,
-        char: first.char.start..last.char.end,
-        utf16: first.utf16.start..last.utf16.end,
-    }
 }
 
 impl<'a> Paragraph<'a> {
@@ -448,7 +464,7 @@ impl<'a> Paragraph<'a> {
             })
     }
 
-    fn verb_parse(&self, index: usize, clause_end: usize) -> (String, VerbClass, bool) {
+    fn verb_parse(&self, index: usize, clause_end: usize) -> (String, DialogueTagVerbClass, bool) {
         verb_lemma(self.items[index].token, self.next_word(index, clause_end))
     }
 
@@ -541,7 +557,7 @@ impl<'a> Paragraph<'a> {
                         adverb,
                         extent: verb..last + 1,
                     };
-                    if class != VerbClass::Unlisted {
+                    if class != DialogueTagVerbClass::Unlisted {
                         return Some(parse);
                     }
                     if is_finite(self.items[verb].token)
@@ -598,7 +614,7 @@ impl<'a> Paragraph<'a> {
                 adverb,
                 extent: words[0]..end + 1,
             };
-            if class != VerbClass::Unlisted {
+            if class != DialogueTagVerbClass::Unlisted {
                 return Some(parse);
             }
             if fallback.is_none()
@@ -687,7 +703,7 @@ impl<'a> Paragraph<'a> {
             return None;
         }
         let (lemma, class, _) = self.verb_parse(verb, clause.end);
-        if class != VerbClass::Unlisted || AUXILIARIES.contains(&lemma.as_str()) {
+        if class != DialogueTagVerbClass::Unlisted || AUXILIARIES.contains(&lemma.as_str()) {
             return None;
         }
         Some(Parse {
@@ -737,14 +753,14 @@ impl<'a> Paragraph<'a> {
         matches!(piece.last, Some(',' | ':' | ';'))
             || lowercase
             || self.after_tag(clause).is_some_and(|parse| {
-                parse.class == VerbClass::Speech && self.bare(clause, parse.extent.end)
+                parse.class == DialogueTagVerbClass::Speech && self.bare(clause, parse.extent.end)
             })
     }
 
     fn attached_before(&self, clause: &Range<usize>) -> bool {
         matches!(self.last_text(clause), "," | ":")
             || self.word(clause.end - 1).is_some_and(|token| {
-                lead_in(token) && verb_lemma(token, None).1 == VerbClass::Speech
+                lead_in(token) && verb_lemma(token, None).1 == DialogueTagVerbClass::Speech
             })
     }
 
@@ -759,7 +775,7 @@ impl<'a> Paragraph<'a> {
     }
 }
 
-fn starts_copula(token: &Token) -> bool {
+pub(crate) fn starts_copula(token: &Token) -> bool {
     token.is_word
         && token.text.chars().next().is_some_and(char::is_lowercase)
         && token.readings.iter().any(|reading| {
@@ -805,6 +821,7 @@ fn paragraphs(document: &Document) -> Vec<Paragraph<'_>> {
                 .enumerate()
                 .skip(first)
                 .take_while(|(_, span)| span.byte.start < range.end)
+                .filter(|(dialogue, _)| document.is_speech(*dialogue))
                 .filter_map(|(dialogue, span)| {
                     let first =
                         items.partition_point(|item| item.token.span.byte.start < span.byte.start);
@@ -814,16 +831,7 @@ fn paragraphs(document: &Document) -> Vec<Paragraph<'_>> {
                         return None;
                     }
                     let last = end - 1;
-                    let previous = first.checked_sub(1).map(|previous| items[previous].token);
-                    let embedded =
-                        previous.is_some_and(|previous| previous.is_word && !lead_in(previous));
                     let ends = span.byte.end <= range.end;
-                    let copula = ends
-                        && !previous.is_some_and(lead_in)
-                        && items.get(end).is_some_and(|next| starts_copula(next.token));
-                    if embedded || copula {
-                        return None;
-                    }
                     let local = span.byte.start.max(range.start) - range.start
                         ..span.byte.end.min(range.end) - range.start;
                     Some(Piece {
@@ -846,9 +854,11 @@ fn paragraphs(document: &Document) -> Vec<Paragraph<'_>> {
 
 struct Builder<'a> {
     tags: Vec<DialogueTag>,
-    beats: Vec<ActionBeat>,
+    beats: Vec<DialogueTagActionBeat>,
     attributed: BTreeSet<usize>,
+    tagged: BTreeSet<usize>,
     paragraph: Option<&'a Paragraph<'a>>,
+    dialogue: &'a [Span],
 }
 
 impl<'a> Builder<'a> {
@@ -856,12 +866,13 @@ impl<'a> Builder<'a> {
         &mut self,
         clause: Range<usize>,
         parse: Parse,
-        position: TagPosition,
+        position: DialogueTagPosition,
         dialogue: Vec<usize>,
     ) {
         let items = &self.paragraph.unwrap().items;
         let token = items[parse.verb].token;
         self.attributed.extend(&dialogue);
+        self.tagged.extend(&dialogue);
         self.tags.push(DialogueTag {
             span: span_of(items, parse.extent),
             clause: span_of(items, first_word(items, &clause)..clause.end),
@@ -871,27 +882,46 @@ impl<'a> Builder<'a> {
             class: parse.class,
             position,
             adverb: parse.adverb.map(|index| items[index].token.span.clone()),
-            dialogue,
+            quotes: quotes(self.dialogue, &dialogue),
         });
     }
 
     fn beat(&mut self, clause: Range<usize>, dialogue: Vec<usize>) {
         let items = &self.paragraph.unwrap().items;
         self.attributed.extend(&dialogue);
-        self.beats.push(ActionBeat {
+        self.beats.push(DialogueTagActionBeat {
             span: span_of(items, first_word(items, &clause)..clause.end),
-            dialogue,
+            quotes: quotes(self.dialogue, &dialogue),
         });
     }
 }
 
-pub fn dialogue_tags(document: &Document, options: &DialogueTagOptions) -> DialogueTagReport {
+fn quotes(dialogue: &[Span], indexes: &[usize]) -> Vec<Span> {
+    indexes
+        .iter()
+        .map(|&index| dialogue[index].clone())
+        .collect()
+}
+
+pub fn report(
+    document: &Document,
+    options: &DialogueTagOptions,
+    baseline: Option<&DialogueTagBaseline>,
+) -> Result<DialogueTagReport, StyleError> {
+    if !document.token_details {
+        return Err(StyleError::needs_token_details(REPORT));
+    }
+    if let Some(baseline) = baseline {
+        baseline.validate()?;
+    }
     let paragraphs = paragraphs(document);
     let mut builder = Builder {
         tags: Vec::new(),
         beats: Vec::new(),
         attributed: BTreeSet::new(),
+        tagged: BTreeSet::new(),
         paragraph: None,
+        dialogue: &document.dialogue,
     };
     for (index, paragraph) in paragraphs.iter().enumerate() {
         if paragraph.items.is_empty() {
@@ -936,13 +966,13 @@ pub fn dialogue_tags(document: &Document, options: &DialogueTagOptions) -> Dialo
                             Some(next) if head.end == range.end && !terminal => builder.tag(
                                 head.clone(),
                                 parse,
-                                TagPosition::Split,
+                                DialogueTagPosition::Split,
                                 vec![previous.dialogue, next.dialogue],
                             ),
                             _ => builder.tag(
                                 head.clone(),
                                 parse,
-                                TagPosition::After,
+                                DialogueTagPosition::After,
                                 vec![previous.dialogue],
                             ),
                         }
@@ -971,7 +1001,7 @@ pub fn dialogue_tags(document: &Document, options: &DialogueTagOptions) -> Dialo
             };
             if paragraph.attached_before(&tail) {
                 if let Some(parse) = paragraph.before_tag(&tail, quote) {
-                    builder.tag(tail, parse, TagPosition::Before, vec![target]);
+                    builder.tag(tail, parse, DialogueTagPosition::Before, vec![target]);
                     continue;
                 }
             }
@@ -984,25 +1014,11 @@ pub fn dialogue_tags(document: &Document, options: &DialogueTagOptions) -> Dialo
         tags,
         beats,
         attributed,
+        tagged,
         ..
     } = builder;
-    let readings = paragraphs.iter().all(|paragraph| {
-        paragraph
-            .items
-            .iter()
-            .all(|item| !item.token.is_word || item.token.is_skipped)
-    }) || paragraphs.iter().any(|paragraph| {
-        paragraph
-            .items
-            .iter()
-            .any(|item| !item.token.readings.is_empty())
-    });
-    let (untagged_runs, untagged_exchanges) = if readings {
-        let (runs, count) = untagged_runs(document, &paragraphs, &attributed, options);
-        (Some(runs), Some(count))
-    } else {
-        (None, None)
-    };
+    let (untagged_runs, untagged_exchanges) =
+        untagged_runs(document, &paragraphs, &attributed, options);
     let speech_spans = paragraphs
         .iter()
         .flat_map(|paragraph| paragraph.pieces.iter().map(|piece| piece.dialogue))
@@ -1012,7 +1028,7 @@ pub fn dialogue_tags(document: &Document, options: &DialogueTagOptions) -> Dialo
         .iter()
         .filter(|paragraph| paragraph.pieces.iter().any(|piece| piece.starts))
         .count();
-    let mut verbs: BTreeMap<(String, VerbClass), usize> = BTreeMap::new();
+    let mut verbs: BTreeMap<(String, DialogueTagVerbClass), usize> = BTreeMap::new();
     for tag in &tags {
         *verbs.entry((tag.lemma.clone(), tag.class)).or_default() += 1;
     }
@@ -1021,10 +1037,10 @@ pub fn dialogue_tags(document: &Document, options: &DialogueTagOptions) -> Dialo
         .filter(|((lemma, _), _)| matches!(lemma.as_str(), "say" | "ask"))
         .map(|(_, count)| count)
         .sum();
-    let mut other_verbs: Vec<VerbCount> = verbs
+    let mut other_verbs: Vec<DialogueTagVerbCount> = verbs
         .into_iter()
         .filter(|((lemma, _), _)| !matches!(lemma.as_str(), "say" | "ask"))
-        .map(|((lemma, class), count)| VerbCount {
+        .map(|((lemma, class), count)| DialogueTagVerbCount {
             lemma,
             class,
             count,
@@ -1034,34 +1050,25 @@ pub fn dialogue_tags(document: &Document, options: &DialogueTagOptions) -> Dialo
     let with_adverb = tags.iter().filter(|tag| tag.adverb.is_some()).count();
     let non_speech = tags
         .iter()
-        .filter(|tag| tag.class == VerbClass::NonSpeech)
+        .filter(|tag| tag.class == DialogueTagVerbClass::NonSpeech)
         .count();
-    let percent = |count: usize| {
-        (tags.len() >= options.min_tags.max(1)).then(|| 100.0 * count as f64 / tags.len() as f64)
-    };
-    let tagged_spans = tags
-        .iter()
-        .flat_map(|tag| tag.dialogue.iter().copied())
-        .collect::<BTreeSet<_>>()
-        .len();
-    DialogueTagReport {
-        said_asked_percent: percent(said_asked),
-        adverb_percent: percent(with_adverb),
-        non_speech_percent: percent(non_speech),
+    let enough = tags.len() >= options.minimum_tags.max(1);
+    let share =
+        |count: usize, baseline: Option<f64>| Share::new(count, tags.len(), enough, baseline);
+    Ok(DialogueTagReport {
+        said_asked: share(said_asked, baseline.and_then(|b| b.said_asked_percent)),
+        with_adverb: share(with_adverb, baseline.and_then(|b| b.adverb_percent)),
+        non_speech: share(non_speech, baseline.and_then(|b| b.non_speech_percent)),
         dialogue_spans: document.dialogue.len(),
         speech_spans,
-        tagged_spans,
+        tagged_spans: tagged.len(),
         exchanges,
         untagged_exchanges,
-        said_asked,
-        with_adverb,
-        non_speech,
         other_verbs,
         untagged_runs,
         beats,
         tags,
-        baseline: options.baseline.clone(),
-    }
+    })
 }
 
 fn untagged_runs(
@@ -1069,7 +1076,7 @@ fn untagged_runs(
     paragraphs: &[Paragraph],
     attributed: &BTreeSet<usize>,
     options: &DialogueTagOptions,
-) -> (Vec<UntaggedRun>, usize) {
+) -> (Vec<DialogueTagUntaggedRun>, usize) {
     let mut runs = Vec::new();
     let mut untagged = 0;
     let mut current: Vec<Vec<usize>> = Vec::new();
@@ -1078,10 +1085,10 @@ fn untagged_runs(
             let dialogue: Vec<usize> = current.iter().flatten().copied().collect();
             let first = &document.dialogue[dialogue[0]];
             let last = &document.dialogue[*dialogue.last().unwrap()];
-            runs.push(UntaggedRun {
-                span: join(first, last),
+            runs.push(DialogueTagUntaggedRun {
+                span: Span::covering(first, last),
                 exchanges: current.len(),
-                dialogue,
+                quotes: quotes(&document.dialogue, &dialogue),
             });
         }
         current.clear();

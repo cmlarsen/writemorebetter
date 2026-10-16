@@ -2,7 +2,10 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
 
+use crate::error::StyleError;
 use crate::{Document, Span, Token};
+
+pub(crate) const REPORT: &str = "echoes";
 
 const CONTENT_TAGS: [&str; 4] = ["NN", "VB", "JJ", "RB"];
 
@@ -29,12 +32,12 @@ const FUNCTION_WORDS: &[&str] = &[
     "yourselves",
 ];
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(default, deny_unknown_fields)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields, rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct EchoOptions {
     pub window: usize,
-    #[serde(alias = "matchForms")]
+    #[serde(alias = "match_forms")]
     pub match_forms: bool,
 }
 
@@ -62,6 +65,7 @@ impl EchoOptions {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct Echo {
     pub key: String,
@@ -72,11 +76,12 @@ pub struct Echo {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct EchoReport {
     pub echoes: Vec<Echo>,
-    pub word_count: usize,
-    pub density_per_1000: f64,
+    pub words: usize,
+    pub per_thousand_words: f64,
 }
 
 pub(crate) fn fold(text: &str) -> String {
@@ -94,15 +99,6 @@ fn lemmas(token: &Token) -> BTreeSet<String> {
         .map(|reading| fold(&reading.lemma))
         .filter(|lemma| !lemma.is_empty() && !lemma.contains(char::is_whitespace))
         .collect()
-}
-
-pub(crate) fn words(document: &Document) -> impl Iterator<Item = &Token> {
-    document
-        .paragraphs
-        .iter()
-        .flat_map(|paragraph| &paragraph.sentences)
-        .flat_map(|sentence| &sentence.tokens)
-        .filter(|token| token.is_word && !token.is_skipped)
 }
 
 #[derive(Default)]
@@ -129,7 +125,7 @@ fn root(parent: &mut [usize], mut node: usize) -> usize {
 impl Lexicon {
     pub(crate) fn new(document: &Document) -> Self {
         let mut spellings: HashMap<String, Spelling> = HashMap::new();
-        for token in words(document) {
+        for token in document.words() {
             let spelling = fold(&token.text);
             let entry = spellings.entry(spelling).or_default();
             entry.occurrences += 1;
@@ -232,11 +228,14 @@ impl Lexicon {
     }
 }
 
-pub fn echoes(document: &Document, options: &EchoOptions) -> EchoReport {
+pub fn report(document: &Document, options: &EchoOptions) -> Result<EchoReport, StyleError> {
+    if !document.token_details {
+        return Err(StyleError::needs_token_details(REPORT));
+    }
     let lexicon = Lexicon::new(document);
     let mut last: HashMap<String, (usize, &Token)> = HashMap::new();
     let mut echoes = Vec::new();
-    for (index, token) in words(document).enumerate() {
+    for (index, token) in document.words().enumerate() {
         if lexicon.is_function(token) {
             continue;
         }
@@ -263,17 +262,17 @@ pub fn echoes(document: &Document, options: &EchoOptions) -> EchoReport {
         }
         last.insert(family, (index, token));
     }
-    let word_count = document.word_count;
-    let density_per_1000 = if word_count == 0 {
+    let words = document.word_count;
+    let per_thousand_words = if words == 0 {
         0.0
     } else {
-        echoes.len() as f64 * 1000.0 / word_count as f64
+        echoes.len() as f64 * 1000.0 / words as f64
     };
-    EchoReport {
+    Ok(EchoReport {
         echoes,
-        word_count,
-        density_per_1000,
-    }
+        words,
+        per_thousand_words,
+    })
 }
 
 #[cfg(test)]

@@ -386,6 +386,10 @@
         "punctuationOrMarkupLed": 2,
         "articleLed": 10,
         "vocativeOrInterjectionShape": 26
+      },
+      "bundledBaselineComparison": {
+        "meanDifference": 11.36639628048158,
+        "universalDifferences": 11
       }
     }
   }
