@@ -427,24 +427,63 @@ fn retained_documents_match_separate_analyses_and_validate_calls() {
     let shared = StyleDocument::new(
         tokenizer.clone(),
         resources.clone(),
-        "😀 She kicked the bucket. She waited.",
+        "😀 She kicked the bucket. She waited. “Go,” she said.",
         &DocumentOptions::new(),
     );
-    let cliches: Value = serde_json::from_str(&shared.cliches(None).unwrap()).unwrap();
+    let native = shared.cliches(None).unwrap();
+    assert_eq!(native.matches[0].span.byte.start, 9);
+    assert_eq!(native.matches[0].span.utf16.start, 7);
+    let cliches: Value =
+        serde_json::from_str(&to_utf16_json(&shared.cliches(None).unwrap())).unwrap();
     assert_eq!(cliches["matches"][0]["span"]["start"], 7);
     let options = Some(r#"{"minimumSentences":1}"#);
     let length: Value =
-        serde_json::from_str(&shared.sentence_length(options, None).unwrap()).unwrap();
+        serde_json::to_value(shared.sentence_length(options, None).unwrap()).unwrap();
     assert!(length["groups"]["all"]["meanDifference"].is_number());
     let without: Value =
-        serde_json::from_str(&shared.sentence_length(options, Some("null")).unwrap()).unwrap();
+        serde_json::to_value(shared.sentence_length(options, Some("none")).unwrap()).unwrap();
     assert!(without["groups"]["all"]["meanDifference"].is_null());
-    let custom: Value = serde_json::from_str(
-        &shared
+    let custom: Value = serde_json::to_value(
+        shared
             .sentence_length(options, Some(r#"{"mean":1}"#))
             .unwrap(),
     )
     .unwrap();
+    assert_eq!(
+        shared.sentence_length(options, None),
+        shared.sentence_length(options, Some("bundled"))
+    );
+    for bad in ["null", "{", r#"{"typo":1}"#] {
+        assert!(
+            matches!(shared.sentence_length(options, Some(bad)), Err(StyleError::InvalidBaseline { report, .. }) if report == "sentenceLength")
+        );
+    }
+    let starts = shared.sentence_starts(options, Some("none")).unwrap();
+    assert!(starts
+        .groups
+        .all
+        .universal
+        .iter()
+        .all(|share| share.difference.is_none()));
+    assert_eq!(
+        shared.sentence_starts(options, None),
+        shared.sentence_starts(options, Some("bundled"))
+    );
+    let tags = Some(r#"{"minimumTags":1}"#);
+    let custom_tags = shared
+        .dialogue_tags(tags, Some(r#"{"saidAskedPercent":50}"#))
+        .unwrap();
+    assert!(shared
+        .dialogue_tags(tags, Some("none"))
+        .unwrap()
+        .said_asked
+        .difference
+        .is_none());
+    assert_eq!(
+        shared.dialogue_tags(tags, None),
+        shared.dialogue_tags(tags, Some("bundled"))
+    );
+    assert_eq!(custom_tags.said_asked.difference, Some(50.0));
     assert_eq!(
         custom["groups"]["all"]["meanDifference"].as_f64().unwrap(),
         custom["groups"]["all"]["mean"].as_f64().unwrap() - 1.0

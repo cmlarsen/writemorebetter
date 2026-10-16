@@ -183,7 +183,7 @@ document.free();
 ```
 
 Methods take optional options JSON; baseline-aware methods also take baseline JSON (omitted:
-bundled; JSON object: override; `"null"`: no comparison). Results contain UTF-16 spans. Each
+bundled; JSON object: override; `"none"`: no comparison). Results contain UTF-16 spans. Each
 sentence report owns its sentence rows. Result types ship in the generated package (source: `style-results.d.ts`):
 
 ```typescript
@@ -195,3 +195,8 @@ Construction respects compact-document options. Echoes, phrases, dialogue tags a
 token details and throw on compact documents. Reports run on the retained analysis; construct a new
 object for changed text/options. See [the per-report API](../docs/STYLE-REPORTS.md#independent-reports-shared-analysis)
 for options, result JSON examples, baselines and Subplot’s recommended default set and opt-in lenses.
+
+A retained moby150k document (149,091 input bytes) holds about **11–12 MB of WASM linear memory**
+in the reviewed measurement. Retain the chapter on screen and `free()` its document on navigation;
+Swift callers should drop their retained reference. WASM frees space for reuse by later documents,
+while its linear memory high-water mark does not shrink back to the OS. Avoid caching every chapter.

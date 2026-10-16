@@ -359,6 +359,7 @@ impl Checker {
     }
 
     #[wasm_bindgen(js_name = styleDocument)]
+    /// Retains one analysis. Compact documents support only clichés and sentence length.
     pub fn style_document(
         &self,
         text: &str,
@@ -448,28 +449,37 @@ pub struct StyleDocument {
 
 #[wasm_bindgen]
 impl StyleDocument {
+    /// Counts for the retained analysis, returned as DocumentStats JSON.
     pub fn stats(&self) -> String {
         reports::to_utf16_json(&self.inner.stats())
     }
     #[wasm_bindgen(js_name = echoes)]
+    /// Returns this report on the retained analysis; options default when omitted.
     pub fn echoes(&self, options_json: Option<String>) -> Result<String, JsValue> {
         self.inner
             .echoes(options_json.as_deref())
+            .map(|report| reports::to_utf16_json(&report))
             .map_err(style_error)
     }
     #[wasm_bindgen(js_name = repeatedPhrases)]
+    /// Returns this report on the retained analysis; options default when omitted.
     pub fn repeated_phrases(&self, options_json: Option<String>) -> Result<String, JsValue> {
         self.inner
             .repeated_phrases(options_json.as_deref())
+            .map(|report| reports::to_utf16_json(&report))
             .map_err(style_error)
     }
     #[wasm_bindgen(js_name = cliches)]
+    /// Returns this report on the retained analysis; options default when omitted.
     pub fn cliches(&self, options_json: Option<String>) -> Result<String, JsValue> {
         self.inner
             .cliches(options_json.as_deref())
+            .map(|report| reports::to_utf16_json(&report))
             .map_err(style_error)
     }
     #[wasm_bindgen(js_name = dialogueTags)]
+    /// Returns this report on the retained analysis; options default when omitted.
+    /// Baseline: omitted/null means bundled; "none" disables comparisons; otherwise pass a JSON object.
     pub fn dialogue_tags(
         &self,
         options_json: Option<String>,
@@ -477,9 +487,12 @@ impl StyleDocument {
     ) -> Result<String, JsValue> {
         self.inner
             .dialogue_tags(options_json.as_deref(), baseline_json.as_deref())
+            .map(|report| reports::to_utf16_json(&report))
             .map_err(style_error)
     }
     #[wasm_bindgen(js_name = sentenceLength)]
+    /// Returns this report on the retained analysis; options default when omitted.
+    /// Baseline: omitted/null means bundled; "none" disables comparisons; otherwise pass a JSON object.
     pub fn sentence_length(
         &self,
         options_json: Option<String>,
@@ -487,9 +500,12 @@ impl StyleDocument {
     ) -> Result<String, JsValue> {
         self.inner
             .sentence_length(options_json.as_deref(), baseline_json.as_deref())
+            .map(|report| reports::to_utf16_json(&report))
             .map_err(style_error)
     }
     #[wasm_bindgen(js_name = sentenceStarts)]
+    /// Returns this report on the retained analysis; options default when omitted.
+    /// Baseline: omitted/null means bundled; "none" disables comparisons; otherwise pass a JSON object.
     pub fn sentence_starts(
         &self,
         options_json: Option<String>,
@@ -497,6 +513,7 @@ impl StyleDocument {
     ) -> Result<String, JsValue> {
         self.inner
             .sentence_starts(options_json.as_deref(), baseline_json.as_deref())
+            .map(|report| reports::to_utf16_json(&report))
             .map_err(style_error)
     }
 }

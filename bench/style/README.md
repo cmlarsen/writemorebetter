@@ -67,7 +67,7 @@ cargo run -p writemorebetter-style --release --example usefulness -- \
   bench/public/story4.txt bench/public/story5.txt bench/public/moby150k.txt
 ```
 
-Echoes are explicitly opted in by this counter; the default combined call now omits them. The
+Echoes are explicitly opted in by this counter; Subplot’s recommended default methods omit them. The
 counter uses line mode for stories, hard-wrapped mode for Moby, and no skipped names. Flat `echoes`, `phrases` and `long` fields are explicit lens counts; `defaultFlags` is the final default total, and the snapshot adds separate `default` and `optIn` maps. These are
 workload counts, not editorial judgments.
 

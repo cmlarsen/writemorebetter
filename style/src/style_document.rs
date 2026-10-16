@@ -1,14 +1,15 @@
 use std::sync::Arc;
 
 use nlprule::Tokenizer;
-use serde::{de::DeserializeOwned, Serialize};
+use serde::de::DeserializeOwned;
 
 use crate::reports::{
-    self, cliches, dialogue_tags, echoes, repeated_phrases, sentence_length, sentence_starts,
+    cliches, dialogue_tags, echoes, repeated_phrases, sentence_length, sentence_starts,
     DocumentStats, StyleResources,
 };
 use crate::{analyze_document, Document, DocumentOptions, StyleError};
 
+/// Retained analysis with typed native reports; bindings serialize results with UTF-16 spans.
 pub struct StyleDocument {
     document: Document,
     tokenizer: Arc<Tokenizer>,
@@ -23,12 +24,16 @@ fn options<T: DeserializeOwned + Default>(json: Option<&str>) -> Result<T, Style
 }
 
 fn baseline<T: DeserializeOwned>(
-    json: Option<&str>,
+    selector: Option<&str>,
     bundled: impl FnOnce() -> Option<T>,
+    report: &str,
 ) -> Result<Option<T>, StyleError> {
-    match json {
-        None => Ok(bundled()),
-        Some(json) => serde_json::from_str(json).map_err(StyleError::options),
+    match selector {
+        None | Some("bundled") => Ok(bundled()),
+        Some("none") => Ok(None),
+        Some(json) => serde_json::from_str::<T>(json)
+            .map(Some)
+            .map_err(|error| StyleError::baseline(report, error)),
     }
 }
 
@@ -54,69 +59,61 @@ impl StyleDocument {
         DocumentStats::new(&self.document)
     }
 
-    pub fn echoes(&self, json: Option<&str>) -> Result<String, StyleError> {
-        encode(echoes::report(&self.document, &options(json)?)?)
+    pub fn echoes(&self, json: Option<&str>) -> Result<echoes::EchoReport, StyleError> {
+        echoes::report(&self.document, &options(json)?)
     }
 
-    pub fn repeated_phrases(&self, json: Option<&str>) -> Result<String, StyleError> {
-        encode(repeated_phrases::report(&self.document, &options(json)?)?)
+    pub fn repeated_phrases(
+        &self,
+        json: Option<&str>,
+    ) -> Result<repeated_phrases::RepeatedPhraseReport, StyleError> {
+        repeated_phrases::report(&self.document, &options(json)?)
     }
 
-    pub fn cliches(&self, json: Option<&str>) -> Result<String, StyleError> {
-        let options = options(json)?;
-        encode(cliches::report(
+    pub fn cliches(&self, json: Option<&str>) -> Result<cliches::ClicheReport, StyleError> {
+        cliches::report(
             &self.document,
             self.resources.cliches(&self.tokenizer),
-            &options,
-        )?)
+            &options(json)?,
+        )
     }
 
     pub fn dialogue_tags(
         &self,
         json: Option<&str>,
-        baseline_json: Option<&str>,
-    ) -> Result<String, StyleError> {
-        let baseline = baseline(baseline_json, dialogue_tags::DialogueTagBaseline::bundled)?;
-        encode(dialogue_tags::report(
-            &self.document,
-            &options(json)?,
-            baseline.as_ref(),
-        )?)
+        baseline_selector: Option<&str>,
+    ) -> Result<dialogue_tags::DialogueTagReport, StyleError> {
+        let baseline = baseline(
+            baseline_selector,
+            dialogue_tags::DialogueTagBaseline::bundled,
+            dialogue_tags::REPORT,
+        )?;
+        dialogue_tags::report(&self.document, &options(json)?, baseline.as_ref())
     }
 
     pub fn sentence_length(
         &self,
         json: Option<&str>,
-        baseline_json: Option<&str>,
-    ) -> Result<String, StyleError> {
+        baseline_selector: Option<&str>,
+    ) -> Result<sentence_length::SentenceLengthReport, StyleError> {
         let baseline = baseline(
-            baseline_json,
+            baseline_selector,
             sentence_length::SentenceLengthBaseline::bundled,
+            sentence_length::REPORT,
         )?;
-        encode(sentence_length::report(
-            &self.document,
-            &options(json)?,
-            baseline.as_ref(),
-        )?)
+        sentence_length::report(&self.document, &options(json)?, baseline.as_ref())
     }
 
     pub fn sentence_starts(
         &self,
         json: Option<&str>,
-        baseline_json: Option<&str>,
-    ) -> Result<String, StyleError> {
+        baseline_selector: Option<&str>,
+    ) -> Result<sentence_starts::SentenceStartsReport, StyleError> {
         let baseline = baseline(
-            baseline_json,
+            baseline_selector,
             sentence_starts::SentenceStartsBaseline::bundled,
+            sentence_starts::REPORT,
         )?;
-        encode(sentence_starts::report(
-            &self.document,
-            &options(json)?,
-            baseline.as_ref(),
-        )?)
+        sentence_starts::report(&self.document, &options(json)?, baseline.as_ref())
     }
-}
-
-fn encode(value: impl Serialize) -> Result<String, StyleError> {
-    Ok(reports::to_utf16_json(&value))
 }

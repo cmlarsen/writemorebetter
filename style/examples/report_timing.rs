@@ -26,12 +26,32 @@ fn main() {
             times[0].push(start.elapsed().as_secs_f64() * 1000.0);
         }
         let calls: [Box<dyn Fn() -> String>; 6] = [
-            Box::new(|| document.echoes(None).unwrap()),
-            Box::new(|| document.repeated_phrases(None).unwrap()),
-            Box::new(|| document.cliches(None).unwrap()),
-            Box::new(|| document.dialogue_tags(None, None).unwrap()),
-            Box::new(|| document.sentence_length(None, None).unwrap()),
-            Box::new(|| document.sentence_starts(None, None).unwrap()),
+            Box::new(|| {
+                writemorebetter_style::reports::to_utf16_json(&document.echoes(None).unwrap())
+            }),
+            Box::new(|| {
+                writemorebetter_style::reports::to_utf16_json(
+                    &document.repeated_phrases(None).unwrap(),
+                )
+            }),
+            Box::new(|| {
+                writemorebetter_style::reports::to_utf16_json(&document.cliches(None).unwrap())
+            }),
+            Box::new(|| {
+                writemorebetter_style::reports::to_utf16_json(
+                    &document.dialogue_tags(None, None).unwrap(),
+                )
+            }),
+            Box::new(|| {
+                writemorebetter_style::reports::to_utf16_json(
+                    &document.sentence_length(None, None).unwrap(),
+                )
+            }),
+            Box::new(|| {
+                writemorebetter_style::reports::to_utf16_json(
+                    &document.sentence_starts(None, None).unwrap(),
+                )
+            }),
         ];
         for (index, call) in calls.iter().enumerate() {
             let start = Instant::now();

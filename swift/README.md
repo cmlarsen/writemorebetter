@@ -179,7 +179,7 @@ unchanged. WASM accepts camelCase/snake_case option names and rejects unknown ke
 Create one retained analysis and call any reports independently:
 
 ```swift
-let document = checker.styleDocument(text: text, options: nil)
+let document = checker.styleDocument(text: text)
 let length: SentenceLengthReport = try document.sentenceLength()
 let starts: SentenceStartsReport = try document.sentenceStarts()
 let tags: DialogueTagReport = try document.dialogueTags()
@@ -190,11 +190,17 @@ let phrases = try document.repeatedPhrases()
 ```
 
 Every result is `Codable`, `Equatable` and `Sendable`. Each method takes optional `optionsJson`;
-baseline-aware methods also take `baselineJson` (omitted: bundled; JSON object: override;
-`"null"`: no comparison). `*Json` variants return the JSON string directly. Spans carry UTF-16
+baseline-aware methods take `baseline: StyleBaseline` (`.bundled`, `.none`, or `.custom(json)`),
+defaulting to `.bundled`. Raw `*Json` methods accept omitted/nil or `"bundled"`, `"none"`, or
+baseline JSON and return the JSON string directly. Spans carry UTF-16
 `start`/exclusive `end` and provide `nsRange`. Each sentence report owns its sentence rows.
 
 Construction respects compact-document options. Echoes, phrases, dialogue tags and starts require
 token details and throw on compact documents. Reports run on the retained analysis; construct a new
 object for changed text/options. See [the per-report API](../docs/STYLE-REPORTS.md#independent-reports-shared-analysis)
 for options, result JSON examples, baselines and Subplot’s recommended default set and opt-in lenses.
+
+A retained moby150k document (149,091 input bytes) holds about **11–12 MB of WASM linear memory**
+in the reviewed measurement. Retain the chapter on screen and `free()` its document on navigation;
+Swift callers should drop their retained reference. WASM frees space for reuse by later documents,
+while its linear memory high-water mark does not shrink back to the OS. Avoid caching every chapter.

@@ -619,6 +619,9 @@ public protocol CheckerProtocol: AnyObject, Sendable {
      */
     func setWords(words: [String])  -> UInt32
     
+    /**
+     * Retains one analysis. Compact documents support only clichés and sentence length.
+     */
     func styleDocument(text: String, options: DocumentOptions?)  -> StyleDocument
     
     /**
@@ -835,7 +838,10 @@ open func setWords(words: [String]) -> UInt32  {
 })
 }
     
-open func styleDocument(text: String, options: DocumentOptions?) -> StyleDocument  {
+    /**
+     * Retains one analysis. Compact documents support only clichés and sentence length.
+     */
+open func styleDocument(text: String, options: DocumentOptions? = nil) -> StyleDocument  {
     return try!  FfiConverterTypeStyleDocument_lift(try! rustCall() {
         uniffiCallStatus in
     uniffi_writemorebetter_swift_fn_method_checker_style_document(
@@ -910,18 +916,42 @@ public func FfiConverterTypeChecker_lower(_ value: Checker) -> UInt64 {
 
 public protocol StyleDocumentProtocol: AnyObject, Sendable {
     
+    /**
+     * Returns this report on the retained analysis; options default when omitted.
+     */
     func clichesJson(optionsJson: String?) throws  -> String
     
+    /**
+     * Returns this report on the retained analysis; options default when omitted.
+     * Baseline: omitted/null means bundled; "none" disables comparisons; otherwise pass a JSON object.
+     */
     func dialogueTagsJson(optionsJson: String?, baselineJson: String?) throws  -> String
     
+    /**
+     * Returns this report on the retained analysis; options default when omitted.
+     */
     func echoesJson(optionsJson: String?) throws  -> String
     
+    /**
+     * Returns this report on the retained analysis; options default when omitted.
+     */
     func repeatedPhrasesJson(optionsJson: String?) throws  -> String
     
+    /**
+     * Returns this report on the retained analysis; options default when omitted.
+     * Baseline: omitted/null means bundled; "none" disables comparisons; otherwise pass a JSON object.
+     */
     func sentenceLengthJson(optionsJson: String?, baselineJson: String?) throws  -> String
     
+    /**
+     * Returns this report on the retained analysis; options default when omitted.
+     * Baseline: omitted/null means bundled; "none" disables comparisons; otherwise pass a JSON object.
+     */
     func sentenceStartsJson(optionsJson: String?, baselineJson: String?) throws  -> String
     
+    /**
+     * Counts for the retained analysis, returned as DocumentStats JSON.
+     */
     func statsJson()  -> String
     
 }
@@ -978,7 +1008,10 @@ open class StyleDocument: StyleDocumentProtocol, @unchecked Sendable {
     
 
     
-open func clichesJson(optionsJson: String?)throws  -> String  {
+    /**
+     * Returns this report on the retained analysis; options default when omitted.
+     */
+open func clichesJson(optionsJson: String? = nil)throws  -> String  {
     return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
         uniffiCallStatus in
     uniffi_writemorebetter_swift_fn_method_styledocument_cliches_json(
@@ -988,7 +1021,11 @@ open func clichesJson(optionsJson: String?)throws  -> String  {
 })
 }
     
-open func dialogueTagsJson(optionsJson: String?, baselineJson: String?)throws  -> String  {
+    /**
+     * Returns this report on the retained analysis; options default when omitted.
+     * Baseline: omitted/null means bundled; "none" disables comparisons; otherwise pass a JSON object.
+     */
+open func dialogueTagsJson(optionsJson: String? = nil, baselineJson: String? = nil)throws  -> String  {
     return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
         uniffiCallStatus in
     uniffi_writemorebetter_swift_fn_method_styledocument_dialogue_tags_json(
@@ -999,7 +1036,10 @@ open func dialogueTagsJson(optionsJson: String?, baselineJson: String?)throws  -
 })
 }
     
-open func echoesJson(optionsJson: String?)throws  -> String  {
+    /**
+     * Returns this report on the retained analysis; options default when omitted.
+     */
+open func echoesJson(optionsJson: String? = nil)throws  -> String  {
     return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
         uniffiCallStatus in
     uniffi_writemorebetter_swift_fn_method_styledocument_echoes_json(
@@ -1009,7 +1049,10 @@ open func echoesJson(optionsJson: String?)throws  -> String  {
 })
 }
     
-open func repeatedPhrasesJson(optionsJson: String?)throws  -> String  {
+    /**
+     * Returns this report on the retained analysis; options default when omitted.
+     */
+open func repeatedPhrasesJson(optionsJson: String? = nil)throws  -> String  {
     return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
         uniffiCallStatus in
     uniffi_writemorebetter_swift_fn_method_styledocument_repeated_phrases_json(
@@ -1019,7 +1062,11 @@ open func repeatedPhrasesJson(optionsJson: String?)throws  -> String  {
 })
 }
     
-open func sentenceLengthJson(optionsJson: String?, baselineJson: String?)throws  -> String  {
+    /**
+     * Returns this report on the retained analysis; options default when omitted.
+     * Baseline: omitted/null means bundled; "none" disables comparisons; otherwise pass a JSON object.
+     */
+open func sentenceLengthJson(optionsJson: String? = nil, baselineJson: String? = nil)throws  -> String  {
     return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
         uniffiCallStatus in
     uniffi_writemorebetter_swift_fn_method_styledocument_sentence_length_json(
@@ -1030,7 +1077,11 @@ open func sentenceLengthJson(optionsJson: String?, baselineJson: String?)throws 
 })
 }
     
-open func sentenceStartsJson(optionsJson: String?, baselineJson: String?)throws  -> String  {
+    /**
+     * Returns this report on the retained analysis; options default when omitted.
+     * Baseline: omitted/null means bundled; "none" disables comparisons; otherwise pass a JSON object.
+     */
+open func sentenceStartsJson(optionsJson: String? = nil, baselineJson: String? = nil)throws  -> String  {
     return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
         uniffiCallStatus in
     uniffi_writemorebetter_swift_fn_method_styledocument_sentence_starts_json(
@@ -1041,6 +1092,9 @@ open func sentenceStartsJson(optionsJson: String?, baselineJson: String?)throws 
 })
 }
     
+    /**
+     * Counts for the retained analysis, returned as DocumentStats JSON.
+     */
 open func statsJson() -> String  {
     return try!  FfiConverterString.lift(try! rustCall() {
         uniffiCallStatus in
@@ -2360,31 +2414,31 @@ private let initializationResult: InitializationResult = {
     if (uniffi_writemorebetter_swift_checksum_method_checker_set_words() != 45047) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_writemorebetter_swift_checksum_method_checker_style_document() != 58918) {
+    if (uniffi_writemorebetter_swift_checksum_method_checker_style_document() != 4003) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_method_checker_words() != 61704) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_writemorebetter_swift_checksum_method_styledocument_cliches_json() != 55889) {
+    if (uniffi_writemorebetter_swift_checksum_method_styledocument_cliches_json() != 60906) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_writemorebetter_swift_checksum_method_styledocument_dialogue_tags_json() != 43577) {
+    if (uniffi_writemorebetter_swift_checksum_method_styledocument_dialogue_tags_json() != 30832) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_writemorebetter_swift_checksum_method_styledocument_echoes_json() != 62879) {
+    if (uniffi_writemorebetter_swift_checksum_method_styledocument_echoes_json() != 31563) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_writemorebetter_swift_checksum_method_styledocument_repeated_phrases_json() != 14727) {
+    if (uniffi_writemorebetter_swift_checksum_method_styledocument_repeated_phrases_json() != 39140) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_writemorebetter_swift_checksum_method_styledocument_sentence_length_json() != 61292) {
+    if (uniffi_writemorebetter_swift_checksum_method_styledocument_sentence_length_json() != 11222) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_writemorebetter_swift_checksum_method_styledocument_sentence_starts_json() != 19493) {
+    if (uniffi_writemorebetter_swift_checksum_method_styledocument_sentence_starts_json() != 15412) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_writemorebetter_swift_checksum_method_styledocument_stats_json() != 71) {
+    if (uniffi_writemorebetter_swift_checksum_method_styledocument_stats_json() != 3996) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_constructor_checker_new() != 1239) {

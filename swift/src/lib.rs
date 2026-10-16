@@ -396,6 +396,8 @@ impl Checker {
         writemorebetter_style::analyze_document(&self.tokenizer, &text, &options).into()
     }
 
+    /// Retains one analysis. Compact documents support only clichés and sentence length.
+    #[uniffi::method(default(options = None))]
     pub fn style_document(
         &self,
         text: String,
@@ -588,33 +590,46 @@ pub struct StyleDocument {
 
 #[uniffi::export]
 impl StyleDocument {
+    /// Counts for the retained analysis, returned as DocumentStats JSON.
     pub fn stats_json(&self) -> String {
         writemorebetter_style::reports::to_utf16_json(&self.inner.stats())
     }
+    /// Returns this report on the retained analysis; options default when omitted.
+    #[uniffi::method(default(options_json = None))]
     pub fn echoes_json(&self, options_json: Option<String>) -> Result<String, CheckError> {
         self.inner
             .echoes(options_json.as_deref())
+            .map(|report| writemorebetter_style::reports::to_utf16_json(&report))
             .map_err(|error| CheckError::ReportInput {
                 message: error.to_string(),
             })
     }
+    /// Returns this report on the retained analysis; options default when omitted.
+    #[uniffi::method(default(options_json = None))]
     pub fn repeated_phrases_json(
         &self,
         options_json: Option<String>,
     ) -> Result<String, CheckError> {
         self.inner
             .repeated_phrases(options_json.as_deref())
+            .map(|report| writemorebetter_style::reports::to_utf16_json(&report))
             .map_err(|error| CheckError::ReportInput {
                 message: error.to_string(),
             })
     }
+    /// Returns this report on the retained analysis; options default when omitted.
+    #[uniffi::method(default(options_json = None))]
     pub fn cliches_json(&self, options_json: Option<String>) -> Result<String, CheckError> {
         self.inner
             .cliches(options_json.as_deref())
+            .map(|report| writemorebetter_style::reports::to_utf16_json(&report))
             .map_err(|error| CheckError::ReportInput {
                 message: error.to_string(),
             })
     }
+    /// Returns this report on the retained analysis; options default when omitted.
+    /// Baseline: omitted/null means bundled; "none" disables comparisons; otherwise pass a JSON object.
+    #[uniffi::method(default(options_json = None, baseline_json = None))]
     pub fn dialogue_tags_json(
         &self,
         options_json: Option<String>,
@@ -622,10 +637,14 @@ impl StyleDocument {
     ) -> Result<String, CheckError> {
         self.inner
             .dialogue_tags(options_json.as_deref(), baseline_json.as_deref())
+            .map(|report| writemorebetter_style::reports::to_utf16_json(&report))
             .map_err(|error| CheckError::ReportInput {
                 message: error.to_string(),
             })
     }
+    /// Returns this report on the retained analysis; options default when omitted.
+    /// Baseline: omitted/null means bundled; "none" disables comparisons; otherwise pass a JSON object.
+    #[uniffi::method(default(options_json = None, baseline_json = None))]
     pub fn sentence_length_json(
         &self,
         options_json: Option<String>,
@@ -633,10 +652,14 @@ impl StyleDocument {
     ) -> Result<String, CheckError> {
         self.inner
             .sentence_length(options_json.as_deref(), baseline_json.as_deref())
+            .map(|report| writemorebetter_style::reports::to_utf16_json(&report))
             .map_err(|error| CheckError::ReportInput {
                 message: error.to_string(),
             })
     }
+    /// Returns this report on the retained analysis; options default when omitted.
+    /// Baseline: omitted/null means bundled; "none" disables comparisons; otherwise pass a JSON object.
+    #[uniffi::method(default(options_json = None, baseline_json = None))]
     pub fn sentence_starts_json(
         &self,
         options_json: Option<String>,
@@ -644,6 +667,7 @@ impl StyleDocument {
     ) -> Result<String, CheckError> {
         self.inner
             .sentence_starts(options_json.as_deref(), baseline_json.as_deref())
+            .map(|report| writemorebetter_style::reports::to_utf16_json(&report))
             .map_err(|error| CheckError::ReportInput {
                 message: error.to_string(),
             })

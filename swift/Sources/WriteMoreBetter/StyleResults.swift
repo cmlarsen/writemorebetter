@@ -245,6 +245,21 @@ public struct DocumentStats: Codable, Equatable, Sendable {
     public let speechSpans: Int
 }
 
+/// Explicit baseline selection for a single report call. Custom input is a baseline JSON object.
+public enum StyleBaseline: Equatable, Sendable {
+    case bundled
+    case none
+    case custom(String)
+
+    var selector: String {
+        switch self {
+        case .bundled: return "bundled"
+        case .none: return "none"
+        case .custom(let json): return json
+        }
+    }
+}
+
 public extension StyleDocument {
     func stats() throws -> DocumentStats { try decodeStyle(statsJson()) }
     func echoes(optionsJson: String? = nil) throws -> EchoReport {
@@ -256,14 +271,14 @@ public extension StyleDocument {
     func cliches(optionsJson: String? = nil) throws -> ClicheReport {
         try decodeStyle(clichesJson(optionsJson: optionsJson))
     }
-    func dialogueTags(optionsJson: String? = nil, baselineJson: String? = nil) throws -> DialogueTagReport {
-        try decodeStyle(dialogueTagsJson(optionsJson: optionsJson, baselineJson: baselineJson))
+    func dialogueTags(optionsJson: String? = nil, baseline: StyleBaseline = .bundled) throws -> DialogueTagReport {
+        try decodeStyle(dialogueTagsJson(optionsJson: optionsJson, baselineJson: baseline.selector))
     }
-    func sentenceLength(optionsJson: String? = nil, baselineJson: String? = nil) throws -> SentenceLengthReport {
-        try decodeStyle(sentenceLengthJson(optionsJson: optionsJson, baselineJson: baselineJson))
+    func sentenceLength(optionsJson: String? = nil, baseline: StyleBaseline = .bundled) throws -> SentenceLengthReport {
+        try decodeStyle(sentenceLengthJson(optionsJson: optionsJson, baselineJson: baseline.selector))
     }
-    func sentenceStarts(optionsJson: String? = nil, baselineJson: String? = nil) throws -> SentenceStartsReport {
-        try decodeStyle(sentenceStartsJson(optionsJson: optionsJson, baselineJson: baselineJson))
+    func sentenceStarts(optionsJson: String? = nil, baseline: StyleBaseline = .bundled) throws -> SentenceStartsReport {
+        try decodeStyle(sentenceStartsJson(optionsJson: optionsJson, baselineJson: baseline.selector))
     }
 }
 

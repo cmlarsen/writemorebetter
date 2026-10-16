@@ -82,12 +82,20 @@ let starts = sentence_starts::report(&document, &Default::default(),
     sentence_starts::SentenceStartsBaseline::bundled().as_ref())?;
 ```
 
+Rust’s `StyleDocument` convenience methods return typed reports with byte, char and UTF-16 spans;
+bindings apply `reports::to_utf16_json` when returning strings.
+
 Swift and WASM expose `checker.styleDocument(text, options)` to retain this analysis in a
 `StyleDocument`. Several methods cost one analysis plus each report pass. The object owns its
 analysis and retains the tokenizer/resources, so it can outlive the checker. Build a new object
 when text or document options change. WASM callers must call `free()` when finished; Swift uses
 ARC. Construction respects `includeTokenDetails`; methods requiring readings reject compact
 documents. Construct documents off the UI thread.
+
+A retained moby150k document (149,091 input bytes) holds about **11–12 MB of WASM linear memory**
+in the reviewed measurement. Retain the chapter on screen and `free()` its document on navigation;
+Swift callers should drop their retained reference. WASM frees space for reuse by later documents,
+while its linear memory high-water mark does not shrink back to the OS. Avoid caching every chapter.
 
 ```javascript
 const document = checker.styleDocument(text, JSON.stringify({skipNames: ["Mara"]}));
@@ -99,13 +107,15 @@ const stats = JSON.parse(document.stats());
 const echoes = JSON.parse(document.echoes());
 const phrases = JSON.parse(document.repeatedPhrases());
 const long = JSON.parse(document.sentenceLength('{"includeLongSentences":true}'));
+const descriptive = JSON.parse(document.sentenceLength(undefined, "none"));
 document.free();
 ```
 
 Each method accepts that report's options JSON (omitted means defaults) and returns only its
 result as JSON. `stats()` returns `DocumentStats`. Baseline-aware methods (`sentenceLength`,
 `sentenceStarts`, `dialogueTags`) take a separate optional `baselineJSON`: omit it for bundled data,
-pass a baseline object encoded as JSON to override it, or the string `"null"` to disable comparisons.
+pass a baseline object encoded as JSON to override it, use `"bundled"` explicitly, or use
+`"none"` to disable comparisons.
 There is no bundled dialogue-tag baseline yet. Options use camelCase, accept snake_case aliases,
 and reject unknown keys. Overrides never change later calls. Native Rust `report` functions take
 `Option<&Baseline>` explicitly; `XBaseline::bundled()` loads the matching bundled file.
@@ -121,13 +131,18 @@ let cliches: ClicheReport = try document.cliches()
 let stats: DocumentStats = try document.stats()
 let echoes: EchoReport = try document.echoes()
 let phrases: RepeatedPhraseReport = try document.repeatedPhrases()
-let custom = try document.sentenceLength(baselineJson: "{\"mean\":13}")
+let custom = try document.sentenceLength(baseline: .custom("{\"mean\":13}"))
+let descriptive = try document.sentenceLength(baseline: .none)
 if let match = cliches.matches.first {
     let range: NSRange = match.span.nsRange
 }
 ```
 
-Swift's `*Json` methods expose the underlying strings. TypeScript result declarations ship in the generated WASM package and are also in
+Swift’s typed methods take `baseline: StyleBaseline = .bundled`; choose `.none` to disable
+comparisons or `.custom(json)` for an override. Raw `*Json` methods expose the underlying strings
+and accept the same named string selectors as WASM. Real JS `null`, Swift `nil`, and omitted
+arguments select bundled data; the JSON text `"null"` is invalid baseline input. Malformed baseline
+JSON reports `invalidBaseline` with the report name. TypeScript result declarations ship in the generated WASM package and are also in
 [`wasm/style-results.d.ts`](../wasm/style-results.d.ts); import a result with `import type` and
 annotate the value decoded with `JSON.parse`.
 
@@ -153,7 +168,8 @@ built with `new()` plus `with_*` builders.
 
 ### Errors
 
-Each method validates its inputs independently. `StyleError` has three kinds: `invalidOptions`
+Each method validates its inputs independently. Baseline parse errors identify the report and
+use `invalidBaseline`; options errors use `invalidOptions`. `StyleError` has three kinds: `invalidOptions`
 (unparseable options or unknown keys), `invalidBaseline` (with `report`: invalid values, percentile
 or universal tags), and `needsTokenDetails` (with `report`: a compact document supplied to a report
 requiring readings). WASM throws an `Error` named `StyleError` with `kind` and `report`; Swift throws
@@ -165,28 +181,28 @@ Each report stands alone. Sentence length and starts each include their own `sen
 `words: {all, narration, dialogue}`. Echoes and phrases include `words`; clichés have word counts
 per group; dialogue tags have split word counts and their own dialogue/speech/exchange counts.
 Bindings serialize `Span` as UTF-16 `{start, end}`; native Rust spans keep byte, char and UTF-16
-ranges. These abbreviated JSON examples illustrate the records; omitted arrays and groups have
-the same shapes as the ones shown.
+ranges. The examples below come from `“Fine,” Mara said softly. She grinned and grinned.⏎The old
+lamp lit the old lamp room. He kicked the bucket.` with `Mara` skipped, sample minimums set to 1,
+and phrases set to two occurrences and one content word. Arrays are truncated to their first
+entries and narration/dialogue groups abbreviated as `{}`; all top-level fields are shown.
 
 `stats` (`DocumentStats`) holds the shared counts every report agrees with:
 
 ```json
-{"paragraphs": 2, "hardWrapped": false, "tokenDetails": true, "words": {"all": 19, "narration": 18, "dialogue": 1},
- "sentences": {"all": 4, "narration": 3, "dialogue": 1}, "dialogueSpans": 1, "speechSpans": 1}
+{"paragraphs": 2, "hardWrapped": false, "tokenDetails": true, "words": {"all": 19, "narration": 18, "dialogue": 1}, "sentences": {"all": 4, "narration": 3, "dialogue": 1}, "dialogueSpans": 1, "speechSpans": 1}
 ```
 
 `sentences` belongs to each sentence report. All its indexes, including opener references, long
 sentences and runs, refer only to that result’s own table:
 
 ```json
-[{"span": {"start": 0, "end": 26}, "mode": "dialogue", "words": 3}, {"span": {"start": 26, "end": 50}, "mode": "narration", "words": 4}]
+[{"span": {"start": 0, "end": 26}, "mode": "dialogue", "words": 3}, {"span": {"start": 26, "end": 50}, "mode": "narration", "words": 4}, {"span": {"start": 51, "end": 87}, "mode": "narration", "words": 8}, {"span": {"start": 87, "end": 108}, "mode": "narration", "words": 4}]
 ```
 
 `echoes`:
 
 ```json
-{"echoes": [{"key": "grin", "label": "grin", "earlier": {"start": 30, "end": 37}, "later": {"start": 42, "end": 49}, "distance": 2}],
- "words": 19, "perThousandWords": 157.89473684210526}
+{"echoes": [], "words": 19, "perThousandWords": 0}
 ```
 
 `repeatedPhrases`:
@@ -198,19 +214,13 @@ sentences and runs, refer only to that result’s own table:
 `cliches` (`narration` and `dialogue` groups have the same shape as `all`):
 
 ```json
-{"matches": [{"kind": "cliche", "mode": "narration", "phrase": "kick the bucket", "source": "no-cliches", "span": {"start": 90, "end": 107}}],
- "groups": {"all": {"cliches": 1, "redundancies": 0, "words": 19}, "narration": {}, "dialogue": {}}}
+{"matches": [{"kind": "cliche", "mode": "narration", "phrase": "kick the bucket", "source": "no-cliches", "span": {"start": 90, "end": 107}}], "groups": {"all": {"cliches": 1, "redundancies": 0, "words": 19}, "narration": {}, "dialogue": {}}}
 ```
 
 `dialogueTags`:
 
 ```json
-{"tags": [{"span": {"start": 8, "end": 24}, "clause": {"start": 8, "end": 25}, "verb": {"start": 13, "end": 17}, "verbText": "said",
-           "lemma": "say", "class": "speech", "showy": false, "position": "after", "adverb": {"start": 18, "end": 24}, "quotes": [{"start": 0, "end": 7}]}],
- "beats": [], "untaggedRuns": [], "otherVerbs": [], "neutralVerbs": [{"lemma":"say","class":"speech","count":1}],
- "showyVerbs": [], "lowConfidence": true, "dialogueSpans": 1, "speechSpans": 1, "taggedSpans": 1, "exchanges": 1,
- "untaggedExchanges": 0, "saidAsked": {"count": 1, "percent": 100.0, "difference": null, "highlighted": false},
- "withAdverb": {"count": 1, "percent": 100.0, "difference": null, "highlighted": false}, "nonSpeech": {"count": 0, "percent": 0.0, "difference": null, "highlighted": false}}
+{"words": {"all": 19, "narration": 18, "dialogue": 1}, "tags": [{"span": {"start": 8, "end": 24}, "clause": {"start": 8, "end": 25}, "verb": {"start": 13, "end": 17}, "verbText": "said", "lemma": "say", "class": "speech", "showy": false, "position": "after", "adverb": {"start": 18, "end": 24}, "quotes": [{"start": 0, "end": 7}]}], "beats": [], "untaggedRuns": [], "otherVerbs": [], "neutralVerbs": [{"lemma": "say", "class": "speech", "count": 1}], "showyVerbs": [], "lowConfidence": true, "dialogueSpans": 1, "speechSpans": 1, "taggedSpans": 1, "exchanges": 1, "untaggedExchanges": 0, "saidAsked": {"count": 1, "percent": 100, "difference": null, "highlighted": false}, "withAdverb": {"count": 1, "percent": 100, "difference": null, "highlighted": false}, "nonSpeech": {"count": 0, "percent": 0, "difference": null, "highlighted": false}}
 ```
 
 Beats are `{"span", "quotes"}`, untagged runs `{"span", "quotes", "exchanges"}` and other verbs
@@ -220,9 +230,7 @@ Beats are `{"span", "quotes"}`, untagged runs `{"span", "quotes", "exchanges"}` 
 `sentenceLength` (every group has the same shape as `all`):
 
 ```json
-{"groups": {"all": {"sentences": 4, "zeroWordSentences": 0, "histogram": [{"words": 3, "sentences": 1}, {"words": 4, "sentences": 2}],
-  "lowConfidence": true, "mean": 4.75, "meanDifference": -8.150118525896554, "meanHighlighted": false, "percentiles": [{"percentile": 5, "value": 3.15, "difference": 1.4415492957746479, "highlighted": false}],
-  "longSentences": [], "monotonyRuns": []}, "narration": {}, "dialogue": {}}}
+{"sentences": [{"span": {"start": 0, "end": 26}, "mode": "dialogue", "words": 3}, {"span": {"start": 26, "end": 50}, "mode": "narration", "words": 4}, {"span": {"start": 51, "end": 87}, "mode": "narration", "words": 8}, {"span": {"start": 87, "end": 108}, "mode": "narration", "words": 4}], "words": {"all": 19, "narration": 18, "dialogue": 1}, "groups": {"all": {"sentences": 4, "zeroWordSentences": 0, "histogram": [{"words": 3, "sentences": 1}, {"words": 4, "sentences": 2}], "mean": 4.75, "meanDifference": -8.030488207960593, "meanHighlighted": true, "lowConfidence": true, "percentiles": [{"percentile": 5, "value": 3.15, "difference": 1.3636581644704968, "highlighted": true}], "longSentences": [], "monotonyRuns": []}, "narration": {}, "dialogue": {}}}
 ```
 
 `longSentences` are sentence indexes; `monotonyRuns` are `{"span", "sentences": {"start", "end"}}`.
@@ -230,11 +238,7 @@ Beats are `{"span", "quotes"}`, untagged runs `{"span", "quotes", "exchanges"}` 
 `sentenceStarts` (every group has the same shape as `all`; `sameWordRuns` are runs like length's):
 
 ```json
-{"starts": [{"sentence": 0, "opener": {"start": 1, "end": 5}, "word": "fine", "category": "adverb", "ambiguous": true,
-             "universalCandidates": ["ADJ", "ADV", "NOUN", "VERB"]}],
- "groups": {"all": {"sentences": 4, "lowConfidence": true, "excludedSentences": 0, "ambiguousStarts": 1, "unknownStarts": 0,
-  "categories": [{"category": "subject", "count": 3, "percent": 75.0, "difference": null, "highlighted": false}],
-  "universal": [{"tag": "DET", "weight": 1.0, "percent": 25.0, "difference": 12.9, "highlighted": false}], "sameWordRuns": []}, "narration": {}, "dialogue": {}}}
+{"sentences": [{"span": {"start": 0, "end": 26}, "mode": "dialogue", "words": 3}, {"span": {"start": 26, "end": 50}, "mode": "narration", "words": 4}, {"span": {"start": 51, "end": 87}, "mode": "narration", "words": 8}, {"span": {"start": 87, "end": 108}, "mode": "narration", "words": 4}], "words": {"all": 19, "narration": 18, "dialogue": 1}, "starts": [{"sentence": 0, "opener": {"start": 1, "end": 5}, "word": "fine", "category": "adverb", "ambiguous": true, "universalCandidates": ["ADJ", "ADV", "NOUN", "VERB"]}], "groups": {"all": {"sentences": 4, "lowConfidence": true, "excludedSentences": 0, "ambiguousStarts": 1, "unknownStarts": 0, "categories": [{"category": "subject", "count": 3, "percent": 75, "difference": 17.72164537024203, "highlighted": true}], "universal": [{"tag": "ADJ", "weight": 0.25, "percent": 6.25, "difference": 1.7130070188631956, "highlighted": false}], "sameWordRuns": []}, "narration": {}, "dialogue": {}}}
 ```
 
 ### Conventions
@@ -350,6 +354,7 @@ Build rules for any baseline:
 | Date | Decision | Why |
 |---|---|---|
 | 2026-10-16 | Owner direction (#275): independent methods on retained Swift/WASM `StyleDocument` objects; remove the combined API; each result owns its counts and sentence rows | Share the expensive analysis while letting Subplot choose its default set and opt-in lenses; typed per-report Swift and TypeScript results |
+| 2026-10-16 | #275: retained documents honor `includeTokenDetails: false`; only clichés and sentence length run on compact documents | Reverses the removed combined binding’s forced full analysis. Keep the default full options for style documents; compact `analyzeDocument` options should not be reused for the recommended report set |
 | 2026-10-14 | Reports live in a `style/` crate in this repo, consuming `analyze()` | One Rust library and one tokenizer per app; keeps `nlprule` a faithful port |
 | 2026-10-14 | Every report takes its baseline as an input | Callers can swap in genre-specific baselines |
 | 2026-10-14 | No pirated or scraped corpora | Legal exposure: pirated library copies were the basis of the settled claims in *Bartz v. Anthropic* (N.D. Cal., 2025) |
