@@ -6802,6 +6802,23 @@ USA
                 <example correction="in the">I think he's <marker>int he</marker> best position.</example>
                 <example>In the fort he was hiding from his enemies.</example>
             </rule>
+            <rule>
+                <pattern>
+                    <token postag="VBG">
+                        <exception regexp="yes">thinking|knowing|hoping|saying|believing|realizing|realising|figuring|assuming|guessing|wondering|seeing|hearing|noticing|feeling|deciding|explaining|insisting|claiming|pretending|worrying|being|having</exception>
+                    </token>
+                    <marker><token case_sensitive="yes">he</token></marker>
+                    <token postag="NN.*|UNKNOWN" postag_regexp="yes">
+                        <exception postag="VB.*|MD|IN|RB.*|JJ.*|PRP.*|DT|CC" postag_regexp="yes" />
+                    </token>
+                </pattern>
+                <message>Did you mean <suggestion>the</suggestion> or <suggestion>his</suggestion>?</message>
+                <example correction="the|his">Popping <marker>he</marker> SD card out, she sighed.</example>
+                <example correction="the|his">I was cleaning <marker>he</marker> windshield when it started to rain.</example>
+                <example>Knowing he Mac was broken, she borrowed mine.</example>
+                <example>Walking he came upon a river.</example>
+                <example>Popping the SD card out, she sighed.</example>
+            </rule>
         </rulegroup>
         <rule id="THE_HOW" name="the how/why (how/why)">
             <antipattern>
@@ -8036,6 +8053,50 @@ USA
             <url>https://languagetool.org/insights/post/weather-vs-whether-word-choice/</url>
             <short>Possible typo</short>
             <example correction="whether">She asked <marker>weather</marker> he knew her.</example>
+        </rule>
+        <rule id="PEAKED_THROUGH" name="peaked (peeked) through">
+            <antipattern>
+                <token regexp="yes">peaked|peaking</token>
+                <token>through</token>
+                <token postag="DT" min="0" />
+                <token regexp="yes">\d.*|years?|decades?|period|seasons?|summer|winter|spring|autumn|fall|months?|weeks?|days?|nights?|weekends?|century|era|quarters?</token>
+            </antipattern>
+            <pattern>
+                <marker><token regexp="yes">peaked|peaking</token></marker>
+                <token regexp="yes">through|inside|behind</token>
+            </pattern>
+            <message>Did you mean <suggestion><match no="1" regexp_match="ak" regexp_replace="ek"/></suggestion> (looked quickly)?</message>
+            <short>Possible typo</short>
+            <example correction="peeked">I <marker>peaked</marker> through the window.</example>
+            <example correction="Peeking"><marker>Peaking</marker> behind the curtain, she saw them.</example>
+            <example>Sales peaked through the 1990s.</example>
+            <example>Interest peaked through the summer and then fell away.</example>
+            <example>She peeked through the keyhole.</example>
+        </rule>
+        <rule id="HEAL_OF" name="the heal (heel) of">
+            <pattern>
+                <token regexp="yes">the|a|her|his|my|your|their|its|our|one|left|right|each|either</token>
+                <marker><token regexp="yes">heals?</token></marker>
+                <token>of</token>
+            </pattern>
+            <message>Did you mean <suggestion><match no="2" regexp_match="al" regexp_replace="el"/></suggestion> (the back of the foot or shoe)?</message>
+            <short>Possible typo</short>
+            <example correction="heel">It was the <marker>heal</marker> of her shoe.</example>
+            <example correction="heels">He dug the <marker>heals</marker> of his boots into the gravel.</example>
+            <example>The heel of her shoe snapped.</example>
+            <example>Some wounds never heal of their own accord.</example>
+        </rule>
+        <rule id="HEAL_POCKET" name="heal (heel) pocket">
+            <pattern>
+                <marker><token regexp="yes">heals?</token></marker>
+                <token regexp="yes">pockets?|cups?|strikes?|counters?|tabs?|lifts?</token>
+            </pattern>
+            <message>Did you mean <suggestion><match no="1" regexp_match="al" regexp_replace="el"/></suggestion> (the back of the foot or shoe)?</message>
+            <short>Possible typo</short>
+            <example correction="heel">The sock had no <marker>heal</marker> pocket.</example>
+            <example correction="heel">She wore gel <marker>heal</marker> cups in her boots.</example>
+            <example>The heel pocket had worn through.</example>
+            <example>Time will heal, and the pockets of grief will close.</example>
         </rule>
         <rule id="SEE_SEA" name="see (sea)">
             <pattern>
@@ -19171,6 +19232,31 @@ USA
                 <example>Some people say that if <marker>your</marker> thinking patterns are very sloppy.</example>
                 <example>Show me your driving license, please.</example>
                 <example>Be nice to your kids. They'll choose your nursing home, after all.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <marker><token>your</token></marker>
+                    <token>welcome</token>
+                    <token min="0" regexp="yes">here|back|home|there|aboard</token>
+                    <token regexp="yes">anytime|any</token>
+                </pattern>
+                <message>&you_re;</message>
+                <example correction="You're"><marker>Your</marker> welcome here anytime.</example>
+                <example correction="You're">“Come by,” she said. “<marker>Your</marker> welcome any time.”</example>
+                <example>Your welcome here was warmer than I expected.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <marker><token>your</token></marker>
+                    <token>welcome</token>
+                    <token>to</token>
+                    <token postag="VB" />
+                </pattern>
+                <message>&you_re;</message>
+                <example correction="You're"><marker>Your</marker> welcome to stay the night.</example>
+                <example correction="you're">I told him <marker>your</marker> welcome to join us.</example>
+                <example>Your welcome to the team meant a lot.</example>
+                <example>Your welcome to Paris was unforgettable.</example>
             </rule>
         </rulegroup>
 
@@ -60067,6 +60153,11 @@ USA
             <rule><!-- the + VBP -->
                 <antipattern>
                     <token>the</token>
+                    <token regexp="yes">heals?</token>
+                    <token>of</token>
+                </antipattern>
+                <antipattern>
+                    <token>the</token>
                     <token regexp="yes" postag="VB">re.+</token>
                     <example>...d that lead to the rename of The Congo,</example>
                     <example>...e candidate on the retool according to t..</example>
@@ -60223,6 +60314,7 @@ USA
                 <example>If it is raining, the practise will be canceled.</example> <!-- should be caught by MORFOLOGIK_EN_US... -->
                 <example>The proof of Cleveland's mettle came quickly: its NFL regular-season opener was against the two-time defending champion Eagles on September 16 in Philadelphia.</example>
                 <example>Sources believe it is likely that SoCal would object to at least some of the plan's provisions (for example, a PUC audit of SoCal's debt amount to determine the direct rate component to pay for the undercollect).</example>
+                <example>It was the heal of her shoe.</example>
             </rule>
             <rule>  <!-- ARTICLE_VB from Premium (gp4); temp off FOR NOW, improvement incoming -->
                 <antipattern>
@@ -71938,6 +72030,114 @@ USA
                 <example>The lack of modern post facilities caused trouble for many shippers.</example>
                 <example>The people of London are very proud of this bridge.</example>
                 <example>The level of arsenic found in Sami's stomach was enough to kill 4 horses.</example>
+            </rule>
+        </rulegroup>
+        <rulegroup id="EACH_OF_NNS_VBP" name="each of the [plural] are (is)">
+            <rule>
+                <pattern>
+                    <token>
+                        <exception postag="SENT_START" />
+                        <exception regexp="yes">of|one|two|three|four|five</exception>
+                        <exception postag="NN.*|MD|TO" postag_regexp="yes" />
+                        <exception inflected="yes" regexp="yes">let|make|have|help|watch|see|hear|feel|call|send|bring|put|get|tell|ask|want|need|leave|keep|take|give|show|pay</exception>
+                    </token>
+                    <token>each</token>
+                    <token>of</token>
+                    <token regexp="yes">the|these|those|my|your|his|her|our|their</token>
+                    <token postag="JJ.*" postag_regexp="yes" min="0" />
+                    <token postag="NNS" />
+                    <marker>
+                        <token>are</token>
+                    </marker>
+                </pattern>
+                <message>You should probably use <suggestion>is</suggestion>.</message>
+                <short>Possible agreement error</short>
+                <example correction="is">My aunt says that each of the children <marker>are</marker> happy.</example>
+                <example correction="is">“Each of the children <marker>are</marker> happy,” she said.</example>
+                <example>My aunt says that each of the children is happy.</example>
+                <example>The owners of each of the dogs are here.</example>
+                <example>Each of the children are happy.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token>
+                        <exception postag="SENT_START" />
+                        <exception regexp="yes">of|one|two|three|four|five</exception>
+                        <exception postag="NN.*|MD|TO" postag_regexp="yes" />
+                        <exception inflected="yes" regexp="yes">let|make|have|help|watch|see|hear|feel|call|send|bring|put|get|tell|ask|want|need|leave|keep|take|give|show|pay</exception>
+                    </token>
+                    <token>each</token>
+                    <token>of</token>
+                    <token regexp="yes">the|these|those|my|your|his|her|our|their</token>
+                    <token postag="JJ.*" postag_regexp="yes" min="0" />
+                    <token postag="NNS" />
+                    <marker>
+                        <token>have</token>
+                    </marker>
+                </pattern>
+                <message>You should probably use <suggestion>has</suggestion>.</message>
+                <short>Possible agreement error</short>
+                <example correction="has">I think each of the boys <marker>have</marker> a bike.</example>
+                <example>I think each of the boys has a bike.</example>
+                <example>Let each of the boys have a bike.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token>
+                        <exception postag="SENT_START" />
+                        <exception regexp="yes">of|one|two|three|four|five</exception>
+                        <exception postag="NN.*|MD|TO" postag_regexp="yes" />
+                        <exception inflected="yes" regexp="yes">let|make|have|help|watch|see|hear|feel|call|send|bring|put|get|tell|ask|want|need|leave|keep|take|give|show|pay</exception>
+                    </token>
+                    <token>each</token>
+                    <token>of</token>
+                    <token regexp="yes">the|these|those|my|your|his|her|our|their</token>
+                    <token postag="JJ.*" postag_regexp="yes" min="0" />
+                    <token postag="NNS" />
+                    <marker>
+                        <token postag="VBP"><exception postag="NN.*|VB[DGZ]|JJ" postag_regexp="yes" /><exception regexp="yes">are|have|'re|’re|'ve|’ve|am|'m|’m</exception></token>
+                    </marker>
+                </pattern>
+                <message>You should probably use <suggestion><match no="7" postag="VBZ" /></suggestion>.</message>
+                <short>Possible agreement error</short>
+                <example correction="seems">I think each of the old houses <marker>seem</marker> haunted.</example>
+                <example>I think each of the old houses seems haunted.</example>
+                <example>He wondered how much money each of those missiles cost.</example>
+                <example>He had let each of the captains know this.</example>
+                <example>He would call each of the crew back in.</example>
+            </rule>
+        </rulegroup>
+        <rulegroup id="THERE_ARE_WHAT" name="there are what I thought was (there is)">
+            <rule>
+                <pattern>
+                    <token>there</token>
+                    <marker><token>are</token></marker>
+                    <token>what</token>
+                    <token postag="PRP.*" postag_regexp="yes" />
+                    <token postag="RB" min="0" />
+                    <token postag="VBD|VBP" postag_regexp="yes" />
+                    <token>was</token>
+                </pattern>
+                <message>The verb should agree with the singular "was": <suggestion>is</suggestion>.</message>
+                <short>Possible agreement error</short>
+                <example correction="is">There <marker>are</marker> what I thought was a fox in the garden.</example>
+                <example>There are what I thought were two foxes in the garden.</example>
+                <example>There is what I thought was a fox in the garden.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token>there</token>
+                    <marker><token>were</token></marker>
+                    <token>what</token>
+                    <token postag="PRP.*" postag_regexp="yes" />
+                    <token postag="RB" min="0" />
+                    <token postag="VBD|VBP" postag_regexp="yes" />
+                    <token>was</token>
+                </pattern>
+                <message>The verb should agree with the singular "was": <suggestion>was</suggestion>.</message>
+                <short>Possible agreement error</short>
+                <example correction="was">There <marker>were</marker> what we first took was a deer at the edge of the trees.</example>
+                <example>There were what we took to be deer at the edge of the trees.</example>
             </rule>
         </rulegroup>
         <rulegroup id="AGREEMENT_QUESTION" name="agreement error: auxiliary verb (do/have) and subject in questions">
@@ -120623,6 +120823,12 @@ The accident victim died from her injuries.
                     <token>/</token>
                     <token>other</token>
                 </antipattern>
+                <antipattern>
+                    <token regexp="yes">one|way|some(thing|one|body|where|how|time)?</token>
+                    <token postag="NN.*" postag_regexp="yes" min="0" />
+                    <token>or</token>
+                    <token>other</token>
+                </antipattern>
                 <pattern>
                     <marker>
                         <token>other</token>
@@ -120656,6 +120862,11 @@ The accident victim died from her injuries.
                 <example>Nor one nor t'other had slept a wink!</example>
                 <example>This further understanding caused Tax to push further to gather other advise from outside counsel operating in the Tokyo market.</example>
                 <example>There are a lot of other frequently asked questions.</example>
+                <example>They were all one way or other connected to the mill.</example>
+                <example>Something or other happened while we were out.</example>
+                <example>Some fool or other left the gate open.</example>
+                <example>Somebody or other knocked twice.</example>
+                <example correction="others">I hope you or <marker>other</marker> know the answer.</example>
             </rule>
             <rule>
                 <antipattern>

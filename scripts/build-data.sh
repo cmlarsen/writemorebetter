@@ -114,6 +114,8 @@ unzip -o "$LT_DIR/libs/english-pos-dict.jar" \
     --tag_dict_path "$LT_DIR/org/languagetool/resource/en/english.dict" \
     --tag_info_path "$LT_DIR/org/languagetool/resource/en/english.info" \
     --spell_map_path "$LT_DIR/org/languagetool/rules/en/contractions.txt" \
+    --grammar_path build/lt-rules/en/grammar.xml \
+    --segment_path build/lt-rules/core/segment.srx \
     --java "$JAVA_BIN" \
     --out_dir "$build_dir"
 
