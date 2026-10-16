@@ -1,0 +1,462 @@
+{
+  "dev": {
+    "split": "dev",
+    "documents": 1725,
+    "paired_controls": 1725,
+    "changed_controls": 0,
+    "natural": {
+      "predictions": 222,
+      "counts": {
+        "fillers": {
+          "actually": 1,
+          "just": 5,
+          "quite": 4,
+          "really": 1,
+          "that": 22,
+          "very": 13
+        },
+        "overusedWords": {
+          "old": 6,
+          "sleep": 7
+        },
+        "sensoryBalance": {
+          "interoception": 11,
+          "sight": 99,
+          "sound": 34,
+          "taste": 9,
+          "touch": 10
+        }
+      },
+      "sha256": "69d6dd4de100e5fc1f925aa1186af977a980053ff0c92db0a81a792a960c48e4"
+    },
+    "reports": {
+      "overusedWords": {
+        "patterns": {
+          "blink": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "true_positive": 300,
+            "predicted": 300,
+            "gold": 300
+          },
+          "glance": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "true_positive": 300,
+            "predicted": 300,
+            "gold": 300
+          },
+          "shrug": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "true_positive": 300,
+            "predicted": 300,
+            "gold": 300
+          }
+        },
+        "confusion": {
+          "blink": {
+            "blink": 300
+          },
+          "glance": {
+            "glance": 300
+          },
+          "shrug": {
+            "shrug": 300
+          }
+        }
+      },
+      "fillers": {
+        "patterns": {
+          "just": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "true_positive": 60,
+            "predicted": 60,
+            "gold": 60
+          },
+          "that": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "true_positive": 60,
+            "predicted": 60,
+            "gold": 60
+          },
+          "very": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "true_positive": 60,
+            "predicted": 60,
+            "gold": 60
+          }
+        },
+        "confusion": {
+          "just": {
+            "just": 60
+          },
+          "that": {
+            "that": 60
+          },
+          "very": {
+            "very": 60
+          }
+        }
+      },
+      "sensoryBalance": {
+        "patterns": {
+          "interoception": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "true_positive": 60,
+            "predicted": 60,
+            "gold": 60
+          },
+          "sight": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "true_positive": 60,
+            "predicted": 60,
+            "gold": 60
+          },
+          "smell": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "true_positive": 60,
+            "predicted": 60,
+            "gold": 60
+          },
+          "sound": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "true_positive": 60,
+            "predicted": 60,
+            "gold": 60
+          },
+          "taste": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "true_positive": 60,
+            "predicted": 60,
+            "gold": 60
+          },
+          "touch": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "true_positive": 60,
+            "predicted": 60,
+            "gold": 60
+          }
+        },
+        "confusion": {
+          "interoception": {
+            "interoception": 60
+          },
+          "sight": {
+            "sight": 60
+          },
+          "smell": {
+            "smell": 60
+          },
+          "sound": {
+            "sound": 60
+          },
+          "taste": {
+            "taste": 60
+          },
+          "touch": {
+            "touch": 60
+          }
+        }
+      },
+      "singleSense": {
+        "patterns": {
+          "sight": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "true_positive": 60,
+            "predicted": 60,
+            "gold": 60
+          }
+        },
+        "confusion": {
+          "sight": {
+            "sight": 60
+          }
+        }
+      },
+      "diction": {
+        "patterns": {
+          "abstract": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "true_positive": 420,
+            "predicted": 420,
+            "gold": 420
+          },
+          "run": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "true_positive": 60,
+            "predicted": 60,
+            "gold": 60
+          }
+        },
+        "confusion": {
+          "abstract": {
+            "abstract": 420
+          },
+          "run": {
+            "run": 60
+          }
+        }
+      }
+    }
+  },
+  "test": {
+    "split": "test",
+    "documents": 1714,
+    "paired_controls": 1714,
+    "changed_controls": 0,
+    "natural": {
+      "predictions": 217,
+      "counts": {
+        "fillers": {
+          "actually": 1,
+          "just": 8,
+          "quite": 5,
+          "really": 1,
+          "somehow": 2,
+          "that": 37,
+          "very": 16
+        },
+        "overusedWords": {
+          "come": 7
+        },
+        "sensoryBalance": {
+          "interoception": 14,
+          "sight": 92,
+          "smell": 1,
+          "sound": 18,
+          "taste": 3,
+          "touch": 11
+        },
+        "singleSense": {
+          "sight": 1
+        }
+      },
+      "sha256": "b98c2440044afb7e34e351aa2be35327daa978548641eb10d0a8ac1299eb9536"
+    },
+    "reports": {
+      "overusedWords": {
+        "patterns": {
+          "blink": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "true_positive": 300,
+            "predicted": 300,
+            "gold": 300
+          },
+          "glance": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "true_positive": 295,
+            "predicted": 295,
+            "gold": 295
+          },
+          "shrug": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "true_positive": 300,
+            "predicted": 300,
+            "gold": 300
+          }
+        },
+        "confusion": {
+          "blink": {
+            "blink": 300
+          },
+          "glance": {
+            "glance": 295
+          },
+          "shrug": {
+            "shrug": 300
+          }
+        }
+      },
+      "fillers": {
+        "patterns": {
+          "just": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "true_positive": 60,
+            "predicted": 60,
+            "gold": 60
+          },
+          "that": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "true_positive": 60,
+            "predicted": 60,
+            "gold": 60
+          },
+          "very": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "true_positive": 60,
+            "predicted": 60,
+            "gold": 60
+          }
+        },
+        "confusion": {
+          "just": {
+            "just": 60
+          },
+          "that": {
+            "that": 60
+          },
+          "very": {
+            "very": 60
+          }
+        }
+      },
+      "sensoryBalance": {
+        "patterns": {
+          "interoception": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "true_positive": 60,
+            "predicted": 60,
+            "gold": 60
+          },
+          "sight": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "true_positive": 60,
+            "predicted": 60,
+            "gold": 60
+          },
+          "smell": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "true_positive": 60,
+            "predicted": 60,
+            "gold": 60
+          },
+          "sound": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "true_positive": 60,
+            "predicted": 60,
+            "gold": 60
+          },
+          "taste": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "true_positive": 60,
+            "predicted": 60,
+            "gold": 60
+          },
+          "touch": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "true_positive": 60,
+            "predicted": 60,
+            "gold": 60
+          }
+        },
+        "confusion": {
+          "interoception": {
+            "interoception": 60
+          },
+          "sight": {
+            "sight": 60
+          },
+          "smell": {
+            "smell": 60
+          },
+          "sound": {
+            "sound": 60
+          },
+          "taste": {
+            "taste": 60
+          },
+          "touch": {
+            "touch": 60
+          }
+        }
+      },
+      "singleSense": {
+        "patterns": {
+          "sight": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "true_positive": 60,
+            "predicted": 60,
+            "gold": 60
+          }
+        },
+        "confusion": {
+          "sight": {
+            "sight": 60
+          }
+        }
+      },
+      "diction": {
+        "patterns": {
+          "abstract": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "true_positive": 420,
+            "predicted": 420,
+            "gold": 420
+          },
+          "run": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "true_positive": 60,
+            "predicted": 60,
+            "gold": 60
+          }
+        },
+        "confusion": {
+          "abstract": {
+            "abstract": 420
+          },
+          "run": {
+            "run": 60
+          }
+        }
+      }
+    }
+  }
+}

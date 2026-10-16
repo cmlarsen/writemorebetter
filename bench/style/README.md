@@ -662,7 +662,7 @@ calibration is invalid. No worker read private exports, titles, authors or unit 
 
 ```sh
 python3 bench/style/run.py tier3 --flag-rates --self-test
-python3 bench/style/run.py tier3 --flag-rates --export /path/to/fiction-baseline/out   # owner only
+python3 bench/style/run.py tier3 --flag-rates --export /path/to/fiction-baseline/out --diction-table /approved/ratings.json   # owner only
 ```
 
 This measures how often every style report flags published fiction, at the scale Subplot runs the
@@ -670,7 +670,7 @@ reports: per chapter and per manuscript. It reads the tier 3 export layout (`uni
 `units/<unit_id>.txt`, one paragraph per line, blank lines at scene breaks) and uses only
 `author_key` (a nonempty string) and `unit_id`. The probe `flag_rates` in `bench/tools/wmb-document`
 (built automatically; `--probe PATH` selects a prebuilt one) builds each document with default
-`DocumentOptions` (line mode, token details, no skipped names). It runs all six reports with their
+`DocumentOptions` (line mode, token details, no skipped names). It runs the six original reports with their
 default options: sentence length and sentence starts with the shipped
 `style/data/baselines/sentence-length.json` and `sentence-starts.json`, echoes, repeated phrases, the
 bundled cliché/redundancy list, and dialogue tags (no dialogue-tag baseline ships). The probe returns
@@ -788,6 +788,155 @@ and equal author weighting at both scales, weighted percentiles, the window rule
 percentiles, rejection of unlisted probe keys and of non-string author keys, and suppression of
 argparse and runtime errors in thirteen argument shapes, including `--e PATH` with no subcommand.
 CI runs only the self-test; no private corpus or export was read to build this.
+
+## Remaining #256 scope: lexical suites and owner obligations
+
+```sh
+python3 bench/style/lexical.py --split dev
+python3 bench/style/lexical.py --gate
+```
+
+`lexical.py` uses the shared tier 2 exact-byte/UTF-16 scorer and pinned Austen/Melville
+paragraph generator. Each book's paragraph indices 0–29 are development and 30–59 are test;
+these splits are fixed before measurement. Generated texts, manifests, answer keys, predictions
+and natural-paragraph predictions are written under ignored `out/lexical/`. The persistent
+`lexical_reports` Rust probe loads only the tokenizer, bundled overused-word baseline, bundled
+sensory norms, and a caller-supplied diction table. It changes no report logic.
+`diction-synthetic.json` contains twelve invented ratings (project MIT/Apache-2.0); they are
+mechanical test values, not human concreteness norms. No Brysbaert data is used. All report
+options are shipped defaults.
+
+Every public paragraph gets the same injected cases, each appended to the untouched paragraph:
+
+| Report / category | Positive injections (gold) | Controls that must stay silent |
+|---|---|---|
+| Overused words | five occurrences each of *glanced*, *shrugged*, *blinked* (the default minimum count) | four occurrences of each; five *said* in a 240-word padded text, whose ratio to the Ngram rate is below 4 |
+| Fillers | *very*, *just* and clause-opening *that* in `It was very cold. She just left. He knew that she had gone.` | adjective *just* and determiner *That* |
+| Sensory balance | one rated word per modality: *red*, *music*, *cold*, *stench*, *salty*, *nausea* | figurative *looked like* / *felt that*, flat adverb *pretty late*, the excluded lemma *speech*, and sight word *beautiful* whose margin (2.3) is below the sight margin |
+| Single-sense scenes | a scene after `* * *` with 18 sight and 2 sound words (90%) | 16 + 4 (80%), and 19 sight words (below the 20-word minimum) |
+| Diction sentences and runs | three abstract sentences (mean 1.5) forming one run; one near-threshold sentence (mean 2.4); abstract, abstract, concrete, abstract (three sentences, no run) | three concrete sentences; the abstract sentence as dialogue; a sentence with mean 2.6; a sentence with two rated words |
+
+Overused cases skip a paragraph that already contains that lemma, and the ratio control skips
+paragraphs that contain *say*. Curly apostrophe, em dash, ellipsis and U+2028 precede injections
+to exercise both offset units; the Standard Ebooks paragraphs themselves supply curly double
+quotes. Diction gold sentence spans include trailing inter-sentence spaces, matching the
+documented analysis span convention.
+
+Natural text is not presumed flag-free, and the gate checks it two ways. First, **every**
+prediction of every category on the 60 untouched paragraphs of the split is frozen in
+`lexical-baseline.json` as per-category counts plus a SHA-256 of the sorted
+`(paragraph, report, category, byte span)` list; any change fails the gate. Second, each injected
+case is paired with its untouched prefix: predictions before the insertion boundary must match the
+prefix-only result as a multiset, and **all** predictions after the boundary are scored against the
+answer key, so unexpected suffix flags and duplicate spans count as false positives and wrong
+modalities populate the confusion matrix. The frozen natural predictions are a regression lock, not
+a judgment that they are right; a deliberate report change rebaselines with
+`python3 bench/style/lexical.py --split test --write-baseline` (and `--split dev`), and the PR
+records the count change. A tokenizer or document-analysis change that moves these flags also
+needs a rebaseline. Test paragraphs are disjoint from dev paragraphs, but vocabulary and templates
+are shared; these are regression scores, not held-out linguistic generalization claims.
+
+Measurements (`lexical-baseline.json`; test unless noted). Every category scores 100% precision,
+recall and F1 on both splits:
+
+| Report / category | Test gold (dev) |
+|---|---:|
+| Overused words: glance; shrug; blink | 295; 300; 300 (300 each) |
+| Fillers: very; just; that | 60 each (60 each) |
+| Sensory balance: each of six modalities | 60 each (60 each) |
+| Single-sense scenes: sight | 60 (60) |
+| Diction: abstract sentences; abstract runs | 420; 60 (420; 60) |
+| Cases / paired untouched-prefix comparisons changed | 1,714 / 0 (1,725 / 0) |
+| Frozen natural-paragraph predictions | 217 (222) |
+
+The test natural predictions are 139 sense words (92 of them sight), 70 fillers,
+7 *come* overused flags and 1 single-sense scene; development has 163 sense words, 46 fillers and 13
+overused flags.
+
+Mutation check (2026-10-16; throwaway edits to `style/src/reports/`, reverted and never committed;
+each rebuilt `lexical_reports` and `flag_rates`, then ran this gate on the test split and the
+flag-rates self-test):
+
+| Mutation | Review run at `1f2c0dd` | This gate: what fails |
+|---|---|---|
+| Overused `minimumCount` 5→4 | caught | four-occurrence controls flag |
+| Overused `minimumCount` 5→6 | missed | five-occurrence positives drop |
+| Overused ratio test removed | missed | *said* below-ratio control flags |
+| Filler detection disabled | missed | natural freeze; filler recall (controls alone); tier 3 self-test |
+| Lancaster `h`/`o` letters swapped | caught | natural freeze; smell/touch confusion (controls alone); tier 3 self-test |
+| Sensory excluded-lemma, figurative and flat-adverb filters removed | missed | natural freeze; sight controls (controls alone) |
+| Sensory `sightMargin` 3.0→2.0 | missed | natural freeze; *beautiful* control (controls alone) |
+| Diction `minimumRatedWords` 3→4 | caught | abstract positives drop; tier 3 self-test |
+| Diction `abstractBelow` 2.5→4.0 | missed | mean-2.6 control flags |
+| Diction narration-only rule removed | missed | dialogue control flags |
+| Diction `minimumRunSentences` 3→4 (reviewer: tier 3) | caught (tier 3) | run positives drop; tier 3 self-test |
+| Sensory `singleSensePercent` 85→99 (reviewer: tier 3) | missed | natural freeze; 90% scene drops (controls alone); tier 3 self-test |
+| Sensory excluded-lemma filter alone removed | — | natural freeze; *speech* control (controls alone) |
+| Sensory figurative filter alone removed | — | natural freeze; *looked like* / *felt that* (controls alone) |
+| Sensory flat-adverb filter alone removed | — | natural freeze; *pretty late* (controls alone) |
+| Diction `minimumRunSentences` 3→2 | — | broken-run case flags a two-sentence run |
+| Sensory `singleSensePercent` 85→75 | — | 80% scene control flags |
+| Diction `minimumRatedWords` 3→2 | — | two-rated-word control flags |
+| Diction `abstractBelow` 2.5→2.0 | — | mean-2.4 positive drops |
+| Sensory `minimumSenseWords` 20→21 | — | 20-word scene positive drops |
+| Overused `minimumRatio` 4→3 | — | *said* below-ratio control flags |
+
+All 21 fail the tier 2 gate (the review run caught 3 of the first 10 in tier 2 and 1 of 2 in
+tier 3); the restored build passes. The natural freeze fails first for 8 of them, so those 8 were
+rerun with the freeze bypassed: the targeted controls and positives fail each of them on their own.
+Of the 12 reviewer mutations, the flag-rates self-test now fails 5. The suite does not catch a
+change that leaves every injected boundary case and every natural flag on the 60 gated test paragraphs
+unchanged, for example a filter edit that only matters for constructions absent from both.
+
+CI's `English` job runs **Style lexical report accuracy gates (256)**; it gates the test-split
+P/R/F1 per category, gold coverage, case count, the paired-prefix count and the frozen natural
+predictions. Full confusion matrices are recorded in the baseline. The existing **Style benchmark
+accuracy gates** step continues to gate the other merged reports, tier 1, and synthetic tier 3. No
+transitions, pronoun-start or pacing suite is added here; #247 and #251 own those lanes.
+
+### Every merged report in owner-only tier 3
+
+The `--flag-rates` probe now includes overused words, sensory balance and diction alongside the
+six earlier reports. Run the self-test as before. A real owner run must supply the actual diction
+table chosen by the caller:
+
+```sh
+python3 bench/style/run.py tier3 --flag-rates --self-test
+# Owner only; use an approved export and a legally usable caller-supplied table:
+python3 bench/style/run.py tier3 --flag-rates --export /approved/export --diction-table /approved/ratings.json
+```
+
+The self-test alone uses the committed invented table. There is no synthetic fallback for a real
+export. Overused output counts flagged lemmas, their occurrences and filler tokens; sensory output
+counts sense words, each of six modalities, and single-sense scene flags; diction counts abstract
+sentences/runs and pools rated-word sums/counts into a mean rating. Each count has an author-weighted
+per-1,000-word distribution and flagged share at both chapter-window and manuscript/author scales.
+For sense-word and filler counts, `flagged_share` means a nonempty diagnostic, not an editorial
+warning. For diction, the chosen table determines coverage and interpretation. Manuscript samples
+pool units by author; ratings are weighted by rated words within an author and equally across authors.
+No matched lemmas, table vocabulary, paths or source text enter the output. The existing allowlist and
+numeric-only validator apply. Synthetic coverage checks all three added reports (including four
+filler words and a single-sense scene at 26 of 29 sense words, about 90% sight, so a raised
+`singleSensePercent` fails), author pooling, rating weighting and leak rejection. No private inputs were accessed for this work.
+
+### Label inventory and what the owner still owes
+
+| Set | Size | Actual labeler provenance | Still owed |
+|---|---:|---|---|
+| `labels/sentence-starts.jsonl` | 332 sentences | Codex + independent Claude; coordinator adjudication; second model saw the category definitions, not existing labels/predictions | Owner adjudication/acceptance; independent human labels if “hand-labeled” is literal; untouched evaluation set (current rows were used in development) |
+| `labels/sentence-starts-modern.jsonl` | 34 sentences | One implementing model; invented public story excerpts | Second independent labels and owner adjudication; diagnostic only, not part of the 332-row floor |
+| `labels/dialogue-tags.jsonl` | 238 records over 186 quote spans (70 tags, 10 beats) | Two Claude sessions, coordinator adjudication; detector-marked quote worksheets | Owner acceptance; independent human labels if required; not 238 independent sentences and not held out |
+| Transitions | No set on audited main | None | #247 lane plus approximately 300 public-domain sentences, two independent labelers and owner adjudication |
+| Pacing | No set on audited main | None | #251 lane plus approximately 300 public-domain sentences, two independent labelers and owner adjudication |
+| Overused words, sensory balance, diction | No hand-labeled natural-text set | Deterministic generated answer keys only | Owner usefulness/calibration review; injections do not substitute for editorial judgments |
+
+The small `labels/example.jsonl` (3 records), `documents.jsonl` and `excerpt.txt` demonstrate the
+scorer format and are not an accuracy set. No second labeler or owner judgment was invented here.
+The original #256 request for about 300 sentences **per judgment report**, independently labeled
+and owner-adjudicated, is therefore still open. Private tier 3 measurements for newly merged reports,
+the chosen diction table and its calibration, and owner publication/acceptance of aggregate numbers
+also remain owner work. This PR references #256 rather than closing it. The requirement-by-requirement
+audit is in [`AUDIT-256.md`](AUDIT-256.md) and the PR body.
 
 ## Pacing (#251)
 
