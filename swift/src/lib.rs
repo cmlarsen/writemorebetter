@@ -682,6 +682,7 @@ impl StyleDocument {
                 message: error.to_string(),
             })
     }
+    /// Returns this report on the retained analysis; options default when omitted.
     #[uniffi::method(default(options_json = None))]
     pub fn pronoun_starts_json(&self, options_json: Option<String>) -> Result<String, CheckError> {
         self.inner
@@ -691,6 +692,7 @@ impl StyleDocument {
                 message: error.to_string(),
             })
     }
+    /// Returns this report on the retained analysis; options default when omitted.
     #[uniffi::method(default(options_json = None))]
     pub fn sensory_balance_json(&self, options_json: Option<String>) -> Result<String, CheckError> {
         self.inner

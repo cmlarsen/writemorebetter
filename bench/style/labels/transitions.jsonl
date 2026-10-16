@@ -29,3 +29,34 @@
 {"text": "The clock showed the time.", "expected": []}
 {"text": "For, example birds fly.", "expected": []}
 {"text": "As—a result, we left.", "expected": []}
+{"text": "Thus, the plan failed.", "expected": [["thus", "cause"]]}
+{"text": "And thus she left.", "expected": [["and", "addition"], ["thus", "cause"]]}
+{"text": "Besides, nobody saw.", "expected": [["besides", "addition"]]}
+{"text": "He was, however, late.", "expected": [["however", "contrast"]]}
+{"text": "Instead, she stayed.", "expected": [["instead", "contrast"]]}
+{"text": "But, besides the money, he had nothing.", "expected": [["but", "contrast"]]}
+{"text": "“However, I won’t,” she said.", "expected": [["however", "contrast"]]}
+{"text": "The rain kept on; meanwhile, the river rose.", "expected": [["meanwhile", "time"]]}
+{"text": "He had lied to her. Consequently, she left.", "expected": [["consequently", "cause"]]}
+{"text": "She was, in addition, his sister.", "expected": [["in addition", "addition"]]}
+{"text": "Birds, for example, can see ultraviolet.", "expected": [["for example", "example"]]}
+{"text": "He apologised; nevertheless, she left.", "expected": [["nevertheless", "contrast"]]}
+{"text": "She hated him; on the other hand, she needed him.", "expected": [["on the other hand", "contrast"]]}
+{"text": "She’d left the door open, so the cat got out.", "expected": [["so", "cause"]]}
+{"text": "It was late. Afterwards, nobody spoke of it.", "expected": [["afterwards", "time"]]}
+{"text": "She liked him because of his hands.", "expected": [["because", "cause"]]}
+{"text": "It was also blue.", "expected": [["also", "addition"]]}
+{"text": "So you’re leaving.", "expected": [["so", "cause"]]}
+{"text": "She would, however, never know.", "expected": [["however", "contrast"]]}
+{"text": "She had thus broken it.", "expected": []}
+{"text": "He stood thus for an hour.", "expected": []}
+{"text": "Thus far nothing has happened.", "expected": []}
+{"text": "He was thus far from home.", "expected": []}
+{"text": "The idea, however wild, worked.", "expected": []}
+{"text": "Well, then, however the captains may grumble, we sail.", "expected": []}
+{"text": "However much she wanted it, she waited.", "expected": []}
+{"text": "He chose tea instead of coffee.", "expected": []}
+{"text": "Instead of running, she hid.", "expected": []}
+{"text": "There was nothing besides.", "expected": []}
+{"text": "He finally slept.", "expected": []}
+{"text": "So what?", "expected": []}

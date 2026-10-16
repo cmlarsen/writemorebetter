@@ -60,9 +60,25 @@ fn labeled_transitions() {
             "for instance",
             TransitionType::Example,
         ),
+        ("Thus, the plan failed.", "thus", TransitionType::Cause),
+        ("And thus she left.", "and", TransitionType::Addition),
+        ("Besides, nobody saw.", "besides", TransitionType::Addition),
+        (
+            "He was, however, late.",
+            "however",
+            TransitionType::Contrast,
+        ),
+        ("She stayed, however.", "however", TransitionType::Contrast),
+        ("Instead, she stayed.", "instead", TransitionType::Contrast),
+        (
+            "But, besides the money, he had nothing.",
+            "but",
+            TransitionType::Contrast,
+        ),
     ] {
         let result = transitions::report(&document(text), &TransitionsOptions::new()).unwrap();
-        assert_eq!(result.matches.len(), 1, "{text}");
+        let expected = if text.starts_with("And thus") { 2 } else { 1 };
+        assert_eq!(result.matches.len(), expected, "{text}");
         assert_eq!(result.matches[0].phrase, phrase);
         assert_eq!(result.matches[0].kind, kind);
         assert_eq!(
@@ -88,6 +104,12 @@ fn labeled_transitions() {
         "The clock showed the time.",
         "For, example birds fly.",
         "As—a result, we left.",
+        "She had thus broken it.",
+        "He stood thus for an hour.",
+        "Thus far nothing has happened.",
+        "The idea, however wild, worked.",
+        "Well, then, however the captains may grumble, we sail.",
+        "He chose tea instead of coffee.",
     ] {
         assert!(
             transitions::report(&document(text), &Default::default())
@@ -100,7 +122,7 @@ fn labeled_transitions() {
 }
 #[test]
 fn pronoun_runs_cross_paragraphs_and_include_dialogue() {
-    let text = "She walked home. She slept.\n\nShe woke early. A bird sang.\n“I am here. I can wait. I will stay.”";
+    let text = "She was home. She was tired.\n\nShe was done. A bird sang.\n“I am here. I can wait. I will stay.”";
     let result = pronoun_starts::report(
         &document(text),
         &PronounStartsOptions::new().with_minimum_sentences(1),
@@ -129,6 +151,54 @@ fn pronoun_runs_cross_paragraphs_and_include_dialogue() {
             .groups
             .all
             .runs
+            .len(),
+        1
+    );
+    let reported = document("She walked home. She slept.\n\nShe woke early.");
+    assert_eq!(
+        writemorebetter_style::reports::sentence_starts::report(
+            &reported,
+            &Default::default(),
+            None
+        )
+        .unwrap()
+        .groups
+        .all
+        .same_word_runs[0]
+            .sentences,
+        0..3
+    );
+    let lens = pronoun_starts::report(&reported, &Default::default()).unwrap();
+    assert!(lens.groups.all.runs.is_empty());
+    assert_eq!(lens.groups.all.pronoun_starts.count, 3);
+}
+#[test]
+fn dialogue_turns_reset_runs_and_repeats() {
+    let options = PronounStartsOptions::new().with_minimum_sentences(1);
+    let speakers = document("“She left,” I said.\n\n“She did,” he said.\n\n“She will,” I said.");
+    let result = pronoun_starts::report(&speakers, &options).unwrap();
+    assert_eq!(result.starts.len(), 3);
+    assert!(result.groups.all.runs.is_empty());
+    let speech = document("“She left. She cried. She’s gone,” I said.");
+    assert_eq!(
+        pronoun_starts::report(&speech, &options)
+            .unwrap()
+            .groups
+            .dialogue
+            .runs[0]
+            .sentences,
+        0..3
+    );
+    let turns =
+        document("“But I can’t,” she said.\n\n“But you must,” he said.\n\n“But why?” she asked.");
+    let result = transitions::report(&turns, &TransitionsOptions::new()).unwrap();
+    assert_eq!(result.matches.len(), 3);
+    assert!(result.repeats.is_empty());
+    let single = document("“But I can’t. But I won’t.”");
+    assert_eq!(
+        transitions::report(&single, &TransitionsOptions::new())
+            .unwrap()
+            .repeats
             .len(),
         1
     );
@@ -212,6 +282,28 @@ fn boundaries_exclusions_and_shared_methods() {
             .runs
             .is_empty());
     }
+    let names = DocumentOptions::new().with_skip_names(vec!["Mary".to_owned()]);
+    let named = analyze_document(
+        tokenizer(),
+        "Mary, however, stayed. Therefore, she left.",
+        &names,
+    );
+    let result = transitions::report(&named, &Default::default()).unwrap();
+    assert_eq!(result.matches.len(), 2);
+    assert!(!result.matches[0].opening);
+    assert_eq!(result.groups.all.sentences, 2);
+    let chain = analyze_document(
+        tokenizer(),
+        "However, he left. Mary sat. However, he came back.",
+        &names,
+    );
+    assert_eq!(
+        transitions::report(&chain, &Default::default())
+            .unwrap()
+            .repeats
+            .len(),
+        1
+    );
     let options = DocumentOptions::new().with_skip_names(vec!["She".to_owned()]);
     let doc = analyze_document(tokenizer(), "She slept. She woke. She left.", &options);
     assert_eq!(
@@ -286,6 +378,9 @@ fn pronouns_distinguish_determiners_and_independent_uses() {
         "This book was red.",
         "What color was it?",
         "That she left was clear.",
+        "One evening she left. One day he came. One morning it rained.",
+        "What’s more, she paid.",
+        "What's more, she paid.",
     ] {
         assert!(
             pronoun_starts::report(&document(text), &Default::default())
@@ -303,6 +398,7 @@ fn pronouns_distinguish_determiners_and_independent_uses() {
         ("Who came?", "who"),
         ("What she said was clear.", "what"),
         ("His was blue.", "his"),
+        ("One cannot know.", "one"),
     ] {
         let result = pronoun_starts::report(&document(text), &Default::default()).unwrap();
         assert_eq!(result.starts.len(), 1, "{text}");

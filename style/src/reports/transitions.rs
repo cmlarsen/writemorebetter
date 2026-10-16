@@ -90,7 +90,6 @@ pub struct TransitionTypeShare {
 #[non_exhaustive]
 pub struct TransitionsGroup {
     pub sentences: usize,
-    pub excluded_sentences: usize,
     pub low_confidence: bool,
     pub containing: Share,
     pub opening: Share,
@@ -106,6 +105,8 @@ pub struct TransitionsReport {
 }
 
 type TransitionEntry = (TransitionType, &'static str, Vec<&'static str>);
+
+const SUBJECTS: [&str; 8] = ["i", "you", "he", "she", "it", "we", "they", "there"];
 
 fn phrases() -> &'static Vec<TransitionEntry> {
     static PHRASES: OnceLock<Vec<TransitionEntry>> = OnceLock::new();
@@ -154,7 +155,10 @@ pub fn report(
     let mut index: usize = 0;
     let mut last_mode = None;
     for paragraph in &document.paragraphs {
-        if paragraph.scene_break_before || paragraph.chapter_start {
+        if paragraph.scene_break_before
+            || paragraph.chapter_start
+            || last_mode == Some(Mode::Dialogue)
+        {
             previous.clear();
         }
         for sentence in &paragraph.sentences {
@@ -164,15 +168,8 @@ pub fn report(
             }
             last_mode = Some(mode);
             let tokens = sentence_starts::opening_tokens(sentence);
-            let excluded = tokens.first().is_some_and(|t| t.is_skipped);
             for group in groups.all_and_mode_mut(mode) {
                 group.sentences += 1;
-                group.excluded_sentences += usize::from(excluded);
-            }
-            if excluded {
-                previous.clear();
-                index += 1;
-                continue;
             }
             let folded: Vec<_> = tokens
                 .iter()
@@ -205,20 +202,19 @@ pub fn report(
                         return false;
                     }
                     let next = tokens.get(at + words.len());
+                    let following = folded.get(at + words.len()).map(String::as_str);
                     let comma = next.is_some_and(|t| t.text == ",");
+                    let comma_before = at > 0 && tokens[at - 1].text == ",";
+                    let subject = following.is_some_and(|word| SUBJECTS.contains(&word));
                     match *phrase {
                         "and" | "but" => at == 0,
-                        "so" => {
-                            at == 0
-                                && folded.get(at + words.len()).is_some_and(|word| {
-                                    ["i", "you", "he", "she", "it", "we", "they", "there"]
-                                        .contains(&word.as_str())
-                                })
-                        }
+                        "so" => at == 0 && subject,
                         "then" => at == 0 && comma,
-                        "however" | "besides" | "finally" => {
-                            comma || (at > 0 && tokens[at - 1].text == ",")
-                        }
+                        "thus" => (at == 0 && comma) || subject,
+                        "besides" => comma,
+                        "however" => comma || (comma_before && !next.is_some_and(|t| t.is_word)),
+                        "finally" => comma || comma_before,
+                        "instead" => following != Some("of"),
                         _ => true,
                     }
                 });
@@ -259,7 +255,7 @@ pub fn report(
         (Some(Mode::Narration), &mut groups.narration),
         (Some(Mode::Dialogue), &mut groups.dialogue),
     ] {
-        let eligible = group.sentences - group.excluded_sentences;
+        let eligible = group.sentences;
         let enough = eligible >= options.minimum_sentences;
         group.low_confidence = eligible < 200.max(options.minimum_sentences);
         let count = |kind: Option<TransitionType>, opening: bool| {

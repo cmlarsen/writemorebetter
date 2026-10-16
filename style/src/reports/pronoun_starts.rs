@@ -94,7 +94,15 @@ fn is_pronoun(tokens: &[&Token]) -> bool {
             ],
         )
     });
-    if ["her", "his", "whose", "what", "which"].contains(&word.as_str()) && nominal {
+    if ["her", "his", "whose", "what", "which", "one"].contains(&word.as_str()) && nominal {
+        return false;
+    }
+    if word == "what"
+        && next.is_some_and(|t| ["'s", "’s"].contains(&t.text.as_str()))
+        && tokens
+            .get(2)
+            .is_some_and(|t| t.text.eq_ignore_ascii_case("more"))
+    {
         return false;
     }
     if [
@@ -167,17 +175,17 @@ pub fn report(
     let mut groups: Split<PronounStartsGroup> = Split::default();
     let mut starts = Vec::new();
     let mut run: Option<PronounStartsRun> = None;
-    let flush = |run: &mut Option<PronounStartsRun>, groups: &mut Split<PronounStartsGroup>| {
-        if let Some(run) = run.take().filter(|r| r.sentences.len() >= 3) {
-            for group in groups.all_and_mode_mut(run.mode) {
-                group.runs.push(run.clone());
-            }
-        }
+    let mut runs = Vec::new();
+    let flush = |run: &mut Option<PronounStartsRun>, runs: &mut Vec<PronounStartsRun>| {
+        runs.extend(run.take().filter(|r| r.sentences.len() >= 3));
     };
     let mut index = 0;
     for paragraph in &document.paragraphs {
-        if paragraph.scene_break_before || paragraph.chapter_start {
-            flush(&mut run, &mut groups);
+        if paragraph.scene_break_before
+            || paragraph.chapter_start
+            || run.as_ref().is_some_and(|r| r.mode == Mode::Dialogue)
+        {
+            flush(&mut run, &mut runs);
         }
         for sentence in &paragraph.sentences {
             let mode = document.sentence_mode(sentence);
@@ -204,7 +212,7 @@ pub fn report(
                         continue;
                     }
                 }
-                flush(&mut run, &mut groups);
+                flush(&mut run, &mut runs);
                 run = Some(PronounStartsRun {
                     span: sentence.span.clone(),
                     pronoun: word,
@@ -212,12 +220,32 @@ pub fn report(
                     mode,
                 });
             } else {
-                flush(&mut run, &mut groups);
+                flush(&mut run, &mut runs);
             }
             index += 1;
         }
     }
-    flush(&mut run, &mut groups);
+    flush(&mut run, &mut runs);
+    let reported = if runs.iter().any(|r| r.mode == Mode::Narration) {
+        sentence_starts::report(document, &Default::default(), None)?
+            .groups
+            .narration
+            .same_word_runs
+    } else {
+        Vec::new()
+    };
+    for run in runs {
+        if run.mode == Mode::Narration
+            && reported.iter().any(|r| {
+                r.sentences.start <= run.sentences.start && run.sentences.end <= r.sentences.end
+            })
+        {
+            continue;
+        }
+        for group in groups.all_and_mode_mut(run.mode) {
+            group.runs.push(run.clone());
+        }
+    }
     for (mode, group) in [
         (None, &mut groups.all),
         (Some(Mode::Narration), &mut groups.narration),
