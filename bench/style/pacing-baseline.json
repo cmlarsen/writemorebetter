@@ -1,0 +1,708 @@
+{
+  "version": 1,
+  "date": "2026-10-16",
+  "scope": "Public-only development measurements; single implementer spot judgments, not held-out accuracy or published-fiction calibration.",
+  "defaults": {
+    "minimumParagraphs": 3,
+    "moreThanWords": 400,
+    "minimumSentenceLength": 18,
+    "minimumPastPerfectPercent": 20,
+    "minimumCognitionPercent": 20
+  },
+  "public": [
+    {
+      "source": "story1.txt",
+      "words": 2209,
+      "paragraphs": 96,
+      "qualifyingParagraphs": 22,
+      "runs": 1,
+      "signals": {
+        "dialoguePercent": {
+          "mean": 18.30359229280655,
+          "percentiles": {
+            "0": 0.0,
+            "5": 0.0,
+            "25": 0.0,
+            "50": 0.0,
+            "75": 0.0,
+            "95": 91.39492753623188,
+            "100": 100.0
+          }
+        },
+        "meanSentenceLength": {
+          "mean": 20.82465277777778,
+          "percentiles": {
+            "0": 4.0,
+            "5": 6.25,
+            "25": 12.0,
+            "50": 20.0,
+            "75": 28.0,
+            "95": 37.25,
+            "100": 47.0
+          }
+        },
+        "pastPerfectPercent": {
+          "mean": 9.5421888053467,
+          "percentiles": {
+            "0": 0.0,
+            "5": 0.0,
+            "25": 0.0,
+            "50": 0.0,
+            "75": 16.666666666666668,
+            "95": 50.0,
+            "100": 100.0
+          }
+        },
+        "cognitionPercent": {
+          "mean": 4.925229741019215,
+          "percentiles": {
+            "0": 0.0,
+            "5": 0.0,
+            "25": 0.0,
+            "50": 0.0,
+            "75": 0.0,
+            "95": 33.333333333333336,
+            "100": 66.66666666666667
+          }
+        }
+      }
+    },
+    {
+      "source": "story2.txt",
+      "words": 2038,
+      "paragraphs": 96,
+      "qualifyingParagraphs": 14,
+      "runs": 0,
+      "signals": {
+        "dialoguePercent": {
+          "mean": 16.53942647420137,
+          "percentiles": {
+            "0": 0.0,
+            "5": 0.0,
+            "25": 0.0,
+            "50": 0.0,
+            "75": 0.0,
+            "95": 88.39869281045752,
+            "100": 91.66666666666667
+          }
+        },
+        "meanSentenceLength": {
+          "mean": 18.255208333333332,
+          "percentiles": {
+            "0": 3.3333333333333335,
+            "5": 5.375,
+            "25": 10.0,
+            "50": 19.5,
+            "75": 24.25,
+            "95": 32.0,
+            "100": 37.0
+          }
+        },
+        "pastPerfectPercent": {
+          "mean": 6.09499007936508,
+          "percentiles": {
+            "0": 0.0,
+            "5": 0.0,
+            "25": 0.0,
+            "50": 0.0,
+            "75": 0.0,
+            "95": 33.333333333333336,
+            "100": 66.66666666666667
+          }
+        },
+        "cognitionPercent": {
+          "mean": 4.015376984126984,
+          "percentiles": {
+            "0": 0.0,
+            "5": 0.0,
+            "25": 0.0,
+            "50": 0.0,
+            "75": 0.0,
+            "95": 25.0,
+            "100": 50.0
+          }
+        }
+      }
+    },
+    {
+      "source": "story3.txt",
+      "words": 2008,
+      "paragraphs": 96,
+      "qualifyingParagraphs": 19,
+      "runs": 0,
+      "signals": {
+        "dialoguePercent": {
+          "mean": 18.622899926918244,
+          "percentiles": {
+            "0": 0.0,
+            "5": 0.0,
+            "25": 0.0,
+            "50": 0.0,
+            "75": 5.555555555555555,
+            "95": 87.68382352941177,
+            "100": 92.5925925925926
+          }
+        },
+        "meanSentenceLength": {
+          "mean": 18.28472222222222,
+          "percentiles": {
+            "0": 3.6666666666666665,
+            "5": 5.25,
+            "25": 13.125,
+            "50": 20.0,
+            "75": 23.0,
+            "95": 29.0,
+            "100": 32.0
+          }
+        },
+        "pastPerfectPercent": {
+          "mean": 5.7180059523809526,
+          "percentiles": {
+            "0": 0.0,
+            "5": 0.0,
+            "25": 0.0,
+            "50": 0.0,
+            "75": 0.0,
+            "95": 33.333333333333336,
+            "100": 75.0
+          }
+        },
+        "cognitionPercent": {
+          "mean": 4.422123015873016,
+          "percentiles": {
+            "0": 0.0,
+            "5": 0.0,
+            "25": 0.0,
+            "50": 0.0,
+            "75": 0.0,
+            "95": 25.0,
+            "100": 66.66666666666667
+          }
+        }
+      }
+    },
+    {
+      "source": "story4.txt",
+      "words": 2175,
+      "paragraphs": 93,
+      "qualifyingParagraphs": 20,
+      "runs": 0,
+      "signals": {
+        "dialoguePercent": {
+          "mean": 11.210346390961591,
+          "percentiles": {
+            "0": 0.0,
+            "5": 0.0,
+            "25": 0.0,
+            "50": 0.0,
+            "75": 0.0,
+            "95": 88.05555555555556,
+            "100": 90.0
+          }
+        },
+        "meanSentenceLength": {
+          "mean": 20.057347670250895,
+          "percentiles": {
+            "0": 4.0,
+            "5": 6.533333333333333,
+            "25": 17.0,
+            "50": 23.0,
+            "75": 25.0,
+            "95": 29.0,
+            "100": 31.0
+          }
+        },
+        "pastPerfectPercent": {
+          "mean": 6.401689708141321,
+          "percentiles": {
+            "0": 0.0,
+            "5": 0.0,
+            "25": 0.0,
+            "50": 0.0,
+            "75": 0.0,
+            "95": 33.333333333333336,
+            "100": 100.0
+          }
+        },
+        "cognitionPercent": {
+          "mean": 5.323860727086534,
+          "percentiles": {
+            "0": 0.0,
+            "5": 0.0,
+            "25": 0.0,
+            "50": 0.0,
+            "75": 0.0,
+            "95": 36.00000000000004,
+            "100": 62.5
+          }
+        }
+      }
+    },
+    {
+      "source": "story5.txt",
+      "words": 1856,
+      "paragraphs": 86,
+      "qualifyingParagraphs": 18,
+      "runs": 0,
+      "signals": {
+        "dialoguePercent": {
+          "mean": 14.838582489706933,
+          "percentiles": {
+            "0": 0.0,
+            "5": 0.0,
+            "25": 0.0,
+            "50": 0.0,
+            "75": 0.0,
+            "95": 89.86842105263158,
+            "100": 92.3076923076923
+          }
+        },
+        "meanSentenceLength": {
+          "mean": 18.430232558139537,
+          "percentiles": {
+            "0": 2.0,
+            "5": 5.833333333333334,
+            "25": 11.25,
+            "50": 20.5,
+            "75": 24.0,
+            "95": 31.0,
+            "100": 33.0
+          }
+        },
+        "pastPerfectPercent": {
+          "mean": 5.730897009966777,
+          "percentiles": {
+            "0": 0.0,
+            "5": 0.0,
+            "25": 0.0,
+            "50": 0.0,
+            "75": 0.0,
+            "95": 38.333333333333336,
+            "100": 50.0
+          }
+        },
+        "cognitionPercent": {
+          "mean": 8.42607973421927,
+          "percentiles": {
+            "0": 0.0,
+            "5": 0.0,
+            "25": 0.0,
+            "50": 0.0,
+            "75": 19.166666666666668,
+            "95": 33.333333333333336,
+            "100": 50.0
+          }
+        }
+      }
+    },
+    {
+      "source": "moby150k",
+      "words": 25002,
+      "paragraphs": 315,
+      "qualifyingParagraphs": 7,
+      "runs": 0,
+      "signals": {
+        "dialoguePercent": {
+          "mean": 40.95154623837289,
+          "percentiles": {
+            "0": 0.0,
+            "5": 0.0,
+            "25": 0.0,
+            "50": 2.830188679245283,
+            "75": 88.88888888888889,
+            "95": 100.0,
+            "100": 100.0
+          }
+        },
+        "meanSentenceLength": {
+          "mean": 22.508193997935198,
+          "percentiles": {
+            "0": 1.0,
+            "5": 2.925,
+            "25": 11.9,
+            "50": 21.0,
+            "75": 29.833333333333336,
+            "95": 48.30000000000001,
+            "100": 117.0
+          }
+        },
+        "pastPerfectPercent": {
+          "mean": 1.9471522547945397,
+          "percentiles": {
+            "0": 0.0,
+            "5": 0.0,
+            "25": 0.0,
+            "50": 0.0,
+            "75": 0.0,
+            "95": 11.597222222222253,
+            "100": 50.0
+          }
+        },
+        "cognitionPercent": {
+          "mean": 2.323895527969524,
+          "percentiles": {
+            "0": 0.0,
+            "5": 0.0,
+            "25": 0.0,
+            "50": 0.0,
+            "75": 2.598684210526316,
+            "95": 11.339869281045766,
+            "100": 33.333333333333336
+          }
+        }
+      }
+    },
+    {
+      "source": "styles_ch1",
+      "words": 4161,
+      "paragraphs": 157,
+      "qualifyingParagraphs": 4,
+      "runs": 0,
+      "signals": {
+        "dialoguePercent": {
+          "mean": 54.67522259537561,
+          "percentiles": {
+            "0": 0.0,
+            "5": 0.0,
+            "25": 0.0,
+            "50": 76.19047619047619,
+            "75": 100.0,
+            "95": 100.0,
+            "100": 100.0
+          }
+        },
+        "meanSentenceLength": {
+          "mean": 11.200657906474692,
+          "percentiles": {
+            "0": 1.0,
+            "5": 2.8,
+            "25": 5.5,
+            "50": 9.0,
+            "75": 16.0,
+            "95": 24.999999999999986,
+            "100": 37.0
+          }
+        },
+        "pastPerfectPercent": {
+          "mean": 1.7013416684469316,
+          "percentiles": {
+            "0": 0.0,
+            "5": 0.0,
+            "25": 0.0,
+            "50": 0.0,
+            "75": 0.0,
+            "95": 15.000000000000007,
+            "100": 37.5
+          }
+        },
+        "cognitionPercent": {
+          "mean": 3.4513465434518067,
+          "percentiles": {
+            "0": 0.0,
+            "5": 0.0,
+            "25": 0.0,
+            "50": 0.0,
+            "75": 0.0,
+            "95": 24.027777777777793,
+            "100": 50.0
+          }
+        }
+      }
+    },
+    {
+      "source": "gatsby_ch1",
+      "words": 6067,
+      "paragraphs": 152,
+      "qualifyingParagraphs": 6,
+      "runs": 0,
+      "signals": {
+        "dialoguePercent": {
+          "mean": 45.8879088634263,
+          "percentiles": {
+            "0": 0.0,
+            "5": 0.0,
+            "25": 0.0,
+            "50": 54.42307692307692,
+            "75": 87.84722222222223,
+            "95": 100.0,
+            "100": 100.0
+          }
+        },
+        "meanSentenceLength": {
+          "mean": 15.548323934837093,
+          "percentiles": {
+            "0": 1.0,
+            "5": 3.0,
+            "25": 7.0,
+            "50": 13.0,
+            "75": 23.0,
+            "95": 36.0,
+            "100": 44.0
+          }
+        },
+        "pastPerfectPercent": {
+          "mean": 2.4354163972130722,
+          "percentiles": {
+            "0": 0.0,
+            "5": 0.0,
+            "25": 0.0,
+            "50": 0.0,
+            "75": 0.0,
+            "95": 16.81818181818184,
+            "100": 50.0
+          }
+        },
+        "cognitionPercent": {
+          "mean": 4.736387214841854,
+          "percentiles": {
+            "0": 0.0,
+            "5": 0.0,
+            "25": 0.0,
+            "50": 0.0,
+            "75": 0.0,
+            "95": 26.47727272727274,
+            "100": 100.0
+          }
+        }
+      }
+    },
+    {
+      "source": "sign_ch1",
+      "words": 2949,
+      "paragraphs": 56,
+      "qualifyingParagraphs": 3,
+      "runs": 0,
+      "signals": {
+        "dialoguePercent": {
+          "mean": 72.0685894569262,
+          "percentiles": {
+            "0": 0.0,
+            "5": 0.0,
+            "25": 61.50870406189556,
+            "50": 92.12121212121212,
+            "75": 100.0,
+            "95": 100.0,
+            "100": 100.0
+          }
+        },
+        "meanSentenceLength": {
+          "mean": 14.346569650587508,
+          "percentiles": {
+            "0": 2.0,
+            "5": 5.833333333333333,
+            "25": 9.25,
+            "50": 12.666666666666668,
+            "75": 17.947916666666668,
+            "95": 26.5,
+            "100": 38.0
+          }
+        },
+        "pastPerfectPercent": {
+          "mean": 2.5745884773662553,
+          "percentiles": {
+            "0": 0.0,
+            "5": 0.0,
+            "25": 0.0,
+            "50": 0.0,
+            "75": 0.0,
+            "95": 19.1875,
+            "100": 37.5
+          }
+        },
+        "cognitionPercent": {
+          "mean": 3.076575307855501,
+          "percentiles": {
+            "0": 0.0,
+            "5": 0.0,
+            "25": 0.0,
+            "50": 0.0,
+            "75": 3.260869565217391,
+            "95": 17.395833333333336,
+            "100": 23.076923076923077
+          }
+        }
+      }
+    },
+    {
+      "source": "avonlea_ch1",
+      "words": 3522,
+      "paragraphs": 60,
+      "qualifyingParagraphs": 3,
+      "runs": 0,
+      "signals": {
+        "dialoguePercent": {
+          "mean": 53.057322864545974,
+          "percentiles": {
+            "0": 0.0,
+            "5": 0.0,
+            "25": 0.0,
+            "50": 80.06535947712419,
+            "75": 99.23857868020305,
+            "95": 100.0,
+            "100": 100.0
+          }
+        },
+        "meanSentenceLength": {
+          "mean": 18.852652116402115,
+          "percentiles": {
+            "0": 3.0,
+            "5": 5.633333333333334,
+            "25": 11.0,
+            "50": 17.0,
+            "75": 22.808333333333334,
+            "95": 37.68749999999997,
+            "100": 62.0
+          }
+        },
+        "pastPerfectPercent": {
+          "mean": 4.085055304962959,
+          "percentiles": {
+            "0": 0.0,
+            "5": 0.0,
+            "25": 0.0,
+            "50": 0.0,
+            "75": 0.0,
+            "95": 25.138888888888882,
+            "100": 50.0
+          }
+        },
+        "cognitionPercent": {
+          "mean": 5.041877522637105,
+          "percentiles": {
+            "0": 0.0,
+            "5": 0.0,
+            "25": 0.0,
+            "50": 0.0,
+            "75": 7.769230769230769,
+            "95": 20.111111111111104,
+            "100": 40.0
+          }
+        }
+      }
+    }
+  ],
+  "sweep": [
+    {
+      "minimumSentenceLength": 15,
+      "minimumPastPerfectPercent": 10,
+      "minimumCognitionPercent": 10,
+      "runs": 7
+    },
+    {
+      "minimumSentenceLength": 20,
+      "minimumPastPerfectPercent": 10,
+      "minimumCognitionPercent": 10,
+      "runs": 5
+    },
+    {
+      "minimumSentenceLength": 20,
+      "minimumPastPerfectPercent": 15,
+      "minimumCognitionPercent": 15,
+      "runs": 2
+    },
+    {
+      "minimumSentenceLength": 18,
+      "minimumPastPerfectPercent": 20,
+      "minimumCognitionPercent": 20,
+      "runs": 1
+    },
+    {
+      "minimumSentenceLength": 25,
+      "minimumPastPerfectPercent": 30,
+      "minimumCognitionPercent": 30,
+      "runs": 0
+    }
+  ],
+  "judgments": {
+    "loose15_10_10": {
+      "useful": 3,
+      "noise": 4,
+      "wrong": 0,
+      "rows": [
+        {
+          "source": "story1.txt",
+          "paragraphs": {
+            "start": 20,
+            "end": 25
+          },
+          "judgment": "noise"
+        },
+        {
+          "source": "story1.txt",
+          "paragraphs": {
+            "start": 65,
+            "end": 70
+          },
+          "judgment": "noise"
+        },
+        {
+          "source": "story1.txt",
+          "paragraphs": {
+            "start": 79,
+            "end": 83
+          },
+          "judgment": "useful"
+        },
+        {
+          "source": "story4.txt",
+          "paragraphs": {
+            "start": 0,
+            "end": 3
+          },
+          "judgment": "noise"
+        },
+        {
+          "source": "story4.txt",
+          "paragraphs": {
+            "start": 52,
+            "end": 55
+          },
+          "judgment": "noise"
+        },
+        {
+          "source": "styles_ch1",
+          "paragraphs": {
+            "start": 8,
+            "end": 12
+          },
+          "judgment": "useful"
+        },
+        {
+          "source": "gatsby_ch1",
+          "paragraphs": {
+            "start": 14,
+            "end": 20
+          },
+          "judgment": "useful"
+        }
+      ]
+    },
+    "defaults": {
+      "useful": 1,
+      "noise": 0,
+      "wrong": 0,
+      "rows": [
+        {
+          "source": "story1.txt",
+          "paragraphs": {
+            "start": 79,
+            "end": 83
+          },
+          "judgment": "useful"
+        }
+      ]
+    }
+  },
+  "tier2": {
+    "cases": 45,
+    "exactSpans": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "true_positive": 20,
+      "predicted": 20,
+      "gold": 20
+    },
+    "failures": 0
+  }
+}

@@ -26,6 +26,7 @@ class Probe:
                             '--bin', 'pacing'], check=True, stdout=subprocess.DEVNULL,
                            stderr=subprocess.DEVNULL if quiet else None)
             executable = tool / 'target/release/pacing'
+        self.executable = executable
         self.process = subprocess.Popen([str(executable), str(tokenizer)], stdin=subprocess.PIPE,
                                         stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
                                         text=True, encoding='utf-8',
@@ -41,6 +42,11 @@ class Probe:
         if not line:
             raise RuntimeError('pacing probe exited')
         return json.loads(line)
+
+    def defaults(self):
+        result = subprocess.run([str(self.executable), '--defaults'], capture_output=True,
+                                text=True, check=True)
+        return json.loads(result.stdout)
 
     def close(self):
         self.process.stdin.close()
@@ -89,6 +95,8 @@ def tier2(probe, gate=False):
     result = {'cases': len(cases()), 'exactSpans': prf(tp, predicted, gold), 'failures': len(failures)}
     if gate:
         baseline = json.loads(BASELINE.read_text())
+        if probe.defaults() != baseline['defaults']:
+            raise ValueError('pacing defaults differ from the recorded decision')
         if result != baseline['tier2']:
             raise ValueError('pacing regression: ' + ', '.join(failures))
     return result

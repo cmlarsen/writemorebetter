@@ -109,6 +109,50 @@ distributions and a separate ignored review artifact. The first tier 2 exact-spa
 in `bench/style/pacing-baseline.json`; it measures regression agreement on injected fixtures,
 not held-out literary precision or recall.
 
+### First baseline (2026-10-16)
+
+51,987 counted word tokens across 1,207 paragraphs; defaults select 116 local slow rows but
+only one sustained run. All four Standard Ebooks chapters and the full Moby excerpt have zero
+runs. The first chapter of each is fetched at benchmark time; no downloaded text is committed.
+Full signal means/percentiles, options, sweep counts and judgment metadata are recorded in
+[`pacing-baseline.json`](../bench/style/pacing-baseline.json).
+
+| Input | Words | Paragraphs | Local slow rows | Runs |
+|---|---:|---:|---:|---:|
+| story1 | 2,209 | 96 | 22 | 1 |
+| story2 | 2,038 | 96 | 14 | 0 |
+| story3 | 2,008 | 96 | 19 | 0 |
+| story4 | 2,175 | 93 | 20 | 0 |
+| story5 | 1,856 | 86 | 18 | 0 |
+| moby150k (hard-wrapped) | 25,002 | 315 | 7 | 0 |
+| The Mysterious Affair at Styles, ch. 1 | 4,161 | 157 | 4 | 0 |
+| The Great Gatsby, ch. 1 | 6,067 | 152 | 6 | 0 |
+| The Sign of the Four, ch. 1 | 2,949 | 56 | 3 | 0 |
+| Anne of Avonlea, ch. 1 | 3,522 | 60 | 3 | 0 |
+
+Public-only threshold sweep (`python3 bench/style/pacing.py --sweep`):
+
+| Mean length / past-perfect % / cognition % | Runs | Spot judgment: useful / noise / wrong |
+|---|---:|---|
+| 15 / 10 / 10 | 7 | 3 / 4 / 0 |
+| 20 / 10 / 10 | 5 | not separately scored; overlapping variants of the loose set |
+| 20 / 15 / 15 | 2 | not separately scored |
+| **18 / 20 / 20 (defaults)** | **1** | **1 / 0 / 0** |
+| 25 / 30 / 30 | 0 | no flags to judge |
+
+The single implementer spot-judged all seven loose-setting stretches and the default run as a
+fiction editor inspecting a pacing strip: useful means sustained backstory/interior reflection
+or exposition worth locating; noise means predominantly current scene business or a short
+setup; wrong means the asserted signals do not describe the passage. This is a lens-usefulness
+judgment, not a recommendation to cut prose. The useful loose stretches were story1's sustained
+recollection of a past job offer (paragraphs 79–82, zero-based), the Styles family-history block,
+and Gatsby's Buchanan background/portrait. Four other story1/story4 stretches were scene/setup
+noise. The defaults retain only the job-offer recollection. They miss the Styles and Gatsby
+blocks: deliberate conservatism trades recall for fewer interruptions. There was no blind or
+independent adjudication, the sample is small and historically skewed, and these thresholds
+remain uncalibrated against modern published fiction. Raising the length threshold alone lost
+the clearest backstory block; raising the verb shares removed current-scene noise instead.
+
 ## Owner-run calibration
 
 ```sh
