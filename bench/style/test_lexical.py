@@ -39,6 +39,10 @@ class LexicalTests(unittest.TestCase):
         actual['changed_controls'] = 1
         with self.assertRaises(ValueError):
             lexical.gate(actual, baseline)
+        actual = copy.deepcopy(baseline)
+        actual['reports']['diction']['patterns']['unexpected'] = {'precision': 0}
+        with self.assertRaises(ValueError):
+            lexical.gate(actual, baseline)
 
     def test_wrong_modality_and_duplicate_are_false_positives(self):
         gold = {'file': 'x', 'report': 'sensoryBalance', 'pattern': 'sight', **offsets('red', 0, 3)}

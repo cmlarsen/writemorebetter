@@ -129,6 +129,8 @@ def gate(result, baseline):
     if result['changed_controls'] > baseline['changed_controls']:
         raise ValueError('untouched-prefix precision regressed')
     for report, suite in baseline['reports'].items():
+        if set(result['reports'][report]['patterns']) != set(suite['patterns']):
+            raise ValueError('unexpected prediction category')
         for pattern, floor in suite['patterns'].items():
             actual = result['reports'][report]['patterns'][pattern]
             for metric in ('precision', 'recall', 'f1'):
