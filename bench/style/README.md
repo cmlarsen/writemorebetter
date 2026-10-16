@@ -977,11 +977,13 @@ checks author pooling and sentinel metadata suppression. No private data was acc
 synthetic cases: participles, literal versus predicative *feel*, transparent versus lexicalized
 compounds, adverb-interrupted figurative predicates, and speech tags. The fixtures include curly
 quotes/apostrophes, an em dash, an ellipsis and U+2028; byte and UTF-16 spans must agree. The
-Rust suite additionally forces strongly rated speech tags through an invented table.
+`compounds` and `tags` cases assert exact surfaces; `tags` uses *shouted* and *murmured*, which the
+bundled table rates ≥ 4.0, so only the speech-tag detector can exclude them. The Rust suite
+additionally forces strongly rated speech tags through an invented table.
 
 `test_lancaster_norms.py` checks the derivation using invented means around strength/margin
 boundaries, including an exact decimal boundary that binary floating-point subtraction can lose.
 `WMB_NORM_JSON=bench/style/out/norms` makes the `norm_reports` example save one JSON result per
 input basename for public-text calibration; output belongs in ignored benchmark directories.
-The source text is never included in that JSON. The public calibration and pending owner decision
-are recorded in [STYLE-NORMS.md](../../docs/STYLE-NORMS.md).
+The source text is never included in that JSON. The public calibration, the #286 review fixes and
+the owner decision to remove `singleSense` are recorded in [STYLE-NORMS.md](../../docs/STYLE-NORMS.md).
