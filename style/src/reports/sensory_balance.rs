@@ -1,11 +1,11 @@
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::sync::OnceLock;
 
 use serde::{Deserialize, Serialize};
 
 use crate::error::StyleError;
 use crate::reports::echoes::fold;
-use crate::reports::{norms, word_split, Split};
+use crate::reports::{dialogue_tags, norms, word_split, Split};
 use crate::{Document, Mode, Span, Token};
 
 pub(crate) const REPORT: &str = "sensoryBalance";
@@ -319,10 +319,22 @@ fn reads(token: &Token, tag: &str) -> bool {
     token.readings.iter().any(|r| r.pos.starts_with(tag))
 }
 
-fn figurative(lemma: &str, next: Option<&Token>, after_next: Option<&Token>) -> bool {
-    let Some(next) = next else {
+fn figurative(lemma: &str, following: &[&Token]) -> bool {
+    let skip = if matches!(lemma, "feel" | "look" | "sound") {
+        following
+            .iter()
+            .take(2)
+            .take_while(|token| {
+                reads(token, "RB") && !matches!(fold(&token.text).as_str(), "as" | "like")
+            })
+            .count()
+    } else {
+        0
+    };
+    let Some(next) = following.get(skip) else {
         return false;
     };
+    let after_next = following.get(skip + 1);
     let word = fold(&next.text);
     let as_if = word == "as"
         && after_next.is_some_and(|after| matches!(fold(&after.text).as_str(), "if" | "though"));
@@ -333,7 +345,7 @@ fn figurative(lemma: &str, next: Option<&Token>, after_next: Option<&Token>) -> 
                 "that" | "if" | "whether" | "how" | "why" | "what" | "like" | "as"
             ) || (lemma == "feel"
                 && (reads(next, "JJ") || reads(next, "VBN"))
-                && !reads(next, "NN"))
+                && !after_next.is_some_and(|after| reads(after, "NN")))
         }
         "look" => word == "like" || as_if,
         "sound" => as_if,
@@ -364,6 +376,12 @@ pub fn report(
         return Err(StyleError::needs_token_details(REPORT));
     }
     options.validate()?;
+    let speech_tags: BTreeSet<_> = dialogue_tags::report(document, &Default::default(), None)?
+        .tags
+        .into_iter()
+        .filter(|tag| tag.class == dialogue_tags::DialogueTagVerbClass::Speech)
+        .map(|tag| tag.verb.byte.start)
+        .collect();
     let mut sense_words = Vec::new();
     let mut total: Split<Tally> = Split::default();
     let mut chapters = Vec::new();
@@ -404,15 +422,25 @@ pub fn report(
                     .filter(|_| word.follows_word)
                     .map(|previous| words[previous].token);
                 let next = joined(index + 1);
-                let after_next = next.and(joined(index + 2));
-                let sense = norms::lookup(token, word.at_start, |word| norms_table.words.get(word))
-                    .filter(|found| {
-                        !not_sensory(&found.lemma)
-                            && !figurative(&found.lemma, next, after_next)
-                            && !flat_adverb(token, previous, next)
-                            && classify(found.value, options)
-                    })
-                    .map(|found| (found.lemma, (found.value.modality, found.value.strength)));
+                let following: Vec<_> = (index + 1..=index + 4)
+                    .map(joined)
+                    .take_while(Option::is_some)
+                    .flatten()
+                    .collect();
+                let sense = norms::lookup(token, word.at_start, |word| {
+                    norms_table
+                        .words
+                        .get(word)
+                        .filter(|norm| classify(norm, options))
+                })
+                .filter(|found| {
+                    !not_sensory(&found.lemma)
+                        && !speech_tags.contains(&token.span.byte.start)
+                        && !figurative(&found.lemma, &following)
+                        && !flat_adverb(token, previous, next)
+                        && classify(found.value, options)
+                })
+                .map(|found| (found.lemma, (found.value.modality, found.value.strength)));
                 for tally in [
                     &mut total,
                     &mut chapter.as_mut().unwrap().tally,

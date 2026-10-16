@@ -46,6 +46,21 @@ fn main() {
         let sensory =
             sensory_balance::report(&document, PerceptualNorms::bundled(), &sensory_options)
                 .unwrap();
+        if let Ok(directory) = std::env::var("WMB_NORM_JSON") {
+            let diction = table
+                .as_ref()
+                .map(|table| diction::report(&document, table, &diction_options).unwrap());
+            std::fs::create_dir_all(&directory).unwrap();
+            let name = std::path::Path::new(&path).file_name().unwrap();
+            std::fs::write(
+                std::path::Path::new(&directory)
+                    .join(name)
+                    .with_extension("json"),
+                serde_json::to_vec(&serde_json::json!({"sensory": sensory, "diction": diction}))
+                    .unwrap(),
+            )
+            .unwrap();
+        }
         println!(
             "== {path} words={} senseWords={} scenes={} chapters={} narration[{}] dialogue[{}]",
             sensory.words.all,

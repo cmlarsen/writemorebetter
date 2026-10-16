@@ -25,11 +25,14 @@ fn options<T: DeserializeOwned + Default>(json: Option<&str>) -> Result<T, Style
 
 fn parsed_table(text: &str) -> Result<Arc<diction::ConcretenessTable>, StyleError> {
     static LAST: Mutex<Option<(String, Arc<diction::ConcretenessTable>)>> = Mutex::new(None);
-    let mut last = LAST.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
-    if let Some((_, table)) = last.as_ref().filter(|(cached, _)| cached == text) {
-        return Ok(table.clone());
+    {
+        let last = LAST.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        if let Some((_, table)) = last.as_ref().filter(|(cached, _)| cached == text) {
+            return Ok(table.clone());
+        }
     }
     let table = Arc::new(diction::ConcretenessTable::parse(text)?);
+    let mut last = LAST.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
     *last = Some((text.to_owned(), table.clone()));
     Ok(table)
 }

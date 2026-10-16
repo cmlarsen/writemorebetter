@@ -64,7 +64,16 @@ fn lookup_parts<'a, T>(token: &Token, get: impl Fn(&str) -> Option<&'a T>) -> Op
     if parts.len() < 2 {
         return None;
     }
-    for part in [parts[parts.len() - 1], parts[0]] {
+    let last = parts[parts.len() - 1];
+    if matches!(last, "blooded" | "hearted" | "heartedness" | "outs") {
+        return None;
+    }
+    let candidates: &[&str] = if matches!(last, "eyed" | "looking" | "tinted" | "clothed") {
+        &[parts[0]]
+    } else {
+        &[last]
+    };
+    for &part in candidates {
         if let Some(value) = get(part).filter(|_| !excluded(part)) {
             return Some(Found {
                 lemma: part.to_owned(),
@@ -114,6 +123,14 @@ fn lookup_word<'a, T>(token: &Token, get: impl Fn(&str) -> Option<&'a T>) -> Opt
         .filter(|(pos, lemma)| pos.starts_with("VB") && *lemma != surface)
         .map(|(_, lemma)| lemma)
         .collect();
+    let regular_form = verb_forms.iter().any(|lemma| {
+        ["s", "ed", "ing"].iter().any(|suffix| {
+            surface == format!("{lemma}{suffix}")
+                || lemma
+                    .strip_suffix('e')
+                    .is_some_and(|stem| surface == format!("{stem}{suffix}"))
+        })
+    });
     let candidates = if verb_forms.is_empty() {
         readings.iter().map(|(_, lemma)| lemma).collect()
     } else {
@@ -125,7 +142,9 @@ fn lookup_word<'a, T>(token: &Token, get: impl Fn(&str) -> Option<&'a T>) -> Opt
         .collect();
     let surface_reading = readings.iter().any(|(_, lemma)| *lemma == surface);
     let (lemma, value) = match hits.len() {
-        0 if !surface_reading => get(&surface).map(|value| (surface.clone(), value)),
+        0 if !surface_reading || regular_form => {
+            get(&surface).map(|value| (surface.clone(), value))
+        }
         1 => hits.pop(),
         _ => hits
             .iter()

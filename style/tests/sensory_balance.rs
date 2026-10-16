@@ -382,3 +382,112 @@ fn bundled_table_keeps_temperature_and_colour_words_for_looser_options() {
         ["cold", "warm", "crimson", "glow"]
     );
 }
+
+#[test]
+fn bundled_participles_keep_their_stronger_sensory_ratings() {
+    let text = "The floorboards were creaking. The clock kept ticking. Someone was knocking. \
+                The roses had withered. The lamp dimmed.";
+    let found = bundled(text, &options());
+    assert_eq!(
+        surfaces(&found),
+        ["creaking", "ticking", "knocking", "withered", "dimmed"]
+    );
+    assert_eq!(
+        found
+            .iter()
+            .map(|(_, lemma, _)| lemma.as_str())
+            .collect::<Vec<_>>(),
+        ["creaking", "ticking", "knocking", "withered", "dimmed"]
+    );
+}
+
+#[test]
+fn bundled_thresholds_do_not_round_up_near_misses() {
+    let table = PerceptualNorms::bundled();
+    for word in ["complain", "advised", "wanting", "pat"] {
+        assert!(table.get(word).unwrap().strength < 4.0, "{word}");
+    }
+    for word in ["sermon", "musician", "meatloaf"] {
+        assert!(table.get(word).unwrap().margin < 1.0, "{word}");
+    }
+}
+
+#[test]
+fn speech_attributions_are_not_sound_even_with_a_strong_caller_rating() {
+    let text =
+        "“I’m stiff,” she complained. “Don’t believe everything you hear, Nick,” he advised me. \
+                “It’s late,” she grumbled. The thunder grumbled overhead.";
+    let table = PerceptualNorms::from_tsv(
+        "complain\ta\t45\t30\nadvise\ta\t45\t30\ngrumbled\ta\t45\t30\ngrumble\ta\t45\t30\n",
+    )
+    .unwrap();
+    let report = sensory_balance::report(&document(text), &table, &options()).unwrap();
+    assert_eq!(words(text, &report), ["grumbled"]);
+    assert_eq!(report.sense_words[0].mode, Mode::Narration);
+}
+
+#[test]
+fn feel_before_an_object_modifier_is_literal_touch() {
+    let text = "He felt broken glass under his bare feet. He felt warm breath on his neck. \
+                She felt smooth stone. He felt sharp pain. He felt ashamed. He felt obliged to go. \
+                He felt cold and tired.";
+    let found = bundled(text, &options());
+    assert_eq!(
+        found.iter().filter(|(_, lemma, _)| lemma == "feel").count(),
+        4
+    );
+}
+
+#[test]
+fn compound_guards_keep_transparent_sensory_parts_and_unicode_spans() {
+    let text =
+        "“Her lamp’s dimmed…”, she said—\u{2028}hard-heartedness, cold-blooded, eagle-eyed, \
+                dubious-looking look-outs; red-hot, ice-cold, sweet-smelling, dance-music, \
+                amber-tinted, half-muffled, blue-clothed, red-eyed.";
+    let found = bundled(text, &options());
+    let compounds: Vec<_> = found
+        .iter()
+        .filter(|(surface, _, _)| surface.contains('-'))
+        .collect();
+    assert_eq!(
+        compounds
+            .iter()
+            .map(|(surface, _, _)| surface.as_str())
+            .collect::<Vec<_>>(),
+        [
+            "red-hot",
+            "ice-cold",
+            "sweet-smelling",
+            "dance-music",
+            "amber-tinted",
+            "half-muffled",
+            "blue-clothed",
+            "red-eyed"
+        ]
+    );
+    let report =
+        sensory_balance::report(&document(text), PerceptualNorms::bundled(), &options()).unwrap();
+    let utf16: Vec<_> = text.encode_utf16().collect();
+    for word in report.sense_words {
+        assert_eq!(
+            &text[word.span.byte],
+            String::from_utf16(&utf16[word.span.utf16]).unwrap()
+        );
+    }
+}
+
+#[test]
+fn figurative_predicates_look_past_short_adverbs_but_not_punctuation() {
+    let text = "It looks just as if it will rain. It looked almost like a ship. \
+                I felt very nice and snug. He felt unduly concerned. \
+                She felt very smooth stone. She looked, almost like a ship.";
+    let found = bundled(text, &options());
+    assert_eq!(
+        found.iter().filter(|(_, lemma, _)| lemma == "feel").count(),
+        1
+    );
+    assert_eq!(
+        found.iter().filter(|(_, lemma, _)| lemma == "look").count(),
+        1
+    );
+}
