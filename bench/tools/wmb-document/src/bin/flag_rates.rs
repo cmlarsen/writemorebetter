@@ -302,7 +302,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 },
                 "sensory_balance": {
                     "sense_words": sensory.sense_words.len(),
-                    "single_sense": sensory.scenes.iter().filter(|scene| scene.single_sense.is_some()).count(),
                     "modalities": modalities,
                 },
                 "diction": {

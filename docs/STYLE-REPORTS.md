@@ -175,7 +175,7 @@ measurements: single paragraphs that meet two thresholds are mostly in-scene noi
 | dialogue tags | `dialogue_tags::report(&Document, &DialogueTagOptions, Option<&DialogueTagBaseline>)` | `maxUntaggedExchanges`, `minimumTags` | caller only | yes |
 | sentence length | `sentence_length::report(&Document, &SentenceLengthOptions, Option<&SentenceLengthBaseline>)` | `minimumSentences`, `includeLongSentences`, `longSentenceWords`, `longestPerChapter` | bundled | no |
 | sentence starts | `sentence_starts::report(&Document, &SentenceStartsOptions, Option<&SentenceStartsBaseline>)` | `minimumSentences` | bundled | yes |
-| sensory balance | `sensory_balance::report(&Document, &PerceptualNorms, &SensoryBalanceOptions)` | `minimumStrength`, `dominanceMargin`, `sightMargin`, `minimumSenseWords`, `singleSensePercent` | none (norms bundled: `PerceptualNorms::bundled()`) | yes |
+| sensory balance | `sensory_balance::report(&Document, &PerceptualNorms, &SensoryBalanceOptions)` | `minimumStrength`, `dominanceMargin`, `sightMargin`, `minimumSenseWords` | none (norms bundled: `PerceptualNorms::bundled()`) | yes |
 | diction | `diction::report(&Document, &ConcretenessTable, &DictionOptions)` | `abstractBelow`, `minimumRatedWords`, `minimumRunSentences` | none (table caller-supplied: `ConcretenessTable::parse`) | yes |
 | overused words | `overused_words::report(&Document, &OverusedWordsOptions, Option<&OverusedWordsBaseline>)` | `minimumRatio`, `minimumCount`, `minimumReferencePerMillion`, `includeNouns`, `countScaleWords` | bundled; fillers run without one | yes |
 | pacing | `pacing::report(&Document, &PacingOptions)` | `minimumParagraphs`, `moreThanWords`, `minimumSentenceLength`, `minimumPastPerfectPercent`, `minimumCognitionPercent` | none | yes |
@@ -252,11 +252,11 @@ shape with `word` instead of `lemma` and nullable reference fields):
 ```
 
 `sensoryBalance` (with `minimumSenseWords: 1`; `chapters` and `scenes` are `{"span", "chapter",
-"groups", "singleSense"}` with `groups` shaped like the top-level one; every group lists all six
+"groups"}` with `groups` shaped like the top-level one; every group lists all six
 modalities in a fixed order):
 
 ```json
-{"words": {"all": 19, "narration": 18, "dialogue": 1}, "senseWords": [{"span": {"start": 18, "end": 24}, "lemma": "softly", "modality": "touch", "strength": 4.0, "mode": "narration"}, {"span": {"start": 64, "end": 67}, "lemma": "light", "modality": "sight", "strength": 4.6, "mode": "narration"}], "groups": {"all": {"words": 19, "senseWords": 2, "modalities": [{"modality": "sight", "count": 1, "percent": 50.0}]}, "narration": {}, "dialogue": {}}, "chapters": [{"span": {"start": 0, "end": 108}, "chapter": 0, "groups": {}, "singleSense": null}], "scenes": [{"span": {"start": 0, "end": 108}, "chapter": 0, "groups": {}, "singleSense": null}]}
+{"words": {"all": 19, "narration": 18, "dialogue": 1}, "senseWords": [{"span": {"start": 18, "end": 24}, "lemma": "softly", "modality": "touch", "strength": 4.0, "mode": "narration"}, {"span": {"start": 64, "end": 67}, "lemma": "light", "modality": "sight", "strength": 4.6, "mode": "narration"}], "groups": {"all": {"words": 19, "senseWords": 2, "modalities": [{"modality": "sight", "count": 1, "percent": 50.0}]}, "narration": {}, "dialogue": {}}, "chapters": [{"span": {"start": 0, "end": 108}, "chapter": 0, "groups": {}}], "scenes": [{"span": {"start": 0, "end": 108}, "chapter": 0, "groups": {}}]}
 ```
 
 `diction` (with `minimumRatedWords: 1` and the invented table `{"lamp": 4.8, "room": 4.5,
@@ -400,8 +400,10 @@ Build rules for any baseline:
 
 | Date | Decision | Why |
 |---|---|---|
+| 2026-10-16 | #282 (owner decision, Caleb): remove the sensory `singleSense` flag. Chapters and scenes no longer carry `singleSense`, and the `singleSensePercent` option is gone, so passing it is rejected as an unknown option. The per-scene modality counts and percents remain the opt-in lens | On 114 eligible public scenes (≥ 20 narration sense words), the flag fires on 0/1/4/11 scenes at 85/80/75/70%, and none of the 11 is a useful warning. High sight share mostly measures setting nouns and filter verbs ([STYLE-NORMS.md](STYLE-NORMS.md#singlesense-removed)) |
 | 2026-10-16 | #284 review: pacing rows carry no per-paragraph verdict, verb heads need a verb-phrase chunk, past perfect skips adverbs with a lexical verb reading (*had still not forgotten*), and a failed pooled sequence reports its longest passing window | A seeded sample of 40 two-signal rows judged 15 useful / 25 noise, so a UI highlights only runs. The chunk rule removes *up*, *home*, *wrong* from the denominator (128 two-signal rows, default runs still 1). Without the window fallback, appending two reflective paragraphs could erase a flagged run. See [STYLE-PACING.md](STYLE-PACING.md) |
 | 2026-10-16 | #251: pacing is an opt-in lens over shared paragraphs and speech, requiring two signals and ≥3 paragraphs or >400 words; authored cognition list, configurable 18-word / 20% / 20% thresholds | Public-only measurement chooses conservative defaults; published-fiction calibration remains owner-run and no baseline or prose-quality judgment ships. See [STYLE-PACING.md](STYLE-PACING.md) |
+| 2026-10-16 | #282: preserve eligible participle surface ratings, floor decimal norms, share speech-tag detection, guard lexicalized compound suffixes, and keep sensory defaults unchanged | Nine-text imagery recovery restores 13 candidate hits (10 useful); changed-span audit nets +1 useful, +12 noise, −10 wrong. Expanded public calibration: 114 eligible scenes, flags at 85/80/75/70% = 0/1/4/11, none useful. See the next row for `singleSense` ([STYLE-NORMS.md](STYLE-NORMS.md#singlesense-removed)) |
 | 2026-10-16 | #281 review: norm lookups prefer a verb reading's lemma over a base-form homograph (*felt* → *feel*), figurative and hearsay rules look past whitespace only, the bundled table keeps the 3.5/0.5 floor with haptic leads measured past interoception, defaults stay 4.0 / 1.0 / sight 3.0, and diction marks only narration sentences `abstract` | Past *felt* counted as the fabric and skipped the *feel* rule; *cold* (touch 4.11, interoception 3.53) could never count. Lowering default strength to 3.7 added *turn*, *wake* and *forget* as noise, so *warm*/*crimson* stay opt-in. Blind re-judging: 14/26/20 → 23/30/7 useful/noise/wrong ([STYLE-NORMS.md](STYLE-NORMS.md#re-review-281)) |
 | 2026-10-16 | #250: sensory balance is an opt-in lens over a derived Lancaster table: a sense word's strongest perceptual modality rates ≥ 4.0 and leads the next by ≥ 1.0 (sight by ≥ 3.0); `singleSense` needs ≥ 20 narration sense words and ≥ 85% in one modality | Calibrated on bench/public plus three Standard Ebooks chapters ([STYLE-NORMS.md](STYLE-NORMS.md)): nearly every concrete noun rates visual-dominant, so a uniform margin made sight 75–92% of every scene; the sight margin lifted useful sense words from 13 to 33 of 60 sampled. Published scenes peak at 77% one modality (Gatsby’s multi-sensory dawn), so 85% leaves no false flags on them |
 | 2026-10-16 | #250: diction takes a required caller-supplied concreteness table (JSON or TSV), flags runs of ≥ 3 consecutive abstract narration sentences (mean < 2.5 over ≥ 3 rated words), and errors without a table | Brysbaert is CC BY-NC-ND and stays out of the repository and tests; defaults assume its 1–5 scale. Real-world usefulness depends on the table Subplot supplies, an owner decision |
@@ -449,15 +451,16 @@ Tier 3 real-corpus calibration remains owner-only and emits aggregate numbers ex
 
 The #256 completion audit is in [`bench/style/AUDIT-256.md`](../bench/style/AUDIT-256.md).
 All nine merged reports now have tier 2 coverage: the existing sentence, echo/phrase, cliché and
-dialogue suites plus `lexical.py` for overused words and fillers, sensory balance and single-sense
-scenes, and caller-table diction sentences and abstract runs. The test split scores 100% P/R/F1 per
-category on 1,714 cases (295–300 occurrences per overused lemma, 60 per filler word, 60 per sensory
-modality, 60 single-sense scenes, 420 abstract sentences, 60 abstract runs), with targeted negative
-controls for each filter and threshold and zero changes on paired untouched prefixes; development
-has 1,725 cases. The 217 test-split predictions on the untouched public paragraphs are frozen and
-gated for equality, so a natural-text precision regression fails CI; a deliberate report change
-rebaselines them. These are injection regression scores, not editorial accuracy. All 21 report mutations tried
-(the reviewer's 12 plus 9 boundary changes, listed in the README) fail the gate.
+dialogue suites plus `lexical.py` for overused words and fillers, sensory balance, and caller-table
+diction sentences and abstract runs. The test split scores 100% P/R/F1 per category on 1,534 cases
+(295–300 occurrences per overused lemma, 60 per filler word, 60 per sensory modality, 420 abstract
+sentences, 60 abstract runs), with targeted negative controls for each filter and threshold and zero
+changes on paired untouched prefixes; development has 1,545 cases. The 217 test-split predictions on
+the untouched public paragraphs are frozen and gated for equality, so a natural-text precision
+regression fails CI; a deliberate report change rebaselines them. These are injection regression
+scores, not editorial accuracy. All 21 report mutations tried (the reviewer's 12 plus 9 boundary
+changes, listed in the README) failed the gate when measured; #282 later removed the single-sense
+cases and the two `singleSensePercent` mutations along with the flag.
 Tier 3 flag-rate calibration now covers all nine reports, including sensory modalities, overused/filler
 counts and rated-word-weighted diction means, and requires an owner-supplied diction table for real
 runs. Only synthetic self-tests ran here. Approximately 300 independent, owner-adjudicated judgment

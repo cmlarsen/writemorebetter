@@ -11,7 +11,7 @@ from tier2 import public_passages, score
 
 TABLE = HERE / 'diction-synthetic.json'
 BASELINE = HERE / 'lexical-baseline.json'
-REPORTS = ('overusedWords', 'fillers', 'sensoryBalance', 'singleSense', 'diction')
+REPORTS = ('overusedWords', 'fillers', 'sensoryBalance', 'diction')
 SENSES = {
     'sight': ('red', 'It was red.'),
     'sound': ('music', 'The music ended.'),
@@ -29,7 +29,6 @@ SENSORY_CONTROLS = {
 OVERUSED = (('glance', 'glanced'), ('shrug', 'shrugged'), ('blink', 'blinked'))
 FILLERS = ('It was very cold. She just left. He knew that she had gone.', ('very', 'just', 'that'))
 FILLER_CONTROL = 'He was a just man. That house was old.'
-SCENE_BREAK = '\n* * *\n\n'
 ABSTRACT = 'An idea, a belief, a truth.'
 CONCRETE = 'A stone, a lamp, velvet.'
 NEAR_ABSTRACT = 'A wish, a doubt, a whim.'
@@ -84,8 +83,6 @@ def predictions(file, result):
         rows.extend(record(file, 'fillers', word['word'], span) for span in word['spans'])
     rows.extend(record(file, 'sensoryBalance', word['modality'], word['span'])
                 for word in result['sensoryBalance']['senseWords'])
-    rows.extend(record(file, 'singleSense', scene['singleSense'], scene['span'])
-                for scene in result['sensoryBalance']['scenes'] if scene['singleSense'])
     rows.extend(record(file, 'diction', 'abstract', sentence['span'])
                 for sentence in result['diction']['sentences'] if sentence['abstract'])
     rows.extend(record(file, 'diction', 'run', run['span']) for run in result['diction']['abstractRuns'])
@@ -146,11 +143,6 @@ def generate(split):
             yield book, index, prefix, 'sensoryBalance', modality, sentence, [(modality, start, start + len(word))]
         for pattern, sentence in SENSORY_CONTROLS.items():
             yield book, index, prefix, 'sensoryBalance', pattern, sentence, []
-        for pattern, counts, flagged in (('single_sense', (18, 2), True), ('mixed_control', (16, 4), False),
-                                         ('below_minimum_control', (19, 0), False)):
-            suffix = SCENE_BREAK + ' '.join(['It was red.'] * counts[0] + ['The music ended.'] * counts[1])
-            spans = [('sight', len(prefix) + len(SCENE_BREAK), len(prefix) + len(suffix))] if flagged else []
-            yield book, index, prefix, 'singleSense', pattern, suffix, spans
         for pattern, items in DICTION.items():
             suffix, spans = sentences(prefix, items)
             yield book, index, prefix, 'diction', pattern, suffix, spans + runs(spans)

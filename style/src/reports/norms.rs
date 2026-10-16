@@ -46,13 +46,14 @@ pub(crate) fn lookup<'a, T>(
     token: &Token,
     at_start: bool,
     get: impl Fn(&str) -> Option<&'a T>,
+    prefer: impl Fn(&T) -> bool,
 ) -> Option<Found<'a, T>> {
     let capitalized = token.text.chars().next().is_some_and(char::is_uppercase)
         && token.text.chars().any(char::is_lowercase);
     if capitalized && !at_start {
         return None;
     }
-    lookup_word(token, &get).or_else(|| lookup_parts(token, &get))
+    lookup_word(token, &get, prefer).or_else(|| lookup_parts(token, &get))
 }
 
 fn lookup_parts<'a, T>(token: &Token, get: impl Fn(&str) -> Option<&'a T>) -> Option<Found<'a, T>> {
@@ -64,7 +65,30 @@ fn lookup_parts<'a, T>(token: &Token, get: impl Fn(&str) -> Option<&'a T>) -> Op
     if parts.len() < 2 {
         return None;
     }
-    for part in [parts[parts.len() - 1], parts[0]] {
+    let last = parts[parts.len() - 1];
+    if matches!(
+        last,
+        "blooded"
+            | "footed"
+            | "handed"
+            | "headed"
+            | "hearted"
+            | "heartedness"
+            | "minded"
+            | "mindedness"
+            | "mouthed"
+            | "nosed"
+            | "outs"
+            | "tempered"
+    ) {
+        return None;
+    }
+    let candidates: &[&str] = if matches!(last, "eyed" | "looking" | "tinted" | "clothed") {
+        &[parts[0]]
+    } else {
+        &[last, parts[0]]
+    };
+    for &part in candidates {
         if let Some(value) = get(part).filter(|_| !excluded(part)) {
             return Some(Found {
                 lemma: part.to_owned(),
@@ -75,7 +99,11 @@ fn lookup_parts<'a, T>(token: &Token, get: impl Fn(&str) -> Option<&'a T>) -> Op
     None
 }
 
-fn lookup_word<'a, T>(token: &Token, get: impl Fn(&str) -> Option<&'a T>) -> Option<Found<'a, T>> {
+fn lookup_word<'a, T>(
+    token: &Token,
+    get: impl Fn(&str) -> Option<&'a T>,
+    prefer: impl Fn(&T) -> bool,
+) -> Option<Found<'a, T>> {
     let surface = fold(&token.text);
     if excluded(&surface) {
         return None;
@@ -114,6 +142,14 @@ fn lookup_word<'a, T>(token: &Token, get: impl Fn(&str) -> Option<&'a T>) -> Opt
         .filter(|(pos, lemma)| pos.starts_with("VB") && *lemma != surface)
         .map(|(_, lemma)| lemma)
         .collect();
+    let regular_form = verb_forms.iter().any(|lemma| {
+        ["s", "ed", "ing"].iter().any(|suffix| {
+            surface == format!("{lemma}{suffix}")
+                || lemma
+                    .strip_suffix('e')
+                    .is_some_and(|stem| surface == format!("{stem}{suffix}"))
+        })
+    });
     let candidates = if verb_forms.is_empty() {
         readings.iter().map(|(_, lemma)| lemma).collect()
     } else {
@@ -125,11 +161,17 @@ fn lookup_word<'a, T>(token: &Token, get: impl Fn(&str) -> Option<&'a T>) -> Opt
         .collect();
     let surface_reading = readings.iter().any(|(_, lemma)| *lemma == surface);
     let (lemma, value) = match hits.len() {
-        0 if !surface_reading => get(&surface).map(|value| (surface.clone(), value)),
+        0 if !surface_reading || regular_form => {
+            get(&surface).map(|value| (surface.clone(), value))
+        }
         1 => hits.pop(),
         _ => hits
             .iter()
             .position(|(lemma, _)| *lemma == surface)
+            .or_else(|| {
+                let mut preferred = (0..hits.len()).filter(|&index| prefer(hits[index].1));
+                preferred.next().filter(|_| preferred.next().is_none())
+            })
             .map(|index| hits.swap_remove(index)),
     }?;
     Some(Found { lemma, value })

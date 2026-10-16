@@ -1,11 +1,11 @@
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::sync::OnceLock;
 
 use serde::{Deserialize, Serialize};
 
 use crate::error::StyleError;
 use crate::reports::echoes::fold;
-use crate::reports::{norms, word_split, Split};
+use crate::reports::{dialogue_tags, norms, word_split, Split};
 use crate::{Document, Mode, Span, Token};
 
 pub(crate) const REPORT: &str = "sensoryBalance";
@@ -131,8 +131,6 @@ pub struct SensoryBalanceOptions {
     pub sight_margin: f64,
     #[serde(alias = "minimum_sense_words")]
     pub minimum_sense_words: usize,
-    #[serde(alias = "single_sense_percent")]
-    pub single_sense_percent: f64,
 }
 
 impl Default for SensoryBalanceOptions {
@@ -142,7 +140,6 @@ impl Default for SensoryBalanceOptions {
             dominance_margin: 1.0,
             sight_margin: 3.0,
             minimum_sense_words: 20,
-            single_sense_percent: 85.0,
         }
     }
 }
@@ -167,10 +164,6 @@ impl SensoryBalanceOptions {
         self.minimum_sense_words = words;
         self
     }
-    pub fn with_single_sense_percent(mut self, percent: f64) -> Self {
-        self.single_sense_percent = percent;
-        self
-    }
 
     fn validate(&self) -> Result<(), StyleError> {
         if !(self.minimum_strength.is_finite() && (0.0..=5.0).contains(&self.minimum_strength)) {
@@ -183,14 +176,6 @@ impl SensoryBalanceOptions {
             if !(margin.is_finite() && (0.0..=5.0).contains(&margin)) {
                 return Err(StyleError::options(format!("{name} must be in 0..=5")));
             }
-        }
-        if !(self.single_sense_percent.is_finite()
-            && self.single_sense_percent > 0.0
-            && self.single_sense_percent <= 100.0)
-        {
-            return Err(StyleError::options(
-                "singleSensePercent must be a percentage in (0, 100]",
-            ));
         }
         Ok(())
     }
@@ -232,7 +217,6 @@ pub struct SensoryUnit {
     pub span: Span,
     pub chapter: usize,
     pub groups: Split<SensoryGroup>,
-    pub single_sense: Option<SensoryModality>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -281,27 +265,12 @@ struct Unit {
 
 impl Unit {
     fn finish(self, options: &SensoryBalanceOptions) -> SensoryUnit {
-        let narration = &self.tally.narration;
-        let sense_words: usize = narration.counts.iter().sum();
-        let single_sense = (sense_words >= options.minimum_sense_words.max(1))
-            .then(|| {
-                SensoryModality::ALL
-                    .iter()
-                    .zip(narration.counts)
-                    .max_by_key(|(_, count)| *count)
-                    .filter(|(_, count)| {
-                        100.0 * *count as f64 / sense_words as f64 >= options.single_sense_percent
-                    })
-                    .map(|(&modality, _)| modality)
-            })
-            .flatten();
         SensoryUnit {
             span: Span::covering(&self.first, &self.last),
             chapter: self.chapter,
             groups: self
                 .tally
                 .map(|tally| tally.group(options.minimum_sense_words)),
-            single_sense,
         }
     }
 }
@@ -319,13 +288,36 @@ fn reads(token: &Token, tag: &str) -> bool {
     token.readings.iter().any(|r| r.pos.starts_with(tag))
 }
 
-fn figurative(lemma: &str, next: Option<&Token>, after_next: Option<&Token>) -> bool {
-    let Some(next) = next else {
+fn figurative(lemma: &str, following: &[&Token]) -> bool {
+    let skip = if matches!(lemma, "feel" | "look" | "sound") {
+        following
+            .iter()
+            .take(2)
+            .take_while(|token| {
+                reads(token, "RB")
+                    && (!reads(token, "JJ")
+                        || (lemma != "feel"
+                            && token.chunks.iter().any(|chunk| chunk.contains("ADVP"))))
+                    && !matches!(fold(&token.text).as_str(), "as" | "like")
+            })
+            .count()
+    } else {
+        0
+    };
+    let Some(next) = following.get(skip) else {
         return false;
     };
+    let after_next = following.get(skip + 1);
     let word = fold(&next.text);
     let as_if = word == "as"
         && after_next.is_some_and(|after| matches!(fold(&after.text).as_str(), "if" | "though"));
+    let object = after_next.is_some_and(|after| {
+        reads(after, "NN")
+            && !reads(after, "RB")
+            && !reads(after, "PRP")
+            && !after.text.chars().next().is_some_and(char::is_uppercase)
+            && !next.chunks.iter().any(|chunk| chunk.contains("ADJP"))
+    });
     match lemma {
         "see" | "feel" => {
             matches!(
@@ -333,7 +325,8 @@ fn figurative(lemma: &str, next: Option<&Token>, after_next: Option<&Token>) -> 
                 "that" | "if" | "whether" | "how" | "why" | "what" | "like" | "as"
             ) || (lemma == "feel"
                 && (reads(next, "JJ") || reads(next, "VBN"))
-                && !reads(next, "NN"))
+                && !reads(next, "IN")
+                && !object)
         }
         "look" => word == "like" || as_if,
         "sound" => as_if,
@@ -364,6 +357,12 @@ pub fn report(
         return Err(StyleError::needs_token_details(REPORT));
     }
     options.validate()?;
+    let speech_tags: BTreeSet<_> = dialogue_tags::report(document, &Default::default(), None)?
+        .tags
+        .into_iter()
+        .filter(|tag| tag.class == dialogue_tags::DialogueTagVerbClass::Speech)
+        .map(|tag| tag.verb.byte.start)
+        .collect();
     let mut sense_words = Vec::new();
     let mut total: Split<Tally> = Split::default();
     let mut chapters = Vec::new();
@@ -404,15 +403,29 @@ pub fn report(
                     .filter(|_| word.follows_word)
                     .map(|previous| words[previous].token);
                 let next = joined(index + 1);
-                let after_next = next.and(joined(index + 2));
-                let sense = norms::lookup(token, word.at_start, |word| norms_table.words.get(word))
-                    .filter(|found| {
-                        !not_sensory(&found.lemma)
-                            && !figurative(&found.lemma, next, after_next)
-                            && !flat_adverb(token, previous, next)
-                            && classify(found.value, options)
-                    })
-                    .map(|found| (found.lemma, (found.value.modality, found.value.strength)));
+                let following: Vec<_> = (index + 1..=index + 4)
+                    .map(joined)
+                    .take_while(Option::is_some)
+                    .flatten()
+                    .collect();
+                let sense = norms::lookup(
+                    token,
+                    word.at_start,
+                    |word| {
+                        norms_table.words.get(word).filter(|norm| {
+                            token.text.contains('-') || norm.strength >= options.minimum_strength
+                        })
+                    },
+                    |norm| classify(norm, options),
+                )
+                .filter(|found| {
+                    !not_sensory(&found.lemma)
+                        && !speech_tags.contains(&token.span.byte.start)
+                        && !figurative(&found.lemma, &following)
+                        && !flat_adverb(token, previous, next)
+                        && classify(found.value, options)
+                })
+                .map(|found| (found.lemma, (found.value.modality, found.value.strength)));
                 for tally in [
                     &mut total,
                     &mut chapter.as_mut().unwrap().tally,

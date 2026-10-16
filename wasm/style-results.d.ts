@@ -253,7 +253,6 @@ export interface SensoryUnit {
   span: Span;
   chapter: number;
   groups: Split<SensoryGroup>;
-  singleSense: SensoryModality | null;
 }
 
 export interface SensoryBalanceReport {

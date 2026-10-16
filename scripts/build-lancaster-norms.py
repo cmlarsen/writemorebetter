@@ -8,6 +8,7 @@ The input is the aggregate CSV from https://osf.io/48wsc/ (OSF project 7emr6, CC
 import csv
 import hashlib
 import sys
+from decimal import Decimal, ROUND_FLOOR
 
 SHA256 = '445d363fb1f9f3e50b86d88e2f46cdc9a22b5dd8a713ce4e7be2a773d57f43c5'
 COLUMNS = [('Visual', 'v'), ('Auditory', 'a'), ('Haptic', 'h'), ('Olfactory', 'o'),
@@ -23,7 +24,8 @@ HEADER = f"""\
 # next modality by at least {MINIMUM_MARGIN}, not counting interoception as the next modality of a haptic
 # word; columns reduced to the dominant modality (v visual, a auditory, h haptic, o olfactory,
 # g gustatory, i interoceptive), its mean strength and that lead, both in tenths of a rating point
-# (0-50). Built by scripts/build-lancaster-norms.py.
+# (0-50), floored so rounding cannot admit words below a threshold. Built by
+# scripts/build-lancaster-norms.py.
 """
 
 
@@ -39,12 +41,13 @@ def main():
             word = row['Word'].strip().lower()
             if not word or not all(c.isalpha() or c in "-'" for c in word):
                 continue
-            ranked = sorted(((float(row[f'{name}.mean']), letter) for name, letter in COLUMNS),
+            ranked = sorted(((Decimal(row[f'{name}.mean']), letter) for name, letter in COLUMNS),
                             key=lambda item: -item[0])
             top, letter = ranked[0]
             second = next(mean for mean, other in ranked[1:] if (letter, other) != ('h', 'i'))
             if top >= MINIMUM_STRENGTH and top - second >= MINIMUM_MARGIN:
-                rows[word] = (letter, round(top * 10), round((top - second) * 10))
+                rows[word] = (letter, int((top * 10).to_integral_value(rounding=ROUND_FLOOR)),
+                              int(((top - second) * 10).to_integral_value(rounding=ROUND_FLOOR)))
     with open(out, 'w', encoding='utf-8', newline='\n') as handle:
         handle.write(HEADER)
         for word in sorted(rows):

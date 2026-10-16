@@ -132,13 +132,10 @@ fn shares_follow_the_invented_table_per_scene_chapter_and_mode() {
 }
 
 #[test]
-fn shares_are_null_below_the_minimum_and_flags_need_one_dominant_sense() {
+fn shares_are_null_below_the_minimum() {
     let text = "The lamp glimmered. The lamp glimmered again. A lamp.\n\n\nThe lamp glimmered. A hum. The smoke.\n\n\nA lamp.";
     let options = SensoryBalanceOptions::new().with_minimum_sense_words(3);
     let r = run(text, &options);
-    assert_eq!(r.scenes[0].single_sense, Some(SensoryModality::Sight));
-    assert_eq!(r.scenes[1].single_sense, None);
-    assert_eq!(r.scenes[2].single_sense, None);
     assert_eq!(
         percent(&r.scenes[0].groups.all, SensoryModality::Sight),
         Some(100.0)
@@ -147,14 +144,12 @@ fn shares_are_null_below_the_minimum_and_flags_need_one_dominant_sense() {
         percent(&r.scenes[2].groups.all, SensoryModality::Sight),
         None
     );
-    let loose = run(text, &options.clone().with_single_sense_percent(50.0));
-    assert_eq!(loose.scenes[1].single_sense, Some(SensoryModality::Sight));
     let dialogue = run(
         "“The lamp glimmered. The lamp glimmered. A lamp,” she said.",
         &options,
     );
-    assert_eq!(dialogue.scenes[0].single_sense, None);
     assert_eq!(dialogue.scenes[0].groups.dialogue.sense_words, 5);
+    assert_eq!(dialogue.scenes[0].groups.narration.sense_words, 0);
 }
 
 #[test]
@@ -214,7 +209,7 @@ fn spans_survive_curly_quotes_apostrophes_dashes_ellipses_and_line_separators() 
     let json: serde_json::Value = serde_json::from_str(&to_utf16_json(&r)).unwrap();
     assert_eq!(json["senseWords"][3]["modality"], "smell");
     assert_eq!(json["senseWords"][3]["mode"], "dialogue");
-    assert!(json["scenes"][0]["singleSense"].is_null());
+    assert!(json["scenes"][0].get("singleSense").is_none());
 }
 
 #[test]
@@ -227,8 +222,6 @@ fn bundled_table_loads_and_validation_rejects_bad_input() {
         options().with_minimum_strength(5.5),
         options().with_dominance_margin(-1.0),
         options().with_sight_margin(f64::NAN),
-        options().with_single_sense_percent(0.0),
-        options().with_single_sense_percent(101.0),
     ] {
         assert!(matches!(
             sensory_balance::report(&document(text), &norms(), &options),
@@ -342,7 +335,8 @@ fn bundled_appearance_hearsay_reading_and_flat_adverbs_are_not_imagery() {
 
 #[test]
 fn bundled_compounds_fall_back_to_their_parts_with_the_whole_span() {
-    let text = "It was red-hot and ice-cold, sweet-smelling, with dance-music and well-known men.";
+    let text = "It was red-hot and ice-cold, sweet-smelling, with dance-music and well-known men. \
+                It was hard-boiled, with a looking-glass.";
     let found = bundled(text, &options());
     assert_eq!(
         found
@@ -380,5 +374,163 @@ fn bundled_table_keeps_temperature_and_colour_words_for_looser_options() {
     assert_eq!(
         surfaces(&bundled(text, &options().with_minimum_strength(3.5))),
         ["cold", "warm", "crimson", "glow"]
+    );
+}
+
+#[test]
+fn bundled_participles_keep_their_stronger_sensory_ratings() {
+    let text = "The floorboards were creaking. The clock kept ticking. Someone was knocking. \
+                The roses had withered. The lamp dimmed.";
+    let found = bundled(text, &options());
+    assert_eq!(
+        surfaces(&found),
+        ["creaking", "ticking", "knocking", "withered", "dimmed"]
+    );
+    assert_eq!(
+        found
+            .iter()
+            .map(|(_, lemma, _)| lemma.as_str())
+            .collect::<Vec<_>>(),
+        ["creaking", "ticking", "knocking", "withered", "dimmed"]
+    );
+}
+
+#[test]
+fn bundled_thresholds_do_not_round_up_near_misses() {
+    let table = PerceptualNorms::bundled();
+    for word in ["complain", "advised", "wanting", "pat"] {
+        assert!(table.get(word).unwrap().strength < 4.0, "{word}");
+    }
+    for word in ["sermon", "musician", "meatloaf"] {
+        assert!(table.get(word).unwrap().margin < 1.0, "{word}");
+    }
+}
+
+#[test]
+fn speech_attributions_are_not_sound_even_with_a_strong_caller_rating() {
+    let text =
+        "“I’m stiff,” she complained. “Don’t believe everything you hear, Nick,” he advised me. \
+                “It’s late,” she grumbled. The thunder grumbled overhead.";
+    let table = PerceptualNorms::from_tsv(
+        "complain\ta\t45\t30\nadvise\ta\t45\t30\ngrumbled\ta\t45\t30\ngrumble\ta\t45\t30\n",
+    )
+    .unwrap();
+    let report = sensory_balance::report(&document(text), &table, &options()).unwrap();
+    assert_eq!(words(text, &report), ["grumbled"]);
+    assert_eq!(report.sense_words[0].mode, Mode::Narration);
+}
+
+#[test]
+fn feel_before_an_object_modifier_is_literal_touch() {
+    let text = "He felt broken glass under his bare feet. He felt warm breath on his neck. \
+                She felt smooth stone. He felt sharp pain. He felt ashamed. He felt obliged to go. \
+                He felt cold and tired.";
+    let found = bundled(text, &options());
+    assert_eq!(
+        found.iter().filter(|(_, lemma, _)| lemma == "feel").count(),
+        4
+    );
+}
+
+#[test]
+fn feel_counts_groping_but_not_emotional_predicates() {
+    let feel = |text: &str| {
+        bundled(text, &options())
+            .iter()
+            .filter(|(_, lemma, _)| lemma == "feel")
+            .count()
+    };
+    for literal in [
+        "He felt over the table for his keys.",
+        "She felt gently along the wall.",
+        "It was the rotten ice he had felt under his feet.",
+        "He felt over innumerable feet of dark wall.",
+    ] {
+        assert_eq!(feel(literal), 1, "{literal}");
+    }
+    for emotional in [
+        "She felt sure someone was watching.",
+        "He felt glad Mother was home.",
+        "She felt sorry Jim had gone.",
+        "He felt ashamed yesterday.",
+        "He felt certain nothing would happen.",
+        "He felt alone in space.",
+        "He felt less alone with his misery.",
+        "I feel far away from her.",
+    ] {
+        assert_eq!(feel(emotional), 0, "{emotional}");
+    }
+}
+
+#[test]
+fn margin_failing_verbs_do_not_count_through_their_inflections() {
+    let text = "He watched the river. She was holding the cup. She was tired. \
+                He pictured her face. They were watching the door.";
+    assert!(bundled(text, &options()).is_empty());
+}
+
+#[test]
+fn removed_single_sense_percent_option_is_rejected() {
+    let error = serde_json::from_str::<SensoryBalanceOptions>(r#"{"singleSensePercent":85}"#)
+        .unwrap_err()
+        .to_string();
+    assert!(error.contains("singleSensePercent"), "{error}");
+}
+
+#[test]
+fn compound_guards_keep_transparent_sensory_parts_and_unicode_spans() {
+    let text =
+        "“Her lamp’s dimmed…”, she said—\u{2028}hard-heartedness, cold-blooded, eagle-eyed, \
+                dubious-looking look-outs; red-hot, ice-cold, sweet-smelling, dance-music, \
+                amber-tinted, half-muffled, blue-clothed, red-eyed, cloud-flocks; hot-tempered, \
+                sweet-tempered, loud-mouthed, hard-nosed, hard-headed, light-footed, \
+                soft-mindedness, red-handed.";
+    let found = bundled(text, &options());
+    let compounds: Vec<_> = found
+        .iter()
+        .filter(|(surface, _, _)| surface.contains('-'))
+        .collect();
+    assert_eq!(
+        compounds
+            .iter()
+            .map(|(surface, _, _)| surface.as_str())
+            .collect::<Vec<_>>(),
+        [
+            "red-hot",
+            "ice-cold",
+            "sweet-smelling",
+            "dance-music",
+            "amber-tinted",
+            "half-muffled",
+            "blue-clothed",
+            "red-eyed",
+            "cloud-flocks"
+        ]
+    );
+    let report =
+        sensory_balance::report(&document(text), PerceptualNorms::bundled(), &options()).unwrap();
+    let utf16: Vec<_> = text.encode_utf16().collect();
+    for word in report.sense_words {
+        assert_eq!(
+            &text[word.span.byte],
+            String::from_utf16(&utf16[word.span.utf16]).unwrap()
+        );
+    }
+}
+
+#[test]
+fn figurative_predicates_look_past_short_adverbs_but_not_punctuation() {
+    let text = "It looks just as if it will rain. It looked almost like a ship. \
+                I felt very nice and snug. He felt unduly concerned. \
+                I felt worse and worse. \
+                She felt very smooth stone. She looked, almost like a ship.";
+    let found = bundled(text, &options());
+    assert_eq!(
+        found.iter().filter(|(_, lemma, _)| lemma == "feel").count(),
+        1
+    );
+    assert_eq!(
+        found.iter().filter(|(_, lemma, _)| lemma == "look").count(),
+        1
     );
 }

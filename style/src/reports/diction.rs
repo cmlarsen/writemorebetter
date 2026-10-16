@@ -241,9 +241,12 @@ pub fn report(
             let mode = document.sentence_mode(sentence);
             let (mut sum, mut rated) = (0.0, 0);
             for word in norms::words(sentence) {
-                if let Some(norms::Found { value: rating, .. }) =
-                    norms::lookup(word.token, word.at_start, |word| table.ratings.get(word))
-                {
+                if let Some(norms::Found { value: rating, .. }) = norms::lookup(
+                    word.token,
+                    word.at_start,
+                    |word| table.ratings.get(word),
+                    |_| true,
+                ) {
                     sum += rating;
                     rated += 1;
                 }

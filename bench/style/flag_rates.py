@@ -29,7 +29,7 @@ FINE = ('subject', 'adverb', 'gerund', 'infinitive', 'subordinatingConjunction',
         'pastParticiple', 'inversion', 'introductory', 'other')
 UNIVERSAL = ('ADJ', 'ADP', 'ADV', 'CONJ', 'DET', 'NOUN', 'NUM', 'PRON', 'PRT', 'VERB', '.', 'X')
 LEXICAL_KEYS = ('overused_words', 'sensory_balance', 'diction', 'overused', 'occurrences', 'fillers',
-                'sense_words', 'single_sense', 'modalities', 'sight', 'sound', 'touch', 'smell', 'taste',
+                'sense_words', 'modalities', 'sight', 'sound', 'touch', 'smell', 'taste',
                 'interoception', 'abstract_sentences', 'abstract_runs', 'rated_words', 'rating_sum', 'mean_rating')
 STRUCTURE = frozenset(LEXICAL_KEYS + GROUPS + LENGTH_STATISTICS + TAG_FLAGS + TAG_CONTEXT + STAGES + FINE + UNIVERSAL
                       + tuple(WINDOW_RULE) + (
@@ -400,7 +400,7 @@ def lexical_reports(samples):
         'overused_words': {'categories': family(samples, ('overused_words',),
                                                 ('overused', 'occurrences', 'fillers'))},
         'sensory_balance': {'categories': family(samples, ('sensory_balance',),
-                                                 ('sense_words', 'single_sense')),
+                                                 ('sense_words',)),
                             'modalities': family(samples, ('sensory_balance', 'modalities'),
                                                  ('sight', 'sound', 'touch', 'smell', 'taste', 'interoception'))},
         'diction': {'categories': family(samples, ('diction',), ('abstract_sentences', 'abstract_runs')),
@@ -509,7 +509,6 @@ def self_test(probe, started=None):
     assert lexical['overused_words']['fillers'] == 4
     assert lexical['sensory_balance']['modalities']['sight'] == 26
     assert lexical['sensory_balance']['modalities']['touch'] == 3
-    assert lexical['sensory_balance']['single_sense'] == 1
     assert lexical['diction']['abstract_sentences'] == 3
     assert lexical['diction']['abstract_runs'] == 1
     with tempfile.TemporaryDirectory(prefix='style-synthetic-') as temporary:

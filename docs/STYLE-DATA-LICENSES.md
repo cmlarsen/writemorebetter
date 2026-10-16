@@ -50,10 +50,18 @@ Licenses checked 2026-10-15 (recorded in #246, below). #250 vendors one derived 
   downloaded by that project from `https://osf.io/48wsc/download`, agrees on all six perceptual
   means for every one of the 2,708 shared words, and a third-party listing of OSF's files gives the
   same 17,196,336-byte size. The BergelsonLab copy fetched again for #281 still has the pinned sha256.
+- **OSF recheck (2026-10-16 20:12 and 20:57 UTC, #282).** Both times
+  `https://osf.io/download/48wsc/` and `https://api.osf.io/v2/files/48wsc/` returned HTTP 503
+  (and `https://osf.io/48wsc/download` at 20:57).
+  The mirror was downloaded again and matches the pinned sha256
+  `445d363fb1f9f3e50b86d88e2f46cdc9a22b5dd8a713ce4e7be2a773d57f43c5`
+  (17,196,336 bytes). Direct OSF hash verification remains open.
 - **Changes** (recorded in the file header and NOTICE): single words only, lowercased; only words
   whose strongest perceptual modality rates ≥ 3.5 and leads the next by ≥ 0.5, not counting
   interoception as the next modality of a haptic word; columns reduced to that modality, its mean
-  strength and that lead, in tenths. 11,450 of 39,707 entries; 192,986 bytes. The build is
+  strength and that lead, in floored tenths. Decimal CSV arithmetic and flooring (#282) prevent
+  subthreshold values from rounding into the defaults; exact 0.5 boundaries add six entries that
+  binary floating-point subtraction previously lost. 11,456 of 39,707 entries; 193,102 bytes. The build is
   byte-reproducible from the pinned CSV.
   The raw CSV is not committed.
 - **Concreteness** stays caller-supplied. Tests use invented ratings only, and the usefulness review

@@ -813,7 +813,6 @@ Every public paragraph gets the same injected cases, each appended to the untouc
 | Overused words | five occurrences each of *glanced*, *shrugged*, *blinked* (the default minimum count) | four occurrences of each; five *said* in a 240-word padded text, whose ratio to the Ngram rate is below 4 |
 | Fillers | *very*, *just* and clause-opening *that* in `It was very cold. She just left. He knew that she had gone.` | adjective *just* and determiner *That* |
 | Sensory balance | one rated word per modality: *red*, *music*, *cold*, *stench*, *salty*, *nausea* | figurative *looked like* / *felt that*, flat adverb *pretty late*, the excluded lemma *speech*, and sight word *beautiful* whose margin (2.3) is below the sight margin |
-| Single-sense scenes | a scene after `* * *` with 18 sight and 2 sound words (90%) | 16 + 4 (80%), and 19 sight words (below the 20-word minimum) |
 | Diction sentences and runs | three abstract sentences (mean 1.5) forming one run; one near-threshold sentence (mean 2.4); abstract, abstract, concrete, abstract (three sentences, no run) | three concrete sentences; the abstract sentence as dialogue; a sentence with mean 2.6; a sentence with two rated words |
 
 Overused cases skip a paragraph that already contains that lemma, and the ratio control skips
@@ -844,14 +843,18 @@ recall and F1 on both splits:
 | Overused words: glance; shrug; blink | 295; 300; 300 (300 each) |
 | Fillers: very; just; that | 60 each (60 each) |
 | Sensory balance: each of six modalities | 60 each (60 each) |
-| Single-sense scenes: sight | 60 (60) |
 | Diction: abstract sentences; abstract runs | 420; 60 (420; 60) |
-| Cases / paired untouched-prefix comparisons changed | 1,714 / 0 (1,725 / 0) |
-| Frozen natural-paragraph predictions | 217 (222) |
+| Cases / paired untouched-prefix comparisons changed | 1,534 / 0 (1,545 / 0) |
+| Frozen natural-paragraph predictions | 217 (223) |
 
-The test natural predictions are 139 sense words (92 of them sight), 70 fillers,
-7 *come* overused flags and 1 single-sense scene; development has 163 sense words, 46 fillers and 13
-overused flags.
+The test natural predictions are 140 sense words (93 of them sight), 70 fillers and
+7 *come* overused flags; development has 164 sense words, 46 fillers and 13 overused flags.
+
+#282 removed the single-sense scene flag, its three injected cases per paragraph (a 90% positive,
+80% and below-minimum controls) and its category, and rebaselined both splits. Its sensory fixes
+also moved the frozen sense words: test drops the speech tags *exclaimed* and *growled* and adds
+participles *singing* ×2 and *marked*; development drops *complained* (below the exact 4.0 strength) and adds *withered*
+and *flew*.
 
 Mutation check (2026-10-16; throwaway edits to `style/src/reports/`, reverted and never committed;
 each rebuilt `lexical_reports` and `flag_rates`, then ran this gate on the test split and the
@@ -870,12 +873,12 @@ flag-rates self-test):
 | Diction `abstractBelow` 2.5→4.0 | missed | mean-2.6 control flags |
 | Diction narration-only rule removed | missed | dialogue control flags |
 | Diction `minimumRunSentences` 3→4 (reviewer: tier 3) | caught (tier 3) | run positives drop; tier 3 self-test |
-| Sensory `singleSensePercent` 85→99 (reviewer: tier 3) | missed | natural freeze; 90% scene drops (controls alone); tier 3 self-test |
+| Sensory `singleSensePercent` 85→99 (reviewer: tier 3) | missed | natural freeze; 90% scene drops (controls alone); tier 3 self-test (option removed in #282) |
 | Sensory excluded-lemma filter alone removed | — | natural freeze; *speech* control (controls alone) |
 | Sensory figurative filter alone removed | — | natural freeze; *looked like* / *felt that* (controls alone) |
 | Sensory flat-adverb filter alone removed | — | natural freeze; *pretty late* (controls alone) |
 | Diction `minimumRunSentences` 3→2 | — | broken-run case flags a two-sentence run |
-| Sensory `singleSensePercent` 85→75 | — | 80% scene control flags |
+| Sensory `singleSensePercent` 85→75 | — | 80% scene control flags (option removed in #282) |
 | Diction `minimumRatedWords` 3→2 | — | two-rated-word control flags |
 | Diction `abstractBelow` 2.5→2.0 | — | mean-2.4 positive drops |
 | Sensory `minimumSenseWords` 20→21 | — | 20-word scene positive drops |
@@ -887,6 +890,8 @@ rerun with the freeze bypassed: the targeted controls and positives fail each of
 Of the 12 reviewer mutations, the flag-rates self-test now fails 5. The suite does not catch a
 change that leaves every injected boundary case and every natural flag on the 60 gated test paragraphs
 unchanged, for example a filter edit that only matters for constructions absent from both.
+The two `singleSensePercent` rows record the measurement at the time; #282 removed the option, the
+flag and the cases that caught them.
 
 CI's `English` job runs **Style lexical report accuracy gates (256)**; it gates the test-split
 P/R/F1 per category, gold coverage, case count, the paired-prefix count and the frozen natural
@@ -908,7 +913,7 @@ python3 bench/style/run.py tier3 --flag-rates --export /approved/export --dictio
 
 The self-test alone uses the committed invented table. There is no synthetic fallback for a real
 export. Overused output counts flagged lemmas, their occurrences and filler tokens; sensory output
-counts sense words, each of six modalities, and single-sense scene flags; diction counts abstract
+counts sense words and each of six modalities; diction counts abstract
 sentences/runs and pools rated-word sums/counts into a mean rating. Each count has an author-weighted
 per-1,000-word distribution and flagged share at both chapter-window and manuscript/author scales.
 For sense-word and filler counts, `flagged_share` means a nonempty diagnostic, not an editorial
@@ -916,8 +921,7 @@ warning. For diction, the chosen table determines coverage and interpretation. M
 pool units by author; ratings are weighted by rated words within an author and equally across authors.
 No matched lemmas, table vocabulary, paths or source text enter the output. The existing allowlist and
 numeric-only validator apply. Synthetic coverage checks all three added reports (including four
-filler words and a single-sense scene at 26 of 29 sense words, about 90% sight, so a raised
-`singleSensePercent` fails), author pooling, rating weighting and leak rejection. No private inputs were accessed for this work.
+filler words and 26 sight words of 29 sense words), author pooling, rating weighting and leak rejection. No private inputs were accessed for this work.
 
 ### Label inventory and what the owner still owes
 
@@ -969,3 +973,21 @@ It emits no text, titles, identifiers or author keys; a fixed output-key
 allowlist and numeric-value check guard serialization, probe stderr is discarded, and run.py
 suppresses all tier 3 argument/runtime errors. CI runs only synthetic `--self-test`, which
 checks author pooling and sentinel metadata suppression. No private data was accessed for #251.
+
+## Sensory norms follow-ups (#282)
+
+`cargo build -p writemorebetter-style --release --example norm_reports` followed by
+`python3 bench/style/norms.py --probe target/release/examples/norm_reports` runs five tier 2
+synthetic cases: participles, literal versus predicative *feel*, transparent versus lexicalized
+compounds, adverb-interrupted figurative predicates, and speech tags. The fixtures include curly
+quotes/apostrophes, an em dash, an ellipsis and U+2028; byte and UTF-16 spans must agree. The
+`compounds` and `tags` cases assert exact surfaces; `tags` uses *shouted* and *murmured*, which the
+bundled table rates ≥ 4.0, so only the speech-tag detector can exclude them. The Rust suite
+additionally forces strongly rated speech tags through an invented table.
+
+`test_lancaster_norms.py` checks the derivation using invented means around strength/margin
+boundaries, including an exact decimal boundary that binary floating-point subtraction can lose.
+`WMB_NORM_JSON=bench/style/out/norms` makes the `norm_reports` example save one JSON result per
+input basename for public-text calibration; output belongs in ignored benchmark directories.
+The source text is never included in that JSON. The public calibration, the #286 review fixes and
+the owner decision to remove `singleSense` are recorded in [STYLE-NORMS.md](../../docs/STYLE-NORMS.md).

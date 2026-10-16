@@ -307,7 +307,6 @@ public struct SensoryUnit: Codable, Equatable, Sendable {
     public let span: Span
     public let chapter: Int
     public let groups: Split<SensoryGroup>
-    public let singleSense: SensoryModality?
 }
 
 public struct SensoryBalanceReport: Codable, Equatable, Sendable {

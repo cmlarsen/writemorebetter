@@ -13,7 +13,7 @@ class LexicalTests(unittest.TestCase):
                     ('moby', 30, 'He waited by the gate.')]
         with patch.object(lexical, 'public_passages', return_value=iter(passages)):
             cases = list(lexical.generate('dev'))
-        self.assertEqual(len(cases), 29)
+        self.assertEqual(len(cases), 26)
         for _, index, prefix, report, pattern, suffix, spans in cases:
             self.assertEqual(index, 0)
             text = prefix + suffix
@@ -26,9 +26,6 @@ class LexicalTests(unittest.TestCase):
                     self.assertEqual(text[start:end], ' '.join([lexical.ABSTRACT] * 3))
                 elif report == 'fillers':
                     self.assertEqual(text[start:end], label)
-                elif report == 'singleSense':
-                    self.assertEqual(text[start:end].split('. ')[0], 'It was red')
-                    self.assertEqual(end, len(text))
             if pattern.endswith(('_below_count', '_control')):
                 self.assertEqual(spans, [])
         labels = {pattern: [label for label, _, _ in spans] for _, _, _, report, pattern, _, spans in cases
