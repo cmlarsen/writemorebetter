@@ -6,9 +6,8 @@ Part of #244. Rust entry points are `reports::sentence_length::report` and
 `SentenceLengthReport`, `SentenceStartsOptions`, `SentenceStartCategory`, …). Public records are
 non-exhaustive; construct options with `new()` and the `with_*` builders. Native spans retain
 absolute, half-open UTF-8 byte, Unicode scalar and UTF-16 endpoints. Both reports return
-`groups: Split<…>` with `all`, `narration` and `dialogue`. The combined `reports::run` call (and the
-bindings' `styleReports`) evaluates any selection of reports over one document; see
-[STYLE-REPORTS.md](STYLE-REPORTS.md#one-call-for-every-report).
+`groups: Split<…>` with `all`, `narration` and `dialogue`. Each report runs independently on one retained document; see
+[the per-report API](STYLE-REPORTS.md#independent-reports-shared-analysis).
 
 **One sentence table.** Neither report repeats sentence spans. Sentences are numbered in document
 order (paragraph by paragraph), and `reports::sentence_table(&document)` returns one
@@ -191,30 +190,15 @@ The full distribution and exact source provenance remain in the shipped JSON fil
 
 ## Bindings and one document pass
 
-Use `checker.styleReports(text, requestJson?, documentOptionsJson?)` in WASM, or Swift's
-`styleReports(text:requestJson:documentOptions:)`. An explicit request selects only its non-null
-report members, e.g.:
+Create `checker.styleDocument(text, optionsJSON)` in WASM or Swift's
+`checker.styleDocument(text:options:)`, then call `sentenceLength` and `sentenceStarts`. Both results
+include their own sentence rows and split word counts. Each method accepts report options JSON and
+an optional baseline JSON override. Bundled baselines are used when omitted; the JSON string `"null"`
+disables comparisons. Swift returns typed Codable results. Spans count UTF-16 units.
 
-```json
-{"sentenceLength":{"minimumSentences":200,"longSentenceWords":40},"sentenceStarts":{"minimumSentences":200},"baselines":"bundled"}
-```
-
-`"baselines": "bundled"` selects the bundled files; an object
-`{"sentenceLength": {...}, "sentenceStarts": {...}}` holds caller baselines in the bundled file's
-`baseline` member format, without its source wrapper. Omitting the request runs every report with
-bundled baselines. One full document is built for all selected reports; reports never require a
-second pass. Output fields and categories are camelCase and every span is `{start,end}` in UTF-16
-code units into the original text. Unknown option, category and tag keys throw.
-
-The per-report `sentenceLength`/`sentenceStarts` binding calls are removed: each rebuilt the
-document, and their results would reference a sentence table they did not return. The combined
-output keeps POS internally even with `includeTokenDetails: false`, emits no per-token detail
-payload, and honors names and paragraph mode. Native Rust callers must keep full token details for
-starts: a compact document makes `sentence_starts::report` return `StyleError::NeedsTokenDetails`,
-because it cannot reconstruct discarded readings. Length works on compact documents.
-`node wasm/sentence-reports-bench.mjs` measures the combined call with both sentence reports and
-bundled baselines on the exact 596,376-byte public workload (Moby excerpt repeated four times, CRLF
-preserved); `--all` selects every report.
+Starts requires token details and rejects compact documents. Length works on compact documents.
+`node wasm/sentence-reports-bench.mjs` measures analysis separately from all six report calls on
+`bench/public/moby150k.txt` with hard-wrapped mode (one warmup, three measured iterations).
 
 ## Adjudicated benchmark status
 

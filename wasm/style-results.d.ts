@@ -1,0 +1,205 @@
+export interface Span { start: number; end: number; }
+export type Mode = "narration" | "dialogue";
+export interface Split<T> { all: T; narration: T; dialogue: T; }
+export interface SentenceRange { start: number; end: number; }
+
+export type ClicheKind = "cliche" | "redundancy";
+export type DialogueTagPosition = "before" | "after" | "split";
+export type DialogueTagVerbClass = "speech" | "nonSpeech" | "unlisted";
+export type SentenceStartCategory = "subject" | "adverb" | "gerund" | "infinitive" | "subordinatingConjunction" | "coordinatingConjunction" | "pastParticiple" | "inversion" | "introductory" | "other";
+export interface Echo {
+  key: string;
+  label: string;
+  earlier: Span;
+  later: Span;
+  distance: number;
+}
+
+export interface EchoReport {
+  echoes: Array<Echo>;
+  words: number;
+  perThousandWords: number;
+}
+
+export interface RepeatedPhrase {
+  keys: Array<string>;
+  labels: Array<string>;
+  count: number;
+  spans: Array<Span>;
+}
+
+export interface RepeatedPhraseReport {
+  words: number;
+  phrases: Array<RepeatedPhrase>;
+}
+
+export interface ClicheMatch {
+  kind: ClicheKind;
+  mode: Mode;
+  phrase: string;
+  source: string;
+  span: Span;
+}
+
+export interface ClicheCounts {
+  cliches: number;
+  redundancies: number;
+  words: number;
+}
+
+export interface ClicheReport {
+  matches: Array<ClicheMatch>;
+  groups: Split<ClicheCounts>;
+}
+
+export interface DialogueTag {
+  span: Span;
+  clause: Span;
+  verb: Span;
+  verbText: string;
+  lemma: string;
+  class: DialogueTagVerbClass;
+  showy: boolean;
+  position: DialogueTagPosition;
+  adverb: Span | null;
+  quotes: Array<Span>;
+}
+
+export interface DialogueTagActionBeat {
+  span: Span;
+  quotes: Array<Span>;
+}
+
+export interface DialogueTagUntaggedRun {
+  span: Span;
+  quotes: Array<Span>;
+  exchanges: number;
+}
+
+export interface DialogueTagVerbCount {
+  lemma: string;
+  class: DialogueTagVerbClass;
+  count: number;
+}
+
+export interface DialogueTagReport {
+  words: Split<number>;
+  tags: Array<DialogueTag>;
+  beats: Array<DialogueTagActionBeat>;
+  untaggedRuns: Array<DialogueTagUntaggedRun>;
+  otherVerbs: Array<DialogueTagVerbCount>;
+  neutralVerbs: Array<DialogueTagVerbCount>;
+  showyVerbs: Array<DialogueTagVerbCount>;
+  lowConfidence: boolean;
+  dialogueSpans: number;
+  speechSpans: number;
+  taggedSpans: number;
+  exchanges: number;
+  untaggedExchanges: number;
+  saidAsked: Share;
+  withAdverb: Share;
+  nonSpeech: Share;
+}
+
+export interface SentenceLengthBucket {
+  words: number;
+  sentences: number;
+}
+
+export interface SentenceLengthPercentile {
+  percentile: number;
+  value: number | null;
+  difference: number | null;
+  highlighted: boolean;
+}
+
+export interface SentenceLengthGroup {
+  sentences: number;
+  zeroWordSentences: number;
+  histogram: Array<SentenceLengthBucket>;
+  mean: number | null;
+  meanDifference: number | null;
+  meanHighlighted: boolean;
+  lowConfidence: boolean;
+  percentiles: Array<SentenceLengthPercentile>;
+  longSentences: Array<number>;
+  monotonyRuns: Array<SentenceRun>;
+}
+
+export interface SentenceLengthReport {
+  sentences: Array<SentenceRow>;
+  words: Split<number>;
+  groups: Split<SentenceLengthGroup>;
+}
+
+export interface SentenceStart {
+  sentence: number;
+  opener: Span | null;
+  word: string | null;
+  category: SentenceStartCategory;
+  ambiguous: boolean;
+  universalCandidates: Array<string>;
+}
+
+export interface SentenceStartCategoryShare {
+  category: SentenceStartCategory;
+  count: number;
+  percent: number | null;
+  difference: number | null;
+  highlighted: boolean;
+}
+
+export interface SentenceStartUniversalShare {
+  tag: string;
+  weight: number;
+  percent: number | null;
+  difference: number | null;
+  highlighted: boolean;
+}
+
+export interface SentenceStartsGroup {
+  sentences: number;
+  lowConfidence: boolean;
+  excludedSentences: number;
+  ambiguousStarts: number;
+  unknownStarts: number;
+  categories: Array<SentenceStartCategoryShare>;
+  universal: Array<SentenceStartUniversalShare>;
+  sameWordRuns: Array<SentenceRun>;
+}
+
+export interface SentenceStartsReport {
+  sentences: Array<SentenceRow>;
+  words: Split<number>;
+  starts: Array<SentenceStart>;
+  groups: Split<SentenceStartsGroup>;
+}
+
+export interface Share {
+  count: number;
+  percent: number | null;
+  difference: number | null;
+  highlighted: boolean;
+}
+
+export interface SentenceRow {
+  span: Span;
+  mode: Mode;
+  words: number;
+}
+
+export interface SentenceRun {
+  span: Span;
+  sentences: SentenceRange;
+}
+
+export interface DocumentStats {
+  paragraphs: number;
+  hardWrapped: boolean;
+  tokenDetails: boolean;
+  words: Split<number>;
+  sentences: Split<number>;
+  dialogueSpans: number;
+  speechSpans: number;
+}
+

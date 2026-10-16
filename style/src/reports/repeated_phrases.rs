@@ -80,6 +80,7 @@ pub struct RepeatedPhrase {
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct RepeatedPhraseReport {
+    pub words: usize,
     pub phrases: Vec<RepeatedPhrase>,
 }
 
@@ -299,6 +300,7 @@ pub fn report(
             .then(left_start.cmp(right_start))
     });
     Ok(RepeatedPhraseReport {
+        words: document.word_count,
         phrases: phrases.into_iter().map(|(_, phrase)| phrase).collect(),
     })
 }

@@ -24,10 +24,10 @@ nlprule/   the LanguageTool port. Unchanged in scope.
            + analyze(text): sentences and tokens with offsets, lemmas, POS tags, chunks (#242)
 style/     the reports: crate writemorebetter-style, MIT OR Apache-2.0 (#243)
   src/document.rs   paragraphs, sentences, tokens, quoted-dialogue spans and speech flags, lemma index
-  src/reports/      one module per report, plus the combined run() / run_json() in mod.rs
+  src/reports/      one module and report() entry point per report
   data/             phrase lists and word lists (each credited in NOTICE)
     baselines/      default baselines (source recorded inside each file)
-swift/, wasm/       one binding each, exposing check() + analyze() + analyzeDocument() + styleReports()
+swift/, wasm/       one binding each, exposing check() + analyze() + analyzeDocument() + StyleDocument
 ```
 
 - **Not in `nlprule`.** `nlprule` measures itself by LanguageTool conformance. These reports are not
@@ -69,21 +69,72 @@ patterns and priority, ambiguity allocation, dialogue grouping, baseline compari
 public regression measurements. The fine start categories use a documented deterministic priority;
 the Ngram universal-12 comparison allocates ambiguous starts fractionally.
 
-## One call for every report
+## Independent reports, shared analysis
 
-`reports::run` builds nothing itself: it takes one `Document` and runs the reports a `StyleRequest`
-selects. `reports::run_json` is the same call from text to JSON, and both bindings' `styleReports`
-are thin wrappers over it, so the document pass (the dominant cost) runs once however many reports
-are selected.
+Build the document once in Rust, then call the reports the application needs:
 
 ```rust
-use writemorebetter_style::reports::{run, run_json, StyleRequest, StyleResources};
-
-let resources = StyleResources::new(); // keep one per tokenizer; it caches the compiled cliché list
+use writemorebetter_style::reports::{sentence_length, sentence_starts};
 let document = analyze_document(&tokenizer, text, &DocumentOptions::new());
-let reports = run(&document, &StyleRequest::new(), &resources, &tokenizer)?; // StyleReports
-let json = run_json(&tokenizer, &resources, text, Some(r#"{"echoes":{}}"#), &DocumentOptions::new())?;
+let length = sentence_length::report(&document, &Default::default(),
+    sentence_length::SentenceLengthBaseline::bundled().as_ref())?;
+let starts = sentence_starts::report(&document, &Default::default(),
+    sentence_starts::SentenceStartsBaseline::bundled().as_ref())?;
 ```
+
+Swift and WASM expose `checker.styleDocument(text, options)` to retain this analysis in a
+`StyleDocument`. Several methods cost one analysis plus each report pass. The object owns its
+analysis and retains the tokenizer/resources, so it can outlive the checker. Build a new object
+when text or document options change. WASM callers must call `free()` when finished; Swift uses
+ARC. Construction respects `includeTokenDetails`; methods requiring readings reject compact
+documents. Construct documents off the UI thread.
+
+```javascript
+const document = checker.styleDocument(text, JSON.stringify({skipNames: ["Mara"]}));
+const length = JSON.parse(document.sentenceLength());
+const starts = JSON.parse(document.sentenceStarts('{"minimumSentences":50}'));
+const cliches = JSON.parse(document.cliches());
+const tags = JSON.parse(document.dialogueTags());
+const stats = JSON.parse(document.stats());
+const echoes = JSON.parse(document.echoes());
+const phrases = JSON.parse(document.repeatedPhrases());
+const long = JSON.parse(document.sentenceLength('{"includeLongSentences":true}'));
+document.free();
+```
+
+Each method accepts that report's options JSON (omitted means defaults) and returns only its
+result as JSON. `stats()` returns `DocumentStats`. Baseline-aware methods (`sentenceLength`,
+`sentenceStarts`, `dialogueTags`) take a separate optional `baselineJSON`: omit it for bundled data,
+pass a baseline object encoded as JSON to override it, or the string `"null"` to disable comparisons.
+There is no bundled dialogue-tag baseline yet. Options use camelCase, accept snake_case aliases,
+and reject unknown keys. Overrides never change later calls. Native Rust `report` functions take
+`Option<&Baseline>` explicitly; `XBaseline::bundled()` loads the matching bundled file.
+
+Swift has typed `Codable`, `Equatable`, `Sendable` results decoded from the same UTF-16 JSON:
+
+```swift
+let document = checker.styleDocument(text: text, options: DocumentOptions(skipNames: ["Mara"]))
+let length: SentenceLengthReport = try document.sentenceLength()
+let starts: SentenceStartsReport = try document.sentenceStarts(optionsJson: "{\"minimumSentences\":50}")
+let tags: DialogueTagReport = try document.dialogueTags()
+let cliches: ClicheReport = try document.cliches()
+let stats: DocumentStats = try document.stats()
+let echoes: EchoReport = try document.echoes()
+let phrases: RepeatedPhraseReport = try document.repeatedPhrases()
+let custom = try document.sentenceLength(baselineJson: "{\"mean\":13}")
+if let match = cliches.matches.first {
+    let range: NSRange = match.span.nsRange
+}
+```
+
+Swift's `*Json` methods expose the underlying strings. TypeScript result declarations ship in the generated WASM package and are also in
+[`wasm/style-results.d.ts`](../wasm/style-results.d.ts); import a result with `import type` and
+annotate the value decoded with `JSON.parse`.
+
+Subplot chooses which methods to call. Its recommended default set is **clichés, dialogue tags,
+sentence length statistics and monotony, and sentence starts**. **Echoes, repeated phrases, and
+long-sentence flags** are opt-in lenses. Length statistics and monotony remain available without
+`includeLongSentences`. The library has no combined request or default report selection.
 
 | Report | Module and entry point | Options | Baseline | Needs readings |
 |---|---|---|---|---|
@@ -100,42 +151,22 @@ and TypeScript's flat namespaces; shared vocabulary is `Span`, `Mode`, `Split<T>
 `SentenceRow`, `SentenceRun`, `DocumentStats` and `StyleError`. Options are `#[non_exhaustive]` and
 built with `new()` plus `with_*` builders.
 
-### Request
-
-`StyleRequest::new()` (and an absent `requestJson`) selects sentence-start and length statistics,
-monotony/opener runs, dialogue tags and clichés, with bundled baselines. Echoes and repeated phrases
-are opt-in: select `{"echoes":{}}` or `{"repeatedPhrases":{}}` explicitly. Length statistics and
-monotony remain selected, but `longSentences` is empty unless `sentenceLength.includeLongSentences`
-is true. Request the long lens with `{"sentenceLength":{"includeLongSentences":true}}`. A JSON request selects exactly the non-null report members it names:
-
-```json
-{"echoes": {}, "repeatedPhrases": {"minimumContentWords": 1}, "cliches": {}, "dialogueTags": {"minimumTags": 50},
- "sentenceLength": {"includeLongSentences": true, "longSentenceWords": 40}, "sentenceStarts": {}, "baselines": "bundled"}
-```
-
-`baselines` is `"bundled"`, `null`/absent (no baselines), or an object with any of `sentenceLength`,
-`sentenceStarts` and `dialogueTags`, each in the bundled file's `baseline` member format.
-`StyleBaselines::bundled()` and each `XBaseline::bundled()` load the files under
-`style/data/baselines/` (dialogue tags has none yet, so its `bundled()` is `None`). Option and request
-keys are camelCase, also accepting their snake_case names; unknown keys are errors.
-
 ### Errors
 
-`StyleError` has three kinds: `invalidOptions` (unparseable request or document options, unknown
-keys), `invalidBaseline` (with `report`: a percentage outside 0..=100, a non-finite or negative
-length, an unknown percentile or universal tag) and `needsTokenDetails` (with `report`: a compact
-document given to a report that needs readings). `run` validates the whole request before running
-any report. WASM throws a JS `Error` named `StyleError` with `kind` and `report` properties; Swift
-throws `CheckError.ReportInput` with the same message.
+Each method validates its inputs independently. `StyleError` has three kinds: `invalidOptions`
+(unparseable options or unknown keys), `invalidBaseline` (with `report`: invalid values, percentile
+or universal tags), and `needsTokenDetails` (with `report`: a compact document supplied to a report
+requiring readings). WASM throws an `Error` named `StyleError` with `kind` and `report`; Swift throws
+`CheckError.ReportInput` with the same message.
 
 ### Result
 
-`StyleReports` has `stats`, `sentences` and one member per selected report. Unselected reports are
-omitted from JSON. `run_json` and the bindings serialize every `Span` as its UTF-16 `{start, end}`
-(native Rust spans keep `byte`, `char` and `utf16`). The examples below come from running the call on
-`“Fine,” Mara said softly. She grinned and grinned.⏎The old lamp lit the old lamp room. He kicked
-the bucket.` with `Mara` skipped, every report selected, low sample minimums and bundled baselines.
-Arrays are cut to their first entries.
+Each report stands alone. Sentence length and starts each include their own `sentences` rows and
+`words: {all, narration, dialogue}`. Echoes and phrases include `words`; clichés have word counts
+per group; dialogue tags have split word counts and their own dialogue/speech/exchange counts.
+Bindings serialize `Span` as UTF-16 `{start, end}`; native Rust spans keep byte, char and UTF-16
+ranges. These abbreviated JSON examples illustrate the records; omitted arrays and groups have
+the same shapes as the ones shown.
 
 `stats` (`DocumentStats`) holds the shared counts every report agrees with:
 
@@ -144,8 +175,8 @@ Arrays are cut to their first entries.
  "sentences": {"all": 4, "narration": 3, "dialogue": 1}, "dialogueSpans": 1, "speechSpans": 1}
 ```
 
-`sentences` is the one sentence table (present when a sentence report is selected); reports refer to
-sentences by index into it:
+`sentences` belongs to each sentence report. All its indexes, including opener references, long
+sentences and runs, refer only to that result’s own table:
 
 ```json
 [{"span": {"start": 0, "end": 26}, "mode": "dialogue", "words": 3}, {"span": {"start": 26, "end": 50}, "mode": "narration", "words": 4}]
@@ -161,7 +192,7 @@ sentences by index into it:
 `repeatedPhrases`:
 
 ```json
-{"phrases": [{"keys": ["the", "old", "lamp"], "labels": ["the", "old", "lamp"], "count": 2, "spans": [{"start": 51, "end": 63}, {"start": 68, "end": 80}]}]}
+{"words": 19, "phrases": [{"keys": ["the", "old", "lamp"], "labels": ["the", "old", "lamp"], "count": 2, "spans": [{"start": 51, "end": 63}, {"start": 68, "end": 80}]}]}
 ```
 
 `cliches` (`narration` and `dialogue` groups have the same shape as `all`):
@@ -258,7 +289,7 @@ and invalid-band tests. Confidence labels are independent of population comparis
 A baseline is the expected value in published fiction: category shares, rates per 1,000 words, or word
 frequencies. **Every report with a baseline takes it as a separate input**, so a caller can swap in a
 genre-specific one. Default baseline files may ship in `style/data/baselines/`, each recording its
-source and version; `StyleBaselines::bundled()` loads them, so callers never strip the source wrapper
+source and version; each report’s `XBaseline::bundled()` loads its file, so callers never strip the source wrapper
 by hand. They
 are built in the private `cmlarsen/fiction-baseline` repo; each committed baseline file names the build
 commit there. Where the numbers come from:
@@ -318,6 +349,7 @@ Build rules for any baseline:
 
 | Date | Decision | Why |
 |---|---|---|
+| 2026-10-16 | Owner direction (#275): independent methods on retained Swift/WASM `StyleDocument` objects; remove the combined API; each result owns its counts and sentence rows | Share the expensive analysis while letting Subplot choose its default set and opt-in lenses; typed per-report Swift and TypeScript results |
 | 2026-10-14 | Reports live in a `style/` crate in this repo, consuming `analyze()` | One Rust library and one tokenizer per app; keeps `nlprule` a faithful port |
 | 2026-10-14 | Every report takes its baseline as an input | Callers can swap in genre-specific baselines |
 | 2026-10-14 | No pirated or scraped corpora | Legal exposure: pirated library copies were the basis of the settled claims in *Bartz v. Anthropic* (N.D. Cal., 2025) |
@@ -335,7 +367,7 @@ Build rules for any baseline:
 | 2026-10-15 | Show sentence statistics from 50 sentences and tag percentages from 15 tags, with low-confidence flags below 200 sentences / 50 tags | Short chapters need statistics while exposing their smaller samples |
 | 2026-10-15 | Flag only showy dialogue verbs; report neutral verbs as counts | Reply, answer, whisper, shout and similar ordinary attributions are not prose problems |
 | 2026-10-15 | Narration runs cross paragraphs; repeated phrases need frequency/proximity and merged overlaps; long sentences use top 3 per chapter plus candidates above the writer's p95; untagged runs need more than 12 exchanges | Apply the writer review's engineering fixes while leaving the licensed cliché lists unchanged |
-| 2026-10-16 | One public API for all reports before the bindings freeze it: report-prefixed type names, camelCase JSON, baselines as a separate argument, spans instead of document indexes, one sentence table, and `reports::run`/`run_json` as the single combined entry point | Swift and TypeScript types share one flat namespace, and separate per-report binding calls rebuilt the document each time |
+| 2026-10-16 | Superseded by #275: one public API for all reports before the bindings freeze it: report-prefixed type names, camelCase JSON, baselines as a separate argument, spans instead of document indexes, one sentence table, and `reports::run`/`run_json` as the single combined entry point | Swift and TypeScript types share one flat namespace, and separate per-report binding calls rebuilt the document each time |
 | 2026-10-16 | One narration/dialogue definition, computed in the document pass: a quote is speech unless it is embedded or the subject of a copula | The sentence reports, clichés and dialogue tags disagreed on the same passages |
 | 2026-10-16 | Reports that need readings reject compact documents (`StyleError::NeedsTokenDetails`) | Echoes, repeated phrases, sentence starts and dialogue tags silently degraded on them |
 

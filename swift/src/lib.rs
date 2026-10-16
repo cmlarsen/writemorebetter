@@ -272,9 +272,9 @@ impl From<writemorebetter_style::Document> for Document {
 /// write lock, and both are visible to the next `check`.
 #[derive(uniffi::Object)]
 pub struct Checker {
-    tokenizer: Tokenizer,
+    tokenizer: Arc<Tokenizer>,
     rules: RwLock<Rules>,
-    style: writemorebetter_style::reports::StyleResources,
+    style: Arc<writemorebetter_style::reports::StyleResources>,
 }
 
 const _: fn() = || {
@@ -351,9 +351,9 @@ impl Checker {
         }
 
         Ok(Arc::new(Checker {
-            tokenizer,
+            tokenizer: Arc::new(tokenizer),
             rules: RwLock::new(rules),
-            style: writemorebetter_style::reports::StyleResources::new(),
+            style: Arc::new(writemorebetter_style::reports::StyleResources::new()),
         }))
     }
 
@@ -396,25 +396,23 @@ impl Checker {
         writemorebetter_style::analyze_document(&self.tokenizer, &text, &options).into()
     }
 
-    pub fn style_reports(
+    pub fn style_document(
         &self,
         text: String,
-        request_json: Option<String>,
-        document_options: Option<DocumentOptions>,
-    ) -> Result<String, CheckError> {
-        let input = document_options.unwrap_or_default();
+        options: Option<DocumentOptions>,
+    ) -> Arc<StyleDocument> {
+        let input = options.unwrap_or_default();
         let options = writemorebetter_style::DocumentOptions::new()
             .with_skip_names(input.skip_names)
+            .with_token_details(input.include_token_details)
             .with_hard_wrapped(input.hard_wrapped);
-        writemorebetter_style::reports::run_json(
-            &self.tokenizer,
-            &self.style,
-            &text,
-            request_json.as_deref(),
-            &options,
-        )
-        .map_err(|error| CheckError::ReportInput {
-            message: error.to_string(),
+        Arc::new(StyleDocument {
+            inner: writemorebetter_style::StyleDocument::new(
+                self.tokenizer.clone(),
+                self.style.clone(),
+                &text,
+                &options,
+            ),
         })
     }
 
@@ -580,5 +578,74 @@ mod tests {
     fn offsets_clamp_past_the_end() {
         let offsets = Utf16Offsets::new("\u{1F600}");
         assert_eq!(offsets.at(99), 2);
+    }
+}
+
+#[derive(uniffi::Object)]
+pub struct StyleDocument {
+    inner: writemorebetter_style::StyleDocument,
+}
+
+#[uniffi::export]
+impl StyleDocument {
+    pub fn stats_json(&self) -> String {
+        writemorebetter_style::reports::to_utf16_json(&self.inner.stats())
+    }
+    pub fn echoes_json(&self, options_json: Option<String>) -> Result<String, CheckError> {
+        self.inner
+            .echoes(options_json.as_deref())
+            .map_err(|error| CheckError::ReportInput {
+                message: error.to_string(),
+            })
+    }
+    pub fn repeated_phrases_json(
+        &self,
+        options_json: Option<String>,
+    ) -> Result<String, CheckError> {
+        self.inner
+            .repeated_phrases(options_json.as_deref())
+            .map_err(|error| CheckError::ReportInput {
+                message: error.to_string(),
+            })
+    }
+    pub fn cliches_json(&self, options_json: Option<String>) -> Result<String, CheckError> {
+        self.inner
+            .cliches(options_json.as_deref())
+            .map_err(|error| CheckError::ReportInput {
+                message: error.to_string(),
+            })
+    }
+    pub fn dialogue_tags_json(
+        &self,
+        options_json: Option<String>,
+        baseline_json: Option<String>,
+    ) -> Result<String, CheckError> {
+        self.inner
+            .dialogue_tags(options_json.as_deref(), baseline_json.as_deref())
+            .map_err(|error| CheckError::ReportInput {
+                message: error.to_string(),
+            })
+    }
+    pub fn sentence_length_json(
+        &self,
+        options_json: Option<String>,
+        baseline_json: Option<String>,
+    ) -> Result<String, CheckError> {
+        self.inner
+            .sentence_length(options_json.as_deref(), baseline_json.as_deref())
+            .map_err(|error| CheckError::ReportInput {
+                message: error.to_string(),
+            })
+    }
+    pub fn sentence_starts_json(
+        &self,
+        options_json: Option<String>,
+        baseline_json: Option<String>,
+    ) -> Result<String, CheckError> {
+        self.inner
+            .sentence_starts(options_json.as_deref(), baseline_json.as_deref())
+            .map_err(|error| CheckError::ReportInput {
+                message: error.to_string(),
+            })
     }
 }

@@ -74,7 +74,7 @@ def labeled(probe, path=LABELS):
         gold.append({key: row[key] for key in ('file', 'byte', 'utf16', 'pattern')})
         report = probe.analyze(row['text'])['reports']
         for start in report['sentenceStarts']['starts']:
-            span = report['sentences'][start['sentence']]['span']
+            span = report['sentenceStarts']['sentences'][start['sentence']]['span']
             predictions.append({'file': row['file'], 'pattern': start['category'],
                                 'byte': span['byte'], 'utf16': span['utf16']})
     return {'sentences': len(rows), **score(gold, predictions, {r['file'] for r in rows})}
@@ -130,7 +130,7 @@ def pattern_spans(report):
     length = report['sentenceLength']['groups']['all']
     return {'monotony': [run['span'] for run in length['monotonyRuns']],
             'sameWord': [run['span'] for run in report['sentenceStarts']['groups']['all']['sameWordRuns']],
-            'longSentence': [report['sentences'][index]['span'] for index in length['longSentences']]}
+            'longSentence': [report['sentenceLength']['sentences'][index]['span'] for index in length['longSentences']]}
 
 
 def injected(probe, out, analyzer):
@@ -264,7 +264,7 @@ def public_distribution(line_probe, wrapped_probe):
                 for start in reports['sentenceStarts']['starts']:
                     if start['category'] != 'other':
                         continue
-                    span = reports['sentences'][start['sentence']]['span']['byte']
+                    span = reports['sentenceStarts']['sentences'][start['sentence']]['span']['byte']
                     excerpt = data[span['start']:span['end']].decode('utf-8').lstrip()
                     if re.match(r'CHAPTER\s+\d', excerpt):
                         shape = 'chapterNumberHeading'

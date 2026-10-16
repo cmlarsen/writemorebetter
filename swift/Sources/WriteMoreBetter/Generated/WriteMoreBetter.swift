@@ -619,7 +619,7 @@ public protocol CheckerProtocol: AnyObject, Sendable {
      */
     func setWords(words: [String])  -> UInt32
     
-    func styleReports(text: String, requestJson: String?, documentOptions: DocumentOptions?) throws  -> String
+    func styleDocument(text: String, options: DocumentOptions?)  -> StyleDocument
     
     /**
      * Lists the user dictionary, canonicalized and sorted.
@@ -835,14 +835,13 @@ open func setWords(words: [String]) -> UInt32  {
 })
 }
     
-open func styleReports(text: String, requestJson: String?, documentOptions: DocumentOptions?)throws  -> String  {
-    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
+open func styleDocument(text: String, options: DocumentOptions?) -> StyleDocument  {
+    return try!  FfiConverterTypeStyleDocument_lift(try! rustCall() {
         uniffiCallStatus in
-    uniffi_writemorebetter_swift_fn_method_checker_style_reports(
+    uniffi_writemorebetter_swift_fn_method_checker_style_document(
             self.uniffiCloneHandle(),
         FfiConverterString.lower(text),
-        FfiConverterOptionString.lower(requestJson),
-        FfiConverterOptionTypeDocumentOptions.lower(documentOptions),uniffiCallStatus
+        FfiConverterOptionTypeDocumentOptions.lower(options),uniffiCallStatus
     )
 })
 }
@@ -902,6 +901,198 @@ public func FfiConverterTypeChecker_lift(_ handle: UInt64) throws -> Checker {
 #endif
 public func FfiConverterTypeChecker_lower(_ value: Checker) -> UInt64 {
     return FfiConverterTypeChecker.lower(value)
+}
+
+
+
+
+
+
+public protocol StyleDocumentProtocol: AnyObject, Sendable {
+    
+    func clichesJson(optionsJson: String?) throws  -> String
+    
+    func dialogueTagsJson(optionsJson: String?, baselineJson: String?) throws  -> String
+    
+    func echoesJson(optionsJson: String?) throws  -> String
+    
+    func repeatedPhrasesJson(optionsJson: String?) throws  -> String
+    
+    func sentenceLengthJson(optionsJson: String?, baselineJson: String?) throws  -> String
+    
+    func sentenceStartsJson(optionsJson: String?, baselineJson: String?) throws  -> String
+    
+    func statsJson()  -> String
+    
+}
+open class StyleDocument: StyleDocumentProtocol, @unchecked Sendable {
+    fileprivate let handle: UInt64
+
+    /// Used to instantiate a [FFIObject] without an actual handle, for fakes in tests, mostly.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public struct NoHandle {
+        public init() {}
+    }
+
+    // TODO: We'd like this to be `private` but for Swifty reasons,
+    // we can't implement `FfiConverter` without making this `required` and we can't
+    // make it `required` without making it `public`.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    required public init(unsafeFromHandle handle: UInt64) {
+        self.handle = handle
+    }
+
+    // This constructor can be used to instantiate a fake object.
+    // - Parameter noHandle: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    //
+    // - Warning:
+    //     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing handle the FFI lower functions will crash.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public init(noHandle: NoHandle) {
+        self.handle = 0
+    }
+
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public func uniffiCloneHandle() -> UInt64 {
+        return try! rustCall { uniffi_writemorebetter_swift_fn_clone_styledocument(self.handle, $0) }
+    }
+    // No primary constructor declared for this class.
+
+    deinit {
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
+        try! rustCall { uniffi_writemorebetter_swift_fn_free_styledocument(handle, $0) }
+    }
+
+    
+
+    
+open func clichesJson(optionsJson: String?)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_method_styledocument_cliches_json(
+            self.uniffiCloneHandle(),
+        FfiConverterOptionString.lower(optionsJson),uniffiCallStatus
+    )
+})
+}
+    
+open func dialogueTagsJson(optionsJson: String?, baselineJson: String?)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_method_styledocument_dialogue_tags_json(
+            self.uniffiCloneHandle(),
+        FfiConverterOptionString.lower(optionsJson),
+        FfiConverterOptionString.lower(baselineJson),uniffiCallStatus
+    )
+})
+}
+    
+open func echoesJson(optionsJson: String?)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_method_styledocument_echoes_json(
+            self.uniffiCloneHandle(),
+        FfiConverterOptionString.lower(optionsJson),uniffiCallStatus
+    )
+})
+}
+    
+open func repeatedPhrasesJson(optionsJson: String?)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_method_styledocument_repeated_phrases_json(
+            self.uniffiCloneHandle(),
+        FfiConverterOptionString.lower(optionsJson),uniffiCallStatus
+    )
+})
+}
+    
+open func sentenceLengthJson(optionsJson: String?, baselineJson: String?)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_method_styledocument_sentence_length_json(
+            self.uniffiCloneHandle(),
+        FfiConverterOptionString.lower(optionsJson),
+        FfiConverterOptionString.lower(baselineJson),uniffiCallStatus
+    )
+})
+}
+    
+open func sentenceStartsJson(optionsJson: String?, baselineJson: String?)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_method_styledocument_sentence_starts_json(
+            self.uniffiCloneHandle(),
+        FfiConverterOptionString.lower(optionsJson),
+        FfiConverterOptionString.lower(baselineJson),uniffiCallStatus
+    )
+})
+}
+    
+open func statsJson() -> String  {
+    return try!  FfiConverterString.lift(try! rustCall() {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_method_styledocument_stats_json(
+            self.uniffiCloneHandle(),uniffiCallStatus
+    )
+})
+}
+    
+
+    
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeStyleDocument: FfiConverter {
+    typealias FfiType = UInt64
+    typealias SwiftType = StyleDocument
+
+    public static func lift(_ handle: UInt64) throws -> StyleDocument {
+        return StyleDocument(unsafeFromHandle: handle)
+    }
+
+    public static func lower(_ value: StyleDocument) -> UInt64 {
+        return value.uniffiCloneHandle()
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> StyleDocument {
+        let handle: UInt64 = try readInt(&buf)
+        return try lift(handle)
+    }
+
+    public static func write(_ value: StyleDocument, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(value))
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeStyleDocument_lift(_ handle: UInt64) throws -> StyleDocument {
+    return try FfiConverterTypeStyleDocument.lift(handle)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeStyleDocument_lower(_ value: StyleDocument) -> UInt64 {
+    return FfiConverterTypeStyleDocument.lower(value)
 }
 
 
@@ -2169,10 +2360,31 @@ private let initializationResult: InitializationResult = {
     if (uniffi_writemorebetter_swift_checksum_method_checker_set_words() != 45047) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_writemorebetter_swift_checksum_method_checker_style_reports() != 36205) {
+    if (uniffi_writemorebetter_swift_checksum_method_checker_style_document() != 58918) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_method_checker_words() != 61704) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_writemorebetter_swift_checksum_method_styledocument_cliches_json() != 55889) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_writemorebetter_swift_checksum_method_styledocument_dialogue_tags_json() != 43577) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_writemorebetter_swift_checksum_method_styledocument_echoes_json() != 62879) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_writemorebetter_swift_checksum_method_styledocument_repeated_phrases_json() != 14727) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_writemorebetter_swift_checksum_method_styledocument_sentence_length_json() != 61292) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_writemorebetter_swift_checksum_method_styledocument_sentence_starts_json() != 19493) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_writemorebetter_swift_checksum_method_styledocument_stats_json() != 71) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_constructor_checker_new() != 1239) {

@@ -12,9 +12,9 @@ let report = cliches::report(&document, &list, &ClicheOptions::new())?;
 
 The report is the public module `reports::cliches`; nothing is re-exported at the crate root or in
 `reports`. Build the `ClicheList` once per tokenizer and cache it (compiling the bundled list analyzes
-each of its 882 entries). `reports::StyleResources` does that lazily for the combined call, and both
-bindings keep one per `Checker`, so only the first `styleReports` call that selects clichés pays for
-it. `ClicheOptions` has no fields yet; JSON `{}` selects the report.
+each of its 882 entries). `reports::StyleResources` does that lazily, and both
+bindings keep one per `Checker`, so only the first `StyleDocument.cliches()` call pays for
+it. `ClicheOptions` has no fields yet; JSON `{}` uses its defaults.
 `ClicheList::new(&tokenizer, entries)` takes a caller-supplied list instead: each `ClicheEntry` has a
 kind, phrase, source, optional acronym, a fixed-wording flag, an open-slot flag and `not_followed_by`
 guards (each a word or a space-separated word sequence). This is the

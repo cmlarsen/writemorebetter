@@ -3,10 +3,58 @@ use std::sync::OnceLock;
 use nlprule::Tokenizer;
 use serde_json::Value;
 use writemorebetter_style::reports::{
-    run, run_json, sentence_length::SentenceLengthOptions, sentence_starts::SentenceStartsOptions,
-    to_utf16_json, StyleReports, StyleRequest, StyleResources,
+    cliches, dialogue_tags, echoes, sentence_length, sentence_starts, *,
 };
-use writemorebetter_style::{analyze_document, Document, DocumentOptions, Mode, StyleError};
+use writemorebetter_style::reports::{
+    sentence_length::SentenceLengthOptions, sentence_starts::SentenceStartsOptions,
+};
+use writemorebetter_style::{
+    analyze_document, Document, DocumentOptions, Mode, StyleDocument, StyleError,
+};
+
+#[derive(serde::Serialize)]
+struct Reports {
+    stats: DocumentStats,
+    sentences: Vec<SentenceRow>,
+    echoes: Option<echoes::EchoReport>,
+    cliches: Option<cliches::ClicheReport>,
+    dialogue_tags: Option<dialogue_tags::DialogueTagReport>,
+    sentence_length: Option<sentence_length::SentenceLengthReport>,
+    sentence_starts: Option<sentence_starts::SentenceStartsReport>,
+}
+
+fn collect_reports(document: &Document) -> Reports {
+    let length = sentence_length::report(
+        document,
+        &SentenceLengthOptions::new().with_minimum_sentences(1),
+        sentence_length::SentenceLengthBaseline::bundled().as_ref(),
+    )
+    .unwrap();
+    let starts = sentence_starts::report(
+        document,
+        &SentenceStartsOptions::new().with_minimum_sentences(1),
+        sentence_starts::SentenceStartsBaseline::bundled().as_ref(),
+    )
+    .unwrap();
+    assert_eq!(length.sentences, starts.sentences);
+    assert_eq!(length.words, starts.words);
+    Reports {
+        stats: DocumentStats::new(document),
+        sentences: length.sentences.clone(),
+        echoes: Some(echoes::report(document, &Default::default()).unwrap()),
+        cliches: Some(
+            cliches::report(
+                document,
+                resources().cliches(tokenizer()),
+                &Default::default(),
+            )
+            .unwrap(),
+        ),
+        dialogue_tags: Some(dialogue_tags::report(document, &Default::default(), None).unwrap()),
+        sentence_length: Some(length),
+        sentence_starts: Some(starts),
+    }
+}
 
 const PASSAGES: &[(&str, &str, &[&str])] = &[
     (
@@ -54,14 +102,6 @@ fn tokenizer() -> &'static Tokenizer {
 fn resources() -> &'static StyleResources {
     static RESOURCES: OnceLock<StyleResources> = OnceLock::new();
     RESOURCES.get_or_init(StyleResources::new)
-}
-
-fn request() -> StyleRequest {
-    let mut request = StyleRequest::new();
-    request.echoes = Some(Default::default());
-    request.sentence_length = Some(SentenceLengthOptions::new().with_minimum_sentences(1));
-    request.sentence_starts = Some(SentenceStartsOptions::new().with_minimum_sentences(1));
-    request
 }
 
 fn check_spans(text: &str, value: &Value, path: &str, checked: &mut usize) {
@@ -130,7 +170,7 @@ fn speech_words(document: &Document) -> usize {
         .count()
 }
 
-fn check(name: &str, text: &str, document: &Document, reports: &StyleReports) {
+fn check(name: &str, text: &str, document: &Document, reports: &Reports) {
     let stats = &reports.stats;
     let words = &stats.words;
     assert_eq!(words.all, document.word_count, "{name}");
@@ -266,48 +306,46 @@ fn reports_agree_on_words_sentences_and_dialogue() {
                     .with_hard_wrapped(hard_wrapped)
                     .with_skip_names(names);
                 let document = analyze_document(tokenizer(), text, &options);
-                let reports = run(&document, &request(), resources(), tokenizer()).unwrap();
+                let reports = collect_reports(&document);
                 assert_eq!(reports.stats.hard_wrapped, hard_wrapped);
                 assert_eq!(reports.stats.paragraphs, document.paragraphs.len());
                 check(name, text, &document, &reports);
 
-                let json = run_json(
-                    tokenizer(),
-                    resources(),
-                    text,
-                    Some(&serde_json::to_string(&request()).unwrap()),
-                    &options,
-                )
-                .unwrap();
                 let mut typed = serde_json::to_value(&reports).unwrap();
                 project_utf16(&mut typed);
+                let wire: Value = serde_json::from_str(&to_utf16_json(&reports)).unwrap();
                 assert_eq!(
-                    serde_json::from_str::<Value>(&json).unwrap(),
                     serde_json::from_str::<Value>(&typed.to_string()).unwrap(),
-                    "{name}: run_json shape"
+                    wire
                 );
-                assert_eq!(to_utf16_json(&reports), json, "{name}");
-
                 let compact = analyze_document(
                     tokenizer(),
                     text,
                     &options.clone().with_token_details(false),
                 );
-                assert_eq!(compact.speech, document.speech, "{name}");
+                assert_eq!(compact.speech, document.speech);
+                assert!(matches!(
+                    echoes::report(&compact, &Default::default()),
+                    Err(StyleError::NeedsTokenDetails { .. })
+                ));
                 assert_eq!(
-                    run(&compact, &request(), resources(), tokenizer()),
-                    Err(StyleError::NeedsTokenDetails {
-                        report: "echoes".into()
-                    })
+                    sentence_length::report(&compact, &Default::default(), None).unwrap(),
+                    sentence_length::report(&document, &Default::default(), None).unwrap()
                 );
-                let mut readings_free = StyleRequest::empty();
-                readings_free.cliches = request().cliches;
-                readings_free.sentence_length = request().sentence_length;
-                let full = run(&document, &readings_free, resources(), tokenizer()).unwrap();
-                let mut lean = run(&compact, &readings_free, resources(), tokenizer()).unwrap();
-                assert!(!lean.stats.token_details);
-                lean.stats.token_details = true;
-                assert_eq!(lean, full, "{name}: compact");
+                assert_eq!(
+                    cliches::report(
+                        &compact,
+                        resources().cliches(tokenizer()),
+                        &Default::default()
+                    )
+                    .unwrap(),
+                    cliches::report(
+                        &document,
+                        resources().cliches(tokenizer()),
+                        &Default::default()
+                    )
+                    .unwrap()
+                );
             }
         }
     }
@@ -317,7 +355,7 @@ fn reports_agree_on_words_sentences_and_dialogue() {
 fn one_dialogue_definition_for_every_report() {
     let text = PASSAGES[0].1;
     let document = analyze_document(tokenizer(), text, &DocumentOptions::new());
-    let reports = run(&document, &request(), resources(), tokenizer()).unwrap();
+    let reports = collect_reports(&document);
     let quoted = |quote: &str| {
         let index = document
             .dialogue
@@ -346,86 +384,89 @@ fn one_dialogue_definition_for_every_report() {
 
     let text = PASSAGES[6].1;
     let document = analyze_document(tokenizer(), text, &DocumentOptions::new());
-    let reports = run(&document, &request(), resources(), tokenizer()).unwrap();
+    let reports = collect_reports(&document);
     assert_eq!(reports.stats.words.dialogue, 1);
     assert_eq!(reports.cliches.unwrap().groups.dialogue.words, 1);
 }
 
 #[test]
-fn json_request_selects_reports_and_baselines() {
-    let text = "“Go,” she said. She ran. She ran. She ran.";
-    let options = DocumentOptions::new();
-    let all: Value =
-        serde_json::from_str(&run_json(tokenizer(), resources(), text, None, &options).unwrap())
-            .unwrap();
-    for key in [
-        "stats",
-        "sentences",
-        "cliches",
-        "dialogueTags",
-        "sentenceLength",
-        "sentenceStarts",
-    ] {
-        assert!(all.get(key).is_some(), "{key}");
+fn retained_documents_match_separate_analyses_and_validate_calls() {
+    use std::sync::Arc;
+    let tokenizer = Arc::new(Tokenizer::new("../storage/en_tokenizer.bin").unwrap());
+    let resources = Arc::new(StyleResources::new());
+    for (_, text, _) in PASSAGES {
+        let build = || {
+            StyleDocument::new(
+                tokenizer.clone(),
+                resources.clone(),
+                text,
+                &DocumentOptions::new(),
+            )
+        };
+        let shared = build();
+        assert_eq!(shared.stats(), build().stats());
+        assert_eq!(shared.echoes(None), build().echoes(None));
+        assert_eq!(
+            shared.repeated_phrases(None),
+            build().repeated_phrases(None)
+        );
+        assert_eq!(shared.cliches(None), build().cliches(None));
+        assert_eq!(
+            shared.dialogue_tags(None, None),
+            build().dialogue_tags(None, None)
+        );
+        assert_eq!(
+            shared.sentence_length(None, None),
+            build().sentence_length(None, None)
+        );
+        assert_eq!(
+            shared.sentence_starts(None, None),
+            build().sentence_starts(None, None)
+        );
     }
-    assert!(all.get("echoes").is_none());
-    assert!(all.get("repeatedPhrases").is_none());
-    assert_eq!(
-        all["sentenceLength"]["groups"]["all"]["longSentences"],
-        serde_json::json!([])
+    let shared = StyleDocument::new(
+        tokenizer.clone(),
+        resources.clone(),
+        "😀 She kicked the bucket. She waited.",
+        &DocumentOptions::new(),
     );
-    let percentile = &all["sentenceLength"]["groups"]["all"]["percentiles"][2];
-    assert_eq!(percentile["percentile"], 50);
-    assert!(percentile["value"].is_null());
-    assert_eq!(
-        all["sentences"][0]["span"],
-        serde_json::json!({"start": 0, "end": 16})
-    );
-
-    let one = |request: &str| -> Result<Value, StyleError> {
-        run_json(tokenizer(), resources(), text, Some(request), &options)
-            .map(|json| serde_json::from_str(&json).unwrap())
-    };
-    let length = one(r#"{"sentenceLength":{"minimumSentences":1},"baselines":"bundled"}"#).unwrap();
-    assert!(length.get("sentenceStarts").is_none());
-    assert!(length.get("echoes").is_none());
-    assert!(length["sentenceLength"]["groups"]["all"]["meanDifference"].is_number());
-    let without = one(r#"{"sentence_length":{"minimum_sentences":1}}"#).unwrap();
-    assert!(without["sentenceLength"]["groups"]["all"]["meanDifference"].is_null());
-    let explicit = one(
-        r#"{"sentenceLength":{"minimumSentences":1},"baselines":{"sentenceLength":{"mean":1}}}"#,
+    let cliches: Value = serde_json::from_str(&shared.cliches(None).unwrap()).unwrap();
+    assert_eq!(cliches["matches"][0]["span"]["start"], 7);
+    let options = Some(r#"{"minimumSentences":1}"#);
+    let length: Value =
+        serde_json::from_str(&shared.sentence_length(options, None).unwrap()).unwrap();
+    assert!(length["groups"]["all"]["meanDifference"].is_number());
+    let without: Value =
+        serde_json::from_str(&shared.sentence_length(options, Some("null")).unwrap()).unwrap();
+    assert!(without["groups"]["all"]["meanDifference"].is_null());
+    let custom: Value = serde_json::from_str(
+        &shared
+            .sentence_length(options, Some(r#"{"mean":1}"#))
+            .unwrap(),
     )
     .unwrap();
     assert_eq!(
-        explicit["sentenceLength"]["groups"]["all"]["meanDifference"],
-        explicit["sentenceLength"]["groups"]["all"]["mean"]
-            .as_f64()
-            .unwrap()
-            - 1.0
+        custom["groups"]["all"]["meanDifference"].as_f64().unwrap(),
+        custom["groups"]["all"]["mean"].as_f64().unwrap() - 1.0
     );
-    let none = one("{}").unwrap();
-    assert!(none["sentences"].as_array().unwrap().is_empty());
-    assert_eq!(none["stats"]["sentences"]["all"], 4);
-
     assert!(matches!(
-        one(r#"{"sentenceLength":{"minimumSentneces":1}}"#),
+        shared.sentence_length(Some(r#"{"typo":1}"#), None),
         Err(StyleError::InvalidOptions { .. })
     ));
     assert!(matches!(
-        one(r#"{"typo":{}}"#),
-        Err(StyleError::InvalidOptions { .. })
-    ));
-    assert!(matches!(
-        one(r#"{"baselines":"published"}"#),
-        Err(StyleError::InvalidOptions { .. })
-    ));
-    assert!(matches!(
-        one(r#"{"baselines":{"sentenceStarts":{"universalPercent":{"Noun":1}}}}"#),
+        shared.sentence_starts(None, Some(r#"{"universalPercent":{"Noun":1}}"#)),
         Err(StyleError::InvalidBaseline { .. })
     ));
-    let compact = DocumentOptions::new().with_token_details(false);
-    assert_eq!(
-        run_json(tokenizer(), resources(), text, None, &compact).unwrap(),
-        run_json(tokenizer(), resources(), text, None, &options).unwrap()
+    let compact = StyleDocument::new(
+        tokenizer,
+        resources,
+        "She ran.",
+        &DocumentOptions::new().with_token_details(false),
     );
+    assert!(compact.cliches(None).is_ok());
+    assert!(compact.sentence_length(None, None).is_ok());
+    assert!(compact.echoes(None).is_err());
+    assert!(compact.repeated_phrases(None).is_err());
+    assert!(compact.dialogue_tags(None, None).is_err());
+    assert!(compact.sentence_starts(None, None).is_err());
 }
