@@ -311,7 +311,8 @@ if __name__ == '__main__':
     try:
         print(json.dumps(measure_public(probe, args.out), indent=2))
         if args.sweep:
-            for length, perfect, cognition in ((15, 10, 10), (20, 10, 10), (20, 15, 15), (25, 30, 30)):
+            for length, perfect, cognition in ((15, 10, 10), (20, 10, 10), (20, 15, 15), (18, 15, 20), (18, 20, 20),
+                                              (18, 20, 15), (25, 30, 30)):
                 options = dict(minimumSentenceLength=length, minimumPastPerfectPercent=perfect, minimumCognitionPercent=cognition)
                 name = f'{length}-{perfect}-{cognition}'
                 rows = measure_public(probe, args.out, options, name)

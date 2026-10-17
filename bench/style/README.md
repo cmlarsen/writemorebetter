@@ -923,6 +923,71 @@ No matched lemmas, table vocabulary, paths or source text enter the output. The 
 numeric-only validator apply. Synthetic coverage checks all three added reports (including four
 filler words and 26 sight words of 29 sense words), author pooling, rating weighting and leak rejection. No private inputs were accessed for this work.
 
+### Transitions, pronoun starts and per-mode sensory shares
+
+The probe also runs transitions and pronoun starts with default options, keeps sensory balance's
+`all`/`narration`/`dialogue` groups, and re-runs two cheap sweeps on the same document: overused
+words at `minimumRatio` 3/4/5/6/8 and transition repeats at `repeatWindow` 2/3/4/5. The added
+output, at both scales:
+
+- `transitions`: `flags_per_1000_words.repeats` and `repeat_window.<n>` per mode (a repeat's mode
+  is its sentences' mode, rated per 1,000 words of that mode's sentences), and `measures` per mode:
+  the distribution of `containing` and `opening` shares and of each type's `containing`/`opening`
+  share, as percentages of eligible sentences, over samples with at least `minimumSentences` (50)
+  in that mode; `eligible_share` is the weighted share of samples meeting it.
+- `pronoun_starts`: `flags_per_1000_words.runs` per mode (after the `sameWordRuns` dedupe) and
+  `measures` per mode for `pronoun_starts`, each of *i, you, he, she, it, we, they*, and `other`.
+  The probe sums every other opener into `other`, so no unlisted word can reach the output.
+- `sensory_balance.measures` per mode: `sense_word_density` (sense words per 1,000 counted words of
+  that mode) and `modality_percent` for each modality over samples with at least
+  `minimumSenseWords` (20) sense words in that mode.
+- `overused_words.minimum_ratio.<ratio>`: flagged lemmas per 1,000 words at each ratio.
+
+`--skip-diction` runs a real export without a concreteness table and omits `diction` from the
+output; the owner has not chosen a table, so the 2026-10-16 run used it. `--diction-table` and
+`--skip-diction` are mutually exclusive. `published_bands.py AGGREGATE --dataset … --tool …
+--run-date … --output …` turns a saved aggregate into the band file below; it reads only the
+aggregate JSON. The unit tests cover the mode floors, author weighting, the bucketed pronoun
+allowlist and the band builder on invented counts.
+
+#### 2026-10-16 owner-run results
+
+Run on the published-fiction export (`cmlarsen/fiction-baseline` b464cac, EXTRACTOR_VERSION 1):
+210 units, 71 authors, 7,702,268 counted words, 1,559 chapter windows; 802 s wall clock, 664 s of it
+document construction; probe peak RSS 275 MB. No text, titles, author keys or unit identifiers were
+printed or kept; the aggregate stayed in the session scratchpad and was deleted after the numbers
+below and the band file were recorded. Shares are author-weighted. "Chapter" is the share of
+chapter windows with a flag and "authors" the share of authors whose pooled manuscripts have one;
+rates are flags per 1,000 words over chapter windows, median (p5–p95). Every report ran with its
+shipped defaults; no default changed except pacing (see [STYLE-PACING.md](../../docs/STYLE-PACING.md)).
+
+| Report and flag | Chapter | Authors | Per 1,000 words |
+|---|---:|---:|---|
+| Sentence length: long sentences (≥ 40 words, every one) | 84.1% | 97.2% | 0.48 (0–1.07) |
+| Sentence length: monotony runs | 53.7% | 84.5% | 0.16 (0–0.97) |
+| Sentence starts: same-word runs | 64.3% | 93.0% | 0.19 (0–1.44) |
+| Echoes (opt-in) | 100% | 100% | 20.36 (11.59–33.95) |
+| Repeated phrases (opt-in) | 100% | 100% | 4.69 (1.57–8.83) |
+| Clichés and redundancies | 59.8% | 85.9% | 0.16 (0–0.64) |
+| Dialogue tags: all flag categories | 92.3% | 97.2% | 1.62 (0–7.48) |
+| Dialogue tags: non-speech verbs | 15.7% | 53.5% | 0 (0–0.30) |
+| Dialogue tags: manner adverbs | 62.6% | 84.5% | 0.28 (0–2.29) |
+| Dialogue tags: untagged runs | 1.7% | 7.0% | 0 (0–0) |
+| Transitions: repeats (opt-in) | 66.5% | 95.8% | 0.28 (0–1.44) |
+| Pronoun starts: runs (opt-in) | 33.4% | 74.6% | 0 (0–0.48) |
+| Overused words: flagged lemmas (opt-in) | 99.4% | 100% | 1.44 (0.42–2.88) |
+| Sensory balance: sense words (no flag) | 100% | 100% | 33.80 (19.70–58.46) |
+
+The long-sentence row counts every sentence of at least 40 words, not the report's top-three UI
+selection, which caps a manuscript's flags (hence a 0.04 author median at manuscript scale). Dialogue
+tags' "all flag categories" includes the legacy `other_speech_verb` count (every speech verb except
+*say*/*ask*, 88.7% of chapters), not just the showy verbs the UI flags. Details and sweeps:
+[transitions and pronoun starts](../../docs/STYLE-TRANSITIONS.md#published-fiction-calibration-2026-10-16),
+[sensory bands](../../docs/STYLE-NORMS.md#published-fiction-bands-2026-10-16),
+[overused words](../../docs/STYLE-OVERUSED-WORDS.md#published-fiction-flag-rates-2026-10-16).
+[`published-bands-transitions-pronouns-sensory.json`](published-bands-transitions-pronouns-sensory.json)
+holds the transitions, pronoun-start and sensory p5/p95 bands per mode.
+
 ### Label inventory and what the owner still owes
 
 | Set | Size | Actual labeler provenance | Still owed |
@@ -948,7 +1013,7 @@ audit is in [`AUDIT-256.md`](AUDIT-256.md) and the PR body.
 python3 bench/style/run.py tier2 pacing --gate
 python3 bench/style/run.py tier3 --pacing --self-test
 python3 bench/style/pacing.py # public texts only; downloads pinned Standard Ebooks chapters to .cache
-python3 bench/style/run.py tier3 --pacing --export /approved/export # owner only
+python3 bench/style/run.py tier3 --pacing --export /approved/export # owner only; 2026-10-16 run chose the defaults
 ```
 
 The dedicated `bench/tools/wmb-document` `pacing` JSONL probe runs the actual Rust report;
@@ -962,17 +1027,28 @@ one deliberately strong authored backstory passage, so perfect scores do not est
 natural exposition. Default thresholds and public flag distributions are recorded in
 [STYLE-PACING.md](../../docs/STYLE-PACING.md).
 
-Tier 3 is an owner-run calibration entry point with no shipped published-fiction baseline.
-The export layout is `units.jsonl` plus `units/<unit_id>.txt`, one paragraph per line;
-`author_key` pools all of an author's units. Output is aggregate-only: pooled per-paragraph
-signal distributions (mean and p0/5/25/50/75/95/100, each paragraph weighted equally), equally
-weighted distributions of author signal means and of per-author flag rates (share of paragraphs
-inside runs, runs per thousand words), and the share of authors with any run. Null
-denominators are omitted for that measure. There are no per-author rows or exact word totals.
-It emits no text, titles, identifiers or author keys; a fixed output-key
-allowlist and numeric-value check guard serialization, probe stderr is discarded, and run.py
-suppresses all tier 3 argument/runtime errors. CI runs only synthetic `--self-test`, which
-checks author pooling and sentinel metadata suppression. No private data was accessed for #251.
+Tier 3 is the owner-run calibration entry point; it ships no published-fiction baseline, but its
+2026-10-16 run chose the defaults and is recorded in the `published` block of
+`pacing-baseline.json`. The export layout is `units.jsonl` plus `units/<unit_id>.txt`, one paragraph
+per line; `author_key` pools all of an author's units. Output is aggregate-only: pooled
+per-paragraph signal distributions (mean and p0/5/25/50/75/95/100, each paragraph weighted
+equally), equally weighted distributions of author signal means and of per-author flag rates (share
+of paragraphs inside runs, runs per thousand words), and the share of authors with any run.
+`eligibleParagraphSignals` gives author-weighted percentiles (each paragraph weighted 1 / its author's
+eligible paragraphs) over paragraphs with no speech and at least one counted word, and
+`twoSignalParagraphShare` the share of them meeting two thresholds. `chapter` reruns every unit in
+the `--flag-rates` chapter windows (each window weighted 1 / its author's windows) and gives the
+share of windows with a run and the distributions of runs per thousand words and run-paragraph
+percent. `sweep.<length>.<pastPerfect>.<cognition>` repeats those chapter rates, the share of
+authors with any run and the author runs-per-thousand-words distribution for 125 threshold settings
+(the probe's `sweep` request field reruns the report on one built document). Null denominators are
+omitted for that measure. There are no per-author rows or exact word totals. It emits no text,
+titles, identifiers or author keys; a fixed output-key allowlist (plus decimal sweep keys) and
+numeric-value check guard serialization, probe stderr is discarded, and run.py suppresses all tier 3
+argument/runtime errors. CI runs only synthetic `--self-test`, which checks author pooling, window
+weighting, a sweep entry and sentinel metadata suppression; the unit tests add a fake probe for the
+sweep and eligible-paragraph aggregates. The 2026-10-16 owner run read the export only through this
+command; see [STYLE-PACING.md](../../docs/STYLE-PACING.md#published-fiction-calibration-2026-10-16).
 
 ## Sensory norms follow-ups (#282)
 

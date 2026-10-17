@@ -243,3 +243,28 @@ similes, *thing*, Gatsby's *murmur*, *sort of*), so nouns stay opt-in.
 The filler list needs no threshold. In the same texts *that* (complementizer) runs at 15–66 per
 10,000 words, near the reference 52; Hemingway's *very* stands out at 51 per 10,000 words, 5.7 times
 the reference, and Christie's *suddenly* and *quite* at 3.5 and 3.2 times.
+
+## Published-fiction flag rates (2026-10-16)
+
+The owner-only `tier3 --flag-rates` run (published-fiction export at `cmlarsen/fiction-baseline`
+b464cac, 210 units, 71 authors, 1,559 chapter windows with a median of 5,966 words; aggregate
+numbers only) swept `minimumRatio` with the other defaults fixed. Flags are flagged lemmas; shares
+are author-weighted.
+
+| `minimumRatio` | Chapter windows flagged | Authors flagged | Per 1,000 words, chapter median (p5–p95) |
+|---:|---:|---:|---|
+| 3 | 99.9% | 100% | 2.10 (0.80–4.08) |
+| **4 (default)** | **99.4%** | **100%** | **1.44 (0.42–2.88)** |
+| 5 | 98.0% | 100% | 1.04 (0.28–2.41) |
+| 6 | 94.4% | 98.6% | 0.81 (0.01–1.96) |
+| 8 | 89.4% | 98.6% | 0.55 (0–1.58) |
+
+Filler words run at a chapter median of 7.32 per 1,000 words (p5–p95 3.04–15.25); flagged lemmas'
+occurrences at 10.11 (2.42–22.10).
+
+**Decision: defaults unchanged.** At the default a typical 5,000–6,000-word published chapter
+window gets seven to nine flags (median 1.44 per 1,000 words). That is a lower rate per word than the public calibration set
+(5 flags in texts of 1,856–6,067 words), so published prose does not show the default as looser
+than intended. Every published chapter has some lemma four times its Ngram rate, so the flag count
+cannot separate drafts from published prose; the lens stays opt-in and its usefulness still rests
+on the editor review above. No judged sample of published flags exists to justify a different ratio.

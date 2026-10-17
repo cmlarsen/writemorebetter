@@ -10,6 +10,7 @@ from unittest.mock import patch
 
 import common
 import flag_rates
+import published_bands
 from flag_rates import numeric_only
 from tier3 import percentile
 
@@ -115,6 +116,17 @@ class FlagRateTests(unittest.TestCase):
         flag_rates.check(result, flag_rates.allowed_keys(VOCABULARY))
         samples[0][1]['pronoun_starts']['groups']['all']['pronouns'][SENTINEL] = 1
         self.assertNotIn(SENTINEL, json.dumps(flag_rates.pronoun_starts(samples, defaults)))
+        section = {'samples': 3, 'reports': result}
+        aggregate = {'units': 3, 'authors': 2, 'window_rule': flag_rates.WINDOW_RULE, 'chapter': section,
+                     'manuscript': section, 'defaults': defaults}
+        bands = published_bands.build(aggregate, {'dataset': 'synthetic'})
+        self.assertEqual(bands['bands']['transitions']['all']['containing'],
+                         {'p5': containing['percentiles']['5'], 'p95': containing['percentiles']['95']})
+        self.assertEqual(bands['bands']['sensoryBalance']['all']['modalities']['sight']['p95'],
+                         sight['percentiles']['95'])
+        self.assertEqual(bands['bands']['sensoryBalance']['all']['modalities']['smell'], {'p5': 0, 'p95': 0})
+        self.assertEqual(bands['eligibleShare']['transitions']['narration'], 0.5)
+        self.assertEqual(bands['calibration']['manuscript']['pronounStarts']['all']['pronounStarts']['authors'], 1)
 
     def test_manuscripts_pool_units_and_chapters_weight_authors_equally(self):
         units = [unit(1000, 1, {'10': 2}, cliches=1), unit(3000, 0, {'10': 2}), unit(500, 2, {'20': 2})]
