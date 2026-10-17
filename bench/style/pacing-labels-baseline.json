@@ -1,0 +1,72 @@
+{
+  "consensusSha256": "e32e81b00cd1210f7702ce85292818124755f02bd1566c9a596174e6be819795",
+  "defaults": {
+    "options": {},
+    "paragraph": {
+      "precision": 0.7272727272727273,
+      "recall": 0.13559322033898305,
+      "f1": 0.22857142857142856,
+      "true_positive": 8,
+      "predicted": 11,
+      "gold": 59,
+      "excludedTies": 0
+    },
+    "runAnyOverlap": {
+      "precision": 0.75,
+      "recall": 0.2,
+      "f1": 0.31578947368421056,
+      "matchedPredicted": 3,
+      "predicted": 4,
+      "matchedGold": 3,
+      "gold": 15
+    },
+    "runIou50": {
+      "precision": 0.5,
+      "recall": 0.13333333333333333,
+      "f1": 0.2105263157894737,
+      "matchedPredicted": 2,
+      "predicted": 4,
+      "matchedGold": 2,
+      "gold": 15
+    },
+    "againstOthersMajority": {
+      "labelers": {
+        "claude-fable": {
+          "paragraph": 0.2807017543859649,
+          "runAnyOverlap": 0.375,
+          "runIou50": 0.25
+        },
+        "claude-opus": {
+          "paragraph": 0.26666666666666666,
+          "runAnyOverlap": 0.375,
+          "runIou50": 0.25
+        },
+        "codex-sol": {
+          "paragraph": 0.27586206896551724,
+          "runAnyOverlap": 0.375,
+          "runIou50": 0.25
+        },
+        "deepseek": {
+          "paragraph": 0.2318840579710145,
+          "runAnyOverlap": 0.31578947368421056,
+          "runIou50": 0.2105263157894737
+        },
+        "muse": {
+          "paragraph": 0.23880597014925373,
+          "runAnyOverlap": 0.31578947368421056,
+          "runIou50": 0.2105263157894737
+        }
+      },
+      "meanF1": {
+        "paragraph": 0.2587841036276834,
+        "runAnyOverlap": 0.35131578947368425,
+        "runIou50": 0.23421052631578948
+      }
+    }
+  },
+  "labelersAgainstOthersMajority": {
+    "paragraph": 0.8470128795659099,
+    "runAnyOverlap": 0.8218539602220817,
+    "runIou50": 0.7668438182342521
+  }
+}
