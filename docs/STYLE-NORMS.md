@@ -368,7 +368,8 @@ without rounding before threshold comparison. The before probe was built and ret
 
 The owner-only `tier3 --flag-rates` run measured sensory balance with default options on the
 published-fiction export (`cmlarsen/fiction-baseline` at b464cac, 210 units, 71 authors, 1,559
-chapter windows of 2,000–6,000 words; aggregate numbers only). Each modality's share is its count ÷
+chapter windows targeting 2,000–6,000 words, closed after reaching 6,000 or at a scene break past
+3,000, short tails merged; aggregate numbers only). Each modality's share is its count ÷
 the mode's sense words × 100, measured only where that mode has at least `minimumSenseWords` (20)
 sense words, which 99.6% of narration windows and 54.0% of dialogue windows meet (56 of 71 authors
 contribute dialogue). Windows are weighted so every author counts equally. p5 / median / p95:

@@ -1,3 +1,4 @@
+import argparse
 import contextlib
 import io
 import json
@@ -5,6 +6,7 @@ from pathlib import Path
 import runpy
 import sys
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
@@ -158,6 +160,8 @@ class FlagRateTests(unittest.TestCase):
         pron = manuscript['reports']['sentence_starts']['baseline_comparison']['all']['universal']['PRON']
         self.assertAlmostEqual(pron['difference']['mean'], 100 - flag_rates.baseline(flag_rates.STARTS_BASELINE)['universalPercent']['PRON'])
         self.assertEqual(manuscript['reports']['sentence_starts']['measures']['all']['universal']['PRON']['mean'], 100)
+        self.assertNotIn('diction', manuscript['reports'])
+        self.assertNotIn('diction', chapter['reports'])
         self.assertNotIn(SENTINEL, json.dumps(result))
         self.assertTrue(numeric_only(result))
 
@@ -199,6 +203,40 @@ class FlagRateTests(unittest.TestCase):
         for leaked in (unit(1000, 0, {'5': 2}, entry=SENTINEL), unit(1000, 0, {'5': 2}, verb=SENTINEL)):
             with tempfile.TemporaryDirectory() as temporary, self.assertRaisesRegex(ValueError, 'unexpected'):
                 flag_rates.calibrate(FakeProbe([leaked]), export(Path(temporary), ['a']))
+
+    def run_tier3(self, **options):
+        args = argparse.Namespace(**{'sentence_length': False, 'probe': 'probe', 'tokenizer': 'tokenizer',
+                                     'self_test': False, 'skip_diction': False, 'diction_table': None,
+                                     'export': None, **options})
+        tables, calls = [], []
+
+        class Probe:
+            def __init__(self, executable, tokenizer, table):
+                self.vocabulary, self.process = VOCABULARY, SimpleNamespace(returncode=0)
+                tables.append(table)
+
+        def record(name):
+            return lambda probe, *rest, **keywords: calls.append((name, keywords)) or {'units': 1}
+
+        with patch.object(flag_rates, 'FlagProbe', Probe), \
+                patch.object(flag_rates, 'self_test', record('self_test')), \
+                patch.object(flag_rates, 'calibrate', record('calibrate')), \
+                contextlib.redirect_stdout(io.StringIO()):
+            flag_rates.run(args)
+        return tables, calls
+
+    def test_self_test_and_owner_runs_honor_skip_diction(self):
+        synthetic = flag_rates.ROOT / 'bench/style/diction-synthetic.json'
+        self.assertEqual(self.run_tier3(self_test=True), ([synthetic], [('self_test', {'diction': True})]))
+        self.assertEqual(self.run_tier3(self_test=True, skip_diction=True),
+                         (['-'], [('self_test', {'diction': False})]))
+        self.assertEqual(self.run_tier3(export=Path('export'), skip_diction=True), (['-'], [('calibrate', {})]))
+        self.assertEqual(self.run_tier3(export=Path('export'), diction_table=Path('table.json')),
+                         ([Path('table.json')], [('calibrate', {})]))
+        with self.assertRaisesRegex(ValueError, 'or pass --skip-diction'):
+            self.run_tier3(export=Path('export'))
+        with self.assertRaisesRegex(ValueError, 'choose a diction table'):
+            self.run_tier3(export=Path('export'), diction_table=Path('table.json'), skip_diction=True)
 
     def run_cli(self, argv):
         output, errors = io.StringIO(), io.StringIO()

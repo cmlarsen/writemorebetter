@@ -54,6 +54,16 @@ class PacingTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 pacing.calibrate(FakeProbe(), export)
 
+    def test_public_drift_names_texts_whose_runs_or_two_signal_rows_moved(self):
+        recorded = [{'source': 'a', 'runs': 1, 'twoSignalParagraphs': 8, 'words': 10},
+                    {'source': 'b', 'runs': 0, 'twoSignalParagraphs': 3, 'words': 10}]
+        same = [{**row, 'words': 11} for row in recorded]
+        self.assertEqual(pacing.public_drift(same, recorded), [])
+        self.assertEqual(pacing.public_drift([recorded[0], {**recorded[1], 'runs': 1}], recorded), ['b'])
+        self.assertEqual(pacing.public_drift([{**recorded[0], 'twoSignalParagraphs': 7}, recorded[1]], recorded),
+                         ['a'])
+        self.assertEqual(pacing.public_drift(recorded[:1], recorded), ['b'])
+
     def test_output_key_allowlist(self):
         self.assertTrue(pacing.aggregate_only({'authors': 2, 'paragraphSignals': {'mean': None}}))
         self.assertFalse(pacing.aggregate_only({'authorFlagRates': [{'runsPerThousandWords': 1.0}]}))
@@ -61,6 +71,10 @@ class PacingTests(unittest.TestCase):
         self.assertFalse(pacing.aggregate_only({'words': 'PRIVATE_SENTINEL'}))
         self.assertTrue(pacing.aggregate_only({'sweep': {'18': {'20': {'20': {'flaggedShare': 0.5}}}}}))
         self.assertFalse(pacing.aggregate_only({'sweep': {'18': {'PRIVATE_SENTINEL': 1}}}))
+        self.assertFalse(pacing.aggregate_only({'sweep': {'19': {'20': {'20': {'flaggedShare': 0.5}}}}}))
+        self.assertFalse(pacing.aggregate_only({'sweep': {'18': {'20': {'20': {'7': 0.5}}}}}))
+        self.assertFalse(pacing.aggregate_only({'authors': {'2026': 1}}))
+        self.assertTrue(pacing.aggregate_only({'chapter': {'runsPerThousandWords': {'percentiles': {'90': 1.0}}}}))
 
     def test_private_errors_are_suppressed(self):
         command = [sys.executable, str(pacing.ROOT / 'bench/style/run.py')]

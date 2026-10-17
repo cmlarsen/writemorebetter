@@ -200,7 +200,8 @@ The owner-only run pools units by `author_key` and prints only aggregates: the p
 per-paragraph signal distributions, the distribution of author signal means, per-author flag rates
 and the share of authors with any run, as before; plus author-weighted percentiles of each signal
 over **eligible paragraphs** (no speech, at least one counted word), the same chapter windows as
-`--flag-rates` (scene-break split, 2,000–6,000 words, each window weighted 1 / its author's
+`--flag-rates` (scene-break split, target 2,000–6,000 words: closed after reaching 6,000 or at a
+scene break past 3,000, short tails merged; each window weighted 1 / its author's
 windows), and a 125-setting sweep (length 15/18/20/22/25 × past perfect 10/15/20/25/30 × cognition
 10/15/20/25/30, with `minimumParagraphs` 3 and `moreThanWords` 400 fixed). The probe builds each
 document once and reruns the report per setting. It prints no text, titles, identifiers, author

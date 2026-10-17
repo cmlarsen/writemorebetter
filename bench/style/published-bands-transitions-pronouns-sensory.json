@@ -3,7 +3,7 @@
   "dataset": "cmlarsen/fiction-baseline export at b464cac (EXTRACTOR_VERSION 1), 210 units, 71 author units",
   "tool": "writemorebetter tier3 --flag-rates --skip-diction at 8e2e228 (default report options)",
   "run_date": "2026-10-16",
-  "scope": "chapter windows (scene-break split, 2,000-6,000 words), author-weighted (each author counts equally)",
+  "scope": "chapter windows (scene-break split, target 2,000-6,000 words: closed after reaching 6,000 or at a scene break past 3,000; short tails merged), author-weighted (each author counts equally)",
   "window_rule": {
    "scene_break_words": 3000,
    "maximum_words": 6000,

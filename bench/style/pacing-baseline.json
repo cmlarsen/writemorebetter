@@ -879,7 +879,7 @@
       "units": 210,
       "authors": 71,
       "chapterWindows": 1559,
-      "scope": "whole units pooled per author, and chapter windows (scene-break split, 2,000-6,000 words); author-weighted",
+      "scope": "whole units pooled per author, and chapter windows (scene-break split, target 2,000-6,000 words: closed after reaching 6,000 or at a scene break past 3,000; short tails merged); author-weighted",
       "method": "eligibleParagraphSignals: weighted percentiles over paragraphs with no speech and at least one counted word, each weighted 1 / (its author's eligible paragraphs); chapter shares weight each window 1 / (its author's windows); authorsWithRunsPercent counts authors with a run in any whole unit. Aggregate numbers only."
     },
     "eligibleParagraphSignals": {

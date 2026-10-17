@@ -945,7 +945,8 @@ output, at both scales:
 
 `--skip-diction` runs a real export without a concreteness table and omits `diction` from the
 output; the owner has not chosen a table, so the 2026-10-16 run used it. `--diction-table` and
-`--skip-diction` are mutually exclusive. `published_bands.py AGGREGATE --dataset … --tool …
+`--skip-diction` are mutually exclusive. `--self-test` uses `diction-synthetic.json` unless
+`--skip-diction` is passed, and CI runs the self-test both ways. `published_bands.py AGGREGATE --dataset … --tool …
 --run-date … --output …` turns a saved aggregate into the band file below; it reads only the
 aggregate JSON. The unit tests cover the mode floors, author weighting, the bucketed pronoun
 allowlist and the band builder on invented counts.
@@ -1024,7 +1025,10 @@ among untouched paragraphs from each of `bench/public/story1.txt`–`story5.txt`
 controls cover untouched opening passages, action, dialogue, short exposition and scene breaks.
 These are development/regression fixtures, not held-out literary accuracy. The injections use
 one deliberately strong authored backstory passage, so perfect scores do not establish recall on
-natural exposition. Default thresholds and public flag distributions are recorded in
+natural exposition, and they saturate every signal, so they cannot tell nearby thresholds apart.
+The gate therefore also reruns the public texts (`story1`–`story5`, `moby150k` and the four pinned
+Standard Ebooks chapters) at the defaults and requires each text's `runs` and `twoSignalParagraphs` to
+match the recorded `public` block. Default thresholds and public flag distributions are recorded in
 [STYLE-PACING.md](../../docs/STYLE-PACING.md).
 
 Tier 3 is the owner-run calibration entry point; it ships no published-fiction baseline, but its
@@ -1043,7 +1047,8 @@ percent. `sweep.<length>.<pastPerfect>.<cognition>` repeats those chapter rates,
 authors with any run and the author runs-per-thousand-words distribution for 125 threshold settings
 (the probe's `sweep` request field reruns the report on one built document). Null denominators are
 omitted for that measure. There are no per-author rows or exact word totals. It emits no text,
-titles, identifiers or author keys; a fixed output-key allowlist (plus decimal sweep keys) and
+titles, identifiers or author keys; a fixed output-key allowlist (decimal keys only for the recorded percentiles and, under `sweep`,
+the swept threshold values) and
 numeric-value check guard serialization, probe stderr is discarded, and run.py suppresses all tier 3
 argument/runtime errors. CI runs only synthetic `--self-test`, which checks author pooling, window
 weighting, a sweep entry and sentinel metadata suppression; the unit tests add a fake probe for the

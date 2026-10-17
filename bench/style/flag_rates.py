@@ -590,15 +590,18 @@ def synthetic_text(seed, paragraphs, dialogue=True):
     return '\n'.join(lines) + '\n'
 
 
-def self_test(probe, started=None):
+def self_test(probe, started=None, diction=True):
     lexical = probe.measure('She glanced. ' * 6 + 'It was red. ' * 20 + 'It was very cold. ' * 3
                             + 'She just left. ' + 'An idea, a belief, a truth. ' * 3)
     assert lexical['overused_words']['overused'] >= 1
     assert lexical['overused_words']['fillers'] == 4
     assert lexical['sensory_balance']['modalities']['sight'] == 26
     assert lexical['sensory_balance']['modalities']['touch'] == 3
-    assert lexical['diction']['abstract_sentences'] == 3
-    assert lexical['diction']['abstract_runs'] == 1
+    if diction:
+        assert lexical['diction']['abstract_sentences'] == 3
+        assert lexical['diction']['abstract_runs'] == 1
+    else:
+        assert 'diction' not in lexical
     with tempfile.TemporaryDirectory(prefix='style-synthetic-') as temporary:
         export = Path(temporary)
         (export / 'units').mkdir()
@@ -649,8 +652,9 @@ def self_test(probe, started=None):
         assert chapter['reports']['sentence_length']['baseline_comparison']['all']['mean']['eligible_share'] > 0
         assert result['run']['probe_peak_rss_bytes'] > 0 and result['run']['seconds'] > 0
         assert 'sentinel' not in output.lower() and temporary not in output
-        for name in ('overused_words', 'sensory_balance', 'diction'):
+        for name in ('overused_words', 'sensory_balance'):
             assert name in reports and name in chapter['reports']
+        assert ('diction' in reports) is diction and ('diction' in chapter['reports']) is diction
         assert reports['sensory_balance']['categories']['sense_words']['flagged_share'] == 1
         assert reports['transitions']['flags_per_1000_words']['repeats']['narration']['flagged_share'] == 1
         assert reports['transitions']['measures']['all']['types']['contrast']['opening']['mean'] > 0
@@ -666,7 +670,10 @@ def run(args):
         raise ValueError('choose one tier 3 mode')
     executable = args.probe or probe_build()
     started = time.perf_counter()
-    table = ROOT / 'bench/style/diction-synthetic.json' if args.self_test else args.diction_table
+    if args.self_test:
+        table = None if args.skip_diction else ROOT / 'bench/style/diction-synthetic.json'
+    else:
+        table = args.diction_table
     if table is None and not args.skip_diction:
         raise ValueError('owner must supply a diction table or pass --skip-diction')
     if table is not None and args.skip_diction:
@@ -675,7 +682,7 @@ def run(args):
     probe = FlagProbe(executable, args.tokenizer, table)
     try:
         if args.self_test:
-            result = self_test(probe, started)
+            result = self_test(probe, started, diction=not args.skip_diction)
         elif args.export is None:
             raise ValueError('owner must pass an export directory')
         else:

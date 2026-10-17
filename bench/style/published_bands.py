@@ -55,8 +55,8 @@ def build(result, source):
     chapter = result['chapter']['reports']
     defaults = result['defaults']
     return {
-        'source': {**source, 'scope': 'chapter windows (scene-break split, 2,000-6,000 words), author-weighted '
-                                      '(each author counts equally)',
+        'source': {**source, 'scope': 'chapter windows (scene-break split, target 2,000-6,000 words: closed after reaching 6,000 or at a scene break past 3,000; short tails merged), '
+                                      'author-weighted (each author counts equally)',
                    'window_rule': WINDOW_RULE, 'samples': result['chapter']['samples'],
                    'units': result['units'], 'authors': result['authors'],
                    'method': 'p5/p95 are weighted percentiles (linear interpolation between cumulative-weight '

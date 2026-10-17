@@ -100,6 +100,7 @@ jobs:
           python3 bench/style/run.py tier3 --sentence-length --self-test --document-probe bench/tools/wmb-document/target/release/wmb-document
           python3 bench/style/run.py tier3 --self-test --analyzer bench/tools/wmb-analyze/target/release/wmb-analyze
           python3 bench/style/run.py tier3 --flag-rates --self-test --probe bench/tools/wmb-document/target/release/flag_rates
+          python3 bench/style/run.py tier3 --flag-rates --self-test --skip-diction --probe bench/tools/wmb-document/target/release/flag_rates
           python3 bench/style/run.py dialogue-tags tier2 --probe bench/tools/wmb-document/target/release/dialogue_tags
           python3 bench/style/run.py dialogue-tags tier3 --self-test --probe bench/tools/wmb-document/target/release/dialogue_tags
           cargo build -p writemorebetter-style --release --example norm_reports

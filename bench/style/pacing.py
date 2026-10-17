@@ -8,7 +8,7 @@ import tempfile
 import xml.etree.ElementTree as ET
 
 from common import ROOT, fetch, jsonl, offsets, prf
-from flag_rates import share, spread, windows
+from flag_rates import PERCENTILES, share, spread, windows
 from tier3 import distribution
 
 BASELINE = ROOT / 'bench/style/pacing-baseline.json'
@@ -106,7 +106,18 @@ def tier2(probe, gate=False):
             raise ValueError('pacing defaults differ from the recorded decision')
         if result != baseline['tier2']:
             raise ValueError('pacing regression: ' + ', '.join(failures))
+        drifted = public_drift(public_rows(probe)[0], baseline['public'])
+        if drifted:
+            raise ValueError('pacing public calibration drift: ' + ', '.join(drifted))
     return result
+
+
+def public_drift(rows, recorded):
+    def gated(table):
+        return {row['source']: (row['runs'], row['twoSignalParagraphs']) for row in table}
+    measured, expected = gated(rows), gated(recorded)
+    return sorted(source for source in measured.keys() | expected.keys()
+                  if measured.get(source) != expected.get(source))
 
 
 def two_signal_rows(report):
@@ -136,7 +147,7 @@ def public_texts():
         yield key, '\n'.join(''.join(p.itertext()).strip() for p in root.iter('{http://www.w3.org/1999/xhtml}p')), False
 
 
-def measure_public(probe, out, options=None, suffix="public"):
+def public_rows(probe, options=None):
     rows = []
     review = []
     for name, text, wrapped in public_texts():
@@ -150,6 +161,11 @@ def measure_public(probe, out, options=None, suffix="public"):
             review.append({'source': name, 'run': index, 'paragraphs': run['paragraphs'],
                            'signals': run['signals'], 'triggeredSignals': run['triggeredSignals'],
                            'text': raw[span['start']:span['end']].decode('utf-8')})
+    return rows, review
+
+
+def measure_public(probe, out, options=None, suffix="public"):
+    rows, review = public_rows(probe, options)
     out.mkdir(parents=True, exist_ok=True)
     (out / ('pacing-' + suffix + '.json')).write_text(json.dumps(rows, indent=2) + '\n')
     (out / ('pacing-' + suffix + '-review.json')).write_text(json.dumps(review, indent=2, ensure_ascii=False) + '\n')
@@ -255,12 +271,17 @@ KEYS = set(SIGNALS) | {'units', 'authors', 'authorsWithRunsPercent', 'paragraphS
                       'authorFlagRates', 'runParagraphPercent', 'runsPerThousandWords',
                       'mean', 'percentiles', '0', '5', '25', '50', '75', '95', '100',
                       'eligibleParagraphSignals', 'twoSignalParagraphShare', 'chapter', 'samples',
-                      'authorsWithWindows', 'flaggedShare', 'sweep', 'authorRunsPerThousandWords'}
+                      'authorsWithWindows', 'flaggedShare', 'sweep', 'authorRunsPerThousandWords'} | {
+                          str(p) for p in PERCENTILES}
+SWEEP_KEYS = tuple({str(n) for n in values} for values in (SWEEP_LENGTH, SWEEP_PERCENT, SWEEP_PERCENT))
 
 
-def aggregate_only(value):
+def aggregate_only(value, sweep=()):
     if isinstance(value, dict):
-        return all((key in KEYS or key.isdecimal()) and aggregate_only(item) for key, item in value.items())
+        if sweep:
+            return set(value) <= sweep[0] and all(aggregate_only(item, sweep[1:]) for item in value.values())
+        return all(key in KEYS and aggregate_only(item, SWEEP_KEYS if key == 'sweep' else ())
+                   for key, item in value.items())
     return value is None or isinstance(value, (int, float))
 
 
