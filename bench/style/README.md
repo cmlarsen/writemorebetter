@@ -88,6 +88,7 @@ a new archive hash without checking its contents.
 | LitBank quotation layer | `3e50db0ffc033d7ccbb94f4d88f6b99210328ed8` | [CC BY 4.0; David Bamman and collaborators](https://github.com/dbamman/litbank/blob/3e50db0ffc033d7ccbb94f4d88f6b99210328ed8/README.md) | direct speech |
 | Standard Ebooks, Austen's *Pride and Prejudice* | `ed94a32be3e875c0814568050c7544e03aad3ef5` | [CC0 dedication](https://standardebooks.org/about) | tier 2 source paragraphs |
 | Standard Ebooks, Melville's *Moby-Dick* | `013b51e2d9d6bb28b1d054bfc30beeeff4b85480` | [CC0 dedication](https://standardebooks.org/about) | tier 2 source paragraphs |
+| QuoteLi3, *Pride and Prejudice* only (`pp_full.xml`, `pp_test.xml`) | no upstream tag or commit; `Last-Modified` 2017-03-18 / 2021-04-27, sha256 in `sources.json` | **No license found.** Owner decision 2026-10-16: local/CI benchmarking only; annotations are downloaded at bench time, pinned by sha256, and never committed or redistributed. Muzny, Fang, Chang and Jurafsky, [EACL 2017](https://aclanthology.org/E17-1044/); [evidence](../../docs/STYLE-DATA-LICENSES.md#quoteli3-256) | direct speech |
 
 Standard Ebooks confirms that the underlying works are believed public domain in the US and dedicates
 its own contributions under CC0. Users elsewhere must check their jurisdiction. See also its
@@ -97,14 +98,20 @@ LitBank's quotation layer is described in the
 
 `splits.json` explicitly records every LitBank document: sorted filenames, first 20 dev, remaining 80
 test. This is our split, not an upstream standard. It is not author-disjoint and should not be used to
-claim generalization to unseen authors. EWT uses its official dev/test split. Tune only on dev; test
-scores are regression measurements. Splits must stay fixed when adding detectors.
+claim generalization to unseen authors. QuoteLi3 is split by chapter, also our own split and not
+upstream's: dev is chapters 1–2 (the excerpt LitBank's dev split already annotates) plus every fifth
+chapter (5, 10, …, 60), 14 chapters and 323 quotes; test is the other 47 chapters and 1,427 quotes.
+Upstream's own P&P test file (chapters 19–26) is pooled with `pp_full.xml` before splitting, so its
+chapters fall on both sides. One novel cannot support any claim beyond Austen. EWT uses its official
+dev/test split. Tune only on dev; test scores are regression measurements. Splits must stay fixed when adding detectors.
 
 Excluded datasets:
 
-- **QuoteLi3:** the [original Stanford release page](https://nlp.stanford.edu/~muzny/quoteli.html),
-  checked 2026-10-15, links XML and archives but gives no data license. A third-party card is insufficient
-  license evidence; neither those files nor QuoteLi3 are downloaded by this harness.
+- **QuoteLi3 *Emma* and *The Steppe*:** the EACL paper says they "were taken from the CQSC corpus"
+  (Elson and McKeown 2010), which Columbia distributes only under a non-commercial academic license.
+  Only QuoteLi3's *Pride and Prejudice* files are downloaded. QuoteLi3 itself has no license; a
+  third-party Hugging Face card's CC BY 4.0 tag is unsourced and not accepted. See the
+  [license evidence](../../docs/STYLE-DATA-LICENSES.md#quoteli3-256).
 - **UD English-GUM:** CC BY-NC-SA 4.0; excluded for its noncommercial restriction.
 - **PDNC:** no confirmed data license; excluded.
 
@@ -201,6 +208,34 @@ measured baseline and the Rust comparison are recorded in the document measureme
 corrected Rust test floors are precision **85.2799%**, recall **91.8838%**, and F1 **88.4588%**
 (1,234 exact matches, 1,447 predictions, 1,343 gold), above the historical Python floors.
 These supersede the inflated pre-recovery floors; the review correction is explained below. EWT floors are unchanged.
+
+### QuoteLi3 *Pride and Prejudice*
+
+`pp_full.xml` (53 chapters) and `pp_test.xml` (chapters 19–26) are parsed as data with the standard
+library XML parser. The document text is the concatenated character data of `<text>`, so every
+`<quote>` element's start and end are exact scalar offsets into it; no tokenized text is aligned.
+Chapters start at each `CHAPTER <roman> (<n>)` heading and run to the next, named `pp-01` … `pp-61`
+by the parenthesized absolute number. Inline `__` separators and volume lines stay in the text. A
+quote before the first heading or crossing a chapter, or a chapter in both files, fails the run.
+Spans include their delimiters. The text uses straight quotation marks throughout. The product probe
+and scorer are LitBank's (hard-wrapped mode, exact byte and UTF-16 endpoints, duplicates as extra false
+positives, micro-aggregated over chapters, including chapter 12 with no quotes).
+
+| Split | Precision | Recall | F1 | TP / predicted / gold |
+|---|---:|---:|---:|---:|
+| dev (14 chapters) | 97.5309% | 97.8328% | 97.6816% | 316 / 324 / 323 |
+| test (47 chapters) | **98.5975%** | **98.5284%** | **98.5629%** | 1,406 / 1,426 / 1,427 |
+
+The test values are the first measurement and are the floors in `tier1-baseline.json`; nothing was
+tuned on either split. All misses trace to two causes. Quoted letters (Darcy's, Collins's,
+the Gardiners', Lydia's and others) are annotated as one quote across paragraphs whose inner
+paragraphs open without a quotation mark, so the product drops the span at the first paragraph
+break (3 dev, 10 test). On test, 6 more misses follow from those letters: their closing mark opens a
+span that swallows the next quote. A quotation nested in the same straight double mark as its
+outer speech (`"You wanted me, I know, to say "Yes," that you might …"`) splits the outer span
+in two (4 dev, 5 test). The remaining false positives are two `" -- "` fragments inside a letter
+and one scare-quoted phrase in narration (`"very glad;"`) on test, and one empty `""` on dev where
+a nested close meets the outer close.
 
 ## Tier 2 framework
 
