@@ -1,5 +1,7 @@
 # Pacing labels: guidelines
 
+Version 2.
+
 You are labeling where a story stalls. Read each passage as a careful line editor would read a
 manuscript, and mark the paragraphs where forward motion stops long enough for a reader to feel it.
 These labels measure a tool that points editors at slow stretches. You are the reference, so
@@ -114,11 +116,16 @@ Severity answers *how much would a reader feel the drag?*
   about people. Label its kind `exposition`, or `backstory` when it describes a time before the
   scene. It is not summary that moves time forward unless the situation has changed by the end
   of the paragraph (*each day the river rose higher, until the bridge went*), which is `action`
-  and `false`. Otherwise judge it by the exposition rule: one or two paragraphs that set up the
-  scene that follows are `false`; more than that, or habitual summary that leads to no scene
-  inside the passage, is `true`. An aphoristic opening or closing paragraph is `false` on its own;
-  next to a slow stretch it joins that stretch, but it never raises the stretch's severity above 2
-  by itself.
+  and `false`. Otherwise judge it by the exposition rule: summary that sets up the scene that
+  follows is `false`, and it becomes `true` once it keeps going past what a reader needs. Judge
+  that from the text, not from where the passage ends: summary that runs to the last paragraph
+  of the passage is judged by how long it has already gone on, not by whether a scene appears
+  before the cut. An aphoristic opening or closing paragraph is `false` on its own; next to a
+  slow stretch it joins that stretch, but it never raises the stretch's severity above 2 by
+  itself.
+- **Endings.** When the passage visibly closes a story or chapter (the plot has resolved and the
+  text winds down in summary or reflection), the closing coda is `false` unless it goes on long
+  enough that a reader would skim it. A deliberate ending is not a stall.
 - **Backstory, recap or rereading that is the scene's point** (a confession, a character telling
   their history to someone who reacts, rereading a letter, working through evidence) is judged
   paragraph by paragraph. A paragraph is `false` when it gives the reader or a character something
@@ -126,11 +133,15 @@ Severity answers *how much would a reader feel the drag?*
   is `true` when it repeats, elaborates or dwells on what earlier paragraphs already delivered. A
   narrator's summary of events the reader has already seen is `true`. A long scene of this kind is
   often slow in its middle and fast at the turn.
-- **Opening exposition before any scene.** When a passage opens with exposition, description or
-  habitual summary and no scene has started yet, the first two such paragraphs are orientation
-  (`false`) unless one of them is long (about 200 words or more) and digressive. From the third
-  consecutive paragraph without a scene, mark `true`. A passage that is all exposition with no
-  scene is judged the same way: its opening orients, the rest stalls.
+- **Passage edges.** A passage is an excerpt, and the story did not start or stop where it was
+  cut. When the first paragraphs are exposition, description or summary and no scene is under
+  way in the text you can see, judge them as you would mid-story: they are `false` while they
+  orient the reader, and `true` once they keep going past what a reader needs, however close
+  they are to the first paragraph. When the text makes clear that a slow stretch began before
+  the cut (the first paragraph continues a digression or a list already in progress), it can be
+  `true` from paragraph 1. When a slow stretch runs to the last paragraph, label it as far as you
+  can see it and end the stretch there; do not shorten or lengthen it to guess what comes
+  after the cut.
 - Be consistent with yourself. When you hesitate, decide, and record your doubt in `note`.
 
 ## Invented examples
@@ -197,5 +208,5 @@ passage with one slow stretch:
 {"labeler": "labeler-a", "passage": "p07", "paragraphs": [{"paragraph": 1, "slow": false, "kind": "dialogue"}, {"paragraph": 2, "slow": false, "kind": "action"}, {"paragraph": 3, "slow": true, "kind": "backstory"}, {"paragraph": 4, "slow": true, "kind": "backstory"}, {"paragraph": 5, "slow": true, "kind": "interior", "note": "could be read as the decision point"}, {"paragraph": 6, "slow": false, "kind": "interior"}, {"paragraph": 7, "slow": false, "kind": "action"}, {"paragraph": 8, "slow": false, "kind": "dialogue"}], "stretches": [{"start": 3, "end": 5, "severity": 3}], "notes": "Family history interrupts the arrival; the scene resumes at 6."}
 ```
 
-The coordinator checks each file with `python3 bench/style/pacing_labels.py validate <file>`,
-which reports every schema error with its line number.
+The coordinator checks each file against this schema and returns any errors with their line
+numbers.

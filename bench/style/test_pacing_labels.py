@@ -1,5 +1,6 @@
 import copy
 import json
+import os
 from pathlib import Path
 import tempfile
 import unittest
@@ -17,6 +18,9 @@ XHTML = '''<?xml version="1.0" encoding="utf-8"?>
 <hr/>
 <p>After the <i>break</i>.</p>
 <footer><p>Signed</p></footer></section></body></html>'''
+
+
+V1_GUIDELINES_SHA256 = 'd7eaa3150e4be2feb8ad7969fc3c8a684e350c78a70c9271300a48fddcb78db6'
 
 
 def synthetic():
@@ -108,7 +112,8 @@ class PacingLabelTests(unittest.TestCase):
             self.assertTrue(pl.validate(template, self.items))
             for path in out.iterdir():
                 content = path.read_text(encoding='utf-8')
-                for leak in ('stratum', 'near_miss', 'triggeredSignals', 'pastPerfect', 'slowRuns', 'synthetic'):
+                for leak in ('stratum', 'near_miss', 'triggeredSignals', 'pastPerfect', 'slowRuns', 'synthetic',
+                             'pacing_labels', 'bench/'):
                     self.assertNotIn(leak, content)
             with self.assertRaises(ValueError):
                 pl.packet(out, self.items)
@@ -163,7 +168,7 @@ class PacingLabelTests(unittest.TestCase):
         loaded = [(rows[0]['labeler'], {row['passage']: row for row in rows}) for rows in (a, b, c)]
         output, stats = pl.merge(loaded, self.items, 'sha')
         paragraphs = {row['id']: row for row in output if row['type'] == 'paragraph'}
-        self.assertEqual(output[0], {'type': 'meta', 'labelers': ['a', 'b', 'c'], 'itemsSha256': 'sha'})
+        self.assertEqual(output[0], {'type': 'meta', 'labelers': ['a', 'b', 'c'], 'itemsSha256': 'sha', 'guidelines': None})
         self.assertIs(paragraphs['p01.2']['slow'], True)
         self.assertEqual(paragraphs['p01.2']['slowVotes'], {'yes': 2, 'no': 1})
         self.assertEqual(paragraphs['p01.2']['slowLabelers'], {'yes': ['a', 'b'], 'no': ['c']})
@@ -233,23 +238,60 @@ class PacingLabelTests(unittest.TestCase):
             if named:
                 self.assertTrue(any(o.items() >= named.items() for o in options))
 
+    def gate_fixture(self, directory):
+        directory = Path(directory)
+        items_path, labeler_dir = directory / 'items.jsonl', directory / 'labels'
+        labeler_dir.mkdir()
+        pl.write_jsonl(items_path, self.items)
+        pl.write_jsonl(labeler_dir / 'a.jsonl', labels('a', self.items, {'p01.2': True}))
+        pl.write_jsonl(labeler_dir / 'b.jsonl', labels('b', self.items, {'p01.2': True, 'p02.1': True}))
+        consensus, baseline = directory / 'c.jsonl', directory / 'b.json'
+        pl.write_jsonl(consensus, pl.merge_files(pl.labeler_files(labeler_dir), items_path)[0])
+        return consensus, baseline, {'labeler_dir': labeler_dir, 'items_path': items_path}
+
     def test_gate(self):
         result = {'settings': {'defaults': {level: {'precision': 0.5, 'recall': 0.5, 'f1': 0.5}
                                             for level in ('paragraph', 'runAnyOverlap')}}}
         with tempfile.TemporaryDirectory() as directory:
-            consensus, baseline = Path(directory) / 'c.jsonl', Path(directory) / 'b.json'
-            consensus.write_text('{}\n')
+            consensus, baseline, paths = self.gate_fixture(directory)
             with self.assertRaises(ValueError):
-                pl.gate(result, consensus, baseline)
+                pl.gate(result, consensus, baseline, **paths)
             baseline.write_text(json.dumps({'consensusSha256': pl.file_digest(consensus), 'defaults': result['settings']['defaults']}))
-            pl.gate(result, consensus, baseline)
+            pl.gate(result, consensus, baseline, **paths)
             worse = copy.deepcopy(result)
             worse['settings']['defaults']['paragraph']['recall'] = 0.4
             with self.assertRaisesRegex(ValueError, 'paragraph.recall'):
-                pl.gate(worse, consensus, baseline)
+                pl.gate(worse, consensus, baseline, **paths)
             consensus.write_text('{"changed": 1}\n')
             with self.assertRaisesRegex(ValueError, 'differs'):
-                pl.gate(result, consensus, baseline)
+                pl.gate(result, consensus, baseline, **paths)
+
+    def test_gate_remerges_relative_and_absolute_paths(self):
+        result = {'settings': {'defaults': {level: {'precision': 0.5, 'recall': 0.5, 'f1': 0.5}
+                                            for level in ('paragraph', 'runAnyOverlap')}}}
+        with tempfile.TemporaryDirectory() as directory:
+            consensus, baseline, paths = self.gate_fixture(directory)
+            baseline.write_text(json.dumps({'consensusSha256': pl.file_digest(consensus),
+                                            'defaults': result['settings']['defaults']}))
+            relative = Path(os.path.relpath(consensus))
+            for path in (consensus.resolve(), relative):
+                pl.gate(result, path, baseline, **paths)
+            pl.write_jsonl(paths['labeler_dir'] / 'b.jsonl', labels('b', self.items, {'p01.2': True}))
+            for path in (consensus.resolve(), relative):
+                with self.assertRaisesRegex(ValueError, 'fresh merge'):
+                    pl.gate(result, path, baseline, **paths)
+
+    def test_setting_runs_counts_flags_outside_windows(self):
+        class Probe:
+            def report(self, text, options=None):
+                rows = [{'span': {'char': {'start': p['start'], 'end': p['end']}}} for p in doc.paragraphs]
+                return {'paragraphs': rows, 'slowRuns': [{'paragraphs': {'start': 1, 'end': 3}},
+                                                         {'paragraphs': {'start': 4, 'end': 6}}]}
+        doc = self.doc
+        runs, volume = pl.setting_runs(Probe(), self.items[:3], {}, sources=['synthetic'])
+        self.assertEqual(runs, {('synthetic', 'doc.txt'): [{1, 2}, {4, 5}]})
+        self.assertEqual(volume, {'paragraphs': 6, 'runs': 2, 'flagged': 4, 'flaggedPerThousand': 1000 * 4 / 6,
+                                  'outsideWindows': 2, 'outsideWindowsShare': 0.5})
 
     def test_score(self):
         a = labels('a', self.items, {'p01.2': True, 'p01.3': True, 'p02.3': True})
@@ -311,12 +353,20 @@ class CommittedItemTests(unittest.TestCase):
         self.assertEqual([path.stem for path in files], ['claude-fable', 'claude-opus', 'codex-sol', 'deepseek', 'muse'])
         loaded = [pl.load_labels(path, items) for path in files]
         self.assertEqual([name for name, _ in loaded], [path.stem for path in files])
-        output, stats = pl.merge(loaded, items, pl.file_digest())
+        output, stats = pl.merge(loaded, items, pl.file_digest(), pl.labeled_guidelines())
         self.assertEqual(output, pl.jsonl(pl.CONSENSUS))
+        self.assertEqual(output[0]['guidelines'], {'version': 1, 'file': 'PACING-GUIDELINES-v1.md',
+                                                   'sha256': V1_GUIDELINES_SHA256})
         self.assertEqual(json.loads(json.dumps(stats)), json.loads(pl.AGREEMENT.read_text()))
         self.assertEqual(stats['slowTies'], 0)
         baseline = json.loads(pl.BASELINE.read_text())
         self.assertEqual(baseline['consensusSha256'], pl.file_digest(pl.CONSENSUS))
+
+    def test_guideline_versions(self):
+        self.assertTrue(pl.GUIDELINES.read_text().startswith(
+            f'# Pacing labels: guidelines\n\nVersion {pl.GUIDELINES_VERSION}.\n'))
+        self.assertGreater(pl.GUIDELINES_VERSION, pl.LABELED_GUIDELINES[0])
+        self.assertEqual(pl.file_digest(pl.LABELED_GUIDELINES[1]), V1_GUIDELINES_SHA256)
 
     def test_story_items_materialize_offline(self):
         items = [item for item in pl.load_items() if item['source'] in pl.PUBLIC]

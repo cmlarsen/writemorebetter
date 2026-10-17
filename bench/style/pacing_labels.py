@@ -19,6 +19,8 @@ LABELS = HERE / 'labels'
 ITEMS = LABELS / 'pacing-items.jsonl'
 STRATA = LABELS / 'pacing-strata.json'
 GUIDELINES = LABELS / 'PACING-GUIDELINES.md'
+GUIDELINES_VERSION = 2
+LABELED_GUIDELINES = (1, LABELS / 'PACING-GUIDELINES-v1.md')
 LABELER_DIR = LABELS / 'pacing'
 CONSENSUS = LABELS / 'pacing-consensus.jsonl'
 AGREEMENT = LABELS / 'pacing-agreement.json'
@@ -27,6 +29,7 @@ SWEEP_RESULTS = HERE / 'pacing-labels-sweep.json'
 PUBLIC = {f'story{n}': f'bench/public/story{n}.txt' for n in range(1, 6)}
 BOOKS = ('pride', 'moby', 'blue_castle', 'ackroyd', 'thirty_nine_steps', 'hound', 'age_of_innocence',
          'silas_marner', 'treasure_island', 'styles_ch1', 'gatsby_ch1', 'sign_ch1', 'avonlea_ch1')
+SOURCES = tuple(PUBLIC) + BOOKS
 CHAPTER = re.compile(r'^[^/]+/(src/epub/text/chapter-[\d-]+\.xhtml)$')
 XHTML = '{http://www.w3.org/1999/xhtml}'
 EPUB_TYPE = '{http://www.idpf.org/2007/ops}type'
@@ -135,10 +138,14 @@ def documents(source):
     return sorted(result, key=lambda document: chapter_number(document.name))
 
 
-def document(source, name):
+def source_documents(source):
     if source not in LOADED:
         LOADED[source] = {d.name: d for d in documents(source)}
-    return LOADED[source][name]
+    return LOADED[source]
+
+
+def document(source, name):
+    return source_documents(source)[name]
 
 
 def digest(text):
@@ -231,7 +238,7 @@ def overlapping(runs, start, end):
 def select(probe, seed=SEED):
     rng = random.Random(seed)
     pools = {stratum: {} for stratum in STRATA_TARGET}
-    for source in list(PUBLIC) + list(BOOKS):
+    for source in SOURCES:
         for doc in documents(source):
             info, default_runs, loose_runs = profile(probe, doc)
             for stratum, start, end in candidates(doc, info, default_runs, loose_runs, rng):
@@ -476,11 +483,16 @@ def file_digest(path=ITEMS):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
-def merge(labels, items, items_sha=None):
+def labeled_guidelines():
+    version, path = LABELED_GUIDELINES
+    return {'version': version, 'file': path.name, 'sha256': file_digest(path)}
+
+
+def merge(labels, items, items_sha=None, guidelines=None):
     names = [name for name, _ in labels]
     if len(names) < 2 or len(set(names)) != len(names):
         raise ValueError('merge needs at least two labelers with distinct names')
-    output = [{'type': 'meta', 'labelers': names, 'itemsSha256': items_sha}]
+    output = [{'type': 'meta', 'labelers': names, 'itemsSha256': items_sha, 'guidelines': guidelines}]
     slow_counts, kind_counts, has_stretch = [], [], []
     slow_by, kind_by = {n: [] for n in names}, {n: [] for n in names}
     agreements = []
@@ -726,6 +738,34 @@ def evaluate(probe, consensus, items):
             'labelersAgainstOthersMajority': labelers_against_others(consensus)}
 
 
+def setting_runs(probe, items, options, sources=SOURCES):
+    windows = {}
+    for item in items:
+        windows.setdefault((item['source'], item['document']), set()).add(document_index(item))
+    runs, volume = {}, Counter()
+    for source in sources:
+        for name, doc in source_documents(source).items():
+            report = probe.report(doc.text, options=options or None)
+            mapped = {row: index for index, row in row_indexes(report, doc).items()}
+            window = windows.get((source, name), set())
+            if (source, name) in windows:
+                runs[(source, name)] = [set(run) for run in run_paragraphs(report, doc) if run]
+            flagged = [row for run in report['slowRuns'] for row in range(run['paragraphs']['start'],
+                                                                           run['paragraphs']['end'])]
+            volume.update({'paragraphs': len(report['paragraphs']), 'runs': len(report['slowRuns']),
+                           'flagged': len(flagged), 'outsideWindows': sum(mapped.get(row) not in window
+                                                                          for row in flagged)})
+    return runs, flag_volume(volume)
+
+
+def flag_volume(volume):
+    flagged = volume['flagged']
+    return {'paragraphs': volume['paragraphs'], 'runs': volume['runs'], 'flagged': flagged,
+            'flaggedPerThousand': 1000 * flagged / volume['paragraphs'] if volume['paragraphs'] else 0.0,
+            'outsideWindows': volume['outsideWindows'],
+            'outsideWindowsShare': volume['outsideWindows'] / flagged if flagged else 0.0}
+
+
 def grid():
     keys = list(GRID)
     return [dict(zip(keys, values)) for values in product(*GRID.values())]
@@ -734,26 +774,31 @@ def grid():
 def sweep(executable, consensus, items, workers=3):
     indexes = {item['id']: document_index(item) for item in items}
     options = grid()
+    for source in SOURCES:
+        source_documents(source)
     def run(chunk):
         probe = probe_for(executable)
         try:
-            return [(o, predicted_runs(probe, items, o)) for o in chunk]
+            return [(o, *setting_runs(probe, items, o)) for o in chunk]
         finally:
             probe.close()
     with ThreadPoolExecutor(workers) as pool:
         chunks = [options[i::workers] for i in range(workers)]
-        runs = [pair for chunk in pool.map(run, chunks) for pair in chunk]
+        runs = [triple for chunk in pool.map(run, chunks) for triple in chunk]
     rows = []
-    for o, predicted in runs:
+    for o, predicted, volume in runs:
         result = report_scores(consensus, items, predicted, indexes)
         rows.append({'options': o,
                      **{level: {k: result[level][k] for k in ('precision', 'recall', 'f1', 'predicted', 'gold')}
                         for level in ('paragraph', 'runAnyOverlap', 'runIou50')},
-                     'againstOthersMajorityMeanF1': result['againstOthersMajority']['meanF1']})
+                     'againstOthersMajorityMeanF1': result['againstOthersMajority']['meanF1'],
+                     'sourceFlags': volume})
     rows.sort(key=lambda row: (-row['paragraph']['f1'], -row['runAnyOverlap']['f1'],
                                tuple(row['options'][k] for k in GRID)))
     return {'consensusSha256': file_digest(CONSENSUS), 'grid': {k: list(v) for k, v in GRID.items()},
             'objective': 'paragraph-level F1 for slow against the five-labeler majority',
+            'sourceFlags': 'paragraphs the setting flags across every document of the label sources; '
+                           'precision is unmeasured for the outsideWindows share',
             'results': rows}
 
 
@@ -761,17 +806,20 @@ def labeler_files(directory=LABELER_DIR):
     return sorted(Path(directory).glob('*.jsonl'))
 
 
-def gate(result, consensus_path, baseline_path=BASELINE):
+def merge_files(files, items_path=ITEMS):
+    items = load_items(items_path)
+    return merge([load_labels(path, items) for path in files], items, file_digest(items_path), labeled_guidelines())
+
+
+def gate(result, consensus_path, baseline_path=BASELINE, labeler_dir=LABELER_DIR, items_path=ITEMS):
     if not baseline_path.exists():
         raise ValueError(f'no baseline at {baseline_path}; record one with --write-baseline')
     baseline = json.loads(baseline_path.read_text())
     if baseline['consensusSha256'] != file_digest(consensus_path):
         raise ValueError('consensus file differs from the recorded baseline')
-    if consensus_path == CONSENSUS:
-        items = load_items()
-        merged, _ = merge([load_labels(path, items) for path in labeler_files()], items, file_digest())
-        if merged != jsonl(consensus_path):
-            raise ValueError('committed consensus does not match a fresh merge of the labeler files')
+    merged, _ = merge_files(labeler_files(labeler_dir), items_path)
+    if merged != jsonl(consensus_path):
+        raise ValueError('consensus does not match a fresh merge of the labeler files')
     failures = [f'{level}.{metric}' for level in ('paragraph', 'runAnyOverlap')
                 for metric in ('precision', 'recall', 'f1')
                 if result['settings']['defaults'][level][metric] < baseline['defaults'][level][metric] - 1e-9]
@@ -841,8 +889,7 @@ def main(argv=None):
         if failed:
             sys.exit(1)
     elif args.command == 'merge':
-        files = args.files or labeler_files()
-        output, stats = merge([load_labels(path, items) for path in files], items, file_digest())
+        output, stats = merge_files(args.files or labeler_files())
         write_jsonl(args.out, output)
         args.stats.write_text(json.dumps(stats, indent=2) + '\n')
         print(json.dumps(stats, indent=2))
