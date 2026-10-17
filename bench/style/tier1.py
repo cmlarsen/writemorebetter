@@ -320,10 +320,30 @@ def score_quoteli3(split, document_probe=None):
     return {'documents': len(splits), **result['patterns']['dialogue']}
 
 
+def score_continuation(document_probe=None):
+    documents, gold_records = [], []
+    for line in (HERE / 'labels/continuation.jsonl').read_text(encoding='utf-8').splitlines():
+        row = json.loads(line)
+        documents.append({'file': row['file'], 'text': row['text']})
+        end = 0
+        for quote in row['quotes']:
+            start = row['text'].find(quote, end)
+            if start < 0:
+                raise ValueError('continuation quote not found')
+            end = start + len(quote)
+            gold_records.append({'file': row['file'], **offsets(row['text'], start, end), 'pattern': 'dialogue'})
+    predictions = (document_probe or DocumentProbe()).dialogue(documents)
+    if any(row.get('pattern') != 'dialogue' for row in predictions):
+        raise ValueError('unexpected document probe pattern')
+    result = score(gold_records, predictions, {row['file'] for row in documents}, pattern='dialogue')
+    return {'documents': len(documents), **result['patterns']['dialogue']}
+
+
 def run(analyzer, split, gate=False, document_probe=None):
     result = {'split': split, 'ewt': score_ewt(analyzer, split),
               'litbank': score_litbank(split, document_probe),
-              'quoteli3': score_quoteli3(split, document_probe)}
+              'quoteli3': score_quoteli3(split, document_probe),
+              'continuation': score_continuation(document_probe)}
     print(json.dumps(result, indent=2))
     if gate:
         if split != 'test':

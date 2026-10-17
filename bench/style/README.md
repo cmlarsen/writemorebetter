@@ -237,6 +237,19 @@ in two (4 dev, 5 test). The remaining false positives are two `" -- "` fragments
 and one scare-quoted phrase in narration (`"very glad;"`) on test, and one empty `""` on dev where
 a nested close meets the outer close.
 
+### Multi-paragraph speech continuation
+
+QuoteLi3's P&P gold has no conventionally continued speech: its 13 quotes that cross a paragraph
+break are letters whose inner paragraphs open without a mark. Disabling continuation (an open
+quote carried into a paragraph that starts with the same mark) therefore *raises* QuoteLi3 test
+F1 from 98.56% to 98.98%, and LitBank's from 88.62% to 88.76%. Changes must not trade continuation
+for QuoteLi3 points. `labels/continuation.jsonl` is a small original fixture scored by the same
+probe and scorer in every tier 1 run: three spans of straight, curly double and curly single
+speech carried across two or three paragraphs (with curly apostrophes, an em dash, an ellipsis,
+U+2028 and an emoji), plus closed and unclosed controls that must not continue. Its floors in
+`tier1-baseline.json` are 100% precision, recall and F1; with continuation disabled only 6 of 9
+spans match and the gate fails. The Rust tests in `style/tests/document.rs` guard the rule as well.
+
 ## Tier 2 framework
 
 ```sh

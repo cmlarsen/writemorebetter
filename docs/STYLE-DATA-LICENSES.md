@@ -117,7 +117,7 @@ licensed MIT OR Apache-2.0 like the style crate. No external word list, corpus o
 ## QuoteLi3 (#256)
 
 **Decision: no license found.** The owner decided on 2026-10-16 to use QuoteLi3 for local/CI
-benchmarking only. Its annotations are downloaded at bench time, pinned by sha256 and never
+benchmarking only ([recorded on #256](https://github.com/cmlarsen/writemorebetter/issues/256#issuecomment-6228890723)). Its annotations are downloaded at bench time, pinned by sha256 and never
 committed or redistributed. Only the *Pride and Prejudice* annotations are used. *Emma* and *The
 Steppe* are excluded because the paper says they were taken from the Columbia Quoted Speech
 Corpus, which Columbia distributes under a non-commercial license (below). The coordinator applied
@@ -156,6 +156,11 @@ Pinned files, with no upstream tag or commit (the `Last-Modified` date stands in
 |---|---|---|---:|
 | `pp_full.xml` | <https://downloads.cs.stanford.edu/nlp/data/quoteattribution/pp_full.xml> | `d4f0c83d73085d02db6db938eb3e2371d4b082d4a8194345e3e527c9a0959a4f` | 791,441 |
 | `pp_test.xml` | <https://nlp.stanford.edu/~muzny/data/pp_test.xml> | `55056da60b81fa35d0b42214451d106248d36d14aa8fd92547fdc49d192590bf` | 107,337 |
+
+If the Stanford user directory disappears, the author's website repository serves a byte-identical
+`pp_test.xml` with the same sha256 at
+<https://raw.githubusercontent.com/muzny/academic_website/master/data/pp_test.xml> (checked
+2026-10-16; the `main` branch path returns 404). It is a known fallback, not the pin.
 
 `pp_full.xml` holds 53 chapters and `pp_test.xml` holds the other 8 (19–26). Together they cover
 all 61 chapters and 1,750 quotes.

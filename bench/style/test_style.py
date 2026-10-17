@@ -175,6 +175,37 @@ class BenchTests(unittest.TestCase):
             stray.write_text('<doc><text><quote>"Early"</quote> CHAPTER I (1)</text></doc>', encoding='utf-8')
             with self.assertRaisesRegex(ValueError, 'outside'):
                 tier1.quoteli3_chapters(stray)
+            stray.write_text('<doc><text>CHAPTER I (1) <quote>"a CHAPTER II (2) b"</quote></text></doc>', encoding='utf-8')
+            with self.assertRaisesRegex(ValueError, 'crosses'):
+                tier1.quoteli3_chapters(stray)
+            stray.write_text('<doc><text>CHAPTER I (1) x CHAPTER I (1) y</text></doc>', encoding='utf-8')
+            with self.assertRaisesRegex(ValueError, 'duplicate'):
+                tier1.quoteli3_chapters(stray)
+
+    def test_continuation_fixture_requires_multi_paragraph_spans(self):
+        rows = [json.loads(line) for line in
+                (common.HERE / 'labels/continuation.jsonl').read_text(encoding='utf-8').splitlines()]
+        records = []
+        for row in rows:
+            end = 0
+            for quote in row['quotes']:
+                start = row['text'].index(quote, end)
+                end = start + len(quote)
+                records.append({'file': row['file'], 'pattern': 'dialogue', **common.offsets(row['text'], start, end)})
+        self.assertGreaterEqual(sum('\n\n' in quote for row in rows for quote in row['quotes']), 3)
+
+        class Probe:
+            def dialogue(self, documents):
+                self.documents = documents
+                return self.predictions
+
+        probe = Probe()
+        probe.predictions = records
+        self.assertEqual(tier1.score_continuation(probe)['f1'], 1)
+        self.assertEqual([row['file'] for row in probe.documents], [row['file'] for row in rows])
+        probe.predictions = [record for record in records if record['file'] != 'straight-three-paragraphs'
+                             or record['byte']['start'] == 0]
+        self.assertLess(tier1.score_continuation(probe)['recall'], 1)
 
     def test_unicode_offsets_and_detector(self):
         text = '😀 “She’s—quiet…\u2028very very.”'
@@ -344,6 +375,7 @@ class BenchTests(unittest.TestCase):
             (here / 'tier1-baseline.json').write_text(json.dumps(baseline))
             with patch.object(tier1, 'HERE', here), patch.object(tier1, 'score_litbank', return_value={}), \
                     patch.object(tier1, 'score_quoteli3', return_value={}), \
+                    patch.object(tier1, 'score_continuation', return_value={}), \
                     contextlib.redirect_stdout(io.StringIO()):
                 with patch.object(tier1, 'score_ewt', return_value=ewt):
                     tier1.run(None, 'test', gate=True)
