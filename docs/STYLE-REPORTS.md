@@ -476,7 +476,9 @@ terminal punctuation), normalized lexical XPOS accuracy is 90.6768%, and normali
 95.4520% on 24,102 aligned tokens. Tag gates also require single-normalized-tag correctness not to drop
 and conditional mean tag count not to rise. Sentence-start total absolute fractional bias has a
 22.5595 pp ceiling, including 1 pp of explicit slack; per-tag biases remain diagnostic. LitBank original-prose test
-quote-span precision/recall/F1 is 85.3205% / 92.1817% / 88.6185% after #261 tentative-opener recovery. The benchmark README preserves initial vs reviewed numbers and conventions.
+quote-span precision/recall/F1 is 85.3205% / 92.1817% / 88.6185% after #261 tentative-opener recovery. QuoteLi3
+*Pride and Prejudice* test (47 chapters, benchmarking-only, no license found) quote-span P/R/F1 is
+98.5975% / 98.5284% / 98.5629%, and a synthetic multi-paragraph speech fixture must score 100%. The benchmark README preserves initial vs reviewed numbers and conventions.
 Tier 3 real-corpus calibration remains owner-only and emits aggregate numbers exclusively.
 
 The #256 completion audit is in [`bench/style/AUDIT-256.md`](../bench/style/AUDIT-256.md).

@@ -17,7 +17,7 @@ readme = "README.md"
 [dependencies]
 regex = "1"
 regex-automata = "0.4"
-fancy-regex = "0.5"
+fancy-regex = "0.19"
 
 # workaround to use a 'serde' feature which also enables 'serde_regex'
 # see https://github.com/RustCrypto/RSA/pull/41/files

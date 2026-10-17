@@ -10,7 +10,7 @@ and **Style lexical report accuracy gates (256)**. “Owner owed” is deliberat
 |---|---|---|
 | Tier 1: UD English-EWT sentence-boundary F1, Penn XPOS, lemma accuracy | `tier1.py`, `equivalence.py`, `tier1-baseline.json`; CI `tier1 --gate` | Done; existing fixed test floors retained |
 | Tier 1: LitBank direct-speech exact-span F1 | `tier1.py`, `splits.json`; CI same gate | Done; existing product dialogue span floor retained |
-| Tier 1: QuoteLi3 second quotation set, confirm original license | `README.md` Download provenance; Stanford release has no confirmed license | Explicitly excluded pending owner license confirmation; third-party card is not permission |
+| Tier 1: QuoteLi3 second quotation set, confirm original license | `tier1.py:score_quoteli3`, `sources.json`, `splits.json`, `tier1-baseline.json`; CI `tier1 --gate`; evidence in `docs/STYLE-DATA-LICENSES.md` | Done for *Pride and Prejudice*: no license found, used under the owner's 2026-10-16 benchmarking-only decision; *Emma* and *The Steppe* excluded for their CQSC non-commercial lineage |
 | Tier 1: download at bench time, pinned tag/commit + SHA-256, no vendored dataset | `common.py:fetch`, `sources.json`, ignored `.cache/` | Done; checksum checked on cache hits too |
 | Tier 1: align tokens by character offset despite tokenization differences | `tier1.py` exact scalar endpoint alignment and concatenating multiword-token offsets; coverage floors | Done |
 | Tier 1: fixed dev/test, tune dev only, report test | EWT upstream split; LitBank `splits.json`; baseline records test | Done for harness; README discloses later development reuse of report-label test sets |

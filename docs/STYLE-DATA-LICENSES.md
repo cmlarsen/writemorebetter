@@ -113,3 +113,54 @@ Apache-2.0 with the engine, contains no third-party data, and is credited in NOT
 
 `style/data/transitions.tsv` is an original list written by this project's contributors in 2026,
 licensed MIT OR Apache-2.0 like the style crate. No external word list, corpus or rule data was used.
+
+## QuoteLi3 (#256)
+
+**Decision: no license found.** The owner decided on 2026-10-16 to use QuoteLi3 for local/CI
+benchmarking only ([recorded on #256](https://github.com/cmlarsen/writemorebetter/issues/256#issuecomment-6228890723)). Its annotations are downloaded at bench time, pinned by sha256 and never
+committed or redistributed. Only the *Pride and Prejudice* annotations are used. *Emma* and *The
+Steppe* are excluded because the paper says they were taken from the Columbia Quoted Speech
+Corpus, which Columbia distributes under a non-commercial license (below). The coordinator applied
+the UD-GUM precedent on 2026-10-16. QuoteLi3 is not public domain, and this project does not treat
+it as licensed.
+
+QuoteLi3 is the dataset of Muzny, Fang, Chang and Jurafsky, "A Two-stage Sieve Approach for Quote
+Attribution", EACL 2017 (<https://aclanthology.org/E17-1044/>). All sources were checked on
+2026-10-17 UTC, which was 2026-10-16 in US time.
+
+| Where | What was checked | License text found |
+|---|---|---|
+| [Release page](https://nlp.stanford.edu/~muzny/quoteli.html) | Live page, `Last-Modified: Tue, 27 Apr 2021 21:08:47 GMT`. It reads "We release our quote/mention annotations for the texts of Pride and Prejudice, Emma, and The Steppe." It links the full XML, chapter zips, the P&P test set, CoreNLP and the annotator. | none, and no copyright notice or terms of use |
+| Wayback Machine, `nlp.stanford.edu/~muzny/*` | CDX listing with digest collapse. `quoteli.html` has two distinct versions: [2020-09-20](https://web.archive.org/web/20200920082415/https://nlp.stanford.edu/~muzny/quoteli.html), before the test-set link, and [2021-08-05](https://web.archive.org/web/20210805175015/https://nlp.stanford.edu/~muzny/quoteli.html), identical to today's page and recaptured 2022-01-20, 2023-01-27 and 2025-05-11. The earliest capture (2019-10-20) is a redirect. The [2021-05-12 home page](https://web.archive.org/web/20210512142742/https://nlp.stanford.edu/~muzny/) lists "QuoteLi3 (includes data, annotation tool, and attribution code)". | none in any capture |
+| Downloads | Six files under `nlp.stanford.edu/data/quoteattribution/` redirect (301) to `downloads.cs.stanford.edu/nlp/data/quoteattribution/` and are `Last-Modified` 2017-03-18. `~muzny/data/pp_test.xml` is from 2021-04-27. Each XML has only `<characters>` and `<text>`. The three chapter zips contain only annotated XML (plus `__MACOSX` resource forks in `pp_chapters.zip`), with no README or LICENSE. A case-insensitive search for "licen", "copyright" and "creative" matched only novel text. | none |
+| [muzny/quoteannotator](https://github.com/muzny/quoteannotator) | GitHub license API: `null`, and the repository has no LICENSE file. Created 2016-03-02; last commit `8444634` (2017-03-19, "Update README.md"). The README only asks users to cite the paper. The repository has character lists and conversion scripts (`convertPP.py` for "the Pride and Prejudice Corpus", `convertCQSC.py` for "the Columbia Quoted Speech Corpus") but no annotation files. | none |
+| [muzny/academic_website](https://github.com/muzny/academic_website), [muzny/muzny.github.io](https://github.com/muzny/muzny.github.io) and the live [muzny.github.io/quoteli.html](https://muzny.github.io/quoteli.html) | These are the author's website sources, and GitHub's license API returns `null` for both repositories. Each has the same `quoteli.html` text and copies of `data/{pp_test,austen_emma,chekhov_steppe}.xml`. `pp_test.xml` matches the pinned sha256. `academic_website` added them in `51d68b7` (2021-04-27, "add quote xml data"), 19 seconds before the Stanford page's `Last-Modified`. `muzny.github.io` added them in `d9ab55e` (2022-11-16). Their READMEs only say "academic website". `muzny.github.io` also added `data/quote_extraction_annotated.zip` in `f5c05dc` (2026-06-25, "add quote extraction evaluation data"). That archive is a different set, not QuoteLi3: five annotated novels, one of them a modern in-copyright title, with no license file. It is not used. The other 25 public `muzny` repositories have no quote data in their names or descriptions. | none |
+| [stanfordnlp/CoreNLP](https://github.com/stanfordnlp/CoreNLP) | GPL-3.0. Quote attribution entered the code base in `a15eca7` (2017-04-02, "initial move of quote attribution into core complete"). `data/edu/stanford/nlp/quoteattribution/` holds only three lexicons (`animate.unigrams.txt`, `family_words.txt`, `gender_filtered.txt`). No path on `main` contains QuoteLi3 annotations (no `pp_`, `austen` or `steppe` files). The documentation page linked from the release page (`stanfordnlp.github.io/CoreNLP/quoteattribution.html`) returns 404; its successor [`quote.html`](https://stanfordnlp.github.io/CoreNLP/quote.html) does not mention the data. | CoreNLP's GPL covers its code, not QuoteLi3 |
+| [EACL 2017 paper](https://aclanthology.org/E17-1044.pdf) | It reads "We release QuoteLi3" with a footnote to the release page. It calls QuoteLi3 "a unified combination of data from Elson and McKeown (2010) and He et al. (2013) with the addition of more than 3,000 new labels". It says: "For Emma and The Steppe, which were taken from the CQSC corpus, we have considerably more quotes because of our added annotations"; "Emma and The Steppe come from CQSC"; and "There is no overlap in the data provided by He et al. (2013) and CQSC". | none for the data |
+| [Columbia Quoted Speech Attribution Corpus](https://inventions.techventures.columbia.edu/licenses/quoted-speech-attribution--1) (CQSC; Elson and McKeown 2010), the upstream source of *Emma* and *The Steppe* | Columbia Technology Ventures lists the file `Columbia_QSA_Corpus_1.01.tar.gz` under "Quoted Speech Attribution Corpus, Free Academic". It requires signing in to order and was not downloaded. | "This is the non-commercial license. All interested commercial parties should go back to the previous page and select "Inquire About This Technology"." |
+| He, Barbosa and Kondrak 2013, "Identification of Speakers in Novels" ([P13-1129](https://aclanthology.org/P13-1129/)), the upstream source of *Pride and Prejudice* | Paper record and a web search. | none found |
+| [Hugging Face `Felix-ML/quoteli3`](https://huggingface.co/datasets/Felix-ML/quoteli3) | The card metadata says `cc-by-4.0`. The uploader added it in their first README commit `2a6f40d` (2021-06-11, as `licenses: - cc-by-4.0`) and cited no source. Hugging Face staff PR #1 (opened 2022-07-01, merged as `a8e3cae` on 2022-10-25) only renamed the key to `license`. The loader `quoteli3.py` sets `_LICENSE = ""` and downloads the Stanford files rather than hosting data. The account was created 2021-06-10, has display name "Felix", belongs to no organization and has this one dataset. It describes the dataset as "a representation of Muzny et al.'s QuoteLi3 dataset" and shows no affiliation with the authors. | an unsourced tag by a third party, **not accepted** |
+| [PDNC](https://github.com/Priya22/project-dialogism-novel-corpus) (Vishnubhotla, Hammond and Hirst, LREC 2022) | The paper chose novels to overlap "the LitBank and QuoteLi corpora", but PDNC does not redistribute QuoteLi3. | PDNC's own annotations: "PDNC is free to use under the CC-BY 4.0 License", added to its ReadMe on 2026-10-11 (`fabe7b9`). This does not apply to QuoteLi3. |
+| LitBank quotation paper ([arXiv 2004.13980](https://arxiv.org/abs/2004.13980)), [BookNLP](https://github.com/booknlp/booknlp) (MIT) | Both cite or compare with Muzny et al. BookNLP's `examples/158_emma/158_emma.quotes` is BookNLP's own output, not QuoteLi3. Neither redistributes QuoteLi3. | not applicable |
+| Web search for QuoteLi3 license or redistribution | No other mirror, aggregator entry or license statement was found. | none |
+
+The underlying novels are public domain: Austen's *Pride and Prejudice* (1813) and *Emma* (1815),
+and Chekhov's *The Steppe* (1888) in an early English translation. The XML text appears to be a
+Project Gutenberg-style transcription, with `_italic_` underscores and headings such as "CHAPTER
+I (1)". The quote spans, mention spans, speaker links and character lists are what carry any
+rights, and those rights belong to the annotators and to the upstream corpora.
+
+Pinned files, with no upstream tag or commit (the `Last-Modified` date stands in for a version):
+
+| File | URL | sha256 | Bytes |
+|---|---|---|---:|
+| `pp_full.xml` | <https://downloads.cs.stanford.edu/nlp/data/quoteattribution/pp_full.xml> | `d4f0c83d73085d02db6db938eb3e2371d4b082d4a8194345e3e527c9a0959a4f` | 791,441 |
+| `pp_test.xml` | <https://nlp.stanford.edu/~muzny/data/pp_test.xml> | `55056da60b81fa35d0b42214451d106248d36d14aa8fd92547fdc49d192590bf` | 107,337 |
+
+If the Stanford user directory disappears, the author's website repository serves a byte-identical
+`pp_test.xml` with the same sha256 at
+<https://raw.githubusercontent.com/muzny/academic_website/master/data/pp_test.xml> (checked
+2026-10-16; the `main` branch path returns 404). It is a known fallback, not the pin.
+
+`pp_full.xml` holds 53 chapters and `pp_test.xml` holds the other 8 (19–26). Together they cover
+all 61 chapters and 1,750 quotes.
