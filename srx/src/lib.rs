@@ -102,10 +102,56 @@ pub(crate) fn build_regex(pattern: &str) -> Result<Regex, regex_automata::meta::
         .build(pattern)
 }
 
-fn build_fancy_regex(pattern: &str) -> Result<fancy_regex::Regex, fancy_regex::Error> {
-    fancy_regex::RegexBuilder::new(pattern)
-        .backtrack_limit(usize::MAX)
-        .build()
+fn candidate_pattern(pattern: &str) -> Option<String> {
+    let tree = fancy_regex::Expr::parse_tree(pattern).ok()?;
+    let mut candidate = String::new();
+    without_look_around(&tree.expr)?.to_str(&mut candidate, 0);
+    Some(candidate)
+}
+
+fn without_look_around(expr: &fancy_regex::Expr) -> Option<fancy_regex::Expr> {
+    use fancy_regex::{Assertion, Expr};
+
+    Some(match expr {
+        Expr::LookAround(..) => Expr::Empty,
+        Expr::Assertion(
+            Assertion::StartText
+            | Assertion::EndText
+            | Assertion::StartLine { .. }
+            | Assertion::StartLineOniguruma { .. }
+            | Assertion::EndLine { .. },
+        )
+        | Expr::Empty
+        | Expr::Any { .. }
+        | Expr::Literal { .. }
+        | Expr::Delegate { .. } => expr.clone(),
+        Expr::Assertion(_) => Expr::Empty,
+        Expr::Concat(children) => Expr::Concat(
+            children
+                .iter()
+                .map(without_look_around)
+                .collect::<Option<_>>()?,
+        ),
+        Expr::Alt(children) => Expr::Alt(
+            children
+                .iter()
+                .map(without_look_around)
+                .collect::<Option<_>>()?,
+        ),
+        Expr::Group(child) => Expr::Group(Arc::new(without_look_around(child)?)),
+        Expr::Repeat {
+            child,
+            lo,
+            hi,
+            greedy,
+        } => Expr::Repeat {
+            child: Box::new(without_look_around(child)?),
+            lo: *lo,
+            hi: *hi,
+            greedy: *greedy,
+        },
+        _ => return None,
+    })
 }
 
 #[cfg(feature = "from_xml")]
@@ -250,7 +296,10 @@ impl<'de> Deserialize<'de> for Rule {
 #[derive(Debug, Clone)]
 enum Matcher {
     Automata(Regex),
-    Fancy(Arc<fancy_regex::Regex>),
+    Fancy {
+        regex: Arc<fancy_regex::Regex>,
+        candidates: Option<Regex>,
+    },
 }
 
 impl Rule {
@@ -267,12 +316,20 @@ impl Rule {
                 (Matcher::Automata(regex), split_group)
             }
             Err(error) => {
-                let regex = build_fancy_regex(&regex_str).map_err(|_| Box::new(error))?;
+                let regex = fancy_regex::Regex::new(&regex_str).map_err(|_| Box::new(error))?;
+                let candidates =
+                    candidate_pattern(&regex_str).and_then(|pattern| build_regex(&pattern).ok());
                 let split_group = regex
                     .capture_names()
                     .position(|name| name == Some(AFTER_BREAK_GROUP))
                     .unwrap_or(1);
-                (Matcher::Fancy(Arc::new(regex)), split_group)
+                (
+                    Matcher::Fancy {
+                        regex: Arc::new(regex),
+                        candidates,
+                    },
+                    split_group,
+                )
             }
         };
 
@@ -302,7 +359,7 @@ impl Rule {
         let mut indices = Vec::new();
         let mut captures = match &self.regex {
             Matcher::Automata(regex) => Some(regex.create_captures()),
-            Matcher::Fancy(_) => None,
+            Matcher::Fancy { .. } => None,
         };
         let mut start = 0;
 
@@ -316,16 +373,30 @@ impl Rule {
                     let split = captures.get_group(self.split_group).map(|span| span.start);
                     (found.start(), split)
                 }
-                (Matcher::Fancy(regex), _) => {
-                    let captures = match regex.captures_from_pos(text, start) {
-                        Ok(Some(captures)) => captures,
-                        Ok(None) | Err(_) => break,
+                (Matcher::Fancy { regex, candidates }, _) => {
+                    let candidate = match candidates {
+                        Some(candidates) => {
+                            match candidates.find(Input::new(text).range(start..)) {
+                                Some(found) => found.start(),
+                                None => break,
+                            }
+                        }
+                        None => start,
                     };
-                    let Some(found) = captures.get(0) else {
-                        break;
-                    };
-                    let split = captures.get(self.split_group).map(|span| span.start());
-                    (found.start(), split)
+                    let input = fancy_regex::RegexInput::new(text)
+                        .from_pos(candidate)
+                        .anchored(true);
+                    match regex.captures_input(input) {
+                        Ok(Some(captures)) => {
+                            let split = captures.get(self.split_group).map(|span| span.start());
+                            (candidate, split)
+                        }
+                        Ok(None) | Err(_) => {
+                            start = candidate
+                                + text[candidate..].chars().next().map_or(1, char::len_utf8);
+                            continue;
+                        }
+                    }
                 }
                 (Matcher::Automata(_), None) => break,
             };
@@ -575,27 +646,68 @@ mod tests {
         );
     }
 
+    const ABBREVIATION: (&str, &str) = (
+        r"[\.\s\u00A0](?!(on|it|of|to))\p{L}{1,2}\.[\s\u00A0]",
+        r"[\p{N}\p{Ll}]",
+    );
+
+    fn fancy_parts(rule: &Rule) -> (&fancy_regex::Regex, Option<&Regex>) {
+        match &rule.regex {
+            Matcher::Fancy { regex, candidates } => (regex, candidates.as_ref()),
+            Matcher::Automata(_) => panic!("look-around rule must compile with fancy-regex"),
+        }
+    }
+
+    fn unanchored_scan(rule: &Rule, text: &str) -> Vec<usize> {
+        let (regex, _) = fancy_parts(rule);
+        let mut indices = Vec::new();
+        let mut start = 0;
+        while start <= text.len() {
+            let Some(captures) = regex.captures_from_pos(text, start).expect("scan succeeds")
+            else {
+                break;
+            };
+            let found = captures.get(0).expect("group 0 exists").start();
+            if let Some(split) = captures.get(rule.split_group) {
+                indices.push(split.start());
+            }
+            start = found + text[found..].chars().next().map_or(1, char::len_utf8);
+        }
+        indices
+    }
+
+    const LOOK_AROUND_TEXT: &str = "Wait 2 hr. or so. Go on. now. It was e. g. fine\u{2026} \u{201c}Is it. so?\u{201d} he said\u{2014}Dr. no. A. b. 3 St. 4th\u{2028}x. y. to. be. Mr.\u{00A0}x. ok. \u{201c}Q. r.\u{201d} of. it";
+
+    #[test]
+    fn look_around_rules_search_candidates_without_look_around() {
+        let rules = rules_for(&[(ABBREVIATION.0, ABBREVIATION.1, false)]);
+        let rule = &rules.rules[0];
+
+        assert!(fancy_parts(rule).1.is_some());
+        let expected = unanchored_scan(rule, LOOK_AROUND_TEXT);
+        assert!(!expected.is_empty());
+        assert_eq!(rule.match_indices(LOOK_AROUND_TEXT), expected);
+    }
+
+    #[test]
+    fn look_around_rules_without_candidates_match_like_a_scan() {
+        let rules = rules_for(&[(r"(\p{L})\1(?!x)", r"\.", true)]);
+        let rule = &rules.rules[0];
+        let text = "ll. Wall. moo.x \u{201c}Too.\u{201d} zz.\u{2028}aa.";
+
+        assert!(fancy_parts(rule).1.is_none());
+        let expected = unanchored_scan(rule, text);
+        assert!(!expected.is_empty());
+        assert_eq!(rule.match_indices(text), expected);
+    }
+
     #[test]
     fn look_around_rules_scan_long_text_without_a_match() {
-        let rules = rules_for(&[(
-            r"[\.\s ](?!(on|it))\p{L}{1,2}\.[\s ]",
-            r"[\p{N}\p{Ll}]",
-            false,
-        )]);
+        let rules = rules_for(&[(ABBREVIATION.0, ABBREVIATION.1, false)]);
         let filler = "\u{201c}She walked to the door\u{2026}\u{201d} he said\u{2014}then left. "
             .repeat(30_000);
         let text = format!("{filler}Wait 2 hr. or so");
-        let Matcher::Fancy(regex) = &rules.rules[0].regex else {
-            panic!("look-around rule must compile with fancy-regex");
-        };
 
-        let found = regex
-            .captures_from_pos(&text, 0)
-            .expect("a long scan must not hit the backtrack limit")
-            .and_then(|captures| captures.get(0))
-            .map(|found| found.start());
-
-        assert_eq!(found, Some(filler.len() + "Wait 2".len()));
         assert_eq!(
             rules.rules[0].match_indices(&text),
             vec![filler.len() + "Wait 2 hr. ".len()]
@@ -603,17 +715,23 @@ mod tests {
     }
 
     #[test]
-    fn look_around_rule_errors_stop_the_scan() {
-        let regex_str = rule_pattern(r"\s(?!(on|it))\p{L}{1,2}\.\s", r"\p{Ll}");
+    fn look_around_rule_errors_skip_only_their_position() {
+        let regex_str = rule_pattern(r"(?:a+a+a+b|x)(?!z)", r"\s");
         let regex = fancy_regex::RegexBuilder::new(&regex_str)
-            .backtrack_limit(1)
+            .backtrack_limit(100)
             .build()
             .expect("test rule is valid");
-        let mut rule = Rule::from_pattern(regex_str, false).expect("test rule is valid");
-        rule.regex = Matcher::Fancy(Arc::new(regex));
-        let text = "\u{201c}Wait\u{2026}\u{201d} she said\u{2014}2 hr. or so. ".repeat(200);
+        let mut rule = Rule::from_pattern(regex_str, true).expect("test rule is valid");
+        rule.regex = Matcher::Fancy {
+            regex: Arc::new(regex.clone()),
+            candidates: None,
+        };
+        let text = "\u{201c}aaaaaaaaaaaaaaaaaaaaaaaac\u{201d} x \u{2014} xz x\u{2026} x ";
+        let expected: Vec<usize> = text.match_indices("x ").map(|(i, _)| i + 1).collect();
 
-        assert_eq!(rule.match_indices(&text), Vec::<usize>::new());
+        assert!(regex.captures_from_pos(text, 0).is_err());
+        assert_eq!(expected.len(), 2);
+        assert_eq!(rule.match_indices(text), expected);
     }
 
     #[test]

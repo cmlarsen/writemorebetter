@@ -38,7 +38,7 @@ rayon = "1.5"
 
 # regex backends
 onig = { version = "6.1", default_features = false, optional = true }
-fancy-regex = { version = "0.5", optional = true }
+fancy-regex = { version = "0.19", optional = true }
 
 # needed for the bin targets
 clap = { version = "3.2", features = ["derive"], optional = true }

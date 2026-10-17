@@ -264,6 +264,29 @@ flags, an M7 profile question), quotes opened straight and closed curly (4, real
 space before a comma the truth set does not list (fitz3:95; candidate addition). Uppercase sentence start
 raised nothing on the drafts.
 
+## fancy-regex's backtrack limit on long inputs (#279)
+
+fancy-regex counts backtracks across a whole unanchored search, at least one per character tried, and
+returns `BacktrackLimitExceeded` after its default 1,000,000. So any search that has to cross a long
+stretch without a match fails, even for a pattern that does constant work per position.
+
+- **SRX (sentence segmentation).** The one English look-around rule (the abbreviation no-break rule) rarely
+  matches in fiction. On 7 of 210 published novels it failed at every position past a ~865K-character
+  match-free stretch, and the old retry-one-character-later loop made each of those books take 70–100
+  minutes. srx now searches a look-around-free superset of the pattern with regex-automata and confirms
+  each candidate with an anchored fancy-regex match, so the backtracking VM never scans the text.
+- **nlprule's `regex-fancy` backend (WASM).** Rule regexes only see tokens, POS tags, or one sentence.
+  Run over all 210 novels (43.6M characters) with the fancy backend, no regex call hit the limit. The
+  longest paragraph in that corpus is 3,768 characters. With sentence-ending punctuation and line breaks
+  stripped, so a whole novel becomes one "sentence", the first failure appears between 250K and 275K
+  characters (the URL join regex), then a currency rule at ~400K and a place-name rule at ~800K. The English
+  segmenter breaks only on blank lines, so a block of pasted non-prose with no `.` `!` `;` `…` can get there.
+  On `BacktrackLimitExceeded` the wrapper now retries that one call with a limit of 1M + 100 per byte of
+  input, and iterators resume after the matches they already returned, so long inputs match like
+  Oniguruma while a runaway pattern stays bounded. The common path is unchanged.
+- **Not done:** running every hard pattern through a candidate search, as srx does. It would add work to
+  every call to fix inputs no fiction produces.
+
 ## Open questions
 
 - Whether `fancy-regex` handles enough of LT's translated regexes for the WASM build.
