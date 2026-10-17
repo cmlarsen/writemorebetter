@@ -364,6 +364,37 @@ example on the six public files plus the pinned books’ chapter files. Count el
 `groups.narration.senseWords >= 20`; top share is the maximum modality count divided by that count,
 without rounding before threshold comparison. The before probe was built and retained before edits.
 
+### Published-fiction bands (2026-10-16)
+
+The owner-only `tier3 --flag-rates` run measured sensory balance with default options on the
+published-fiction export (`cmlarsen/fiction-baseline` at b464cac, 210 units, 71 authors, 1,559
+chapter windows targeting 2,000–6,000 words, closed after reaching 6,000 or at a scene break past
+3,000, short tails merged; aggregate numbers only). Each modality's share is its count ÷
+the mode's sense words × 100, measured only where that mode has at least `minimumSenseWords` (20)
+sense words, which 99.6% of narration windows and 54.0% of dialogue windows meet (56 of 71 authors
+contribute dialogue). Windows are weighted so every author counts equally. p5 / median / p95:
+
+| Measure | All | Narration | Dialogue |
+|---|---|---|---|
+| Sense words per 1,000 words | 19.70 / 33.80 / 58.46 | 23.37 / 39.19 / 63.16 | 4.56 / 18.39 / 49.22 |
+| Sight % | 39.25 / 57.01 / 71.69 | 40.43 / 57.26 / 72.84 | 30.72 / 52.27 / 80.00 |
+| Sound % | 8.72 / 18.14 / 33.08 | 8.59 / 18.58 / 34.04 | 2.62 / 13.64 / 40.00 |
+| Touch % | 4.46 / 8.91 / 17.04 | 4.17 / 9.25 / 17.39 | 0 / 6.92 / 19.13 |
+| Smell % | 0 / 0.89 / 3.27 | 0 / 0.82 / 3.56 | 0 / 0 / 5.72 |
+| Taste % | 0 / 2.68 / 10.01 | 0 / 2.20 / 8.75 | 0 / 3.64 / 25.00 |
+| Interoception % | 3.95 / 10.09 / 19.26 | 3.46 / 9.04 / 17.81 | 1.69 / 13.64 / 37.72 |
+
+The full percentile sets, manuscript-scale distributions and provenance are in
+[`bench/style/published-bands-transitions-pronouns-sensory.json`](../bench/style/published-bands-transitions-pronouns-sensory.json).
+The report takes no baseline argument, so these bands are a reference only and the sensory
+defaults are unchanged. They confirm the #282 removal of `singleSense`: the published narration
+p95 for sight is 72.84%, so the former 85% flag would almost never fire on published chapters,
+while a lower threshold would flag the top twentieth of published authors' chapters for a share
+that mostly measures setting nouns. A future per-mode comparison would compare a chapter's
+modality shares and density with these bands; dialogue bands rest on fewer, smaller samples and
+are wide. Chapter windows are not the report's own scenes, so a scene-level band would need
+its own run.
+
 ## Diction
 
 The Brysbaert, Warriner & Kuperman concreteness ratings are CC BY-NC-ND and are not vendored or used

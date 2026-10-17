@@ -81,7 +81,7 @@ fn appending_qualifying_paragraphs_keeps_a_run() {
     let sum = |f: fn(&pacing::PacingParagraph) -> usize| r.paragraphs.iter().map(f).sum::<usize>();
     let verbs = sum(|p| p.signals.verb_phrases) as f64;
     assert!(100.0 * (sum(|p| p.signals.past_perfect) as f64) / verbs < 20.0);
-    assert!(sum(|p| p.signals.words.all) as f64 / (sum(|p| p.signals.sentences) as f64) < 18.0);
+    assert!(sum(|p| p.signals.words.all) as f64 / (sum(|p| p.signals.sentences) as f64) < 15.0);
 }
 
 #[test]

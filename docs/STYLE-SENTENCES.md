@@ -68,7 +68,8 @@ the bundled file's `baseline` member.
 The bundled files preserve the exact owner-supplied `source` block and all seven calibration
 percentiles under `calibration`. Runtime bands use p5 and p95 separately for all/narration/dialogue;
 reference deltas subtract each measure's author-weighted mean. The calibration uses #270 at `273e7b5`,
-1,559 chapter windows of 2,000–6,000 words from 210 units and 71 author units, with equal author
+1,559 chapter windows (target 2,000–6,000 words: closed after reaching 6,000 or at a scene break
+past 3,000, short tails merged) from 210 units and 71 author units, with equal author
 weights. Eligible length/start samples are 1,515 all, 980 narration and 614 dialogue. Calibration
 predates this PR's segmentation refinements; provenance records that version rather than claiming
 a fresh corpus run. No private corpus was accessed for this integration.

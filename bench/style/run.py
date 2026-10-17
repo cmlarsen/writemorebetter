@@ -52,6 +52,7 @@ def main():
     three.add_argument('--sentence-length', action='store_true')
     three.add_argument('--flag-rates', action='store_true')
     three.add_argument('--diction-table', type=Path)
+    three.add_argument('--skip-diction', action='store_true')
     three.add_argument('--probe', type=Path)
     three.add_argument('--document-probe', type=Path)
     three.add_argument('--export', type=Path)

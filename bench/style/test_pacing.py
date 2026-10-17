@@ -9,12 +9,18 @@ import pacing
 
 
 class FakeProbe:
-    def report(self, text):
+    def report(self, text, sweep=None):
         dialogue = text.startswith('“')
         slow = 'remembered' in text
-        return {'words': {'all': 10}, 'slowRuns': [{'paragraphs': {'start': 0, 'end': 1}}] if slow else [],
-                'paragraphs': [{'signals': dict(zip(pacing.SIGNALS,
-                               [100.0 if dialogue else 0.0, 10.0, 50.0 if slow else 0.0, 40.0 if slow else 0.0]))}]}
+        signals = dict(zip(pacing.SIGNALS,
+                           [100.0 if dialogue else 0.0, 10.0, 50.0 if slow else 0.0, 40.0 if slow else 0.0]))
+        signals['words'] = {'all': 10}
+        report = {'words': {'all': 10}, 'slowRuns': [{'paragraphs': {'start': 0, 'end': 1}}] if slow else [],
+                  'paragraphs': [{'signals': signals, 'hasSpeech': dialogue,
+                                  'triggeredSignals': ['pastPerfect', 'cognition'] if slow else []}]}
+        swept = [{'runs': int(slow and options['minimumPastPerfectPercent'] <= 20), 'runParagraphs': int(slow)}
+                 for options in sweep or []]
+        return {'report': report, 'sweep': swept}
 
 
 class PacingTests(unittest.TestCase):
@@ -33,6 +39,13 @@ class PacingTests(unittest.TestCase):
             self.assertEqual(result['authorMeanSignals']['pastPerfectPercent']['mean'], 12.5)
             self.assertEqual(result['authorFlagRates']['runParagraphPercent']['mean'], 25)
             self.assertEqual(result['authorsWithRunsPercent'], 50)
+            self.assertEqual(result['chapter']['flaggedShare'], 0.25)
+            self.assertEqual(result['chapter']['samples'], 3)
+            self.assertEqual(result['sweep']['18']['20']['20']['chapter']['flaggedShare'], 0.25)
+            self.assertEqual(result['sweep']['18']['25']['20']['chapter']['flaggedShare'], 0)
+            self.assertEqual(result['sweep']['18']['20']['20']['authorsWithRunsPercent'], 50)
+            self.assertEqual(result['twoSignalParagraphShare'], 0.25)
+            self.assertEqual(result['eligibleParagraphSignals']['pastPerfectPercent']['mean'], 12.5)
             self.assertNotIn('words', json.dumps(result))
             self.assertNotIn('SECRET', json.dumps(result))
             self.assertTrue(pacing.aggregate_only(result))
@@ -41,11 +54,27 @@ class PacingTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 pacing.calibrate(FakeProbe(), export)
 
+    def test_public_drift_names_texts_whose_runs_or_two_signal_rows_moved(self):
+        recorded = [{'source': 'a', 'runs': 1, 'twoSignalParagraphs': 8, 'words': 10},
+                    {'source': 'b', 'runs': 0, 'twoSignalParagraphs': 3, 'words': 10}]
+        same = [{**row, 'words': 11} for row in recorded]
+        self.assertEqual(pacing.public_drift(same, recorded), [])
+        self.assertEqual(pacing.public_drift([recorded[0], {**recorded[1], 'runs': 1}], recorded), ['b'])
+        self.assertEqual(pacing.public_drift([{**recorded[0], 'twoSignalParagraphs': 7}, recorded[1]], recorded),
+                         ['a'])
+        self.assertEqual(pacing.public_drift(recorded[:1], recorded), ['b'])
+
     def test_output_key_allowlist(self):
         self.assertTrue(pacing.aggregate_only({'authors': 2, 'paragraphSignals': {'mean': None}}))
         self.assertFalse(pacing.aggregate_only({'authorFlagRates': [{'runsPerThousandWords': 1.0}]}))
         self.assertFalse(pacing.aggregate_only({'PRIVATE_SENTINEL': 3}))
         self.assertFalse(pacing.aggregate_only({'words': 'PRIVATE_SENTINEL'}))
+        self.assertTrue(pacing.aggregate_only({'sweep': {'18': {'20': {'20': {'flaggedShare': 0.5}}}}}))
+        self.assertFalse(pacing.aggregate_only({'sweep': {'18': {'PRIVATE_SENTINEL': 1}}}))
+        self.assertFalse(pacing.aggregate_only({'sweep': {'19': {'20': {'20': {'flaggedShare': 0.5}}}}}))
+        self.assertFalse(pacing.aggregate_only({'sweep': {'18': {'20': {'20': {'7': 0.5}}}}}))
+        self.assertFalse(pacing.aggregate_only({'authors': {'2026': 1}}))
+        self.assertTrue(pacing.aggregate_only({'chapter': {'runsPerThousandWords': {'percentiles': {'90': 1.0}}}}))
 
     def test_private_errors_are_suppressed(self):
         command = [sys.executable, str(pacing.ROOT / 'bench/style/run.py')]

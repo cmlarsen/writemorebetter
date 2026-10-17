@@ -5,9 +5,11 @@ interior reflection. It diagnoses patterns and never generates replacement prose
 place to inspect, not a judgment that the passage should be faster. Reflection and exposition
 are often exactly what a scene needs.
 
-The thresholds are **heuristic and uncalibrated against published contemporary fiction**.
-Only public texts and invented fixtures were used here. Published-fiction calibration is private
-and owner-run; there is no shipped baseline or population comparison.
+The thresholds were set on 2026-10-16 from an owner-run, aggregate-only calibration on published
+fiction (210 units, 71 authors) plus spot judgments on public texts; see
+[published-fiction calibration](#published-fiction-calibration-2026-10-16). There is still no shipped
+baseline or population comparison, and no labeled published passages: the published data fix how
+often the lens fires, not whether a flagged passage is worth inspecting.
 
 ```rust
 use writemorebetter_style::reports::pacing::{report, PacingOptions};
@@ -102,9 +104,9 @@ return `Result<_, StyleError>`; compact documents return `needsTokenDetails`.
 |---|---|---|
 | `minimumParagraphs` | 3 | inclusive run length; positive |
 | `moreThanWords` | 400 | strict alternative word cutoff; 400 alone does not qualify |
-| `minimumSentenceLength` | 18 | inclusive average words per sentence; finite, nonnegative |
+| `minimumSentenceLength` | 15 | inclusive average words per sentence; finite, nonnegative |
 | `minimumPastPerfectPercent` | 20 | inclusive share of approximate verb phrases; 0–100 |
-| `minimumCognitionPercent` | 20 | inclusive share of approximate verb phrases; 0–100 |
+| `minimumCognitionPercent` | 15 | inclusive share of approximate verb phrases; 0–100 |
 
 No action detector is claimed. Short, rapid clauses often avoid the long-sentence signal, but
 long action with cognitive verbs can still flag; past perfect can describe immediate action,
@@ -127,28 +129,31 @@ distributions and a separate ignored review artifact. The first tier 2 exact-spa
 in `bench/style/pacing-baseline.json`; it measures regression agreement on injected fixtures,
 not held-out literary precision or recall.
 
-### First baseline (2026-10-16)
+### Public baseline (2026-10-16)
 
-51,987 counted word tokens across 1,207 paragraphs; 128 paragraphs meet two thresholds on their
-own, but defaults report only one sustained run. All four Standard Ebooks chapters and the full Moby excerpt have zero
-runs. The first chapter of each is fetched at benchmark time; no downloaded text is committed.
+51,987 counted word tokens across 1,207 paragraphs; at the calibrated 15 / 20 / 15 defaults 148
+paragraphs meet two thresholds on their own (128 at the previous 18 / 20 / 20), but the defaults
+report only two sustained runs: story1's job-offer recollection and the Styles family history.
+The other Standard Ebooks chapters and the full Moby excerpt have zero runs. The first chapter of
+each is fetched at benchmark time; no downloaded text is committed.
 Full signal means/percentiles, options, sweep counts and judgment metadata are recorded in
 [`pacing-baseline.json`](../bench/style/pacing-baseline.json).
 
 | Input | Words | Paragraphs | Two-signal rows | Paragraphs in runs | Runs |
 |---|---:|---:|---:|---:|---:|
-| story1 | 2,209 | 96 | 25 | 4 | 1 |
-| story2 | 2,038 | 96 | 16 | 0 | 0 |
-| story3 | 2,008 | 96 | 19 | 0 | 0 |
-| story4 | 2,175 | 93 | 21 | 0 | 0 |
-| story5 | 1,856 | 86 | 21 | 0 | 0 |
-| moby150k (hard-wrapped) | 25,002 | 315 | 9 | 0 | 0 |
-| The Mysterious Affair at Styles, ch. 1 | 4,161 | 157 | 4 | 0 | 0 |
-| The Great Gatsby, ch. 1 | 6,067 | 152 | 7 | 0 | 0 |
+| story1 | 2,209 | 96 | 28 | 4 | 1 |
+| story2 | 2,038 | 96 | 18 | 0 | 0 |
+| story3 | 2,008 | 96 | 20 | 0 | 0 |
+| story4 | 2,175 | 93 | 23 | 0 | 0 |
+| story5 | 1,856 | 86 | 26 | 0 | 0 |
+| moby150k (hard-wrapped) | 25,002 | 315 | 10 | 0 | 0 |
+| The Mysterious Affair at Styles, ch. 1 | 4,161 | 157 | 8 | 3 | 1 |
+| The Great Gatsby, ch. 1 | 6,067 | 152 | 9 | 0 | 0 |
 | The Sign of the Four, ch. 1 | 2,949 | 56 | 3 | 0 | 0 |
 | Anne of Avonlea, ch. 1 | 3,522 | 60 | 3 | 0 | 0 |
 
-These numbers follow the PR #284 review fixes. Before them, the verb-head rule admitted particles,
+The previous defaults gave 25 / 16 / 19 / 21 / 21 / 9 / 4 / 7 / 3 / 3 two-signal rows and only
+story1's run. These numbers follow the PR #284 review fixes. Before them, the verb-head rule admitted particles,
 adverbs and adjectives with a lexical `VB` reading (7.9% of counted verb tokens in story1–5), which
 diluted both verb shares: 116 two-signal rows, the same single default run, and 7 / 5 / 2 runs in
 the first three sweep rows below.
@@ -160,7 +165,10 @@ Public-only threshold sweep (`python3 bench/style/pacing.py --sweep`):
 | 15 / 10 / 10 | 8 | 4 / 4 / 0 |
 | 20 / 10 / 10 | 6 | 2 / 4 / 0 |
 | 20 / 15 / 15 | 2 | 0 / 2 / 0 |
-| **18 / 20 / 20 (defaults)** | **1** | **1 / 0 / 0** |
+| 18 / 15 / 20 | 4 | 2 / 1 / 0, plus 1 borderline |
+| 18 / 20 / 20 (previous defaults) | 1 | 1 / 0 / 0 |
+| 18 / 20 / 15 | 1 | 1 / 0 / 0 (the same run) |
+| **15 / 20 / 15 (defaults)** | **2** | **2 / 0 / 0** |
 | 25 / 30 / 30 | 0 | no flags to judge |
 
 The implementer spot-judged every loose-setting stretch and the default run as a
@@ -172,25 +180,71 @@ recollection of a past job offer (paragraphs 79–82, zero-based), the Styles fa
 Gatsby's Buchanan background/portrait and, borderline, Moby's introduction of Father Mapple (his
 sailor past, then the pulpit's description). Four other story1/story4 stretches were scene/setup
 noise. The 20 / 10 / 10 and 20 / 15 / 15 runs are subsets or trimmed variants of those stretches
-and inherit their labels. The defaults retain only the job-offer recollection. They miss the
-Styles, Gatsby and Moby blocks: deliberate conservatism trades recall for fewer interruptions. There was no blind or
-independent adjudication, the sample is small and historically skewed, and these thresholds
-remain uncalibrated against modern published fiction. Raising the length threshold alone lost
-the clearest backstory block; raising the verb shares removed current-scene noise instead.
+and inherit their labels. The previous defaults retained only the job-offer recollection. The
+15 / 20 / 15 defaults add the Styles family-history block (paragraphs 8–10, the useful loose run
+trimmed by one paragraph) and no noise; they still miss the Gatsby and Moby blocks. At 18 / 15 / 20
+the same Styles block appears with story1's current-scene pier walk (paragraphs 65–69, noise) and its
+opening situation (22–24, borderline): loosening past perfect admits in-scene business. There was
+no blind or independent adjudication and the public sample is small and historically skewed.
+Raising the length threshold alone lost the clearest backstory block; raising the verb shares
+removed current-scene noise instead.
 
-## Owner-run calibration
+## Published-fiction calibration (2026-10-16)
 
 ```sh
 python3 bench/style/run.py tier3 --pacing --self-test
-# Owner only, later:
-python3 bench/style/run.py tier3 --pacing --export /approved/export
+python3 bench/style/run.py tier3 --pacing --export /approved/export   # owner only
 ```
 
-The script is a calibration entry point without a published-fiction baseline. It pools units by
-`author_key` and prints only aggregates: the pooled per-paragraph signal distributions, the
-distribution of author signal means, the distribution of per-author flag rates (share of
-paragraphs inside runs, runs per thousand words), and the share of authors with any run. It
-prints no per-author rows or exact word totals. It never emits text or source
-metadata. The synthetic self-test checks pooling and metadata suppression. No private corpus,
-export, title or author record was accessed to implement or test this report. See the
-[benchmark README](../bench/style/README.md#pacing-251) for export layout, weighting and gates.
+The owner-only run pools units by `author_key` and prints only aggregates: the pooled
+per-paragraph signal distributions, the distribution of author signal means, per-author flag rates
+and the share of authors with any run, as before; plus author-weighted percentiles of each signal
+over **eligible paragraphs** (no speech, at least one counted word), the same chapter windows as
+`--flag-rates` (scene-break split, target 2,000–6,000 words: closed after reaching 6,000 or at a
+scene break past 3,000, short tails merged; each window weighted 1 / its author's
+windows), and a 125-setting sweep (length 15/18/20/22/25 × past perfect 10/15/20/25/30 × cognition
+10/15/20/25/30, with `minimumParagraphs` 3 and `moreThanWords` 400 fixed). The probe builds each
+document once and reruns the report per setting. It prints no text, titles, identifiers, author
+keys or per-author rows. The aggregate, with provenance, is the `published` block of
+[`pacing-baseline.json`](../bench/style/pacing-baseline.json).
+
+Input: `cmlarsen/fiction-baseline` at b464cac (EXTRACTOR_VERSION 1), 210 units, 71 authors, 1,559
+chapter windows, 91,391 eligible paragraphs (85,747 with a verb phrase); 14.5 minutes.
+
+| Eligible-paragraph signal | p25 | Median | p75 | p90 | p95 |
+|---|---:|---:|---:|---:|---:|
+| Mean sentence length (words) | 9.50 | 14.50 | 20.00 | 26.00 | 31.00 |
+| Past perfect % | 0 | 0 | 7.69 | 20.00 | 28.57 |
+| Cognition % | 0 | 0 | 5.88 | 14.29 | 22.22 |
+
+The previous 18 / 20 / 20 sat at uneven points of these distributions: length near the 66th
+percentile, past perfect at the 90th, cognition near the 93rd. At those thresholds 6.6% of
+eligible published paragraphs met two signals, but runs appeared in only **3.4%** of chapter
+windows and 32.4% of authors' books; per-author runs per 1,000 words had a median of 0 and a p95 of
+0.037.
+
+| Length / past perfect / cognition | Chapter windows with a run | Authors with a run | Chapter runs per 1,000 words, p95 |
+|---|---:|---:|---:|
+| 15 / 10 / 10 | 34.7% | 78.9% | 0.49 |
+| 15 / 15 / 15 | 14.4% | 62.0% | 0.28 |
+| 18 / 15 / 20 | 5.3% | 42.3% | 0.14 |
+| 18 / 20 / 15 | 7.1% | 38.0% | 0.16 |
+| 18 / 20 / 20 (previous) | 3.4% | 32.4% | 0 |
+| 15 / 20 / 20 | 5.6% | 42.3% | 0.16 |
+| **15 / 20 / 15 (defaults)** | **9.6%** | **47.9%** | **0.16** |
+| 20 / 20 / 20 | 2.7% | 25.4% | 0 |
+| 25 / 30 / 30 | 0.1% | 2.8% | 0 |
+
+Every setting's chapter median is 0 runs; the full grid, with author p5/p50/p95 rates and run
+paragraph shares, is in the baseline file.
+
+**Decision (2026-10-16): defaults 15 / 20 / 15.** Cognition moves to its published p90 (14.3,
+rounded to 15) so both verb shares sit at the same published rarity; past perfect stays at its p90
+(20) because loosening it is what added in-scene noise in every public sweep. Length moves to the
+published median paragraph (14.5, rounded to 15). Length alone never qualifies a paragraph, so a run
+still needs a verb share in the published top tenth plus above-median sentences, or both verb shares
+in the top tenth. Published chapter windows with a run rise from 3.4% to 9.6% (about one chapter in
+ten), and the public sample gains one judged-useful block and no noise. The evidence is the
+published flag rate and four public runs; no published passage was read or labeled, so the
+defaults remain a lens setting, not a measured precision. `minimumParagraphs` and `moreThanWords`
+were not swept.
