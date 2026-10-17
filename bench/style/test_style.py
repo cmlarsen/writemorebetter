@@ -125,6 +125,57 @@ class BenchTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, 'manifest'):
                     tier1.score_litbank('test', probe)
 
+    def test_quoteli3_chapters_score_both_offsets_per_chapter(self):
+        full = ('<?xml version="1.0" encoding="utf-8"?><doc><characters/><text>CHAPTER I (1)\n\n'
+                '😀 <quote speaker="a">“She’s—here…\u2028yes.”</quote> said <mention>Ann</mention>.\n\n'
+                '__\nVOLUME IICHAPTER II (2)\n\n<quote>"No."</quote> Done.</text></doc>')
+        held = ('<?xml version="1.0" encoding="utf-8"?><doc><text><chapter>\n\nCHAPTER III (3)\n\n'
+                '<quote>"Wait"</quote></chapter></text></doc>')
+
+        class Probe:
+            def dialogue(self, documents):
+                self.documents = documents
+                return self.predictions
+
+        probe = Probe()
+        with tempfile.TemporaryDirectory() as directory:
+            here = Path(directory)
+            (here / 'splits.json').write_text(json.dumps({'quoteli3': {'test': ['pp-01', 'pp-03']}}))
+            paths = {'quoteli3_pp_full': here / 'full.xml', 'quoteli3_pp_test': here / 'test.xml'}
+            paths['quoteli3_pp_full'].write_text(full, encoding='utf-8')
+            paths['quoteli3_pp_test'].write_text(held, encoding='utf-8')
+            chapters = tier1.quoteli3_chapters(paths['quoteli3_pp_full'])
+            self.assertEqual(sorted(chapters), ['pp-01', 'pp-02'])
+            first, spans = chapters['pp-01']
+            self.assertTrue(first.endswith('VOLUME II'))
+            self.assertEqual([first[a:b] for a, b in spans], ['“She’s—here…\u2028yes.”'])
+            self.assertEqual(chapters['pp-02'][1], [(16, 21)])
+            start, end = spans[0]
+            records = [{'file': 'pp-01', 'pattern': 'dialogue', **common.offsets(first, start, end)},
+                       {'file': 'pp-03', 'pattern': 'dialogue', 'byte': {'start': 17, 'end': 23},
+                        'utf16': {'start': 17, 'end': 23}}]
+            self.assertEqual(records[0]['byte'], {'start': 20, 'end': 50})
+            self.assertEqual(records[0]['utf16'], {'start': 18, 'end': 36})
+            with patch.object(tier1, 'HERE', here), patch.object(tier1, 'fetch', side_effect=paths.get):
+                probe.predictions = records
+                self.assertEqual(tier1.score_quoteli3('test', probe)['f1'], 1)
+                self.assertEqual([row['file'] for row in probe.documents], ['pp-01', 'pp-03'])
+                wrong = copy.deepcopy(records[0])
+                wrong['utf16']['end'] += 1
+                probe.predictions = [wrong, records[1]]
+                self.assertEqual(tier1.score_quoteli3('test', probe)['true_positive'], 1)
+                probe.predictions = [{**records[0], 'file': 'pp-02'}]
+                with self.assertRaisesRegex(ValueError, 'manifest'):
+                    tier1.score_quoteli3('test', probe)
+            paths['quoteli3_pp_test'].write_text(full.replace('CHAPTER II (2)', 'CHAPTER III (3)'), encoding='utf-8')
+            with patch.object(tier1, 'HERE', here), patch.object(tier1, 'fetch', side_effect=paths.get):
+                with self.assertRaisesRegex(ValueError, 'duplicate'):
+                    tier1.score_quoteli3('test', probe)
+            stray = here / 'stray.xml'
+            stray.write_text('<doc><text><quote>"Early"</quote> CHAPTER I (1)</text></doc>', encoding='utf-8')
+            with self.assertRaisesRegex(ValueError, 'outside'):
+                tier1.quoteli3_chapters(stray)
+
     def test_unicode_offsets_and_detector(self):
         text = '😀 “She’s—quiet…\u2028very very.”'
         rows = toy_detector('test', text)
@@ -200,6 +251,8 @@ class BenchTests(unittest.TestCase):
         splits = json.loads((common.HERE / 'splits.json').read_text())['litbank']
         self.assertFalse(set(splits['dev']) & set(splits['test']))
         self.assertEqual(len(splits['dev']) + len(splits['test']), 100)
+        quoteli3 = json.loads((common.HERE / 'splits.json').read_text())['quoteli3']
+        self.assertEqual(sorted(quoteli3['dev'] + quoteli3['test']), ['pp-%02d' % i for i in range(1, 62)])
         self.assertEqual(PENN['IN'], 'ADP')
         self.assertEqual(PENN['VBG'], 'VERB')
         self.assertEqual(PENN['TO'], 'PRT')
@@ -290,6 +343,7 @@ class BenchTests(unittest.TestCase):
             here = Path(directory)
             (here / 'tier1-baseline.json').write_text(json.dumps(baseline))
             with patch.object(tier1, 'HERE', here), patch.object(tier1, 'score_litbank', return_value={}), \
+                    patch.object(tier1, 'score_quoteli3', return_value={}), \
                     contextlib.redirect_stdout(io.StringIO()):
                 with patch.object(tier1, 'score_ewt', return_value=ewt):
                     tier1.run(None, 'test', gate=True)
