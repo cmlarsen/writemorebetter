@@ -180,11 +180,112 @@ the clearest backstory block; raising the verb shares removed current-scene nois
 
 ### Hand-label set (#256)
 
-A blind label set for the spot judgments above is in preparation: 305 paragraphs in 40 public-domain
-passages, stratified on the report's default and loose flags, with
-[labeler guidelines](../bench/style/labels/PACING-GUIDELINES.md) and merge/kappa/scoring tooling.
-No labels exist yet; until a consensus is committed, the judgments above remain the only evaluation.
-See the [benchmark README](../bench/style/README.md#pacing-hand-label-set-256).
+Five models labeled 305 paragraphs in 40 public-domain passages independently and blind on
+2026-10-16: DeepSeek V4 Pro, Muse Spark 1.3, Codex gpt-6.1-sol, Claude Opus 5.5 and Claude Fable 5.1.
+The passages are stratified on the report's default and loose flags (14 around a reported run, 13
+near-misses, 13 ordinary). Each labeler saw only the packet: numbered passage text, a blank template
+and the [labeler guidelines](../bench/style/labels/PACING-GUIDELINES.md). A 5-way majority per
+paragraph is the consensus; no slow ties are possible. It marks 59 paragraphs slow, in 15 stretches
+across 13 passages (35 of 104 paragraphs in flagged passages, 20 of 102 in near-misses and 4 of 99 in
+ordinary ones). Tooling, label files and provenance are in the
+[benchmark README](../bench/style/README.md#pacing-hand-label-set-256).
+
+| Agreement | Value |
+|---|---:|
+| Fleiss' κ, `slow` | 0.712 |
+| Fleiss' κ, `kind` | 0.805 |
+| Fleiss' κ, passage has any stretch | 0.740 |
+| Pairwise Cohen's κ, `slow` (min / mean / max) | 0.612 / 0.713 / 0.841 |
+| Pairwise Cohen's κ, `kind` (min / mean / max) | 0.748 / 0.805 / 0.890 |
+| `slow` vote splits 5–0 / 4–1 / 3–2 | 248 / 32 / 25 (8.2% decided 3–2) |
+| Mean pairwise Jaccard of a passage's slow paragraphs | 0.831 |
+| `kind` plurality ties | 8 |
+
+Pairwise Cohen's κ, `slow` / `kind`:
+
+| | claude-fable | claude-opus | codex-sol | deepseek | muse |
+|---|---:|---:|---:|---:|---:|
+| claude-fable | — | 0.84 / 0.89 | 0.76 / 0.81 | 0.66 / 0.82 | 0.73 / 0.82 |
+| claude-opus | 0.84 / 0.89 | — | 0.69 / 0.83 | 0.61 / 0.79 | 0.62 / 0.81 |
+| codex-sol | 0.76 / 0.81 | 0.69 / 0.83 | — | 0.64 / 0.76 | 0.72 / 0.77 |
+| deepseek | 0.66 / 0.82 | 0.61 / 0.79 | 0.64 / 0.76 | — | 0.84 / 0.75 |
+| muse | 0.73 / 0.82 | 0.62 / 0.81 | 0.72 / 0.77 | 0.84 / 0.75 | — |
+
+No labeler is an outlier. The lowest mean pairwise `slow` κ (DeepSeek, 0.69) is 0.03 below the
+median of the others, against a 0.1 flag margin. The labelers split into two pairs by strictness: the
+Claude models mark 72–76 paragraphs slow and agree with each other at κ 0.84, while DeepSeek and
+Muse mark 48–49 and also agree at κ 0.84; Codex (56) sits between. Agreement is lowest on
+p21, p10, p15, p40, p31 and p29 (pairwise stretch Jaccard 0.32–0.40), which are the habitual-summary,
+recap and opening-exposition passages the labelers reported as ambiguous.
+
+To put the report's numbers next to human-like agreement, each labeler is scored against the strict
+majority of the other four (2–2 ties excluded at paragraph level), and the report against the same
+five leave-one-out majorities:
+
+| Labeler vs the other four | Slow ¶ | Paragraph P / R / F1 | Run any-overlap F1 |
+|---|---:|---|---:|
+| claude-fable | 72 | 0.79 / 1.00 / 0.88 | 0.77 |
+| claude-opus | 76 | 0.68 / 0.92 / 0.78 | 0.76 |
+| codex-sol | 56 | 0.91 / 0.86 / 0.88 | 0.87 |
+| deepseek | 49 | 0.90 / 0.74 / 0.81 | 0.81 |
+| muse | 48 | 0.98 / 0.79 / 0.88 | 0.89 |
+| **mean of labelers** | | **F1 0.85** | **0.82** |
+| report at defaults (mean over the same five majorities) | 11 | F1 0.26 | 0.35 |
+
+#### Report accuracy at defaults
+
+Against the five-labeler consensus the defaults (18 / 20 / 20, three paragraphs) flag 11 paragraphs,
+8 of them slow: paragraph precision 0.73, recall 0.14, F1 0.23. Run level, 3 of 4 reported runs
+overlap a consensus stretch and 3 of 15 stretches are found (any-overlap P / R / F1 0.75 / 0.20 /
+0.32; IoU ≥ 0.5 F1 0.21). The report is precise and misses most of what readers call slow; its F1 is
+about a quarter of the labelers' mutual F1. These numbers are the CI baseline
+(`bench/style/pacing-labels-baseline.json`).
+
+#### Threshold sweep
+
+`python3 bench/style/pacing_labels.py sweep` scores 350 settings (mean sentence length
+0/10/12/15/18/20/25, past perfect and cognition 5/10/15/20/30 %, minimum paragraphs 2/3; the
+400-word alternative is unchanged). Full results are in
+[`pacing-labels-sweep.json`](../bench/style/pacing-labels-sweep.json). The named settings and the top
+of the grid, by paragraph F1 against the consensus:
+
+| Length / past perfect % / cognition % / min ¶ | Paragraph P / R / F1 | Predicted ¶ | Run any-overlap P / R / F1 | Run IoU ≥ 0.5 F1 | Mean ¶ F1 vs leave-one-out majorities |
+|---|---|---:|---|---:|---:|
+| **10 or 12 / 20 / 5 / 3 (best)** | **0.62 / 0.44 / 0.51** | 42 | 0.67 / 0.53 / 0.59 | 0.44 | 0.57 |
+| 0 / 20 / 5 / 3 (length signal off) | 0.58 / 0.44 / 0.50 | 45 | 0.62 / 0.53 / 0.57 | 0.43 | 0.55 |
+| 10 or 12 / 15 / 10 / 3 | 0.63 / 0.41 / 0.49 | 38 | 0.64 / 0.47 / 0.54 | 0.46 | 0.55 |
+| 10 or 12 / 15 / 5 / 3 | 0.55 / 0.44 / 0.49 | 47 | 0.62 / 0.53 / 0.57 | 0.43 | 0.54 |
+| 0, 10 or 12 / 15 / 20 or 30 / 3 | 0.78 / 0.36 / 0.49 | 27 | 0.86 / 0.40 / 0.55 | 0.45 | 0.54 |
+| 18 / 20 / 5 / 3 | 0.69 / 0.34 / 0.45 | 29 | 0.75 / 0.40 / 0.52 | 0.43 | 0.51 |
+| 15 / 10 / 10 / 3 (loose) | 0.42 / 0.37 / 0.40 | 52 | 0.40 / 0.47 / 0.43 | 0.27 | 0.43 |
+| 12 / 20 / 20 / 3 | 0.80 / 0.20 / 0.32 | 15 | 0.80 / 0.27 / 0.40 | 0.30 | 0.36 |
+| 15 / 20 / 15 / 3 (PR #291) | 0.65 / 0.19 / 0.29 | 17 | 0.67 / 0.27 / 0.38 | 0.29 | 0.32 |
+| 20 / 10 / 10 / 3 | 0.46 / 0.19 / 0.27 | 24 | 0.57 / 0.33 / 0.42 | 0.09 | 0.30 |
+| **18 / 20 / 20 / 3 (defaults)** | **0.73 / 0.14 / 0.23** | 11 | 0.75 / 0.20 / 0.32 | 0.21 | 0.26 |
+| 20 / 15 / 15 / 3 | 0.50 / 0.10 / 0.17 | 12 | 0.75 / 0.20 / 0.32 | 0.11 | 0.19 |
+| 25 / 30 / 30 / 3 | 0.00 / 0.00 / 0.00 | 2 | 0.00 / 0.00 / 0.00 | 0.00 | 0.00 |
+
+Paragraph F1 peaks at 0.51 with mean sentence length 10 or 12 (identical predictions), past perfect
+20 % and cognition 5 %, three paragraphs. The best run-level any-overlap F1 is 0.60 at 25 / 5 / 5 /
+2, which reaches it with long runs (paragraph F1 0.41). The optimum is flat: 149 of 350 settings reach
+paragraph F1 ≥ 0.40, and with 59 positive paragraphs the top dozen are within noise of each other.
+Two levers matter. Lowering cognition to 5 % alone lifts F1 from 0.23 to 0.45 (18 / 20 / 5);
+lowering mean sentence length below 15 adds a little more, and turning it off costs only 0.01. The
+length threshold mostly removes true slow paragraphs here. Allowing two-paragraph runs gains
+recall but loses more precision; the best such setting reaches 0.47.
+
+PR #291 proposes 15 / 20 / 15 from published-fiction flag frequency. On these labels it adds 6
+predicted paragraphs, 3 of them slow: paragraph F1 0.23 → 0.29 and run any-overlap F1 0.32 → 0.38,
+with precision 0.73 → 0.65. A paired bootstrap over passages (4,000 resamples) puts the paragraph F1
+gain's 95% interval at −0.03 to +0.23, so the labels are consistent with the change but do not
+establish an improvement. Neither half moves anything alone: 15 / 20 / 20 and 18 / 20 / 15 predict
+exactly what the defaults do. The best grid setting beats both 18 / 20 / 20 (+0.29, interval +0.07
+to +0.48) and 15 / 20 / 15 (+0.23, interval +0.05 to +0.39).
+
+These labels are model judgments on nineteenth- and early twentieth-century prose plus the five
+invented stories, the sweep tunes on the same 305 paragraphs it reports, and the stratification
+over-represents flagged and near-miss passages. Treat the sweep as direction for the calibration on
+published contemporary fiction, not as a held-out estimate. This PR does not change the defaults.
 
 ## Owner-run calibration
 

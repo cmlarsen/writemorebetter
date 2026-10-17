@@ -93,6 +93,7 @@ jobs:
           python3 bench/style/run.py tier2 pacing --gate --document-probe bench/tools/wmb-document/target/release/pacing
           python3 bench/style/run.py tier3 --pacing --self-test --probe bench/tools/wmb-document/target/release/pacing
           python3 bench/style/pacing_labels.py check
+          python3 bench/style/pacing_labels.py score --gate --probe bench/tools/wmb-document/target/release/pacing
           python3 bench/style/run.py tier2 smoke
           python3 bench/style/transitions_pronouns.py --gate
           python3 bench/style/echoes.py --gate --probe bench/tools/wmb-document/target/release/wmb-echoes

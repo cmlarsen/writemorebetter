@@ -107,10 +107,30 @@ Severity answers *how much would a reader feel the drag?*
   horses* is fast storytelling. Summary of how things have always been is exposition.
 - **Description inside action** (the room as the character bursts into it) is usually not slow.
   A stretch of scenery or portraiture with no event usually is, once it goes on.
-- **Backstory that is the scene's point**, such as a confession or a revelation told to someone who
-  reacts, can be fast. Judge whether the reader is waiting for the story to resume.
 - **Letters, sermons, legends and other embedded texts** are judged the same way: do they move
   the story, or does the story wait for them to end?
+- **Habitual or iterative summary** tells how things usually went (*every evening he walked to
+  the harbor*, *she would sit for hours by the window*) or opens or closes with a general truth
+  about people. Label its kind `exposition`, or `backstory` when it describes a time before the
+  scene. It is not summary that moves time forward unless the situation has changed by the end
+  of the paragraph (*each day the river rose higher, until the bridge went*), which is `action`
+  and `false`. Otherwise judge it by the exposition rule: one or two paragraphs that set up the
+  scene that follows are `false`; more than that, or habitual summary that leads to no scene
+  inside the passage, is `true`. An aphoristic opening or closing paragraph is `false` on its own;
+  next to a slow stretch it joins that stretch, but it never raises the stretch's severity above 2
+  by itself.
+- **Backstory, recap or rereading that is the scene's point** (a confession, a character telling
+  their history to someone who reacts, rereading a letter, working through evidence) is judged
+  paragraph by paragraph. A paragraph is `false` when it gives the reader or a character something
+  new: a revelation, a fact that changes how someone acts, a reversal of judgment, a decision. It
+  is `true` when it repeats, elaborates or dwells on what earlier paragraphs already delivered. A
+  narrator's summary of events the reader has already seen is `true`. A long scene of this kind is
+  often slow in its middle and fast at the turn.
+- **Opening exposition before any scene.** When a passage opens with exposition, description or
+  habitual summary and no scene has started yet, the first two such paragraphs are orientation
+  (`false`) unless one of them is long (about 200 words or more) and digressive. From the third
+  consecutive paragraph without a scene, mark `true`. A passage that is all exposition with no
+  scene is judged the same way: its opening orients, the rest stalls.
 - Be consistent with yourself. When you hesitate, decide, and record your doubt in `note`.
 
 ## Invented examples

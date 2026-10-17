@@ -1,8 +1,9 @@
 """Pacing hand-label set: item selection, labeler packets, validation, consensus and report scoring."""
 import argparse
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor
 import hashlib
-from itertools import combinations
+from itertools import combinations, product
 import json
 from pathlib import Path
 import random
@@ -18,8 +19,11 @@ LABELS = HERE / 'labels'
 ITEMS = LABELS / 'pacing-items.jsonl'
 STRATA = LABELS / 'pacing-strata.json'
 GUIDELINES = LABELS / 'PACING-GUIDELINES.md'
+LABELER_DIR = LABELS / 'pacing'
 CONSENSUS = LABELS / 'pacing-consensus.jsonl'
+AGREEMENT = LABELS / 'pacing-agreement.json'
 BASELINE = HERE / 'pacing-labels-baseline.json'
+SWEEP_RESULTS = HERE / 'pacing-labels-sweep.json'
 PUBLIC = {f'story{n}': f'bench/public/story{n}.txt' for n in range(1, 6)}
 BOOKS = ('pride', 'moby', 'blue_castle', 'ackroyd', 'thirty_nine_steps', 'hound', 'age_of_innocence',
          'silas_marner', 'treasure_island', 'styles_ch1', 'gatsby_ch1', 'sign_ch1', 'avonlea_ch1')
@@ -35,6 +39,9 @@ SWEEP = ({'minimumSentenceLength': 15, 'minimumPastPerfectPercent': 10, 'minimum
          {'minimumSentenceLength': 20, 'minimumPastPerfectPercent': 15, 'minimumCognitionPercent': 15},
          {},
          {'minimumSentenceLength': 25, 'minimumPastPerfectPercent': 30, 'minimumCognitionPercent': 30})
+GRID = {'minimumSentenceLength': (0, 10, 12, 15, 18, 20, 25), 'minimumPastPerfectPercent': (5, 10, 15, 20, 30),
+        'minimumCognitionPercent': (5, 10, 15, 20, 30), 'minimumParagraphs': (2, 3)}
+OUTLIER_MARGIN = 0.1
 STRATA_TARGET = {'flagged': 14, 'near_miss': 13, 'ordinary': 13}
 MAX_PASSAGE_WORDS = 1800
 LOADED = {}
@@ -523,8 +530,55 @@ def merge(labels, items, items_sha=None):
              'kindTies': sum(row['kind'] is None for row in output if row['type'] == 'paragraph'),
              'consensusSlow': sum(row['slow'] is True for row in output if row['type'] == 'paragraph'),
              'meanStretchAgreement': mean(agreements),
-             'unanimousSlow': sum(max(c.values()) == len(names) for c in slow_counts)}
+             'passageStretchAgreement': dict(zip(passages(items), agreements)),
+             'unanimousSlow': sum(max(c.values()) == len(names) for c in slow_counts),
+             'slowVoteSplits': vote_splits(slow_counts, len(names)),
+             'slowNarrowMajority': narrow_majority(slow_counts, len(names)),
+             'perLabeler': per_labeler(names, slow_by, kind_by, slow_counts)}
+    stats['outlier'] = outlier(stats['perLabeler'])
     return output, stats
+
+
+def vote_splits(counts, total):
+    splits = Counter(f'{max(c.values())}-{total - max(c.values())}' for c in counts)
+    return dict(sorted(splits.items(), key=lambda pair: -int(pair[0].split('-')[0])))
+
+
+def narrow_majority(counts, total):
+    narrow = sum(2 * max(c.values()) - total == 1 for c in counts)
+    return {'paragraphs': narrow, 'share': narrow / len(counts) if counts else None}
+
+
+def per_labeler(names, slow_by, kind_by, slow_counts):
+    result = {}
+    for name in names:
+        others = [n for n in names if n != name]
+        own, rest = [], []
+        for position, flag in enumerate(slow_by[name]):
+            yes = sum(slow_by[n][position] for n in others)
+            verdict = majority({'yes': yes, 'no': len(others) - yes}, len(others))
+            if verdict is not None:
+                own.append(flag)
+                rest.append(verdict == 'yes')
+        without = [{'yes': c.get('yes', 0) - flag, 'no': c.get('no', 0) - (not flag)}
+                   for c, flag in zip(slow_counts, slow_by[name])]
+        result[name] = {'slowParagraphs': sum(slow_by[name]),
+                        'meanCohenSlow': mean([cohen(slow_by[name], slow_by[n]) for n in others]),
+                        'meanCohenKind': mean([cohen(kind_by[name], kind_by[n]) for n in others]),
+                        'cohenSlowVsOthersMajority': cohen(own, rest) if own else None,
+                        'othersMajorityTies': len(slow_by[name]) - len(own),
+                        'fleissSlowWithout': fleiss(without) if len(others) > 1 else None}
+    return result
+
+
+def outlier(per):
+    means = {name: row['meanCohenSlow'] for name, row in per.items() if row['meanCohenSlow'] is not None}
+    if len(means) < 3:
+        return {'labeler': None, 'lowest': None, 'gap': None, 'margin': OUTLIER_MARGIN}
+    lowest = min(means, key=means.get)
+    gap = median([value for name, value in means.items() if name != lowest]) - means[lowest]
+    return {'labeler': lowest if gap > OUTLIER_MARGIN else None, 'lowest': lowest, 'gap': gap,
+            'margin': OUTLIER_MARGIN}
 
 
 def predicted_runs(probe, items, options):
@@ -589,18 +643,66 @@ def score(consensus, items, runs_by_document, indexes):
                 clipped.append((positions[0], positions[-1]))
         run_predicted.append(clipped)
         run_gold.append([(s['start'], s['end']) for s in gold_passages[passage]['stretches']])
-    def run_level(minimum):
-        totals = Counter()
-        for p, g in zip(run_predicted, run_gold):
-            result = overlap_scores(p, g, minimum)
-            totals.update({k: result[k] for k in ('matchedPredicted', 'predicted', 'matchedGold', 'gold')})
-        precision = totals['matchedPredicted'] / totals['predicted'] if totals['predicted'] else float(not totals['gold'])
-        recall = totals['matchedGold'] / totals['gold'] if totals['gold'] else float(not totals['predicted'])
-        f1 = 2 * precision * recall / (precision + recall) if precision + recall else 0.0
-        return {'precision': precision, 'recall': recall, 'f1': f1, **{k: totals[k] for k in
-                ('matchedPredicted', 'predicted', 'matchedGold', 'gold')}}
     return {'paragraph': {**prf(tp, predicted, gold), 'excludedTies': excluded},
-            'runAnyOverlap': run_level(0.0), 'runIou50': run_level(0.5)}
+            'runAnyOverlap': pooled(run_predicted, run_gold, 0.0), 'runIou50': pooled(run_predicted, run_gold, 0.5)}
+
+
+def pooled(run_predicted, run_gold, minimum):
+    totals = Counter()
+    for p, g in zip(run_predicted, run_gold):
+        result = overlap_scores(p, g, minimum)
+        totals.update({k: result[k] for k in ('matchedPredicted', 'predicted', 'matchedGold', 'gold')})
+    precision = totals['matchedPredicted'] / totals['predicted'] if totals['predicted'] else float(not totals['gold'])
+    recall = totals['matchedGold'] / totals['gold'] if totals['gold'] else float(not totals['predicted'])
+    f1 = 2 * precision * recall / (precision + recall) if precision + recall else 0.0
+    return {'precision': precision, 'recall': recall, 'f1': f1, **{k: totals[k] for k in
+            ('matchedPredicted', 'predicted', 'matchedGold', 'gold')}}
+
+
+def held_out(consensus, excluded):
+    names = [name for name in consensus[0]['labelers'] if name != excluded]
+    result, flags = [], {}
+    for row in consensus:
+        if row['type'] == 'paragraph':
+            yes = sum(name in names for name in row['slowLabelers']['yes'])
+            verdict = majority({'yes': yes, 'no': len(names) - yes}, len(names))
+            result.append({**row, 'slow': None if verdict is None else verdict == 'yes'})
+            flags.setdefault(row['passage'], []).append(verdict == 'yes')
+        elif row['type'] == 'passage':
+            result.append({**row, 'stretches': [{'start': s, 'end': e} for s, e in stretches_of(flags[row['passage']])]})
+        else:
+            result.append({**row, 'labelers': names})
+    return result
+
+
+def labeler_score(consensus, name):
+    tp = predicted = gold = excluded = 0
+    run_predicted, run_gold, own = [], [], {}
+    for row in held_out(consensus, name):
+        if row['type'] == 'paragraph':
+            flag = name in row['slowLabelers']['yes']
+            own.setdefault(row['passage'], []).append(flag)
+            if row['slow'] is None:
+                excluded += 1
+                continue
+            tp += flag and row['slow']
+            predicted += flag
+            gold += row['slow']
+        elif row['type'] == 'passage':
+            run_predicted.append(stretches_of(own[row['passage']]))
+            run_gold.append([(s['start'], s['end']) for s in row['stretches']])
+    return {'paragraph': {**prf(tp, predicted, gold), 'excludedTies': excluded},
+            'runAnyOverlap': pooled(run_predicted, run_gold, 0.0), 'runIou50': pooled(run_predicted, run_gold, 0.5)}
+
+
+def mean_f1(results):
+    return {level: mean([r[level]['f1'] for r in results]) for level in ('paragraph', 'runAnyOverlap', 'runIou50')}
+
+
+def labelers_against_others(consensus):
+    names = consensus[0]['labelers']
+    result = {name: labeler_score(consensus, name) for name in names}
+    return {'labelers': result, 'meanF1': mean_f1(result.values())}
 
 
 def settings():
@@ -608,10 +710,55 @@ def settings():
                                                                'minimumCognitionPercent')), o) for o in SWEEP if o]
 
 
+def report_scores(consensus, items, runs, indexes):
+    held = {name: score(held_out(consensus, name), items, runs, indexes) for name in consensus[0]['labelers']}
+    return {**score(consensus, items, runs, indexes),
+            'againstOthersMajority': {'labelers': {name: {level: r[level]['f1'] for level in r}
+                                                   for name, r in held.items()},
+                                      'meanF1': mean_f1(held.values())}}
+
+
 def evaluate(probe, consensus, items):
     indexes = {item['id']: document_index(item) for item in items}
-    return {name: {'options': options, **score(consensus, items, predicted_runs(probe, items, options), indexes)}
-            for name, options in settings()}
+    return {'settings': {name: {'options': options,
+                                **report_scores(consensus, items, predicted_runs(probe, items, options), indexes)}
+                         for name, options in settings()},
+            'labelersAgainstOthersMajority': labelers_against_others(consensus)}
+
+
+def grid():
+    keys = list(GRID)
+    return [dict(zip(keys, values)) for values in product(*GRID.values())]
+
+
+def sweep(executable, consensus, items, workers=3):
+    indexes = {item['id']: document_index(item) for item in items}
+    options = grid()
+    def run(chunk):
+        probe = probe_for(executable)
+        try:
+            return [(o, predicted_runs(probe, items, o)) for o in chunk]
+        finally:
+            probe.close()
+    with ThreadPoolExecutor(workers) as pool:
+        chunks = [options[i::workers] for i in range(workers)]
+        runs = [pair for chunk in pool.map(run, chunks) for pair in chunk]
+    rows = []
+    for o, predicted in runs:
+        result = report_scores(consensus, items, predicted, indexes)
+        rows.append({'options': o,
+                     **{level: {k: result[level][k] for k in ('precision', 'recall', 'f1', 'predicted', 'gold')}
+                        for level in ('paragraph', 'runAnyOverlap', 'runIou50')},
+                     'againstOthersMajorityMeanF1': result['againstOthersMajority']['meanF1']})
+    rows.sort(key=lambda row: (-row['paragraph']['f1'], -row['runAnyOverlap']['f1'],
+                               tuple(row['options'][k] for k in GRID)))
+    return {'consensusSha256': file_digest(CONSENSUS), 'grid': {k: list(v) for k, v in GRID.items()},
+            'objective': 'paragraph-level F1 for slow against the five-labeler majority',
+            'results': rows}
+
+
+def labeler_files(directory=LABELER_DIR):
+    return sorted(Path(directory).glob('*.jsonl'))
 
 
 def gate(result, consensus_path, baseline_path=BASELINE):
@@ -620,9 +767,14 @@ def gate(result, consensus_path, baseline_path=BASELINE):
     baseline = json.loads(baseline_path.read_text())
     if baseline['consensusSha256'] != file_digest(consensus_path):
         raise ValueError('consensus file differs from the recorded baseline')
+    if consensus_path == CONSENSUS:
+        items = load_items()
+        merged, _ = merge([load_labels(path, items) for path in labeler_files()], items, file_digest())
+        if merged != jsonl(consensus_path):
+            raise ValueError('committed consensus does not match a fresh merge of the labeler files')
     failures = [f'{level}.{metric}' for level in ('paragraph', 'runAnyOverlap')
                 for metric in ('precision', 'recall', 'f1')
-                if result['defaults'][level][metric] < baseline['defaults'][level][metric] - 1e-9]
+                if result['settings']['defaults'][level][metric] < baseline['defaults'][level][metric] - 1e-9]
     if failures:
         raise ValueError('pacing label regression: ' + ', '.join(failures))
 
@@ -644,15 +796,19 @@ def main(argv=None):
     command = commands.add_parser('validate', help='validate labeler files')
     command.add_argument('files', type=Path, nargs='+')
     command = commands.add_parser('merge', help='merge labeler files into a consensus file')
-    command.add_argument('files', type=Path, nargs='+')
-    command.add_argument('--out', type=Path, required=True)
-    command.add_argument('--stats', type=Path)
+    command.add_argument('files', type=Path, nargs='*', help='default: every file in labels/pacing/')
+    command.add_argument('--out', type=Path, default=CONSENSUS)
+    command.add_argument('--stats', type=Path, default=AGREEMENT)
     command = commands.add_parser('score', help='score the pacing report against the consensus')
     command.add_argument('--consensus', type=Path, default=CONSENSUS)
     command.add_argument('--probe', type=Path)
     command.add_argument('--output', type=Path)
     command.add_argument('--gate', action='store_true')
     command.add_argument('--write-baseline', action='store_true')
+    command = commands.add_parser('sweep', help='score the report over the threshold grid against the consensus')
+    command.add_argument('--probe', type=Path, required=True)
+    command.add_argument('--output', type=Path, default=SWEEP_RESULTS)
+    command.add_argument('--workers', type=int, default=3)
     args = parser.parse_args(argv)
     if args.command == 'select':
         probe = probe_for(args.probe)
@@ -685,10 +841,10 @@ def main(argv=None):
         if failed:
             sys.exit(1)
     elif args.command == 'merge':
-        output, stats = merge([load_labels(path, items) for path in args.files], items, file_digest())
+        files = args.files or labeler_files()
+        output, stats = merge([load_labels(path, items) for path in files], items, file_digest())
         write_jsonl(args.out, output)
-        if args.stats:
-            args.stats.write_text(json.dumps(stats, indent=2) + '\n')
+        args.stats.write_text(json.dumps(stats, indent=2) + '\n')
         print(json.dumps(stats, indent=2))
     elif args.command == 'score':
         if not args.consensus.exists():
@@ -706,9 +862,19 @@ def main(argv=None):
             args.output.write_text(json.dumps(result, indent=2) + '\n')
         if args.write_baseline:
             BASELINE.write_text(json.dumps({'consensusSha256': file_digest(args.consensus),
-                                            'defaults': result['defaults']}, indent=2) + '\n')
+                                            'defaults': result['settings']['defaults'],
+                                            'labelersAgainstOthersMajority':
+                                                result['labelersAgainstOthersMajority']['meanF1']},
+                                           indent=2) + '\n')
         elif args.gate:
             gate(result, args.consensus)
+    elif args.command == 'sweep':
+        consensus = jsonl(CONSENSUS)
+        if consensus[0].get('itemsSha256') != file_digest():
+            sys.exit('consensus was merged against a different item file')
+        result = sweep(args.probe, consensus, items, args.workers)
+        args.output.write_text(json.dumps(result, indent=2) + '\n')
+        print(json.dumps(result['results'][:10], indent=2))
 
 
 if __name__ == '__main__':

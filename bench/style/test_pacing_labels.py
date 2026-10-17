@@ -178,10 +178,78 @@ class PacingLabelTests(unittest.TestCase):
         self.assertEqual(stats['paragraphs'], 6)
         self.assertIsNotNone(stats['fleissKappa']['slow'])
         self.assertEqual(stats['cohenKappa']['a|b']['kind'], 1.0)
+        self.assertEqual(stats['slowVoteSplits'], {'3-0': 4, '2-1': 2})
+        self.assertEqual(stats['slowNarrowMajority'], {'paragraphs': 2, 'share': 2 / 6})
+        self.assertEqual(stats['passageStretchAgreement']['p02'], (1 + 0 + 0) / 3)
+        self.assertEqual(stats['perLabeler']['b']['slowParagraphs'], 3)
+        self.assertEqual(stats['perLabeler']['c']['othersMajorityTies'], 1)
+        self.assertEqual(stats['perLabeler']['c']['cohenSlowVsOthersMajority'], pl.cohen([False, False, True, False, False],
+                                                                                     [False, True, True, False, False]))
+        self.assertEqual(stats['outlier']['labeler'], 'c')
         tied, _ = pl.merge(loaded[:2], self.items)
         self.assertIsNone(next(row for row in tied if row.get('id') == 'p02.1')['slow'])
         with self.assertRaises(ValueError):
             pl.merge([loaded[0], loaded[0]], self.items)
+
+    def test_outlier(self):
+        def per(**means):
+            return {name: {'meanCohenSlow': value} for name, value in means.items()}
+        self.assertEqual(pl.outlier(per(a=0.8, b=0.78, c=0.82, d=0.5))['labeler'], 'd')
+        result = pl.outlier(per(a=0.8, b=0.78, c=0.82, d=0.75))
+        self.assertIsNone(result['labeler'])
+        self.assertEqual(result['lowest'], 'd')
+        self.assertAlmostEqual(result['gap'], 0.05)
+        self.assertIsNone(pl.outlier(per(a=0.8, b=0.2))['labeler'])
+
+    def test_labeler_against_others(self):
+        a = labels('a', self.items, {'p01.2': True, 'p01.3': True})
+        b = labels('b', self.items, {'p01.2': True, 'p01.3': True, 'p02.1': True})
+        c = labels('c', self.items, {'p01.3': True})
+        loaded = [(rows[0]['labeler'], {row['passage']: row for row in rows}) for rows in (a, b, c)]
+        consensus, _ = pl.merge(loaded, self.items)
+        held = pl.held_out(consensus, 'c')
+        self.assertEqual(held[0]['labelers'], ['a', 'b'])
+        self.assertEqual([row['slow'] for row in held if row['type'] == 'paragraph'],
+                         [False, True, True, None, False, False])
+        self.assertEqual([row['stretches'] for row in held if row['type'] == 'passage'],
+                         [[{'start': 2, 'end': 3}], []])
+        result = pl.labeler_score(consensus, 'c')
+        self.assertEqual(result['paragraph']['true_positive'], 1)
+        self.assertEqual(result['paragraph']['gold'], 2)
+        self.assertEqual(result['paragraph']['excludedTies'], 1)
+        self.assertEqual(result['runAnyOverlap']['f1'], 1.0)
+        self.assertEqual(result['runIou50']['matchedGold'], 1)
+        summary = pl.labelers_against_others(consensus)
+        self.assertEqual(set(summary['labelers']), {'a', 'b', 'c'})
+        self.assertEqual(summary['meanF1']['paragraph'],
+                         pl.mean([r['paragraph']['f1'] for r in summary['labelers'].values()]))
+
+    def test_grid(self):
+        options = pl.grid()
+        self.assertEqual(len(options), 350)
+        self.assertIn({'minimumSentenceLength': 18, 'minimumPastPerfectPercent': 20, 'minimumCognitionPercent': 20,
+                       'minimumParagraphs': 3}, options)
+        for named in pl.SWEEP:
+            if named:
+                self.assertTrue(any(o.items() >= named.items() for o in options))
+
+    def test_gate(self):
+        result = {'settings': {'defaults': {level: {'precision': 0.5, 'recall': 0.5, 'f1': 0.5}
+                                            for level in ('paragraph', 'runAnyOverlap')}}}
+        with tempfile.TemporaryDirectory() as directory:
+            consensus, baseline = Path(directory) / 'c.jsonl', Path(directory) / 'b.json'
+            consensus.write_text('{}\n')
+            with self.assertRaises(ValueError):
+                pl.gate(result, consensus, baseline)
+            baseline.write_text(json.dumps({'consensusSha256': pl.file_digest(consensus), 'defaults': result['settings']['defaults']}))
+            pl.gate(result, consensus, baseline)
+            worse = copy.deepcopy(result)
+            worse['settings']['defaults']['paragraph']['recall'] = 0.4
+            with self.assertRaisesRegex(ValueError, 'paragraph.recall'):
+                pl.gate(worse, consensus, baseline)
+            consensus.write_text('{"changed": 1}\n')
+            with self.assertRaisesRegex(ValueError, 'differs'):
+                pl.gate(result, consensus, baseline)
 
     def test_score(self):
         a = labels('a', self.items, {'p01.2': True, 'p01.3': True, 'p02.3': True})
@@ -190,6 +258,9 @@ class PacingLabelTests(unittest.TestCase):
         consensus, _ = pl.merge(loaded, self.items)
         indexes = {item['id']: number for number, item in enumerate(self.items)}
         result = pl.score(consensus, self.items, {('synthetic', 'doc.txt'): [{1, 2}, {4}]}, indexes)
+        full = pl.report_scores(consensus, self.items, {('synthetic', 'doc.txt'): [{1, 2}, {4}]}, indexes)
+        self.assertEqual(full['againstOthersMajority']['labelers']['a']['paragraph'], result['paragraph']['f1'])
+        self.assertEqual(full['againstOthersMajority']['meanF1']['runAnyOverlap'], result['runAnyOverlap']['f1'])
         self.assertEqual(result['paragraph']['true_positive'], 2)
         self.assertEqual(result['paragraph']['predicted'], 3)
         self.assertEqual(result['paragraph']['gold'], 3)
@@ -233,6 +304,19 @@ class CommittedItemTests(unittest.TestCase):
                             if m['stratum'] == 'flagged'))
         catalog = json.loads((pl.HERE / 'sources.json').read_text())
         self.assertTrue(all(item['source'] in pl.PUBLIC or item['source'] in catalog for item in items))
+
+    def test_committed_labels_merge_to_committed_consensus(self):
+        items = pl.load_items()
+        files = pl.labeler_files()
+        self.assertEqual([path.stem for path in files], ['claude-fable', 'claude-opus', 'codex-sol', 'deepseek', 'muse'])
+        loaded = [pl.load_labels(path, items) for path in files]
+        self.assertEqual([name for name, _ in loaded], [path.stem for path in files])
+        output, stats = pl.merge(loaded, items, pl.file_digest())
+        self.assertEqual(output, pl.jsonl(pl.CONSENSUS))
+        self.assertEqual(json.loads(json.dumps(stats)), json.loads(pl.AGREEMENT.read_text()))
+        self.assertEqual(stats['slowTies'], 0)
+        baseline = json.loads(pl.BASELINE.read_text())
+        self.assertEqual(baseline['consensusSha256'], pl.file_digest(pl.CONSENSUS))
 
     def test_story_items_materialize_offline(self):
         items = [item for item in pl.load_items() if item['source'] in pl.PUBLIC]

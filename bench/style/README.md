@@ -979,7 +979,7 @@ filler words and 26 sight words of 29 sense words), author pooling, rating weigh
 | `labels/sentence-starts-modern.jsonl` | 34 sentences | One implementing model; invented public story excerpts | Second independent labels and owner adjudication; diagnostic only, not part of the 332-row floor |
 | `labels/dialogue-tags.jsonl` | 238 records over 186 quote spans (70 tags, 10 beats) | Two Claude sessions, coordinator adjudication; detector-marked quote worksheets | Owner acceptance; independent human labels if required; not 238 independent sentences and not held out |
 | Transitions | No set on audited main | None | #247 lane plus approximately 300 public-domain sentences, two independent labelers and owner adjudication |
-| `labels/pacing-items.jsonl` | 305 paragraphs in 40 passages | Item set, guidelines and tooling only; no labels yet | Five independent model labels (DeepSeek, Muse, Codex Sol, Claude Opus, Claude Fable), merged consensus, owner adjudication |
+| `labels/pacing/*.jsonl`, `labels/pacing-consensus.jsonl` | 305 paragraphs in 40 passages | Five independent, blind model labelers (2026-10-16, owner's choice): DeepSeek V4 Pro and Muse Spark 1.3 via OpenCode Go, Codex gpt-6.1-sol, Claude Opus 5.5 (`claude-opus-5-5`) and Claude Fable 5.1 (`claude-fable-5-1`). Each saw only the packet built from item commit `bf832a2`. Merged by 5-way majority with no coordinator adjudication; labeled under the guidelines' earlier wording | Owner acceptance; independent human labels optional; not held out (the threshold sweep tunes on it) |
 | Overused words, sensory balance, diction | No hand-labeled natural-text set | Deterministic generated answer keys only | Owner usefulness/calibration review; injections do not substitute for editorial judgments |
 
 The small `labels/example.jsonl` (3 records), `documents.jsonl` and `excerpt.txt` demonstrate the
@@ -1056,12 +1056,39 @@ exposition, interior, description, action, dialogue, mixed), and inclusive slow-
 severity 1–5; `validate` enforces the schema and that stretches cover exactly the slow paragraphs.
 `merge` takes a strict majority per paragraph (ties stay `null` and are excluded from scoring), records
 vote counts and labeler names, and reports Fleiss' kappa (`slow`, `kind`, passage has-stretch), pairwise
-Cohen's kappa and mean pairwise Jaccard of each passage's slow paragraphs. Consensus stretches are
-maximal runs of majority-slow paragraphs with the median of overlapping labelers' severities. `score`
-runs the report over each whole document at defaults and the four sweep settings and scores
+Cohen's kappa, the pairwise Jaccard of each passage's slow paragraphs and its mean, the vote splits
+(`5-0`, `4-1`, `3-2`) and the share decided by one vote. Per labeler it records the number of slow
+paragraphs, mean pairwise Cohen's kappa for `slow` and `kind`, Cohen's kappa against the other
+labelers' strict majority (their ties excluded) and Fleiss' kappa without that labeler. A labeler is
+flagged as the `outlier` when its mean pairwise slow kappa is more than 0.1 below the median of the
+others'. `kind` takes the plurality; ties stay `null`. Consensus stretches are maximal runs of
+majority-slow paragraphs with the median of overlapping labelers' severities. With no file arguments,
+`merge` reads every `labels/pacing/*.jsonl` and writes `labels/pacing-consensus.jsonl` and
+`labels/pacing-agreement.json`.
+
+`score` runs the report over each whole document at defaults and the four named settings and scores
 paragraph-level P/R/F1 for `slow`, plus run-level any-overlap and IoU ≥ 0.5 matching of runs clipped
-to the passages. `--gate` compares the defaults with `pacing-labels-baseline.json` and is meant for CI
-once a consensus file is committed.
+to the passages. To give the report's F1 a human-like reference, it also scores each labeler against
+the strict majority of the other four (`labelersAgainstOthersMajority`; 2–2 ties are excluded at
+paragraph level and count as not slow when forming stretches) and the report against the same five
+leave-one-out majorities (`againstOthersMajority`). `--gate` re-merges the committed labeler files,
+checks the result equals the committed consensus, and fails if any default paragraph or any-overlap
+precision, recall or F1 drops below `pacing-labels-baseline.json`. CI runs it. A change to the
+defaults that trades precision for recall needs a deliberate `--write-baseline`.
+
+```sh
+python3 bench/style/pacing_labels.py sweep --probe bench/tools/wmb-document/target/release/pacing
+```
+
+`sweep` scores the 350-setting grid in `GRID` (mean sentence length 0/10/12/15/18/20/25, where 0
+turns the length signal off; past perfect and cognition 5/10/15/20/30 %; minimum paragraphs 2/3; the
+400-word alternative is unchanged) against the consensus and the leave-one-out majorities, and writes
+`pacing-labels-sweep.json` sorted by paragraph F1. It takes about ten minutes with three probes.
+
+The 2026-10-16 labels were made under the guidelines' earlier wording. The labelers reported
+ambiguities about habitual or iterative summary, backstory or recap that is the scene's point, and
+opening exposition before any scene; the guidelines now give rules for all three, but the set was
+not relabeled. Results are in [STYLE-PACING.md](../../docs/STYLE-PACING.md#hand-label-set-256).
 
 ## Sensory norms follow-ups (#282)
 
