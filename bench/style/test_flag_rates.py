@@ -76,6 +76,46 @@ class FlagRateTests(unittest.TestCase):
         flag_rates.check(result, flag_rates.allowed_keys(VOCABULARY))
 
 
+    def test_discourse_and_sensory_measures_respect_floors_and_author_weights(self):
+        def sample(sentences, containing, she, runs, sight, senses):
+            types = {kind: {'containing': containing, 'opening': 0} for kind in flag_rates.TRANSITION_TYPES}
+            transitions = {'sentences': sentences, 'containing': containing, 'opening': 0, 'types': types}
+            pronouns = {'sentences': sentences, 'pronoun_starts': she, 'pronouns': {'she': she}, 'other': 0,
+                        'runs': runs}
+            sensory = {'words': 1000, 'sense_words': senses, 'modalities': {'sight': sight}}
+            histogram = {'10': sentences}
+            return {'words': 10 * sentences,
+                    'sentence_length': {group: {'histogram': histogram} for group in flag_rates.GROUPS},
+                    'transitions': {'groups': {group: transitions for group in flag_rates.GROUPS},
+                                    'repeats': {'all': runs, 'narration': runs},
+                                    'repeat_window': {'3': {'all': 0}, '5': {'all': runs}}},
+                    'pronoun_starts': {'groups': {group: pronouns for group in flag_rates.GROUPS},
+                                       'runs': {'all': runs, 'narration': runs}},
+                    'sensory_balance': {'groups': {group: sensory for group in flag_rates.GROUPS}},
+                    'overused_ratio_sweep': {'4': runs, '8': 0}}
+        samples = [('a', sample(100, 10, 50, 1, 30, 40)), ('a', sample(100, 30, 30, 0, 10, 10)),
+                   ('b', sample(40, 40, 40, 1, 20, 20))]
+        defaults = {'transitions_minimum_sentences': 50, 'pronoun_starts_minimum_sentences': 50,
+                    'sensory_minimum_sense_words': 20}
+        transitions = flag_rates.transitions(samples, defaults)
+        containing = transitions['measures']['all']['containing']
+        self.assertEqual((containing['samples'], containing['authors'], containing['mean']), (2, 1, 20))
+        self.assertAlmostEqual(transitions['measures']['narration']['eligible_share'], 0.5)
+        self.assertEqual(transitions['flags_per_1000_words']['repeats']['all']['flagged_share'], 0.75)
+        self.assertEqual(transitions['repeat_window']['3']['all']['flagged_share'], 0)
+        pronouns = flag_rates.pronoun_starts(samples, defaults)
+        self.assertEqual(pronouns['measures']['dialogue']['pronouns']['she']['mean'], 40)
+        self.assertEqual(pronouns['measures']['all']['pronouns']['he']['mean'], 0)
+        lexical = flag_rates.lexical_reports(samples, defaults)
+        self.assertNotIn('diction', lexical)
+        sight = lexical['sensory_balance']['measures']['all']['modality_percent']['sight']
+        self.assertEqual((sight['samples'], sight['mean']), (2, (75 + 100) / 2))
+        self.assertEqual(lexical['overused_words']['minimum_ratio']['8']['flagged_share'], 0)
+        result = {'transitions': transitions, 'pronoun_starts': pronouns, **lexical}
+        flag_rates.check(result, flag_rates.allowed_keys(VOCABULARY))
+        samples[0][1]['pronoun_starts']['groups']['all']['pronouns'][SENTINEL] = 1
+        self.assertNotIn(SENTINEL, json.dumps(flag_rates.pronoun_starts(samples, defaults)))
+
     def test_manuscripts_pool_units_and_chapters_weight_authors_equally(self):
         units = [unit(1000, 1, {'10': 2}, cliches=1), unit(3000, 0, {'10': 2}), unit(500, 2, {'20': 2})]
         with tempfile.TemporaryDirectory() as temporary:

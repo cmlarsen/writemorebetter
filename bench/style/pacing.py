@@ -8,6 +8,7 @@ import tempfile
 import xml.etree.ElementTree as ET
 
 from common import ROOT, fetch, jsonl, offsets, prf
+from flag_rates import share, spread, windows
 from tier3 import distribution
 
 BASELINE = ROOT / 'bench/style/pacing-baseline.json'
@@ -16,6 +17,10 @@ BACKSTORY = (
     'He wondered why she had forgotten the garden. He had always believed that she had understood.\n'
     'She recalled how he had been alone. She had imagined that he had known the truth.')
 SIGNALS = ('dialoguePercent', 'meanSentenceLength', 'pastPerfectPercent', 'cognitionPercent')
+SWEEP_LENGTH = (15, 18, 20, 22, 25)
+SWEEP_PERCENT = (10, 15, 20, 25, 30)
+SWEEP = [(length, perfect, cognition) for length in SWEEP_LENGTH for perfect in SWEEP_PERCENT
+         for cognition in SWEEP_PERCENT]
 
 
 class Probe:
@@ -32,10 +37,12 @@ class Probe:
                                         text=True, encoding='utf-8',
                                         env={**os.environ, 'NLPRULE_PARALLELISM': 'off'})
 
-    def report(self, text, hard_wrapped=False, options=None):
+    def report(self, text, hard_wrapped=False, options=None, sweep=None):
         request = {'text': text, 'hardWrapped': hard_wrapped}
         if options is not None:
             request['options'] = options
+        if sweep:
+            request['sweep'] = sweep
         self.process.stdin.write(json.dumps(request) + '\n')
         self.process.stdin.flush()
         line = self.process.stdout.readline()
@@ -149,9 +156,38 @@ def measure_public(probe, out, options=None, suffix="public"):
     return rows
 
 
+def sweep_options():
+    return [dict(minimumSentenceLength=length, minimumPastPerfectPercent=perfect,
+                 minimumCognitionPercent=cognition) for length, perfect, cognition in SWEEP]
+
+
+def eligible(paragraph):
+    return not paragraph['hasSpeech'] and paragraph['signals']['words']['all'] > 0
+
+
+def nested(values):
+    result = {}
+    for (length, perfect, cognition), value in zip(SWEEP, values):
+        result.setdefault(str(length), {}).setdefault(str(perfect), {})[str(cognition)] = value
+    return result
+
+
+def chapter_rates(samples, index=None):
+    def pick(sample, key):
+        return sample[key] if index is None else sample['sweep'][index][key]
+    return {'flaggedShare': share([(author, float(pick(s, 'runs') > 0)) for author, s in samples]),
+            'runsPerThousandWords': spread([(author, 1000 * pick(s, 'runs') / s['words'])
+                                            for author, s in samples if s['words']]),
+            'runParagraphPercent': spread([(author, 100 * pick(s, 'runParagraphs') / s['paragraphs'])
+                                           for author, s in samples if s['paragraphs']])}
+
+
 def calibrate(probe, export):
     authors = defaultdict(lambda: {'signals': {name: [] for name in SIGNALS}, 'paragraphs': 0,
-                                   'runParagraphs': 0, 'runs': 0, 'words': 0})
+                                   'runParagraphs': 0, 'runs': 0, 'words': 0,
+                                   'sweep': [{'runs': 0, 'runParagraphs': 0} for _ in SWEEP]})
+    chapters, paragraphs, two_signal = [], {name: [] for name in SIGNALS}, []
+    options = sweep_options()
     seen = set()
     for row in jsonl(export / 'units.jsonl'):
         unit = row['unit_id']
@@ -160,8 +196,20 @@ def calibrate(probe, export):
                 or unit in seen or not isinstance(author, str) or not author):
             raise ValueError('invalid metadata')
         seen.add(unit)
-        report = probe.report((export / 'units' / (unit + '.txt')).read_text(encoding='utf-8'))
+        text = (export / 'units' / (unit + '.txt')).read_text(encoding='utf-8')
+        measured = probe.report(text, sweep=options)
+        report = measured['report']
         totals = authors[author]
+        for total, swept in zip(totals['sweep'], measured['sweep']):
+            total['runs'] += swept['runs']
+            total['runParagraphs'] += swept['runParagraphs']
+        for window in windows(text):
+            measured = probe.report(window, sweep=options)
+            chapters.append((author, {'words': measured['report']['words']['all'],
+                                      'paragraphs': len(measured['report']['paragraphs']),
+                                      'runs': len(measured['report']['slowRuns']),
+                                      'runParagraphs': run_paragraphs(measured['report']),
+                                      'sweep': measured['sweep']}))
         totals['words'] += report['words']['all']
         totals['paragraphs'] += len(report['paragraphs'])
         totals['runParagraphs'] += run_paragraphs(report)
@@ -171,6 +219,10 @@ def calibrate(probe, export):
                 value = paragraph['signals'][name]
                 if value is not None:
                     totals['signals'][name].append(value)
+                    if eligible(paragraph):
+                        paragraphs[name].append((author, value))
+            if eligible(paragraph):
+                two_signal.append((author, float(len(paragraph['triggeredSignals']) >= 2)))
     if not authors:
         raise ValueError('empty export')
     means = {name: [sum(t['signals'][name]) / len(t['signals'][name]) for t in authors.values() if t['signals'][name]]
@@ -182,7 +234,18 @@ def calibrate(probe, export):
               'authorsWithRunsPercent': 100 * sum(t['runs'] > 0 for t in authors.values()) / len(authors),
               'paragraphSignals': {name: distribution(values) if values else None for name, values in pooled.items()},
               'authorMeanSignals': {name: distribution(values) if values else None for name, values in means.items()},
-              'authorFlagRates': {name: distribution(values) if values else None for name, values in rates.items()}}
+              'authorFlagRates': {name: distribution(values) if values else None for name, values in rates.items()},
+              'eligibleParagraphSignals': {name: spread(values) for name, values in paragraphs.items()},
+              'twoSignalParagraphShare': share(two_signal),
+              'chapter': {'samples': len(chapters), 'authorsWithWindows': len({a for a, _ in chapters}),
+                          **chapter_rates(chapters)},
+              'sweep': nested([{'chapter': chapter_rates(chapters, index),
+                                'authorsWithRunsPercent': 100 * sum(t['sweep'][index]['runs'] > 0
+                                                                    for t in authors.values()) / len(authors),
+                                'authorRunsPerThousandWords': distribution(
+                                    [1000 * t['sweep'][index]['runs'] / t['words'] for t in authors.values()
+                                     if t['words']] or [0])}
+                               for index in range(len(SWEEP))])}
     if not aggregate_only(result):
         raise ValueError('invalid aggregate')
     return result
@@ -190,12 +253,14 @@ def calibrate(probe, export):
 
 KEYS = set(SIGNALS) | {'units', 'authors', 'authorsWithRunsPercent', 'paragraphSignals', 'authorMeanSignals',
                       'authorFlagRates', 'runParagraphPercent', 'runsPerThousandWords',
-                      'mean', 'percentiles', '0', '5', '25', '50', '75', '95', '100'}
+                      'mean', 'percentiles', '0', '5', '25', '50', '75', '95', '100',
+                      'eligibleParagraphSignals', 'twoSignalParagraphShare', 'chapter', 'samples',
+                      'authorsWithWindows', 'flaggedShare', 'sweep', 'authorRunsPerThousandWords'}
 
 
 def aggregate_only(value):
     if isinstance(value, dict):
-        return all(key in KEYS and aggregate_only(item) for key, item in value.items())
+        return all((key in KEYS or key.isdecimal()) and aggregate_only(item) for key, item in value.items())
     return value is None or isinstance(value, (int, float))
 
 
@@ -213,6 +278,10 @@ def self_test(probe):
         assert result['authors'] == 2 and result['units'] == 3
         assert result['authorsWithRunsPercent'] == 50
         assert result['authorFlagRates']['runParagraphPercent']['mean'] == 37.5
+        assert result['chapter']['samples'] == 3 and result['chapter']['flaggedShare'] == 0.25
+        assert result['sweep']['18']['20']['20']['chapter']['flaggedShare'] == 0.25
+        assert result['sweep']['25']['30']['30']['authorsWithRunsPercent'] <= 50
+        assert result['twoSignalParagraphShare'] > 0
         encoded = json.dumps(result)
         assert 'PRIVATE_SENTINEL' not in encoded and temporary not in encoded
         assert aggregate_only(result)
