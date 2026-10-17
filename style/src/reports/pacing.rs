@@ -29,8 +29,8 @@ impl Default for PacingOptions {
         Self {
             minimum_paragraphs: 3,
             more_than_words: 400,
-            minimum_sentence_length: 15.0,
-            minimum_past_perfect_percent: 20.0,
+            minimum_sentence_length: 18.0,
+            minimum_past_perfect_percent: 15.0,
             minimum_cognition_percent: 15.0,
         }
     }

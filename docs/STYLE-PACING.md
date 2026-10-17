@@ -104,8 +104,8 @@ return `Result<_, StyleError>`; compact documents return `needsTokenDetails`.
 |---|---|---|
 | `minimumParagraphs` | 3 | inclusive run length; positive |
 | `moreThanWords` | 400 | strict alternative word cutoff; 400 alone does not qualify |
-| `minimumSentenceLength` | 15 | inclusive average words per sentence; finite, nonnegative |
-| `minimumPastPerfectPercent` | 20 | inclusive share of approximate verb phrases; 0–100 |
+| `minimumSentenceLength` | 18 | inclusive average words per sentence; finite, nonnegative |
+| `minimumPastPerfectPercent` | 15 | inclusive share of approximate verb phrases; 0–100 |
 | `minimumCognitionPercent` | 15 | inclusive share of approximate verb phrases; 0–100 |
 
 No action detector is claimed. Short, rapid clauses often avoid the long-sentence signal, but
@@ -131,29 +131,31 @@ not held-out literary precision or recall.
 
 ### Public baseline (2026-10-16)
 
-51,987 counted word tokens across 1,207 paragraphs; at the calibrated 15 / 20 / 15 defaults 148
+51,987 counted word tokens across 1,207 paragraphs; at the calibrated 18 / 15 / 15 defaults 154
 paragraphs meet two thresholds on their own (128 at the previous 18 / 20 / 20), but the defaults
-report only two sustained runs: story1's job-offer recollection and the Styles family history.
-The other Standard Ebooks chapters and the full Moby excerpt have zero runs. The first chapter of
+report only four sustained runs: story1's job-offer recollection, its opening situation, its
+pier walk and the Styles family history. The other Standard Ebooks chapters and the full Moby
+excerpt have zero runs. The first chapter of
 each is fetched at benchmark time; no downloaded text is committed.
 Full signal means/percentiles, options, sweep counts and judgment metadata are recorded in
 [`pacing-baseline.json`](../bench/style/pacing-baseline.json).
 
 | Input | Words | Paragraphs | Two-signal rows | Paragraphs in runs | Runs |
 |---|---:|---:|---:|---:|---:|
-| story1 | 2,209 | 96 | 28 | 4 | 1 |
-| story2 | 2,038 | 96 | 18 | 0 | 0 |
-| story3 | 2,008 | 96 | 20 | 0 | 0 |
-| story4 | 2,175 | 93 | 23 | 0 | 0 |
-| story5 | 1,856 | 86 | 26 | 0 | 0 |
-| moby150k (hard-wrapped) | 25,002 | 315 | 10 | 0 | 0 |
-| The Mysterious Affair at Styles, ch. 1 | 4,161 | 157 | 8 | 3 | 1 |
-| The Great Gatsby, ch. 1 | 6,067 | 152 | 9 | 0 | 0 |
-| The Sign of the Four, ch. 1 | 2,949 | 56 | 3 | 0 | 0 |
-| Anne of Avonlea, ch. 1 | 3,522 | 60 | 3 | 0 | 0 |
+| story1 | 2,209 | 96 | 30 | 12 | 3 |
+| story2 | 2,038 | 96 | 17 | 0 | 0 |
+| story3 | 2,008 | 96 | 21 | 0 | 0 |
+| story4 | 2,175 | 93 | 27 | 0 | 0 |
+| story5 | 1,856 | 86 | 23 | 0 | 0 |
+| moby150k (hard-wrapped) | 25,002 | 315 | 11 | 0 | 0 |
+| The Mysterious Affair at Styles, ch. 1 | 4,161 | 157 | 7 | 4 | 1 |
+| The Great Gatsby, ch. 1 | 6,067 | 152 | 10 | 0 | 0 |
+| The Sign of the Four, ch. 1 | 2,949 | 56 | 4 | 0 | 0 |
+| Anne of Avonlea, ch. 1 | 3,522 | 60 | 4 | 0 | 0 |
 
 The previous defaults gave 25 / 16 / 19 / 21 / 21 / 9 / 4 / 7 / 3 / 3 two-signal rows and only
-story1's run. These numbers follow the PR #284 review fixes. Before them, the verb-head rule admitted particles,
+story1's run; 15 / 20 / 15, this PR's first proposal, gave 28 / 18 / 20 / 23 / 26 / 10 / 8 / 9 / 3 / 3
+and two runs. These numbers follow the PR #284 review fixes. Before them, the verb-head rule admitted particles,
 adverbs and adjectives with a lexical `VB` reading (7.9% of counted verb tokens in story1–5), which
 diluted both verb shares: 116 two-signal rows, the same single default run, and 7 / 5 / 2 runs in
 the first three sweep rows below.
@@ -166,9 +168,11 @@ Public-only threshold sweep (`python3 bench/style/pacing.py --sweep`):
 | 20 / 10 / 10 | 6 | 2 / 4 / 0 |
 | 20 / 15 / 15 | 2 | 0 / 2 / 0 |
 | 18 / 15 / 20 | 4 | 2 / 1 / 0, plus 1 borderline |
+| 18 / 15 / 10 (rejected) | 6 | 3 / 3 / 0 |
+| **18 / 15 / 15 (defaults)** | **4** | **2 / 1 / 0, plus 1 borderline** |
 | 18 / 20 / 20 (previous defaults) | 1 | 1 / 0 / 0 |
 | 18 / 20 / 15 | 1 | 1 / 0 / 0 (the same run) |
-| **15 / 20 / 15 (defaults)** | **2** | **2 / 0 / 0** |
+| 15 / 20 / 15 (first proposal) | 2 | 2 / 0 / 0 |
 | 25 / 30 / 30 | 0 | no flags to judge |
 
 The implementer spot-judged every loose-setting stretch and the default run as a
@@ -180,11 +184,13 @@ recollection of a past job offer (paragraphs 79–82, zero-based), the Styles fa
 Gatsby's Buchanan background/portrait and, borderline, Moby's introduction of Father Mapple (his
 sailor past, then the pulpit's description). Four other story1/story4 stretches were scene/setup
 noise. The 20 / 10 / 10 and 20 / 15 / 15 runs are subsets or trimmed variants of those stretches
-and inherit their labels. The previous defaults retained only the job-offer recollection. The
-15 / 20 / 15 defaults add the Styles family-history block (paragraphs 8–10, the useful loose run
-trimmed by one paragraph) and no noise; they still miss the Gatsby and Moby blocks. At 18 / 15 / 20
-the same Styles block appears with story1's current-scene pier walk (paragraphs 65–69, noise) and its
-opening situation (22–24, borderline): loosening past perfect admits in-scene business. There was
+and inherit their labels. The previous defaults retained only the job-offer recollection.
+15 / 20 / 15 adds the Styles family-history block (paragraphs 8–10, the useful loose run trimmed by
+one paragraph) and no noise; it still misses the Gatsby and Moby blocks. At 18 / 15 / 20 and at the
+18 / 15 / 15 defaults the Styles block (paragraphs 8–11) appears with story1's current-scene pier walk
+(paragraphs 65–69, noise) and its opening situation (22–24, borderline): on this sample, loosening
+past perfect admits in-scene business. 18 / 15 / 10 adds Gatsby's Buchanan background (useful) and
+story4's opening (noise) and widens story1's opening run to paragraphs 20–24. There was
 no blind or independent adjudication and the public sample is small and historically skewed.
 Raising the length threshold alone lost the clearest backstory block; raising the verb shares
 removed current-scene noise instead.
@@ -231,20 +237,118 @@ windows and 32.4% of authors' books; per-author runs per 1,000 words had a media
 | 18 / 20 / 15 | 7.1% | 38.0% | 0.16 |
 | 18 / 20 / 20 (previous) | 3.4% | 32.4% | 0 |
 | 15 / 20 / 20 | 5.6% | 42.3% | 0.16 |
-| **15 / 20 / 15 (defaults)** | **9.6%** | **47.9%** | **0.16** |
+| 15 / 20 / 15 (first proposal) | 9.6% | 47.9% | 0.16 |
+| 18 / 15 / 10 (rejected) | 14.1% | 59.2% | 0.20 |
+| **18 / 15 / 15 (defaults)** | **9.0%** | **46.5%** | **0.16** |
 | 20 / 20 / 20 | 2.7% | 25.4% | 0 |
 | 25 / 30 / 30 | 0.1% | 2.8% | 0 |
 
 Every setting's chapter median is 0 runs; the full grid, with author p5/p50/p95 rates and run
 paragraph shares, is in the baseline file.
 
-**Decision (2026-10-16): defaults 15 / 20 / 15.** Cognition moves to its published p90 (14.3,
-rounded to 15) so both verb shares sit at the same published rarity; past perfect stays at its p90
-(20) because loosening it is what added in-scene noise in every public sweep. Length moves to the
-published median paragraph (14.5, rounded to 15). Length alone never qualifies a paragraph, so a run
-still needs a verb share in the published top tenth plus above-median sentences, or both verb shares
-in the top tenth. Published chapter windows with a run rise from 3.4% to 9.6% (about one chapter in
-ten), and the public sample gains one judged-useful block and no noise. The evidence is the
-published flag rate and four public runs; no published passage was read or labeled, so the
-defaults remain a lens setting, not a measured precision. `minimumParagraphs` and `moreThanWords`
-were not swept.
+### Label accuracy against published rates (2026-10-16)
+
+PR #293 scored the report against a five-model blind consensus on 305 public paragraphs in 40
+passages (Fleiss' kappa 0.71; 59 paragraphs labeled slow) over a 350-setting grid, in
+`bench/style/pacing-labels-sweep.json` on that branch. Its grid and the published sweep share 64
+settings: length 15 / 18 / 20 / 25 × past perfect 10 / 15 / 20 / 30 × cognition 10 / 15 / 20 / 30, at
+`minimumParagraphs` 3. The best label setting overall, 10–12 / 20 / 5 (F1 0.51), has no published
+rate because cognition 5 was not swept. The table joins the two committed aggregates; no new
+private run was made. Label scores are paragraph-level against the consensus; published shares are
+the author-weighted chapter windows and authors' books with at least one run.
+
+| Length / past perfect / cognition | Label P | Label R | Label F1 | Predicted paragraphs | Published chapters with a run | Published authors with a run |
+|---|---:|---:|---:|---:|---:|---:|
+| 18 / 10 / 10 | 0.63 | 0.37 | 0.468 | 35 | 23.6% | 70.4% |
+| 18 / 10 / 15 | 0.69 | 0.34 | 0.455 | 29 | 17.0% | 60.6% |
+| 18 / 15 / 10 (rejected) | 0.67 | 0.34 | 0.449 | 30 | 14.1% | 59.2% |
+| 15 / 15 / 10 | 0.59 | 0.34 | 0.430 | 34 | 24.8% | 73.2% |
+| 15 / 15 / 30 | 0.77 | 0.29 | 0.420 | 22 | 8.5% | 53.5% |
+| **18 / 15 / 15 (defaults)** | **0.74** | **0.29** | **0.415** | **23** | **9.0%** | **46.5%** |
+| 15 / 15 / 20 | 0.74 | 0.29 | 0.415 | 23 | 10.5% | 57.7% |
+| 18 / 15 / 30 | 0.76 | 0.27 | 0.400 | 21 | 4.5% | 39.4% |
+| 15 / 15 / 15 | 0.65 | 0.29 | 0.400 | 26 | 14.4% | 62.0% |
+| 15 / 10 / 10 | 0.42 | 0.37 | 0.396 | 52 | 34.7% | 78.9% |
+| 15 / 10 / 15 | 0.48 | 0.34 | 0.396 | 42 | 26.0% | 73.2% |
+| 18 / 15 / 20 | 0.73 | 0.27 | 0.395 | 22 | 5.3% | 42.3% |
+| 18 / 10 / 30 | 0.67 | 0.27 | 0.386 | 24 | 10.3% | 52.1% |
+| 18 / 10 / 20 | 0.64 | 0.27 | 0.381 | 25 | 12.8% | 56.3% |
+| 15 / 10 / 30 | 0.50 | 0.29 | 0.366 | 34 | 17.7% | 66.2% |
+| 15 / 10 / 20 | 0.49 | 0.29 | 0.362 | 35 | 21.3% | 69.0% |
+| 15 / 20 / 10 | 0.58 | 0.24 | 0.337 | 24 | 18.0% | 63.4% |
+| 15 / 20 / 15 (first proposal) | 0.65 | 0.19 | 0.289 | 17 | 9.6% | 47.9% |
+| 18 / 20 / 10 | 0.61 | 0.19 | 0.286 | 18 | 10.0% | 49.3% |
+| 20 / 10 / 10 | 0.46 | 0.19 | 0.265 | 24 | 18.9% | 63.4% |
+| 20 / 10 / 15 | 0.50 | 0.15 | 0.234 | 18 | 11.0% | 47.9% |
+| 25 / 10 / 10 | 0.47 | 0.15 | 0.231 | 19 | 3.9% | 38.0% |
+| 20 / 15 / 10 | 0.47 | 0.15 | 0.231 | 19 | 10.7% | 49.3% |
+| 18 / 20 / 30 | 0.73 | 0.14 | 0.229 | 11 | 2.8% | 29.6% |
+| 18 / 20 / 20 (previous) | 0.73 | 0.14 | 0.229 | 11 | 3.4% | 32.4% |
+| 15 / 20 / 30 | 0.73 | 0.14 | 0.229 | 11 | 4.0% | 35.2% |
+| 15 / 20 / 20 | 0.73 | 0.14 | 0.229 | 11 | 5.6% | 42.3% |
+| 18 / 20 / 15 | 0.73 | 0.14 | 0.229 | 11 | 7.1% | 38.0% |
+| 25 / 15 / 10 | 0.53 | 0.14 | 0.216 | 15 | 2.1% | 21.1% |
+| 15 / 30 / 10 | 0.58 | 0.12 | 0.197 | 12 | 11.1% | 49.3% |
+| 20 / 20 / 10 | 0.50 | 0.12 | 0.192 | 14 | 7.8% | 43.7% |
+| 25 / 20 / 10 | 0.60 | 0.10 | 0.174 | 10 | 1.7% | 18.3% |
+| 25 / 15 / 30 | 0.55 | 0.10 | 0.171 | 11 | 0.6% | 8.5% |
+| 20 / 15 / 30 | 0.55 | 0.10 | 0.171 | 11 | 2.4% | 29.6% |
+| 25 / 15 / 20 | 0.50 | 0.10 | 0.169 | 12 | 1.4% | 14.1% |
+| 25 / 15 / 15 | 0.50 | 0.10 | 0.169 | 12 | 1.5% | 15.5% |
+| 20 / 15 / 20 | 0.50 | 0.10 | 0.169 | 12 | 3.5% | 33.8% |
+| 20 / 15 / 15 | 0.50 | 0.10 | 0.169 | 12 | 5.2% | 36.6% |
+| 25 / 10 / 30 | 0.43 | 0.10 | 0.164 | 14 | 1.5% | 19.7% |
+| 20 / 10 / 30 | 0.43 | 0.10 | 0.164 | 14 | 6.2% | 40.8% |
+| 25 / 10 / 20 | 0.40 | 0.10 | 0.162 | 15 | 2.5% | 25.4% |
+| 25 / 10 / 15 | 0.40 | 0.10 | 0.162 | 15 | 2.6% | 26.8% |
+| 20 / 10 / 20 | 0.40 | 0.10 | 0.162 | 15 | 8.9% | 46.5% |
+| 18 / 30 / 30 | 0.67 | 0.07 | 0.123 | 6 | 0.7% | 14.1% |
+| 15 / 30 / 30 | 0.67 | 0.07 | 0.123 | 6 | 1.0% | 15.5% |
+| 18 / 30 / 20 | 0.67 | 0.07 | 0.123 | 6 | 1.5% | 16.9% |
+| 15 / 30 / 20 | 0.67 | 0.07 | 0.123 | 6 | 1.8% | 19.7% |
+| 18 / 30 / 15 | 0.67 | 0.07 | 0.123 | 6 | 3.7% | 19.7% |
+| 18 / 30 / 10 | 0.67 | 0.07 | 0.123 | 6 | 6.4% | 33.8% |
+| 25 / 20 / 30 | 0.57 | 0.07 | 0.121 | 7 | 0.4% | 5.6% |
+| 25 / 20 / 20 | 0.57 | 0.07 | 0.121 | 7 | 1.2% | 9.9% |
+| 25 / 20 / 15 | 0.57 | 0.07 | 0.121 | 7 | 1.3% | 11.3% |
+| 20 / 20 / 30 | 0.57 | 0.07 | 0.121 | 7 | 1.6% | 22.5% |
+| 20 / 20 / 20 | 0.57 | 0.07 | 0.121 | 7 | 2.7% | 25.4% |
+| 20 / 20 / 15 | 0.57 | 0.07 | 0.121 | 7 | 4.5% | 33.8% |
+| 15 / 30 / 15 | 0.44 | 0.07 | 0.118 | 9 | 4.2% | 25.4% |
+| 25 / 30 / 30 | 0.00 | 0.00 | 0.000 | 2 | 0.1% | 2.8% |
+| 20 / 30 / 30 | 0.00 | 0.00 | 0.000 | 2 | 0.6% | 11.3% |
+| 25 / 30 / 20 | 0.00 | 0.00 | 0.000 | 2 | 0.9% | 5.6% |
+| 25 / 30 / 15 | 0.00 | 0.00 | 0.000 | 2 | 0.9% | 5.6% |
+| 25 / 30 / 10 | 0.00 | 0.00 | 0.000 | 2 | 1.1% | 9.9% |
+| 20 / 30 / 20 | 0.00 | 0.00 | 0.000 | 2 | 1.4% | 14.1% |
+| 20 / 30 / 15 | 0.00 | 0.00 | 0.000 | 2 | 2.8% | 15.5% |
+| 20 / 30 / 10 | 0.00 | 0.00 | 0.000 | 2 | 3.4% | 21.1% |
+
+The label set is not held out: its passages were sampled partly around runs at the defaults and
+at 15 / 10 / 10, and the sweep tunes on it. One paragraph moves F1 by 0.005–0.02.
+
+**Decision (2026-10-16): defaults 18 / 15 / 15** (was 18 / 20 / 20). The rule was the highest label
+F1 with published chapter windows with a run at or below about 15%, since pacing is an opt-in lens.
+18 / 15 / 15 beats this PR's first proposal, 15 / 20 / 15, on every measure, and the previous
+defaults on every label score at a higher published rate: label precision 0.74 (previous 0.73,
+first proposal 0.65), recall 0.29 (0.14, 0.19), F1 0.415 (0.229, 0.289); published chapters with a
+run 9.0% (3.4%, 9.6%) and authors 46.5% (32.4%, 47.9%).
+Past perfect moves to 15, between its published p75 (7.7) and p90 (20); cognition to 15, its
+published p90 (14.3, rounded); length stays at 18. Tier 2 stays at 45 cases with 20 / 20 exact
+spans.
+
+- **18 / 15 / 10 rejected.** It has the highest F1 under the rule (0.449 at 14.1% of chapters) but
+  flags story4's untouched opening (paragraphs 0–3) in every story4 tier 2 case, all five negative
+  controls included, so tier 2 precision falls to 0.59 with nine failing cases. The consensus labels
+  those paragraphs not slow (at most two of five votes), and its F1 gain over 18 / 15 / 15 is three
+  true positives for four false positives on a set used for tuning.
+- **15 / 15 / 30 ties.** It has the same 17 true-positive paragraphs with one fewer prediction
+  (F1 0.420), the same run-level F1, the same public runs and tier 2 result, and 8.5% of chapters,
+  but flags more authors (53.5%). Its cognition threshold lies above the published p95 (22.2), so
+  the cognition signal would almost never fire.
+- **Public cost.** On the ten public texts, the defaults add story1's pier walk (noise) and opening
+  situation (borderline) to the two useful runs. The single-judge public sample favored 15 / 20 / 15;
+  the larger blind label set does not.
+
+No published passage was read or labeled, so the published side is a flag rate, not a precision.
+`minimumParagraphs` and `moreThanWords` were not swept against the published set.

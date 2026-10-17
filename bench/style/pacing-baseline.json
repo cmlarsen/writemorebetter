@@ -1,12 +1,12 @@
 {
   "version": 1,
   "date": "2026-10-16",
-  "scope": "Public development measurements with single implementer spot judgments (not held-out accuracy); \"published\" holds the owner-run aggregate calibration that chose the 2026-10-16 defaults.",
+  "scope": "Public development measurements with single implementer spot judgments (not held-out accuracy); \"published\" holds the owner-run aggregate calibration that chose the 2026-10-16 defaults with the #293 label sweep.",
   "defaults": {
     "minimumParagraphs": 3,
     "moreThanWords": 400,
-    "minimumSentenceLength": 15.0,
-    "minimumPastPerfectPercent": 20.0,
+    "minimumSentenceLength": 18.0,
+    "minimumPastPerfectPercent": 15.0,
     "minimumCognitionPercent": 15.0
   },
   "public": [
@@ -14,9 +14,9 @@
       "source": "story1.txt",
       "words": 2209,
       "paragraphs": 96,
-      "twoSignalParagraphs": 28,
-      "runParagraphs": 4,
-      "runs": 1,
+      "twoSignalParagraphs": 30,
+      "runParagraphs": 12,
+      "runs": 3,
       "signals": {
         "dialoguePercent": {
           "mean": 18.30359229280655,
@@ -72,7 +72,7 @@
       "source": "story2.txt",
       "words": 2038,
       "paragraphs": 96,
-      "twoSignalParagraphs": 18,
+      "twoSignalParagraphs": 17,
       "runParagraphs": 0,
       "runs": 0,
       "signals": {
@@ -130,7 +130,7 @@
       "source": "story3.txt",
       "words": 2008,
       "paragraphs": 96,
-      "twoSignalParagraphs": 20,
+      "twoSignalParagraphs": 21,
       "runParagraphs": 0,
       "runs": 0,
       "signals": {
@@ -188,7 +188,7 @@
       "source": "story4.txt",
       "words": 2175,
       "paragraphs": 93,
-      "twoSignalParagraphs": 23,
+      "twoSignalParagraphs": 27,
       "runParagraphs": 0,
       "runs": 0,
       "signals": {
@@ -246,7 +246,7 @@
       "source": "story5.txt",
       "words": 1856,
       "paragraphs": 86,
-      "twoSignalParagraphs": 26,
+      "twoSignalParagraphs": 23,
       "runParagraphs": 0,
       "runs": 0,
       "signals": {
@@ -304,7 +304,7 @@
       "source": "moby150k",
       "words": 25002,
       "paragraphs": 315,
-      "twoSignalParagraphs": 10,
+      "twoSignalParagraphs": 11,
       "runParagraphs": 0,
       "runs": 0,
       "signals": {
@@ -362,8 +362,8 @@
       "source": "styles_ch1",
       "words": 4161,
       "paragraphs": 157,
-      "twoSignalParagraphs": 8,
-      "runParagraphs": 3,
+      "twoSignalParagraphs": 7,
+      "runParagraphs": 4,
       "runs": 1,
       "signals": {
         "dialoguePercent": {
@@ -420,7 +420,7 @@
       "source": "gatsby_ch1",
       "words": 6067,
       "paragraphs": 152,
-      "twoSignalParagraphs": 9,
+      "twoSignalParagraphs": 10,
       "runParagraphs": 0,
       "runs": 0,
       "signals": {
@@ -478,7 +478,7 @@
       "source": "sign_ch1",
       "words": 2949,
       "paragraphs": 56,
-      "twoSignalParagraphs": 3,
+      "twoSignalParagraphs": 4,
       "runParagraphs": 0,
       "runs": 0,
       "signals": {
@@ -536,7 +536,7 @@
       "source": "avonlea_ch1",
       "words": 3522,
       "paragraphs": 60,
-      "twoSignalParagraphs": 3,
+      "twoSignalParagraphs": 4,
       "runParagraphs": 0,
       "runs": 0,
       "signals": {
@@ -628,6 +628,18 @@
       "minimumPastPerfectPercent": 30,
       "minimumCognitionPercent": 30,
       "runs": 0
+    },
+    {
+      "minimumSentenceLength": 18,
+      "minimumPastPerfectPercent": 15,
+      "minimumCognitionPercent": 15,
+      "runs": 4
+    },
+    {
+      "minimumSentenceLength": 18,
+      "minimumPastPerfectPercent": 15,
+      "minimumCognitionPercent": 10,
+      "runs": 6
     }
   ],
   "judgments": {
@@ -795,7 +807,7 @@
         }
       ]
     },
-    "defaults": {
+    "candidate15_20_15": {
       "useful": 2,
       "noise": 0,
       "wrong": 0,
@@ -853,6 +865,101 @@
           "paragraphs": {
             "start": 9,
             "end": 12
+          },
+          "judgment": "useful"
+        }
+      ]
+    },
+    "defaults": {
+      "useful": 2,
+      "noise": 1,
+      "wrong": 0,
+      "borderline": 1,
+      "rows": [
+        {
+          "source": "story1.txt",
+          "paragraphs": {
+            "start": 22,
+            "end": 25
+          },
+          "judgment": "borderline"
+        },
+        {
+          "source": "story1.txt",
+          "paragraphs": {
+            "start": 65,
+            "end": 70
+          },
+          "judgment": "noise"
+        },
+        {
+          "source": "story1.txt",
+          "paragraphs": {
+            "start": 79,
+            "end": 83
+          },
+          "judgment": "useful"
+        },
+        {
+          "source": "styles_ch1",
+          "paragraphs": {
+            "start": 8,
+            "end": 12
+          },
+          "judgment": "useful"
+        }
+      ]
+    },
+    "candidate18_15_10": {
+      "useful": 3,
+      "noise": 3,
+      "wrong": 0,
+      "rows": [
+        {
+          "source": "story1.txt",
+          "paragraphs": {
+            "start": 20,
+            "end": 25
+          },
+          "judgment": "noise"
+        },
+        {
+          "source": "story1.txt",
+          "paragraphs": {
+            "start": 65,
+            "end": 70
+          },
+          "judgment": "noise"
+        },
+        {
+          "source": "story1.txt",
+          "paragraphs": {
+            "start": 79,
+            "end": 83
+          },
+          "judgment": "useful"
+        },
+        {
+          "source": "story4.txt",
+          "paragraphs": {
+            "start": 0,
+            "end": 3
+          },
+          "judgment": "noise"
+        },
+        {
+          "source": "styles_ch1",
+          "paragraphs": {
+            "start": 8,
+            "end": 12
+          },
+          "judgment": "useful"
+        },
+        {
+          "source": "gatsby_ch1",
+          "paragraphs": {
+            "start": 14,
+            "end": 18
           },
           "judgment": "useful"
         }
