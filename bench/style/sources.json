@@ -86,5 +86,21 @@
     "license": "CC0 1.0",
     "sha256": "033f5eabe354e1168583358036761614ceb586e2169077f3603ca6b9a4ac8aaf",
     "license_url": "https://standardebooks.org/about/standard-ebooks-and-the-public-domain"
+  },
+  "quoteli3_pp_full": {
+    "filename": "quoteli3-pp_full.xml",
+    "url": "https://downloads.cs.stanford.edu/nlp/data/quoteattribution/pp_full.xml",
+    "version": "Last-Modified 2017-03-18T19:05:19Z",
+    "license": "none found; owner decision 2026-10-16: local/CI benchmarking only, never committed or redistributed",
+    "sha256": "d4f0c83d73085d02db6db938eb3e2371d4b082d4a8194345e3e527c9a0959a4f",
+    "license_url": "https://github.com/cmlarsen/writemorebetter/blob/main/docs/STYLE-DATA-LICENSES.md#quoteli3-256"
+  },
+  "quoteli3_pp_test": {
+    "filename": "quoteli3-pp_test.xml",
+    "url": "https://nlp.stanford.edu/~muzny/data/pp_test.xml",
+    "version": "Last-Modified 2021-04-27T21:09:12Z",
+    "license": "none found; owner decision 2026-10-16: local/CI benchmarking only, never committed or redistributed",
+    "sha256": "55056da60b81fa35d0b42214451d106248d36d14aa8fd92547fdc49d192590bf",
+    "license_url": "https://github.com/cmlarsen/writemorebetter/blob/main/docs/STYLE-DATA-LICENSES.md#quoteli3-256"
   }
 }
