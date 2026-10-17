@@ -979,7 +979,7 @@ filler words and 26 sight words of 29 sense words), author pooling, rating weigh
 | `labels/sentence-starts-modern.jsonl` | 34 sentences | One implementing model; invented public story excerpts | Second independent labels and owner adjudication; diagnostic only, not part of the 332-row floor |
 | `labels/dialogue-tags.jsonl` | 238 records over 186 quote spans (70 tags, 10 beats) | Two Claude sessions, coordinator adjudication; detector-marked quote worksheets | Owner acceptance; independent human labels if required; not 238 independent sentences and not held out |
 | Transitions | No set on audited main | None | #247 lane plus approximately 300 public-domain sentences, two independent labelers and owner adjudication |
-| Pacing | No set on audited main | None | #251 lane plus approximately 300 public-domain sentences, two independent labelers and owner adjudication |
+| `labels/pacing-items.jsonl` | 305 paragraphs in 40 passages | Item set, guidelines and tooling only; no labels yet | Five independent model labels (DeepSeek, Muse, Codex Sol, Claude Opus, Claude Fable), merged consensus, owner adjudication |
 | Overused words, sensory balance, diction | No hand-labeled natural-text set | Deterministic generated answer keys only | Owner usefulness/calibration review; injections do not substitute for editorial judgments |
 
 The small `labels/example.jsonl` (3 records), `documents.jsonl` and `excerpt.txt` demonstrate the
@@ -1021,6 +1021,47 @@ It emits no text, titles, identifiers or author keys; a fixed output-key
 allowlist and numeric-value check guard serialization, probe stderr is discarded, and run.py
 suppresses all tier 3 argument/runtime errors. CI runs only synthetic `--self-test`, which
 checks author pooling and sentinel metadata suppression. No private data was accessed for #251.
+
+### Pacing hand-label set (#256)
+
+```sh
+python3 bench/style/pacing_labels.py packet /path/to/packet   # labeler packet: passages + blank template + guidelines
+python3 bench/style/pacing_labels.py check                    # every item materializes from the pinned downloads
+python3 bench/style/pacing_labels.py validate labeler.jsonl …
+python3 bench/style/pacing_labels.py merge a.jsonl b.jsonl … --out consensus.jsonl --stats agreement.json
+python3 bench/style/pacing_labels.py score --consensus consensus.jsonl [--gate | --write-baseline]
+python3 bench/style/pacing_labels.py select                   # rebuilds items and strata; changes the frozen set
+```
+
+`labels/pacing-items.jsonl` holds 305 paragraphs in 40 passages of 6–10 consecutive paragraphs, one
+record per paragraph: `id` (`p07.3`), `passage`, 1-based `paragraph`, `source` (a `sources.json` key or
+`story1`–`story5`), `document` (the chapter file inside the pinned Standard Ebooks download, or the
+story file), half-open `char`/`byte`/`utf16` offsets and the paragraph's UTF-8 `sha256`. No book text is
+committed. A document's text is its body `<p>` elements outside headers, hgroups, footers, tables,
+figures and asides, whitespace-collapsed, without noteref markers, joined by `\n`, with `\n\n\n` at
+each `<hr/>`; the stories are used byte for byte. The packet materializer checks every offset and hash.
+
+Passages come from nine full Standard Ebooks novels (five added for this set: *The Thirty-Nine Steps*,
+*Treasure Island*, *The Hound of the Baskervilles*, *The Age of Innocence*, *Silas Marner*), the four
+pinned first chapters, and story1–5: 13 books and 5 stories. Windows never cross a scene break, include
+no blockquote paragraph (letters, verse) and hold at most 1,800 words. Selection is stratified on the
+current report (defaults and the loose 15 / 10 / 10 setting): 14 passages around a reported run, 13
+near-misses (two-threshold paragraphs but no run) and 13 ordinary passages, round-robin across
+sources and shuffled with seed 251256. The stratum key is `labels/pacing-strata.json`. **Labelers must
+not see it**, the item file or any report output; the packet contains only numbered passage text, the
+blank `labels-template.jsonl` and [`PACING-GUIDELINES.md`](labels/PACING-GUIDELINES.md).
+
+Labelers write one JSONL line per passage: per-paragraph `slow` (boolean) and `kind` (backstory,
+exposition, interior, description, action, dialogue, mixed), and inclusive slow-stretch ranges with
+severity 1–5; `validate` enforces the schema and that stretches cover exactly the slow paragraphs.
+`merge` takes a strict majority per paragraph (ties stay `null` and are excluded from scoring), records
+vote counts and labeler names, and reports Fleiss' kappa (`slow`, `kind`, passage has-stretch), pairwise
+Cohen's kappa and mean pairwise Jaccard of each passage's slow paragraphs. Consensus stretches are
+maximal runs of majority-slow paragraphs with the median of overlapping labelers' severities. `score`
+runs the report over each whole document at defaults and the four sweep settings and scores
+paragraph-level P/R/F1 for `slow`, plus run-level any-overlap and IoU ≥ 0.5 matching of runs clipped
+to the passages. `--gate` compares the defaults with `pacing-labels-baseline.json` and is meant for CI
+once a consensus file is committed.
 
 ## Sensory norms follow-ups (#282)
 

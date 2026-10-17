@@ -178,6 +178,14 @@ independent adjudication, the sample is small and historically skewed, and these
 remain uncalibrated against modern published fiction. Raising the length threshold alone lost
 the clearest backstory block; raising the verb shares removed current-scene noise instead.
 
+### Hand-label set (#256)
+
+A blind label set for the spot judgments above is in preparation: 305 paragraphs in 40 public-domain
+passages, stratified on the report's default and loose flags, with
+[labeler guidelines](../bench/style/labels/PACING-GUIDELINES.md) and merge/kappa/scoring tooling.
+No labels exist yet; until a consensus is committed, the judgments above remain the only evaluation.
+See the [benchmark README](../bench/style/README.md#pacing-hand-label-set-256).
+
 ## Owner-run calibration
 
 ```sh

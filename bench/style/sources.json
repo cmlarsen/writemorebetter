@@ -102,5 +102,45 @@
     "license": "none found; owner decision 2026-10-16: local/CI benchmarking only, never committed or redistributed",
     "sha256": "55056da60b81fa35d0b42214451d106248d36d14aa8fd92547fdc49d192590bf",
     "license_url": "https://github.com/cmlarsen/writemorebetter/blob/main/docs/STYLE-DATA-LICENSES.md#quoteli3-256"
+  },
+  "thirty_nine_steps": {
+    "filename": "thirty_nine_steps.tar.gz",
+    "url": "https://codeload.github.com/standardebooks/john-buchan_the-thirty-nine-steps/tar.gz/38479284b92d570170f80c6e5e12572d691a5be0",
+    "version": "38479284b92d570170f80c6e5e12572d691a5be0",
+    "license": "CC0 1.0",
+    "sha256": "12640ab986b558f3bdd7b87adc9c2efc7d8810b6ef02be08e89d7b74f2016fd8",
+    "license_url": "https://standardebooks.org/about/standard-ebooks-and-the-public-domain"
+  },
+  "hound": {
+    "filename": "hound.tar.gz",
+    "url": "https://codeload.github.com/standardebooks/arthur-conan-doyle_the-hound-of-the-baskervilles/tar.gz/ba4c5526160e94e95d588ac5e84f8fae62d940ae",
+    "version": "ba4c5526160e94e95d588ac5e84f8fae62d940ae",
+    "license": "CC0 1.0",
+    "sha256": "537aaa922ac7bf7ad109ab6f20bc858ac973f54b3e0226b796a427f46fc4c267",
+    "license_url": "https://standardebooks.org/about/standard-ebooks-and-the-public-domain"
+  },
+  "age_of_innocence": {
+    "filename": "age_of_innocence.tar.gz",
+    "url": "https://codeload.github.com/standardebooks/edith-wharton_the-age-of-innocence/tar.gz/c8acc54bcdaf3a266cf37695c79a9927ccde26ee",
+    "version": "c8acc54bcdaf3a266cf37695c79a9927ccde26ee",
+    "license": "CC0 1.0",
+    "sha256": "e374e2a9c9b69b52c310046fc32d58129e3bdbcbbc6f8c8e4b4b861a4fd010e4",
+    "license_url": "https://standardebooks.org/about/standard-ebooks-and-the-public-domain"
+  },
+  "silas_marner": {
+    "filename": "silas_marner.tar.gz",
+    "url": "https://codeload.github.com/standardebooks/george-eliot_silas-marner/tar.gz/5e4a668b8ccfd6706cc3cfbfbed0a97d5e95fa7d",
+    "version": "5e4a668b8ccfd6706cc3cfbfbed0a97d5e95fa7d",
+    "license": "CC0 1.0",
+    "sha256": "d4b2ff94f0cfdbb33c746e40055e3244e49a0a03ab9626ac2601e30f6307db76",
+    "license_url": "https://standardebooks.org/about/standard-ebooks-and-the-public-domain"
+  },
+  "treasure_island": {
+    "filename": "treasure_island.tar.gz",
+    "url": "https://codeload.github.com/standardebooks/robert-louis-stevenson_treasure-island/tar.gz/c7fd6b42e8e856a49781be45d71a9aa18819f3b8",
+    "version": "c7fd6b42e8e856a49781be45d71a9aa18819f3b8",
+    "license": "CC0 1.0",
+    "sha256": "89af14791dc19ac7603bfe9aed53a6e217fdf8835b4dbeddcd2c29002439302f",
+    "license_url": "https://standardebooks.org/about/standard-ebooks-and-the-public-domain"
   }
 }
