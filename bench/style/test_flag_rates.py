@@ -1,3 +1,4 @@
+import argparse
 import contextlib
 import io
 import json
@@ -5,11 +6,13 @@ from pathlib import Path
 import runpy
 import sys
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
 import common
 import flag_rates
+import published_bands
 from flag_rates import numeric_only
 from tier3 import percentile
 
@@ -76,6 +79,57 @@ class FlagRateTests(unittest.TestCase):
         flag_rates.check(result, flag_rates.allowed_keys(VOCABULARY))
 
 
+    def test_discourse_and_sensory_measures_respect_floors_and_author_weights(self):
+        def sample(sentences, containing, she, runs, sight, senses):
+            types = {kind: {'containing': containing, 'opening': 0} for kind in flag_rates.TRANSITION_TYPES}
+            transitions = {'sentences': sentences, 'containing': containing, 'opening': 0, 'types': types}
+            pronouns = {'sentences': sentences, 'pronoun_starts': she, 'pronouns': {'she': she}, 'other': 0,
+                        'runs': runs}
+            sensory = {'words': 1000, 'sense_words': senses, 'modalities': {'sight': sight}}
+            histogram = {'10': sentences}
+            return {'words': 10 * sentences,
+                    'sentence_length': {group: {'histogram': histogram} for group in flag_rates.GROUPS},
+                    'transitions': {'groups': {group: transitions for group in flag_rates.GROUPS},
+                                    'repeats': {'all': runs, 'narration': runs},
+                                    'repeat_window': {'3': {'all': 0}, '5': {'all': runs}}},
+                    'pronoun_starts': {'groups': {group: pronouns for group in flag_rates.GROUPS},
+                                       'runs': {'all': runs, 'narration': runs}},
+                    'sensory_balance': {'groups': {group: sensory for group in flag_rates.GROUPS}},
+                    'overused_ratio_sweep': {'4': runs, '8': 0}}
+        samples = [('a', sample(100, 10, 50, 1, 30, 40)), ('a', sample(100, 30, 30, 0, 10, 10)),
+                   ('b', sample(40, 40, 40, 1, 20, 20))]
+        defaults = {'transitions_minimum_sentences': 50, 'pronoun_starts_minimum_sentences': 50,
+                    'sensory_minimum_sense_words': 20}
+        transitions = flag_rates.transitions(samples, defaults)
+        containing = transitions['measures']['all']['containing']
+        self.assertEqual((containing['samples'], containing['authors'], containing['mean']), (2, 1, 20))
+        self.assertAlmostEqual(transitions['measures']['narration']['eligible_share'], 0.5)
+        self.assertEqual(transitions['flags_per_1000_words']['repeats']['all']['flagged_share'], 0.75)
+        self.assertEqual(transitions['repeat_window']['3']['all']['flagged_share'], 0)
+        pronouns = flag_rates.pronoun_starts(samples, defaults)
+        self.assertEqual(pronouns['measures']['dialogue']['pronouns']['she']['mean'], 40)
+        self.assertEqual(pronouns['measures']['all']['pronouns']['he']['mean'], 0)
+        lexical = flag_rates.lexical_reports(samples, defaults)
+        self.assertNotIn('diction', lexical)
+        sight = lexical['sensory_balance']['measures']['all']['modality_percent']['sight']
+        self.assertEqual((sight['samples'], sight['mean']), (2, (75 + 100) / 2))
+        self.assertEqual(lexical['overused_words']['minimum_ratio']['8']['flagged_share'], 0)
+        result = {'transitions': transitions, 'pronoun_starts': pronouns, **lexical}
+        flag_rates.check(result, flag_rates.allowed_keys(VOCABULARY))
+        samples[0][1]['pronoun_starts']['groups']['all']['pronouns'][SENTINEL] = 1
+        self.assertNotIn(SENTINEL, json.dumps(flag_rates.pronoun_starts(samples, defaults)))
+        section = {'samples': 3, 'reports': result}
+        aggregate = {'units': 3, 'authors': 2, 'window_rule': flag_rates.WINDOW_RULE, 'chapter': section,
+                     'manuscript': section, 'defaults': defaults}
+        bands = published_bands.build(aggregate, {'dataset': 'synthetic'})
+        self.assertEqual(bands['bands']['transitions']['all']['containing'],
+                         {'p5': containing['percentiles']['5'], 'p95': containing['percentiles']['95']})
+        self.assertEqual(bands['bands']['sensoryBalance']['all']['modalities']['sight']['p95'],
+                         sight['percentiles']['95'])
+        self.assertEqual(bands['bands']['sensoryBalance']['all']['modalities']['smell'], {'p5': 0, 'p95': 0})
+        self.assertEqual(bands['eligibleShare']['transitions']['narration'], 0.5)
+        self.assertEqual(bands['calibration']['manuscript']['pronounStarts']['all']['pronounStarts']['authors'], 1)
+
     def test_manuscripts_pool_units_and_chapters_weight_authors_equally(self):
         units = [unit(1000, 1, {'10': 2}, cliches=1), unit(3000, 0, {'10': 2}), unit(500, 2, {'20': 2})]
         with tempfile.TemporaryDirectory() as temporary:
@@ -106,6 +160,8 @@ class FlagRateTests(unittest.TestCase):
         pron = manuscript['reports']['sentence_starts']['baseline_comparison']['all']['universal']['PRON']
         self.assertAlmostEqual(pron['difference']['mean'], 100 - flag_rates.baseline(flag_rates.STARTS_BASELINE)['universalPercent']['PRON'])
         self.assertEqual(manuscript['reports']['sentence_starts']['measures']['all']['universal']['PRON']['mean'], 100)
+        self.assertNotIn('diction', manuscript['reports'])
+        self.assertNotIn('diction', chapter['reports'])
         self.assertNotIn(SENTINEL, json.dumps(result))
         self.assertTrue(numeric_only(result))
 
@@ -147,6 +203,40 @@ class FlagRateTests(unittest.TestCase):
         for leaked in (unit(1000, 0, {'5': 2}, entry=SENTINEL), unit(1000, 0, {'5': 2}, verb=SENTINEL)):
             with tempfile.TemporaryDirectory() as temporary, self.assertRaisesRegex(ValueError, 'unexpected'):
                 flag_rates.calibrate(FakeProbe([leaked]), export(Path(temporary), ['a']))
+
+    def run_tier3(self, **options):
+        args = argparse.Namespace(**{'sentence_length': False, 'probe': 'probe', 'tokenizer': 'tokenizer',
+                                     'self_test': False, 'skip_diction': False, 'diction_table': None,
+                                     'export': None, **options})
+        tables, calls = [], []
+
+        class Probe:
+            def __init__(self, executable, tokenizer, table):
+                self.vocabulary, self.process = VOCABULARY, SimpleNamespace(returncode=0)
+                tables.append(table)
+
+        def record(name):
+            return lambda probe, *rest, **keywords: calls.append((name, keywords)) or {'units': 1}
+
+        with patch.object(flag_rates, 'FlagProbe', Probe), \
+                patch.object(flag_rates, 'self_test', record('self_test')), \
+                patch.object(flag_rates, 'calibrate', record('calibrate')), \
+                contextlib.redirect_stdout(io.StringIO()):
+            flag_rates.run(args)
+        return tables, calls
+
+    def test_self_test_and_owner_runs_honor_skip_diction(self):
+        synthetic = flag_rates.ROOT / 'bench/style/diction-synthetic.json'
+        self.assertEqual(self.run_tier3(self_test=True), ([synthetic], [('self_test', {'diction': True})]))
+        self.assertEqual(self.run_tier3(self_test=True, skip_diction=True),
+                         (['-'], [('self_test', {'diction': False})]))
+        self.assertEqual(self.run_tier3(export=Path('export'), skip_diction=True), (['-'], [('calibrate', {})]))
+        self.assertEqual(self.run_tier3(export=Path('export'), diction_table=Path('table.json')),
+                         ([Path('table.json')], [('calibrate', {})]))
+        with self.assertRaisesRegex(ValueError, 'or pass --skip-diction'):
+            self.run_tier3(export=Path('export'))
+        with self.assertRaisesRegex(ValueError, 'choose a diction table'):
+            self.run_tier3(export=Path('export'), diction_table=Path('table.json'), skip_diction=True)
 
     def run_cli(self, argv):
         output, errors = io.StringIO(), io.StringIO()

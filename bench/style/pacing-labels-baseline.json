@@ -1,66 +1,66 @@
 {
-  "consensusSha256": "e32e81b00cd1210f7702ce85292818124755f02bd1566c9a596174e6be819795",
+  "consensusSha256": "eca82a22d2974a1acfbb2cbc9edfe1272489adcc5ee45d6224150dcbb0e21e29",
   "defaults": {
     "options": {},
     "paragraph": {
-      "precision": 0.7272727272727273,
-      "recall": 0.13559322033898305,
-      "f1": 0.22857142857142856,
-      "true_positive": 8,
-      "predicted": 11,
+      "precision": 0.7391304347826086,
+      "recall": 0.288135593220339,
+      "f1": 0.4146341463414634,
+      "true_positive": 17,
+      "predicted": 23,
       "gold": 59,
       "excludedTies": 0
     },
     "runAnyOverlap": {
-      "precision": 0.75,
-      "recall": 0.2,
-      "f1": 0.31578947368421056,
-      "matchedPredicted": 3,
-      "predicted": 4,
-      "matchedGold": 3,
+      "precision": 0.8333333333333334,
+      "recall": 0.3333333333333333,
+      "f1": 0.47619047619047616,
+      "matchedPredicted": 5,
+      "predicted": 6,
+      "matchedGold": 5,
       "gold": 15
     },
     "runIou50": {
-      "precision": 0.5,
-      "recall": 0.13333333333333333,
-      "f1": 0.2105263157894737,
-      "matchedPredicted": 2,
-      "predicted": 4,
-      "matchedGold": 2,
+      "precision": 0.6666666666666666,
+      "recall": 0.26666666666666666,
+      "f1": 0.3809523809523809,
+      "matchedPredicted": 4,
+      "predicted": 6,
+      "matchedGold": 4,
       "gold": 15
     },
     "againstOthersMajority": {
       "labelers": {
         "claude-fable": {
-          "paragraph": 0.2807017543859649,
-          "runAnyOverlap": 0.375,
-          "runIou50": 0.25
+          "paragraph": 0.5,
+          "runAnyOverlap": 0.5555555555555556,
+          "runIou50": 0.4444444444444444
         },
         "claude-opus": {
-          "paragraph": 0.26666666666666666,
-          "runAnyOverlap": 0.375,
-          "runIou50": 0.25
+          "paragraph": 0.4722222222222222,
+          "runAnyOverlap": 0.5555555555555556,
+          "runIou50": 0.4444444444444444
         },
         "codex-sol": {
-          "paragraph": 0.27586206896551724,
-          "runAnyOverlap": 0.375,
-          "runIou50": 0.25
+          "paragraph": 0.4927536231884058,
+          "runAnyOverlap": 0.5555555555555556,
+          "runIou50": 0.4444444444444444
         },
         "deepseek": {
-          "paragraph": 0.2318840579710145,
-          "runAnyOverlap": 0.31578947368421056,
-          "runIou50": 0.2105263157894737
+          "paragraph": 0.41975308641975306,
+          "runAnyOverlap": 0.47619047619047616,
+          "runIou50": 0.3809523809523809
         },
         "muse": {
-          "paragraph": 0.23880597014925373,
-          "runAnyOverlap": 0.31578947368421056,
-          "runIou50": 0.2105263157894737
+          "paragraph": 0.4358974358974359,
+          "runAnyOverlap": 0.47619047619047616,
+          "runIou50": 0.3809523809523809
         }
       },
       "meanF1": {
-        "paragraph": 0.2587841036276834,
-        "runAnyOverlap": 0.35131578947368425,
-        "runIou50": 0.23421052631578948
+        "paragraph": 0.4641252735455634,
+        "runAnyOverlap": 0.5238095238095238,
+        "runIou50": 0.419047619047619
       }
     }
   },

@@ -173,3 +173,71 @@ rhetoric and deliberate same-sentence `because… because` parallels. Rows and r
 `bench/style/transitions-pronouns-review.json`. The judgment is single-judge and not blind. These
 results support keeping both reports opt-in, with no share highlights until a calibrated baseline
 exists.
+
+## Published-fiction calibration (2026-10-16)
+
+The owner-only `tier3 --flag-rates` run (default options) measured both lenses on the
+published-fiction export: `cmlarsen/fiction-baseline` at b464cac (EXTRACTOR_VERSION 1), 210 units,
+71 authors, 7.70 million counted words, 1,559 chapter windows. Only aggregate numbers left the run;
+the method, window rule and weighting are in the
+[benchmark README](../bench/style/README.md#flag-rate-calibration-241). Rates are flags per 1,000
+words of that mode's sentences; `share` is the author-weighted share of chapter windows (or, for
+manuscripts, of authors) with at least one flag.
+
+| Flag (mode) | Chapter windows flagged | Authors flagged | Per 1,000 words, chapter median (p5–p95) |
+|---|---:|---:|---|
+| Transition repeats, window 5 (all) | 66.5% | 95.8% | 0.28 (0–1.44) |
+| Transition repeats (narration) | 53.1% | 91.5% | 0.20 (0–1.56) |
+| Transition repeats (dialogue) | 25.3% | 65.2% | 0 (0–1.37) |
+| Pronoun runs (all) | 33.4% | 74.6% | 0 (0–0.48) |
+| Pronoun runs (narration) | 10.0% | 46.5% | 0 (0–0.25) |
+| Pronoun runs (dialogue) | 27.9% | 71.0% | 0 (0–1.50) |
+
+The repeat window sweep (all modes) shows that no window keeps the flag rare in published prose:
+
+| `repeatWindow` | Chapter windows flagged | Authors flagged | Per 1,000 words, chapter median (p5–p95) |
+|---:|---:|---:|---|
+| 2 | 42.7% | 87.3% | 0 (0–0.51) |
+| 3 | 54.9% | 91.5% | 0.16 (0–0.83) |
+| 4 | 63.2% | 95.8% | 0.21 (0–1.11) |
+| **5 (default)** | **66.5%** | **95.8%** | **0.28 (0–1.44)** |
+
+**Decision: defaults unchanged.** Two thirds of published chapters contain a repeated transition
+within five sentences, and even a two-sentence window flags 43%. Together with the public review
+(4 useful of 41 flags), this supports keeping both reports opt-in rather than tuning the window: a
+shorter window removes flags without evidence that the remaining ones are the useful ones. Pronoun
+runs fire mostly inside one speaker's dialogue; narration runs that `sameWordRuns` does not already
+report occur in 10% of published chapters. `pronounStarts` has no threshold to tune, and
+`minimumSentences` (50) keeps 99.4% of narration and 79.7% of dialogue windows eligible.
+
+### Published-author bands
+
+[`bench/style/published-bands-transitions-pronouns-sensory.json`](../bench/style/published-bands-transitions-pronouns-sensory.json)
+records the author-weighted chapter-window p5/p95 band for every share these reports return, per
+mode, with the full percentile sets and manuscript-scale distributions in `calibration`. It follows
+the sentence-start band convention (provenance inside the file, aggregate numbers only) and is
+built from the tier 3 output by `bench/style/published_bands.py`. Neither report takes a baseline
+argument yet, so nothing highlights against these bands; they are the reference for that future
+argument. Selected bands, percent of eligible sentences, p5 / median / p95:
+
+| Share | All | Narration | Dialogue |
+|---|---|---|---|
+| Containing a transition | 2.38 / 6.59 / 13.23 | 1.87 / 5.93 / 14.35 | 1.40 / 6.53 / 13.67 |
+| Opening with a transition | 1.35 / 4.93 / 11.14 | 0.68 / 4.21 / 11.98 | 0.95 / 5.30 / 12.30 |
+| Contrast (containing) | 0.68 / 2.37 / 5.40 | 0.31 / 2.27 / 6.45 | 0 / 2.25 / 5.56 |
+| Cause (containing) | 0 / 0.93 / 3.44 | 0 / 0.83 / 3.66 | 0 / 0.73 / 3.33 |
+| Time (containing) | 0 / 0.25 / 1.51 | 0 / 0.34 / 1.87 | 0 / 0 / 1.02 |
+| Addition (containing) | 0.69 / 2.53 / 6.40 | 0.07 / 2.14 / 7.11 | 0 / 2.94 / 7.32 |
+| Example (containing) | 0 / 0 / 0.25 | 0 / 0 / 0.33 | 0 / 0 / 0.26 |
+| Pronoun starts | 17.91 / 30.94 / 45.27 | 13.01 / 26.21 / 45.98 | 23.80 / 36.53 / 49.28 |
+| *I* | 1.03 / 6.67 / 20.12 | 0 / 0.54 / 21.88 | 5.17 / 11.96 / 19.43 |
+| *he* | 0.75 / 4.62 / 13.40 | 0.82 / 7.03 / 18.33 | 0 / 1.24 / 5.67 |
+| *she* | 0 / 2.39 / 10.04 | 0 / 3.39 / 15.43 | 0 / 0.12 / 4.27 |
+| *it* | 1.43 / 3.65 / 6.94 | 0.72 / 3.25 / 8.04 | 0.86 / 3.91 / 7.42 |
+
+Narration and dialogue differ enough (dialogue opens with *I* and *you*, narration with *he* and
+*she*) that a blended band would mislead, as #241 found for sentence starts. Per-pronoun narration
+bands mostly measure point of view: a first-person chapter sits near the *I* p95 and the *he*/*she*
+p5. A future highlight should use only `pronounStarts` per mode and treat per-pronoun bands as
+context. The tier 3 probe buckets every pronoun outside *I, you, he, she, it, we, they* into one
+`other` count, so no unlisted opener reaches the output.

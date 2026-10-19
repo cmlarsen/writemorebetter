@@ -1,6 +1,7 @@
 use std::io::{self, BufRead, Write};
 
 use serde::Deserialize;
+use serde_json::json;
 use writemorebetter_style::reports::pacing::{self, PacingOptions};
 use writemorebetter_style::{analyze_document, DocumentOptions};
 
@@ -12,6 +13,8 @@ struct Input {
     hard_wrapped: bool,
     #[serde(default)]
     options: PacingOptions,
+    #[serde(default)]
+    sweep: Vec<PacingOptions>,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -33,7 +36,31 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             &DocumentOptions::new().with_hard_wrapped(input.hard_wrapped),
         );
         let report = pacing::report(&document, &input.options)?;
-        writeln!(stdout, "{}", serde_json::to_string(&report)?)?;
+        if input.sweep.is_empty() {
+            writeln!(stdout, "{}", serde_json::to_string(&report)?)?;
+        } else {
+            let sweep = input
+                .sweep
+                .iter()
+                .map(|options| {
+                    pacing::report(&document, options).map(|swept| {
+                        json!({
+                            "runs": swept.slow_runs.len(),
+                            "runParagraphs": swept
+                                .slow_runs
+                                .iter()
+                                .map(|run| run.paragraphs.end - run.paragraphs.start)
+                                .sum::<usize>(),
+                        })
+                    })
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            writeln!(
+                stdout,
+                "{}",
+                serde_json::to_string(&json!({"report": report, "sweep": sweep}))?
+            )?;
+        }
         stdout.flush()?;
     }
     Ok(())

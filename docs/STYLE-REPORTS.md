@@ -57,11 +57,11 @@ swift/, wasm/       one binding each, exposing check() + analyze() + analyzeDocu
 | [Echoes](STYLE-ECHOES.md) (same lemma nearby) | #245 | lemmas | none |
 | [Repeated phrases](STYLE-ECHOES.md#repeated-phrases) | #245 | lemma n-grams | none |
 | Clichés and redundancies | #246 | phrase lists | none |
-| [Transitions, pronoun starts](STYLE-TRANSITIONS.md) | #247 | #244's classifier, word list | Ngram `_START_` 2- to 4-grams (planned; not yet in #247) |
+| [Transitions, pronoun starts](STYLE-TRANSITIONS.md) | #247 | #244's classifier, word list | none yet; published-author chapter-window p5–p95 bands per mode recorded for a future baseline argument |
 | [Overused words](STYLE-OVERUSED-WORDS.md), filler words | #248 | lemma counts | Ngram English Fiction 1990–2019 unigrams, lemmatized (bundled) |
 | Dialogue tags | #249 | dialogue spans | published-fiction corpus (owner-run tier 3 command; see [STYLE-DIALOGUE-TAGS.md](STYLE-DIALOGUE-TAGS.md)) |
-| [Sensory balance, diction (concreteness)](STYLE-NORMS.md) | #250 | lemmas, word-norm tables | none; Lancaster norms bundled (CC BY 4.0), concreteness table caller-supplied |
-| [Pacing](STYLE-PACING.md) | #251 | speech spans, sentence stats, POS | none; heuristic thresholds, owner-run calibration pending |
+| [Sensory balance, diction (concreteness)](STYLE-NORMS.md) | #250 | lemmas, word-norm tables | none; Lancaster norms bundled (CC BY 4.0), concreteness table caller-supplied; published sensory p5–p95 bands per mode recorded |
+| [Pacing](STYLE-PACING.md) | #251 | speech spans, sentence stats, POS | none; thresholds calibrated on published-fiction flag rates (2026-10-16) |
 
 Sentence length and sentence starts are public modules under `style::reports`, with no flattened
 crate-root exports. [Sentence report definitions](STYLE-SENTENCES.md) specify word counting, Penn
@@ -166,7 +166,7 @@ Subplot chooses which methods to call. Its recommended default set is **clichés
 sentence length statistics and monotony, and sentence starts**. **Echoes, repeated phrases,
 long-sentence flags, overused and filler words, transitions, pronoun starts, sensory balance, diction and pacing** are opt-in lenses;
 sensory balance and diction stay opt-in until the owner has seen usefulness numbers on real manuscripts. Length statistics and monotony remain available without
-`includeLongSentences`. Pacing thresholds are heuristic and uncalibrated against published fiction.
+`includeLongSentences`. Pacing thresholds are calibrated on published-fiction flag rates (2026-10-16), not on labeled passages.
 A pacing strip should highlight only `slowRuns` and draw the per-paragraph signals as neutral
 measurements: single paragraphs that meet two thresholds are mostly in-scene noise
 ([STYLE-PACING.md](STYLE-PACING.md#signals-and-runs)). The library has no combined request or default report selection.
@@ -426,6 +426,8 @@ Build rules for any baseline:
 
 | Date | Decision | Why |
 |---|---|---|
+| 2026-10-16 | #251/#241/#256 calibration: pacing defaults become 18-word mean length / 15% past perfect / 15% cognition (were 18 / 20 / 20); `minimumParagraphs` 3 and `moreThanWords` 400 unchanged | Joins the owner-run tier 3 sweep on published fiction (210 units, 71 authors, 1,559 chapter windows, aggregate only) with #293's five-model blind label sweep (305 public paragraphs) over their 64 shared settings, choosing the highest label F1 with at most about 15% of published chapter windows flagged. 18 / 15 / 15 raises paragraph F1 from 0.229 to 0.415 (precision 0.73 → 0.74, recall 0.14 → 0.29) and flags 9.0% of windows (46.5% of authors; was 3.4% and 32.4%). It also beats the first proposal, 15 / 20 / 15, on every label score and both published shares. 18 / 15 / 10 (F1 0.449, 14.1%) was rejected because it flags story4's untouched opening in every tier 2 negative control, which the consensus labels not slow. 15 / 15 / 30 ties on true positives but flags more authors and puts cognition above its published p95. On public text the defaults add one noise and one borderline story1 run to the two useful ones. See [STYLE-PACING.md](STYLE-PACING.md#label-accuracy-against-published-rates-2026-10-16) |
+| 2026-10-16 | #241/#256 calibration: every other default stays unchanged; record published flag rates for all merged reports except diction, and published-author chapter-window p5–p95 bands per mode for transitions, pronoun starts and sensory balance in `bench/style/published-bands-transitions-pronouns-sensory.json`, without adding a baseline argument | Published chapters show transition repeats in 66.5% of windows (43% even at a 2-sentence window), overused lemmas in 99.4% (1.44 per 1,000 words, below the public calibration's rate) and sensory sight p95 72.8%, so no sweep separates published prose from flags worth showing; changing those defaults would need judged published or draft samples. The bands follow the sentence-band convention so a later baseline argument can use them unchanged. Diction was skipped: no concreteness table is chosen. See [STYLE-TRANSITIONS.md](STYLE-TRANSITIONS.md#published-fiction-calibration-2026-10-16), [STYLE-NORMS.md](STYLE-NORMS.md#published-fiction-bands-2026-10-16), [STYLE-OVERUSED-WORDS.md](STYLE-OVERUSED-WORDS.md#published-fiction-flag-rates-2026-10-16) |
 | 2026-10-16 | #282 (owner decision, Caleb): remove the sensory `singleSense` flag. Chapters and scenes no longer carry `singleSense`, and the `singleSensePercent` option is gone, so passing it is rejected as an unknown option. The per-scene modality counts and percents remain the opt-in lens | On 114 eligible public scenes (≥ 20 narration sense words), the flag fires on 0/1/4/11 scenes at 85/80/75/70%, and none of the 11 is a useful warning. High sight share mostly measures setting nouns and filter verbs ([STYLE-NORMS.md](STYLE-NORMS.md#singlesense-removed)) |
 | 2026-10-16 | #284 review: pacing rows carry no per-paragraph verdict, verb heads need a verb-phrase chunk, past perfect skips adverbs with a lexical verb reading (*had still not forgotten*), and a failed pooled sequence reports its longest passing window | A seeded sample of 40 two-signal rows judged 15 useful / 25 noise, so a UI highlights only runs. The chunk rule removes *up*, *home*, *wrong* from the denominator (128 two-signal rows, default runs still 1). Without the window fallback, appending two reflective paragraphs could erase a flagged run. See [STYLE-PACING.md](STYLE-PACING.md) |
 | 2026-10-16 | #251: pacing is an opt-in lens over shared paragraphs and speech, requiring two signals and ≥3 paragraphs or >400 words; authored cognition list, configurable 18-word / 20% / 20% thresholds | Public-only measurement chooses conservative defaults; published-fiction calibration remains owner-run and no baseline or prose-quality judgment ships. See [STYLE-PACING.md](STYLE-PACING.md) |
@@ -491,8 +493,11 @@ regression fails CI; a deliberate report change rebaselines them. These are inje
 scores, not editorial accuracy. All 21 report mutations tried (the reviewer's 12 plus 9 boundary
 changes, listed in the README) failed the gate when measured; #282 later removed the single-sense
 cases and the two `singleSensePercent` mutations along with the flag.
-Tier 3 flag-rate calibration now covers all nine reports, including sensory modalities, overused/filler
-counts and rated-word-weighted diction means, and requires an owner-supplied diction table for real
-runs. Only synthetic self-tests ran here. Approximately 300 independent, owner-adjudicated judgment
-labels per report and actual owner-only calibration for new reports remain owed; the README lists
-existing model-label provenance explicitly, so #256 is referenced and remains open.
+Tier 3 flag-rate calibration now covers every merged report, including sensory modalities per mode,
+overused/filler counts, rated-word-weighted diction means, transitions and pronoun starts; a real run
+takes an owner-supplied diction table or `--skip-diction`. The 2026-10-16 owner-run calibration on
+the published-fiction export measured every report except diction and pacing's threshold sweep;
+its aggregate results and decisions are in the README and the Decisions table above. Approximately
+300 independent, owner-adjudicated judgment labels per report and a diction calibration with a
+chosen table remain owed; the README lists existing model-label provenance explicitly, so #256 is
+referenced and remains open.

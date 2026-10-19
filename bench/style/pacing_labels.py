@@ -5,6 +5,7 @@ from concurrent.futures import ThreadPoolExecutor
 import hashlib
 from itertools import combinations, product
 import json
+import math
 from pathlib import Path
 import random
 import re
@@ -430,8 +431,8 @@ def fleiss(counts):
         raise ValueError('Fleiss kappa needs the same number (at least 2) of ratings per item')
     categories = {key for c in counts for key in c}
     total = len(counts) * raters
-    expected = sum((sum(c.get(k, 0) for c in counts) / total) ** 2 for k in categories)
-    observed = sum((sum(v * v for v in c.values()) - raters) / (raters * (raters - 1)) for c in counts) / len(counts)
+    expected = math.fsum((sum(c.get(k, 0) for c in counts) / total) ** 2 for k in categories)
+    observed = math.fsum((sum(v * v for v in c.values()) - raters) / (raters * (raters - 1)) for c in counts) / len(counts)
     return None if expected == 1 else (observed - expected) / (1 - expected)
 
 
@@ -468,7 +469,7 @@ def jaccard(first, second):
 
 def mean(values):
     values = [v for v in values if v is not None]
-    return sum(values) / len(values) if values else None
+    return math.fsum(values) / len(values) if values else None
 
 
 def median(values):

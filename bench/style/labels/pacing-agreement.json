@@ -10,8 +10,8 @@
   "passages": 40,
   "fleissKappa": {
     "slow": 0.7123219442815886,
-    "kind": 0.8051128946078293,
-    "passageHasStretch": 0.7395833333333331
+    "kind": 0.8051128946078298,
+    "passageHasStretch": 0.7395833333333336
   },
   "cohenKappa": {
     "claude-fable|claude-opus": {
@@ -60,7 +60,7 @@
   "consensusSlow": 59,
   "meanStretchAgreement": 0.8308154761904761,
   "passageStretchAgreement": {
-    "p01": 0.7533333333333332,
+    "p01": 0.7533333333333333,
     "p02": 1.0,
     "p03": 0.9428571428571428,
     "p04": 1.0,
@@ -115,22 +115,22 @@
     "claude-fable": {
       "slowParagraphs": 72,
       "meanCohenSlow": 0.7497086016851653,
-      "meanCohenKind": 0.8350787413136745,
+      "meanCohenKind": 0.8350787413136744,
       "cohenSlowVsOthersMajority": 0.853614972431467,
       "othersMajorityTies": 15,
-      "fleissSlowWithout": 0.6828222562010047
+      "fleissSlowWithout": 0.6828222562010055
     },
     "claude-opus": {
       "slowParagraphs": 76,
       "meanCohenSlow": 0.6911457421065877,
-      "meanCohenKind": 0.8295339361178738,
+      "meanCohenKind": 0.829533936117874,
       "cohenSlowVsOthersMajority": 0.7313981862548713,
       "othersMajorityTies": 10,
-      "fleissSlowWithout": 0.7257100316396805
+      "fleissSlowWithout": 0.7257100316396797
     },
     "codex-sol": {
       "slowParagraphs": 56,
-      "meanCohenSlow": 0.7055274901177564,
+      "meanCohenSlow": 0.7055274901177565,
       "meanCohenKind": 0.7947273637767444,
       "cohenSlowVsOthersMajority": 0.8607844897226461,
       "othersMajorityTies": 23,
@@ -142,15 +142,15 @@
       "meanCohenKind": 0.7793204798168494,
       "cohenSlowVsOthersMajority": 0.7701059238917222,
       "othersMajorityTies": 12,
-      "fleissSlowWithout": 0.7299291617473446
+      "fleissSlowWithout": 0.7299291617473436
     },
     "muse": {
       "slowParagraphs": 48,
-      "meanCohenSlow": 0.7289917030131812,
+      "meanCohenSlow": 0.7289917030131811,
       "meanCohenKind": 0.7883048560089534,
       "cohenSlowVsOthersMajority": 0.8491879350348028,
       "othersMajorityTies": 15,
-      "fleissSlowWithout": 0.7057849753322084
+      "fleissSlowWithout": 0.7057849753322077
     }
   },
   "outlier": {

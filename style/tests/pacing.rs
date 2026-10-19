@@ -70,17 +70,17 @@ fn past_perfect_uses_pos_and_whitespace_bounded_adverbs() {
 fn appending_qualifying_paragraphs_keeps_a_run() {
     let a = "She had gone. He had left. They knew it. It was over.";
     let b = "She thought about the river and remembered the boats that drifted past the old mill, and she wondered whether he knew how often she walked there, sat by the water, watched the birds and understood the people who lived and worked along its banks.";
-    for (count, expected) in [(0, 0..3), (1, 0..4), (2, 0..4)] {
+    for (count, expected) in [(0, 0..3), (1, 0..4), (2, 0..5), (3, 0..5)] {
         let text = [vec![a; 3], vec![b; count]].concat().join("\n");
         let r = report(&text);
         assert_eq!(r.paragraphs.len(), 3 + count);
         assert_eq!(r.slow_runs.len(), 1, "{count}");
         assert_eq!(r.slow_runs[0].paragraphs, expected);
     }
-    let r = report(&[vec![a; 3], vec![b; 2]].concat().join("\n"));
+    let r = report(&[vec![a; 3], vec![b; 3]].concat().join("\n"));
     let sum = |f: fn(&pacing::PacingParagraph) -> usize| r.paragraphs.iter().map(f).sum::<usize>();
     let verbs = sum(|p| p.signals.verb_phrases) as f64;
-    assert!(100.0 * (sum(|p| p.signals.past_perfect) as f64) / verbs < 20.0);
+    assert!(100.0 * (sum(|p| p.signals.past_perfect) as f64) / verbs < 15.0);
     assert!(sum(|p| p.signals.words.all) as f64 / (sum(|p| p.signals.sentences) as f64) < 18.0);
 }
 
