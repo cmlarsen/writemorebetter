@@ -517,3 +517,44 @@ export interface PassiveReport {
   passives: Array<PassiveMatch>;
   groups: Split<PassiveGroup>;
 }
+
+export type ClarityClauseIntroducer = "subordinator" | "relative";
+
+export interface ClarityStickySentence {
+  span: Span;
+  sentence: number;
+  mode: Mode;
+  words: number;
+  glueWords: number;
+  gluePercent: number;
+  glue: Array<Span>;
+}
+
+export interface ClarityLongClause {
+  span: Span;
+  sentence: number;
+  mode: Mode;
+  introducer: string;
+  introducerSpan: Span;
+  kind: ClarityClauseIntroducer;
+  words: number;
+  sentenceWords: number;
+}
+
+export interface ClarityGroup {
+  sentences: number;
+  eligibleSentences: number;
+  lowConfidence: boolean;
+  glue: Share;
+  sticky: Share;
+  subordinateClauses: number;
+  longClauses: number;
+  longClauseSentences: Share;
+}
+
+export interface ClarityReport {
+  words: Split<number>;
+  stickySentences: Array<ClarityStickySentence>;
+  longClauses: Array<ClarityLongClause>;
+  groups: Split<ClarityGroup>;
+}

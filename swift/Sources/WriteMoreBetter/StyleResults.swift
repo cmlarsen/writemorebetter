@@ -666,3 +666,50 @@ public extension StyleDocument {
         try decodeStyle(passiveJson(optionsJson: optionsJson, baselineJson: baseline.selector))
     }
 }
+
+public enum ClarityClauseIntroducer: String, Codable, Sendable { case subordinator, relative }
+
+public struct ClarityStickySentence: Codable, Equatable, Sendable {
+    public let span: Span
+    public let sentence: Int
+    public let mode: Mode
+    public let words: Int
+    public let glueWords: Int
+    public let gluePercent: Double
+    public let glue: [Span]
+}
+
+public struct ClarityLongClause: Codable, Equatable, Sendable {
+    public let span: Span
+    public let sentence: Int
+    public let mode: Mode
+    public let introducer: String
+    public let introducerSpan: Span
+    public let kind: ClarityClauseIntroducer
+    public let words: Int
+    public let sentenceWords: Int
+}
+
+public struct ClarityGroup: Codable, Equatable, Sendable {
+    public let sentences: Int
+    public let eligibleSentences: Int
+    public let lowConfidence: Bool
+    public let glue: Share
+    public let sticky: Share
+    public let subordinateClauses: Int
+    public let longClauses: Int
+    public let longClauseSentences: Share
+}
+
+public struct ClarityReport: Codable, Equatable, Sendable {
+    public let words: Split<Int>
+    public let stickySentences: [ClarityStickySentence]
+    public let longClauses: [ClarityLongClause]
+    public let groups: Split<ClarityGroup>
+}
+
+public extension StyleDocument {
+    func clarity(optionsJson: String? = nil) throws -> ClarityReport {
+        try decodeStyle(clarityJson(optionsJson: optionsJson))
+    }
+}

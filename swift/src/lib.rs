@@ -855,4 +855,15 @@ impl StyleDocument {
                 message: error.to_string(),
             })
     }
+
+    /// Returns the opt-in clarity lens (sticky sentences, long subordinate clauses).
+    #[uniffi::method(default(options_json = None))]
+    pub fn clarity_json(&self, options_json: Option<String>) -> Result<String, CheckError> {
+        self.inner
+            .clarity(options_json.as_deref())
+            .map(|report| writemorebetter_style::reports::to_utf16_json(&report))
+            .map_err(|error| CheckError::ReportInput {
+                message: error.to_string(),
+            })
+    }
 }
