@@ -14362,3 +14362,16 @@
 {"word": "snare", "model": "claude-sonnet-5-5", "sample": 2, "rating": 4.4, "batch": "claude-sonnet-5-5-s2-b284"}
 {"word": "decisive", "model": "claude-sonnet-5-5", "sample": 2, "rating": 1.8, "batch": "claude-sonnet-5-5-s2-b284"}
 {"word": "whirlwind", "model": "claude-sonnet-5-5", "sample": 2, "rating": 4.0, "batch": "claude-sonnet-5-5-s2-b284"}
+{"word": "away", "model": "claude-sonnet-5-5", "sample": 2, "rating": 2.0, "batch": "claude-sonnet-5-5-s2-x000"}
+{"word": "off", "model": "claude-sonnet-5-5", "sample": 2, "rating": 1.8, "batch": "claude-sonnet-5-5-s2-x000"}
+{"word": "simply", "model": "claude-sonnet-5-5", "sample": 2, "rating": 1.5, "batch": "claude-sonnet-5-5-s2-x000"}
+{"word": "somehow", "model": "claude-sonnet-5-5", "sample": 2, "rating": 1.3, "batch": "claude-sonnet-5-5-s2-x000"}
+{"word": "round", "model": "claude-sonnet-5-5", "sample": 2, "rating": 2.8, "batch": "claude-sonnet-5-5-s2-x000"}
+{"word": "back", "model": "claude-sonnet-5-5", "sample": 2, "rating": 2.6, "batch": "claude-sonnet-5-5-s2-x000"}
+{"word": "up", "model": "claude-sonnet-5-5", "sample": 2, "rating": 2.2, "batch": "claude-sonnet-5-5-s2-x000"}
+{"word": "suddenly", "model": "claude-sonnet-5-5", "sample": 2, "rating": 1.8, "batch": "claude-sonnet-5-5-s2-x000"}
+{"word": "down", "model": "claude-sonnet-5-5", "sample": 2, "rating": 2.2, "batch": "claude-sonnet-5-5-s2-x000"}
+{"word": "like", "model": "claude-sonnet-5-5", "sample": 2, "rating": 1.5, "batch": "claude-sonnet-5-5-s2-x000"}
+{"word": "actually", "model": "claude-sonnet-5-5", "sample": 2, "rating": 1.2, "batch": "claude-sonnet-5-5-s2-x000"}
+{"word": "out", "model": "claude-sonnet-5-5", "sample": 2, "rating": 1.9, "batch": "claude-sonnet-5-5-s2-x000"}
+{"word": "really", "model": "claude-sonnet-5-5", "sample": 2, "rating": 1.3, "batch": "claude-sonnet-5-5-s2-x000"}
