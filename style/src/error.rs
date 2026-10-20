@@ -38,12 +38,6 @@ impl StyleError {
         }
     }
 
-    pub(crate) fn missing_table(report: &str) -> Self {
-        Self::MissingTable {
-            report: report.to_owned(),
-        }
-    }
-
     pub(crate) fn needs_token_details(report: &str) -> Self {
         Self::NeedsTokenDetails {
             report: report.to_owned(),

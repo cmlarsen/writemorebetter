@@ -929,7 +929,7 @@ public protocol StyleDocumentProtocol: AnyObject, Sendable {
     
     /**
      * Returns this report on the retained analysis; options default when omitted.
-     * Table: a word-to-concreteness JSON object or TSV text; nil throws a missing-table error.
+     * Table: a word-to-concreteness JSON object or TSV text; nil uses the bundled table.
      */
     func dictionJson(optionsJson: String?, table: String?) throws  -> String
     
@@ -1070,7 +1070,7 @@ open func dialogueTagsJson(optionsJson: String? = nil, baselineJson: String? = n
     
     /**
      * Returns this report on the retained analysis; options default when omitted.
-     * Table: a word-to-concreteness JSON object or TSV text; nil throws a missing-table error.
+     * Table: a word-to-concreteness JSON object or TSV text; nil uses the bundled table.
      */
 open func dictionJson(optionsJson: String? = nil, table: String? = nil)throws  -> String  {
     return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
@@ -2540,7 +2540,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_writemorebetter_swift_checksum_method_styledocument_dialogue_tags_json() != 30832) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_writemorebetter_swift_checksum_method_styledocument_diction_json() != 48265) {
+    if (uniffi_writemorebetter_swift_checksum_method_styledocument_diction_json() != 63532) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_method_styledocument_echoes_json() != 31563) {

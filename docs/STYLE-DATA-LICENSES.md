@@ -68,8 +68,9 @@ Licenses checked 2026-10-15 (recorded in #246, below). #250 vendors one derived 
   binary floating-point subtraction previously lost. 11,456 of 39,707 entries; 193,102 bytes. The build is
   byte-reproducible from the pinned CSV.
   The raw CSV is not committed.
-- **Concreteness** stays caller-supplied. Tests use invented ratings only, and the usefulness review
-  used a proxy derived locally from the Lancaster norms, never Brysbaert's ratings.
+- **Concreteness** is writemorebetter's own table since #256; see
+  [Concreteness (#256)](#concreteness-256). The earlier usefulness review used a proxy derived
+  locally from the Lancaster norms, never Brysbaert's ratings.
 - `style/data/norms/not-sensory.txt` is writemorebetter's own list (MIT OR Apache-2.0).
 
 ### License research (#246)
@@ -82,8 +83,8 @@ Licenses checked 2026-10-15 (recorded in #246, below). #250 vendors one derived 
   Attribution-NonCommercial-NoDerivs 3.0 Unported License." The article
   (<https://link.springer.com/article/10.3758/s13428-013-0403-5>) is not open access: its metadata gives
   `dc.rights` "2013 Psychonomic Society, Inc.", and its supplementary XLSX carries no other license. The
-  OSF trial-level data node <https://osf.io/qpmf4/> has no license set. The concreteness table must be a
-  caller-supplied input.
+  OSF trial-level data node <https://osf.io/qpmf4/> has no license set. Brysbaert's table can only be a
+  caller-supplied input; the bundled table is writemorebetter's own ([Concreteness (#256)](#concreteness-256)).
 - **Lancaster Sensorimotor Norms (Lynott, Connell, Brysbaert, Brand & Carney, 2020): CC BY 4.0,
   redistributable with attribution.** The OSF project <https://osf.io/7emr6/> and its Data component
   <https://osf.io/rwhs6/> (`Lancaster_sensorimotor_norms_for_39707_words.csv`) both record "CC-By
@@ -91,6 +92,89 @@ Licenses checked 2026-10-15 (recorded in #246, below). #250 vendors one derived 
   the open-access article (doi 10.3758/s13428-019-01316-z) is CC BY 4.0. The aggregate CSV is about
   17 MB, so a trimmed table (word plus the six perceptual columns) with a NOTICE entry is the likely
   form if #250 vendors it.
+
+## Concreteness (#256)
+
+`style/data/norms/concreteness.tsv` is writemorebetter's own table, licensed MIT OR Apache-2.0 like
+the style crate. Owner decision (Caleb, 2026-10-20): build it from LLM ratings over our own fiction
+lemma list, bundle it as diction's default, let a caller's table override it, and pay for no human
+ratings for now. The research behind the decision is summarised below; the build, validation and
+usefulness numbers are in [STYLE-NORMS.md](STYLE-NORMS.md#bundled-concreteness-table-256).
+
+**How it was made.** `bench/style/concreteness/rate.py` sent the words, 50 per request in a seeded
+shuffled order, to Claude models through the `claude` CLI on the owner's Claude Team subscription
+(`claude -p`, no tools, a fixed system prompt, CLI 2.1.304 on macOS and 2.1.302 on Linux, default
+temperature and effort), with
+the instructions frozen in `bench/style/concreteness/prompt.txt` (sha256
+`0317ef4beee2b11db9719e811af732839d40536bfaac54b1d20266922b990871`) before any scoring. The
+instructions and their anchor words (*theory*, *although* / *spoon*, *brick*; *kick*, *fair*) were
+written for this project and reused from the pilot; no wording or anchor comes from Brysbaert,
+Warriner & Kuperman (2014) or from Martínez et al. (2025). Every reply, including rejected ones, is
+committed under `bench/style/concreteness/raw/`, and `scripts/build-concreteness-norms.py` rebuilds
+the table byte for byte from those files. Generation itself is not reproducible. The table uses
+`claude-opus-5-5`, `claude-sonnet-5-5` and `claude-fable-5-1`, three samples each, all rated on
+2026-10-20. `claude-haiku-5-5` was rated too and its files are committed, but the build excludes it
+because its sample-to-sample Spearman (0.933) is below the 0.97 stability gate; it also needed 152
+retries for malformed replies.
+
+**What was never used.** The Brysbaert, Warriner & Kuperman (2014) ratings were not downloaded,
+opened or compared against at any step: not for the word list, the prompt, the model choice, the
+scale fit, the threshold or validation. No private fiction was sent to any model; the prompts carry
+only lemmas from the bundled Ngram baseline.
+
+**Glasgow Norms, for calibration and validation only.** `GlasgowNorms.xlsx` comes from OSF
+(<https://osf.io/download/ud367/>, project <https://osf.io/42s65/>, sha256
+`9e3295f4c804289fdd5fa36f2c5fe415826bef3d839702deedd51641b3ff9a39`, 1,159,865 bytes, retrieved
+2026-10-20), whose licence field reads "CC-By Attribution 4.0 International". It is downloaded at
+bench and build time into the git-ignored `bench/style/.cache`, pinned in
+`bench/style/sources.json`, and never committed. A seeded 30% split of its single-word items fits
+the linear map from the model consensus to the 1–5 scale; the other 70% is the held-out test set.
+The held-out set was also scored on interim builds, one of them with Haiku in the consensus; the
+Haiku exclusion rests only on the stability gate, and STYLE-NORMS.md records the interim numbers.
+No Glasgow value is copied into the table. NOTICE credits the Glasgow Norms.
+
+**Lancaster and WordNet, for QA only.** The QA ridge (Lancaster 11 dimensions plus WordNet noun
+features, fitted on the calibration split) only chooses which words a person reviews and supplies
+the convergent check. Its values are not blended into the table, so neither dataset's terms reach
+the shipped file. The full Lancaster CSV (`osf.io/download/48wsc/`, the pinned sha256 above) and
+Princeton WordNet 3.0's database files (<https://wordnetcode.princeton.edu/3.0/WNdb-3.0.tar.gz>,
+sha256 `658b1ba191f5f98c2e9bae3e25c186013158f30ef779f191d2a44e5d25046dc8`) are downloaded into
+the same cache and pinned the same way.
+
+**Terms on the model outputs** (checked 2026-10-20):
+
+| Provider | Terms | Operative text | Decision |
+|---|---|---|---|
+| Anthropic (Claude Team plan) | [Commercial Terms of Service](https://www.anthropic.com/legal/commercial-terms), effective 2025-06-17 | "Customer (a) retains all rights to its Inputs, and (b) owns its Outputs. Anthropic hereby assigns to Customer its right, title and interest (if any) in and to Outputs." Restriction: Customer may not "build a competing product or service, including to train competing AI models". | used: a lookup table is neither; the table is never used to train a model |
+| OpenCode Go (`opencode-go/deepseek-v4-pro`, `opencode-go/muse-spark-1.3-contributor`) | [OpenCode Terms of Service](https://opencode.ai/legal/terms-of-service), effective 2026-08-15 | Output is assigned to the user, but "You will only use the Services for your own internal use, and not on behalf of or for the benefit of any third party", and users may not use the Services in a way that "automatically or programmatically extracts data or Output". | **not used**: a scripted run whose output ships in a public library falls under both clauses. The Go API key had also expired (`api_key_expired`), so headless runs failed |
+| DeepSeek (upstream of the above) | [Open Platform Terms](https://cdn.deepseek.com/policies/en-US/deepseek-open-platform-terms-of-service.html), effective 2026-04-29 | "We assign any rights, title, and interests—if any—in the Outputs of the Services to you"; §8.1 requires disclosing that output is AI-generated | permissive, but reachable here only through OpenCode |
+| Meta (Muse Spark, upstream of the above) | [Meta Model API terms](https://dev.meta.ai/legal/terms-of-service), updated 2026-10-09 | "you own all rights, title, and interests in and to your Inputs and Outputs"; the Geographic Use Policy bars making Outputs available in listed territories, and the Contributor tier trains on prompts and completions | not used (OpenCode terms; the geography clause leaves redistribution unclear) |
+
+So the table is built from Claude models only, and the second-family check the research plan wanted
+is not in this release. The table is labelled as AI-generated in its header and in NOTICE.
+
+**Copyright.** The US Copyright Office (Part 2, January 2025) treats purely AI-generated material
+as uncopyrightable. MIT OR Apache-2.0 covers the selection, the build and the adjudicated edits;
+the numbers themselves may not be protectable.
+
+**Licence research** (2026-10-20, read from each dataset's own page, OSF licence field, repository
+licence or article):
+
+| Dataset | Licence | Commercial | Redistribution | Size | Derived from Brysbaert? |
+|---|---|---|---|---|---|
+| Brysbaert, Warriner & Kuperman 2014 | CC BY-NC-ND 3.0 | no | no | ~40k lemmas | — |
+| **Glasgow Norms** (Scott et al. 2019) | **CC BY 4.0** | yes | yes, with attribution | 4,682 words + 871 senses | no |
+| Lancaster Sensorimotor Norms (Lynott et al. 2020) | CC BY 4.0 | yes | yes | 39,707 lemmas (a proxy, not concreteness) | word list only |
+| MRC Psycholinguistic Database (CONC) | CC BY-NC-SA 3.0 | no | no | 8,228 entries | no |
+| Muraki et al. 2023 (multiword expressions) | CC BY 4.0, data files no longer on OSF | in principle | in principle | 62,889 MWEs | design |
+| Muraki & Pexman 2025 (verbs); Pexman et al. 2019 (BOI); Calgary SDP | none | no | no | 2,937–10,000 | partly |
+| Paetzold & Specia 2016; Köper & Schulte im Walde 2017; Hollis et al. 2017; Thompson & Lupyan 2018; Charbonnier & Wartena 2019 | none or NC | no | no | 78k–3M | most yes |
+| MEGA.HR-Crossling (Ljubešić et al. 2018) | CC BY-SA 4.0 | yes | share-alike | 100k forms | partly (tuning) |
+| Tsvetkov et al. 2014; IBM Debater abstractness | ODbL 1.0; CC BY-SA 3.0 | yes | share-alike | 150k; 300k | no |
+| Martínez, Brysbaert et al. 2025 (GPT-4o) | CC BY-NC-SA | no | no | 126k words | anchors |
+| Conde et al. 2025 (8 LLMs on Glasgow words) | CC BY 4.0 | yes | yes | Glasgow's words only | no |
+| Hugging Face concreteness re-uploads (MIT / Apache tags) | tags set by re-uploaders of Brysbaert | no | no | — | yes |
+| Princeton WordNet 3.0 | WordNet licence (commercial use allowed with notice) | yes | yes, with notice | lexical resource | no |
 
 ## Word frequencies (#248)
 

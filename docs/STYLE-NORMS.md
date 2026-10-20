@@ -8,16 +8,18 @@ and spans, never replacement words. Licenses for the data are in
 use writemorebetter_style::reports::{diction, sensory_balance};
 let senses = sensory_balance::report(&document, sensory_balance::PerceptualNorms::bundled(),
     &Default::default())?;
-let table = diction::ConcretenessTable::parse(&caller_table_text)?;
-let diction = diction::report(&document, &table, &Default::default())?;
+let diction = diction::report(&document, diction::ConcretenessTable::bundled(), &Default::default())?;
+// or a caller's own table: diction::ConcretenessTable::parse(&caller_table_text)?
 ```
 
 `StyleDocument::sensory_balance(options)` and `StyleDocument::diction(options, table)` wrap these;
 the bindings are `sensoryBalance(optionsJSON)` / `diction(optionsJSON, tableText)` in WASM and
-`sensoryBalance(optionsJson:)` / `diction(table:optionsJson:)` in Swift. Both need token readings
-and reject compact documents. On the hard-wrapped moby150k document (native release build, 12-core
-Linux), sensory balance takes 15 ms after a one-time 3.0 ms table load, and diction 11 ms plus 11 ms
-to parse a 36,800-word TSV table the first time it is passed. `StyleDocument::diction` keeps the
+`sensoryBalance(optionsJson:)` / `diction(table:optionsJson:)` in Swift. Diction's table is
+optional: without one it uses the bundled table ([#256](#bundled-concreteness-table-256)). Both need
+token readings and reject compact documents. On the hard-wrapped moby150k document (native release
+build, 12-core Linux), sensory balance takes 15 ms after a one-time 3.0 ms table load, and diction
+11 ms after a one-time 4.5 ms load of the bundled table, or plus 11 ms to parse a 36,800-word TSV
+table the first time a caller passes one. `StyleDocument::diction` keeps the
 last parsed table and reuses it while callers pass the same text, so a lens refresh with an
 unchanged table skips the parse (the bindings still copy the text across the boundary). The cache
 is process-global: it retains the last table’s full source text and parsed map until replacement or
@@ -397,23 +399,28 @@ its own run.
 
 ## Diction
 
+Diction uses writemorebetter's own concreteness table, `style/data/norms/concreteness.tsv`
+(`ConcretenessTable::bundled()`, 14,572 words, MIT OR Apache-2.0; how it was built and validated is
+[below](#bundled-concreteness-table-256)). A table the caller passes replaces it for that call.
+Since #256 no entry point returns `missingTable`; the error kind stays so existing matches compile.
 The Brysbaert, Warriner & Kuperman concreteness ratings are CC BY-NC-ND and are not vendored or used
-in tests. `diction` needs a caller-supplied table; without one every entry point returns
-`missingTable` (`StyleError::MissingTable { report: "diction" }`), never an empty report.
+in tests.
 
 `ConcretenessTable::parse` accepts:
 
 - **JSON:** an object of word → number, e.g. `{"lamp": 4.8, "idea": 1.6}`.
 - **TSV:** `word<TAB>rating` lines, or a header row naming a `Word` column and a `Conc.M` or
   `Concreteness` column, in which case other columns are ignored (the layout of Brysbaert's
-  distributed text file).
+  distributed text file). Lines starting with `#` are skipped, as in the bundled table's header.
 
 Words are trimmed and lowercased (curly apostrophes folded); ratings must be finite; an empty table
 is `invalidTable`. A leading UTF-8 BOM (common in tables saved from Excel) is ignored. Defaults
-assume a 1 (abstract) – 5 (concrete) scale; set `abstractBelow` for other scales.
+are tuned for the bundled table's 1 (abstract) – 5 (concrete) scale; set `abstractBelow` for a
+caller table on another scale, or with a different spread (Brysbaert-style human norms were the
+reason for the earlier 2.5 default).
 
 Each row of `sentences` has `span`, `mode`, `words`, `ratedWords` and `mean` (null below
-`minimumRatedWords`, 3), and `abstract` (mean < `abstractBelow`, 2.5, in a narration sentence that
+`minimumRatedWords`, 3), and `abstract` (mean < `abstractBelow`, 2.85, in a narration sentence that
 neither opens in nor contains speech; dialogue keeps its `mean` but is never `abstract`, because
 speech is naturally abstract and would otherwise dominate the highlights). `paragraphs` give the same
 mean over their sentences' rated words plus their range in `sentences`. `groups` hold sentence,
@@ -425,7 +432,8 @@ opening in or containing speech, a scene break and the document end close it.
 
 ### Usefulness without a real table
 
-Judged with a proxy derived locally from the Lancaster norms (1 + 0.8 × maximum perceptual
+This review predates the bundled table; [#256](#bundled-concreteness-table-256) repeats it with the
+table that now ships. Judged with a proxy derived locally from the Lancaster norms (1 + 0.8 × maximum perceptual
 strength), never committed. The proxy is compressed toward the concrete end (sentence median 3.79,
 p10 3.39), so the 2.5 default flags nothing on it; the review used `abstractBelow: 3.39`.
 
@@ -453,3 +461,138 @@ that he would not run from a battle…" interior block (five sentences after the
 "He lay in his bunk" now rates *lay* as the verb *lie*, which the proxy rates concrete). The
 remaining wrong items are concrete sentences with few rated words ("Four others stood waiting.").
 Real-world usefulness depends on the table Subplot supplies, which is an owner decision.
+
+### Bundled concreteness table (#256)
+
+Owner decision (Caleb, 2026-10-20): build the table from LLM ratings over our own fiction lemma
+list, bundle it as diction's default, let a caller's table override it, use Claude models only and
+pay for no human ratings. Licences and provenance are in
+[STYLE-DATA-LICENSES.md](STYLE-DATA-LICENSES.md#concreteness-256); the research behind the choice
+is the diction-table research note (Section 4). Brysbaert, Warriner & Kuperman (2014) was never
+downloaded, opened or compared against.
+
+**Inputs, frozen before any scoring.** `bench/style/concreteness/prompt.txt` (instructions and
+anchors written for this project), `words.tsv` (the 14,364 lemmas of
+`style/data/baselines/overused-words.json` without numerals and single letters, plus 195 British
+spellings that copy their American value) and `words-supplement.tsv` (13 particles and adverbs the
+fiction list drops but diction's lookup rates: *up*, *down*, *out*, *back*, *away*, *off*, *round*,
+*like*, *really*, *actually*, *simply*, *suddenly*, *somehow*). `bench/style/concreteness/rate.py`
+sends 50 words per `claude -p` call in a seeded shuffle and parses replies strictly (every word
+exactly once, rating `[1-5](\.\d)?`); malformed replies are retried and kept in
+`raw/*.responses.jsonl`.
+
+**Raters.** Opus 5.5, Sonnet 5.5 and Fable 5.1, three samples each, all 14,377 words. Haiku 5.5 was
+also rated three times and its files are committed, but the build excludes it: its sample-to-sample
+Spearman is 0.933 in every pair, below the 0.97 stability gate that the plan set before scoring.
+The exclusion rests on that gate alone. `concreteness.py` measures stability for every rated model,
+excluded or not, and fails unless the excluded models are exactly those below the gate. Haiku was
+also the unreliable rater: 152 rejected replies, and 7 batches that always put the rating on the
+line after the word. `rate.py` was changed to accept that layout, when a whole reply uses it, while
+Haiku samples 2 and 3 were being rated, so those batches came from a parser that was not committed
+until the build commit. Earlier replies in that layout stay rejected in `raw/*.responses.jsonl`:
+under the current parser 120 rejected Haiku replies would parse (3 / 56 / 61 in samples 1 / 2 / 3),
+so for those batches the accepted reply is not the first one that parses today. The gate re-parses
+every accepted reply with the current `rate.py` and requires exactly the committed ratings; all
+Opus, Sonnet and Fable replies use the tab layout.
+
+**Build** (`scripts/build-concreteness-norms.py build`, byte-reproducible from the committed
+ratings). Each model's sample mean is z-scored, the models averaged (all one family), and the mean
+mapped to 1–5 by OLS on a 30% calibration split of Glasgow's single-word items (hash split, seed
+`glasgow-split-256`; 1,223 calibration words in the list): **0.8700 × z + 3.1098**, clamped to 1–5
+and rounded half-even to one decimal. The QA list (`qa-review.tsv`) holds 112 words: 111 where the
+Lancaster + WordNet ridge disagrees by more than 1.5 and one with a model spread above 1.5. Read as a
+lexicographer, the ridge is the one that is wrong on nearly all of them: it rates sound, smell and
+bodily words (*whisper*, *cough*, *headache*) abstract and abstract adjectives (*ordinary*,
+*entire*) concrete. One edit is recorded in `adjudication.tsv`: *fucking* 2.8 → 2.1, rated as the
+intensifier fiction uses, like *damned* and *freaking* (2.1). The tagger often reads the
+intensifier as a verb form, so diction's lookup rates a word with an adverb reading and a
+present-participle verb reading by its own entry, not the verb lemma, when an adjective follows
+(*was fucking furious*); after a contracted *’s* the tagger keeps only the verb reading, and
+*that’s fucking stupid* still rates *fuck*.
+
+**Acceptance** (`bench/style/concreteness.py --gate`, run in CI). The held-out split was scored more
+than once: also on interim builds, including a 7-pass build with Haiku sample 1 in the consensus
+(Spearman 0.921, Pearson 0.923, abstract F1 0.753, MAE 0.288), recorded in the rating handoff note
+the README replaced (`git show ed54195:bench/style/concreteness/HANDOFF.md`). The Haiku exclusion
+rests only on the stability gate above, not on those scores, and the final three-model table below
+was scored after the exclusion:
+
+| Check | Gate | Result |
+|---|---|---|
+| Glasgow held-out (70%, 2,882 words) Spearman / Pearson | ≥ 0.88 / ≥ 0.87 | **0.926 / 0.925** |
+| Glasgow held-out abstract F1 at 2.5 (Glasgow mapped to 1–5) | ≥ 0.72 | **0.755** |
+| Glasgow held-out mean absolute error | ≤ 0.35 | **0.289** |
+| Lancaster + WordNet ridge vs table, Spearman (13,492 words) | ≥ 0.75 | **0.806** |
+| Sample 1 vs sample 2 Spearman: Opus / Fable / Sonnet | ≥ 0.97 | **0.991 / 0.990 / 0.986** |
+| Same, excluded Haiku (must stay below the gate) | < 0.97 | 0.933 |
+| Accepted replies that re-parse to the committed ratings | all | all (3,468 batches) |
+| Agreement with the other models' consensus: Opus / Fable / Sonnet | ≥ 0.85 | 0.992 / 0.991 / 0.988 |
+| Word list covered | 100% | 100% (14,572 entries) |
+| Narration tokens diction can rate, bench/public pooled | ≥ 0.94 | **0.946** |
+| Same, each modern story (story1–5) | ≥ 0.97 | 0.978–0.984 |
+| Fresh human set | — | not collected (owner decision) |
+
+The adjudicated word is not in Glasgow, so the held-out numbers are the same without the edit.
+Glasgow's 871 sense items, scored as the mean of each ambiguous word's senses, give Spearman 0.729
+over 353 words, a polysemy diagnostic only. The coverage denominator is diction's own lookup over a table that rates every
+lemma and surface (`style/examples/diction_coverage.rs`). **Moby-Dick's tail:** the hard-wrapped
+moby150k excerpt reaches 0.931 and is not gated. Its unrated narration is archaic and whaling
+vocabulary absent from the modern fiction baseline: *upon*, *towards*, *thou*, *nigh*, *forth*,
+*harpooneer*, *whaleman*, *leviathan*, *tomahawk*, *counterpane*. Widening the list to Lancaster's vocabulary was rejected (owner, option A).
+
+**Why the 2.5 default found no runs.** With the shipped 2.5 / 3 / 3 defaults the table flags 55 of
+bench/public's 969 rated narration sentences (5.7%) and no abstract run in any of the nine review
+texts. Word-level calibration is not the cause: on held-out Glasgow words the table's mean is 3.34
+(Glasgow 3.35), 24% of words fall below 2.5 (Glasgow 27%), and the OLS fit narrows the spread by 8%
+(SD 0.88 vs 0.96). `minimumRatedWords` is not the cause either; raising it only removes flags. The
+cause is averaging: abstract interior sentences still carry concrete verbs and nouns (*battle*,
+*run*, *camp*), so a sentence mean lands at 2.5–2.9, while plain action reads only about 3.0 (*He
+sprang from the bunk and began to pace nervously to and fro.* 2.97). Narration sentence means have
+median 3.21 and p5 2.47; below 2.5 only 13% of flagged sentences are followed by another, so three
+in a row almost never happen. Crane's interior block reads 2.47–3.05 sentence by sentence.
+
+**Retune, on bench/public only** (`minimumRatedWords` 3, `minimumRunSentences` 3; runs judged by
+the threshold at which they first appear; useful = sustained abstract or told narration, noise =
+abstraction mixed with concrete scene, wrong = a concrete passage):
+
+| `abstractBelow` | Abstract sentences | Share | Runs | Useful / noise / wrong |
+|---:|---:|---:|---:|---|
+| 2.5 | 55 | 5.7% | 0 | — |
+| 2.6 | 84 | 8.7% | 0 | — |
+| 2.7 | 124 | 12.8% | 2 | 2 / 0 / 0 |
+| 2.75 | 146 | 15.1% | 6 | 6 / 0 / 0 |
+| 2.8 | 174 | 18.0% | 7 | 6 / 1 / 0 |
+| **2.85** | **206** | **21.3%** | **9** | **8 / 1 / 0** |
+| 2.9 | 234 | 24.1% | 13 | 10 / 3 / 0 |
+| 3.0 | 293 | 30.2% | 22 | runs first seen at 3.0: 4 / 6 / 1 |
+
+The rule, fixed before the review chapters were run: the most useful runs with run precision ≥ 0.85.
+That is **2.85**, now the default. Two-sentence runs give 6–51 runs across the same sweep (not
+judged), and four or five rated words only drop runs, so those two defaults stay. The useful runs are Ishmael's
+asides on Queequeg (his civility, his "Socratic wisdom", his wish to learn among Christians), the
+Fates passage, "a good laugh is a mighty good thing", and story4's two reflective summaries ("There
+are mornings when the only thing you can do is be somewhere…"). The noise run is the besmoked oil
+painting, a concrete object described in abstract words. At 2.9 the harpooneer rumination joins as
+noise. The proxy (`abstractBelow` 3.39, #281) flagged the harpooneer rumination as one run; the
+table flags it at neither 2.5 nor 2.85.
+
+**Held-out review** (Crane *Red Badge* ch. 1, standardebooks `ebe3876c`; Wharton *Ethan Frome* ch. 1,
+`480cd944`; Gatsby ch. 1, `fe47c8c0`; converted with `pacing_labels.xhtml_document`; 20 abstract
+sentences sampled in Crane / Wharton / Gatsby order with Python `Random(281)`; one judge, not
+blind):
+
+| Flag | Proxy, `abstractBelow` 3.39 (#281) | Table at 2.5 | **Table at 2.85** |
+|---|---|---|---|
+| Abstract sentences in the three chapters | 40 | 26 | 119 |
+| 20 sampled: useful / noise / wrong | 15 / 3 / 2 | 17 / 3 / 0 | **16 / 4 / 0** |
+| Runs in the three chapters: useful / noise | 1 / 0 | 0 | **11 / 0** |
+| Crane's interior block ("He tried to mathematically prove…") | one 5-sentence run | not flagged | **two runs, 9 sentences** |
+
+At 2.85 the runs are six Crane interior passages (the omen of battle, the "Greeklike struggle"
+passage and its return, the two halves of the block above, "his laws of life were useless"), two
+Wharton interiors (Ethan's sensitivity to natural beauty; Zeena fading "into an insubstantial
+shade") and three Gatsby passages (the opening on reserving judgements, the East/West evening, "the
+basic insincerity of what she had said"). Noise in the sample is short stage business with few rated
+words ("Various veterans had told him tales.", "For a moment he seemed to be searching for a
+formidable reply.") and soldiers clamouring. Single abstract sentences now cover a fifth of
+narration, so runs remain the flag to show; diction stays an opt-in lens.

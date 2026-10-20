@@ -55,6 +55,26 @@ counting interoception as the next modality of a haptic word; columns reduced
 to that modality, its mean strength and that lead, in floored tenths of a
 rating point using decimal arithmetic. The authors do not endorse writemorebetter.
 
+style/data/norms/concreteness.tsv is writemorebetter's own table, licensed MIT
+OR Apache-2.0. Its ratings are AI-generated: they were generated on 2026-10-20
+by prompting Anthropic's claude-opus-5-5, claude-sonnet-5-5 and claude-fable-5-1
+(three samples each) with writemorebetter's own instructions
+(bench/style/concreteness/prompt.txt, sha256
+0317ef4beee2b11db9719e811af732839d40536bfaac54b1d20266922b990871) over the
+lemma list in style/data/baselines/overused-words.json
+(bench/style/concreteness/words.tsv and words-supplement.tsv), averaged across
+models, and mapped to a 1-5 scale by a linear fit to a calibration split of
+the concreteness ratings in the Glasgow Norms: Scott, G. G., Keitel, A.,
+Becirspahic, M., Yao, B., & Sereno, S. C. (2019). The Glasgow Norms: Ratings of
+5,500 words on nine scales. Behavior Research Methods, 51, 1258-1270.
+https://doi.org/10.3758/s13428-018-1099-3. Data from https://osf.io/42s65/
+(file GlasgowNorms.xlsx, sha256
+9e3295f4c804289fdd5fa36f2c5fe415826bef3d839702deedd51641b3ff9a39), licensed
+under the Creative Commons Attribution 4.0 International License
+(https://creativecommons.org/licenses/by/4.0/). No Glasgow ratings are included
+in the table. No data from Brysbaert, Warriner & Kuperman (2014) was used. The
+Glasgow Norms authors do not endorse writemorebetter.
+
 style/data/norms/not-sensory.txt, style/data/suppressed.txt, style/data/fixed-wording.txt,
 style/data/literal-guards.txt and style/data/open-slot.txt are writemorebetter's
 own lists (MIT OR Apache-2.0).

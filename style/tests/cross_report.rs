@@ -557,6 +557,6 @@ fn retained_documents_match_separate_analyses_and_validate_calls() {
     ));
     assert!(matches!(
         compact.diction(None, None),
-        Err(StyleError::MissingTable { .. })
+        Err(StyleError::NeedsTokenDetails { .. })
     ));
 }

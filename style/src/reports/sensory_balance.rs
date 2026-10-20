@@ -411,6 +411,7 @@ pub fn report(
                 let sense = norms::lookup(
                     token,
                     word.at_start,
+                    next,
                     |word| {
                         norms_table.words.get(word).filter(|norm| {
                             token.text.contains('-') || norm.strength >= options.minimum_strength

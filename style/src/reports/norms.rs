@@ -45,6 +45,7 @@ pub(crate) struct Found<'a, T> {
 pub(crate) fn lookup<'a, T>(
     token: &Token,
     at_start: bool,
+    next: Option<&Token>,
     get: impl Fn(&str) -> Option<&'a T>,
     prefer: impl Fn(&T) -> bool,
 ) -> Option<Found<'a, T>> {
@@ -53,7 +54,34 @@ pub(crate) fn lookup<'a, T>(
     if capitalized && !at_start {
         return None;
     }
-    lookup_word(token, &get, prefer).or_else(|| lookup_parts(token, &get))
+    lookup_intensifier(token, next, &get)
+        .or_else(|| lookup_word(token, &get, prefer))
+        .or_else(|| lookup_parts(token, &get))
+}
+
+fn lookup_intensifier<'a, T>(
+    token: &Token,
+    next: Option<&Token>,
+    get: impl Fn(&str) -> Option<&'a T>,
+) -> Option<Found<'a, T>> {
+    let surface = fold(&token.text);
+    let reads = |token: &Token, tag: &str| token.readings.iter().any(|r| r.pos.starts_with(tag));
+    let intensifier = token
+        .readings
+        .iter()
+        .any(|r| r.pos == "VBG" && fold(&r.lemma) != surface)
+        && token
+            .readings
+            .iter()
+            .any(|r| r.pos.starts_with("RB") && fold(&r.lemma) == surface)
+        && next.is_some_and(|next| reads(next, "JJ") && !reads(next, "DT") && !reads(next, "PDT"));
+    if !intensifier || excluded(&surface) {
+        return None;
+    }
+    get(&surface).map(|value| Found {
+        lemma: surface,
+        value,
+    })
 }
 
 fn lookup_parts<'a, T>(token: &Token, get: impl Fn(&str) -> Option<&'a T>) -> Option<Found<'a, T>> {

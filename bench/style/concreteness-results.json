@@ -1,0 +1,112 @@
+{
+  "entries": 14572,
+  "list_entries": 14572,
+  "list_covered": 1.0,
+  "extra_entries": 0,
+  "models": {
+    "claude-fable-5-1": 3,
+    "claude-opus-5-5": 3,
+    "claude-sonnet-5-5": 3
+  },
+  "calibration": {
+    "glasgow_words": 1405,
+    "fit_words": 1223,
+    "slope": 0.87,
+    "intercept": 3.1098
+  },
+  "heldout": {
+    "n": 2882,
+    "spearman": 0.926,
+    "pearson": 0.9247,
+    "abstract_f1": 0.755,
+    "mae": 0.2893
+  },
+  "heldout_unedited": {
+    "n": 2882,
+    "spearman": 0.926,
+    "pearson": 0.9247,
+    "abstract_f1": 0.755,
+    "mae": 0.2893
+  },
+  "senses": {
+    "n": 353,
+    "spearman": 0.7294
+  },
+  "convergent": {
+    "n": 13492,
+    "spearman": 0.806
+  },
+  "agreement": {
+    "claude-fable-5-1": 0.9908,
+    "claude-opus-5-5": 0.9922,
+    "claude-sonnet-5-5": 0.9877
+  },
+  "stability": {
+    "claude-fable-5-1": 0.9899,
+    "claude-haiku-5-5": 0.933,
+    "claude-opus-5-5": 0.9913,
+    "claude-sonnet-5-5": 0.9855
+  },
+  "excluded": {
+    "claude-haiku-5-5": "sample-to-sample Spearman 0.933, below the 0.97 stability gate"
+  },
+  "replies": {
+    "accepted_batches": {
+      "claude-fable-5-1-s1": 289,
+      "claude-fable-5-1-s2": 289,
+      "claude-fable-5-1-s3": 289,
+      "claude-haiku-5-5-s1": 289,
+      "claude-haiku-5-5-s2": 289,
+      "claude-haiku-5-5-s3": 289,
+      "claude-opus-5-5-s1": 289,
+      "claude-opus-5-5-s2": 289,
+      "claude-opus-5-5-s3": 289,
+      "claude-sonnet-5-5-s1": 289,
+      "claude-sonnet-5-5-s2": 289,
+      "claude-sonnet-5-5-s3": 289
+    },
+    "rejected_replies_now_parsing": {
+      "claude-haiku-5-5-s1": 3,
+      "claude-haiku-5-5-s2": 56,
+      "claude-haiku-5-5-s3": 61
+    },
+    "mismatched_batches": []
+  },
+  "review_words": 112,
+  "adjudicated": 1,
+  "coverage": {
+    "files": {
+      "moby150k.txt": {
+        "rated": 6749,
+        "eligible": 7249,
+        "share": 0.931
+      },
+      "story1.txt": {
+        "rated": 727,
+        "eligible": 742,
+        "share": 0.9798
+      },
+      "story2.txt": {
+        "rated": 605,
+        "eligible": 615,
+        "share": 0.9837
+      },
+      "story3.txt": {
+        "rated": 608,
+        "eligible": 621,
+        "share": 0.9791
+      },
+      "story4.txt": {
+        "rated": 689,
+        "eligible": 703,
+        "share": 0.9801
+      },
+      "story5.txt": {
+        "rated": 529,
+        "eligible": 541,
+        "share": 0.9778
+      }
+    },
+    "pooled": 0.9461
+  }
+}

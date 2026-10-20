@@ -26,9 +26,10 @@ fn context(text: &str, span: &std::ops::Range<usize>) -> String {
 
 fn main() {
     let tokenizer = Tokenizer::new("storage/en_tokenizer.bin").unwrap();
-    let table = std::env::var("WMB_CONCRETENESS")
+    let custom = std::env::var("WMB_CONCRETENESS")
         .ok()
         .map(|path| ConcretenessTable::parse(&std::fs::read_to_string(path).unwrap()).unwrap());
+    let table = custom.as_ref().unwrap_or(ConcretenessTable::bundled());
     let sensory_options =
         serde_json::from_str(&std::env::var("WMB_SENSORY_OPTIONS").unwrap_or_else(|_| "{}".into()))
             .unwrap();
@@ -47,9 +48,7 @@ fn main() {
             sensory_balance::report(&document, PerceptualNorms::bundled(), &sensory_options)
                 .unwrap();
         if let Ok(directory) = std::env::var("WMB_NORM_JSON") {
-            let diction = table
-                .as_ref()
-                .map(|table| diction::report(&document, table, &diction_options).unwrap());
+            let diction = diction::report(&document, table, &diction_options).unwrap();
             std::fs::create_dir_all(&directory).unwrap();
             let name = std::path::Path::new(&path).file_name().unwrap();
             std::fs::write(
@@ -95,30 +94,28 @@ fn main() {
                 );
             }
         }
-        if let Some(table) = &table {
-            let diction = diction::report(&document, table, &diction_options).unwrap();
+        let diction = diction::report(&document, table, &diction_options).unwrap();
+        println!(
+            "diction sentences={} abstract={} runs={} mean={:?}",
+            diction.groups.all.sentences,
+            diction.groups.all.abstract_sentences,
+            diction.abstract_runs.len(),
+            diction.groups.all.mean
+        );
+        for sentence in diction.sentences.iter().filter(|s| s.is_abstract) {
             println!(
-                "diction sentences={} abstract={} runs={} mean={:?}",
-                diction.groups.all.sentences,
-                diction.groups.all.abstract_sentences,
-                diction.abstract_runs.len(),
-                diction.groups.all.mean
+                "abstract {:.2} {:?} | {}",
+                sentence.mean.unwrap(),
+                sentence.mode,
+                text[sentence.span.byte.clone()].replace(['\r', '\n'], " ")
             );
-            for sentence in diction.sentences.iter().filter(|s| s.is_abstract) {
-                println!(
-                    "abstract {:.2} {:?} | {}",
-                    sentence.mean.unwrap(),
-                    sentence.mode,
-                    text[sentence.span.byte.clone()].replace(['\r', '\n'], " ")
-                );
-            }
-            for run in &diction.abstract_runs {
-                println!(
-                    "run {} | {}",
-                    run.sentences.len(),
-                    text[run.span.byte.clone()].replace(['\r', '\n'], " ")
-                );
-            }
+        }
+        for run in &diction.abstract_runs {
+            println!(
+                "run {} | {}",
+                run.sentences.len(),
+                text[run.span.byte.clone()].replace(['\r', '\n'], " ")
+            );
         }
     }
 }
