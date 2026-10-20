@@ -6,6 +6,38 @@ inherited 0.6.4 track this project's own release line. Each version is a top-lev
 `# <version>` heading; the Release workflow copies that section verbatim into the GitHub
 release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
+# Unreleased
+
+### Added
+
+- **Diction has a bundled concreteness table**
+  ([#256](https://github.com/cmlarsen/writemorebetter/issues/256)).
+  `style/data/norms/concreteness.tsv` is writemorebetter's own table (14,572 words, MIT OR
+  Apache-2.0): AI-generated ratings from Claude Opus 5.5, Sonnet 5.5 and Fable 5.1 over the fiction
+  lemma list, calibrated to a 1–5 scale on a 30% split of the Glasgow Norms. No Glasgow or
+  Brysbaert ratings are in it. On the held-out 70% of Glasgow it scores Spearman 0.926, Pearson
+  0.925, abstract F1 0.755 and mean absolute error 0.289, and it rates 94.6% of the narration words
+  diction looks up on `bench/public` (97.8–98.4% on each modern story). The ratings, prompt, build
+  script and validation gate are committed under `bench/style/concreteness/`, and the build is
+  byte-reproducible from them. See [`docs/STYLE-NORMS.md`](docs/STYLE-NORMS.md#bundled-concreteness-table-256)
+  and NOTICE.
+
+### Changed
+
+- **`diction` no longer needs a table.** Rust `StyleDocument::diction(options, None)`, WASM
+  `document.diction(optionsJSON)` and Swift `document.diction()` use the bundled table; passing a
+  table (JSON object or TSV text) still replaces it for that call. `missingTable` is no longer
+  returned; the error kind is kept so existing matches compile. Swift's `diction(table:)` argument
+  is now optional (`String? = nil`). `ConcretenessTable::bundled()` returns the parsed table, and
+  TSV tables may carry `#` comment lines.
+- **Diction's default `abstractBelow` is 2.85** (was 2.5), tuned for the bundled table: at 2.5 its
+  sentence means almost never formed an abstract run. On held-out Crane, Wharton and Gatsby chapters
+  the new default flags 11 runs, all judged useful. A caller table on another scale should set
+  `abstractBelow`.
+- **The WASM module grows by 181 KB** (`writemorebetter_wasm_bg.wasm`, release, wasm-bindgen
+  0.2.129: 5,495,225 → 5,676,713 bytes; 1,401,961 → 1,462,223 with `gzip -9`). The bundled table
+  loads once, in about 4.5 ms natively.
+
 # 0.10.0 (2026-10-20)
 
 ### Added

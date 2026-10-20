@@ -57,8 +57,8 @@ rating point using decimal arithmetic. The authors do not endorse writemorebette
 
 style/data/norms/concreteness.tsv is writemorebetter's own table, licensed MIT
 OR Apache-2.0. Its ratings are AI-generated: they were generated on 2026-10-20
-by prompting Anthropic's claude-opus-5-5, claude-sonnet-5-5, claude-fable-5-1 and
-claude-haiku-5-5 (three samples each) with writemorebetter's own instructions
+by prompting Anthropic's claude-opus-5-5, claude-sonnet-5-5 and claude-fable-5-1
+(three samples each) with writemorebetter's own instructions
 (bench/style/concreteness/prompt.txt, sha256
 0317ef4beee2b11db9719e811af732839d40536bfaac54b1d20266922b990871) over the
 lemma list in style/data/baselines/overused-words.json

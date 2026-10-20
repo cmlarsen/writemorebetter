@@ -83,8 +83,8 @@ Licenses checked 2026-10-15 (recorded in #246, below). #250 vendors one derived 
   Attribution-NonCommercial-NoDerivs 3.0 Unported License." The article
   (<https://link.springer.com/article/10.3758/s13428-013-0403-5>) is not open access: its metadata gives
   `dc.rights` "2013 Psychonomic Society, Inc.", and its supplementary XLSX carries no other license. The
-  OSF trial-level data node <https://osf.io/qpmf4/> has no license set. The concreteness table must be a
-  caller-supplied input.
+  OSF trial-level data node <https://osf.io/qpmf4/> has no license set. Brysbaert's table can only be a
+  caller-supplied input; the bundled table is writemorebetter's own ([Concreteness (#256)](#concreteness-256)).
 - **Lancaster Sensorimotor Norms (Lynott, Connell, Brysbaert, Brand & Carney, 2020): CC BY 4.0,
   redistributable with attribution.** The OSF project <https://osf.io/7emr6/> and its Data component
   <https://osf.io/rwhs6/> (`Lancaster_sensorimotor_norms_for_39707_words.csv`) both record "CC-By
@@ -103,14 +103,19 @@ usefulness numbers are in [STYLE-NORMS.md](STYLE-NORMS.md#bundled-concreteness-t
 
 **How it was made.** `bench/style/concreteness/rate.py` sent the words, 50 per request in a seeded
 shuffled order, to Claude models through the `claude` CLI on the owner's Claude Team subscription
-(`claude -p`, no tools, a fixed system prompt, CLI 2.1.304, default temperature and effort), with
+(`claude -p`, no tools, a fixed system prompt, CLI 2.1.304 on macOS and 2.1.302 on Linux, default
+temperature and effort), with
 the instructions frozen in `bench/style/concreteness/prompt.txt` (sha256
 `0317ef4beee2b11db9719e811af732839d40536bfaac54b1d20266922b990871`) before any scoring. The
 instructions and their anchor words (*theory*, *although* / *spoon*, *brick*; *kick*, *fair*) were
 written for this project and reused from the pilot; no wording or anchor comes from Brysbaert,
 Warriner & Kuperman (2014) or from Martínez et al. (2025). Every reply, including rejected ones, is
 committed under `bench/style/concreteness/raw/`, and `scripts/build-concreteness-norms.py` rebuilds
-the table byte for byte from those files. Generation itself is not reproducible.
+the table byte for byte from those files. Generation itself is not reproducible. The table uses
+`claude-opus-5-5`, `claude-sonnet-5-5` and `claude-fable-5-1`, three samples each, all rated on
+2026-10-20. `claude-haiku-5-5` was rated too and its files are committed, but the build excludes it
+because its sample-to-sample Spearman (0.933) is below the 0.97 stability gate; it also needed 152
+retries for malformed replies.
 
 **What was never used.** The Brysbaert, Warriner & Kuperman (2014) ratings were not downloaded,
 opened or compared against at any step: not for the word list, the prompt, the model choice, the

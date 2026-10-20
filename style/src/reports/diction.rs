@@ -129,7 +129,7 @@ pub struct DictionOptions {
 impl Default for DictionOptions {
     fn default() -> Self {
         Self {
-            abstract_below: 2.5,
+            abstract_below: 2.85,
             minimum_rated_words: 3,
             minimum_run_sentences: 3,
         }

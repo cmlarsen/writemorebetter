@@ -861,7 +861,7 @@ Every public paragraph gets the same injected cases, each appended to the untouc
 | Overused words | five occurrences each of *glanced*, *shrugged*, *blinked* (the default minimum count) | four occurrences of each; five *said* in a 240-word padded text, whose ratio to the Ngram rate is below 4 |
 | Fillers | *very*, *just* and clause-opening *that* in `It was very cold. She just left. He knew that she had gone.` | adjective *just* and determiner *That* |
 | Sensory balance | one rated word per modality: *red*, *music*, *cold*, *stench*, *salty*, *nausea* | figurative *looked like* / *felt that*, flat adverb *pretty late*, the excluded lemma *speech*, and sight word *beautiful* whose margin (2.3) is below the sight margin |
-| Diction sentences and runs | three abstract sentences (mean 1.5) forming one run; one near-threshold sentence (mean 2.4); abstract, abstract, concrete, abstract (three sentences, no run) | three concrete sentences; the abstract sentence as dialogue; a sentence with mean 2.6; a sentence with two rated words |
+| Diction sentences and runs | three abstract sentences (mean 1.5) forming one run; one near-threshold sentence (mean 2.7); abstract, abstract, concrete, abstract (three sentences, no run) | three concrete sentences; the abstract sentence as dialogue; a sentence with mean 3.0; a sentence with two rated words |
 
 Overused cases skip a paragraph that already contains that lemma, and the ratio control skips
 paragraphs that contain *say*. Curly apostrophe, em dash, ellipsis and U+2028 precede injections
@@ -938,6 +938,11 @@ rerun with the freeze bypassed: the targeted controls and positives fail each of
 Of the 12 reviewer mutations, the flag-rates self-test now fails 5. The suite does not catch a
 change that leaves every injected boundary case and every natural flag on the 60 gated test paragraphs
 unchanged, for example a filter edit that only matters for constructions absent from both.
+
+#256 moved diction's default `abstractBelow` from 2.5 to 2.85, so the invented near-threshold
+ratings moved from 2.4 / 2.6 to 2.7 / 3.0 and still straddle it. Rechecked 2026-10-20: `abstractBelow`
+2.85→3.1 fails abstract precision (the mean-3.0 control flags) and 2.85→2.6 fails abstract recall
+(the mean-2.7 positive drops); the restored build passes.
 The two `singleSensePercent` rows record the measurement at the time; #282 removed the option, the
 flag and the cases that caught them.
 
