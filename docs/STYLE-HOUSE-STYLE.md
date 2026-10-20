@@ -193,4 +193,6 @@ The release WASM module (`wasm32-unknown-unknown`, before `wasm-opt`) grows from
 accounts for 108,518 bytes (28,468 gzipped) of that: a build with the YAML path removed was
 5,881,456 bytes. The rest is the report itself and the `regex` matching and `RegexSet` code it
 links. `nlprule`'s rules use `fancy-regex` in the WASM build, so linking `regex` there is not free.
-JSON-only input would save the YAML share.
+JSON-only input would save the YAML share. Folding patterns through `regex-syntax` (already linked
+by `regex`) and printing them back adds 25,083 bytes (14,421 gzipped), for a module of 6,015,057
+bytes (1,588,700 gzipped).
