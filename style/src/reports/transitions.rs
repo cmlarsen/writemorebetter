@@ -14,14 +14,16 @@ pub enum TransitionType {
     Time,
     Addition,
     Example,
+    Condition,
 }
 impl TransitionType {
-    pub const ALL: [Self; 5] = [
+    pub const ALL: [Self; 6] = [
         Self::Contrast,
         Self::Cause,
         Self::Time,
         Self::Addition,
         Self::Example,
+        Self::Condition,
     ];
 }
 
@@ -121,6 +123,7 @@ fn phrases() -> &'static Vec<TransitionEntry> {
                     "time" => TransitionType::Time,
                     "addition" => TransitionType::Addition,
                     "example" => TransitionType::Example,
+                    "condition" => TransitionType::Condition,
                     _ => unreachable!(),
                 };
                 (

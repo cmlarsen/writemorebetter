@@ -405,3 +405,64 @@ fn pronouns_distinguish_determiners_and_independent_uses() {
         assert_eq!(result.starts[0].pronoun, word);
     }
 }
+
+#[test]
+fn condition_transitions_and_ambiguity() {
+    for (text, phrase) in [
+        ("If she waits, I’ll stay.", "if"),
+        ("I’ll go unless she stays.", "unless"),
+        ("Provided that she agrees, we’ll go.", "provided that"),
+        ("As long as he waits, we’ll stay.", "as long as"),
+        ("In case she calls, I’ll stay.", "in case"),
+        ("“If she’s ready”—he paused…\u{2028}we’ll go.", "if"),
+    ] {
+        let result = transitions::report(&document(text), &Default::default()).unwrap();
+        let found = result
+            .matches
+            .iter()
+            .find(|item| item.phrase == phrase && item.kind == TransitionType::Condition);
+        assert!(found.is_some(), "{text}");
+        assert!(text.get(found.unwrap().span.byte.clone()).is_some());
+    }
+    let result = transitions::report(
+        &document("While she waited, he slept."),
+        &Default::default(),
+    )
+    .unwrap();
+    assert!(!result
+        .matches
+        .iter()
+        .any(|item| item.kind == TransitionType::Condition));
+}
+
+#[test]
+fn pronoun_words_count_possessives_and_split_speech() {
+    let text = "“I’ll keep my coat,” she said—her own was gone…\u{2028}He gave his coat to her.";
+    let report = pronoun_starts::report(&document(text), &Default::default()).unwrap();
+    let all = &report.groups.all;
+    assert!(all.words > 0);
+    assert_eq!(
+        all.pronoun_words.count,
+        all.word_pronouns
+            .iter()
+            .map(|row| row.share.count)
+            .sum::<usize>()
+    );
+    assert!(all
+        .word_pronouns
+        .iter()
+        .any(|row| row.pronoun == "my" && row.share.count == 1));
+    assert!(all
+        .word_pronouns
+        .iter()
+        .any(|row| row.pronoun == "his" && row.share.count == 1));
+    assert_eq!(
+        all.words,
+        report.groups.narration.words + report.groups.dialogue.words
+    );
+    assert_eq!(
+        all.pronoun_words.count,
+        report.groups.narration.pronoun_words.count + report.groups.dialogue.pronoun_words.count
+    );
+    assert!(all.pronoun_words.percent.unwrap() > 0.0);
+}

@@ -309,7 +309,7 @@ fn is_nominal(token: &Token) -> bool {
         && (has_pos(token, "NN") || has_pos(token, "JJ") || has_pos(token, "VBG") || is_name(token))
 }
 
-fn is_adverb(token: &Token) -> bool {
+pub(crate) fn is_adverb(token: &Token) -> bool {
     let text = lower(token);
     token.is_word
         && !token.is_skipped

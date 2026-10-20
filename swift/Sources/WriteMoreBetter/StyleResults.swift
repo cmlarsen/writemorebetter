@@ -436,7 +436,7 @@ private func decodeStyle<T: Decodable>(_ json: String) throws -> T {
     try JSONDecoder().decode(T.self, from: Data(json.utf8))
 }
 
-public enum TransitionType: String, Codable, Sendable { case contrast, cause, time, addition, example }
+public enum TransitionType: String, Codable, Sendable { case contrast, cause, time, addition, example, condition }
 
 public struct TransitionMatch: Codable, Equatable, Sendable {
     public let span: Span
@@ -504,6 +504,9 @@ public struct PronounStartsGroup: Codable, Equatable, Sendable {
     public let pronounStarts: Share
     public let pronouns: [PronounStartsShare]
     public let runs: [PronounStartsRun]
+    public let words: Int
+    public let pronounWords: Share
+    public let wordPronouns: [PronounStartsShare]
 }
 
 public struct PronounStartsReport: Codable, Equatable, Sendable {
@@ -587,5 +590,36 @@ public struct ReadabilityReport: Codable, Equatable, Sendable {
 public extension StyleDocument {
     func readability(optionsJson: String? = nil) throws -> ReadabilityReport {
         try decodeStyle(readabilityJson(optionsJson: optionsJson))
+    }
+}
+
+public struct AdverbMatch: Codable, Equatable, Sendable {
+    public let span: Span
+    public let lemma: String
+    public let mode: Mode
+    public let tagAdverb: Bool
+}
+
+public struct AdverbLemma: Codable, Equatable, Sendable {
+    public let lemma: String
+    public let count: Int
+    public let perThousandWords: Double
+}
+
+public struct AdverbGroup: Codable, Equatable, Sendable {
+    public let words: Int
+    public let count: Int
+    public let perThousandWords: Double
+    public let lemmas: [AdverbLemma]
+}
+
+public struct AdverbsReport: Codable, Equatable, Sendable {
+    public let matches: [AdverbMatch]
+    public let groups: Split<AdverbGroup>
+}
+
+public extension StyleDocument {
+    func adverbs(optionsJson: String? = nil) throws -> AdverbsReport {
+        try decodeStyle(adverbsJson(optionsJson: optionsJson))
     }
 }

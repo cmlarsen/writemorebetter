@@ -65,6 +65,9 @@ pub struct PronounStartsGroup {
     pub pronoun_starts: Share,
     pub pronouns: Vec<PronounStartsShare>,
     pub runs: Vec<PronounStartsRun>,
+    pub words: usize,
+    pub pronoun_words: Share,
+    pub word_pronouns: Vec<PronounStartsShare>,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -173,6 +176,52 @@ pub fn report(
         return Err(StyleError::needs_token_details("pronounStarts"));
     }
     let mut groups: Split<PronounStartsGroup> = Split::default();
+    let mut word_counts: Split<BTreeMap<String, usize>> = Split::default();
+    let mut word_totals: Split<usize> = Split::default();
+    for token in document.words() {
+        let mode = document.mode_at(token.span.byte.start);
+        word_totals.all += 1;
+        *word_totals.mode_mut(mode) += 1;
+        let word = token.text.to_lowercase();
+        let personal = [
+            "i",
+            "me",
+            "you",
+            "he",
+            "him",
+            "she",
+            "her",
+            "it",
+            "we",
+            "us",
+            "they",
+            "them",
+            "my",
+            "mine",
+            "your",
+            "yours",
+            "his",
+            "hers",
+            "its",
+            "our",
+            "ours",
+            "their",
+            "theirs",
+            "myself",
+            "yourself",
+            "yourselves",
+            "himself",
+            "herself",
+            "itself",
+            "ourselves",
+            "themselves",
+            "whose",
+        ];
+        if personal.contains(&word.as_str()) {
+            *word_counts.all.entry(word.clone()).or_default() += 1;
+            *word_counts.mode_mut(mode).entry(word).or_default() += 1;
+        }
+    }
     let mut starts = Vec::new();
     let mut run: Option<PronounStartsRun> = None;
     let mut runs = Vec::new();
@@ -264,6 +313,25 @@ pub fn report(
             .map(|(pronoun, count)| PronounStartsShare {
                 pronoun,
                 share: Share::new(count, eligible, enough, None),
+            })
+            .collect();
+        let words = match mode {
+            None => word_totals.all,
+            Some(Mode::Narration) => word_totals.narration,
+            Some(Mode::Dialogue) => word_totals.dialogue,
+        };
+        let word_counts = match mode {
+            None => &word_counts.all,
+            Some(Mode::Narration) => &word_counts.narration,
+            Some(Mode::Dialogue) => &word_counts.dialogue,
+        };
+        group.words = words;
+        group.pronoun_words = Share::new(word_counts.values().sum(), words, words > 0, None);
+        group.word_pronouns = word_counts
+            .iter()
+            .map(|(pronoun, &count)| PronounStartsShare {
+                pronoun: pronoun.clone(),
+                share: Share::new(count, words, words > 0, None),
             })
             .collect();
     }

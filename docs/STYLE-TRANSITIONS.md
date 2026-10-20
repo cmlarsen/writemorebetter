@@ -30,7 +30,7 @@ existing report APIs; it is not silently approximated by the sentence-start cate
 ## Transition measurement
 
 `style/data/transitions.tsv` is an original list, MIT OR Apache-2.0, with contrast, cause, time,
-addition and example entries. This is a small, explicit inventory rather than a comprehensive
+addition, example and condition entries. This is a small, explicit inventory rather than a comprehensive
 semantic discourse parser. Common conjunctions are included conservatively. Matching uses the
 sentence-start classifier's quote-skipped token view, lowercases text, normalizes curly apostrophes,
 and selects the longest matching phrase at a position. Phrase tokens must be adjacent except for
@@ -63,9 +63,11 @@ Cheap ambiguity guards:
   `because of`; `also`, `eventually`, and `instead` include clause-internal connectors. Polysemy
   remains possible.
 
+The condition category (#301) includes *if*, *unless*, *provided that*, *as long as* and *in case*. `while` is deliberately omitted: its time, contrast and conditional readings are too ambiguous for the current lexical matcher. Condition shares use the same distinct-sentence denominator as the other categories. This addition can increase total transition counts and repeated pairs in unchanged text; existing category counts do not change.
+
 The report is `{matches, repeats, groups}`. Each match holds its own `span`, global `sentence` index,
 canonical `phrase`, `kind`, `opening`, and sentence `mode`. `groups: Split<TransitionsGroup>` contains
-`sentences`, `lowConfidence`, `containing`, `opening`, and five `types` rows.
+`sentences`, `lowConfidence`, `containing`, `opening`, and six `types` rows.
 Every share counts **distinct sentences**, not occurrences; one sentence with three causal markers
 counts once in the cause share. Type shares can overlap and need not sum to 100%.
 
@@ -83,6 +85,8 @@ different mode. Percentages use sentence mode consistently with #244;
 a mixed sentence's transition can lie inside or outside its quoted portion.
 
 ## Pronoun measurement and runs
+
+The report now also measures personal and possessive pronouns anywhere among eligible words (#301). Each group has `words`, `pronounWords` (a `Share` whose percent divides by word count), and alphabetical `wordPronouns` rows with the same denominator. These counts include object and possessive forms such as *her*, *my*, *hers* and *theirs*. Word-mode allocation follows the token’s speech span, independent of the sentence opener mode. Empty groups suppress the percent. The existing start and run measurements are unchanged.
 
 The report is `{starts, groups}`. Each start includes its token `span`, global `sentence` index,
 lowercase `pronoun`, and `mode`. `groups: Split<PronounStartsGroup>` contains `sentences`,
@@ -127,7 +131,7 @@ whole-document measurement with per-mode shares, explicit sample floors and all 
 ## Public regression and usefulness
 
 `python3 bench/style/transitions_pronouns.py --gate` scores two sets. `labels/transitions.jsonl` holds
-62 hand-labeled invented sentences (36 positives covering all five types; 26 negatives, including the
+62 hand-labeled invented sentences (36 positives covering the original five types; 26 negatives, including the
 manner `thus`, prepositional `besides`, concessive `however` and `instead of` cases). It also records a
 known miss: mid-sentence causal `so` is excluded by design. The second set appends 14 fixtures, each
 once, after a different pinned public-domain passage with only a paragraph break between them, so the
@@ -142,27 +146,29 @@ includes the scores and the public counts, so a recorded miss is visible rather 
 requirement. This is a development regression, not held-out editorial accuracy. CI runs it alongside
 the existing style gates.
 
-Current baseline: transition precision is 100% for every type; recall is 100% except cause (10/11, the
+The original labeled baseline: transition precision is 100% for every original type; recall is 100% except cause (10/11, the
 mid-sentence `so` miss). Pronoun runs score 5/5 with no false positives on the five controls, and
 transition repeats 4/4 with none on the two-speaker control.
 
 Public counts use all of `story1`–`story5`, the full unchanged `moby150k`, and Pride and Prejudice
 chapters 1–6 (Standard Ebooks, paragraphs joined by blank lines, chapters by `***`), with line mode for
 the stories and hard-wrapped mode for Moby. `transitionMatches` and `pronounStarts` are observations;
-`transitionRepeats` and `pronounRuns` are the candidate editorial flags. The before column is the
-first PR version (f00baf2).
+`transitionRepeats` and `pronounRuns` are the candidate editorial flags. Parenthesized “was” values refer to the
+first #247 PR version (f00baf2).
 
 | Text | Sentences | Transition matches | Repeated pairs | Pronoun starts | Pronoun runs |
 |---|---:|---:|---:|---:|---:|
-| story1.txt | 119 | 15 | 1 | 61 | 0 |
-| story2.txt | 131 | 11 | 0 | 74 | 0 (was 1) |
-| story3.txt | 127 | 10 | 0 (was 1) | 69 | 0 (was 1) |
-| story4.txt | 128 | 9 | 1 | 59 | 0 |
-| story5.txt | 117 | 16 | 4 | 61 (was 63) | 1 (was 2) |
-| moby150k.txt | 1126 | 183 (was 201) | 33 (was 35) | 211 | 0 (was 1) |
-| Pride ch. 1–6 | 411 | 50 (was 53) | 0 (was 5) | 137 | 1 (was 3) |
+| story1.txt | 119 | 18 | 1 | 61 | 0 |
+| story2.txt | 131 | 12 | 0 | 74 | 0 (was 1) |
+| story3.txt | 127 | 12 | 0 (was 1) | 69 | 0 (was 1) |
+| story4.txt | 128 | 10 | 1 | 59 | 0 |
+| story5.txt | 117 | 20 | 4 | 61 (was 63) | 1 (was 2) |
+| moby150k.txt | 1126 | 240 | 45 | 211 | 0 (was 1) |
+| Pride ch. 1–6 | 411 | 84 | 5 | 137 | 1 (was 3) |
 
-Every candidate flag in these texts was judged by the implementation author, using the #247 reviewer's
+The #301 condition category adds 102 matches and 17 repeated pairs across these public texts. The labeled transition and pronoun-run scores did not change. The public flag review below predates condition; the 17 additional repeat pairs have not been editorially judged. The `(was …)` figures record the first #247 PR version, before the #301 category.
+
+Every pre-#301 candidate flag in these texts was judged by the implementation author, using the #247 reviewer's
 rule. Useful means a line editor would plausibly point it out; noise means accurate but not worth
 attention; wrong means it rests on a non-transition match. Before the fixes, 55 flags were 5 useful,
 49 noise and 1 wrong. After them, 41 flags are **4 useful, 37 noise, 0 wrong**. The fixes removed
@@ -218,7 +224,7 @@ mode, with the full percentile sets and manuscript-scale distributions in `calib
 the sentence-start band convention (provenance inside the file, aggregate numbers only) and is
 built from the tier 3 output by `bench/style/published_bands.py`. Neither report takes a baseline
 argument yet, so nothing highlights against these bands; they are the reference for that future
-argument. Selected bands, percent of eligible sentences, p5 / median / p95:
+argument. These bands predate the condition category; condition has no published band yet. Selected bands, percent of eligible sentences, p5 / median / p95:
 
 | Share | All | Narration | Dialogue |
 |---|---|---|---|

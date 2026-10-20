@@ -1,3 +1,4 @@
+pub mod adverbs;
 pub mod cliches;
 pub mod consistency;
 pub mod dialogue_tags;

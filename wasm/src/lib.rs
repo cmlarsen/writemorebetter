@@ -462,6 +462,13 @@ pub struct StyleDocument {
 
 #[wasm_bindgen]
 impl StyleDocument {
+    #[wasm_bindgen(js_name = adverbs)]
+    pub fn adverbs(&self, options_json: Option<String>) -> Result<String, JsValue> {
+        self.inner
+            .adverbs(options_json.as_deref())
+            .map(|report| reports::to_utf16_json(&report))
+            .map_err(style_error)
+    }
     /// Counts for the retained analysis, returned as DocumentStats JSON.
     pub fn stats(&self) -> String {
         reports::to_utf16_json(&self.inner.stats())

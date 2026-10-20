@@ -52,6 +52,12 @@ fn baseline<T: DeserializeOwned>(
 }
 
 impl StyleDocument {
+    pub fn adverbs(
+        &self,
+        json: Option<&str>,
+    ) -> Result<crate::reports::adverbs::AdverbsReport, StyleError> {
+        crate::reports::adverbs::report(&self.document, &options(json)?)
+    }
     pub fn new(
         tokenizer: Arc<Tokenizer>,
         resources: Arc<StyleResources>,
