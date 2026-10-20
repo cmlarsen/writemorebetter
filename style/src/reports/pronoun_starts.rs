@@ -168,6 +168,70 @@ fn is_pronoun(tokens: &[&Token]) -> bool {
         || has(first, &["PRP", "WP"])
 }
 
+fn is_word_pronoun(token: &Token, previous: Option<&Token>) -> bool {
+    const FORMS: &[&str] = &[
+        "i",
+        "me",
+        "you",
+        "he",
+        "him",
+        "she",
+        "her",
+        "it",
+        "we",
+        "us",
+        "they",
+        "them",
+        "my",
+        "mine",
+        "your",
+        "yours",
+        "his",
+        "hers",
+        "its",
+        "our",
+        "ours",
+        "their",
+        "theirs",
+        "myself",
+        "yourself",
+        "yourselves",
+        "himself",
+        "herself",
+        "itself",
+        "ourselves",
+        "themselves",
+        "oneself",
+        "thou",
+        "thee",
+        "thy",
+        "thine",
+        "ye",
+    ];
+    let word = token.text.to_lowercase();
+    if !FORMS.contains(&word.as_str()) || token.text == "US" {
+        return false;
+    }
+    // The tagger also leaves a possessive reading on the noun in "coal mine".
+    if word == "mine"
+        && previous.is_some_and(|prior| {
+            prior.readings.iter().any(|reading| {
+                matches!(
+                    sentence_starts::normalize_pos(&reading.pos),
+                    "NN" | "JJ" | "DT" | "PRP$"
+                )
+            })
+        })
+    {
+        return false;
+    }
+    token
+        .readings
+        .iter()
+        .any(|reading| matches!(sentence_starts::normalize_pos(&reading.pos), "PRP" | "PRP$"))
+        || matches!(word.as_str(), "thou" | "ye")
+}
+
 pub fn report(
     document: &Document,
     options: &PronounStartsOptions,
@@ -177,49 +241,17 @@ pub fn report(
     }
     let mut groups: Split<PronounStartsGroup> = Split::default();
     let mut word_counts: Split<BTreeMap<String, usize>> = Split::default();
-    let mut word_totals: Split<usize> = Split::default();
-    for token in document.words() {
-        let mode = document.mode_at(token.span.byte.start);
-        word_totals.all += 1;
-        *word_totals.mode_mut(mode) += 1;
-        let word = token.text.to_lowercase();
-        let personal = [
-            "i",
-            "me",
-            "you",
-            "he",
-            "him",
-            "she",
-            "her",
-            "it",
-            "we",
-            "us",
-            "they",
-            "them",
-            "my",
-            "mine",
-            "your",
-            "yours",
-            "his",
-            "hers",
-            "its",
-            "our",
-            "ours",
-            "their",
-            "theirs",
-            "myself",
-            "yourself",
-            "yourselves",
-            "himself",
-            "herself",
-            "itself",
-            "ourselves",
-            "themselves",
-            "whose",
-        ];
-        if personal.contains(&word.as_str()) {
-            *word_counts.all.entry(word.clone()).or_default() += 1;
-            *word_counts.mode_mut(mode).entry(word).or_default() += 1;
+    let word_totals = super::word_split(document);
+    for sentence in document.sentences() {
+        let mut previous = None;
+        for token in sentence.words() {
+            if is_word_pronoun(token, previous) {
+                let mode = document.mode_at(token.span.byte.start);
+                let word = token.text.to_lowercase();
+                *word_counts.all.entry(word.clone()).or_default() += 1;
+                *word_counts.mode_mut(mode).entry(word).or_default() += 1;
+            }
+            previous = Some(token);
         }
     }
     let mut starts = Vec::new();

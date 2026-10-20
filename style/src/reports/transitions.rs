@@ -109,6 +109,31 @@ pub struct TransitionsReport {
 type TransitionEntry = (TransitionType, &'static str, Vec<&'static str>);
 
 const SUBJECTS: [&str; 8] = ["i", "you", "he", "she", "it", "we", "they", "there"];
+const IF_COMPLEMENTS: &[&str] = &[
+    "ask",
+    "asked",
+    "asking",
+    "wonder",
+    "wondered",
+    "wondering",
+    "see",
+    "saw",
+    "seen",
+    "seeing",
+    "know",
+    "knew",
+    "known",
+    "knowing",
+    "check",
+    "checked",
+    "checking",
+    "decide",
+    "decided",
+    "deciding",
+    "remember",
+    "remembered",
+    "remembering",
+];
 
 fn phrases() -> &'static Vec<TransitionEntry> {
     static PHRASES: OnceLock<Vec<TransitionEntry>> = OnceLock::new();
@@ -218,6 +243,13 @@ pub fn report(
                         "however" => comma || (comma_before && !next.is_some_and(|t| t.is_word)),
                         "finally" => comma || comma_before,
                         "instead" => following != Some("of"),
+                        "if" => {
+                            at == 0
+                                || !folded.get(at - 1).is_some_and(|prior| {
+                                    prior == "as" || IF_COMPLEMENTS.contains(&prior.as_str())
+                                })
+                        }
+                        "as long as" | "provided that" => at == 0 || comma_before || subject,
                         _ => true,
                     }
                 });

@@ -82,3 +82,23 @@ fn exclusions_and_input_contract() {
         Err(StyleError::NeedsTokenDetails { .. })
     ));
 }
+
+#[test]
+fn ambiguous_adjectives_and_frequency_words_are_excluded() {
+    let text = "It was a lovely, friendly, only, holy day. Daily, weekly, she sat quietly—then spoke softly…\u{2028}“Go,” she said gently.";
+    let report = adverbs::report(
+        &analyze_document(tokenizer(), text, &DocumentOptions::new()),
+        &Default::default(),
+    )
+    .unwrap();
+    let lemmas: Vec<_> = report
+        .matches
+        .iter()
+        .map(|item| item.lemma.as_str())
+        .collect();
+    assert!(lemmas.contains(&"quietly"));
+    assert!(lemmas.contains(&"softly"));
+    assert!(!["friendly", "holy", "daily", "weekly", "only", "lovely"]
+        .iter()
+        .any(|word| lemmas.contains(word)));
+}

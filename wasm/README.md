@@ -188,6 +188,7 @@ const diction = JSON.parse(document.diction()); // bundled table; diction(undefi
 const overused = JSON.parse(document.overusedWords());
 const transitions = JSON.parse(document.transitions());
 const pronouns = JSON.parse(document.pronounStarts());
+const adverbs = JSON.parse(document.adverbs());
 document.free();
 ```
 
@@ -201,7 +202,7 @@ import type { SentenceLengthReport } from "./pkg/writemorebetter_wasm";
 const length: SentenceLengthReport = JSON.parse(document.sentenceLength());
 ```
 
-Construction respects compact-document options. Echoes, phrases, overused words, pronoun starts, dialogue tags,
+Construction respects compact-document options. Echoes, phrases, overused words, pronoun starts, dialogue tags, adverbs,
 starts, sensory balance and diction require token details and throw on compact documents. Reports run on the retained analysis; construct a new
 object for changed text/options. See [the per-report API](../docs/STYLE-REPORTS.md#independent-reports-shared-analysis)
 for options, result JSON examples, baselines and Subplot’s recommended default set and opt-in lenses.

@@ -59,7 +59,13 @@ Cheap ambiguity guards:
   `who had thus broken`) and `thus far`, at the cost of missing an unpunctuated causal `Thus the
   plan failed`.
 - `instead` does not count before `of`.
-- The remaining explicit entries count at any position. `because` includes subordinate clauses and
+- `if` does not count after `as` or common verbs that introduce a *whether* complement (*asked if*,
+  *wonder if*, *see if*, *know if*, *check if*, *decide if*, *remember if*). These lexical guards
+  work identically on compact documents; an actual condition after one of those verbs can be missed.
+- `as long as` and `provided that` count at the opening, after a comma, or before a subject pronoun
+  or `there`. This excludes length comparisons and participial *provided that night*; it also misses
+  some conditional clauses with an article-led subject.
+- Most other explicit entries count at any position. `because` includes subordinate clauses and
   `because of`; `also`, `eventually`, and `instead` include clause-internal connectors. Polysemy
   remains possible.
 
@@ -86,7 +92,7 @@ a mixed sentence's transition can lie inside or outside its quoted portion.
 
 ## Pronoun measurement and runs
 
-The report now also measures personal and possessive pronouns anywhere among eligible words (#301). Each group has `words`, `pronounWords` (a `Share` whose percent divides by word count), and alphabetical `wordPronouns` rows with the same denominator. These counts include object and possessive forms such as *her*, *my*, *hers* and *theirs*. Word-mode allocation follows the token’s speech span, independent of the sentence opener mode. Empty groups suppress the percent. The existing start and run measurements are unchanged.
+The report now also measures personal and possessive pronouns anywhere among eligible words (#301). Each group has `words`, `pronounWords` (a `Share` whose percent divides by word count), and alphabetical `wordPronouns` rows with the same denominator. These counts include object and possessive forms such as *her*, *my*, *hers* and *theirs*, plus reflexive *oneself*. Contemporary forms need a `PRP`/`PRP$` reading; the archaic *thou* and *ye* are admitted explicitly because this tagger reads them as nouns or adjectives, while *thee*, *thy* and *thine* have pronoun readings. `US` and nominal *mine* (as in *coal mine*) are excluded. Relative/interrogative *whose* is outside this personal/possessive inventory. Word-mode allocation follows the token's speech span, independent of the sentence opener mode. Empty groups suppress the percent. The existing start and run measurements are unchanged.
 
 The report is `{starts, groups}`. Each start includes its token `span`, global `sentence` index,
 lowercase `pronoun`, and `mode`. `groups: Split<PronounStartsGroup>` contains `sentences`,
@@ -158,15 +164,15 @@ first #247 PR version (f00baf2).
 
 | Text | Sentences | Transition matches | Repeated pairs | Pronoun starts | Pronoun runs |
 |---|---:|---:|---:|---:|---:|
-| story1.txt | 119 | 18 | 1 | 61 | 0 |
-| story2.txt | 131 | 12 | 0 | 74 | 0 (was 1) |
-| story3.txt | 127 | 12 | 0 (was 1) | 69 | 0 (was 1) |
+| story1.txt | 119 | 16 | 1 | 61 | 0 |
+| story2.txt | 131 | 11 | 0 | 74 | 0 (was 1) |
+| story3.txt | 127 | 10 | 0 (was 1) | 69 | 0 (was 1) |
 | story4.txt | 128 | 10 | 1 | 59 | 0 |
-| story5.txt | 117 | 20 | 4 | 61 (was 63) | 1 (was 2) |
-| moby150k.txt | 1126 | 240 | 45 | 211 | 0 (was 1) |
-| Pride ch. 1–6 | 411 | 84 | 5 | 137 | 1 (was 3) |
+| story5.txt | 117 | 18 | 4 | 61 (was 63) | 1 (was 2) |
+| moby150k.txt | 1126 | 222 | 40 | 211 | 0 (was 1) |
+| Pride ch. 1–6 | 411 | 81 | 4 | 137 | 1 (was 3) |
 
-The #301 condition category adds 102 matches and 17 repeated pairs across these public texts. The labeled transition and pronoun-run scores did not change. The public flag review below predates condition; the 17 additional repeat pairs have not been editorially judged. The `(was …)` figures record the first #247 PR version, before the #301 category.
+The guarded #301 condition category adds 74 matches and 11 repeated pairs across these public texts. The labeled transition and pronoun-run scores did not change. The public flag review below predates condition; the 11 additional repeat pairs have not been editorially judged. The `(was …)` figures record the first #247 PR version, before the #301 category.
 
 Every pre-#301 candidate flag in these texts was judged by the implementation author, using the #247 reviewer's
 rule. Useful means a line editor would plausibly point it out; noise means accurate but not worth

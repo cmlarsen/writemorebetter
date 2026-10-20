@@ -105,7 +105,7 @@
     {
       "file": "story1.txt",
       "sentences": 119,
-      "transitionMatches": 18,
+      "transitionMatches": 16,
       "transitionRepeats": 1,
       "pronounStarts": 61,
       "pronounRuns": 0
@@ -113,7 +113,7 @@
     {
       "file": "story2.txt",
       "sentences": 131,
-      "transitionMatches": 12,
+      "transitionMatches": 11,
       "transitionRepeats": 0,
       "pronounStarts": 74,
       "pronounRuns": 0
@@ -121,7 +121,7 @@
     {
       "file": "story3.txt",
       "sentences": 127,
-      "transitionMatches": 12,
+      "transitionMatches": 10,
       "transitionRepeats": 0,
       "pronounStarts": 69,
       "pronounRuns": 0
@@ -137,7 +137,7 @@
     {
       "file": "story5.txt",
       "sentences": 117,
-      "transitionMatches": 20,
+      "transitionMatches": 18,
       "transitionRepeats": 4,
       "pronounStarts": 61,
       "pronounRuns": 1
@@ -145,16 +145,16 @@
     {
       "file": "moby150k.txt",
       "sentences": 1126,
-      "transitionMatches": 240,
-      "transitionRepeats": 45,
+      "transitionMatches": 222,
+      "transitionRepeats": 40,
       "pronounStarts": 211,
       "pronounRuns": 0
     },
     {
       "file": "pride-ch1-6",
       "sentences": 411,
-      "transitionMatches": 84,
-      "transitionRepeats": 5,
+      "transitionMatches": 81,
+      "transitionRepeats": 4,
       "pronounStarts": 137,
       "pronounRuns": 1
     }

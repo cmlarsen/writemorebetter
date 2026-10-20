@@ -413,6 +413,8 @@ fn condition_transitions_and_ambiguity() {
         ("I’ll go unless she stays.", "unless"),
         ("Provided that she agrees, we’ll go.", "provided that"),
         ("As long as he waits, we’ll stay.", "as long as"),
+        ("He stayed as long as she watched.", "as long as"),
+        ("He left provided that she agreed.", "provided that"),
         ("In case she calls, I’ll stay.", "in case"),
         ("“If she’s ready”—he paused…\u{2028}we’ll go.", "if"),
     ] {
@@ -424,15 +426,24 @@ fn condition_transitions_and_ambiguity() {
         assert!(found.is_some(), "{text}");
         assert!(text.get(found.unwrap().span.byte.clone()).is_some());
     }
-    let result = transitions::report(
-        &document("While she waited, he slept."),
-        &Default::default(),
-    )
-    .unwrap();
-    assert!(!result
-        .matches
-        .iter()
-        .any(|item| item.kind == TransitionType::Condition));
+    for text in [
+        "While she waited, he slept.",
+        "He looked as if he had seen a ghost.",
+        "She asked if I was ready.",
+        "I wonder if it will rain.",
+        "The rope was as long as the mast.",
+        "The food provided that night was cold.",
+        "“I can’t,” she asked if he’d go—slowly…\u{2028}Maybe.",
+    ] {
+        let result = transitions::report(&document(text), &Default::default()).unwrap();
+        assert!(
+            !result
+                .matches
+                .iter()
+                .any(|item| item.kind == TransitionType::Condition),
+            "{text}"
+        );
+    }
 }
 
 #[test]
@@ -465,4 +476,22 @@ fn pronoun_words_count_possessives_and_split_speech() {
         report.groups.narration.pronoun_words.count + report.groups.dialogue.pronoun_words.count
     );
     assert!(all.pronoun_words.percent.unwrap() > 0.0);
+    let nouns = pronoun_starts::report(
+        &document("The US army marched. The coal mine closed."),
+        &Default::default(),
+    )
+    .unwrap();
+    assert_eq!(nouns.groups.all.pronoun_words.count, 0);
+    let archaic = pronoun_starts::report(
+        &document("Thou art mad, and thy ship is lost; ye shall see thee and thine."),
+        &Default::default(),
+    )
+    .unwrap();
+    assert_eq!(archaic.groups.all.pronoun_words.count, 5);
+    assert!(!archaic
+        .groups
+        .all
+        .word_pronouns
+        .iter()
+        .any(|row| row.pronoun == "whose"));
 }

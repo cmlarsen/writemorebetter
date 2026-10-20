@@ -52,12 +52,6 @@ fn baseline<T: DeserializeOwned>(
 }
 
 impl StyleDocument {
-    pub fn adverbs(
-        &self,
-        json: Option<&str>,
-    ) -> Result<crate::reports::adverbs::AdverbsReport, StyleError> {
-        crate::reports::adverbs::report(&self.document, &options(json)?)
-    }
     pub fn new(
         tokenizer: Arc<Tokenizer>,
         resources: Arc<StyleResources>,
@@ -149,6 +143,13 @@ impl StyleDocument {
         json: Option<&str>,
     ) -> Result<crate::reports::pronoun_starts::PronounStartsReport, StyleError> {
         crate::reports::pronoun_starts::report(&self.document, &options(json)?)
+    }
+
+    pub fn adverbs(
+        &self,
+        json: Option<&str>,
+    ) -> Result<crate::reports::adverbs::AdverbsReport, StyleError> {
+        crate::reports::adverbs::report(&self.document, &options(json)?)
     }
 
     pub fn sensory_balance(
