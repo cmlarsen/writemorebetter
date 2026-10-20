@@ -180,15 +180,15 @@ const stats = JSON.parse(document.stats());
 const echoes = JSON.parse(document.echoes());
 const phrases = JSON.parse(document.repeatedPhrases());
 const senses = JSON.parse(document.sensoryBalance());
-const diction = JSON.parse(document.diction(undefined, concretenessTableText));
+const diction = JSON.parse(document.diction()); // bundled table; diction(undefined, tableText) overrides it
 const overused = JSON.parse(document.overusedWords());
 const transitions = JSON.parse(document.transitions());
 const pronouns = JSON.parse(document.pronounStarts());
 document.free();
 ```
 
-Methods take optional options JSON; `diction` also takes the caller's word-to-concreteness table
-(JSON object or TSV text) and throws a `missingTable` StyleError without one; baseline-aware methods also take baseline JSON (omitted:
+Methods take optional options JSON; `diction` also takes an optional word-to-concreteness table
+(JSON object or TSV text) that replaces the bundled one; baseline-aware methods also take baseline JSON (omitted:
 bundled; JSON object: override; `"none"`: no comparison). Results contain UTF-16 spans. Each
 sentence report owns its sentence rows. Result types ship in the generated package (source: `style-results.d.ts`):
 

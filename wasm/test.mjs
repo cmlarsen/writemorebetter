@@ -372,9 +372,9 @@ eq(sensory.groups.all.words, JSON.parse(senseDocument.stats()).words.all, "senso
 eq(styleError(() => senseDocument.sensoryBalance('{"minimumStrength":9}')).kind, "invalidOptions", "sensory options validated");
 eq(styleError(() => senseDocument.sensoryBalance('{"singleSensePercent":85}')).kind, "invalidOptions", "removed singleSensePercent option rejected");
 eq(sensory.scenes[0].singleSense, undefined, "scenes carry no singleSense flag");
-const missingTable = styleError(() => senseDocument.diction());
-eq(missingTable.kind, "missingTable", "diction without a table is an error");
-eq(missingTable.report, "diction", "missing table names report");
+const bundledDiction = JSON.parse(senseDocument.diction());
+check(bundledDiction.tableWords > 14000, "diction without a table uses the bundled table");
+eq(JSON.parse(senseDocument.diction('{"minimumRatedWords":1}')).tableWords, bundledDiction.tableWords, "options without a table use the bundled table");
 eq(styleError(() => senseDocument.diction(undefined, "lamp")).kind, "invalidTable", "malformed table rejected");
 const dictionReport = JSON.parse(senseDocument.diction('{"minimumRatedWords":1}', "lamp\t4.8\nbell\t4.5\n"));
 eq(dictionReport.tableWords, 2, "TSV table parsed");

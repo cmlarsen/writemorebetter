@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::OnceLock;
 
 use serde::{Deserialize, Serialize};
 
@@ -7,6 +8,7 @@ use crate::reports::{norms, word_split, SentenceRun, Split};
 use crate::{Document, Mode, Span};
 
 pub(crate) const REPORT: &str = "diction";
+const BUNDLED: &str = include_str!("../../data/norms/concreteness.tsv");
 
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct ConcretenessTable {
@@ -14,6 +16,11 @@ pub struct ConcretenessTable {
 }
 
 impl ConcretenessTable {
+    pub fn bundled() -> &'static Self {
+        static TABLE: OnceLock<ConcretenessTable> = OnceLock::new();
+        TABLE.get_or_init(|| Self::from_tsv(BUNDLED).expect("bundled concreteness table parses"))
+    }
+
     pub fn new(ratings: impl IntoIterator<Item = (String, f64)>) -> Result<Self, StyleError> {
         let mut table = HashMap::new();
         for (word, rating) in ratings {
@@ -59,7 +66,7 @@ impl ConcretenessTable {
             .trim_start_matches('\u{feff}')
             .lines()
             .enumerate()
-            .filter(|(_, line)| !line.trim().is_empty());
+            .filter(|(_, line)| !line.trim().is_empty() && !line.starts_with('#'));
         let mut columns = (0, 1);
         let mut rows = Vec::new();
         if let Some((number, first)) = lines.next() {

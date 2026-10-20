@@ -202,20 +202,23 @@ fn past_tense_verbs_are_rated_by_the_verb_lemma() {
 }
 
 #[test]
-fn missing_and_invalid_tables_are_errors_not_empty_reports() {
+fn omitted_tables_use_the_bundled_table_and_invalid_tables_are_errors() {
     let style = StyleDocument::new(
         Arc::new(Tokenizer::new("../storage/en_tokenizer.bin").unwrap()),
         Arc::new(StyleResources::new()),
         "Hope is an idea.",
         &DocumentOptions::new(),
     );
-    let missing = style.diction(None, None).unwrap_err();
-    assert!(matches!(missing, StyleError::MissingTable { .. }));
-    assert!(missing
-        .to_string()
-        .contains("diction needs a caller-supplied"));
+    let bundled = style.diction(None, None).unwrap();
+    assert_eq!(bundled.table_words, ConcretenessTable::bundled().len());
+    assert_eq!(bundled.sentences[0].rated_words, 2);
+    let caller = style.diction(None, Some(INVENTED)).unwrap();
+    assert_eq!(caller.table_words, 10);
     assert_eq!(
-        serde_json::to_value(&missing).unwrap(),
+        serde_json::to_value(StyleError::MissingTable {
+            report: "diction".into()
+        })
+        .unwrap(),
         serde_json::json!({"kind": "missingTable", "report": "diction"})
     );
     assert!(matches!(
@@ -261,4 +264,69 @@ fn missing_and_invalid_tables_are_errors_not_empty_reports() {
         ),
         Err(StyleError::InvalidOptions { .. })
     ));
+}
+
+#[test]
+fn bundled_table_rates_fiction_lemmas_and_british_spellings() {
+    let table = ConcretenessTable::bundled();
+    assert!(table.len() > 14_000);
+    for (concrete, abstract_word) in [("spoon", "theory"), ("brick", "idea"), ("kettle", "hope")] {
+        assert!(table.get(concrete).unwrap() >= 4.0, "{concrete}");
+        assert!(table.get(abstract_word).unwrap() < 2.5, "{abstract_word}");
+    }
+    for (british, american) in [("colour", "color"), ("grey", "gray"), ("harbour", "harbor")] {
+        assert!(table.get(british).is_some());
+        assert_eq!(table.get(british), table.get(american));
+    }
+    assert!(table.get("o'clock").is_some());
+    assert_eq!(table.get("10th"), None);
+    assert!(std::ptr::eq(table, ConcretenessTable::bundled()));
+}
+
+#[test]
+fn comment_lines_are_skipped_in_tsv_tables() {
+    let table =
+        ConcretenessTable::parse("# provenance\n#\tmore\nword\tconcreteness\nlamp\t4.8\n").unwrap();
+    assert_eq!(table.len(), 1);
+    assert_eq!(table.get("lamp"), Some(4.8));
+    assert!(matches!(
+        ConcretenessTable::parse("# only a comment\n"),
+        Err(StyleError::InvalidTable { .. })
+    ));
+}
+
+#[test]
+fn bundled_table_handles_fiction_punctuation() {
+    let text = "At six o’clock the kettle boiled… \u{2028}“The theory of hope,” she said—softly. \
+                Freedom, justice and honesty were ideas, nothing more; a belief, a principle, a hope. \
+                Truth was a theory. Mercy was a virtue.";
+    let r = diction::report(
+        &document(text),
+        ConcretenessTable::bundled(),
+        &DictionOptions::new().with_minimum_rated_words(1),
+    )
+    .unwrap();
+    assert_eq!(r.sentences[0].rated_words, 4);
+    assert!(r.sentences[0].mean.is_some_and(|mean| mean > 3.5));
+    let narration: Vec<_> = r.sentences.iter().filter(|s| s.is_abstract).collect();
+    assert_eq!(narration.len(), 3);
+    assert_eq!(r.abstract_runs.len(), 1);
+    let json: serde_json::Value = serde_json::from_str(&to_utf16_json(&r)).unwrap();
+    let utf16: Vec<u16> = text.encode_utf16().collect();
+    for (sentence, native) in json["sentences"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .zip(&r.sentences)
+    {
+        let span = &sentence["span"];
+        let (start, end) = (
+            span["start"].as_u64().unwrap() as usize,
+            span["end"].as_u64().unwrap() as usize,
+        );
+        assert_eq!(
+            String::from_utf16(&utf16[start..end]).unwrap(),
+            text[native.span.byte.clone()]
+        );
+    }
 }

@@ -166,8 +166,14 @@ impl StyleDocument {
         table: Option<&str>,
     ) -> Result<diction::DictionReport, StyleError> {
         let options = options(json)?;
-        let table = table.ok_or_else(|| StyleError::missing_table(diction::REPORT))?;
-        diction::report(&self.document, &*parsed_table(table)?, &options)
+        match table {
+            Some(text) => diction::report(&self.document, &*parsed_table(text)?, &options),
+            None => diction::report(
+                &self.document,
+                diction::ConcretenessTable::bundled(),
+                &options,
+            ),
+        }
     }
 
     pub fn overused_words(

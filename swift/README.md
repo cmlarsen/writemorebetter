@@ -188,7 +188,7 @@ let stats = try document.stats()
 let echoes = try document.echoes()
 let phrases = try document.repeatedPhrases()
 let senses: SensoryBalanceReport = try document.sensoryBalance()
-let diction: DictionReport = try document.diction(table: concretenessTableText)
+let diction: DictionReport = try document.diction() // or diction(table:) with your own table
 let overused = try document.overusedWords()
 let transitions: TransitionsReport = try document.transitions()
 let pronouns: PronounStartsReport = try document.pronounStarts()
@@ -200,8 +200,9 @@ defaulting to `.bundled`. Raw `*Json` methods accept omitted/nil or `"bundled"`,
 baseline JSON and return the JSON string directly. Spans carry UTF-16
 `start`/exclusive `end` and provide `nsRange`. Each sentence report owns its sentence rows.
 
-`diction` needs a caller-supplied word-to-concreteness table (JSON object or TSV text);
-`dictionJson(optionsJson:table:)` with a nil table throws `CheckError.ReportInput`.
+`diction` uses the bundled concreteness table unless `table` passes a word-to-concreteness table
+(JSON object or TSV text), which replaces it; `dictionJson(optionsJson:table:)` with a nil table
+uses the bundled one.
 
 Construction respects compact-document options. Echoes, phrases, overused words, pronoun starts, dialogue tags,
 starts, sensory balance and diction require token details and throw on compact documents. Reports run on the retained analysis; construct a new

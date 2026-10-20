@@ -548,7 +548,7 @@ impl StyleDocument {
     }
     #[wasm_bindgen(js_name = diction)]
     /// Returns this report on the retained analysis; options default when omitted.
-    /// Table: a word-to-concreteness JSON object or TSV text; omitting it is a missingTable error.
+    /// Table: a word-to-concreteness JSON object or TSV text; omitting it uses the bundled table.
     pub fn diction(
         &self,
         options_json: Option<String>,

@@ -108,7 +108,7 @@ const echoes = JSON.parse(document.echoes());
 const phrases = JSON.parse(document.repeatedPhrases());
 const senses = JSON.parse(document.sensoryBalance());
 const pacing = JSON.parse(document.pacing());
-const diction = JSON.parse(document.diction(undefined, concretenessTableText));
+const diction = JSON.parse(document.diction()); // bundled table; diction(undefined, tableText) overrides it
 const overused = JSON.parse(document.overusedWords());
 const transitions = JSON.parse(document.transitions('{"repeatWindow":5}'));
 const pronouns = JSON.parse(document.pronounStarts());
@@ -122,9 +122,9 @@ result as JSON. `stats()` returns `DocumentStats`. Baseline-aware methods (`sent
 `sentenceStarts`, `dialogueTags`, `overusedWords`) take a separate optional `baselineJSON`: omit it for bundled data,
 pass a baseline object encoded as JSON to override it, use `"bundled"` explicitly, or use
 `"none"` to disable comparisons.
-There is no bundled dialogue-tag baseline yet. `diction` takes no baseline; its second argument is
-the caller's word-to-concreteness table (JSON object or TSV text), which is required: omitting it
-throws `missingTable` rather than returning an empty report. Options use camelCase, accept snake_case aliases,
+There is no bundled dialogue-tag baseline yet. `diction` takes no baseline; its optional second argument is
+a word-to-concreteness table (JSON object or TSV text) that replaces the bundled one for that call.
+Omitting it uses `ConcretenessTable::bundled()`. Options use camelCase, accept snake_case aliases,
 and reject unknown keys. Overrides never change later calls. Native Rust `report` functions take
 `Option<&Baseline>` explicitly; `XBaseline::bundled()` loads the matching bundled file.
 `OverusedWordsBaseline::bundled()` returns `Option<&'static OverusedWordsBaseline>`, parsed once,
@@ -143,7 +143,7 @@ let echoes: EchoReport = try document.echoes()
 let phrases: RepeatedPhraseReport = try document.repeatedPhrases()
 let senses: SensoryBalanceReport = try document.sensoryBalance()
 let pacing: PacingReport = try document.pacing()
-let diction: DictionReport = try document.diction(table: concretenessTableText)
+let diction: DictionReport = try document.diction() // or diction(table:) with your own table
 let overused: OverusedWordsReport = try document.overusedWords()
 let transitions: TransitionsReport = try document.transitions()
 let pronouns: PronounStartsReport = try document.pronounStarts()
@@ -182,7 +182,7 @@ measurements: single paragraphs that meet two thresholds are mostly in-scene noi
 | sentence length | `sentence_length::report(&Document, &SentenceLengthOptions, Option<&SentenceLengthBaseline>)` | `minimumSentences`, `includeLongSentences`, `longSentenceWords`, `longestPerChapter` | bundled | no |
 | sentence starts | `sentence_starts::report(&Document, &SentenceStartsOptions, Option<&SentenceStartsBaseline>)` | `minimumSentences` | bundled | yes |
 | sensory balance | `sensory_balance::report(&Document, &PerceptualNorms, &SensoryBalanceOptions)` | `minimumStrength`, `dominanceMargin`, `sightMargin`, `minimumSenseWords` | none (norms bundled: `PerceptualNorms::bundled()`) | yes |
-| diction | `diction::report(&Document, &ConcretenessTable, &DictionOptions)` | `abstractBelow`, `minimumRatedWords`, `minimumRunSentences` | none (table caller-supplied: `ConcretenessTable::parse`) | yes |
+| diction | `diction::report(&Document, &ConcretenessTable, &DictionOptions)` | `abstractBelow`, `minimumRatedWords`, `minimumRunSentences` | none (table bundled: `ConcretenessTable::bundled()`; caller tables via `ConcretenessTable::parse`) | yes |
 | overused words | `overused_words::report(&Document, &OverusedWordsOptions, Option<&OverusedWordsBaseline>)` | `minimumRatio`, `minimumCount`, `minimumReferencePerMillion`, `includeNouns`, `countScaleWords` | bundled; fillers run without one | yes |
 | pacing | `pacing::report(&Document, &PacingOptions)` | `minimumParagraphs`, `moreThanWords`, `minimumSentenceLength`, `minimumPastPerfectPercent`, `minimumCognitionPercent` | none | yes |
 
@@ -198,7 +198,8 @@ Each method validates its inputs independently. Baseline parse errors identify t
 use `invalidBaseline`; options errors use `invalidOptions`. `StyleError` has five kinds: `invalidOptions`
 (unparseable options or unknown keys), `invalidBaseline` (with `report`: invalid values, percentile
 or universal tags), `needsTokenDetails` (with `report`: a compact document supplied to a report
-requiring readings), `missingTable` (with `report`: diction called without a word table) and
+requiring readings), `missingTable` (with `report`; no longer returned since diction gained a bundled
+table, kept so existing matches compile and decode) and
 `invalidTable` (with `report`: an unparseable, empty or non-finite word table). WASM throws an `Error` named `StyleError` with `kind` and `report`; Swift throws
 `CheckError.ReportInput` with the same message.
 

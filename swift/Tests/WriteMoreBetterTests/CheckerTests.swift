@@ -443,9 +443,13 @@ final class CheckerTests: XCTestCase {
         XCTAssertEqual(sensory.groups.all.words, try normDocument.stats().words.all)
         let diction = try normDocument.diction(table: table)
         XCTAssertFalse(diction.abstractRuns.isEmpty)
-        XCTAssertThrowsError(try normDocument.dictionJson(optionsJson: nil, table: nil)) { error in
+        XCTAssertEqual(diction.tableWords, 4)
+        try roundTrip(DictionReport.self, normDocument.dictionJson(optionsJson: nil, table: nil))
+        let bundled = try normDocument.diction()
+        XCTAssertGreaterThan(bundled.tableWords, 14_000)
+        XCTAssertThrowsError(try normDocument.diction(table: "lamp")) { error in
             guard case CheckError.ReportInput(let message) = error else { return XCTFail("unexpected error: \(error)") }
-            XCTAssertTrue(message.hasPrefix("diction needs a caller-supplied"))
+            XCTAssertTrue(message.hasPrefix("invalid diction table"))
         }
         let overusedOptions = "{\"minimumCount\":1,\"minimumRatio\":1,\"minimumReferencePerMillion\":0,\"includeNouns\":true}"
         try roundTrip(OverusedWordsReport.self, document.overusedWordsJson(optionsJson: overusedOptions, baselineJson: nil))

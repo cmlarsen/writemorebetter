@@ -423,8 +423,8 @@ public extension StyleDocument {
     func sensoryBalance(optionsJson: String? = nil) throws -> SensoryBalanceReport {
         try decodeStyle(sensoryBalanceJson(optionsJson: optionsJson))
     }
-    /// `table` is a word-to-concreteness JSON object or TSV text supplied by the caller.
-    func diction(table: String, optionsJson: String? = nil) throws -> DictionReport {
+    /// `table` is a word-to-concreteness JSON object or TSV text; nil uses the bundled table.
+    func diction(table: String? = nil, optionsJson: String? = nil) throws -> DictionReport {
         try decodeStyle(dictionJson(optionsJson: optionsJson, table: table))
     }
     func overusedWords(optionsJson: String? = nil, baseline: StyleBaseline = .bundled) throws -> OverusedWordsReport {

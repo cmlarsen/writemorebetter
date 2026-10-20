@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Collect concreteness ratings from headless model CLIs into bench/style/concreteness/raw/.
 
-Usage: rate.py PASS [PASS ...] [--jobs 8] [--limit N]
+Usage: rate.py PASS [PASS ...] [--jobs 8] [--limit N] [--supplement] [--no-main]
 
 A PASS is RATER:MODEL:SAMPLE, for example claude:claude-opus-5-5:1 or
 opencode:opencode-go/deepseek-v4-pro:1. Each pass shuffles the rated words with its own seed,
@@ -27,8 +27,10 @@ HERE = Path(__file__).resolve().parent
 RAW = HERE / 'raw'
 PROMPT = HERE / 'prompt.txt'
 WORDS = HERE / 'words.tsv'
+SUPPLEMENT = HERE / 'words-supplement.tsv'
 PROMPT_SHA256 = '0317ef4beee2b11db9719e811af732839d40536bfaac54b1d20266922b990871'
 WORDS_SHA256 = 'd48a0c8791ab536eea60fb320ab9358d6d3093733d01b43d36e105e787378966'
+SUPPLEMENT_SHA256 = 'a0232fd2483e57ca28ad5ba48ae23df0543c77209f254b7206296948ef48de7c'
 BATCH = 50
 ATTEMPTS = 5
 TIMEOUT = 600
@@ -50,8 +52,8 @@ def prompt_parts():
     return system.split('[system]\n', 1)[1].strip(), user
 
 
-def rated_words():
-    rows = [line.split('\t') for line in checked(WORDS, WORDS_SHA256).splitlines()[1:]]
+def rated_words(path=WORDS, digest=WORDS_SHA256):
+    rows = [line.split('\t') for line in checked(path, digest).splitlines()[1:]]
     return [word for word, source in rows if word == source]
 
 
@@ -63,9 +65,9 @@ def slug(model):
     return model.split('/')[-1]
 
 
-def batches(words, model, sample):
+def batches(words, model, sample, salt=''):
     order = list(words)
-    random.Random(seed(model, sample)).shuffle(order)
+    random.Random(seed(model, sample) + len(salt)).shuffle(order)
     return [order[i:i + BATCH] for i in range(0, len(order), BATCH)]
 
 
@@ -135,9 +137,9 @@ def append(path, rows):
             handle.write(json.dumps(row, ensure_ascii=False) + '\n')
 
 
-def run_batch(rater, model, sample, index, batch, system, template, cwd):
+def run_batch(rater, model, sample, label, batch, system, template, cwd):
     name = slug(model)
-    batch_id = f'{name}-s{sample}-b{index:03d}'
+    batch_id = f'{name}-s{sample}-{label}'
     user = template.replace('{count}', str(len(batch))).replace('{words}', '\n'.join(batch))
     errors = []
     for attempt in range(1, ATTEMPTS + 1):
@@ -180,9 +182,14 @@ def main():
     parser.add_argument('--jobs', type=int, default=8)
     parser.add_argument('--limit', type=int, help='only the first N batches of each pass')
     parser.add_argument('--cwd', default=os.environ.get('TMPDIR', '/tmp'))
+    parser.add_argument('--supplement', action='store_true',
+                        help='also rate words-supplement.tsv, in batches labelled x000')
+    parser.add_argument('--main', action=argparse.BooleanOptionalAction, default=True,
+                        help='rate words.tsv (--no-main rates only the supplement)')
     args = parser.parse_args()
     system, template = prompt_parts()
-    words = rated_words()
+    words = rated_words() if args.main else []
+    supplement = rated_words(SUPPLEMENT, SUPPLEMENT_SHA256)
     RAW.mkdir(exist_ok=True)
     tasks = []
     for spec in args.passes:
@@ -190,9 +197,14 @@ def main():
         model, sample = rest.rsplit(':', 1)
         sample = int(sample)
         done = done_batches(RAW / f'{slug(model)}-s{sample}.jsonl')
-        for index, batch in enumerate(batches(words, model, sample)[:args.limit]):
-            if f'{slug(model)}-s{sample}-b{index:03d}' not in done:
-                tasks.append((rater, model, sample, index, batch))
+        labelled = [(f'b{index:03d}', batch) for index, batch in
+                    enumerate(batches(words, model, sample)[:args.limit])]
+        if args.supplement:
+            labelled += [(f'x{index:03d}', batch) for index, batch in
+                         enumerate(batches(supplement, model, sample, 'x'))]
+        for label, batch in labelled:
+            if f'{slug(model)}-s{sample}-{label}' not in done:
+                tasks.append((rater, model, sample, label, batch))
     print(f'{len(tasks)} batches to rate', flush=True)
     failures = []
     with ThreadPoolExecutor(args.jobs) as pool:
