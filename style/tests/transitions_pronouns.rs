@@ -414,6 +414,7 @@ fn condition_transitions_and_ambiguity() {
         ("Provided that she agrees, we’ll go.", "provided that"),
         ("As long as he waits, we’ll stay.", "as long as"),
         ("He stayed as long as she watched.", "as long as"),
+        ("Tell me now; if you see him, run.", "if"),
         ("He left provided that she agreed.", "provided that"),
         ("In case she calls, I’ll stay.", "in case"),
         ("“If she’s ready”—he paused…\u{2028}we’ll go.", "if"),
@@ -431,7 +432,16 @@ fn condition_transitions_and_ambiguity() {
         "He looked as if he had seen a ghost.",
         "She asked if I was ready.",
         "I wonder if it will rain.",
+        "She wonders if it will rain.",
+        "He asks if we can go.",
+        "She knows if he lies.",
+        "Tell me if you see him.",
+        "I’m not sure if she’s coming.",
+        "I doubt if he’ll come.",
+        "She doubted if he’d come—or cared…\u{2028}Then left.",
         "The rope was as long as the mast.",
+        "The rope was as long as it was wide.",
+        "“It’s as long as it’s wide,” he said—quietly…\u{2028}Then left.",
         "The food provided that night was cold.",
         "“I can’t,” she asked if he’d go—slowly…\u{2028}Maybe.",
     ] {
@@ -482,6 +492,21 @@ fn pronoun_words_count_possessives_and_split_speech() {
     )
     .unwrap();
     assert_eq!(nouns.groups.all.pronoun_words.count, 0);
+    for text in [
+        "The choice was all mine.",
+        "“The choice was all mine,” she said—softly…\u{2028}Both were mine.",
+    ] {
+        let quantified = pronoun_starts::report(&document(text), &Default::default()).unwrap();
+        assert!(
+            quantified
+                .groups
+                .all
+                .word_pronouns
+                .iter()
+                .any(|row| row.pronoun == "mine"),
+            "{text}"
+        );
+    }
     let archaic = pronoun_starts::report(
         &document("Thou art mad, and thy ship is lost; ye shall see thee and thine."),
         &Default::default(),

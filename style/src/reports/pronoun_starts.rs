@@ -212,6 +212,13 @@ fn is_word_pronoun(token: &Token, previous: Option<&Token>) -> bool {
     if !FORMS.contains(&word.as_str()) || token.text == "US" {
         return false;
     }
+    // The tagger keeps only the noun reading in "all mine", "both mine".
+    if word == "mine"
+        && previous
+            .is_some_and(|prior| matches!(prior.text.to_lowercase().as_str(), "all" | "both"))
+    {
+        return true;
+    }
     // The tagger also leaves a possessive reading on the noun in "coal mine".
     if word == "mine"
         && previous.is_some_and(|prior| {
