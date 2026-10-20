@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use super::Split;
-use crate::{Document, Mode, Sentence, Span, StyleError};
+use crate::{Document, Mode, Sentence, Span, StyleError, Token};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields, rename_all = "camelCase")]
@@ -121,6 +121,7 @@ pub fn report_with(
     }
     let mut groups: Split<ReadabilityScores> = Split::default();
     let mut paragraphs = Vec::with_capacity(document.paragraphs.len());
+    let mut all_words = 0;
     for paragraph in &document.paragraphs {
         let mut scores = ReadabilityScores::default();
         let mut modes = Vec::new();
@@ -145,6 +146,7 @@ pub fn report_with(
         }
         let dialogue_only = !modes.is_empty() && modes.iter().all(|&m| m == Mode::Dialogue);
         let excluded = dialogue_only && options.exclude_dialogue_paragraphs;
+        all_words += scores.words;
         if !excluded {
             for (mode, sample) in &counted {
                 for group in groups.all_and_mode_mut(*mode) {
@@ -164,6 +166,9 @@ pub fn report_with(
         let sentences = group.sentences;
         group.finish(options, options.minimum_sentences, sentences);
     }
+    // Excluding dialogue-only paragraphs changes the indices, not how long the text takes to
+    // read, so the whole-text reading time counts every word.
+    groups.all.reading_minutes = all_words as f64 / options.words_per_minute;
     Ok(ReadabilityReport { groups, paragraphs })
 }
 
@@ -198,22 +203,44 @@ impl ReadabilityScores {
     }
 }
 
-fn is_joiner(gap: &str) -> bool {
-    matches!(gap, "" | "-" | "\u{2010}" | "\u{2011}" | "'" | "’")
+fn is_joiner(gap: &str, previous: &str, next: &str) -> bool {
+    let digits = |text: &str, last: bool| {
+        let edge = if last {
+            text.chars().last()
+        } else {
+            text.chars().next()
+        };
+        edge.is_some_and(|c| c.is_ascii_digit())
+    };
+    let letter = |text: &str| {
+        let mut chars = text.chars();
+        chars.next().is_some_and(char::is_alphabetic) && chars.next().is_none()
+    };
+    match gap {
+        "" | "-" | "\u{2010}" | "\u{2011}" | "'" | "’" => true,
+        // `1,000`, `3.5`, `9/11`, and initialisms: `p.m.`, `U.S.`.
+        "," | "/" => digits(previous, true) && digits(next, false),
+        "." => {
+            (digits(previous, true) && digits(next, false)) || (letter(previous) && letter(next))
+        }
+        _ => false,
+    }
 }
 
 /// Words as readers count them: adjacent word tokens joined across no gap, a hyphen or an
-/// apostrophe, so `can’t`, `She’s` and `well-known` are one word each. Skipped names count.
+/// apostrophe, so `can’t`, `She’s` and `well-known` are one word each, and numbers and
+/// initialisms such as `1,000`, `9/11` and `U.S.` stay whole. A double hyphen is a typed dash,
+/// so `was--he` is two words. Skipped names count.
 pub fn sentence_words(sentence: &Sentence) -> Vec<String> {
     let start = sentence.span.byte.start;
     let mut words: Vec<String> = Vec::new();
-    let mut previous_end: Option<usize> = None;
+    let mut previous: Option<&Token> = None;
     for token in sentence.tokens.iter().filter(|token| token.is_word) {
-        let gap = previous_end.and_then(|end| {
+        let gap = previous.and_then(|previous| {
             sentence
                 .text
-                .get(end - start..token.span.byte.start - start)
-                .filter(|gap| is_joiner(gap))
+                .get(previous.span.byte.end - start..token.span.byte.start - start)
+                .filter(|gap| is_joiner(gap, &previous.text, &token.text))
         });
         match (gap, words.last_mut()) {
             (Some(gap), Some(word)) => {
@@ -222,9 +249,15 @@ pub fn sentence_words(sentence: &Sentence) -> Vec<String> {
             }
             _ => words.push(token.text.clone()),
         }
-        previous_end = Some(token.span.byte.end);
+        previous = Some(token);
     }
     words
+        .iter()
+        .flat_map(|word| word.split("--"))
+        .map(|part| part.trim_matches('-'))
+        .filter(|part| part.chars().any(char::is_alphanumeric))
+        .map(str::to_owned)
+        .collect()
 }
 
 /// Heuristic syllable count for one word; always at least 1.
@@ -315,10 +348,14 @@ fn is_vowel_letter(c: char) -> bool {
     )
 }
 
-/// Silent-e compounds: `something` is `some` + `thing`, not some-e-thing.
+/// Silent-e compounds: `something` is `some` + `thing`, not some-e-thing. Each prefix is one
+/// syllable there, `fire` too: CMUdict has `fireman` and `firework` as two.
 const SILENT_E_PREFIXES: [&str; 8] = [
     "some", "where", "there", "here", "home", "fire", "life", "time",
 ];
+/// The co- prefix before a vowel-initial root is its own syllable: co-exist, co-incide,
+/// co-operate, co-ordinate, but `coin`, `cooper` and `coax` are not prefixed.
+const CO_ROOTS: [&str; 5] = ["coex", "coinc", "coopera", "coordin", "coed"];
 /// Suffixes after which a stem's final e stays silent: `lovely`, `statement`, `hopeless`.
 const SILENT_E_SUFFIXES: [(&str, usize); 7] = [
     ("ments", 1),
@@ -330,10 +367,22 @@ const SILENT_E_SUFFIXES: [(&str, usize); 7] = [
     ("ly", 1),
 ];
 
+/// Titles are read in full: mis-ter, mis-sus, doc-tor.
+const TITLES: [(&str, usize); 3] = [("mr", 2), ("mrs", 2), ("dr", 2)];
+
 fn letters_syllables(word: &str) -> usize {
     let chars: Vec<char> = word.chars().collect();
     if !chars.iter().any(|c| c.is_alphabetic()) {
         return 1;
+    }
+    if let Some(&(_, count)) = TITLES.iter().find(|(title, _)| *title == word) {
+        return count;
+    }
+    if let Some(rest) = word
+        .strip_prefix("co")
+        .filter(|_| CO_ROOTS.iter().any(|root| word.starts_with(root)))
+    {
+        return 1 + letters_syllables(rest);
     }
     if let Some(rest) = word.strip_prefix("every").filter(|rest| !rest.is_empty()) {
         // `every` alone is ev-er-y; in compounds it is ev-ry: every-one, every-thing.
@@ -345,7 +394,7 @@ fn letters_syllables(word: &str) -> usize {
                 && (rest.starts_with(|c: char| !is_vowel_letter(c)) || rest.starts_with("one"))
                 && !rest.starts_with("ver")
             {
-                return letters_syllables(prefix) + letters_syllables(rest);
+                return 1 + letters_syllables(rest);
             }
         }
     }
@@ -439,7 +488,13 @@ fn vowel_group_syllables(chars: &[char]) -> usize {
                 (1, 'd') => !liquid_kept && !matches!(at(s - 1), 't' | 'd'),
                 _ => false,
             };
-            if silent {
+            // -ire, -ires, -ired: `fire`, `tired`, `desires` say fi-er, not fyre.
+            let ire = at(s - 1) == 'r'
+                && at(s - 2) == 'i'
+                && !(at(s - 3) == 'h' && at(s - 4) == 's')
+                && groups.len() >= 2
+                && groups[groups.len() - 2] == (start - 2, start - 1);
+            if silent && !ire {
                 count -= 1;
             }
         }
@@ -478,6 +533,23 @@ fn vowel_group_syllables(chars: &[char]) -> usize {
                 ('u', 'a') | ('u', 'o') => {
                     !matches!(prev, 'q' | 'g') && !(prev == 's' && matches!(next, 'd' | 'v'))
                 }
+                // Final -uel, -uels, -uet, -uent: `cruel`, `fuels`, `duet`, `fluent`, but not
+                // `blue`, `league`, `queen` or `Samuel`.
+                ('u', 'e') => {
+                    let tail = n as isize - k - 2;
+                    !matches!(prev, 'q' | 'g')
+                        && ((next == 'l'
+                            && !matches!(prev, 'm' | 'n')
+                            && (tail == 1 || (tail == 2 && after == 's')))
+                            || (next == 't' && tail == 1)
+                            || (next == 'n' && after == 't' && tail == 2))
+                }
+                // -eum: `museum`, `linoleum`.
+                ('e', 'u') => {
+                    next == 'm' && (k + 3 == n as isize || (k + 4 == n as isize && after == 's'))
+                }
+                // `chaos`, `chaotic`.
+                ('a', 'o') => matches!(next, 's' | 't'),
                 ('u', 'i') => {
                     !matches!(prev, 'q' | 'g') && (next == 'd' || (next == 'n' && after != 'g'))
                 }
@@ -494,8 +566,16 @@ fn vowel_group_syllables(chars: &[char]) -> usize {
                 }
                 ('o', 'e') => matches!(next, 'm' | 't'),
                 ('e', 'a') => {
-                    (k + 2 == n as isize && n >= 4 && matches!(prev, 'd' | 'r'))
+                    // Final -ea and its plural: `idea`, `areas`.
+                    let final_ea = k + 2 == n as isize
+                        || (k + 3 == n as isize && next == 's' && at(k - 2) != 'e');
+                    (final_ea && n >= 4 && matches!(prev, 'd' | 'r'))
                         || (next == 't' && after == 'e' && k + 4 == n as isize)
+                        // The cre-at-, re-act- and the-at- stems with any suffix:
+                        // `creates`, `creation`, `reacted`, `theatrical`, but not `creature`.
+                        || (prev == 'r' && at(k - 2) == 'c' && next == 't' && after != 'u')
+                        || (k == 1 && prev == 'r' && next == 'c' && after == 't')
+                        || (k == 2 && prev == 'h' && at(0) == 't' && next == 't')
                 }
                 _ => false,
             };

@@ -63,7 +63,7 @@ The report is `{groups, paragraphs}`.
 | `fleschKincaidGrade` | 0.39 × (words ÷ sentences) + 11.8 × (syllables ÷ words) − 15.59 |
 | `colemanLiau` | 0.0588 × L − 0.296 × S − 15.8, with L = characters per 100 words and S = sentences per 100 words |
 | `automatedReadability` | 4.71 × (characters ÷ words) + 0.5 × (words ÷ sentences) − 21.43 |
-| `readingMinutes` | words ÷ `wordsPerMinute` |
+| `readingMinutes` | words ÷ `wordsPerMinute`; for `groups.all`, every word in the text, excluded paragraphs included |
 
 The four indices are null when the sample has no words. They are never clamped: a run of very
 short words can give a Flesch score above 100 or a negative grade, as the published formulas do.
@@ -83,8 +83,14 @@ The report counts words the way the formulas assume, which differs on purpose fr
 - Adjacent word tokens joined by nothing, a hyphen (`-`, U+2010, U+2011) or an apostrophe (`'`,
   `’`) form one word: `can’t`, `She’s`, `well-known` and `mother-in-law` are one word each. An
   em dash, en dash, ellipsis or space separates words (`can't—won’t` is two).
+- A double hyphen is a typed em dash, so `It was--he thought--late.` is five words. The tokenizer
+  keeps `was--he` as one token, so the shared token count in sentence length and pacing still
+  counts it as one.
+- Numbers stay whole across a comma, period or slash between digits (`1,000`, `3.5`, `9/11`), and
+  initialisms across periods between single letters (`p.m.`, `U.S.`).
 - Skipped names count: a reader reads them.
-- Any token with a letter or digit is a word, so `1999` is one word of one syllable.
+- Any token with a letter or digit is a word, so `1999` and `1,000` are one word of one syllable
+  each, and `p.m.` is one syllable. Spelling numbers out is a dictionary's job (phase 2).
 
 Sentences come from the document pass; one with no words (`…`, `* * *`) is not counted. U+2028
 inside a paragraph is whitespace, so it neither splits words nor ends a sentence by itself.
@@ -96,7 +102,7 @@ inside a paragraph is whitespace, so it neither splits words nor ends a sentence
 | `minimumSentences` | 50 | groups below this many sentences are `lowConfidence`, the threshold the other reports use |
 | `minimumParagraphWords` | 30 | paragraphs below this many words are `lowConfidence` |
 | `wordsPerMinute` | 260 | must be finite and positive |
-| `excludeDialogueParagraphs` | false | leave dialogue-only paragraphs out of every group |
+| `excludeDialogueParagraphs` | false | leave dialogue-only paragraphs out of every group's counts and indices; `groups.all.readingMinutes` still counts them |
 
 Unknown keys are errors; camelCase and snake_case names are accepted. The 260 words per minute is
 Brysbaert's (2019) meta-analytic estimate for silent reading of English fiction by adults; his
@@ -106,6 +112,9 @@ points.
 
 `excludeDialogueParagraphs` drops only paragraphs where every sentence is dialogue. Dialogue
 sentences in a mixed paragraph stay, so with the option on `groups.dialogue` holds only those.
+The option is for scoring the narration's difficulty; the reader still reads the dialogue, so the
+whole-text reading time is computed from every word either way. `narration` and `dialogue` reading
+times cover the words in their own group.
 
 ## Syllable counter
 
@@ -127,13 +136,23 @@ original to this crate.
   `onion`, `million`), `eo` (`video`; not after g, nor `people`, `leopard`), `ua`/`uo` (`actual`;
   not after q or g, nor `persuade`), `ui` before d or n (`fluid`, `ruin`), `iu` (`medium`), `ie` in
   `-ier`/`-iest` from y, `-iet`, and `-ient`/`-ience` except after c, t or s (`happier`, `quiet`,
-  `client`, `science`; not `patient`), `oe` before m or t (`poem`), and final `-dea`/`-rea` and
-  `-eate` (`idea`, `area`, `create`). A vowel before `-ing` adds one (`going`, `being`).
+  `client`, `science`; not `patient`), `oe` before m or t (`poem`), final `-uel(s)`, `-uet` and
+  `-uent` except after q, g, m or n (`cruel`, `fuels`, `duet`, `fluent`; not `Samuel`), `-eum`
+  (`museum`), `ao` before s or t (`chaos`, `chaotic`), final `-dea(s)`/`-rea(s)` and `-eate`
+  (`idea`, `areas`; not `whereas`), and the stems `cre-at-` (not before u), word-initial `re-act-`
+  and `the-at-` with any suffix (`creates`, `creation`, `reacted`, `theatrical`; not `creature`).
+  A vowel before `-ing` adds one (`going`, `being`).
+- **`-ire`.** The final e of `-ire`, `-ires` and `-ired` after a lone `i` is the second syllable
+  (`fire`, `tired`, `desires`), except `-shire` (`Berkshire`). CMUdict itself is split here
+  (`fire` 2 but `admire`, `retire` 1 per `-ire`); the rule follows the more frequent words.
 - **Endings.** `-sm` and `-thm` add one (`prism`, `rhythm`, `criticism`).
 - **Compounds and suffixes.** A stem's silent e stays silent before -ly, -ment(s), -ful(ly),
   -less and -ness (`lovely`, `statement`, `hopeless`), and after the prefixes some, where, there,
-  here, home, fire, life and time (`something`, `therefore`, `timeless`). `every` + a suffix is
-  two syllables plus the rest (`everyone`, `everything`).
+  here, home, fire, life and time, which count one syllable each (`something`, `therefore`,
+  `fireman`). `every` + a suffix is two syllables plus the rest (`everyone`, `everything`). The
+  co- prefix before a vowel-initial root is its own syllable (`coexist`, `coincide`, `cooperate`,
+  `coordinate`, `coed`).
+- **Titles.** `Mr`, `Mrs` and `Dr` are read in full: two syllables each.
 - **Contractions and possessives.** Curly apostrophes are normalized. `n't`, `'ll`, `'d`, `'ve` and
   `'re` add a syllable after a consonant sound (`didn’t`, `haven’t`, `it’ll`; not `don’t`,
   `you’ll`); `'s` adds one after a sibilant (`James’s`); `'m` never does. Other apostrophes are
@@ -146,14 +165,27 @@ Counts are compared with the first CMUdict pronunciation of each word.
 
 | List | Words | Correct | Accuracy |
 |---|---:|---:|---:|
-| Development (`style/tests/fixtures/syllables.tsv`) | 441 | 431 | 97.7% |
+| Development (`style/tests/fixtures/syllables.tsv`) | 484 | 467 | 96.5% |
 | Held out (`style/tests/fixtures/syllables-heldout.tsv`) | 190 | 189 | 99.5% |
+
+The development list grew from 441 words to 484 after review of the first version: inflections
+of `create` and `idea`, `-ire` and `-our` words, `cruel`/`fuel`/`chaos`, `museum`,
+`cooperate`, unaccented `naive`/`cafe`, and controls such as `treated`, `great`, `real`, `four`
+and `your`. The first version scored 431 of 441 on the original words and 439 of the 484. This
+one still scores 431 of the original 441 and gets 36 of the 43 additions right, up from 8. Over every alphabetic
+CMUdict headword (117,493, mostly names and rare words), correct counts rose from 109,096 to
+109,208 (92.9% to 93.0%). Weighted by word frequency in `bench/public`, they rose from 99.01% to
+99.19% of tokens.
 
 The development list is common fiction vocabulary plus the hiatus, silent-e, contraction and
 hyphen cases the rules were written for, so it overstates accuracy on hard words and was used to
 tune them. Its remaining misses are words a rule can't reach without a dictionary: `maybe`,
 `naked`, `wicked`, `rugged`, `crooked`, `business`, `evening`, `Wednesday`, `recipe`,
-`apostrophe`. The held-out list is a seeded random sample (seed 300) of 200 distinct words from
+`apostrophe`, `cooperate` and `coordinate` (CMUdict gives 4: the `-ate` is counted with the
+`e`), `naive` and `cafe` without accents (`naïve` and `café` are right), and `hour`, `hours`,
+`flour`, `sour` and `our`. The `-our` words are 2 syllables in CMUdict's first entry but `four`,
+`pour`, `your` and `tour` are 1, and spelling doesn't predict which, so they are left at 1.
+CMUdict's second entry for `our` is also 1. The held-out list is a seeded random sample (seed 300) of 200 distinct words from
 the five `bench/public` stories that weren't in the development list, with misspellings, names and
 words with two common pronunciations removed. It was labeled after the rules were frozen; its one
 miss is `priest` (counted as `-iest`, 2). Running prose is dominated by one-syllable words, so the
@@ -177,28 +209,28 @@ cargo run --release -p writemorebetter-style --example readability_report -- \
 
 | Text | Sentences | Words | Syll./word | FRE | FKGL | CLI | ARI | Minutes |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
-| story1 | 119 | 2190 | 1.29 | 79.4 | 6.8 | 6.1 | 6.6 | 8.4 |
+| story1 | 119 | 2190 | 1.29 | 79.3 | 6.8 | 6.1 | 6.6 | 8.4 |
 | story1 narration | 82 | 1871 | 1.30 | 73.9 | 8.6 | 6.7 | 9.0 | 7.2 |
-| story1 dialogue | 37 | 319 | 1.22 | 94.9 | 2.2 | 2.9 | 0.6 | 1.2 |
-| story2 | 131 | 2018 | 1.21 | 88.4 | 4.7 | 5.0 | 4.4 | 7.8 |
-| story2 narration | 91 | 1681 | 1.21 | 85.4 | 5.9 | 5.4 | 6.0 | 6.5 |
+| story1 dialogue | 37 | 319 | 1.22 | 94.7 | 2.2 | 2.9 | 0.6 | 1.2 |
+| story2 | 131 | 2018 | 1.22 | 88.3 | 4.8 | 5.0 | 4.4 | 7.8 |
+| story2 narration | 91 | 1681 | 1.22 | 85.2 | 6.0 | 5.4 | 6.0 | 6.5 |
 | story2 dialogue | 40 | 337 | 1.22 | 95.4 | 2.1 | 3.0 | 0.6 | 1.3 |
-| story3 | 127 | 1986 | 1.23 | 86.6 | 5.1 | 5.2 | 4.7 | 7.6 |
-| story3 narration | 83 | 1654 | 1.23 | 82.2 | 6.7 | 5.6 | 6.9 | 6.4 |
+| story3 | 127 | 1986 | 1.23 | 86.5 | 5.1 | 5.2 | 4.7 | 7.6 |
+| story3 narration | 83 | 1654 | 1.24 | 82.0 | 6.8 | 5.6 | 6.9 | 6.4 |
 | story3 dialogue | 44 | 332 | 1.23 | 95.5 | 1.8 | 2.9 | 0.5 | 1.3 |
-| story4 | 128 | 2156 | 1.24 | 84.4 | 5.7 | 5.4 | 5.4 | 8.3 |
-| story4 narration | 100 | 1888 | 1.25 | 81.6 | 6.6 | 5.6 | 6.4 | 7.3 |
+| story4 | 128 | 2156 | 1.25 | 84.0 | 5.7 | 5.4 | 5.4 | 8.3 |
+| story4 narration | 100 | 1888 | 1.26 | 81.2 | 6.6 | 5.6 | 6.4 | 7.3 |
 | story4 dialogue | 28 | 268 | 1.18 | 97.1 | 2.1 | 3.4 | 1.2 | 1.0 |
-| story5 | 117 | 1837 | 1.22 | 87.3 | 5.0 | 4.8 | 4.5 | 7.1 |
-| story5 narration | 85 | 1581 | 1.22 | 84.6 | 6.1 | 5.0 | 5.8 | 6.1 |
+| story5 | 117 | 1837 | 1.23 | 87.0 | 5.0 | 4.8 | 4.5 | 7.1 |
+| story5 narration | 85 | 1581 | 1.23 | 84.2 | 6.1 | 5.0 | 5.8 | 6.1 |
 | story5 dialogue | 32 | 256 | 1.24 | 93.6 | 2.2 | 4.0 | 1.4 | 1.0 |
-| moby150k | 1125 | 24760 | 1.39 | 66.5 | 9.5 | 8.6 | 10.2 | 95.2 |
-| moby150k narration | 760 | 17564 | 1.41 | 63.8 | 10.1 | 8.9 | 10.9 | 67.6 |
-| moby150k dialogue | 365 | 7196 | 1.35 | 72.7 | 8.0 | 7.8 | 8.5 | 27.7 |
+| moby150k | 1125 | 24753 | 1.40 | 66.3 | 9.5 | 8.6 | 10.2 | 95.2 |
+| moby150k narration | 760 | 17560 | 1.42 | 63.6 | 10.1 | 8.9 | 10.9 | 67.5 |
+| moby150k dialogue | 365 | 7193 | 1.35 | 72.6 | 8.0 | 7.8 | 8.6 | 27.7 |
 
-With `excludeDialogueParagraphs`, `all` equals `narration` for stories 1–4 (their dialogue is all
-in dialogue-only paragraphs). Story 5 becomes 86 sentences, 1586 words, FKGL 6.0; moby150k
-becomes 907 sentences, 20645 words, FKGL 9.9.
+With `excludeDialogueParagraphs`, `all` has the same counts and indices as `narration` for stories 1–4 (their dialogue is all
+in dialogue-only paragraphs). Story 5 becomes 86 sentences, 1586 words, FKGL 6.1; moby150k
+becomes 907 sentences, 20640 words, FKGL 9.9. Reading time stays at the whole text's.
 
 Per-paragraph Flesch–Kincaid grade, over paragraphs with at least 30 words:
 
@@ -206,10 +238,10 @@ Per-paragraph Flesch–Kincaid grade, over paragraphs with at least 30 words:
 |---|---:|---:|---:|---:|---:|
 | story1 | 96 | 22 | 3.0 | 12.2 | 18.3 |
 | story2 | 96 | 9 | 4.8 | 11.6 | 13.9 |
-| story3 | 96 | 4 | 8.3 | 10.9 | 12.1 |
+| story3 | 96 | 4 | 8.3 | 10.9 | 12.5 |
 | story4 | 93 | 8 | 3.0 | 9.0 | 11.1 |
 | story5 | 86 | 10 | 5.8 | 10.6 | 11.6 |
-| moby150k | 315 | 208 | 1.8 | 10.3 | 47.6 |
+| moby150k | 315 | 208 | 1.8 | 10.4 | 47.6 |
 
 What the numbers show:
 

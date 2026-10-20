@@ -45,8 +45,8 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   Automated Readability Index and estimated reading time for the whole text, for narration and
   dialogue separately, and for each paragraph. Dialogue-only paragraphs can be excluded. It returns
   statistics, never flags, so it doesn't duplicate LanguageTool's readability rules (#207).
-  Syllables come from an original heuristic counter (97.7% on a 441-word development list, 99.5% on
-  a 190-word held-out sample) that a dictionary-backed counter can replace later. Available as
+  Syllables come from an original heuristic counter (96.5% on a 484-word development list of hard
+  cases, 99.5% on a 190-word held-out sample, 99.2% of `bench/public` tokens) that a dictionary-backed counter can replace later. Available as
   `StyleDocument::readability` in Rust, `document.readability()` in WASM and Swift. See
   [`docs/STYLE-READABILITY.md`](docs/STYLE-READABILITY.md).
 
