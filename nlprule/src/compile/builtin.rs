@@ -80,6 +80,7 @@ pub(crate) fn for_language(
             BuiltinRule::new(Builtin::HarperConfusion(HarperConfusion::WaistWaste)),
             BuiltinRule::new(Builtin::HarperConfusion(HarperConfusion::BellowBelow)),
             BuiltinRule::new(Builtin::HarperConfusion(HarperConfusion::FeelFell)),
+            BuiltinRule::new(Builtin::HarperConfusion(HarperConfusion::QuiteQuiet)),
             BuiltinRule::new(Builtin::WordCoherency(word_coherency(build_dir))),
             BuiltinRule::new(Builtin::DoublePunctuation(DoublePunctuation::new())),
             BuiltinRule::new(Builtin::MultipleWhitespace(MultipleWhitespace::new())),
