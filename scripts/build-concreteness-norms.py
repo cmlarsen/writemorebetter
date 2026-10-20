@@ -266,14 +266,14 @@ def family(model):
     return next(name for prefix, name in FAMILIES.items() if model.startswith(prefix))
 
 
-def load_ratings(raw=RAW):
+def load_ratings(raw=RAW, excluded=EXCLUDED):
     ratings = {}
     for path in sorted(raw.glob('*.jsonl')):
         if path.name.endswith('.responses.jsonl'):
             continue
         for line in path.read_text(encoding='utf-8').splitlines():
             row = json.loads(line)
-            if row['model'] in EXCLUDED:
+            if row['model'] in excluded:
                 continue
             samples = ratings.setdefault(row['model'], {}).setdefault(row['sample'], {})
             if row['word'] in samples:
@@ -394,7 +394,7 @@ def header(result, sources, raw=RAW):
 # concreteness ratings in the Glasgow Norms (Scott, Keitel, Becirspahic, Yao & Sereno, 2019,
 # https://doi.org/10.3758/s13428-018-1099-3; https://osf.io/42s65/, GlasgowNorms.xlsx, sha256
 # {digest}, CC BY 4.0), then rounded to one decimal.
-# No Glasgow ratings are included. {edits} values were adjudicated by hand
+# No Glasgow ratings are included. {edits} {'value was' if edits == 1 else 'values were'} adjudicated by hand
 # (bench/style/concreteness/adjudication.tsv). Built by scripts/build-concreteness-norms.py.{excluded}
 """
 

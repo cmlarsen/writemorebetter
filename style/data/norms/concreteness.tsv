@@ -9,7 +9,7 @@
 # concreteness ratings in the Glasgow Norms (Scott, Keitel, Becirspahic, Yao & Sereno, 2019,
 # https://doi.org/10.3758/s13428-018-1099-3; https://osf.io/42s65/, GlasgowNorms.xlsx, sha256
 # 9e3295f4c804289fdd5fa36f2c5fe415826bef3d839702deedd51641b3ff9a39, CC BY 4.0), then rounded to one decimal.
-# No Glasgow ratings are included. 1 values were adjudicated by hand
+# No Glasgow ratings are included. 1 value was adjudicated by hand
 # (bench/style/concreteness/adjudication.tsv). Built by scripts/build-concreteness-norms.py.
 # claude-haiku-5-5 was also rated but is not used: sample-to-sample Spearman 0.933, below the 0.97 stability gate.
 ab	3.7

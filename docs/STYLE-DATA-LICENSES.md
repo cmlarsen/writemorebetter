@@ -129,6 +129,8 @@ only lemmas from the bundled Ngram baseline.
 bench and build time into the git-ignored `bench/style/.cache`, pinned in
 `bench/style/sources.json`, and never committed. A seeded 30% split of its single-word items fits
 the linear map from the model consensus to the 1–5 scale; the other 70% is the held-out test set.
+The held-out set was also scored on interim builds, one of them with Haiku in the consensus; the
+Haiku exclusion rests only on the stability gate, and STYLE-NORMS.md records the interim numbers.
 No Glasgow value is copied into the table. NOTICE credits the Glasgow Norms.
 
 **Lancaster and WordNet, for QA only.** The QA ridge (Lancaster 11 dimensions plus WordNet noun

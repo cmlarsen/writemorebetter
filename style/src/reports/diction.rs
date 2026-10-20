@@ -247,10 +247,16 @@ pub fn report(
         for sentence in &paragraph.sentences {
             let mode = document.sentence_mode(sentence);
             let (mut sum, mut rated) = (0.0, 0);
-            for word in norms::words(sentence) {
+            let words: Vec<_> = norms::words(sentence).collect();
+            for (index, word) in words.iter().enumerate() {
+                let next = words
+                    .get(index + 1)
+                    .filter(|next| next.follows_word)
+                    .map(|next| next.token);
                 if let Some(norms::Found { value: rating, .. }) = norms::lookup(
                     word.token,
                     word.at_start,
+                    next,
                     |word| table.ratings.get(word),
                     |_| true,
                 ) {

@@ -18,6 +18,7 @@ from common import ROOT
 
 RESULTS = Path(__file__).resolve().parent / 'concreteness-results.json'
 BUILDER = ROOT / 'scripts/build-concreteness-norms.py'
+RATER = ROOT / 'bench/style/concreteness/rate.py'
 GATES = {
     'heldout_spearman': 0.88,
     'heldout_pearson': 0.87,
@@ -32,11 +33,52 @@ MINIMUM_STORY_COVERAGE = 0.97
 MODERN_STORIES = ['story1.txt', 'story2.txt', 'story3.txt', 'story4.txt', 'story5.txt']
 
 
-def builder():
-    spec = importlib.util.spec_from_file_location('concreteness_builder', BUILDER)
+def load(name, path):
+    spec = importlib.util.spec_from_file_location(name, path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+def builder():
+    return load('concreteness_builder', BUILDER)
+
+
+def reparsed(raw, parse):
+    accepted, rejected_now_parse, mismatched = {}, {}, []
+    for path in sorted(raw.glob('*.responses.jsonl')):
+        name = path.name.removesuffix('.responses.jsonl')
+        committed = {}
+        for line in (raw / f'{name}.jsonl').read_text(encoding='utf-8').splitlines():
+            row = json.loads(line)
+            committed.setdefault(row['batch'], {})[row['word']] = row['rating']
+        replies = [json.loads(line) for line in path.read_text(encoding='utf-8').splitlines()]
+        batches = set()
+        for reply in replies:
+            try:
+                ratings = {w: float(r) for w, r in parse(reply['text'], reply['words']).items()}
+            except ValueError:
+                ratings = None
+            if 'rejected' in reply:
+                if ratings is not None:
+                    rejected_now_parse[name] = rejected_now_parse.get(name, 0) + 1
+                continue
+            if ratings != committed.get(reply['batch']) or reply['batch'] in batches:
+                mismatched.append(reply['batch'])
+            batches.add(reply['batch'])
+        mismatched += sorted(set(committed) - batches)
+        accepted[name] = len(batches)
+    return {'accepted_batches': accepted, 'rejected_replies_now_parsing': rejected_now_parse,
+            'mismatched_batches': mismatched}
+
+
+def stabilities(b, rated, raw):
+    stability = {}
+    for model, samples in sorted(b.load_ratings(raw, excluded=()).items()):
+        if 1 in samples and 2 in samples:
+            stability[model] = round(b.spearman([samples[1][w] for w in rated],
+                                                [samples[2][w] for w in rated]), 4)
+    return stability
 
 
 def table_values(path):
@@ -85,17 +127,11 @@ def measure(probe=None):
     gold, senses = b.glasgow(sources['glasgow'])
     calibration, heldout = b.calibration_split(gold)
     held = sorted(w for w in heldout if w in table)
-    unedited = {w: float(v) for w, v in result['unedited'].items()}
+    unedited = {w: float(result['unedited'][source]) for w, source in result['rows']}
     sense_words = sorted(w for w in senses if w in table)
     sense_means = {w: sum(senses[w]) / len(senses[w]) for w in sense_words}
     ridge_words = [w for w in result['rated']
                    if b.features(w, result['norms'], result['nouns']) is not None]
-    stability = {}
-    for model, samples in sorted(result['ratings'].items()):
-        if 1 in samples and 2 in samples:
-            words = result['rated']
-            stability[model] = round(b.spearman([samples[1][w] for w in words],
-                                                [samples[2][w] for w in words]), 4)
     measured = {
         'entries': len(table),
         'list_entries': len(listed),
@@ -115,7 +151,9 @@ def measure(probe=None):
             [result['predict'](b.features(w, result['norms'], result['nouns']))
              for w in ridge_words]), 4)},
         'agreement': {m: round(r, 4) for m, r in result['agreement'].items()},
-        'stability': stability,
+        'stability': stabilities(b, result['rated'], b.RAW),
+        'excluded': {m: reason for m, reason in sorted(b.EXCLUDED.items())},
+        'replies': reparsed(b.RAW, load('concreteness_rater', RATER).parse),
         'review_words': len(result['review']),
         'adjudicated': len(b.read_adjudication()),
     }
@@ -139,8 +177,18 @@ def failures(measured, stale):
         (f"convergent Spearman {measured['convergent']['spearman']} >= {GATES['convergent_spearman']}",
          measured['convergent']['spearman'] >= GATES['convergent_spearman']),
     ]
-    checks += [(f'{m} sample 1 vs 2 Spearman {r} >= {GATES["stability_spearman"]}',
-                r >= GATES['stability_spearman']) for m, r in measured['stability'].items()]
+    stable = GATES['stability_spearman']
+    excluded = measured['excluded']
+    checks += [(f'{m} sample 1 vs 2 Spearman {r} >= {stable}', r >= stable)
+               for m, r in measured['stability'].items() if m not in excluded]
+    checks += [(f'excluded {m} sample 1 vs 2 Spearman {measured["stability"].get(m)} < {stable}, '
+                f'as its reason states', m in measured['stability']
+                and measured['stability'][m] < stable
+                and f'{measured["stability"][m]:.3f}' in reason)
+               for m, reason in excluded.items()]
+    replies = measured['replies']['mismatched_batches']
+    checks.append((f'accepted replies re-parse to the committed ratings (mismatched: {replies[:5]})',
+                   not replies))
     checks += [(f'{m} agreement {r} >= {GATES["model_agreement"]}', r >= GATES['model_agreement'])
                for m, r in measured['agreement'].items()]
     if 'coverage' in measured:

@@ -35,8 +35,17 @@ supplement adds 1). A reply must give every word exactly once with a rating `[1-
 `word<TAB>rating` per line, or the word and its rating on alternate lines throughout; otherwise
 it is retried up to five times.
 
+The alternate-line layout was accepted only from the Haiku sample 2 and 3 runs onwards; the
+`rate.py` that wrote those batches was committed afterwards, with the build. Earlier replies in that
+layout stay recorded as rejected, so 120 rejected Haiku replies would parse today and, for those
+batches, the accepted reply is not the first one that parses. `concreteness.py --gate` re-parses
+every accepted reply with the current parser and fails unless it gives exactly the committed
+ratings.
+
 `claude-haiku-5-5` was rated (three samples) and is committed, but the build lists it in `EXCLUDED`:
-its sample-to-sample Spearman is 0.933, below the 0.97 stability gate.
+its sample-to-sample Spearman is 0.933, below the 0.97 stability gate. The gate measures stability
+for every rated model and fails unless `EXCLUDED` is exactly the set of models below the gate and
+each reason states the measured value.
 
 ## Building and checking
 

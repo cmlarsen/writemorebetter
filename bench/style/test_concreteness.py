@@ -252,6 +252,11 @@ class BuildTests(unittest.TestCase):
         rows = [[line for line in text['table.tsv'].splitlines() if not line.startswith('#')]
                 for text in (with_haiku, without)]
         self.assertEqual(rows[0], rows[1])
+        with tempfile.TemporaryDirectory() as directory:
+            self.build(directory, ratings)
+            raw = Path(directory) / 'raw'
+            self.assertNotIn('claude-haiku-5-5', builder.load_ratings(raw))
+            self.assertIn('claude-haiku-5-5', builder.load_ratings(raw, excluded=()))
 
     def test_adjudication_applies_and_checks_the_before_value(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -277,7 +282,53 @@ class GateTests(unittest.TestCase):
         held = {'spearman': 0.9, 'pearson': 0.9, 'abstract_f1': 0.8, 'mae': 0.3}
         return {'list_covered': 1.0, 'extra_entries': 0, 'heldout': held,
                 'convergent': {'spearman': 0.8}, 'stability': {}, 'agreement': {},
+                'excluded': {}, 'replies': {'mismatched_batches': []},
                 'coverage': {'files': files, 'pooled': 0.95}}
+
+    def stories(self):
+        return {f'story{i}.txt': 0.98 for i in range(1, 6)}
+
+    def test_exclusions_must_be_exactly_the_unstable_models(self):
+        measured = self.measured(self.stories())
+        measured['stability'] = {'claude-opus-5-5': 0.99, 'claude-haiku-5-5': 0.933}
+        measured['excluded'] = {'claude-haiku-5-5': 'sample-to-sample Spearman 0.933, below'}
+        self.assertEqual(gate.failures(measured, []), [])
+        measured['excluded']['claude-haiku-5-5'] = 'sample-to-sample Spearman 0.912, below'
+        self.assertEqual(len(gate.failures(measured, [])), 1)
+        measured['excluded'] = {'claude-opus-5-5': 'sample-to-sample Spearman 0.990'}
+        self.assertEqual(gate.failures(measured, []), [
+            'claude-haiku-5-5 sample 1 vs 2 Spearman 0.933 >= 0.97',
+            'excluded claude-opus-5-5 sample 1 vs 2 Spearman 0.99 < 0.97, as its reason states'])
+        measured['excluded'] = {'claude-sonnet-5-5': 'never rated'}
+        self.assertIn('excluded claude-sonnet-5-5 sample 1 vs 2 Spearman None < 0.97, '
+                      'as its reason states', gate.failures(measured, []))
+
+    def test_replies_must_reparse_to_the_committed_ratings(self):
+        batch = ['spoon', 'theory']
+        replies = [
+            {'batch': 'm-s1-b000', 'words': batch, 'text': 'spoon\n5\ntheory\n1.2',
+             'rejected': 'unparsable line'},
+            {'batch': 'm-s1-b000', 'words': batch, 'text': 'spoon\t5\ntheory\t1.2'},
+            {'batch': 'm-s1-b001', 'words': batch, 'text': 'spoon\t5\ntheory\t1.4'},
+            {'batch': 'm-s1-b002', 'words': batch, 'text': 'spoon', 'rejected': 'missing'},
+        ]
+        rows = [('m-s1-b000', 'spoon', 5.0), ('m-s1-b000', 'theory', 1.2),
+                ('m-s1-b001', 'spoon', 5.0), ('m-s1-b001', 'theory', 1.2),
+                ('m-s1-b003', 'spoon', 4.0)]
+        with tempfile.TemporaryDirectory() as directory:
+            raw = Path(directory)
+            (raw / 'm-s1.responses.jsonl').write_text(
+                ''.join(json.dumps(r) + '\n' for r in replies), encoding='utf-8')
+            (raw / 'm-s1.jsonl').write_text(''.join(
+                json.dumps({'batch': b, 'word': w, 'rating': r}) + '\n' for b, w, r in rows),
+                encoding='utf-8')
+            result = gate.reparsed(raw, rater.parse)
+        self.assertEqual(result, {'accepted_batches': {'m-s1': 2},
+                                  'rejected_replies_now_parsing': {'m-s1': 1},
+                                  'mismatched_batches': ['m-s1-b001', 'm-s1-b003']})
+        measured = self.measured(self.stories())
+        measured['replies'] = result
+        self.assertEqual(len(gate.failures(measured, [])), 1)
 
     def test_coverage_gate_checks_every_modern_story(self):
         shares = {f'story{i}.txt': 0.98 for i in range(1, 6)}

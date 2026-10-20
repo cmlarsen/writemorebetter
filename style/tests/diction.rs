@@ -202,6 +202,36 @@ fn past_tense_verbs_are_rated_by_the_verb_lemma() {
 }
 
 #[test]
+fn intensifiers_before_adjectives_keep_their_own_rating() {
+    let table = ConcretenessTable::parse(r#"{"fucking": 1.0, "fuck": 5.0}"#).unwrap();
+    let text = "He was fucking furious. It was a fucking mess. “He looked fucking ridiculous—again…” \u{2028}They kept fucking all night.";
+    let r = diction::report(
+        &document(text),
+        &table,
+        &DictionOptions::new().with_minimum_rated_words(1),
+    )
+    .unwrap();
+    let means: Vec<_> = r.sentences.iter().map(|s| s.mean.unwrap()).collect();
+    assert_eq!(means, [1.0, 1.0, 1.0, 5.0]);
+    let bundled = ConcretenessTable::bundled();
+    let r = diction::report(
+        &document("He was fucking furious."),
+        bundled,
+        &DictionOptions::new().with_minimum_rated_words(1),
+    )
+    .unwrap();
+    let expected: Vec<_> = ["be", "fucking", "furious"]
+        .into_iter()
+        .filter_map(|word| bundled.get(word))
+        .collect();
+    assert_eq!(r.sentences[0].rated_words, expected.len());
+    assert!(close(
+        r.sentences[0].mean,
+        expected.iter().sum::<f64>() / expected.len() as f64
+    ));
+}
+
+#[test]
 fn omitted_tables_use_the_bundled_table_and_invalid_tables_are_errors() {
     let style = StyleDocument::new(
         Arc::new(Tokenizer::new("../storage/en_tokenizer.bin").unwrap()),

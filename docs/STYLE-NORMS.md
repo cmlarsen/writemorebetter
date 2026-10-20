@@ -483,10 +483,17 @@ exactly once, rating `[1-5](\.\d)?`); malformed replies are retried and kept in
 
 **Raters.** Opus 5.5, Sonnet 5.5 and Fable 5.1, three samples each, all 14,377 words. Haiku 5.5 was
 also rated three times and its files are committed, but the build excludes it: its sample-to-sample
-Spearman is 0.933 in every pair, below the 0.97 stability gate (coordinator decision, made before
-the reduced table was scored on held-out data). Haiku was also the unreliable rater: 152 rejected
-replies, and 7 batches that always put the rating on the line after the word, which `rate.py` now
-accepts when a whole reply uses that layout.
+Spearman is 0.933 in every pair, below the 0.97 stability gate that the plan set before scoring.
+The exclusion rests on that gate alone. `concreteness.py` measures stability for every rated model,
+excluded or not, and fails unless the excluded models are exactly those below the gate. Haiku was
+also the unreliable rater: 152 rejected replies, and 7 batches that always put the rating on the
+line after the word. `rate.py` was changed to accept that layout, when a whole reply uses it, while
+Haiku samples 2 and 3 were being rated, so those batches came from a parser that was not committed
+until the build commit. Earlier replies in that layout stay rejected in `raw/*.responses.jsonl`:
+under the current parser 120 rejected Haiku replies would parse (3 / 56 / 61 in samples 1 / 2 / 3),
+so for those batches the accepted reply is not the first one that parses today. The gate re-parses
+every accepted reply with the current `rate.py` and requires exactly the committed ratings; all
+Opus, Sonnet and Fable replies use the tab layout.
 
 **Build** (`scripts/build-concreteness-norms.py build`, byte-reproducible from the committed
 ratings). Each model's sample mean is z-scored, the models averaged (all one family), and the mean
@@ -497,10 +504,18 @@ Lancaster + WordNet ridge disagrees by more than 1.5 and one with a model spread
 lexicographer, the ridge is the one that is wrong on nearly all of them: it rates sound, smell and
 bodily words (*whisper*, *cough*, *headache*) abstract and abstract adjectives (*ordinary*,
 *entire*) concrete. One edit is recorded in `adjudication.tsv`: *fucking* 2.8 → 2.1, rated as the
-intensifier fiction uses, like *damned* and *freaking* (2.1).
+intensifier fiction uses, like *damned* and *freaking* (2.1). The tagger often reads the
+intensifier as a verb form, so diction's lookup rates a word with an adverb reading and a
+present-participle verb reading by its own entry, not the verb lemma, when an adjective follows
+(*was fucking furious*); after a contracted *’s* the tagger keeps only the verb reading, and
+*that’s fucking stupid* still rates *fuck*.
 
-**Acceptance** (`bench/style/concreteness.py --gate`, run in CI; the held-out split was scored once,
-on the final three-model table):
+**Acceptance** (`bench/style/concreteness.py --gate`, run in CI). The held-out split was scored more
+than once: also on interim builds, including a 7-pass build with Haiku sample 1 in the consensus
+(Spearman 0.921, Pearson 0.923, abstract F1 0.753, MAE 0.288), recorded in the rating handoff note
+the README replaced (`git show ed54195:bench/style/concreteness/HANDOFF.md`). The Haiku exclusion
+rests only on the stability gate above, not on those scores, and the final three-model table below
+was scored after the exclusion:
 
 | Check | Gate | Result |
 |---|---|---|
@@ -509,15 +524,17 @@ on the final three-model table):
 | Glasgow held-out mean absolute error | ≤ 0.35 | **0.289** |
 | Lancaster + WordNet ridge vs table, Spearman (13,492 words) | ≥ 0.75 | **0.806** |
 | Sample 1 vs sample 2 Spearman: Opus / Fable / Sonnet | ≥ 0.97 | **0.991 / 0.990 / 0.986** |
+| Same, excluded Haiku (must stay below the gate) | < 0.97 | 0.933 |
+| Accepted replies that re-parse to the committed ratings | all | all (3,468 batches) |
 | Agreement with the other models' consensus: Opus / Fable / Sonnet | ≥ 0.85 | 0.992 / 0.991 / 0.988 |
 | Word list covered | 100% | 100% (14,572 entries) |
 | Narration tokens diction can rate, bench/public pooled | ≥ 0.94 | **0.946** |
 | Same, each modern story (story1–5) | ≥ 0.97 | 0.978–0.984 |
 | Fresh human set | — | not collected (owner decision) |
 
-Unedited, the held-out numbers are 0.926 / 0.924 / 0.754 / 0.290. Glasgow's 871 sense items,
-scored as the mean of each ambiguous word's senses, give Spearman 0.729 over 353 words, a polysemy
-diagnostic only. The coverage denominator is diction's own lookup over a table that rates every
+The adjudicated word is not in Glasgow, so the held-out numbers are the same without the edit.
+Glasgow's 871 sense items, scored as the mean of each ambiguous word's senses, give Spearman 0.729
+over 353 words, a polysemy diagnostic only. The coverage denominator is diction's own lookup over a table that rates every
 lemma and surface (`style/examples/diction_coverage.rs`). **Moby-Dick's tail:** the hard-wrapped
 moby150k excerpt reaches 0.931 and is not gated. Its unrated narration is archaic and whaling
 vocabulary absent from the modern fiction baseline: *upon*, *towards*, *thou*, *nigh*, *forth*,
@@ -556,7 +573,8 @@ asides on Queequeg (his civility, his "Socratic wisdom", his wish to learn among
 Fates passage, "a good laugh is a mighty good thing", and story4's two reflective summaries ("There
 are mornings when the only thing you can do is be somewhere…"). The noise run is the besmoked oil
 painting, a concrete object described in abstract words. At 2.9 the harpooneer rumination joins as
-noise.
+noise. The proxy (`abstractBelow` 3.39, #281) flagged the harpooneer rumination as one run; the
+table flags it at neither 2.5 nor 2.85.
 
 **Held-out review** (Crane *Red Badge* ch. 1, standardebooks `ebe3876c`; Wharton *Ethan Frome* ch. 1,
 `480cd944`; Gatsby ch. 1, `fe47c8c0`; converted with `pacing_labels.xhtml_document`; 20 abstract
@@ -569,7 +587,6 @@ blind):
 | 20 sampled: useful / noise / wrong | 15 / 3 / 2 | 17 / 3 / 0 | **16 / 4 / 0** |
 | Runs in the three chapters: useful / noise | 1 / 0 | 0 | **11 / 0** |
 | Crane's interior block ("He tried to mathematically prove…") | one 5-sentence run | not flagged | **two runs, 9 sentences** |
-| Ishmael's harpooneer rumination (noise before) | one run | not flagged | not flagged |
 
 At 2.85 the runs are six Crane interior passages (the omen of battle, the "Greeklike struggle"
 passage and its return, the two halves of the block above, "his laws of life were useless"), two

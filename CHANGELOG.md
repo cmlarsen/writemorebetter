@@ -32,10 +32,16 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   TSV tables may carry `#` comment lines.
 - **Diction's default `abstractBelow` is 2.85** (was 2.5), tuned for the bundled table: at 2.5 its
   sentence means almost never formed an abstract run. On held-out Crane, Wharton and Gatsby chapters
-  the new default flags 11 runs, all judged useful. A caller table on another scale should set
-  `abstractBelow`.
-- **The WASM module grows by 181 KB** (`writemorebetter_wasm_bg.wasm`, release, wasm-bindgen
-  0.2.129: 5,495,225 → 5,676,713 bytes; 1,401,961 → 1,462,223 with `gzip -9`). The bundled table
+  the new default flags 11 runs, all judged useful. Callers that pass their own table also get
+  2.85 unless they set `abstractBelow`: a 1–5 human table such as Brysbaert-style norms, which the
+  2.5 default was tuned for, now flags far more sentences, so set `abstractBelow: 2.5` to keep the
+  previous behaviour. A table on another scale should set its own threshold.
+- **Intensifiers before an adjective keep their own rating.** When the tagger reads a word such as
+  *fucking* or *freaking* as both an adverb and a present participle and an adjective follows
+  (*was fucking furious*), diction and sensory balance look up the word itself instead of the verb
+  lemma.
+- **The WASM module grows by 184 KB** (`writemorebetter_wasm_bg.wasm`, release, wasm-bindgen
+  0.2.129: 5,495,225 → 5,678,797 bytes; 1,401,961 → 1,462,831 with `gzip -9`). The bundled table
   loads once, in about 4.5 ms natively.
 
 # 0.10.0 (2026-10-20)

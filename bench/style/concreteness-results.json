@@ -22,11 +22,11 @@
     "mae": 0.2893
   },
   "heldout_unedited": {
-    "n": 2853,
-    "spearman": 0.9256,
-    "pearson": 0.9243,
-    "abstract_f1": 0.7538,
-    "mae": 0.29
+    "n": 2882,
+    "spearman": 0.926,
+    "pearson": 0.9247,
+    "abstract_f1": 0.755,
+    "mae": 0.2893
   },
   "senses": {
     "n": 353,
@@ -43,8 +43,34 @@
   },
   "stability": {
     "claude-fable-5-1": 0.9899,
+    "claude-haiku-5-5": 0.933,
     "claude-opus-5-5": 0.9913,
     "claude-sonnet-5-5": 0.9855
+  },
+  "excluded": {
+    "claude-haiku-5-5": "sample-to-sample Spearman 0.933, below the 0.97 stability gate"
+  },
+  "replies": {
+    "accepted_batches": {
+      "claude-fable-5-1-s1": 289,
+      "claude-fable-5-1-s2": 289,
+      "claude-fable-5-1-s3": 289,
+      "claude-haiku-5-5-s1": 289,
+      "claude-haiku-5-5-s2": 289,
+      "claude-haiku-5-5-s3": 289,
+      "claude-opus-5-5-s1": 289,
+      "claude-opus-5-5-s2": 289,
+      "claude-opus-5-5-s3": 289,
+      "claude-sonnet-5-5-s1": 289,
+      "claude-sonnet-5-5-s2": 289,
+      "claude-sonnet-5-5-s3": 289
+    },
+    "rejected_replies_now_parsing": {
+      "claude-haiku-5-5-s1": 3,
+      "claude-haiku-5-5-s2": 56,
+      "claude-haiku-5-5-s3": 61
+    },
+    "mismatched_batches": []
   },
   "review_words": 112,
   "adjudicated": 1,
