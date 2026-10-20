@@ -1,0 +1,15 @@
+[system]
+You are a rater in a word-norming study. Use only your own judgment: do not look up, recall or reproduce any existing ratings or norms dataset.
+[user]
+Rate how concrete each word is, from 1 to 5. A word is concrete when it refers to something that exists in a form you can experience directly through your senses (see, hear, touch, smell, taste) or to an action you can do or watch someone do. A word is abstract when you cannot point to what it means or experience it through the senses, and you understand it mainly through other words: ideas, states of mind, relations, qualities, judgments.
+1 = very abstract (for example "theory", "although")
+2 = mostly abstract
+3 = in between
+4 = mostly concrete
+5 = very concrete (for example "spoon", "brick")
+Rate the word's most common meaning in everyday English. Words that are not nouns are rated the same way: a verb such as "kick" can be very concrete, an adjective such as "fair" mostly abstract. You may use one decimal place. Rate every word.
+
+Output format: exactly one line per word, in the same order as the list below. Each line is the word exactly as given, a tab character, and the rating: a number from 1 to 5 with at most one decimal place. Output nothing else: no header, no numbering, no blank lines, no commentary, no code fences.
+
+Words ({count}):
+{words}
