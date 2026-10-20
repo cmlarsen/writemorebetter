@@ -22,6 +22,14 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   byte-reproducible from them. See [`docs/STYLE-NORMS.md`](docs/STYLE-NORMS.md#bundled-concreteness-table-256)
   and NOTICE.
 
+- **Enable off-by-default rules.** `Rules::enable_rules(&selectors)` turns on LanguageTool's
+  `default="off"` and `picky` rules, such as `PLAIN_ENGLISH`, `REDUNDANCY`, `STYLE/PASSIVE_VOICE` and
+  `STYLE/SERIAL_COMMA_ON`, by the selector syntax profiles use (`CATEGORY`, `CATEGORY/RULE_ID`,
+  `BUILTIN/ID`), applied after the profile; unknown selectors are an error and enable nothing.
+  Swift gets `Checker.enableRules(selectors:)` and WASM `checker.enableRules([...])`. With no
+  selectors the rule set is unchanged. See [`docs/PROFILE.md`](docs/PROFILE.md#enabling-rules)
+  ([#297](https://github.com/cmlarsen/writemorebetter/issues/297)).
+
 ### Changed
 
 - **`diction` no longer needs a table.** Rust `StyleDocument::diction(options, None)`, WASM

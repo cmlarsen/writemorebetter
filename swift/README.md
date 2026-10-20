@@ -25,6 +25,11 @@ for suggestion in checker.check(text: editor.text) {
 }
 ```
 
+`try checker.enableRules(selectors: ["PLAIN_ENGLISH", "STYLE/PASSIVE_VOICE"])` turns on rules that are off by
+default (style advice such as plain English, redundancy, passive voice), on top of the profile. It returns how
+many rules it enabled and throws `CheckError.UnknownSelectors` without enabling anything if a selector matches
+no rule. See "Enabling rules" in `docs/PROFILE.md`.
+
 Loading deserializes both binaries (about 100 ms and 90 MB of resident memory); `Checker` is `Send + Sync`, so
 load one instance at startup off the main thread and share it. `check` and every other call are safe from any
 thread, but are not free (~110 ms per 1000 words on an M-series Mac), so run them off the main thread too.

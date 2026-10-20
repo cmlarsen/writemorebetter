@@ -1,6 +1,6 @@
 """Run the in-tree engine over bench/public and fail if recall drops below a floor.
 
-Usage: python3 bench/tools/public_recall.py --min 39 [--probe bench/tools/wmb-probe/target/release/wmb-probe] [--bins storage]
+Usage: python3 bench/tools/public_recall.py --min 39 [--profile fiction] [--enable PLAIN_ENGLISH,PASSIVE_VOICE] [--probe bench/tools/wmb-probe/target/release/wmb-probe] [--bins storage]
 """
 import argparse
 import json
@@ -19,6 +19,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--min", type=int, required=True)
     ap.add_argument("--profile", default="default", help="rule profile name passed to the probe")
+    ap.add_argument("--enable", default="", help="comma-separated rule selectors to enable after the profile")
     ap.add_argument("--probe", type=Path, default=root / "bench/tools/wmb-probe/target/release/wmb-probe")
     ap.add_argument("--bins", type=Path, default=root / "storage")
     args = ap.parse_args()
@@ -33,7 +34,7 @@ def main():
         for name in truth:
             out = subprocess.run(
                 [str(args.probe), str(args.bins), str(public / f"{name}.txt")],
-                env={**os.environ, "SHOW": "1", "PROFILE": args.profile},
+                env={**os.environ, "SHOW": "1", "PROFILE": args.profile, "ENABLE": args.enable},
                 check=True,
                 capture_output=True,
                 text=True,

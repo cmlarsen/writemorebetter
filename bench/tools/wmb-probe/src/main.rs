@@ -59,6 +59,17 @@ fn main() {
             profile.name, unmatched
         );
     }
+    let enable: Vec<String> = std::env::var("ENABLE")
+        .unwrap_or_default()
+        .split(',')
+        .map(str::trim)
+        .filter(|selector| !selector.is_empty())
+        .map(str::to_owned)
+        .collect();
+    if !enable.is_empty() {
+        let count = rules.enable_rules(&enable).unwrap();
+        println!("enable {}: {} rules enabled", enable.join(","), count);
+    }
     let variant = std::env::var("SPELL").unwrap_or_else(|_| "en_US".into());
     if !variant.is_empty() {
         let t = Instant::now();

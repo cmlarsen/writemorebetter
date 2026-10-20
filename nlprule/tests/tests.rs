@@ -576,6 +576,162 @@ fn apply_profile_disables_builtin_by_id() {
     assert!(!enabled(&rules));
 }
 
+/// Sources of the suggestions `rules` makes on `text`.
+fn sources(rules: &Rules, text: &str) -> Vec<String> {
+    rules
+        .suggest(text, &*TOKENIZER)
+        .iter()
+        .map(|suggestion| suggestion.source().to_owned())
+        .collect()
+}
+
+/// An off-by-default plain-English rule fires once enabled by `CATEGORY/RULE_ID`.
+#[test]
+fn enable_rules_enables_one_rule() {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    let text = "The plan, in my opinion, is sound.";
+    let fires = |rules: &Rules| {
+        sources(rules, text)
+            .iter()
+            .any(|source| source.starts_with("PLAIN_ENGLISH/IN_MY_OPINION"))
+    };
+    assert!(!fires(&rules));
+
+    assert!(
+        rules
+            .enable_rules(&["PLAIN_ENGLISH/IN_MY_OPINION"])
+            .unwrap()
+            > 0
+    );
+    assert!(fires(&rules));
+    // Enabling it again changes nothing.
+    assert_eq!(
+        rules
+            .enable_rules(&["PLAIN_ENGLISH/IN_MY_OPINION"])
+            .unwrap(),
+        0
+    );
+}
+
+/// A category selector enables every rule in the category.
+#[test]
+fn enable_rules_enables_a_category() {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    let category = Selector::try_from("PLAIN_ENGLISH").unwrap();
+    assert!(rules.select(&category).any(|rule| !rule.enabled()));
+
+    let enabled = rules.enable_rules(&["PLAIN_ENGLISH"]).unwrap();
+    assert!(enabled > 1);
+    assert!(rules.select(&category).all(|rule| rule.enabled()));
+}
+
+/// Unknown selectors are an error and nothing is enabled, including the valid ones.
+#[test]
+fn enable_rules_rejects_unknown_selectors() {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    let count = |rules: &Rules| {
+        rules.rules().iter().filter(|rule| rule.enabled()).count()
+            + rules
+                .builtins()
+                .iter()
+                .filter(|rule| rule.enabled())
+                .count()
+    };
+    let before = count(&rules);
+
+    let err = rules
+        .enable_rules(&[
+            "PLAIN_ENGLISH",
+            "NO_SUCH_CATEGORY",
+            "BUILTIN/NO_SUCH_BUILTIN",
+            // The case form only disables.
+            "BUILTIN/TOO_OFTEN_USED_NOUN_EN/DIRECT_SPEECH",
+        ])
+        .unwrap_err();
+    match err {
+        Error::UnknownSelectors(unmatched) => assert_eq!(
+            unmatched,
+            [
+                "NO_SUCH_CATEGORY",
+                "BUILTIN/NO_SUCH_BUILTIN",
+                "BUILTIN/TOO_OFTEN_USED_NOUN_EN/DIRECT_SPEECH"
+            ]
+        ),
+        other => panic!("unexpected error: {}", other),
+    }
+    assert_eq!(count(&rules), before);
+    // An empty list is fine and changes nothing.
+    assert_eq!(rules.enable_rules::<&str>(&[]).unwrap(), 0);
+}
+
+/// Enabling after the fiction profile turns back on what the profile disabled.
+#[test]
+fn enable_rules_after_fiction_profile() {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    assert!(rules.apply_profile(&Profile::fiction()).is_empty());
+    let redundancy = Selector::try_from("REDUNDANCY").unwrap();
+    assert!(rules.select(&redundancy).all(|rule| !rule.enabled()));
+
+    assert!(rules.enable_rules(&["REDUNDANCY"]).unwrap() > 0);
+    assert!(rules.select(&redundancy).all(|rule| rule.enabled()));
+    // Other rules the profile disabled stay off.
+    let quotes = Selector::try_from("TYPOGRAPHY/EN_QUOTES").unwrap();
+    assert!(rules.select(&quotes).all(|rule| !rule.enabled()));
+}
+
+/// Builtins are enabled by `BUILTIN/ID`; a case the profile skipped stays skipped.
+#[test]
+fn enable_rules_enables_builtins() {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    assert!(rules.apply_profile(&Profile::fiction()).is_empty());
+    let enabled = |rules: &Rules, id: &str| {
+        rules
+            .builtins()
+            .iter()
+            .find(|rule| rule.id() == id)
+            .unwrap()
+            .enabled()
+    };
+    assert!(!enabled(&rules, "EN_REDUNDANCY_REPLACE"));
+    assert!(!enabled(&rules, "TOO_OFTEN_USED_NOUN_EN"));
+    assert_eq!(
+        rules
+            .enable_rules(&[
+                "BUILTIN/EN_REDUNDANCY_REPLACE",
+                "BUILTIN/TOO_OFTEN_USED_NOUN_EN"
+            ])
+            .unwrap(),
+        2
+    );
+    assert!(enabled(&rules, "EN_REDUNDANCY_REPLACE"));
+    assert!(enabled(&rules, "TOO_OFTEN_USED_NOUN_EN"));
+}
+
+/// Enabled rules report UTF-16-safe spans on fiction punctuation: curly quotes, curly
+/// apostrophes, em dashes, ellipses and U+2028.
+#[test]
+fn enable_rules_fiction_punctuation() {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    rules
+        .enable_rules(&["PLAIN_ENGLISH", "STYLE/PASSIVE_VOICE", "REDUNDANCY"])
+        .unwrap();
+    let text = "\u{201c}It\u{2019}s, in my opinion, wrong\u{2026}\u{201d} she said\u{2014}quietly.\u{2028}The door was opened by Sam.";
+    let suggestions = rules.suggest(text, &*TOKENIZER);
+    assert!(suggestions
+        .iter()
+        .any(|s| s.source().starts_with("PLAIN_ENGLISH/IN_MY_OPINION")));
+    for suggestion in &suggestions {
+        let span = suggestion.span().byte();
+        assert!(text.is_char_boundary(span.start) && text.is_char_boundary(span.end));
+        if suggestion
+            .source()
+            .starts_with("PLAIN_ENGLISH/IN_MY_OPINION")
+        {
+            assert!(text[span.clone()].contains("in my opinion"));
+        }
+    }
+}
+
 #[test]
 fn spellchecker_works() -> Result<(), Error> {
     let mut rules = Rules::new(RULES_PATH).unwrap();

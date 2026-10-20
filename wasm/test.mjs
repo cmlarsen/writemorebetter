@@ -110,6 +110,37 @@ checker.setMotherTongue("de");
 checker.setMotherTongue(undefined);
 eq(falseFriends(actual), [], "undefined clears the selection");
 
+// enableRules turns on off-by-default rules by selector; unknown selectors throw.
+{
+  const picky = new Checker(
+    readFileSync(join(root, "storage", "en_tokenizer.bin")),
+    readFileSync(join(root, "storage", "en_rules.bin")),
+    undefined,
+    "fiction",
+  );
+  const opinion = "😀 “It’s, in my opinion, wrong…” she said—quietly.\u2028It was a free gift.";
+  const fired = (prefix) =>
+    JSON.parse(picky.check(opinion)).filter((item) => item.source.startsWith(prefix));
+  eq(fired("PLAIN_ENGLISH/"), [], "plain-English rules are off by default");
+  check(picky.enableRules(["PLAIN_ENGLISH/IN_MY_OPINION", "REDUNDANCY"]) > 1, "enableRules counts");
+  const hits = fired("PLAIN_ENGLISH/IN_MY_OPINION");
+  eq(hits.length, 1, "enabled rule fires");
+  check(
+    hits.length === 1 && opinion.slice(hits[0].start16, hits[0].end16).includes("in my opinion"),
+    `enabled rule has UTF-16 span: ${JSON.stringify(hits)}`,
+  );
+  check(fired("REDUNDANCY/").length > 0, "enabling a category the fiction profile disabled re-enables it");
+  let error = "";
+  try {
+    picky.enableRules(["NO_SUCH_CATEGORY"]);
+  } catch (err) {
+    error = String(err);
+  }
+  check(error.includes("NO_SUCH_CATEGORY"), `unknown selector throws: ${error}`);
+  eq(picky.enableRules([]), 0, "an empty list enables nothing");
+  picky.free();
+}
+
 // Analysis uses UTF-16 offsets directly with String.slice, including after emoji.
 const prose = "😀 “She’s goin’—again…”\u2028\n\nHe stayed.";
 const analysis = JSON.parse(checker.analyze(prose));

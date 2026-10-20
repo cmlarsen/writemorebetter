@@ -597,6 +597,16 @@ public protocol CheckerProtocol: AnyObject, Sendable {
     func clearWords() 
     
     /**
+     * Enables rules that are off by default, such as LanguageTool's `picky` style rules, by the
+     * selector syntax profiles use (`"PLAIN_ENGLISH"`, `"STYLE/PASSIVE_VOICE"`,
+     * `"BUILTIN/EN_REDUNDANCY_REPLACE"`; see `docs/PROFILE.md`). It applies on top of the
+     * constructor's profile, so it can turn back on a rule the profile disabled. Returns how
+     * many rules changed from off to on. A selector that matches no rule throws and nothing is
+     * enabled. Changes apply to the next `check`.
+     */
+    func enableRules(selectors: [String]) throws  -> UInt32
+    
+    /**
      * Lists the mother tongues the rules binary has false-friend rules for, as sorted language
      * codes.
      */
@@ -783,6 +793,24 @@ open func clearWords()  {try! rustCall() {
             self.uniffiCloneHandle(),uniffiCallStatus
     )
 }
+}
+    
+    /**
+     * Enables rules that are off by default, such as LanguageTool's `picky` style rules, by the
+     * selector syntax profiles use (`"PLAIN_ENGLISH"`, `"STYLE/PASSIVE_VOICE"`,
+     * `"BUILTIN/EN_REDUNDANCY_REPLACE"`; see `docs/PROFILE.md`). It applies on top of the
+     * constructor's profile, so it can turn back on a rule the profile disabled. Returns how
+     * many rules changed from off to on. A selector that matches no rule throws and nothing is
+     * enabled. Changes apply to the next `check`.
+     */
+open func enableRules(selectors: [String])throws  -> UInt32  {
+    return try  FfiConverterUInt32.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_method_checker_enable_rules(
+            self.uniffiCloneHandle(),
+        FfiConverterSequenceString.lower(selectors),uniffiCallStatus
+    )
+})
 }
     
     /**
@@ -2047,6 +2075,11 @@ enum CheckError: Swift.Error, Equatable, Hashable, Foundation.LocalizedError {
     )
     case ReportInput(message: String
     )
+    /**
+     * `enable_rules` named rule selectors that match no rule.
+     */
+    case UnknownSelectors(selectors: [String]
+    )
 
     
 
@@ -2097,6 +2130,9 @@ public struct FfiConverterTypeCheckError: FfiConverterRustBuffer {
         case 7: return .ReportInput(
             message: try FfiConverterString.read(from: &buf)
             )
+        case 8: return .UnknownSelectors(
+            selectors: try FfiConverterSequenceString.read(from: &buf)
+            )
 
          default: throw UniffiInternalError.unexpectedEnumCase
         }
@@ -2142,6 +2178,11 @@ public struct FfiConverterTypeCheckError: FfiConverterRustBuffer {
         case let .ReportInput(message):
             writeInt(&buf, Int32(7))
             FfiConverterString.write(message, into: &buf)
+            
+        
+        case let .UnknownSelectors(selectors):
+            writeInt(&buf, Int32(8))
+            FfiConverterSequenceString.write(selectors, into: &buf)
             
         }
     }
@@ -2514,6 +2555,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_method_checker_clear_words() != 32061) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_writemorebetter_swift_checksum_method_checker_enable_rules() != 55372) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_method_checker_mother_tongues() != 53045) {
