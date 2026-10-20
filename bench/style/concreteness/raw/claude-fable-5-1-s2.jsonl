@@ -14362,3 +14362,16 @@
 {"word": "afford", "model": "claude-fable-5-1", "sample": 2, "rating": 1.5, "batch": "claude-fable-5-1-s2-b287"}
 {"word": "induce", "model": "claude-fable-5-1", "sample": 2, "rating": 1.5, "batch": "claude-fable-5-1-s2-b287"}
 {"word": "pose", "model": "claude-fable-5-1", "sample": 2, "rating": 3.0, "batch": "claude-fable-5-1-s2-b287"}
+{"word": "away", "model": "claude-fable-5-1", "sample": 2, "rating": 2.3, "batch": "claude-fable-5-1-s2-x000"}
+{"word": "round", "model": "claude-fable-5-1", "sample": 2, "rating": 3.4, "batch": "claude-fable-5-1-s2-x000"}
+{"word": "suddenly", "model": "claude-fable-5-1", "sample": 2, "rating": 1.8, "batch": "claude-fable-5-1-s2-x000"}
+{"word": "back", "model": "claude-fable-5-1", "sample": 2, "rating": 3.3, "batch": "claude-fable-5-1-s2-x000"}
+{"word": "out", "model": "claude-fable-5-1", "sample": 2, "rating": 2.4, "batch": "claude-fable-5-1-s2-x000"}
+{"word": "up", "model": "claude-fable-5-1", "sample": 2, "rating": 2.8, "batch": "claude-fable-5-1-s2-x000"}
+{"word": "simply", "model": "claude-fable-5-1", "sample": 2, "rating": 1.3, "batch": "claude-fable-5-1-s2-x000"}
+{"word": "like", "model": "claude-fable-5-1", "sample": 2, "rating": 1.5, "batch": "claude-fable-5-1-s2-x000"}
+{"word": "really", "model": "claude-fable-5-1", "sample": 2, "rating": 1.2, "batch": "claude-fable-5-1-s2-x000"}
+{"word": "actually", "model": "claude-fable-5-1", "sample": 2, "rating": 1.2, "batch": "claude-fable-5-1-s2-x000"}
+{"word": "off", "model": "claude-fable-5-1", "sample": 2, "rating": 2.3, "batch": "claude-fable-5-1-s2-x000"}
+{"word": "down", "model": "claude-fable-5-1", "sample": 2, "rating": 2.8, "batch": "claude-fable-5-1-s2-x000"}
+{"word": "somehow", "model": "claude-fable-5-1", "sample": 2, "rating": 1.2, "batch": "claude-fable-5-1-s2-x000"}
