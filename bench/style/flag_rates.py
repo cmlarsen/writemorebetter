@@ -621,9 +621,22 @@ def synthetic_text(seed, paragraphs, dialogue=True):
     return '\n'.join(lines) + '\n'
 
 
+ABSTRACT_TEXT = 'An idea, a belief, a truth. ' * 3
+SYNTHETIC_TABLE = ROOT / 'bench/style/diction-synthetic.json'
+
+
+def caller_table_check(executable, tokenizer):
+    probe = FlagProbe(executable, tokenizer, SYNTHETIC_TABLE.resolve())
+    try:
+        means = probe.measure(ABSTRACT_TEXT)['diction']['sentence_means']['narration']
+    finally:
+        probe.close()
+    assert means == {'150': 3}
+
+
 def self_test(probe, started=None, diction=True):
     lexical = probe.measure('She glanced. ' * 6 + 'It was red. ' * 20 + 'It was very cold. ' * 3
-                            + 'She just left. ' + 'An idea, a belief, a truth. ' * 3)
+                            + 'She just left. ' + ABSTRACT_TEXT)
     assert lexical['overused_words']['overused'] >= 1
     assert lexical['overused_words']['fillers'] == 4
     assert lexical['sensory_balance']['modalities']['sight'] == 26
@@ -712,11 +725,15 @@ def run(args):
     started = time.perf_counter()
     if args.diction_table is not None and args.skip_diction:
         raise ValueError('choose a diction table or --skip-diction')
-    table = '-' if args.skip_diction else args.diction_table or 'bundled'
+    if args.diction_table is not None and args.self_test:
+        raise ValueError('the self-test uses the bundled and synthetic tables')
+    table = '-' if args.skip_diction else Path(args.diction_table).resolve() if args.diction_table else 'bundled'
     probe = FlagProbe(executable, args.tokenizer, table)
     try:
         if args.self_test:
             result = self_test(probe, started, diction=not args.skip_diction)
+            if not args.skip_diction:
+                caller_table_check(executable, args.tokenizer)
         elif args.export is None:
             raise ValueError('owner must pass an export directory')
         else:

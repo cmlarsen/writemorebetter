@@ -268,18 +268,25 @@ class FlagRateTests(unittest.TestCase):
         with patch.object(flag_rates, 'FlagProbe', Probe), \
                 patch.object(flag_rates, 'self_test', record('self_test')), \
                 patch.object(flag_rates, 'calibrate', record('calibrate')), \
+                patch.object(flag_rates, 'caller_table_check', record('caller_table_check')), \
                 contextlib.redirect_stdout(io.StringIO()):
             flag_rates.run(args)
         return tables, calls
 
     def test_self_test_and_owner_runs_default_to_the_bundled_table(self):
-        self.assertEqual(self.run_tier3(self_test=True), (['bundled'], [('self_test', {'diction': True})]))
+        self.assertEqual(self.run_tier3(self_test=True),
+                         (['bundled'], [('self_test', {'diction': True}), ('caller_table_check', {})]))
         self.assertEqual(self.run_tier3(self_test=True, skip_diction=True),
                          (['-'], [('self_test', {'diction': False})]))
         self.assertEqual(self.run_tier3(export=Path('export')), (['bundled'], [('calibrate', {})]))
         self.assertEqual(self.run_tier3(export=Path('export'), skip_diction=True), (['-'], [('calibrate', {})]))
         self.assertEqual(self.run_tier3(export=Path('export'), diction_table=Path('table.json')),
-                         ([Path('table.json')], [('calibrate', {})]))
+                         ([Path('table.json').resolve()], [('calibrate', {})]))
+        for sentinel in ('bundled', '-'):
+            tables, _ = self.run_tier3(export=Path('export'), diction_table=Path(sentinel))
+            self.assertTrue(Path(tables[0]).is_absolute() and str(tables[0]) not in ('bundled', '-'))
+        with self.assertRaisesRegex(ValueError, 'the self-test uses'):
+            self.run_tier3(self_test=True, diction_table=Path('table.json'))
         with self.assertRaisesRegex(ValueError, 'choose a diction table'):
             self.run_tier3(export=Path('export'), diction_table=Path('table.json'), skip_diction=True)
 

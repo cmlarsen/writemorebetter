@@ -965,7 +965,7 @@ python3 bench/style/run.py tier3 --flag-rates --export /approved/export
 python3 bench/style/run.py tier3 --flag-rates --export /approved/export --diction-table /approved/ratings.json
 ```
 
-The self-test uses the bundled table too, and checks its ratings on a fixed abstract sentence. Overused output counts flagged lemmas, their occurrences and filler tokens; sensory output
+The self-test uses the bundled table too and checks its ratings on a fixed abstract sentence; it then starts a second probe with `diction-synthetic.json` and checks that the caller table replaces the bundled ratings on the same sentence. `--diction-table` is passed to the probe as an absolute path, so a file named `bundled` or `-` cannot be read as the probe's bundled or skip setting, and the self-test rejects it. Overused output counts flagged lemmas, their occurrences and filler tokens; sensory output
 counts sense words and each of six modalities; diction counts abstract
 sentences/runs and pools rated-word sums/counts into a mean rating. Each count has an author-weighted
 per-1,000-word distribution and flagged share at both chapter-window and manuscript/author scales.
@@ -1054,7 +1054,7 @@ holds the transitions, pronoun-start and sensory p5/p95 bands per mode.
 #### 2026-10-20 owner-run diction results
 
 Same export and windows (1,559 chapter windows, 71 authors), with diction on the bundled table at
-`64ad447`; 652 s wall clock, 487 s of it document construction and 41 s diction (seven report passes
+`64ad447`; 652 s wall clock, 487 s of it document construction and 41 s diction (eight report passes
 per document); probe peak RSS 311 MB. The aggregate stayed in the session scratchpad and was deleted
 after the tables and the band file were recorded; no text, titles, author keys or unit identifiers
 were printed or kept. Chapter windows, author-weighted; runs per 1,000 words as median (p5–p95):
@@ -1073,23 +1073,25 @@ The default stays 2.85 (owner-approved); the analysis and the recommendation are
 [`published-bands-diction.json`](published-bands-diction.json) holds the per-mode p5/p95 bands of
 window mean concreteness and sentence means, the full percentile sets at both scales and the sweep.
 
-### Label inventory and what the owner still owes
+### Label inventory and optional owner follow-ups
 
-| Set | Size | Actual labeler provenance | Still owed |
+| Set | Size | Actual labeler provenance | Optional owner follow-up |
 |---|---:|---|---|
-| `labels/sentence-starts.jsonl` | 332 sentences | Codex + independent Claude; coordinator adjudication; second model saw the category definitions, not existing labels/predictions | Owner adjudication/acceptance; independent human labels if “hand-labeled” is literal; untouched evaluation set (current rows were used in development) |
+| `labels/sentence-starts.jsonl` | 332 sentences | Codex + independent Claude; coordinator adjudication; second model saw the category definitions, not existing labels/predictions | Owner adjudication/acceptance; independent human labels; an untouched evaluation set (current rows were used in development) |
 | `labels/sentence-starts-modern.jsonl` | 34 sentences | One implementing model; invented public story excerpts | Second independent labels and owner adjudication; diagnostic only, not part of the 332-row floor |
-| `labels/dialogue-tags.jsonl` | 238 records over 186 quote spans (70 tags, 10 beats) | Two Claude sessions, coordinator adjudication; detector-marked quote worksheets | Owner acceptance; independent human labels if required; not 238 independent sentences and not held out |
-| Transitions | No set on audited main | None | #247 lane plus approximately 300 public-domain sentences, two independent labelers and owner adjudication |
-| `labels/pacing/*.jsonl`, `labels/pacing-consensus.jsonl` | 305 paragraphs in 40 passages | Five independent, blind model labelers (2026-10-16, owner's choice): DeepSeek V4 Pro and Muse Spark 1.3 via OpenCode Go, Codex gpt-6.1-sol, Claude Opus 5.5 (`claude-opus-5-5`) and Claude Fable 5.1 (`claude-fable-5-1`). Each saw only the packet built from the committed item file (`itemsSha256` in the consensus meta row) and guidelines version 1. Where each labeler ran was not recorded. Merged by 5-way majority with no coordinator adjudication. Guidelines version 1 is [`labels/PACING-GUIDELINES-v1.md`](labels/PACING-GUIDELINES-v1.md), sha256 `d7eaa315…db6`, the wording first committed as `bf832a2`; the consensus meta row records it as `guidelines` | Owner acceptance; independent human labels optional; not held out (the threshold sweep tunes on it) |
+| `labels/dialogue-tags.jsonl` | 238 records over 186 quote spans (70 tags, 10 beats) | Two Claude sessions, coordinator adjudication; detector-marked quote worksheets | Owner acceptance; independent human labels. The set is not 238 independent sentences and not held out |
+| `labels/transitions.jsonl` | 62 development examples; no ~300-sentence judgment set | Original hand-written development examples from #247, including known misses | A ~300-sentence public-domain judgment set with two independent labelers and owner adjudication |
+| `labels/pacing/*.jsonl`, `labels/pacing-consensus.jsonl` | 305 paragraphs in 40 passages | Five independent, blind model labelers (2026-10-16, owner's choice): DeepSeek V4 Pro and Muse Spark 1.3 via OpenCode Go, Codex gpt-6.1-sol, Claude Opus 5.5 (`claude-opus-5-5`) and Claude Fable 5.1 (`claude-fable-5-1`). Each saw only the packet built from the committed item file (`itemsSha256` in the consensus meta row) and guidelines version 1. Where each labeler ran was not recorded. Merged by 5-way majority with no coordinator adjudication. Guidelines version 1 is [`labels/PACING-GUIDELINES-v1.md`](labels/PACING-GUIDELINES-v1.md), sha256 `d7eaa315…db6`, the wording first committed as `bf832a2`; the consensus meta row records it as `guidelines` | Owner acceptance; independent human labels. The set is not held out (the threshold sweep tunes on it) |
 | Overused words, sensory balance, diction | No hand-labeled natural-text set | Deterministic generated answer keys; diction's bundled-table usefulness review had one judge, not blind (STYLE-NORMS) | Optional owner usefulness review; injections do not substitute for editorial judgments. Published flag rates: #291 (overused, sensory) and the 2026-10-20 diction run |
 
 The small `labels/example.jsonl` (3 records), `documents.jsonl` and `excerpt.txt` demonstrate the
 scorer format and are not an accuracy set. No second labeler or owner judgment was invented here.
-The judgment sets above are model-labeled, not the independently hand-labeled, owner-adjudicated
-~300 sentences per report that #256 first asked for. Independent human labels are an optional
-owner follow-up: the owner accepted model labels for pacing on 2026-10-16, and nothing here invents a
-human labeler. The diction table (#313), its published-fiction calibration (2026-10-20) and the
+The sentence-start, dialogue-tag and pacing sets are model-labeled and transitions has development
+examples only, so none is the independently hand-labeled, owner-adjudicated ~300 sentences per
+report that #256 first asked for. The owner's #256 status comments of 2026-10-19 and 2026-10-20 list
+only optional independent human labels as remaining label work, and the owner accepted model labels
+for pacing on 2026-10-16; every entry in the last column, a transitions judgment set included, is
+therefore an optional owner follow-up. Nothing here invents a human labeler. The diction table (#313), its published-fiction calibration (2026-10-20) and the
 private tier 3 measurements for the newly merged reports (#291) are done. The requirement-by-requirement
 audit is in [`AUDIT-256.md`](AUDIT-256.md).
 
