@@ -6,6 +6,207 @@ inherited 0.6.4 track this project's own release line. Each version is a top-lev
 `# <version>` heading; the Release workflow copies that section verbatim into the GitHub
 release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
+# 0.10.0 (2026-10-20)
+
+### Added
+
+- **Prose style reports.** A new crate, `writemorebetter-style` (MIT OR Apache-2.0), reports
+  patterns across a whole chapter or manuscript to a fiction writer: sentence length and monotony,
+  sentence starts, clichés and redundancies, dialogue tags, echoes, repeated phrases, overused and
+  filler words, transitions, pronoun starts, sensory balance, diction (concreteness) and pacing
+  ([#241](https://github.com/cmlarsen/writemorebetter/issues/241)). The reports diagnose and never
+  generate replacement prose: each returns spans, counts and, where it has a baseline, the
+  difference from published fiction. They run on device with no network, over a document built on
+  save or idle rather than on each keystroke. The crate holds no LGPL data and does not duplicate
+  the LanguageTool rules that `nlprule` ports; where a report overlaps one (echoes and
+  `EN_REPEATEDWORDS`, long sentences and `TOO_LONG_SENTENCE`), its doc says how they differ. Swift
+  and WASM reach the reports through the existing `Checker`, so an app still links one library and
+  loads the tokenizer once. The design and decision log are in
+  [`docs/STYLE-REPORTS.md`](docs/STYLE-REPORTS.md), and each report has its own `docs/STYLE-*.md`.
+- **A recommended default set, and opt-in lenses.** The library runs only the reports a caller asks
+  for. The recommended default set for an editor is **clichés, dialogue tags, sentence length
+  statistics and monotony runs, and sentence starts**; on the six `bench/public` texts it gives 27
+  flags, down from 196 before the reports were tuned for novelists
+  ([#273](https://github.com/cmlarsen/writemorebetter/pull/273)). **Echoes, repeated phrases,
+  long-sentence flags, overused and filler words, transitions, pronoun starts, sensory balance,
+  diction and pacing** are opt-in lenses: their flags are accurate but too frequent to show by
+  default, or have not yet been judged on real manuscripts. Long sentences are a sentence-length
+  option (`{"includeLongSentences": true}`).
+- **`StyleDocument` analyzes a chapter once and runs each report on its own**
+  ([#275](https://github.com/cmlarsen/writemorebetter/issues/275)). Swift's
+  `checker.styleDocument(text:options:)` and WASM's `checker.styleDocument(text, optionsJSON)`
+  return a document with one method per report: `sentenceLength`, `sentenceStarts`, `cliches`,
+  `dialogueTags`, `echoes`, `repeatedPhrases`, `overusedWords`, `transitions`, `pronounStarts`,
+  `sensoryBalance`, `diction`, `pacing`, plus `stats` for the shared word and sentence counts.
+  Swift methods return typed `Codable`, `Equatable`, `Sendable` records (`SentenceLengthReport`,
+  `ClicheReport`, …) whose `Span.nsRange` is ready for attributed text; the raw `*Json` methods
+  return the same JSON. WASM methods return JSON strings, and TypeScript declarations for every
+  result ship in the generated package (`wasm/style-results.d.ts`) for `import type`. Binding spans
+  are UTF-16 `{start, end}`. Options are JSON in camelCase (snake_case is accepted, unknown keys are
+  rejected). The baseline-aware methods (`sentenceLength`, `sentenceStarts`, `dialogueTags`,
+  `overusedWords`) use the bundled baseline when the argument is omitted, `"none"` to turn
+  comparisons off, or a JSON override; Swift spells these `StyleBaseline.bundled`, `.none` and
+  `.custom(json)`. A document owns its analysis and can outlive its checker; WASM callers must call
+  `free()` on it. In Rust, `analyze_document(&tokenizer, text, &DocumentOptions)` builds the
+  `Document`, each report is `reports::<name>::report(&Document, &Options, …)` returning
+  `Result<_, StyleError>`, and `StyleDocument` wraps the same calls with typed results.
+- **Document options.** `skipNames` lists character and place names to leave out of counts and
+  denominators, `hardWrapped` makes paragraphs end at blank lines for hard-wrapped imports (the
+  default is one paragraph per line), and `includeTokenDetails: false` builds a compact document
+  without readings, which the reports that need readings reject with `needsTokenDetails`.
+- **Diction ships without a concreteness table.** The diction report flags abstract narration
+  sentences and runs of them ([#250](https://github.com/cmlarsen/writemorebetter/issues/250)), and
+  it needs a word-to-concreteness table that the caller supplies as JSON or TSV
+  (`document.diction(table:)` in Swift, `document.diction(optionsJSON, tableText)` in WASM,
+  `ConcretenessTable::parse` in Rust). Without one it fails with `missingTable` instead of returning
+  an empty report. No table is bundled: the standard ratings (Brysbaert et al., 2014) are
+  CC BY-NC-ND, so they cannot ship here, and no replacement has been chosen. The owner decided on
+  2026-10-20 to ship the style reports now with diction as it is; a bundled concreteness table will
+  come in a later release.
+- **Style report errors.** `StyleError` has five kinds: `invalidOptions`, `invalidBaseline`,
+  `needsTokenDetails`, `missingTable` and `invalidTable`, and all but the first name the report.
+  WASM throws an `Error` named `StyleError` with `kind` and `report` properties. Swift throws the new
+  `CheckError.ReportInput` with the same message.
+- **Sentence length and sentence starts**
+  ([#244](https://github.com/cmlarsen/writemorebetter/issues/244)). Sentence length gives the mean,
+  percentiles and histogram for narration and dialogue separately, monotony runs (four or more
+  sentences whose lengths are within two words of each other) and, opted in, the three longest
+  sentences of at least 40 words per chapter. Sentence starts classifies each sentence's opening
+  (subject, adverb, introductory phrase, coordinating or subordinating conjunction, gerund,
+  infinitive, past participle, inversion, other) and flags runs of three or more sentences opening
+  with the same word. Both compare against the bundled published-fiction bands, highlight only
+  values outside them, withhold percentages below 50 sentences and mark results under 200 as low
+  confidence. Chapter headings such as `CHAPTER 1. Loomings.` start a new chapter and are left out
+  of the statistics ([#273](https://github.com/cmlarsen/writemorebetter/pull/273)).
+- **Dialogue tags** ([#249](https://github.com/cmlarsen/writemorebetter/issues/249)). The report
+  finds the tag of each quotation (before, after or split around it), counts action beats
+  separately, and flags showy speech verbs ("cried", "demanded" and other bookisms), non-speech
+  tags (`“Fine,” she smiled.`), `-ly` manner adverbs and runs of more than six untagged exchanges.
+  "Said", "asked" and other neutral verbs are counted, not flagged. Scare quotes, titles and quoted
+  labels are not speech. Dialogue introduced by a dash is not detected yet.
+- **Clichés and redundancies** ([#246](https://github.com/cmlarsen/writemorebetter/issues/246)).
+  The report matches 698 clichés from no-cliches (MIT) and redundancy lists from
+  retext-redundant-acronyms (MIT) and proselint (BSD-3-Clause), through inflections ("kicked the
+  bucket"), possessive slots ("aired the captain’s dirty laundry") and hard line wraps, and counts
+  narration and dialogue separately. Entries that a rule in `nlprule` already flags ("ATM machine",
+  "PIN number") are left out. Redundancy coverage is thin: only acronym redundancies and 20
+  proselint entries cleared licensing. Callers can compile their own list with `ClicheList::new`.
+- **Echoes and repeated phrases** ([#245](https://github.com/cmlarsen/writemorebetter/issues/245)),
+  opt-in. Echoes flags a content word whose lemma family (`thought` … `thoughts`, `wound` …
+  `wounds`) occurred shortly before it. Repeated phrases lists lemma n-grams of two to five words
+  with at least two content words that recur, stopping at commas, dashes and quotes.
+- **Overused and filler words** ([#248](https://github.com/cmlarsen/writemorebetter/issues/248)),
+  opt-in. Content lemmas used at least four times as often as in published fiction, and at least
+  five times (more in long documents), are flagged against the bundled Ngram table; nouns are
+  opt-in. The fillers "just", "really", "very", "quite", "actually", "simply", "suddenly",
+  "somehow" and complementizer "that" are reported with their rates. British spellings count under
+  the American lemma (`grey` with `gray`).
+- **Transitions and pronoun starts** ([#247](https://github.com/cmlarsen/writemorebetter/issues/247)),
+  opt-in. Transitions counts transition words of five kinds (contrast, cause, time, addition,
+  example) and flags the same one repeated within five sentences. Pronoun starts gives each
+  pronoun's share of sentence openings and flags runs. Neither has a baseline yet.
+- **Sensory balance** ([#250](https://github.com/cmlarsen/writemorebetter/issues/250),
+  [#282](https://github.com/cmlarsen/writemorebetter/issues/282)), opt-in. Sense words are
+  classified by their strongest modality in the Lancaster Sensorimotor Norms (sight, sound, touch,
+  taste, smell, interoception) and shared out per chapter and scene, narration and dialogue
+  separately. Figurative perception ("felt that", "looked as if") and speech tags do not count.
+- **Pacing** ([#251](https://github.com/cmlarsen/writemorebetter/issues/251)), opt-in. Each
+  paragraph gets three signals (mean sentence length, past-perfect share, cognition-verb share),
+  and `slowRuns` marks three or more paragraphs, or more than 400 words, without speech in which
+  two signals pass their thresholds. The defaults (18 words, 15%, 15%) were chosen from published
+  flag rates and a five-model label set
+  ([#291](https://github.com/cmlarsen/writemorebetter/pull/291)). A pacing strip should highlight
+  only `slowRuns`; single paragraphs that pass are mostly noise.
+- **Bundled baselines and data, aggregate numbers only.** Sentence length and sentence starts
+  compare against author-weighted p5/p95 bands measured by the owner over 1,559 chapter windows of
+  210 published novels by 71 authors; the repository holds only those aggregate numbers, never
+  text. Overused words compares against a 14,382-lemma table built from Google Books Ngram English
+  Fiction 1-grams (version 20200217, editions 1990–2019, CC BY 3.0). Sensory balance uses an
+  11,456-word table derived from the Lancaster Sensorimotor Norms (CC BY 4.0), whose source CSV was
+  checked against OSF's own download on 2026-10-20
+  ([#289](https://github.com/cmlarsen/writemorebetter/issues/289)). The cliché lists keep their MIT
+  and BSD licenses, and the other word lists were written for this crate. Every source is credited
+  in `NOTICE` and [`docs/STYLE-DATA-LICENSES.md`](docs/STYLE-DATA-LICENSES.md). There is no bundled
+  dialogue-tag baseline yet.
+- **`analyze()` returns the tokenizer's sentences and tagged tokens**
+  ([#242](https://github.com/cmlarsen/writemorebetter/issues/242)). `Tokenizer::analyze` in Rust,
+  `Checker.analyze(text:)` in Swift and `checker.analyze(text)` in WASM return owned sentences and
+  tokens with their lemma and POS readings after disambiguation, chunk tags and whitespace and
+  punctuation flags. Rust spans carry UTF-8 byte, Unicode scalar and UTF-16 ranges; the bindings
+  return UTF-16 offsets. The readings match LanguageTool 6.6's `--taggeronly` output on the test
+  transcripts, with one documented chunk difference on emoji. See [`docs/ANALYSIS.md`](docs/ANALYSIS.md).
+- **`analyzeDocument()` returns the whole-document pass the reports use**
+  ([#243](https://github.com/cmlarsen/writemorebetter/issues/243)). Swift's
+  `Checker.analyzeDocument(text:options:)` and WASM's `checker.analyzeDocument(text, options)`
+  return paragraphs, sentences, tokens, quoted-dialogue spans with speech flags, a lemma index and
+  word counts. Its JSON keys are snake_case, unlike the reports' camelCase. Quotation spans score
+  88.6% F1 on LitBank and 98.6% on QuoteLi3's *Pride and Prejudice*.
+- **WASM `check()` returns UTF-16 offsets too**
+  ([#257](https://github.com/cmlarsen/writemorebetter/issues/257)). Each suggestion has
+  `start16`/`end16` in UTF-16 code units, the convention of `analyze()` and the style reports, so
+  `text.slice(start16, end16)` is the flagged text even after emoji. `start`/`end` still count
+  Unicode scalars and will be deprecated later.
+- **Benchmarks.** `bench/style` measures the analysis and every report: tier 1 scores sentence
+  boundaries, tags and lemmas on UD English-EWT and quotation spans on LitBank and QuoteLi3, tier 2
+  injects errors into pinned Standard Ebooks prose and scores each report, and tier 3 computes
+  published-fiction flag rates and bands for the owner to run locally, printing aggregate numbers
+  only. CI gates tiers 1 and 2 and runs tier 3's self-tests
+  ([#259](https://github.com/cmlarsen/writemorebetter/pull/259),
+  [#270](https://github.com/cmlarsen/writemorebetter/pull/270),
+  [#283](https://github.com/cmlarsen/writemorebetter/pull/283),
+  [#290](https://github.com/cmlarsen/writemorebetter/pull/290),
+  [#293](https://github.com/cmlarsen/writemorebetter/pull/293)).
+
+### Changed
+
+- **No breaking change to checking; the data binaries are unchanged.** `check()`, `suggest()` and
+  the bindings' `Checker` keep their signatures, and the tokenizer and rules binary format versions
+  stay 18 and 31, so 0.9.0's `en_tokenizer.bin` and `en_rules.bin` still load. One source change in
+  Swift: `CheckError` has a new case, `ReportInput`, so a `switch` over `CheckError` without a
+  `default` needs it.
+- **The WASM module is about 60% larger.** Built the same way as CI (release, wasm-bindgen
+  0.2.129), `writemorebetter_wasm_bg.wasm` grows from 3,340,768 bytes in 0.9.0 to 5,507,374
+  (867 KB to 1.40 MB with `gzip -9`); after `wasm-opt -Oz` it grows from 1,979,906 to 3,255,089
+  bytes (779 KB to 1.27 MB gzipped). Most of the growth is the style crate with its bundled
+  tables (the Ngram lemma table is 233 KB and the Lancaster table 193 KB before compression); the
+  fancy-regex upgrade adds about 4%.
+- **Style documents cost memory and time while retained.** A `StyleDocument` for the 149 KB
+  `moby150k` excerpt holds about 11–12 MB of WASM linear memory, and WASM's linear memory does not
+  shrink back after a document is freed, so retain the chapter on screen, `free()` it on
+  navigation and do not cache every chapter. Building that document takes about 1 s natively and
+  1.2 s in WASM on an Apple M5 Pro, and each report then takes 2–45 ms; build documents off the UI
+  thread. `analyzeDocument()` JSON is large (46 MB for a 582 KB novel with token details, 33 MB
+  compact), so prefer `StyleDocument` when only the reports are needed.
+- **fancy-regex is upgraded from 0.5 to 0.19** in `nlprule`'s `regex-fancy` backend (the one WASM
+  uses) and in `srx` ([#288](https://github.com/cmlarsen/writemorebetter/pull/288)). Loading the
+  English rules takes 66 ms instead of 47 ms; check time and peak memory are unchanged (3.0 s and
+  about 101 MB on the 150 KB Moby-Dick excerpt).
+
+### Fixed
+
+- **Sentence segmentation no longer takes an hour on some long texts.** One English SRX rule needs
+  look-around, so it ran on fancy-regex, which gives up after a million backtracks counted over the
+  whole unanchored search; a text with no match in its first ~900K characters failed, and the
+  segmenter retried from every following character, taking 70–100 minutes on some ~1 MB novels
+  ([#279](https://github.com/cmlarsen/writemorebetter/issues/279)). Look-around rules now find
+  candidates with regex-automata and confirm each with an anchored fancy-regex match, so the scan is
+  linear and the backtrack limit stays in place; a full check of those novels now takes 16–21 s
+  ([#287](https://github.com/cmlarsen/writemorebetter/pull/287),
+  [#288](https://github.com/cmlarsen/writemorebetter/pull/288)).
+- **Look-around rules no longer miss matches in very long sentences with the `regex-fancy`
+  backend.** The backend treated fancy-regex's backtrack-limit error as no match, which began at
+  about 250K characters without a sentence break. It now retries that regex with a limit scaled to
+  the input and returns exactly the unlimited result
+  ([#288](https://github.com/cmlarsen/writemorebetter/pull/288)).
+- **`scripts/build-xcframework.sh` builds in one pass with Xcode 27.** The script exported
+  `MACOSX_DEPLOYMENT_TARGET=12.0` for the whole run, which also linked the host's proc-macro
+  libraries at 12.0, and Xcode 27 rejected them (`mis-aligned LINKEDIT string pool`, or `E0463`
+  on a fresh `target/`). The macOS and iOS minimums are now set on the Apple slice builds only;
+  run `cargo clean` once if an older checkout hit this
+  ([#258](https://github.com/cmlarsen/writemorebetter/issues/258)).
+- **`nlprule-build` builds again after every zip 0.5 and 0.6 release was yanked.** It now uses
+  zip 9 ([#272](https://github.com/cmlarsen/writemorebetter/pull/272)).
+
 # 0.9.0 (2026-10-15)
 
 ### Added
