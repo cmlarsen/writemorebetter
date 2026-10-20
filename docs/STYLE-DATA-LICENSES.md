@@ -56,6 +56,10 @@ Licenses checked 2026-10-15 (recorded in #246, below). #250 vendors one derived 
   The mirror was downloaded again and matches the pinned sha256
   `445d363fb1f9f3e50b86d88e2f46cdc9a22b5dd8a713ce4e7be2a773d57f43c5`
   (17,196,336 bytes). Direct OSF hash verification remains open.
+- **OSF verification (2026-10-20 16:36 UTC, #289).** `https://osf.io/download/48wsc/` returned
+  HTTP 200 with 17,196,336 bytes and sha256
+  `445d363fb1f9f3e50b86d88e2f46cdc9a22b5dd8a713ce4e7be2a773d57f43c5`, identical to the pinned
+  mirror copy. The vendored table is built from OSF's own file.
 - **Changes** (recorded in the file header and NOTICE): single words only, lowercased; only words
   whose strongest perceptual modality rates ≥ 3.5 and leads the next by ≥ 0.5, not counting
   interoception as the next modality of a haptic word; columns reduced to that modality, its mean
