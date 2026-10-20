@@ -188,4 +188,11 @@ impl StyleDocument {
         };
         overused_words::report(&self.document, &options(json)?, baseline)
     }
+
+    pub fn consistency(
+        &self,
+        json: Option<&str>,
+    ) -> Result<crate::reports::consistency::ConsistencyReport, StyleError> {
+        crate::reports::consistency::report(&self.document, &options(json)?)
+    }
 }

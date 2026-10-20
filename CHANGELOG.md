@@ -29,6 +29,17 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   Swift gets `Checker.enableRules(selectors:)` and WASM `checker.enableRules([...])`. With no
   selectors the rule set is unchanged. See [`docs/PROFILE.md`](docs/PROFILE.md#enabling-rules)
   ([#297](https://github.com/cmlarsen/writemorebetter/issues/297)).
+- **Consistency report.** A new opt-in style lens, `consistency`, counts and locates mixed usage
+  within one document: curly and straight double and single quotes, apostrophes (counted apart
+  from quotes, with elisions such as `’em` and `rock ’n’ roll`), `…`/`...`/`. . .` ellipses,
+  closed and spaced em dashes, spaced en dashes, `--` and spaced hyphens, the same word
+  capitalized and lowercase mid-sentence, and the same compound written hyphenated, open and
+  closed ([#298](https://github.com/cmlarsen/writemorebetter/issues/298)). Each check returns
+  per-form counts split by narration and dialogue, spans, and whether the document is mixed; it
+  never says which form is right. Rust `StyleDocument::consistency`, WASM
+  `document.consistency()` and Swift `document.consistency()` (typed `ConsistencyReport`). It
+  needs no data and runs on compact documents. See
+  [`docs/STYLE-CONSISTENCY.md`](docs/STYLE-CONSISTENCY.md).
 
 ### Changed
 

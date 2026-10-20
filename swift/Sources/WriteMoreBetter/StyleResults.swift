@@ -519,3 +519,41 @@ public extension StyleDocument {
         try decodeStyle(pronounStartsJson(optionsJson: optionsJson))
     }
 }
+
+public struct ConsistencyVariant: Codable, Equatable, Sendable {
+    public let form: String
+    public let counts: Split<Int>
+    public let spans: [Span]
+}
+
+public struct ConsistencyCheck: Codable, Equatable, Sendable {
+    public let mixed: Bool
+    public let variants: [ConsistencyVariant]
+}
+
+public struct ConsistencyCount: Codable, Equatable, Sendable {
+    public let form: String
+    public let counts: Split<Int>
+}
+
+public struct ConsistencyWord: Codable, Equatable, Sendable {
+    public let word: String
+    public let variants: [ConsistencyVariant]
+}
+
+public struct ConsistencyReport: Codable, Equatable, Sendable {
+    public let doubleQuotes: ConsistencyCheck
+    public let singleQuotes: ConsistencyCheck
+    public let apostrophes: ConsistencyCheck
+    public let ellipses: ConsistencyCheck
+    public let dashes: ConsistencyCheck
+    public let dashCharacters: [ConsistencyCount]
+    public let capitalization: [ConsistencyWord]
+    public let hyphenation: [ConsistencyWord]
+}
+
+public extension StyleDocument {
+    func consistency(optionsJson: String? = nil) throws -> ConsistencyReport {
+        try decodeStyle(consistencyJson(optionsJson: optionsJson))
+    }
+}

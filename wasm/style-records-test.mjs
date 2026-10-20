@@ -58,6 +58,10 @@ export function checkStyleRecords(checker) {
   const transitionDocument = checker.styleDocument(transitionText);
   results.push(["TransitionsReport", transitionDocument.transitions('{"minimumSentences":1}')]);
   results.push(["PronounStartsReport", transitionDocument.pronounStarts('{"minimumSentences":1}')]);
+  const consistencyText = readFileSync(new URL("../style/tests/fixtures/consistency-records.txt", import.meta.url), "utf8");
+  const consistencyDocument = checker.styleDocument(consistencyText);
+  results.push(["ConsistencyReport", consistencyDocument.consistency()]);
+  consistencyDocument.free();
   for (const [type, json] of results) validate(JSON.parse(json), type, type);
   transitionDocument.free();
   normDocument.free();

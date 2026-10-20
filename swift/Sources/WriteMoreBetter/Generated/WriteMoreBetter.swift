@@ -950,6 +950,11 @@ public protocol StyleDocumentProtocol: AnyObject, Sendable {
     func clichesJson(optionsJson: String?) throws  -> String
     
     /**
+     * Returns the opt-in consistency lens on the retained analysis; options default when omitted.
+     */
+    func consistencyJson(optionsJson: String?) throws  -> String
+    
+    /**
      * Returns this report on the retained analysis; options default when omitted.
      * Baseline: omitted/null means bundled; "none" disables comparisons; otherwise pass a JSON object.
      */
@@ -1075,6 +1080,19 @@ open func clichesJson(optionsJson: String? = nil)throws  -> String  {
     return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
         uniffiCallStatus in
     uniffi_writemorebetter_swift_fn_method_styledocument_cliches_json(
+            self.uniffiCloneHandle(),
+        FfiConverterOptionString.lower(optionsJson),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * Returns the opt-in consistency lens on the retained analysis; options default when omitted.
+     */
+open func consistencyJson(optionsJson: String? = nil)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_method_styledocument_consistency_json(
             self.uniffiCloneHandle(),
         FfiConverterOptionString.lower(optionsJson),uniffiCallStatus
     )
@@ -2579,6 +2597,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_method_styledocument_cliches_json() != 60906) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_writemorebetter_swift_checksum_method_styledocument_consistency_json() != 23343) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_method_styledocument_dialogue_tags_json() != 30832) {

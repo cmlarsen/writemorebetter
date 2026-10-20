@@ -1,4 +1,5 @@
 pub mod cliches;
+pub mod consistency;
 pub mod dialogue_tags;
 pub mod diction;
 pub mod echoes;

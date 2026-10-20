@@ -460,6 +460,11 @@ final class CheckerTests: XCTestCase {
         XCTAssertEqual(try transitionDocument.transitions().repeats.count, 1)
         XCTAssertEqual(try transitionDocument.pronounStarts().groups.narration.runs.count, 1)
         XCTAssertEqual(try transitionDocument.pronounStarts().groups.dialogue.runs.count, 1)
+        let consistencyText = try String(contentsOf: Self.repositoryRoot.appendingPathComponent("style/tests/fixtures/consistency-records.txt"), encoding: .utf8)
+        let consistencyDocument = try checker().styleDocument(text: consistencyText)
+        try roundTrip(ConsistencyReport.self, consistencyDocument.consistencyJson(optionsJson: nil))
+        XCTAssertTrue(try consistencyDocument.consistency().doubleQuotes.mixed)
+        XCTAssertEqual(try consistencyDocument.consistency().hyphenation.first?.word, "email")
         let normText = try String(contentsOf: Self.repositoryRoot.appendingPathComponent("style/tests/fixtures/norm-records.txt"), encoding: .utf8)
         let normDocument = try checker().styleDocument(text: normText)
         let table = "{\"hope\": 1.5, \"idea\": 1.6, \"freedom\": 1.3, \"lamp\": 4.8}"
