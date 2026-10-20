@@ -35,6 +35,7 @@ BATCH = 50
 ATTEMPTS = 5
 TIMEOUT = 600
 LINE = re.compile(r"^\s*(\S+)\s+([1-5](?:\.\d)?)\s*$")
+RATING = re.compile(r"^[1-5](?:\.\d)?$")
 lock = threading.Lock()
 
 
@@ -104,16 +105,22 @@ def reply_text(rater, stdout):
     return ''.join(parts), sorted(models), None
 
 
+def pairs(text):
+    lines = [line.strip() for line in text.strip().splitlines()
+             if line.strip() and not line.strip().startswith('```')]
+    matches = [LINE.match(line) for line in lines]
+    if not any(matches) and len(lines) % 2 == 0 and all(map(RATING.match, lines[1::2])):
+        return [(word, rating, word) for word, rating in zip(lines[::2], lines[1::2])]
+    return [(*(match.groups() if match else (None, None)), line)
+            for match, line in zip(matches, lines)]
+
+
 def parse(text, batch):
     expected = set(batch)
     ratings = {}
-    for line in text.strip().splitlines():
-        if not line.strip() or line.strip().startswith('```'):
-            continue
-        match = LINE.match(line)
-        if not match:
+    for word, rating, line in pairs(text):
+        if word is None:
             raise ValueError(f'unparsable line {line[:80]!r}')
-        word, rating = match.group(1), match.group(2)
         if word not in expected:
             raise ValueError(f'unexpected word {word!r}')
         if word in ratings:

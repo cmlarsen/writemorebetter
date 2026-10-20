@@ -23,6 +23,7 @@ def load(name, path):
 
 builder = load('concreteness_builder', ROOT / 'scripts/build-concreteness-norms.py')
 rater = load('concreteness_rater', ROOT / 'bench/style/concreteness/rate.py')
+gate = load('concreteness_gate', ROOT / 'bench/style/concreteness.py')
 
 SHEET = ('<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>'
          '<row r="1"><c r="L1" t="s"><v>0</v></c></row>'
@@ -134,6 +135,18 @@ class RaterTests(unittest.TestCase):
         self.assertEqual(rater.parse(text, self.batch),
                          {'spoon': '5', 'theory': '1.2', "o'clock": '3.4'})
 
+    def test_parse_accepts_a_word_line_then_a_rating_line(self):
+        text = "theory\n1.2\nspoon\n5\n\no'clock\n3.4\n"
+        self.assertEqual(rater.parse(text, self.batch),
+                         {'spoon': '5', 'theory': '1.2', "o'clock": '3.4'})
+        for text, message in [
+            ("theory\n1.2\nspoon\n6\no'clock\n3", 'unparsable'),
+            ("theory\n1.2\nspoon\no'clock\n3", 'unparsable'),
+            ("theory\t1.2\nspoon\n5\no'clock\t3", 'unparsable'),
+        ]:
+            with self.assertRaisesRegex(ValueError, message):
+                rater.parse(text, self.batch)
+
     def test_parse_rejects_bad_replies(self):
         for text, message in [
             ('spoon\t5\ntheory\t1.2', 'missing'),
@@ -244,6 +257,26 @@ class BuildTests(unittest.TestCase):
         del ratings['claude-haiku-5-5'][1]['kick']
         with tempfile.TemporaryDirectory() as directory, self.assertRaisesRegex(SystemExit, 'missing'):
             self.build(directory, ratings)
+
+
+class GateTests(unittest.TestCase):
+    def measured(self, shares):
+        files = {name: {'rated': 0, 'eligible': 0, 'share': share} for name, share in shares.items()}
+        held = {'spearman': 0.9, 'pearson': 0.9, 'abstract_f1': 0.8, 'mae': 0.3}
+        return {'list_covered': 1.0, 'extra_entries': 0, 'heldout': held,
+                'convergent': {'spearman': 0.8}, 'stability': {}, 'agreement': {},
+                'coverage': {'files': files, 'pooled': 0.95}}
+
+    def test_coverage_gate_checks_every_modern_story(self):
+        shares = {f'story{i}.txt': 0.98 for i in range(1, 6)}
+        shares['moby150k.txt'] = 0.93
+        self.assertEqual(gate.failures(self.measured(shares), []), [])
+        shares['story3.txt'] = 0.96
+        self.assertEqual(gate.failures(self.measured(shares), []),
+                         ['story3.txt narration coverage 0.96 >= 0.97'])
+        del shares['story3.txt']
+        self.assertEqual(gate.failures(self.measured(shares), []),
+                         ['story3.txt narration coverage None >= 0.97'])
 
 
 if __name__ == '__main__':

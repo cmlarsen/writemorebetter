@@ -14362,3 +14362,16 @@
 {"word": "reload", "model": "claude-haiku-5-5", "sample": 1, "rating": 3.5, "batch": "claude-haiku-5-5-s1-b084"}
 {"word": "airy", "model": "claude-haiku-5-5", "sample": 1, "rating": 3.3, "batch": "claude-haiku-5-5-s1-b084"}
 {"word": "portfolio", "model": "claude-haiku-5-5", "sample": 1, "rating": 3.5, "batch": "claude-haiku-5-5-s1-b084"}
+{"word": "off", "model": "claude-haiku-5-5", "sample": 1, "rating": 2.5, "batch": "claude-haiku-5-5-s1-x000"}
+{"word": "up", "model": "claude-haiku-5-5", "sample": 1, "rating": 3.0, "batch": "claude-haiku-5-5-s1-x000"}
+{"word": "really", "model": "claude-haiku-5-5", "sample": 1, "rating": 1.0, "batch": "claude-haiku-5-5-s1-x000"}
+{"word": "away", "model": "claude-haiku-5-5", "sample": 1, "rating": 3.0, "batch": "claude-haiku-5-5-s1-x000"}
+{"word": "actually", "model": "claude-haiku-5-5", "sample": 1, "rating": 1.0, "batch": "claude-haiku-5-5-s1-x000"}
+{"word": "somehow", "model": "claude-haiku-5-5", "sample": 1, "rating": 1.0, "batch": "claude-haiku-5-5-s1-x000"}
+{"word": "simply", "model": "claude-haiku-5-5", "sample": 1, "rating": 1.0, "batch": "claude-haiku-5-5-s1-x000"}
+{"word": "down", "model": "claude-haiku-5-5", "sample": 1, "rating": 3.0, "batch": "claude-haiku-5-5-s1-x000"}
+{"word": "out", "model": "claude-haiku-5-5", "sample": 1, "rating": 2.5, "batch": "claude-haiku-5-5-s1-x000"}
+{"word": "round", "model": "claude-haiku-5-5", "sample": 1, "rating": 3.0, "batch": "claude-haiku-5-5-s1-x000"}
+{"word": "like", "model": "claude-haiku-5-5", "sample": 1, "rating": 1.5, "batch": "claude-haiku-5-5-s1-x000"}
+{"word": "suddenly", "model": "claude-haiku-5-5", "sample": 1, "rating": 1.5, "batch": "claude-haiku-5-5-s1-x000"}
+{"word": "back", "model": "claude-haiku-5-5", "sample": 1, "rating": 3.5, "batch": "claude-haiku-5-5-s1-x000"}
