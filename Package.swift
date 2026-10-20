@@ -27,8 +27,8 @@ if FileManager.default.fileExists(atPath: localFramework) {
 } else {
     ffiTarget = .binaryTarget(
         name: "WriteMoreBetterFFI",
-        url: "https://github.com/cmlarsen/writemorebetter/releases/download/0.9.0/WriteMoreBetterFFI.xcframework.zip",
-        checksum: "f3de59bab979ad99bb4f5a85819e6c4c9faf904b0fc204b9cf0f54b445384d56"
+        url: "https://github.com/cmlarsen/writemorebetter/releases/download/0.10.0/WriteMoreBetterFFI.xcframework.zip",
+        checksum: "bd44c5aa5be756d4120aaefe7660a6ce87b7f11e7172534e15309b0f7ea2de18"
     )
 }
 
