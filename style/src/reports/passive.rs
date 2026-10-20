@@ -248,6 +248,16 @@ const TEMPORAL: [&str; 38] = [
     "december",
     "christmas",
 ];
+/// TEMPORAL words that stay a time after *the* (`by the end`); others are an agent (`by the sunset`).
+const DEFINITE_TEMPORAL: [&str; 7] = [
+    "time",
+    "end",
+    "weekend",
+    "morning",
+    "afternoon",
+    "evening",
+    "night",
+];
 const CLOCK: [&str; 5] = ["o'clock", "am", "pm", "a.m.", "p.m."];
 
 fn folded(token: &Token) -> String {
@@ -284,14 +294,27 @@ fn adverb(token: &Token) -> bool {
 /// *by* followed by a time (`by the time`, `by midnight`, `by 1990`, `by nine o’clock`).
 fn temporal(tokens: &[&Token], by: usize) -> bool {
     let mut at = by + 1;
-    if tokens.get(at).is_some_and(|t| folded(t) == "the") {
+    let definite = tokens.get(at).is_some_and(|t| folded(t) == "the");
+    if definite {
         at += 1;
     }
     let Some(&token) = tokens.get(at) else {
         return false;
     };
+    let word = folded(token);
     let after = tokens.get(at + 1);
-    TEMPORAL.contains(&folded(token).as_str())
+    // A time word that starts a noun phrase is an agent (`by the morning light`), except
+    // *by the time* + clause and a time after a time (`by Monday morning`). Common nouns
+    // only, including LanguageTool's mass-noun tags (`NN:U`, `NN:UN`).
+    let noun_follows = after.is_some_and(|t| {
+        t.readings
+            .iter()
+            .any(|r| r.pos.starts_with("NN") && !r.pos.starts_with("NNP"))
+            && !TEMPORAL.contains(&folded(t).as_str())
+    });
+    (TEMPORAL.contains(&word.as_str())
+        && (!definite || DEFINITE_TEMPORAL.contains(&word.as_str()))
+        && (word == "time" || !noun_follows))
         || (has(token, &["CD"])
             && after.is_none_or(|t| !t.is_word || CLOCK.contains(&folded(t).as_str())))
 }

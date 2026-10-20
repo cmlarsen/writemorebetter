@@ -77,7 +77,10 @@ These are token heuristics over nlprule readings, not a parser:
      agent: *by* before *the time*, *then*, *now*, a time word (*midnight*, *morning*, *June*,
      *Friday*, *the end*, …) or a bare number or clock time (`by 1990`, `by nine o’clock`, but not
      `by two men`). So `She was tired by the time she got home` and `He was exhausted by midnight`
-     stay adjectival, and `He was arrested by midnight` counts with `agent` false.
+     stay adjectival, and `He was arrested by midnight` counts with `agent` false. A time word that
+     starts a longer noun phrase is still an agent (`by the morning light`, `by the night
+     watchman`), and after *the* only *time*, *end*, *weekend*, *morning*, *afternoon*, *evening*
+     and *night* read as times, so `She was impressed by the sunset` counts but `by sunset` doesn't.
    - the participle is *gone*, *come* or *arrived*. These verbs are intransitive, so *be* + the
      participle is an old perfect or a state.
    - it is *used to* / *supposed to* before something that is not a base verb: `I got used to it`

@@ -266,6 +266,30 @@ fn adjectival_participles_and_actives_do_not_count() {
     let report = passives("He was arrested by midnight.");
     assert_eq!(report.passives.len(), 1);
     assert!(!report.passives[0].agent);
+    // A time word that starts a real agent noun phrase is still an agent (#312 re-review).
+    for (text, expected) in [
+        ("She was impressed by the sunset.", "was impressed"),
+        ("I was amazed by the morning light.", "was amazed"),
+        ("She was frightened by the evening news.", "was frightened"),
+        ("He was hit by the night watchman.", "was hit"),
+        (
+            "“I was amazed by the morning light,” she said.",
+            "was amazed",
+        ),
+    ] {
+        let report = passives(text);
+        assert_eq!(report.passives.len(), 1, "{text}");
+        assert_eq!(matched(text), [expected], "{text}");
+        assert!(report.passives[0].agent, "{text}");
+    }
+    for text in [
+        "She was exhausted by Monday morning.",
+        "She was tired by the end of the day.",
+        "He was exhausted by sunset.",
+        "They were married by June\u{2028}that year.",
+    ] {
+        assert_eq!(matched(text), Vec::<String>::new(), "{text}");
+    }
     assert_eq!(matched("Was it done?"), ["Was it done"]);
     assert_eq!(matched("Why was it done?"), ["was it done"]);
 }
