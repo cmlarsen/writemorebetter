@@ -3,7 +3,11 @@ import argparse
 import json
 from pathlib import Path
 
-from flag_rates import GROUPS, MODALITIES, PRONOUN_KEYS, TRANSITION_TYPES, WINDOW_RULE, numeric_only
+from flag_rates import (ABSTRACT_BELOW, DICTION_MINIMUM_SENTENCES, GROUPS, MODALITIES, PRONOUN_KEYS,
+                        TRANSITION_TYPES, WINDOW_RULE, numeric_only)
+
+SCOPE = ('chapter windows (scene-break split, target 2,000-6,000 words: closed after reaching 6,000 or at a scene '
+         'break past 3,000; short tails merged), author-weighted (each author counts equally)')
 
 
 def band(stats):
@@ -49,14 +53,69 @@ def eligible(reports):
                                for group in GROUPS}}
 
 
-def build(result, source):
+def diction_measures(reports, convert):
+    measures = reports['diction']['measures']
+    return {group: {'meanRating': convert(measures[group]['mean_rating']),
+                    'sentenceMean': convert(measures[group]['sentence_mean'])} for group in GROUPS}
+
+
+def flag_rate(stats):
+    return {'flaggedShare': stats['flagged_share'], 'perThousandWords': calibration(stats['per_1000_words'])}
+
+
+def diction_flags(reports):
+    sweep = reports['diction']['abstract_below']
+    return {below: {'abstractSentences': flag_rate(sweep[below]['abstract_sentences']),
+                    'abstractRuns': flag_rate(sweep[below]['abstract_runs']),
+                    'abstractSharePercent': calibration(sweep[below]['abstract_share'])}
+            for below in ABSTRACT_BELOW}
+
+
+def check_aggregate(result):
     if result['window_rule'] != WINDOW_RULE or not numeric_only(result):
         raise ValueError('unexpected flag-rate aggregate')
+
+
+def build_diction(result, source):
+    check_aggregate(result)
     chapter = result['chapter']['reports']
     defaults = result['defaults']
     return {
-        'source': {**source, 'scope': 'chapter windows (scene-break split, target 2,000-6,000 words: closed after reaching 6,000 or at a scene break past 3,000; short tails merged), '
-                                      'author-weighted (each author counts equally)',
+        'source': {**source, 'scope': SCOPE, 'window_rule': WINDOW_RULE, 'samples': result['chapter']['samples'],
+                   'units': result['units'], 'authors': result['authors'],
+                   'table': 'bundled style/data/norms/concreteness.tsv (ConcretenessTable::bundled())',
+                   'method': 'p5/p95 are weighted percentiles (linear interpolation between cumulative-weight '
+                             'midpoints). meanRating: per-window mean over the mode\'s rated words, over windows '
+                             'with at least the floor of rated sentences in that mode, each window weighted '
+                             '1 / (its author\'s eligible windows). sentenceMean: every rated sentence of the mode '
+                             '(mean rounded to 0.01), each sentence weighted 1 / (its author\'s rated sentences)',
+                   'floors': {'minimumRatedSentences': DICTION_MINIMUM_SENTENCES,
+                              'minimumRatedWords': defaults['diction_minimum_rated_words']},
+                   'defaults': {'abstractBelow': defaults['diction_abstract_below'],
+                                'minimumRatedWords': defaults['diction_minimum_rated_words'],
+                                'minimumRunSentences': defaults['diction_minimum_run_sentences']}},
+        'units': {'meanRating': 'concreteness, 1 (abstract) to 5 (concrete), mean over rated words',
+                  'sentenceMean': 'concreteness, 1 (abstract) to 5 (concrete), one sentence\'s mean',
+                  'flagRates': 'flaggedShare: share of windows (chapter) or authors (manuscript) with at least one '
+                               'flag; perThousandWords: flags per 1,000 words; abstractSharePercent: abstract '
+                               'sentences as a percent of rated narration sentences without speech'},
+        'bandStatus': 'Reference only: diction takes no baseline argument, so nothing highlights against these '
+                      'bands.',
+        'bands': diction_measures(chapter, band),
+        'eligibleShare': {group: chapter['diction']['measures'][group]['eligible_share'] for group in GROUPS},
+        'calibration': {'chapter': diction_measures(chapter, calibration),
+                        'manuscript': diction_measures(result['manuscript']['reports'], calibration)},
+        'flagRates': {'chapter': diction_flags(chapter),
+                      'manuscript': diction_flags(result['manuscript']['reports'])},
+    }
+
+
+def build(result, source):
+    check_aggregate(result)
+    chapter = result['chapter']['reports']
+    defaults = result['defaults']
+    return {
+        'source': {**source, 'scope': SCOPE,
                    'window_rule': WINDOW_RULE, 'samples': result['chapter']['samples'],
                    'units': result['units'], 'authors': result['authors'],
                    'method': 'p5/p95 are weighted percentiles (linear interpolation between cumulative-weight '
@@ -84,9 +143,12 @@ def main():
     parser.add_argument('--tool', required=True)
     parser.add_argument('--run-date', required=True)
     parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--report', choices=('transitions-pronouns-sensory', 'diction'),
+                        default='transitions-pronouns-sensory')
     args = parser.parse_args()
     result = json.loads(args.aggregate.read_text(encoding='utf-8'))
-    bands = build(result, {'dataset': args.dataset, 'tool': args.tool, 'run_date': args.run_date})
+    builder = build_diction if args.report == 'diction' else build
+    bands = builder(result, {'dataset': args.dataset, 'tool': args.tool, 'run_date': args.run_date})
     args.output.write_text(json.dumps(bands, indent=1) + '\n', encoding='utf-8')
 
 

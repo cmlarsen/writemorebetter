@@ -32,6 +32,8 @@ UNIVERSAL = ('ADJ', 'ADP', 'ADV', 'CONJ', 'DET', 'NOUN', 'NUM', 'PRON', 'PRT', '
 MODALITIES = ('sight', 'sound', 'touch', 'smell', 'taste', 'interoception')
 TRANSITION_TYPES = ('contrast', 'cause', 'time', 'addition', 'example')
 PRONOUN_KEYS = ('i', 'you', 'he', 'she', 'it', 'we', 'they')
+ABSTRACT_BELOW = ('2.5', '2.6', '2.7', '2.85', '3.0', '3.2')
+DICTION_MINIMUM_SENTENCES = 50
 DISCOURSE_KEYS = (TRANSITION_TYPES + PRONOUN_KEYS + (
     'transitions', 'pronoun_starts', 'containing', 'opening', 'types', 'repeats', 'repeat_window', 'runs',
     'pronouns', 'other', 'sense_word_density', 'modality_percent', 'minimum_ratio', 'overused_ratio_sweep',
@@ -39,7 +41,9 @@ DISCOURSE_KEYS = (TRANSITION_TYPES + PRONOUN_KEYS + (
     'sensory_minimum_sense_words', 'overused_minimum_ratio'))
 LEXICAL_KEYS = ('overused_words', 'sensory_balance', 'diction', 'overused', 'occurrences', 'fillers',
                 'sense_words', 'modalities', 'sight', 'sound', 'touch', 'smell', 'taste',
-                'interoception', 'abstract_sentences', 'abstract_runs', 'rated_words', 'rating_sum', 'mean_rating')
+                'interoception', 'abstract_sentences', 'abstract_runs', 'rated_words', 'rating_sum', 'mean_rating',
+                'abstract_below', 'abstract_share', 'sentence_mean', 'diction_abstract_below',
+                'diction_minimum_rated_words', 'diction_minimum_run_sentences') + ABSTRACT_BELOW
 STRUCTURE = frozenset(LEXICAL_KEYS + DISCOURSE_KEYS + GROUPS + LENGTH_STATISTICS + TAG_FLAGS + TAG_CONTEXT + STAGES + FINE + UNIVERSAL
                       + tuple(WINDOW_RULE) + (
     'units', 'authors', 'samples', 'words', 'mean', 'percentiles', 'run', 'seconds', 'probe_peak_rss_bytes',
@@ -418,11 +422,38 @@ def lexical_reports(samples, defaults=None):
                             'measures': sensory_measures(samples, defaults.get('sensory_minimum_sense_words', 20))},
     }
     if any('diction' in data for _, data in samples):
-        reports['diction'] = {
-            'categories': family(samples, ('diction',), ('abstract_sentences', 'abstract_runs')),
-            'mean_rating': spread([(author, get(data, 'diction', 'rating_sum') / get(data, 'diction', 'rated_words'))
-                                   for author, data in samples if get(data, 'diction', 'rated_words')])}
+        reports['diction'] = diction(samples)
     return reports
+
+
+def sentence_means(data, group):
+    return data.get('diction', {}).get('sentence_means', {}).get(group, {})
+
+
+def diction(samples):
+    eligible = lambda d: get(d, 'diction', 'eligible_sentences')
+    sweep = {}
+    for below in ABSTRACT_BELOW:
+        path = ('diction', 'abstract_below', below)
+        sweep[below] = {**family(samples, path, ('abstract_sentences', 'abstract_runs')),
+                        'abstract_share': spread([(author, 100 * get(data, *path, 'abstract_sentences') / eligible(data))
+                                                  for author, data in samples if eligible(data)])}
+    measures = {}
+    for group in GROUPS:
+        rated = lambda d, group=group: sum(sentence_means(d, group).values())
+        group_mean = lambda d, group=group: (get(d, 'diction', 'groups', group, 'rating_sum')
+                                             / get(d, 'diction', 'groups', group, 'rated_words'))
+        measures[group] = {
+            'eligible_share': measured_share(samples, DICTION_MINIMUM_SENTENCES, rated),
+            'mean_rating': spread([(author, group_mean(data)) for author, data in samples
+                                   if rated(data) >= DICTION_MINIMUM_SENTENCES]),
+            'sentence_mean': spread([(author, int(bucket) / 100) for author, data in samples
+                                     for bucket, count in sentence_means(data, group).items()
+                                     for _ in range(count)])}
+    return {'categories': family(samples, ('diction',), ('abstract_sentences', 'abstract_runs')),
+            'mean_rating': spread([(author, get(data, 'diction', 'rating_sum') / get(data, 'diction', 'rated_words'))
+                                   for author, data in samples if get(data, 'diction', 'rated_words')]),
+            'abstract_below': sweep, 'measures': measures}
 
 
 def eligible_spread(samples, minimum, denominator, numerator):
@@ -600,6 +631,10 @@ def self_test(probe, started=None, diction=True):
     if diction:
         assert lexical['diction']['abstract_sentences'] == 3
         assert lexical['diction']['abstract_runs'] == 1
+        assert lexical['diction']['eligible_sentences'] == 3
+        assert lexical['diction']['sentence_means']['narration'] == {'180': 3}
+        assert all(swept == {'abstract_sentences': 3, 'abstract_runs': 1}
+                   for swept in lexical['diction']['abstract_below'].values())
     else:
         assert 'diction' not in lexical
     with tempfile.TemporaryDirectory(prefix='style-synthetic-') as temporary:
@@ -655,6 +690,11 @@ def self_test(probe, started=None, diction=True):
         for name in ('overused_words', 'sensory_balance'):
             assert name in reports and name in chapter['reports']
         assert ('diction' in reports) is diction and ('diction' in chapter['reports']) is diction
+        if diction:
+            measures = reports['diction']['measures']
+            assert set(reports['diction']['abstract_below']) == set(ABSTRACT_BELOW)
+            assert measures['narration']['mean_rating']['authors'] == 2 and measures['dialogue']['sentence_mean']
+            assert 1 <= measures['narration']['sentence_mean']['percentiles']['50'] <= 5
         assert reports['sensory_balance']['categories']['sense_words']['flagged_share'] == 1
         assert reports['transitions']['flags_per_1000_words']['repeats']['narration']['flagged_share'] == 1
         assert reports['transitions']['measures']['all']['types']['contrast']['opening']['mean'] > 0
@@ -670,15 +710,9 @@ def run(args):
         raise ValueError('choose one tier 3 mode')
     executable = args.probe or probe_build()
     started = time.perf_counter()
-    if args.self_test:
-        table = None if args.skip_diction else ROOT / 'bench/style/diction-synthetic.json'
-    else:
-        table = args.diction_table
-    if table is None and not args.skip_diction:
-        raise ValueError('owner must supply a diction table or pass --skip-diction')
-    if table is not None and args.skip_diction:
+    if args.diction_table is not None and args.skip_diction:
         raise ValueError('choose a diction table or --skip-diction')
-    table = '-' if table is None else table
+    table = '-' if args.skip_diction else args.diction_table or 'bundled'
     probe = FlagProbe(executable, args.tokenizer, table)
     try:
         if args.self_test:

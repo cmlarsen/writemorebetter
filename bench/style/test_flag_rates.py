@@ -1,4 +1,5 @@
 import argparse
+from collections import Counter
 import contextlib
 import io
 import json
@@ -78,6 +79,52 @@ class FlagRateTests(unittest.TestCase):
         self.assertEqual(result['diction']['mean_rating']['mean'], 2.5)
         flag_rates.check(result, flag_rates.allowed_keys(VOCABULARY))
 
+    def test_diction_sweep_and_mode_measures_weight_authors_equally(self):
+        def sample(eligible, flags, narration, dialogue, rating):
+            groups = {group: {'sentences': 1, 'rated_words': 10, 'rating_sum': 10 * rating}
+                      for group in flag_rates.GROUPS}
+            means = {'narration': narration, 'dialogue': dialogue,
+                     'all': dict(Counter(narration) + Counter(dialogue))}
+            return {'words': 1000, 'diction': {
+                'abstract_sentences': flags[2.85][0], 'abstract_runs': flags[2.85][1], 'rated_words': 10,
+                'rating_sum': 10 * rating, 'groups': groups, 'sentence_means': means, 'eligible_sentences': eligible,
+                'abstract_below': {below: {'abstract_sentences': flags[float(below)][0],
+                                           'abstract_runs': flags[float(below)][1]}
+                                   for below in flag_rates.ABSTRACT_BELOW}}}
+        none = {float(below): (0, 0) for below in flag_rates.ABSTRACT_BELOW}
+        some = {**none, 2.85: (10, 1), 3.0: (20, 2), 3.2: (40, 3)}
+        samples = [('a', sample(100, some, {'250': 30, '300': 30}, {'200': 2}, 3.0)),
+                   ('a', sample(100, none, {'300': 60}, {}, 3.2)),
+                   ('b', sample(0, none, {'400': 10}, {'350': 10}, 4.0))]
+        result = flag_rates.diction(samples)
+        self.assertEqual(result['abstract_below']['2.85']['abstract_runs']['flagged_share'], 0.25)
+        self.assertEqual(result['abstract_below']['2.5']['abstract_runs']['flagged_share'], 0)
+        self.assertEqual(result['abstract_below']['3.2']['abstract_runs']['per_1000_words']['mean'], 0.75)
+        share = result['abstract_below']['3.0']['abstract_share']
+        self.assertEqual((share['samples'], share['authors'], share['mean']), (2, 1, 10))
+        narration = result['measures']['narration']
+        self.assertEqual(narration['mean_rating']['samples'], 2)
+        self.assertAlmostEqual(narration['mean_rating']['mean'], 3.1)
+        self.assertAlmostEqual(narration['eligible_share'], 0.5)
+        sentences = narration['sentence_mean']
+        self.assertEqual((sentences['samples'], sentences['authors']), (130, 2))
+        self.assertAlmostEqual(sentences['mean'], (2.5 * 30 + 3 * 90) / 120 / 2 + 4 / 2)
+        self.assertIsNone(result['measures']['dialogue']['mean_rating'])
+        self.assertEqual(result['measures']['dialogue']['sentence_mean']['percentiles']['50'], 3.5)
+        flag_rates.check(result, flag_rates.allowed_keys(VOCABULARY))
+        section = {'samples': 3, 'reports': {'diction': result}}
+        defaults = {'diction_abstract_below': 2.85, 'diction_minimum_rated_words': 3,
+                    'diction_minimum_run_sentences': 3}
+        aggregate = {'units': 3, 'authors': 2, 'window_rule': flag_rates.WINDOW_RULE, 'chapter': section,
+                     'manuscript': section, 'defaults': defaults}
+        bands = published_bands.build_diction(aggregate, {'dataset': 'synthetic'})
+        self.assertEqual(bands['bands']['narration']['sentenceMean'],
+                         {'p5': sentences['percentiles']['5'], 'p95': sentences['percentiles']['95']})
+        self.assertIsNone(bands['bands']['dialogue']['meanRating'])
+        self.assertEqual(bands['flagRates']['chapter']['2.85']['abstractRuns']['flaggedShare'], 0.25)
+        self.assertEqual(bands['source']['defaults']['abstractBelow'], 2.85)
+        samples[0][1]['diction']['abstract_below']['2.85'][SENTINEL] = 1
+        self.assertNotIn(SENTINEL, json.dumps(flag_rates.diction(samples)))
 
     def test_discourse_and_sensory_measures_respect_floors_and_author_weights(self):
         def sample(sentences, containing, she, runs, sight, senses):
@@ -225,16 +272,14 @@ class FlagRateTests(unittest.TestCase):
             flag_rates.run(args)
         return tables, calls
 
-    def test_self_test_and_owner_runs_honor_skip_diction(self):
-        synthetic = flag_rates.ROOT / 'bench/style/diction-synthetic.json'
-        self.assertEqual(self.run_tier3(self_test=True), ([synthetic], [('self_test', {'diction': True})]))
+    def test_self_test_and_owner_runs_default_to_the_bundled_table(self):
+        self.assertEqual(self.run_tier3(self_test=True), (['bundled'], [('self_test', {'diction': True})]))
         self.assertEqual(self.run_tier3(self_test=True, skip_diction=True),
                          (['-'], [('self_test', {'diction': False})]))
+        self.assertEqual(self.run_tier3(export=Path('export')), (['bundled'], [('calibrate', {})]))
         self.assertEqual(self.run_tier3(export=Path('export'), skip_diction=True), (['-'], [('calibrate', {})]))
         self.assertEqual(self.run_tier3(export=Path('export'), diction_table=Path('table.json')),
                          ([Path('table.json')], [('calibrate', {})]))
-        with self.assertRaisesRegex(ValueError, 'or pass --skip-diction'):
-            self.run_tier3(export=Path('export'))
         with self.assertRaisesRegex(ValueError, 'choose a diction table'):
             self.run_tier3(export=Path('export'), diction_table=Path('table.json'), skip_diction=True)
 

@@ -25,6 +25,14 @@ const ECHO_BANDS: [(usize, &str); 4] = [(5, "1_5"), (10, "6_10"), (25, "11_25"),
 const PRONOUNS: [&str; 7] = ["i", "you", "he", "she", "it", "we", "they"];
 const OVERUSED_RATIOS: [f64; 5] = [3.0, 4.0, 5.0, 6.0, 8.0];
 const REPEAT_WINDOWS: [usize; 4] = [2, 3, 4, 5];
+const ABSTRACT_BELOW: [(&str, f64); 6] = [
+    ("2.5", 2.5),
+    ("2.6", 2.6),
+    ("2.7", 2.7),
+    ("2.85", 2.85),
+    ("3.0", 3.0),
+    ("3.2", 3.2),
+];
 
 fn split<T>(groups: &Split<T>, value: impl Fn(&T) -> Value) -> Value {
     json!({
@@ -89,6 +97,72 @@ fn sensory_group(group: &sensory_balance::SensoryGroup) -> Value {
         .map(|share| (name(share.modality), share.count))
         .collect();
     json!({"words": group.words, "sense_words": group.sense_words, "modalities": modalities})
+}
+
+fn diction_group(group: &diction::DictionGroup) -> Value {
+    json!({
+        "sentences": group.sentences,
+        "rated_words": group.rated_words,
+        "rating_sum": group.mean.unwrap_or(0.0) * group.rated_words as f64,
+    })
+}
+
+fn diction_row(
+    document: &writemorebetter_style::Document,
+    table: &diction::ConcretenessTable,
+) -> Result<Value, writemorebetter_style::StyleError> {
+    let report = diction::report(document, table, &diction::DictionOptions::new())?;
+    let sweep: BTreeMap<&str, Value> = ABSTRACT_BELOW
+        .iter()
+        .map(|&(key, below)| {
+            let options = diction::DictionOptions::new().with_abstract_below(below);
+            diction::report(document, table, &options).map(|swept| {
+                (
+                    key,
+                    json!({
+                        "abstract_sentences": swept.groups.all.abstract_sentences,
+                        "abstract_runs": swept.abstract_runs.len(),
+                    }),
+                )
+            })
+        })
+        .collect::<Result<_, _>>()?;
+    let eligible = diction::report(
+        document,
+        table,
+        &diction::DictionOptions::new().with_abstract_below(f64::MAX),
+    )?
+    .groups
+    .all
+    .abstract_sentences;
+    let mut means: BTreeMap<&str, BTreeMap<String, usize>> = ["all", "narration", "dialogue"]
+        .into_iter()
+        .map(|group| (group, BTreeMap::new()))
+        .collect();
+    for sentence in &report.sentences {
+        if let Some(mean) = sentence.mean {
+            let bucket = format!("{}", (mean * 100.0).round() as i64);
+            let mode = match sentence.mode {
+                Mode::Dialogue => "dialogue",
+                _ => "narration",
+            };
+            for group in ["all", mode] {
+                if let Some(histogram) = means.get_mut(group) {
+                    *histogram.entry(bucket.clone()).or_default() += 1;
+                }
+            }
+        }
+    }
+    Ok(json!({
+        "abstract_sentences": report.groups.all.abstract_sentences,
+        "abstract_runs": report.abstract_runs.len(),
+        "rated_words": report.groups.all.rated_words,
+        "rating_sum": report.groups.all.mean.unwrap_or(0.0) * report.groups.all.rated_words as f64,
+        "groups": split(&report.groups, diction_group),
+        "sentence_means": means,
+        "abstract_below": sweep,
+        "eligible_sentences": eligible,
+    }))
 }
 
 fn name<T: serde::Serialize>(value: T) -> String {
@@ -193,6 +267,7 @@ fn vocabulary(tokenizer: &nlprule::Tokenizer) -> Value {
     let length = sentence_length::SentenceLengthOptions::new().with_long_sentences(true);
     let phrase_options = PhraseOptions::new();
     let tag_options = DialogueTagOptions::new();
+    let diction_options = diction::DictionOptions::new();
     json!({
         "defaults": {
             "sentence_length_minimum_sentences": length.minimum_sentences,
@@ -209,6 +284,9 @@ fn vocabulary(tokenizer: &nlprule::Tokenizer) -> Value {
             "pronoun_starts_minimum_sentences": pronoun_starts::PronounStartsOptions::new().minimum_sentences,
             "sensory_minimum_sense_words": sensory_balance::SensoryBalanceOptions::new().minimum_sense_words,
             "overused_minimum_ratio": overused_words::OverusedWordsOptions::new().minimum_ratio,
+            "diction_abstract_below": diction_options.abstract_below,
+            "diction_minimum_rated_words": diction_options.minimum_rated_words,
+            "diction_minimum_run_sentences": diction_options.minimum_run_sentences,
         },
         "cliche_entries": entries,
         "cliche_sources": sources,
@@ -235,16 +313,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         ),
         _ => {
             return Err(
-                "usage: flag_rates TOKENIZER LENGTH_BASELINE STARTS_BASELINE DICTION_TABLE < texts.jsonl | flag_rates --vocabulary TOKENIZER"
+                "usage: flag_rates TOKENIZER LENGTH_BASELINE STARTS_BASELINE (DICTION_TABLE|bundled|-) < texts.jsonl | flag_rates --vocabulary TOKENIZER"
                     .into(),
             )
         }
     };
-    let diction_table = match args[3].as_str() {
-        "-" => None,
+    let caller_table = match args[3].as_str() {
+        "-" | "bundled" => None,
         path => Some(diction::ConcretenessTable::parse(
             &std::fs::read_to_string(path)?,
         )?),
+    };
+    let diction_table = match args[3].as_str() {
+        "-" => None,
+        "bundled" => Some(diction::ConcretenessTable::bundled()),
+        _ => caller_table.as_ref(),
     };
     let phrase_list = PhraseList::bundled(&tokenizer);
     let speech: Vec<&str> = speech_verbs().collect();
@@ -292,8 +375,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         )?;
         lap("sensory_balance", &mut timing);
         let diction = diction_table
-            .as_ref()
-            .map(|table| diction::report(&document, table, &diction::DictionOptions::new()))
+            .map(|table| diction_row(&document, table))
             .transpose()?;
         lap("diction", &mut timing);
         let transition_report =
@@ -416,12 +498,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 "modalities": modalities,
                 "groups": split(&sensory.groups, sensory_group),
             },
-            "diction": diction.map(|diction| json!({
-                "abstract_sentences": diction.groups.all.abstract_sentences,
-                "abstract_runs": diction.abstract_runs.len(),
-                "rated_words": diction.groups.all.rated_words,
-                "rating_sum": diction.groups.all.mean.unwrap_or(0.0) * diction.groups.all.rated_words as f64,
-            })),
+            "diction": diction,
             "transitions": {
                 "groups": split(&transition_report.groups, transitions_group),
                 "repeats": by_mode(transition_report.repeats.iter().map(|repeat| repeat.mode)),
