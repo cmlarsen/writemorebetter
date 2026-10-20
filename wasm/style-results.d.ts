@@ -486,3 +486,34 @@ export interface AdverbsReport {
   matches: Array<AdverbMatch>;
   groups: Split<AdverbGroup>;
 }
+
+export type PassiveAuxiliary = "be" | "get";
+
+export interface PercentileBand {
+  p5: number;
+  p95: number;
+}
+
+export interface PassiveMatch {
+  span: Span;
+  participle: Span;
+  sentence: number;
+  auxiliary: PassiveAuxiliary;
+  progressive: boolean;
+  agent: boolean;
+  mode: Mode;
+}
+
+export interface PassiveGroup {
+  sentences: number;
+  lowConfidence: boolean;
+  passives: number;
+  perHundredSentences: number | null;
+  band: PercentileBand | null;
+  highlighted: boolean;
+}
+
+export interface PassiveReport {
+  passives: Array<PassiveMatch>;
+  groups: Split<PassiveGroup>;
+}

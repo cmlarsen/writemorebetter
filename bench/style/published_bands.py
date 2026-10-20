@@ -77,6 +77,29 @@ def build(result, source):
     }
 
 
+def build_passive(result, source):
+    """The shipped `style/data/baselines/passive.json` record: bands under `baseline`, provenance beside it."""
+    if result['window_rule'] != WINDOW_RULE or not numeric_only(result):
+        raise ValueError('unexpected flag-rate aggregate')
+    measures = {scale: result[scale]['reports']['passive']['measures'] for scale in ('chapter', 'manuscript')}
+    return {
+        'source': {**source, 'scope': 'chapter windows (scene-break split, target 2,000-6,000 words: closed after reaching 6,000 or at a scene break past 3,000; short tails merged), '
+                                      'author-weighted (each author counts equally)',
+                   'window_rule': WINDOW_RULE, 'samples': result['chapter']['samples'],
+                   'units': result['units'], 'authors': result['authors'], 'words': result['words'],
+                   'method': 'p5/p95 are weighted percentiles (linear interpolation between cumulative-weight '
+                             'midpoints) of per-window passives per 100 sentences over windows meeting the '
+                             'report floor in that mode, each window weighted 1 / (its author\'s eligible windows)',
+                   'floors': {'passiveMinimumSentences': result['defaults']['passive_minimum_sentences']}},
+        'units': 'passive clauses per 100 sentences of that mode',
+        'baseline': {'bands': {group: band(measures['chapter'][group]['per_hundred_sentences'])
+                               for group in GROUPS}},
+        'eligibleShare': {group: measures['chapter'][group]['eligible_share'] for group in GROUPS},
+        'calibration': {scale: {group: calibration(measures[scale][group]['per_hundred_sentences'])
+                                for group in GROUPS} for scale in measures},
+    }
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('aggregate', type=Path)
@@ -84,9 +107,11 @@ def main():
     parser.add_argument('--tool', required=True)
     parser.add_argument('--run-date', required=True)
     parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--passive', action='store_true', help='write the passive-voice baseline record (#303)')
     args = parser.parse_args()
     result = json.loads(args.aggregate.read_text(encoding='utf-8'))
-    bands = build(result, {'dataset': args.dataset, 'tool': args.tool, 'run_date': args.run_date})
+    source = {'dataset': args.dataset, 'tool': args.tool, 'run_date': args.run_date}
+    bands = (build_passive if args.passive else build)(result, source)
     args.output.write_text(json.dumps(bands, indent=1) + '\n', encoding='utf-8')
 
 

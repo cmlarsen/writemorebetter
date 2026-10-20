@@ -610,6 +610,20 @@ impl StyleDocument {
             .map(|report| reports::to_utf16_json(&report))
             .map_err(style_error)
     }
+
+    #[wasm_bindgen(js_name = passive)]
+    /// Returns this report on the retained analysis; options default when omitted.
+    /// Baseline: omitted/null means bundled; "none" disables comparisons; otherwise pass a JSON object.
+    pub fn passive(
+        &self,
+        options_json: Option<String>,
+        baseline_json: Option<String>,
+    ) -> Result<String, JsValue> {
+        self.inner
+            .passive(options_json.as_deref(), baseline_json.as_deref())
+            .map(|report| reports::to_utf16_json(&report))
+            .map_err(style_error)
+    }
 }
 
 #[wasm_bindgen(typescript_custom_section)]
