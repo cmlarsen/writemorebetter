@@ -457,6 +457,7 @@ final class CheckerTests: XCTestCase {
         let transitionDocument = try checker().styleDocument(text: transitionText)
         try roundTrip(TransitionsReport.self, transitionDocument.transitionsJson(optionsJson: "{\"minimumSentences\":1}"))
         try roundTrip(PronounStartsReport.self, transitionDocument.pronounStartsJson(optionsJson: "{\"minimumSentences\":1}"))
+        try roundTrip(ReadabilityReport.self, transitionDocument.readabilityJson(optionsJson: "{\"minimumSentences\":1}"))
         XCTAssertEqual(try transitionDocument.transitions().repeats.count, 1)
         XCTAssertEqual(try transitionDocument.pronounStarts().groups.narration.runs.count, 1)
         XCTAssertEqual(try transitionDocument.pronounStarts().groups.dialogue.runs.count, 1)

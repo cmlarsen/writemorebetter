@@ -557,3 +557,35 @@ public extension StyleDocument {
         try decodeStyle(consistencyJson(optionsJson: optionsJson))
     }
 }
+
+public struct ReadabilityScores: Codable, Equatable, Sendable {
+    public let sentences: Int
+    public let words: Int
+    public let syllables: Int
+    public let characters: Int
+    public let polysyllables: Int
+    public let lowConfidence: Bool
+    public let fleschReadingEase: Double?
+    public let fleschKincaidGrade: Double?
+    public let colemanLiau: Double?
+    public let automatedReadability: Double?
+    public let readingMinutes: Double
+}
+
+public struct ReadabilityParagraph: Codable, Equatable, Sendable {
+    public let span: Span
+    public let dialogueOnly: Bool
+    public let excluded: Bool
+    public let scores: ReadabilityScores
+}
+
+public struct ReadabilityReport: Codable, Equatable, Sendable {
+    public let groups: Split<ReadabilityScores>
+    public let paragraphs: [ReadabilityParagraph]
+}
+
+public extension StyleDocument {
+    func readability(optionsJson: String? = nil) throws -> ReadabilityReport {
+        try decodeStyle(readabilityJson(optionsJson: optionsJson))
+    }
+}

@@ -432,3 +432,29 @@ export interface ConsistencyReport {
   capitalization: Array<ConsistencyWord>;
   hyphenation: Array<ConsistencyWord>;
 }
+
+export interface ReadabilityScores {
+  sentences: number;
+  words: number;
+  syllables: number;
+  characters: number;
+  polysyllables: number;
+  lowConfidence: boolean;
+  fleschReadingEase: number | null;
+  fleschKincaidGrade: number | null;
+  colemanLiau: number | null;
+  automatedReadability: number | null;
+  readingMinutes: number;
+}
+
+export interface ReadabilityParagraph {
+  span: Span;
+  dialogueOnly: boolean;
+  excluded: boolean;
+  scores: ReadabilityScores;
+}
+
+export interface ReadabilityReport {
+  groups: Split<ReadabilityScores>;
+  paragraphs: Array<ReadabilityParagraph>;
+}

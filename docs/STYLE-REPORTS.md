@@ -63,6 +63,7 @@ swift/, wasm/       one binding each, exposing check() + analyze() + analyzeDocu
 | [Sensory balance, diction (concreteness)](STYLE-NORMS.md) | #250 | lemmas, word-norm tables | none; Lancaster norms bundled (CC BY 4.0), writemorebetter's own concreteness table bundled (#256, a caller table overrides it); published sensory p5–p95 bands per mode recorded |
 | [Pacing](STYLE-PACING.md) | #251 | speech spans, sentence stats, POS | none; thresholds calibrated on published-fiction flag rates (2026-10-16) |
 | [Consistency](STYLE-CONSISTENCY.md) (quotes, ellipses, dashes, capitalization, hyphenation) | #298 | paragraph text, sentences; POS optional | none |
+| [Readability](STYLE-READABILITY.md) (indices, reading time) | #300 | sentences, heuristic syllables | none; values only, no flags |
 
 Sentence length and sentence starts are public modules under `style::reports`, with no flattened
 crate-root exports. [Sentence report definitions](STYLE-SENTENCES.md) specify word counting, Penn
@@ -473,6 +474,7 @@ Build rules for any baseline:
 | 2026-10-16 | One narration/dialogue definition, computed in the document pass: a quote is speech unless it is embedded or the subject of a copula | The sentence reports, clichés and dialogue tags disagreed on the same passages |
 | 2026-10-16 | Reports that need readings reject compact documents (`StyleError::NeedsTokenDetails`) | Echoes, repeated phrases, sentence starts and dialogue tags silently degraded on them |
 | 2026-10-20 | #298: consistency is an opt-in lens that counts every form of quotes, apostrophes, ellipses, dashes, capitalization and hyphenation per document, with narration/dialogue counts and spans, and flags a check or word as `mixed` when a second form occurs (`minimumMinority`, default 1). It names no preferred form and uses no word list | LanguageTool's `EN_QUOTES` and `ELLIPSIS` prescribe a form; mixing is the author's question. Silent on the five consistent public stories; on `moby150k` 24 flags, 19 of them real mixes in the source. Capitalization needs function-word, noun/adjective-reading, emphasis, title-case and after-comma guards, which cut Moby from 75 words (mostly reflowed verse) to 18. See [STYLE-CONSISTENCY.md](STYLE-CONSISTENCY.md) |
+| 2026-10-20 | #300 phase 1: readability is an opt-in lens of statistics (Flesch Reading Ease, Flesch–Kincaid, Coleman–Liau, ARI, reading time at 260 wpm) for the text, narration, dialogue and each paragraph, with no flags; original heuristic syllable counter behind a `SyllableCounter` seam for a phase 2 CMUdict counter; words join across apostrophes and hyphens and include skipped names | Statistics, not matches, so it doesn't duplicate #207's READABILITY_RULE port; formulas assume words as readers count them; the split shows dialogue reading 4–6 grades easier than narration on `bench/public` |
 
 ## Accuracy benchmarks
 
