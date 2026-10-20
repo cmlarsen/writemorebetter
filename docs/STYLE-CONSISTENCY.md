@@ -55,9 +55,14 @@ lines, scene-break ornaments) are never counted.
 - A `'`, `‘` or `’` between two letters or digits is an apostrophe (`don’t`, `rock’n’roll`).
 - Before a letter, a mark is an apostrophe when it starts a known elision: the document pass's list
   (`’em`, `’tis`, `’twas`, `’n’`, `’cause`, `’til`, decades such as `’90s`, …). Otherwise it opens
-  a single quotation.
+  a single quotation. An opening-direction `‘` before an elision still opens a quotation when a
+  closing `’` (one not followed by a letter) comes later on its line (`‘Tis’ he said`); an
+  autocorrected `‘Tis` with no closer stays an apostrophe. A possessive such as `dogs’` later on
+  the same line looks like that closer, so `‘Tis … dogs’` is read as a quotation.
+- A straight `'` after a digit is a foot mark and is not counted, even inside an open single
+  quotation (`‘He is 5' tall’`).
 - After a letter, a mark closes the open single quotation in the paragraph if there is one, and is
-  otherwise a trailing apostrophe (`dogs’`, `goin’`). A straight `'` after a digit is a foot mark.
+  otherwise a trailing apostrophe (`dogs’`, `goin’`).
 - A mark between two non-letters (`,’`) is a single quote.
 
 So `rock ’n’ roll`, `’em` and `’90s` count as apostrophes, not as unbalanced quotes.

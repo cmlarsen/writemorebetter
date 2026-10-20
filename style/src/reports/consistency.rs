@@ -196,6 +196,19 @@ fn spaced(before: Side, after: Side) -> Option<bool> {
     }
 }
 
+/// Whether a closing `’` (one not followed by a letter or digit) comes before the line ends or
+/// another `‘` opens.
+fn closes_on_line(rest: &[char]) -> bool {
+    for (i, ch) in rest.iter().enumerate() {
+        match ch {
+            '\n' | '\r' | '\u{2028}' | '\u{2029}' | '‘' => return false,
+            '’' if !rest.get(i + 1).is_some_and(|next| next.is_alphanumeric()) => return true,
+            _ => {}
+        }
+    }
+    false
+}
+
 fn punctuation(
     document: &Document,
     positions: &Positions,
@@ -230,17 +243,24 @@ fn punctuation(
                 let rest: String = chars[index + 1..].iter().take(12).collect();
                 let apostrophe = match (alphanumeric(before), alphanumeric(after)) {
                     (true, true) => Some(true),
+                    // An opening `‘` before an elision (`‘Tis’`) is a quote when a closing `’`
+                    // follows on its line.
+                    (false, true) if ch == '‘' && closes_on_line(&chars[index + 1..]) => {
+                        open_single = true;
+                        Some(false)
+                    }
                     (false, true) if leading_elision(&rest) => Some(true),
                     (false, true) if ch == '\'' && digit(before) => None,
                     (false, true) => {
                         open_single = true;
                         Some(false)
                     }
+                    // A foot mark (`5'`) inside a quotation leaves the quote open.
+                    (true, false) if ch == '\'' && digit(before) => None,
                     (true, false) if open_single => {
                         open_single = false;
                         Some(false)
                     }
-                    (true, false) if ch == '\'' && digit(before) => None,
                     (true, false) => Some(true),
                     (false, false) => {
                         open_single = false;

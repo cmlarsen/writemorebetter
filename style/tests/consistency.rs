@@ -115,6 +115,33 @@ fn straight_single_quotes_and_elisions() {
 }
 
 #[test]
+fn opening_curly_quote_before_elision_is_a_quote() {
+    let text = "‘Tis’ he said. 'Hello' she said. ‘Em’s here,’ she said.\u{2028}‘Tis late… ’em—fine.\n";
+    let report = run(text);
+    assert_eq!(
+        counts(&report.single_quotes),
+        [("curly", 4), ("straight", 2)]
+    );
+    assert_eq!(
+        texts(text, &report.apostrophes, "curly"),
+        ["’", "‘", "’"],
+        "Em’s, unpaired ‘Tis and ’em"
+    );
+    assert!(report.single_quotes.mixed);
+}
+
+#[test]
+fn foot_marks_inside_single_quotes_keep_the_quote_open() {
+    let text = "‘He is 5' tall’ she said. 'Hello' he replied. ‘Six feet—6'—and more…’\u{2028}\n";
+    let report = run(text);
+    assert_eq!(
+        counts(&report.single_quotes),
+        [("curly", 4), ("straight", 2)]
+    );
+    assert_eq!(counts(&report.apostrophes), [("curly", 0), ("straight", 0)]);
+}
+
+#[test]
 fn ellipsis_forms() {
     let text = "Wait… Then... And . . . no. Mr. Smith left. Well.... Fine.\n";
     let report = run(text);
