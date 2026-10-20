@@ -189,8 +189,13 @@ const overused = JSON.parse(document.overusedWords());
 const transitions = JSON.parse(document.transitions());
 const pronouns = JSON.parse(document.pronounStarts());
 const adverbs = JSON.parse(document.adverbs());
+const house = JSON.parse(document.houseStyle('{"skipDialogue":true}', valeRulesYaml));
 document.free();
 ```
+
+`houseStyle` takes caller-supplied Vale-format rules (YAML or JSON text) as its second argument
+and throws an `invalidRules` StyleError without them or when a rule is invalid; see
+[`docs/STYLE-HOUSE-STYLE.md`](../docs/STYLE-HOUSE-STYLE.md).
 
 Methods take optional options JSON; `diction` also takes an optional word-to-concreteness table
 (JSON object or TSV text) that replaces the bundled one; baseline-aware methods also take baseline JSON (omitted:

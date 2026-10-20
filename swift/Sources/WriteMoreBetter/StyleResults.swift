@@ -713,3 +713,38 @@ public extension StyleDocument {
         try decodeStyle(clarityJson(optionsJson: optionsJson))
     }
 }
+
+public enum HouseStyleExtends: String, Codable, Sendable { case existence, substitution, consistency, occurrence }
+public enum HouseStyleLevel: String, Codable, Sendable { case suggestion, warning, error }
+
+public struct HouseStyleMatch: Codable, Equatable, Sendable {
+    public let rule: String
+    public let extends: HouseStyleExtends
+    public let level: HouseStyleLevel
+    public let message: String
+    public let span: Span
+    public let mode: Mode
+    public let replacement: String?
+    public let count: Int?
+    public let link: String?
+}
+
+public struct HouseStyleCounts: Codable, Equatable, Sendable {
+    public let suggestions: Int
+    public let warnings: Int
+    public let errors: Int
+    public let words: Int
+}
+
+public struct HouseStyleReport: Codable, Equatable, Sendable {
+    public let rules: Int
+    public let matches: [HouseStyleMatch]
+    public let groups: Split<HouseStyleCounts>
+}
+
+public extension StyleDocument {
+    /// `rules` is Vale-format YAML or JSON text supplied by the caller.
+    func houseStyle(rules: String, optionsJson: String? = nil) throws -> HouseStyleReport {
+        try decodeStyle(houseStyleJson(optionsJson: optionsJson, rules: rules))
+    }
+}

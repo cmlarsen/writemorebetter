@@ -634,6 +634,20 @@ impl StyleDocument {
             .map(|report| reports::to_utf16_json(&report))
             .map_err(style_error)
     }
+
+    #[wasm_bindgen(js_name = houseStyle)]
+    /// Runs caller-supplied house-style rules (Vale-format YAML or JSON) on the retained analysis.
+    /// Omitting the rules is an invalidRules error; options default when omitted.
+    pub fn house_style(
+        &self,
+        options_json: Option<String>,
+        rules: Option<String>,
+    ) -> Result<String, JsValue> {
+        self.inner
+            .house_style(options_json.as_deref(), rules.as_deref())
+            .map(|report| reports::to_utf16_json(&report))
+            .map_err(style_error)
+    }
 }
 
 #[wasm_bindgen(typescript_custom_section)]

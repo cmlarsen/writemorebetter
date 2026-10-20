@@ -516,6 +516,25 @@ const turnTransitions = JSON.parse(repeatTurnsDoc.transitions());
 eq([turnTransitions.matches.length, turnTransitions.repeats.length], [3, 0], "transitions: dialogue turns reset repeats");
 repeatTurnsDoc.free();
 
+const houseRules = readFileSync(join(root, "style", "tests", "fixtures", "house-style", "bundle.yml"), "utf8");
+const houseText = "“Towards the door,” she said, walking towards it — sort of. 😀 An e-mail.";
+const houseDoc = checker.styleDocument(houseText);
+const house = JSON.parse(houseDoc.houseStyle(undefined, houseRules));
+eq(house.rules, 4, "houseStyle: YAML bundle parsed");
+eq(house.matches.map(m => m.rule), ["House.Toward", "House.Toward", "House.Hedging", "House.Toward"], "houseStyle: matches in text order");
+eq(house.matches.map(m => houseText.slice(m.span.start, m.span.end)), ["Towards", "towards", "sort of", "e-mail"], "houseStyle: UTF-16 spans");
+eq([house.matches[0].mode, house.matches[0].replacement, house.matches[0].level], ["dialogue", "toward", "error"], "houseStyle: match fields");
+eq(house.groups.dialogue.errors, 1, "houseStyle: dialogue group");
+const houseJson = JSON.stringify([{ name: "T.Very", extends: "existence", message: "Cut '%s'.", ignorecase: true, tokens: ["sort of"] }]);
+eq(JSON.parse(houseDoc.houseStyle(undefined, houseJson)).matches[0].message, "Cut 'sort of'.", "houseStyle: JSON rules");
+eq(JSON.parse(houseDoc.houseStyle('{"skipDialogue":true}', houseRules)).matches.length, 3, "houseStyle: skipDialogue");
+eq(styleError(() => houseDoc.houseStyle('{"skipDialog":true}', houseRules)).kind, "invalidOptions", "houseStyle: options validated");
+eq(styleError(() => houseDoc.houseStyle()).kind, "invalidRules", "houseStyle: rules required");
+const badRule = styleError(() => houseDoc.houseStyle(undefined, '{"name":"X","extends":"existence","message":"m","tokens":["("]}'));
+eq([badRule.kind, badRule.report], ["invalidRules", "houseStyle"], "houseStyle: invalid rule");
+check(badRule.message.includes("rule X"), "houseStyle: error names the rule");
+houseDoc.free();
+
 checkStyleRecords(checker);
 const independent = checker.styleDocument("She ran.");
 checker.free();

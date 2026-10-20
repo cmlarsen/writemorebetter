@@ -1,0 +1,11 @@
+# A Vale-format existence rule, as it would sit in styles/House/Hedging.yml.
+extends: existence
+message: "Consider cutting '%s'."
+link: https://example.com/house-style#hedging
+level: warning
+ignorecase: true
+tokens:
+  - a bit
+  - sort of
+  - kind of
+  - somewhat

@@ -234,4 +234,34 @@ impl StyleDocument {
     ) -> Result<crate::reports::clarity::ClarityReport, StyleError> {
         crate::reports::clarity::report(&self.document, &options(json)?)
     }
+    /// Runs caller-supplied house-style rules (YAML or JSON text); `None` is an error.
+    pub fn house_style(
+        &self,
+        json: Option<&str>,
+        rules: Option<&str>,
+    ) -> Result<crate::reports::house_style::HouseStyleReport, StyleError> {
+        use crate::reports::house_style;
+        let options = options(json)?;
+        let rules = rules.ok_or_else(|| {
+            StyleError::rules(house_style::REPORT, None, "no rules were supplied")
+        })?;
+        house_style::report(&self.document, &*parsed_rules(rules)?, &options)
+    }
+}
+
+fn parsed_rules(
+    text: &str,
+) -> Result<Arc<crate::reports::house_style::HouseStyleRules>, StyleError> {
+    use crate::reports::house_style::HouseStyleRules;
+    static LAST: Mutex<Option<(String, Arc<HouseStyleRules>)>> = Mutex::new(None);
+    {
+        let last = LAST.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        if let Some((_, rules)) = last.as_ref().filter(|(cached, _)| cached == text) {
+            return Ok(rules.clone());
+        }
+    }
+    let rules = Arc::new(HouseStyleRules::parse(text)?);
+    let mut last = LAST.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    *last = Some((text.to_owned(), rules.clone()));
+    Ok(rules)
 }
