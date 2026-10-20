@@ -191,8 +191,18 @@ fn substitution_names_the_listed_replacement() {
 #[test]
 fn substitution_skips_text_already_in_a_listed_form() {
     let rules = r#"{"name": "T.Mail", "extends": "substitution", "message": "Use '%s'.", "ignorecase": true, "swap": {"e-?mail": "email|e-mail"}}"#;
-    let text = "Email or e-mail or Email.";
+    let text = "email or e-mail or email.";
     assert!(run(text, rules).is_empty());
+}
+
+#[test]
+fn substitution_already_correct_check_respects_case() {
+    // As in Vale, `ignorecase` widens the match but a listed form must match exactly.
+    let rules = r#"{"name": "T.OK", "extends": "substitution", "message": "Use '%s'.", "ignorecase": true, "swap": {"ok": "OK"}}"#;
+    let text = "OK then. Ok then. ok.";
+    assert_eq!(texts(text, &run(text, rules)), ["Ok", "ok"]);
+    let curly = r#"{"name": "T.Dont", "extends": "substitution", "message": "Use '%s'.", "swap": {"do not": "don't"}}"#;
+    assert!(run("I don’t know.", curly).is_empty());
 }
 
 #[test]
@@ -232,18 +242,112 @@ fn occurrence_counts_per_scope() {
         .collect();
     assert_eq!(found.len(), 1);
     assert_eq!(found[0].count, Some(4));
-    assert_eq!(&text[found[0].span.byte.clone()], ", two, three, four,");
+    // The fourth comma, the first past `max: 3`.
+    assert_eq!(found[0].span.byte, 21..22);
     let paragraphs = r#"{"name": "T.Long", "extends": "occurrence", "message": "Too many.", "scope": "paragraph", "max": 4, "token": ","}"#;
     let found = run(text, paragraphs);
     assert_eq!(found.len(), 1);
     assert_eq!(found[0].count, Some(5));
     let minimum = r#"{"name": "T.Min", "extends": "occurrence", "message": "Needs a semicolon.", "scope": "paragraph", "min": 1, "token": ";"}"#;
     let found = run(text, minimum);
-    assert_eq!(
-        texts(text, &found),
-        ["One, two, three, four, five. One, two.", "And, so, on."]
-    );
+    assert_eq!(texts(text, &found), ["One", "And"]);
     assert_eq!(found[0].count, Some(0));
+}
+
+#[test]
+fn occurrence_messages_and_spans_follow_vale() {
+    let text = "a, b, c, d, e.";
+    let rules = r#"{"name": "T.Commas", "extends": "occurrence", "message": "%d commas; 100%%.", "scope": "sentence", "nonword": true, "max": 3, "token": ","}"#;
+    let found = run(text, rules);
+    assert_eq!(found.len(), 1);
+    assert_eq!(found[0].message, "4 commas; 100%.");
+    assert_eq!(found[0].count, Some(4));
+    // The alert lands on the first match past `max`: the fourth comma.
+    assert_eq!(found[0].span.byte, 10..11);
+    // Too few: on the scope's first word.
+    let text = "“Well,” she said, “no.”\n\n… And so on.";
+    let minimum = r#"{"name": "T.Min", "extends": "occurrence", "message": "Only %d.", "scope": "paragraph", "min": 1, "token": ";"}"#;
+    let found = run(text, minimum);
+    assert_eq!(texts(text, &found), ["Well", "And"]);
+    assert_eq!(found[0].message, "Only 0.");
+}
+
+#[test]
+fn exceptions_are_case_sensitive_regexes() {
+    let rules = r#"{"name": "T.Apple", "extends": "existence", "message": "'%s'", "ignorecase": true, "tokens": ["apple"], "exceptions": ["Apple"]}"#;
+    let text = "Apple apple";
+    assert_eq!(texts(text, &run(text, rules)), ["apple"]);
+    let rules = r#"{"name": "T.Apple", "extends": "existence", "message": "'%s'", "tokens": ["[Aa]pple"], "exceptions": ["A\\w+"]}"#;
+    let text = "The Apple and apple pie.";
+    assert_eq!(texts(text, &run(text, rules)), ["apple"]);
+    // A term that opts in with `(?i)` ignores case; a literal term's periods are literal.
+    let rules = r#"{"name": "T.Mr", "extends": "existence", "message": "'%s'", "ignorecase": true, "tokens": ["m\\w[.x]"], "exceptions": ["(?i)MR\\.", "Ms."]}"#;
+    let text = "Mr. and mr. met Ms. and Msx and Mx.";
+    assert_eq!(texts(text, &run(text, rules)), ["Msx", "Mx."]);
+}
+
+#[test]
+fn unsupported_regex_features_skip_only_that_rule() {
+    let rules = format!(
+        r#"[{}, {{"name": "T.Look", "extends": "existence", "message": "m", "tokens": ["(?<!x)b"]}}, {{"name": "T.Back", "extends": "substitution", "message": "m", "swap": {{"(a)\\1": "a"}}}}]"#,
+        existence(r#"["very"]"#, false)
+    );
+    let parsed = HouseStyleRules::parse(&rules).unwrap();
+    assert_eq!(parsed.len(), 3);
+    let unsupported: Vec<_> = parsed
+        .unsupported()
+        .iter()
+        .map(|error| error.rule.as_str())
+        .collect();
+    assert_eq!(unsupported, ["T.Look", "T.Back"]);
+    assert!(parsed.unsupported()[0].message.contains("look-around"));
+    let document = analyze_document(tokenizer(), "very b aa", &DocumentOptions::new());
+    let report = house_style::report(&document, &parsed, &HouseStyleOptions::new()).unwrap();
+    assert_eq!(report.rules, 3);
+    assert_eq!(report.unsupported, parsed.unsupported());
+    assert_eq!(report.matches.len(), 1);
+    assert_eq!(report.matches[0].rule, "T.Exist");
+    // The skipped rules stay in the bundle, so storing it keeps them.
+    assert_eq!(HouseStyleRules::parse(&parsed.to_json()).unwrap(), parsed);
+}
+
+#[test]
+fn whitespace_in_patterns_matches_any_whitespace() {
+    // Every whitespace character folds to a space in the text, so a pattern's whitespace, literal
+    // or escaped, alone or in a class, matches any of them.
+    let text = "a\u{a0}lot and a\u{2028}lot and a lot.";
+    for token in [
+        "a\u{a0}lot",
+        "a\\nlot",
+        "a\\x{2028}lot",
+        "a[\\n]lot",
+        "a\\slot",
+        "a lot",
+    ] {
+        let tokens = serde_json::to_string(&[token]).unwrap();
+        let found = run(text, &existence(&tokens, false));
+        assert_eq!(
+            texts(text, &found),
+            ["a\u{a0}lot", "a\u{2028}lot", "a lot"],
+            "{token}"
+        );
+    }
+}
+
+#[test]
+fn long_paragraphs_match_in_linear_time() {
+    // Each greedy match ends inside a word, so it is rejected; retrying at every start used to
+    // rescan the rest of the paragraph each time.
+    for (token, unit) in [(".*a", "ab "), (".*don", "don’t ")] {
+        let text = unit.repeat(96 * 1024 / unit.len());
+        let document = analyze_document(tokenizer(), &text, &DocumentOptions::new());
+        let rules = HouseStyleRules::parse(&existence(&format!("[\"{token}\"]"), false)).unwrap();
+        let started = std::time::Instant::now();
+        let report = house_style::report(&document, &rules, &HouseStyleOptions::new()).unwrap();
+        let elapsed = started.elapsed();
+        assert!(report.matches.is_empty());
+        assert!(elapsed.as_secs_f64() < 2.0, "{token}: {elapsed:?}");
+    }
 }
 
 #[test]
@@ -382,6 +486,10 @@ fn invalid_rules_are_errors() {
             "aliases are not supported",
         ),
         ("name: X\nname: Y\n".into(), "duplicate key `name`"),
+        (
+            format!(r#"{{"name": "X", {base}, "tokens": ["b"]}}"#),
+            "duplicate key `tokens`",
+        ),
         ("42".into(), "expected a rule"),
     ];
     for (rules, expected) in cases {

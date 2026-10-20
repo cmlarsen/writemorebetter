@@ -8,6 +8,11 @@ use std::fmt;
 use std::ops::Range;
 
 use regex::{Regex, RegexBuilder, RegexSet, RegexSetBuilder};
+use regex_syntax::ast::ErrorKind;
+use regex_syntax::hir::{
+    Capture, Class, ClassBytes, ClassBytesRange, ClassUnicode, ClassUnicodeRange, Hir, HirKind,
+    Repetition,
+};
 use saphyr_parser::{Event, Parser, ScalarStyle};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
@@ -21,6 +26,25 @@ pub(crate) const REPORT: &str = "houseStyle";
 // Each compiled pattern is bounded so a hostile rule file cannot exhaust memory.
 const REGEX_SIZE_LIMIT: usize = 1 << 20;
 const CLITICS: &[&str] = &["s", "d", "ll", "re", "ve", "m"];
+// After a rejected match the search retries one character later, which can rescan the rest of
+// the text. Retries stop once they could have rescanned it this many times over (plus a fixed
+// allowance for short paragraphs); later rejected matches are skipped whole.
+const RETRY_RESCANS: usize = 4;
+const RETRY_ALLOWANCE: usize = 64 * 1024;
+// Every character `char::is_whitespace` accepts, and the curly apostrophes; both fold for matching.
+const SPACES: &[(char, char)] = &[
+    ('\t', '\r'),
+    (' ', ' '),
+    ('\u{85}', '\u{85}'),
+    ('\u{a0}', '\u{a0}'),
+    ('\u{1680}', '\u{1680}'),
+    ('\u{2000}', '\u{200a}'),
+    ('\u{2028}', '\u{2029}'),
+    ('\u{202f}', '\u{202f}'),
+    ('\u{205f}', '\u{205f}'),
+    ('\u{3000}', '\u{3000}'),
+];
+const APOSTROPHES: &[(char, char)] = &[('\u{2bc}', '\u{2bc}'), ('\u{2018}', '\u{2019}')];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -311,8 +335,21 @@ fn rule_from_value(value: Value, name: Option<String>) -> Result<HouseStyleRule,
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct HouseStyleRules {
     rules: Vec<HouseStyleRule>,
+    // `None` for a rule in `unsupported`.
     #[serde(skip)]
-    compiled: Vec<Compiled>,
+    compiled: Vec<Option<Compiled>>,
+    #[serde(skip)]
+    unsupported: Vec<HouseStyleRuleError>,
+}
+
+/// A rule that parsed but cannot run here, such as one whose pattern uses lookaround or a
+/// backreference (Vale's regex engine has both; this one has neither). The rest of the bundle runs.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct HouseStyleRuleError {
+    pub rule: String,
+    pub message: String,
 }
 
 impl PartialEq for HouseStyleRules {
@@ -336,18 +373,38 @@ impl HouseStyleRules {
     pub fn new(rules: Vec<HouseStyleRule>) -> Result<Self, StyleError> {
         let mut names = BTreeSet::new();
         let mut compiled = Vec::with_capacity(rules.len());
+        let mut unsupported = Vec::new();
         for rule in &rules {
             if !names.insert(rule.name.as_str()) {
                 return Err(invalid(Some(&rule.name), "two rules share this name"));
             }
             rule.validate()?;
-            compiled.push(Compiled::new(rule)?);
+            match Compiled::new(rule) {
+                Ok(rule) => compiled.push(Some(rule)),
+                Err(Failure::Unsupported(message)) => {
+                    compiled.push(None);
+                    unsupported.push(HouseStyleRuleError {
+                        rule: rule.name.clone(),
+                        message,
+                    });
+                }
+                Err(Failure::Invalid(error)) => return Err(error),
+            }
         }
-        Ok(Self { rules, compiled })
+        Ok(Self {
+            rules,
+            compiled,
+            unsupported,
+        })
     }
 
     pub fn rules(&self) -> &[HouseStyleRule] {
         &self.rules
+    }
+
+    /// The rules that are kept in the bundle but skipped when it runs.
+    pub fn unsupported(&self) -> &[HouseStyleRuleError] {
+        &self.unsupported
     }
 
     pub fn len(&self) -> usize {
@@ -396,11 +453,9 @@ fn collect_rules(value: Value, rules: &mut Vec<HouseStyleRule>) -> Result<(), St
     }
 }
 
-/// Reads YAML (or JSON, which is valid YAML) into JSON values, one per YAML document.
+/// Reads YAML (or JSON, which is valid YAML) into JSON values, one per YAML document. JSON goes
+/// through the YAML parser too, so a duplicate key is an error in both.
 fn documents(text: &str) -> Result<Vec<Value>, StyleError> {
-    if let Ok(value) = serde_json::from_str::<Value>(text) {
-        return Ok(vec![value]);
-    }
     enum Frame {
         List(Vec<Value>),
         Map(Map<String, Value>, Option<String>),
@@ -497,74 +552,180 @@ struct Compiled {
     set: Option<RegexSet>,
     replacements: Vec<Option<String>>,
     either: Vec<[(Regex, String); 2]>,
-    exceptions: BTreeSet<String>,
+    // All exceptions as one alternation, searched for within a match.
+    exceptions: Option<Regex>,
 }
 
-fn normalize_quotes(text: &str) -> String {
-    text.replace(['’', '‘', 'ʼ'], "'")
+enum Failure {
+    Unsupported(String),
+    Invalid(StyleError),
+}
+
+fn fold_char(ch: char) -> char {
+    match ch {
+        '’' | '‘' | 'ʼ' => '\'',
+        ch if ch.is_whitespace() => ' ',
+        ch => ch,
+    }
+}
+
+/// Folds text as matching sees it: curly apostrophes to `'`, every whitespace character to a space.
+fn fold(text: &str) -> String {
+    text.chars().map(fold_char).collect()
+}
+
+/// Rewrites a parsed pattern to match folded text. Literal characters fold as the text does, and
+/// a class that holds a whitespace character or a curly apostrophe also matches its fold, so
+/// `a\nlot`, `[\u{2028}]` and a literal no-break space all match a folded space.
+fn fold_hir(hir: &Hir) -> Hir {
+    match hir.kind() {
+        HirKind::Literal(literal) => match std::str::from_utf8(&literal.0) {
+            Ok(text) => Hir::literal(fold(text).into_bytes()),
+            Err(_) => hir.clone(),
+        },
+        HirKind::Class(Class::Unicode(class)) => {
+            let mut class = class.clone();
+            for (held, to) in [(SPACES, ' '), (APOSTROPHES, '\'')] {
+                let mut held = ClassUnicode::new(
+                    held.iter()
+                        .map(|&(start, end)| ClassUnicodeRange::new(start, end)),
+                );
+                held.intersect(&class);
+                if !held.ranges().is_empty() {
+                    class.push(ClassUnicodeRange::new(to, to));
+                }
+            }
+            Hir::class(Class::Unicode(class))
+        }
+        HirKind::Class(Class::Bytes(class)) => {
+            let mut class = class.clone();
+            let mut held = ClassBytes::new([ClassBytesRange::new(b'\t', b'\r')]);
+            held.intersect(&class);
+            if !held.ranges().is_empty() {
+                class.push(ClassBytesRange::new(b' ', b' '));
+            }
+            Hir::class(Class::Bytes(class))
+        }
+        HirKind::Repetition(repetition) => Hir::repetition(Repetition {
+            min: repetition.min,
+            max: repetition.max,
+            greedy: repetition.greedy,
+            sub: Box::new(fold_hir(&repetition.sub)),
+        }),
+        HirKind::Capture(capture) => Hir::capture(Capture {
+            index: capture.index,
+            name: capture.name.clone(),
+            sub: Box::new(fold_hir(&capture.sub)),
+        }),
+        HirKind::Concat(items) => Hir::concat(items.iter().map(fold_hir).collect()),
+        HirKind::Alternation(items) => Hir::alternation(items.iter().map(fold_hir).collect()),
+        HirKind::Empty | HirKind::Look(_) => hir.clone(),
+    }
+}
+
+/// Parses a pattern and returns it folded, as regex syntax. Lookaround and backreferences, which
+/// Vale's regexp2 engine supports and `regex` does not, are `Unsupported`; other errors are invalid.
+fn folded_pattern(rule: &str, pattern: &str, ignorecase: bool) -> Result<String, Failure> {
+    regex_syntax::ParserBuilder::new()
+        .case_insensitive(ignorecase)
+        .multi_line(true)
+        .build()
+        .parse(pattern)
+        .map(|hir| fold_hir(&hir).to_string())
+        .map_err(|error| {
+            let message = format!("pattern `{pattern}`: {error}");
+            match &error {
+                regex_syntax::Error::Parse(parse)
+                    if matches!(
+                        parse.kind(),
+                        ErrorKind::UnsupportedLookAround | ErrorKind::UnsupportedBackreference
+                    ) =>
+                {
+                    Failure::Unsupported(message)
+                }
+                _ => Failure::Invalid(invalid(Some(rule), message)),
+            }
+        })
+}
+
+fn build(rule: &str, pattern: &str, folded: &str) -> Result<Regex, Failure> {
+    RegexBuilder::new(folded)
+        .size_limit(REGEX_SIZE_LIMIT)
+        .build()
+        .map_err(|error| {
+            Failure::Invalid(invalid(Some(rule), format!("pattern `{pattern}`: {error}")))
+        })
+}
+
+/// Vale's exception alternation: longest term first, a plain term's periods literal, and each
+/// term case-sensitive unless it starts with `(?i)`, whatever the rule's `ignorecase`.
+fn exception_pattern(rule: &str, exceptions: &[String]) -> Result<Option<String>, Failure> {
+    if exceptions.is_empty() {
+        return Ok(None);
+    }
+    let mut terms: Vec<&String> = exceptions.iter().collect();
+    terms.sort_by_key(|term| std::cmp::Reverse(term.len()));
+    let mut alternatives = Vec::with_capacity(terms.len());
+    for term in terms {
+        let term = if term.chars().any(|ch| r"\+*?()|[]{}^$".contains(ch)) {
+            term.clone()
+        } else {
+            term.replace('.', r"\.")
+        };
+        let term = if term.starts_with("(?i)") {
+            term
+        } else {
+            format!("(?-i){term}")
+        };
+        // Checked alone first, so an error names the term rather than the whole alternation.
+        folded_pattern(rule, &term, false)?;
+        alternatives.push(format!("(?:{term})"));
+    }
+    folded_pattern(rule, &alternatives.join("|"), false).map(Some)
 }
 
 impl Compiled {
-    fn new(rule: &HouseStyleRule) -> Result<Self, StyleError> {
+    fn new(rule: &HouseStyleRule) -> Result<Self, Failure> {
+        let name = rule.name.as_str();
         let compile = |pattern: &str| {
-            RegexBuilder::new(&format!("(?:{})", normalize_quotes(pattern)))
-                .case_insensitive(rule.ignorecase)
-                .multi_line(true)
-                .size_limit(REGEX_SIZE_LIMIT)
-                .build()
-                .map_err(|error| invalid(Some(&rule.name), format!("pattern `{pattern}`: {error}")))
+            let folded = folded_pattern(name, pattern, rule.ignorecase)?;
+            Ok::<_, Failure>((build(name, pattern, &folded)?, folded))
+        };
+        let exceptions = match exception_pattern(name, &rule.exceptions)? {
+            Some(folded) => Some(build(name, &rule.exceptions.join("|"), &folded)?),
+            None => None,
         };
         let mut compiled = Self {
             patterns: Vec::new(),
             set: None,
             replacements: Vec::new(),
             either: Vec::new(),
-            exceptions: rule
-                .exceptions
-                .iter()
-                .map(|exception| fold(rule.ignorecase, exception))
-                .collect(),
+            exceptions,
         };
+        let mut sources = Vec::new();
         for token in rule.tokens.iter().chain(&rule.token) {
-            compiled.patterns.push(compile(token)?);
+            let (pattern, folded) = compile(token)?;
+            compiled.patterns.push(pattern);
             compiled.replacements.push(None);
+            sources.push(folded);
         }
         for (pattern, replacement) in &rule.swap {
-            compiled.patterns.push(compile(pattern)?);
+            let (pattern, folded) = compile(pattern)?;
+            compiled.patterns.push(pattern);
             compiled.replacements.push(Some(replacement.clone()));
+            sources.push(folded);
         }
-        let sources: Vec<_> = rule
-            .tokens
-            .iter()
-            .chain(&rule.token)
-            .chain(rule.swap.keys())
-            .collect();
-        compiled.set = RegexSetBuilder::new(
-            sources
-                .iter()
-                .map(|pattern| format!("(?:{})", normalize_quotes(pattern))),
-        )
-        .case_insensitive(rule.ignorecase)
-        .multi_line(true)
-        .size_limit(REGEX_SIZE_LIMIT * 8)
-        .build()
-        .ok();
+        compiled.set = RegexSetBuilder::new(&sources)
+            .size_limit(REGEX_SIZE_LIMIT * 8)
+            .build()
+            .ok();
         for (left, right) in &rule.either {
             compiled.either.push([
-                (compile(left)?, left.clone()),
-                (compile(right)?, right.clone()),
+                (compile(left)?.0, left.clone()),
+                (compile(right)?.0, right.clone()),
             ]);
         }
         Ok(compiled)
-    }
-}
-
-fn fold(ignorecase: bool, text: &str) -> String {
-    let text = normalize_quotes(text);
-    if ignorecase {
-        text.to_lowercase()
-    } else {
-        text
     }
 }
 
@@ -620,6 +781,8 @@ pub struct HouseStyleCounts {
 #[non_exhaustive]
 pub struct HouseStyleReport {
     pub rules: usize,
+    /// Rules in the bundle that were skipped because they cannot run here.
+    pub unsupported: Vec<HouseStyleRuleError>,
     pub matches: Vec<HouseStyleMatch>,
     pub groups: Split<HouseStyleCounts>,
 }
@@ -641,11 +804,7 @@ impl<'a> Unit<'a> {
         let mut folded = String::with_capacity(text.len());
         let mut starts = Vec::with_capacity(text.len() + 1);
         for (index, ch) in text.char_indices() {
-            let ch = match ch {
-                '’' | '‘' | 'ʼ' => '\'',
-                ch if ch.is_whitespace() => ' ',
-                ch => ch,
-            };
+            let ch = fold_char(ch);
             starts.extend(std::iter::repeat_n(index, ch.len_utf8()));
             folded.push(ch);
         }
@@ -717,6 +876,7 @@ fn boundary(text: &str, at: usize) -> bool {
 
 fn find(pattern: &Regex, text: &str, nonword: bool) -> Vec<Range<usize>> {
     let mut found = Vec::new();
+    let mut budget = RETRY_RESCANS * text.len() + RETRY_ALLOWANCE;
     let mut at = 0;
     while at <= text.len() {
         let Some(m) = pattern.find_at(text, at) else {
@@ -725,12 +885,33 @@ fn find(pattern: &Regex, text: &str, nonword: bool) -> Vec<Range<usize>> {
         if !m.is_empty() && (nonword || (boundary(text, m.start()) && boundary(text, m.end()))) {
             found.push(m.range());
             at = m.end();
+            continue;
+        }
+        // Retry one character later: a shorter match may start inside a rejected one. A retry
+        // can rescan everything after `at`, so it is charged that much; once the budget is spent,
+        // skip the rejected match instead, which keeps a greedy token such as `.*a` from making a
+        // long paragraph quadratic.
+        let next = m.start() + text[m.start()..].chars().next().map_or(1, char::len_utf8);
+        let cost = text.len() - at;
+        if cost <= budget {
+            budget -= cost;
+            at = next;
         } else {
-            // Retry one character later: a shorter match may start inside a rejected one.
-            at = m.start() + text[m.start()..].chars().next().map_or(1, char::len_utf8);
+            at = m.end().max(next);
         }
     }
     found
+}
+
+fn first_word(text: &str) -> Option<Range<usize>> {
+    let (start, _) = text.char_indices().find(|(_, ch)| ch.is_alphanumeric())?;
+    let end = text[start..]
+        .char_indices()
+        .skip(1)
+        .map(|(index, _)| start + index)
+        .find(|&index| boundary(text, index))
+        .unwrap_or(text.len());
+    Some(start..end)
 }
 
 struct Candidate {
@@ -775,7 +956,8 @@ impl Context<'_> {
     }
 }
 
-fn format_message(message: &str, arguments: &[&str]) -> String {
+// `count` lets `%d` take an argument too, as in Vale's occurrence messages.
+fn format_message(message: &str, arguments: &[&str], count: bool) -> String {
     let mut out = String::with_capacity(message.len());
     let mut arguments = arguments.iter();
     let mut rest = message;
@@ -787,6 +969,7 @@ fn format_message(message: &str, arguments: &[&str]) -> String {
             rest = after;
         } else if let Some((argument, after)) = tail
             .strip_prefix("%s")
+            .or_else(|| tail.strip_prefix("%d").filter(|_| count))
             .and_then(|after| Some((arguments.next()?, after)))
         {
             out.push_str(argument);
@@ -844,15 +1027,15 @@ fn run_rule(context: &Context, rule: &HouseStyleRule, compiled: &Compiled) -> Ve
                         continue;
                     }
                     for range in context.find(rule, pattern, unit) {
-                        let text = fold(rule.ignorecase, &context.units[unit].text[range.clone()]);
+                        let text = fold(&context.units[unit].text[range.clone()]);
+                        // As in Vale, a listed form must match exactly, whatever `ignorecase`.
                         let replaced = compiled.replacements[alternative].as_deref().is_some_and(
-                            |replacement| {
-                                replacement
-                                    .split('|')
-                                    .any(|option| fold(rule.ignorecase, option) == text)
-                            },
+                            |replacement| replacement.split('|').any(|option| fold(option) == text),
                         );
-                        if !replaced && !compiled.exceptions.contains(&text) {
+                        let excepted = compiled.exceptions.as_ref().is_some_and(|exceptions| {
+                            !find(exceptions, &text, rule.nonword).is_empty()
+                        });
+                        if !replaced && !excepted {
                             candidates.push(Candidate {
                                 unit,
                                 range,
@@ -866,8 +1049,10 @@ fn run_rule(context: &Context, rule: &HouseStyleRule, compiled: &Compiled) -> Ve
                 let matched = &context.units[candidate.unit].text[candidate.range.clone()];
                 let replacement = compiled.replacements[candidate.alternative].clone();
                 let message = match &replacement {
-                    Some(replacement) => format_message(&rule.message, &[replacement, matched]),
-                    None => format_message(&rule.message, &[matched]),
+                    Some(replacement) => {
+                        format_message(&rule.message, &[replacement, matched], false)
+                    }
+                    None => format_message(&rule.message, &[matched], false),
                 };
                 found.push(Found {
                     span: context.units[candidate.unit].span(candidate.range),
@@ -919,7 +1104,7 @@ fn run_rule(context: &Context, rule: &HouseStyleRule, compiled: &Compiled) -> Ve
                     &compiled.either[candidate.alternative / 2][candidate.alternative % 2].1;
                 found.push(Found {
                     span: context.units[candidate.unit].span(candidate.range.clone()),
-                    message: format_message(&rule.message, &[matched]),
+                    message: format_message(&rule.message, &[matched], false),
                     replacement: Some(preferred.clone()),
                     count: None,
                 });
@@ -949,23 +1134,28 @@ fn run_rule(context: &Context, rule: &HouseStyleRule, compiled: &Compiled) -> Ve
                 if !(over || under) {
                     continue;
                 }
-                // Too many: from the first to the last occurrence. Too few: the whole scope.
+                // As in Vale: too many lands on the first match past `max`, too few on the
+                // scope's first word (or the whole scope, if it has no word).
                 let span = if over {
-                    let (first_unit, first) = &occurrences[0];
-                    let (last_unit, last) = &occurrences[count - 1];
-                    Span::covering(
-                        &context.units[*first_unit].span(first.clone()),
-                        &context.units[*last_unit].span(last.clone()),
-                    )
+                    let (unit, range) = &occurrences[rule.max.unwrap_or_default()];
+                    context.units[*unit].span(range.clone())
                 } else {
-                    Span::covering(
-                        context.units[units[0]].span,
-                        context.units[units[units.len() - 1]].span,
-                    )
+                    units
+                        .iter()
+                        .find_map(|&unit| {
+                            let unit = &context.units[unit];
+                            first_word(&unit.folded).map(|range| unit.span(unit.original(range)))
+                        })
+                        .unwrap_or_else(|| {
+                            Span::covering(
+                                context.units[units[0]].span,
+                                context.units[units[units.len() - 1]].span,
+                            )
+                        })
                 };
                 found.push(Found {
                     span,
-                    message: format_message(&rule.message, &[]),
+                    message: format_message(&rule.message, &[&count.to_string()], true),
                     replacement: None,
                     count: Some(count),
                 });
@@ -985,6 +1175,7 @@ pub fn report(
 ) -> Result<HouseStyleReport, StyleError> {
     let mut report = HouseStyleReport {
         rules: rules.len(),
+        unsupported: rules.unsupported.clone(),
         matches: Vec::new(),
         groups: word_split(document).map(|words| HouseStyleCounts {
             words,
@@ -1019,6 +1210,9 @@ pub fn report(
     let mut contexts: BTreeMap<HouseStyleScope, Context> = BTreeMap::new();
     let mut found = Vec::new();
     for (index, (rule, compiled)) in rules.rules.iter().zip(&rules.compiled).enumerate() {
+        let Some(compiled) = compiled else {
+            continue;
+        };
         let context = contexts.entry(rule.scope).or_insert_with(|| {
             let units = match rule.scope {
                 HouseStyleScope::Sentence => document
@@ -1091,11 +1285,25 @@ mod tests {
     #[test]
     fn messages_format_like_vale() {
         assert_eq!(
-            format_message("Use '%s', not '%s'.", &["a", "b"]),
+            format_message("Use '%s', not '%s'.", &["a", "b"], false),
             "Use 'a', not 'b'."
         );
-        assert_eq!(format_message("100%% %s %d", &["x"]), "100% x %d");
-        assert_eq!(format_message("%s and %s", &["x"]), "x and %s");
+        assert_eq!(format_message("100%% %s %d", &["x"], false), "100% x %d");
+        assert_eq!(format_message("%s and %s", &["x"], false), "x and %s");
+        assert_eq!(format_message("%d (%s)", &["4", "4"], true), "4 (4)");
+    }
+
+    #[test]
+    fn folds_cover_every_whitespace_character() {
+        let listed = |ch: char| {
+            SPACES
+                .iter()
+                .any(|&(start, end)| (start..=end).contains(&ch))
+        };
+        assert!((char::MIN..=char::MAX).all(|ch| ch.is_whitespace() == listed(ch)));
+        for &(start, end) in APOSTROPHES {
+            assert!((start..=end).all(|ch| fold_char(ch) == '\''));
+        }
     }
 
     #[test]

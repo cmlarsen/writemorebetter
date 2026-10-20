@@ -736,8 +736,14 @@ public struct HouseStyleCounts: Codable, Equatable, Sendable {
     public let words: Int
 }
 
+public struct HouseStyleRuleError: Codable, Equatable, Sendable {
+    public let rule: String
+    public let message: String
+}
+
 public struct HouseStyleReport: Codable, Equatable, Sendable {
     public let rules: Int
+    public let unsupported: [HouseStyleRuleError]
     public let matches: [HouseStyleMatch]
     public let groups: Split<HouseStyleCounts>
 }

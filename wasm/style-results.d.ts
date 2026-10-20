@@ -580,8 +580,14 @@ export interface HouseStyleCounts {
   words: number;
 }
 
+export interface HouseStyleRuleError {
+  rule: string;
+  message: string;
+}
+
 export interface HouseStyleReport {
   rules: number;
+  unsupported: Array<HouseStyleRuleError>;
   matches: Array<HouseStyleMatch>;
   groups: Split<HouseStyleCounts>;
 }

@@ -75,7 +75,8 @@ export function checkStyleRecords(checker) {
   results.push(["ClarityReport", clarityDocument.clarity('{"minimumSentences":1}')]);
   const houseRules = readFileSync(new URL("../style/tests/fixtures/house-style/bundle.yml", import.meta.url), "utf8");
   const houseDocument = checker.styleDocument("“Towards it,” she said, sort of. One, two, three, four, five.");
-  results.push(["HouseStyleReport", houseDocument.houseStyle(undefined, houseRules)]);
+  const lookaround = '\n---\nname: House.Look\nextends: existence\nmessage: m\ntokens: ["(?<!x)b"]\n';
+  results.push(["HouseStyleReport", houseDocument.houseStyle(undefined, houseRules + lookaround)]);
   houseDocument.free();
   for (const [type, json] of results) validate(JSON.parse(json), type, type);
   transitionDocument.free();

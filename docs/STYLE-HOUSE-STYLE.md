@@ -49,19 +49,36 @@ Every rule also takes `message` (required), `level` (`suggestion`, the default, 
 `error`), `scope` (`text`, the default, `paragraph` or `sentence`), `ignorecase`, `nonword`,
 `limit` (at most this many matches per rule), `link` (passed through to each match) and `name`.
 
-- **Patterns are regular expressions**, as in Vale. Rust's `regex` syntax is close to Go's RE2,
-  which Vale uses. Neither supports lookaround. The `regex` crate is already a dependency of
-  `nlprule`, so it adds no new crate, though WASM links more of its code (see Measurements).
+- **Patterns are regular expressions**, as in Vale, using Rust's `regex` syntax. Vale compiles
+  patterns with [`regexp2`](https://github.com/dlclark/regexp2), which adds lookaround
+  (`(?=…)`, `(?<!…)`) and backreferences (`\1`) to RE2-style syntax. `regex` has neither, because
+  it guarantees linear-time matching. A rule that uses either still parses, but it doesn't run: the
+  bundle and the report list it under `unsupported` with the reason, and the other rules run. An
+  imported third-party style then keeps every rule this engine can run. Other invalid patterns are
+  `invalidRules` errors for the whole bundle. `fancy-regex` would add lookaround, but it would also
+  bring back backtracking, which a rule file could use to hang the matcher. The `regex` crate is
+  already a dependency of `nlprule`, so it adds no new crate, though WASM links more of its code
+  (see Measurements).
 - **Messages** substitute `%s` like Vale's: the matched text for existence and consistency, and the
-  preferred term then the matched text for substitution (`"Use '%s' instead of '%s'."`). `%%` is a
-  literal `%`, and a `%s` with no argument left stays as it is.
+  preferred term then the matched text for substitution (`"Use '%s' instead of '%s'."`). An
+  occurrence message gets the count, through `%s` or `%d` (`"%d commas in one sentence."`). `%%` is a
+  literal `%`, and a placeholder with no argument left stays as it is.
 - **Substitution** skips a match that is already one of the listed terms. A value may list several
-  with `|` (`e-?mail: email|e-mail`), and `replacement` keeps the whole value.
+  with `|` (`e-?mail: email|e-mail`), and `replacement` keeps the whole value. As in Vale, the
+  comparison is case-sensitive even with `ignorecase: true`, which only widens what the pattern
+  matches. So `ok: OK` flags *Ok* and *ok* but not *OK*. Curly apostrophes and whitespace fold
+  before the comparison.
+- **Exceptions** are regular expressions, as in Vale. They are joined into one alternation (longest
+  first) and searched for within each match, at word boundaries unless the rule sets `nonword`. A
+  match that contains one is dropped. Each term is case-sensitive, whatever the rule's
+  `ignorecase`, unless it starts with `(?i)`. A term with no regex syntax apart from periods is
+  literal, so `Ms.` doesn't except *Msx*.
 - **Consistency** keeps the variant that appears first in the scope. The match's `replacement` is
   that variant's pattern, as the rule lists it.
-- **Occurrence** reports `count`. When there are too many matches, the span runs from the first match
-  to the last. When there are too few, it covers the whole scope (sentence, paragraph, or the first
-  to last paragraph for `text`).
+- **Occurrence** reports `count`, and places its alert as Vale does. With too many matches, the span is
+  the first match past `max`. With too few, it is the scope's first word. Vale documents that
+  placement for a scope with no matches, and this engine uses it for every scope that falls short.
+  A scope with no word at all gets a span covering the whole scope.
 - **Scopes.** Matches never cross a paragraph break. `sentence` also keeps them inside a sentence,
   and sets the unit for consistency and occurrence: the whole text, each paragraph, or each sentence.
   Headings that the document pass skips are not searched.
@@ -71,11 +88,12 @@ Every rule also takes `message` (required), `level` (`suggestion`, the default, 
   or `code`), so a typo can't silently disable a rule.
 - **Strict validation.** A key that another rule type uses (such as `swap` on an existence rule) is
   an error. So are a missing required key, an unsupported `extends`, level or scope, an invalid
-  regex, a duplicate rule name and a duplicate YAML key.
+  regex, a duplicate rule name and a duplicate key, in YAML or JSON.
 
 ## Bundles
 
-`HouseStyleRules::parse` reads YAML or JSON. JSON is tried first, and YAML second. A Vale style is a
+`HouseStyleRules::parse` reads YAML or JSON. JSON is valid YAML, so both go through the same YAML
+parser, and a duplicate key is an error in both. A Vale style is a
 directory of rule files named after the rule. Since this API takes no directory, a bundle is one
 text in any of these shapes:
 
@@ -104,6 +122,7 @@ rules:
 ```
 
 `HouseStyleRules::to_json()` writes `{"rules": [...]}`, and `parse` reads it back as an equal bundle.
+Unsupported rules stay in it, so storing a bundle never drops them.
 That makes it the canonical form for storing an imported style. The fixture
 `style/tests/fixtures/house-style/bundle.yml` round-trips in tests.
 
@@ -124,9 +143,18 @@ which keeps a small rule file from expanding exponentially.
   *advisor's*. Hyphens, em dashes, ellipses and quotation marks are boundaries. After a rejected
   match, the search retries one character later, so a shorter alternative that starts inside it is
   still found.
+- **Bounded retries.** A retry can rescan the rest of the paragraph. Before this bound, a greedy
+  token such as `.*a`, whose matches all end inside a word, made one 96 KB paragraph take 24 s. So
+  each search may rescan at most 4 times the unit's length plus 64 KiB in retries. After that, a
+  rejected match is skipped whole instead of retried. The same paragraph now takes about 3 ms, and
+  the cost is never more than the `regex` crate's own iteration over matches, plus that fixed
+  budget. Typical fiction paragraphs are far under 64 KiB, so in practice the bound never applies
+  to them. A test runs both `.*a` and an apostrophe case on a 96 KB paragraph against a time limit.
 - **Curly quotes and whitespace.** Before matching, `’`, `‘` and `ʼ` fold to `'` and every whitespace
   character (U+2028, tab, no-break space, a hard-wrapped newline) folds to a space, in both text and
-  patterns. A rule written with straight apostrophes and spaces then matches fiction typography.
+  patterns. In a pattern, the fold applies to literal characters and escapes (`\n`, `\x{2028}`, a
+  literal no-break space). A class that holds a whitespace character or a curly apostrophe also
+  matches its fold. A rule written with straight apostrophes and spaces then matches fiction typography.
   The fold maps one character to one character, so spans map back exactly. Spans are reported in
   bytes, chars and UTF-16 natively, and as UTF-16 `{start, end}` in the bindings.
 - **Overlaps.** Within one rule, overlapping matches keep the longest one, and on a tie the one
@@ -140,10 +168,11 @@ which keeps a small rule file from expanding exponentially.
 ## Result
 
 ```json
-{"rules": 4, "matches": [{"rule": "House.Toward", "extends": "substitution", "level": "error", "message": "Use 'toward' instead of 'Towards'.", "span": {"start": 1, "end": 8}, "mode": "dialogue", "replacement": "toward", "count": null, "link": null}], "groups": {"all": {"suggestions": 0, "warnings": 1, "errors": 2, "words": 10}, "narration": {}, "dialogue": {}}}
+{"rules": 4, "unsupported": [], "matches": [{"rule": "House.Toward", "extends": "substitution", "level": "error", "message": "Use 'toward' instead of 'Towards'.", "span": {"start": 1, "end": 8}, "mode": "dialogue", "replacement": "toward", "count": null, "link": null}], "groups": {"all": {"suggestions": 0, "warnings": 1, "errors": 2, "words": 10}, "narration": {}, "dialogue": {}}}
 ```
 
-`matches` are sorted by span start, longer spans first, then by rule order. `groups` count matches
+`unsupported` lists each rule that was skipped, as `{"rule", "message"}`, and `rules` counts every
+rule in the bundle, including those. `matches` are sorted by span start, longer spans first, then by rule order. `groups` count matches
 per level and give the word counts for narration and dialogue. These counts agree with the other
 reports' `words`.
 

@@ -535,6 +535,7 @@ final class CheckerTests: XCTestCase {
         let document = try checker().styleDocument(text: text)
         let report = try document.houseStyle(rules: rules)
         XCTAssertEqual(report.rules, 4)
+        XCTAssertEqual(report.unsupported, [])
         XCTAssertEqual(report.matches.map(\.rule), ["House.Toward", "House.Toward", "House.Hedging"])
         XCTAssertEqual(report.matches[0].mode, .dialogue)
         XCTAssertEqual(report.matches[0].replacement, "toward")

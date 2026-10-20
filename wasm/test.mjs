@@ -533,6 +533,12 @@ eq(styleError(() => houseDoc.houseStyle()).kind, "invalidRules", "houseStyle: ru
 const badRule = styleError(() => houseDoc.houseStyle(undefined, '{"name":"X","extends":"existence","message":"m","tokens":["("]}'));
 eq([badRule.kind, badRule.report], ["invalidRules", "houseStyle"], "houseStyle: invalid rule");
 check(badRule.message.includes("rule X"), "houseStyle: error names the rule");
+eq(house.unsupported, [], "houseStyle: no unsupported rules");
+const lookaround = JSON.parse(houseDoc.houseStyle(undefined, JSON.stringify([
+  { name: "T.Look", extends: "existence", message: "m", tokens: ["(?<!x)sort"] },
+  { name: "T.Sort", extends: "existence", message: "m", tokens: ["sort of"] },
+])));
+eq([lookaround.unsupported.map(u => u.rule), lookaround.matches.map(m => m.rule)], [["T.Look"], ["T.Sort"]], "houseStyle: an unsupported rule is skipped alone");
 houseDoc.free();
 
 checkStyleRecords(checker);

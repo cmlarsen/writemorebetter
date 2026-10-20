@@ -79,7 +79,9 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   text: one rule per YAML document, a list of rules, or `{rules: …}`, so an existing Vale style can be
   imported. Each match carries its span, rule name, level, message and narration or dialogue mode,
   and the `skipDialogue` option leaves quoted speech out. Curly apostrophes, em dashes, ellipses and
-  U+2028 are handled, and invalid rules return an `invalidRules` error that names the rule. Style
+  U+2028 are handled, and invalid rules return an `invalidRules` error that names the rule. A rule
+  that needs regex features this engine lacks (lookaround, backreferences) is listed in the
+  report's `unsupported` and skipped, while the rest of the bundle runs. Style
   presets and the Chicago rules from #305 will follow as rule bundles. See
   [`docs/STYLE-HOUSE-STYLE.md`](docs/STYLE-HOUSE-STYLE.md).
 
