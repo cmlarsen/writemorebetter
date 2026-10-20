@@ -613,7 +613,8 @@ impl StyleDocument {
 
     #[wasm_bindgen(js_name = passive)]
     /// Returns this report on the retained analysis; options default when omitted.
-    /// Baseline: omitted/null means bundled; "none" disables comparisons; otherwise pass a JSON object.
+    /// Baseline: omitted/null, "bundled" and "none" disable comparisons (no published band yet);
+    /// "publicStandIn" selects the provisional public stand-in band; otherwise pass a JSON object.
     pub fn passive(
         &self,
         options_json: Option<String>,

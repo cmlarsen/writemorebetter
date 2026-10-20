@@ -218,5 +218,5 @@ measurements](../docs/STYLE-TRANSITIONS.md); neither has a baseline argument yet
 The transitions lens also supports compact documents because it uses token text and position.
 
 Passive voice (`passive`) reports passives per 100 sentences per mode, with spans, and takes a baseline
-argument like the other banded reports. Its bundled band is a provisional public stand-in; see
-[STYLE-PASSIVE.md](../docs/STYLE-PASSIVE.md).
+argument like the other banded reports. It has no default band yet (no comparison); `"publicStandIn"`
+opts in to a provisional band from public text. See [STYLE-PASSIVE.md](../docs/STYLE-PASSIVE.md).

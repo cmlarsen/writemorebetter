@@ -17,7 +17,7 @@
   "floors": {
    "passiveMinimumSentences": 50
   },
-  "status": "Provisional public stand-in: the owner-only published-fiction export was not available to this run. Replace by rerunning tier3 --flag-rates on that export and published_bands.py --passive (docs/STYLE-PASSIVE.md)."
+  "status": "Provisional public stand-in, opt-in only (baseline selector \"publicStandIn\"); the report has no default band. The owner-only published-fiction export was not available to this run. The real default comes from rerunning tier3 --flag-rates on that export and published_bands.py --passive into passive.json (docs/STYLE-PASSIVE.md)."
  },
  "units": "passive clauses per 100 sentences of that mode",
  "baseline": {

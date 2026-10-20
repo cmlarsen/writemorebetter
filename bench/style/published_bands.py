@@ -78,7 +78,7 @@ def build(result, source):
 
 
 def build_passive(result, source):
-    """The shipped `style/data/baselines/passive.json` record: bands under `baseline`, provenance beside it."""
+    """A passive baseline record (`style/data/baselines/passive*.json`): bands under `baseline`, provenance beside it."""
     if result['window_rule'] != WINDOW_RULE or not numeric_only(result):
         raise ValueError('unexpected flag-rate aggregate')
     measures = {scale: result[scale]['reports']['passive']['measures'] for scale in ('chapter', 'manuscript')}

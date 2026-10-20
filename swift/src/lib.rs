@@ -840,7 +840,8 @@ impl StyleDocument {
     }
 
     /// Returns this report on the retained analysis; options default when omitted.
-    /// Baseline: omitted/null means bundled; "none" disables comparisons; otherwise pass a JSON object.
+    /// Baseline: omitted/null, "bundled" and "none" disable comparisons (no published band yet);
+    /// "publicStandIn" selects the provisional public stand-in band; otherwise pass a JSON object.
     #[uniffi::method(default(options_json = None, baseline_json = None))]
     pub fn passive_json(
         &self,

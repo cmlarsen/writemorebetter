@@ -67,6 +67,8 @@ export function checkStyleRecords(checker) {
   const passiveText = readFileSync(new URL("../style/tests/fixtures/passive-records.txt", import.meta.url), "utf8");
   const passiveDocument = checker.styleDocument(passiveText);
   results.push(["PassiveReport", passiveDocument.passive('{"minimumSentences":1}')]);
+  results.push(["PassiveReport", passiveDocument.passive('{"minimumSentences":1}', "publicStandIn")]);
+  assert.equal(JSON.parse(passiveDocument.passive('{"minimumSentences":1}')).groups.all.band, null);
   passiveDocument.free();
   for (const [type, json] of results) validate(JSON.parse(json), type, type);
   transitionDocument.free();

@@ -55,10 +55,11 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   tired* and *was married*) per 100 sentences, with narration and dialogue reported separately.
   Each passive has a span, and the rate is compared with a p5–p95 band through a replaceable
   baseline argument. Available as `StyleDocument::passive` in Rust, `passive()` in WASM
-  (`PassiveReport`) and `passive(optionsJson:baseline:)` in Swift. The bundled band is a
-  **provisional public stand-in** built from `bench/public` and the pinned *Pride and Prejudice*,
-  because the published-fiction export was not available. The flag-rate probe and
-  `published_bands.py --passive` can rebuild it from that export. See
+  (`PassiveReport`) and `passive(optionsJson:baseline:)` in Swift. There is **no default band**
+  yet (no comparison) because the published-fiction export was not available. A **provisional
+  public stand-in** band built from `bench/public` and the pinned *Pride and Prejudice* is opt-in
+  with the `"publicStandIn"` baseline (Swift `.passivePublicStandIn`). The flag-rate probe and
+  `published_bands.py --passive` can build the real band from that export. See
   [`docs/STYLE-PASSIVE.md`](docs/STYLE-PASSIVE.md).
 
 ### Changed

@@ -473,8 +473,8 @@ final class CheckerTests: XCTestCase {
         let passive = try passiveDocument.passive(optionsJson: "{\"minimumSentences\":1}")
         XCTAssertEqual(passive.groups.narration.passives, 2)
         XCTAssertEqual(passive.groups.dialogue.passives, 2)
-        XCTAssertNotNil(passive.groups.all.band)
-        XCTAssertNil(try passiveDocument.passive(baseline: .none).groups.all.band)
+        XCTAssertNil(passive.groups.all.band)
+        XCTAssertNotNil(try passiveDocument.passive(baseline: .passivePublicStandIn).groups.all.band)
         let normText = try String(contentsOf: Self.repositoryRoot.appendingPathComponent("style/tests/fixtures/norm-records.txt"), encoding: .utf8)
         let normDocument = try checker().styleDocument(text: normText)
         let table = "{\"hope\": 1.5, \"idea\": 1.6, \"freedom\": 1.3, \"lamp\": 4.8}"

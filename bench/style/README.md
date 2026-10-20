@@ -1241,16 +1241,18 @@ The flag-rate probe also runs the passive report with default options and report
 `{sentences, passives}` and `passive.passives` by mode. Both are counts only, under the same key allowlist.
 The aggregate adds `reports.passive.measures.<mode>.per_hundred_sentences`, a distribution over
 windows with at least `passive_minimum_sentences` (50) sentences in that mode, and
-`flags_per_1000_words.passives`. `published_bands.py --passive` turns an aggregate into the shipped
-`style/data/baselines/passive.json`.
+`flags_per_1000_words.passives`. `published_bands.py --passive` turns an aggregate into a baseline
+record. The public run below is shipped only as the opt-in stand-in
+`style/data/baselines/passive-public-stand-in.json`; the owner run on the published export becomes
+the default `style/data/baselines/passive.json`.
 
-The owner export was not available to #303, so the bundled band came from public text:
+The owner export was not available to #303, so the opt-in stand-in came from public text:
 
 ```sh
 python3 bench/style/public_export.py /tmp/public-export
 python3 bench/style/run.py tier3 --flag-rates --export /tmp/public-export --skip-diction > public.json
 python3 bench/style/published_bands.py public.json --passive --dataset "…" --tool "…" --run-date … \
-    --output style/data/baselines/passive.json
+    --output style/data/baselines/passive-public-stand-in.json
 ```
 
 `public_export.py` lays out story1–5 (one author), unwrapped `moby150k` and the pinned *Pride and

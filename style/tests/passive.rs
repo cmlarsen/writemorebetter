@@ -91,6 +91,48 @@ fn be_and_get_passives() {
             false,
         ),
         (
+            "You’re given one chance.",
+            "’re given",
+            PassiveAuxiliary::Be,
+            false,
+            false,
+        ),
+        (
+            "They're paid a fortune.",
+            "'re paid",
+            PassiveAuxiliary::Be,
+            false,
+            false,
+        ),
+        (
+            "I’m asked that every day.",
+            "’m asked",
+            PassiveAuxiliary::Be,
+            false,
+            false,
+        ),
+        (
+            "Why was he arrested?",
+            "was he arrested",
+            PassiveAuxiliary::Be,
+            false,
+            false,
+        ),
+        (
+            "Where were they taken?",
+            "were they taken",
+            PassiveAuxiliary::Be,
+            false,
+            false,
+        ),
+        (
+            "“Why was he arrested?” she asked.",
+            "was he arrested",
+            PassiveAuxiliary::Be,
+            false,
+            false,
+        ),
+        (
             "She got fired.",
             "got fired",
             PassiveAuxiliary::Get,
@@ -193,6 +235,19 @@ fn adjectival_participles_and_actives_do_not_count() {
         "The rest was complicated.",
         "It just got wet.",
         "All you can do is let him go.",
+        // A temporal *by* is not an agent (#312 review).
+        "She was tired by the time she got home.",
+        "He was exhausted by midnight.",
+        "They were married by June.",
+        "I was worried by then.",
+        "She was scared by 1990.",
+        "He was exhausted… by morning.",
+        // *done*/*finished* as completion, inverted or before a gerund.
+        "Are you done?",
+        "Are you finished?",
+        "“Are you done?” she asked.",
+        "We were done talking.",
+        "I’m finished packing—finally.",
     ] {
         assert_eq!(matched(text), Vec::<String>::new(), "{text}");
     }
@@ -206,6 +261,13 @@ fn adjectival_participles_and_actives_do_not_count() {
     assert_eq!(matched("It was done."), ["was done"]);
     assert_eq!(matched("I was given it."), ["was given"]);
     assert_eq!(matched("It was finished by noon."), ["was finished"]);
+    // A temporal *by* is not an agent on a real passive either.
+    assert!(passives("He was killed by two men.").passives[0].agent);
+    let report = passives("He was arrested by midnight.");
+    assert_eq!(report.passives.len(), 1);
+    assert!(!report.passives[0].agent);
+    assert_eq!(matched("Was it done?"), ["Was it done"]);
+    assert_eq!(matched("Why was it done?"), ["was it done"]);
 }
 
 #[test]
@@ -328,9 +390,23 @@ fn options_baselines_and_retained_document() {
         .unwrap()
     );
     assert_eq!(bundled, shared.passive(None, Some("bundled")).unwrap());
-    assert!(bundled.groups.narration.band.is_some());
-    let none = shared.passive(None, Some("none")).unwrap();
-    assert!(none.groups.all.band.is_none() && !none.groups.all.highlighted);
+    // No published-fiction band yet, so the default compares with nothing.
+    assert!(PassiveBaseline::bundled().is_none());
+    assert!(bundled.groups.all.band.is_none() && !bundled.groups.all.highlighted);
+    assert_eq!(bundled, shared.passive(None, Some("none")).unwrap());
+    // The public stand-in is an explicit opt-in.
+    let stand_in = shared.passive(None, Some("publicStandIn")).unwrap();
+    assert_eq!(
+        stand_in,
+        passive::report(
+            shared.document(),
+            &PassiveOptions::new(),
+            Some(&PassiveBaseline::public_stand_in())
+        )
+        .unwrap()
+    );
+    assert!(stand_in.groups.narration.band.is_some());
+    assert!(PassiveBaseline::public_stand_in().validate().is_ok());
     let custom = shared
         .passive(
             Some(r#"{"minimum_sentences": 10}"#),

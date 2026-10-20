@@ -49,15 +49,21 @@ impl PassiveBaseline {
         }
         self
     }
+    /// No published-fiction band yet: the default is no comparison.
     pub fn bundled() -> Option<Self> {
-        static BUNDLED: OnceLock<PassiveBaseline> = OnceLock::new();
-        Some(
-            BUNDLED
-                .get_or_init(|| {
-                    super::bundled_baseline(include_str!("../../data/baselines/passive.json"))
-                })
-                .clone(),
-        )
+        None
+    }
+    /// The provisional band from public text (Melville, Austen, one invented author), selected
+    /// with `"publicStandIn"`. A stand-in until an owner tier 3 run on published fiction.
+    pub fn public_stand_in() -> Self {
+        static STAND_IN: OnceLock<PassiveBaseline> = OnceLock::new();
+        STAND_IN
+            .get_or_init(|| {
+                super::bundled_baseline(include_str!(
+                    "../../data/baselines/passive-public-stand-in.json"
+                ))
+            })
+            .clone()
     }
     pub fn validate(&self) -> Result<(), StyleError> {
         for band in [&self.bands.all, &self.bands.narration, &self.bands.dialogue]
@@ -201,6 +207,48 @@ const INDEFINITE: [&str; 8] = [
 const OBJECTS: [&str; 7] = ["me", "him", "her", "us", "them", "you", "it"];
 const SUBJECTS: [&str; 7] = ["i", "you", "he", "she", "it", "we", "they"];
 const PERSONAL: [&str; 6] = ["i", "you", "he", "she", "we", "they"];
+/// Words after *by* that make it a time limit, not an agent (`tired by the time`, `by midnight`).
+const TEMPORAL: [&str; 38] = [
+    "time",
+    "then",
+    "now",
+    "noon",
+    "midnight",
+    "morning",
+    "afternoon",
+    "evening",
+    "night",
+    "dawn",
+    "dusk",
+    "daybreak",
+    "nightfall",
+    "sunrise",
+    "sunset",
+    "tomorrow",
+    "tonight",
+    "today",
+    "end",
+    "weekend",
+    "monday",
+    "tuesday",
+    "wednesday",
+    "thursday",
+    "friday",
+    "saturday",
+    "sunday",
+    "january",
+    "february",
+    "april",
+    "june",
+    "july",
+    "august",
+    "september",
+    "october",
+    "november",
+    "december",
+    "christmas",
+];
+const CLOCK: [&str; 5] = ["o'clock", "am", "pm", "a.m.", "p.m."];
 
 fn folded(token: &Token) -> String {
     super::echoes::fold(&token.text)
@@ -233,8 +281,19 @@ fn adverb(token: &Token) -> bool {
             && !has(token, &["VBN"])
             && !INDEFINITE.contains(&word.as_str()))
 }
-fn contraction(token: &Token) -> bool {
-    matches!(folded(token).as_str(), "'s" | "'re" | "'m")
+/// *by* followed by a time (`by the time`, `by midnight`, `by 1990`, `by nine o’clock`).
+fn temporal(tokens: &[&Token], by: usize) -> bool {
+    let mut at = by + 1;
+    if tokens.get(at).is_some_and(|t| folded(t) == "the") {
+        at += 1;
+    }
+    let Some(&token) = tokens.get(at) else {
+        return false;
+    };
+    let after = tokens.get(at + 1);
+    TEMPORAL.contains(&folded(token).as_str())
+        || (has(token, &["CD"])
+            && after.is_none_or(|t| !t.is_word || CLOCK.contains(&folded(t).as_str())))
 }
 
 /// Finds a passive whose auxiliary chain starts at `at`, returning it and the participle index.
@@ -244,11 +303,12 @@ fn passive_at(
     sentence: &Sentence,
 ) -> Option<(PassiveAuxiliary, bool, bool, usize)> {
     let mut kind = auxiliary(tokens[at])?;
-    let opening = at == 0;
+    // The subject may follow an auxiliary that opens the sentence, or a wh-word that does.
+    let opening = at == 0 || (at == 1 && has(tokens[0], &["WRB", "WP", "WDT"]));
     let mut progressive = false;
     let mut next = at + 1;
     let mut skipped = 0;
-    let mut subject = false;
+    let mut subject = None;
     let mut degree = false;
     while let Some(&token) = tokens.get(next) {
         let gap = sentence.text.get(
@@ -263,8 +323,8 @@ fn passive_at(
             kind = chained;
         } else if has(token, &["VBN"]) {
             break;
-        } else if opening && !subject && SUBJECTS.contains(&folded(token).as_str()) {
-            subject = true;
+        } else if opening && subject.is_none() && SUBJECTS.contains(&folded(token).as_str()) {
+            subject = Some(folded(token));
         } else if adverb(token) && skipped < 3 {
             skipped += 1;
             degree = DEGREE.contains(&folded(token).as_str());
@@ -280,11 +340,13 @@ fn passive_at(
     let word = folded(participle);
     let after = tokens.get(next + 1).map(|t| folded(t));
     let following = tokens.get(next + 2);
-    let agent = after.as_deref() == Some("by");
-    let personal = at > 0 && PERSONAL.contains(&folded(tokens[at - 1]).as_str());
+    let agent = after.as_deref() == Some("by") && !temporal(tokens, next + 1);
+    let personal = subject
+        .or_else(|| at.checked_sub(1).map(|before| folded(tokens[before])))
+        .is_some_and(|word| PERSONAL.contains(&word.as_str()));
     let clause_end = tokens
         .get(next + 1)
-        .is_none_or(|t| !t.is_word || after.as_deref() == Some("with"));
+        .is_none_or(|t| !t.is_word || after.as_deref() == Some("with") || has(t, &["VBG"]));
     let adjectival = match word.as_str() {
         "gone" | "come" | "arrived" => true,
         "used" | "supposed" => {
@@ -295,7 +357,7 @@ fn passive_at(
         _ => ADJECTIVAL.contains(&word.as_str()) && !agent,
     };
     // `’s` + participle + object is usually *has* (perfect), not a passive.
-    let perfect = contraction(tokens[at])
+    let perfect = folded(tokens[at]) == "'s"
         && next == at + 1
         && tokens
             .get(next + 1)

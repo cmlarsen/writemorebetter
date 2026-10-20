@@ -655,7 +655,13 @@ public struct PassiveReport: Codable, Equatable, Sendable {
     public let groups: Split<PassiveGroup>
 }
 
+public extension StyleBaseline {
+    /// Passive voice only: the provisional band from public text, until a published-fiction band exists.
+    static let passivePublicStandIn = StyleBaseline.custom("publicStandIn")
+}
+
 public extension StyleDocument {
+    /// The bundled baseline is no comparison until a published-fiction band exists.
     func passive(optionsJson: String? = nil, baseline: StyleBaseline = .bundled) throws -> PassiveReport {
         try decodeStyle(passiveJson(optionsJson: optionsJson, baselineJson: baseline.selector))
     }
