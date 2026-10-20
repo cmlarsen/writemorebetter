@@ -80,6 +80,9 @@ fn waist_waste_skips_compound_nouns() {
             "He tightened the waist of his space suit—hard…\u{2028}",
             "“The waist of my time machine,” he said.",
             "That’s a huge waist\u{2028}of time.",
+            "Hers was a waist of twenty inches.",
+            "His was a waist of iron—narrow, hard…\u{2028}",
+            "“Hers is a waist of 20 inches,” she said.",
         ],
     );
 }
@@ -103,6 +106,17 @@ fn bellow_below_dialogue_and_unicode() {
 }
 
 #[test]
+fn bellow_below_well_lead() {
+    assert_eq!(
+        flags(
+            HarperConfusion::BellowBelow,
+            "It sank well bellow the waterline—deep…"
+        ),
+        vec![("bellow".into(), "below".into())]
+    );
+}
+
+#[test]
 fn bellow_below_skips_transitive_bellow() {
     none(
         HarperConfusion::BellowBelow,
@@ -115,6 +129,8 @@ fn bellow_below_skips_transitive_bellow() {
             "They heard him bellow that the ship was sinking.",
             "“Don’t bellow those words at me…”",
             "The ship sank bellow\u{2028}the waves.",
+            "He might as well bellow the answer.",
+            "“You may as well bellow the news to the whole town…”",
         ],
     );
 }
@@ -138,6 +154,17 @@ fn feel_fell_dialogue_and_unicode() {
         flags(id, "You’ll fell better soon…"),
         vec![("fell".into(), "feel".into())]
     );
+    for text in [
+        "“You’ll fell good about it,” she said.",
+        "I didn’t fell well enough—not then…\u{2028}",
+        "You’ll fell better now.",
+    ] {
+        assert_eq!(
+            flags(id, text),
+            vec![("fell".into(), "feel".into())],
+            "{text}"
+        );
+    }
     assert!(flags(id, "“She fell,” he said—then looked away…\u{2028}").is_empty());
     assert!(flags(id, "“She fell like a stone,” he said—then blinked…\u{2028}").is_empty());
 }
@@ -161,6 +188,9 @@ fn feel_fell_skips_fall_and_fell_in_narration() {
             "The night fell\u{2028}We waited.",
             "The tide fell\u{2028}that was all.",
             "“Please don’t fell\u{2028}good trees.”",
+            "The axe could fell good timber.",
+            "They had to fell sick trees first—then the rest…\u{2028}",
+            "“Woodsmen will fell fine oaks for the king,” he said.",
         ],
     );
 }
@@ -182,6 +212,8 @@ fn quite_quiet_dialogue_and_unicode() {
         ("It won’t quiet fit.", "quiet", "quite"),
         ("“That was quiet remarkable…”", "quiet", "quite"),
         ("I find it quiet dumb.", "quiet", "quite"),
+        ("“It’s quiet remarkable…”", "quiet", "quite"),
+        ("She’s quiet remarkable.", "quiet", "quite"),
         ("The house was eerily quite.", "quite", "quiet"),
     ] {
         assert_eq!(flags(id, text), vec![(from.into(), to.into())], "{text}");
@@ -228,6 +260,10 @@ fn quite_quiet_skips_fiction_quiet() {
             "It’s probably quite doable.",
             "The project is quite large.",
             "The Sneetches got really quite smart on that day.",
+            "The captain’s quiet authoritative voice filled the room.",
+            "Her mother’s quiet melodious laugh carried—softly…\u{2028}",
+            "“Ma’s quiet steady hands worked the dough,” she said.",
+            "The captain's quiet authoritative voice filled the room.",
         ],
     );
 }

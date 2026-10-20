@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 pub enum HarperConfusion {
     /// `a waist of time` → `waste`.
     WaistWaste,
-    /// `just bellow the surface` → `below`.
+    /// `right bellow the surface` → `below`.
     BellowBelow,
     /// `please fell free` → `feel`.
     FeelFell,
@@ -35,6 +35,14 @@ const WASTE_LEADS: &[&str] = &[
 const WASTE_NOUNS: &[&str] = &["effort", "money", "resources", "space", "time"];
 
 const POSSESSIVES: &[&str] = &["my", "your", "his", "her", "its", "our", "their"];
+
+/// Possessive pronouns that open `Hers was a waist of…`, where *waist* is meant.
+const POSSESSIVE_PRONOUNS: &[&str] = &["mine", "yours", "his", "hers", "ours", "theirs"];
+
+const NUMBERS: &[&str] = &[
+    "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven",
+    "twelve", "twenty", "thirty", "forty", "fifty", "hundred", "thousand",
+];
 
 /// Words after which `bellow` sits in a position that only `below` fills:
 /// degree adverbs, forms of *be*, motion and position verbs, and `from`.
@@ -71,9 +79,7 @@ const BELOW_LEADS: &[&str] = &[
 /// Words after `bellow` that start a noun phrase. `that` is left out: after
 /// the verb it introduces a clause (`heard him bellow that the ship…`).
 const BELOW_OBJECTS: &[&str] = &[
-    "a", "an", "the", "these", "those", "my", "your", "his", "her", "its", "our", "their", "one",
-    "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve",
-    "hundred", "thousand",
+    "a", "an", "the", "these", "those", "my", "your", "his", "her", "its", "our", "their",
 ];
 
 /// Words after which `fell` can only be a base-form verb.
@@ -117,8 +123,13 @@ const QUIET_INTENSIFIERS: &[&str] = &[
     "suspiciously",
 ];
 
-/// Words after which `quiet <adjective>` reads as `quite <adjective>`.
-const QUITE_LEADS: &[&str] = &["is", "was", "'s", "are", "were", "'re", "'m", "am", "it"];
+/// Words after which `quiet <adjective>` reads as `quite <adjective>`. `'s`
+/// is left out because it is also the possessive (`the captain's quiet
+/// steady voice`); it counts only after a pronoun in `QUITE_SUBJECTS`.
+const QUITE_LEADS: &[&str] = &["is", "was", "are", "were", "'re", "'m", "am", "it"];
+
+/// Subjects after which `'s` is *is* or *has*, never the possessive.
+const QUITE_SUBJECTS: &[&str] = &["it", "that", "he", "she", "there", "what", "who"];
 
 fn is_line_break(c: char) -> bool {
     matches!(c, '\n' | '\r' | '\u{85}' | '\u{2028}' | '\u{2029}')
@@ -179,11 +190,18 @@ impl HarperConfusion {
                         .iter()
                         .any(|tag| pred(tag.pos().as_str()))
             };
+            let is_number = |j: usize| {
+                any(j, NUMBERS) || word(j).chars().next().is_some_and(|c| c.is_ascii_digit())
+            };
 
             let replacement = match self {
                 Self::WaistWaste if is(i, "waist") && is(i + 1, "of") => {
                     let adjective = before(1, WASTE_ADJECTIVES) && before(2, &["a"]);
-                    let lead = before(1, &["a"]) && before(2, WASTE_LEADS);
+                    // `Hers was a waist of twenty inches` describes a waist.
+                    let lead = before(1, &["a"])
+                        && before(2, WASTE_LEADS)
+                        && !before(3, POSSESSIVE_PRONOUNS)
+                        && !is_number(i + 2);
                     let noun = any(i + 2, WASTE_NOUNS)
                         || (any(i + 2, POSSESSIVES) && any(i + 3, WASTE_NOUNS));
                     // `noun` alone would match compounds like `the waist of
@@ -191,12 +209,10 @@ impl HarperConfusion {
                     (adjective || lead || (noun && before(1, &["a"]))).then_some("waste")
                 }
                 Self::BellowBelow if is(i, "bellow") => {
-                    let object = any(i + 1, BELOW_OBJECTS)
-                        || word(i + 1)
-                            .chars()
-                            .next()
-                            .is_some_and(|c| c.is_ascii_digit());
-                    (object && before(1, BELOW_LEADS)).then_some("below")
+                    let object = any(i + 1, BELOW_OBJECTS) || is_number(i + 1);
+                    // `might as well bellow the answer` is the verb.
+                    let as_well = before(1, &["well"]) && before(2, &["as"]);
+                    (object && before(1, BELOW_LEADS) && !as_well).then_some("below")
                 }
                 Self::FeelFell if is(i, "fell") => {
                     let base = before(1, BASE_VERB_LEADS);
@@ -206,7 +222,16 @@ impl HarperConfusion {
                             || !t.word().text().as_str().chars().any(char::is_alphanumeric)
                     }) && is(i + 1, "free")
                         && is(i + 2, "to");
-                    ((base && any(i + 1, FEEL_COMPLEMENTS)) || opening).then_some("feel")
+                    // `could fell good timber`: a noun after the complement
+                    // makes it an object of *fell*. Words that can also be
+                    // modifiers or function words (`now`, `enough`) don't.
+                    let object = has_tag(i + 2, &|pos| pos.starts_with("NN"))
+                        && !has_tag(i + 2, &|pos| {
+                            ["JJ", "RB", "IN", "TO", "RP", "CC", "DT", "PRP", "WP", "WRB"]
+                                .iter()
+                                .any(|prefix| pos.starts_with(prefix))
+                        });
+                    ((base && any(i + 1, FEEL_COMPLEMENTS) && !object) || opening).then_some("feel")
                 }
                 Self::QuiteQuiet if is(i, "quite") => {
                     before(1, QUIET_INTENSIFIERS).then_some("quiet")
@@ -222,7 +247,9 @@ impl HarperConfusion {
                                 || matches!(pos, "DT" | "IN" | "RP" | "NNS" | "NNP")
                         });
                     // `was quiet remarkable`: an adjective that is nothing else.
-                    let adjective = before(1, QUITE_LEADS)
+                    let lead =
+                        before(1, QUITE_LEADS) || (before(1, &["'s"]) && before(2, QUITE_SUBJECTS));
+                    let adjective = lead
                         && !is(i + 1, "enough")
                         && has_tag(i + 1, &|pos| pos == "JJ")
                         && !has_tag(i + 1, &|pos| {
