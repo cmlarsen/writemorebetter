@@ -67,8 +67,13 @@ fn main() {
         .map(str::to_owned)
         .collect();
     if !enable.is_empty() {
-        let count = rules.enable_rules(&enable).unwrap();
-        println!("enable {}: {} rules enabled", enable.join(","), count);
+        match rules.enable_rules(&enable) {
+            Ok(count) => println!("enable {}: {} rules enabled", enable.join(","), count),
+            Err(err) => {
+                eprintln!("ENABLE: {}", err);
+                std::process::exit(2);
+            }
+        }
     }
     let variant = std::env::var("SPELL").unwrap_or_else(|_| "en_US".into());
     if !variant.is_empty() {

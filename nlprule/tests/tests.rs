@@ -717,18 +717,64 @@ fn enable_rules_fiction_punctuation() {
         .unwrap();
     let text = "\u{201c}It\u{2019}s, in my opinion, wrong\u{2026}\u{201d} she said\u{2014}quietly.\u{2028}The door was opened by Sam.";
     let suggestions = rules.suggest(text, &*TOKENIZER);
-    assert!(suggestions
-        .iter()
-        .any(|s| s.source().starts_with("PLAIN_ENGLISH/IN_MY_OPINION")));
+    let flagged = |prefix: &str| -> Vec<&str> {
+        suggestions
+            .iter()
+            .filter(|s| s.source().starts_with(prefix))
+            .map(|s| &text[s.span().byte().clone()])
+            .collect()
+    };
+    // Exact spans pin the offsets after the curly quote and apostrophe, and the
+    // passive after the ellipsis, the em dash and U+2028.
+    assert_eq!(
+        flagged("PLAIN_ENGLISH/IN_MY_OPINION/"),
+        vec!["in my opinion"]
+    );
+    assert_eq!(flagged("STYLE/PASSIVE_VOICE/"), vec!["was opened"]);
     for suggestion in &suggestions {
-        let span = suggestion.span().byte();
-        assert!(text.is_char_boundary(span.start) && text.is_char_boundary(span.end));
-        if suggestion
-            .source()
-            .starts_with("PLAIN_ENGLISH/IN_MY_OPINION")
-        {
-            assert!(text[span.clone()].contains("in my opinion"));
+        let chars: String = text.chars().collect::<Vec<_>>()[suggestion.span().char().clone()]
+            .iter()
+            .collect();
+        assert_eq!(chars, &text[suggestion.span().byte().clone()]);
+    }
+}
+
+/// Enabling rules adds their matches and leaves every other rule's matches
+/// unchanged (#297).
+#[test]
+fn enable_rules_leaves_other_rules_matches_unchanged() {
+    let selectors = ["PLAIN_ENGLISH", "REDUNDANCY", "STYLE/PASSIVE_VOICE"];
+    let text = "\u{201c}It\u{2019}s, in my opinion, a absolute true fact,\u{201d} she said\u{2014}quietly. \
+                Their going to the the store\u{2026} The door was opened by Sam.\u{2028}\
+                He dont know what what to do. I seen it with my own eyes.";
+    for profile in [None, Some(Profile::fiction())] {
+        let mut rules = Rules::new(RULES_PATH).unwrap();
+        if let Some(profile) = &profile {
+            assert!(rules.apply_profile(profile).is_empty());
         }
+        let others = |rules: &Rules| -> Vec<(String, std::ops::Range<usize>)> {
+            rules
+                .suggest(text, &*TOKENIZER)
+                .into_iter()
+                .filter(|s| {
+                    !["PLAIN_ENGLISH/", "REDUNDANCY/", "STYLE/PASSIVE_VOICE/"]
+                        .iter()
+                        .any(|prefix| s.source().starts_with(prefix))
+                })
+                .map(|s| (s.source().to_owned(), s.span().byte().clone()))
+                .collect()
+        };
+        let before = others(&rules);
+        assert!(before.len() >= 3, "{:?}", before);
+        let total_before = rules.suggest(text, &*TOKENIZER).len();
+        assert!(rules.enable_rules(&selectors).unwrap() > 0);
+        assert_eq!(
+            others(&rules),
+            before,
+            "profile {:?}",
+            profile.map(|p| p.name)
+        );
+        assert!(rules.suggest(text, &*TOKENIZER).len() > total_before);
     }
 }
 
@@ -3294,6 +3340,186 @@ fn builtin_simple_replace_phrase_spans_curly_quoted_dialogue() {
         ),
         vec![("Sankt Moritz".to_string(), vec!["Saint Moritz".to_string()])]
     );
+}
+
+/// Runs EN_PLAIN_ENGLISH_REPLACE over `text` and returns the flagged text and
+/// `text` with each replacement applied on its own.
+fn plain_english_fixes(text: &str) -> Vec<(String, Vec<String>)> {
+    let sentences: Vec<_> = TOKENIZER.pipe(text).collect();
+    RULES
+        .builtins()
+        .iter()
+        .flat_map(|rule| rule.builtin().check_text(&sentences))
+        .filter(|suggestion| suggestion.source() == "BUILTIN/EN_PLAIN_ENGLISH_REPLACE")
+        .map(|suggestion| {
+            let span = suggestion.span().byte().clone();
+            let chars: Vec<char> = text.chars().collect();
+            let by_char: String = chars[suggestion.span().char().clone()].iter().collect();
+            assert_eq!(by_char, text[span.clone()], "char and byte spans agree");
+            let fixes = suggestion
+                .replacements()
+                .iter()
+                .map(|replacement| {
+                    format!(
+                        "{}{}{}",
+                        &text[..span.start],
+                        replacement,
+                        &text[span.end..]
+                    )
+                })
+                .collect();
+            (text[span].to_owned(), fixes)
+        })
+        .collect()
+}
+
+/// `[OMIT]` in the plain-English table means "delete the phrase". LanguageTool
+/// 6.6 suggests the marker literally; the builtin deletes the phrase and tidies
+/// the space and punctuation around it.
+#[test]
+fn builtin_plain_english_omit_deletes_the_phrase() {
+    let fixes = |text: &str| plain_english_fixes(text);
+    let owned = |items: &[&str]| items.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+
+    // Between paired commas: both commas go.
+    assert_eq!(
+        fixes("He was, as a matter of fact, late."),
+        vec![(
+            ", as a matter of fact,".to_owned(),
+            owned(&["He was, in fact, late.", "He was late."])
+        )]
+    );
+    // Mid-sentence before a word: the space after goes.
+    assert_eq!(
+        fixes("The plan as a whole failed."),
+        vec![("as a whole ".to_owned(), owned(&["The plan failed."]))]
+    );
+    // At the sentence start: the comma goes and the next word is capitalized.
+    assert_eq!(
+        fixes("As a whole, the plan failed."),
+        vec![("As a whole, t".to_owned(), owned(&["The plan failed."]))]
+    );
+    // Before the sentence end: the separator before goes.
+    assert_eq!(
+        fixes("She left early, as a matter of fact."),
+        vec![(
+            ", as a matter of fact".to_owned(),
+            owned(&["She left early, in fact.", "She left early."])
+        )]
+    );
+    // The offsets hold after an earlier sentence.
+    assert_eq!(
+        fixes("She left. The plan as a whole failed."),
+        vec![(
+            "as a whole ".to_owned(),
+            owned(&["She left. The plan failed."])
+        )]
+    );
+}
+
+#[test]
+fn builtin_plain_english_omit_handles_fiction_punctuation() {
+    let fixes = |text: &str| -> Vec<String> {
+        plain_english_fixes(text)
+            .into_iter()
+            .flat_map(|(_, fixes)| fixes)
+            .collect()
+    };
+    // Curly quotes around dialogue, and the sentence start inside them.
+    assert_eq!(
+        fixes("\u{201c}As a matter of fact, I didn\u{2019}t,\u{201d} she said."),
+        vec![
+            "\u{201c}In fact, I didn\u{2019}t,\u{201d} she said.",
+            "\u{201c}I didn\u{2019}t,\u{201d} she said.",
+        ]
+    );
+    assert_eq!(
+        fixes("\u{201c}It failed as a whole,\u{201d} she said."),
+        Vec::<String>::new(),
+        "no clean deletion before a comma mid-sentence"
+    );
+    assert_eq!(
+        fixes("\u{201c}It failed as a whole.\u{201d}"),
+        vec!["\u{201c}It failed.\u{201d}"]
+    );
+    // Curly apostrophes.
+    assert_eq!(
+        fixes("It\u{2019}s, as a matter of fact, Marta\u{2019}s coat."),
+        vec![
+            "It\u{2019}s, in fact, Marta\u{2019}s coat.",
+            "It\u{2019}s Marta\u{2019}s coat."
+        ]
+    );
+    // Closed-up em dashes leave one space; spaced ones leave the outer spaces.
+    assert_eq!(
+        fixes("The plan\u{2014}as a whole\u{2014}failed."),
+        vec!["The plan failed."]
+    );
+    assert_eq!(
+        fixes("The plan \u{2014} as a whole \u{2014} failed."),
+        vec!["The plan failed."]
+    );
+    assert_eq!(
+        fixes("She hesitated\u{2014}as a matter of fact."),
+        vec!["She hesitated\u{2014}in fact.", "She hesitated."]
+    );
+    // Ellipses.
+    assert_eq!(
+        fixes("She was late, as a matter of fact\u{2026}"),
+        vec!["She was late, in fact\u{2026}", "She was late\u{2026}"]
+    );
+    // A deletion never joins two lines across U+2028.
+    assert_eq!(
+        fixes("It failed as a whole\u{2028}and nobody came."),
+        vec!["It failed\u{2028}and nobody came."]
+    );
+    // No clean deletion: only the other replacements stay.
+    assert_eq!(
+        fixes("The plan, as a matter of fact\u{2014}failed."),
+        vec!["The plan, in fact\u{2014}failed."]
+    );
+}
+
+#[test]
+fn builtin_plain_english_never_suggests_the_omit_marker() {
+    let text = "As a whole, the plan failed. He was, as a matter of fact, late. \
+                The plan, as a whole\u{2014}failed. After all is said and done, we left.";
+    let sentences: Vec<_> = TOKENIZER.pipe(text).collect();
+    let suggestions: Vec<_> = RULES
+        .builtins()
+        .iter()
+        .flat_map(|rule| rule.builtin().check_text(&sentences))
+        .filter(|suggestion| suggestion.source() == "BUILTIN/EN_PLAIN_ENGLISH_REPLACE")
+        .collect();
+    assert!(suggestions.len() >= 4);
+    for suggestion in &suggestions {
+        assert!(!suggestion.message().contains("[OMIT]"), "{:?}", suggestion);
+        assert!(suggestion.message().contains("omit it"), "{:?}", suggestion);
+        assert!(
+            suggestion
+                .replacements()
+                .iter()
+                .all(|r| !r.contains("[OMIT]")),
+            "{:?}",
+            suggestion
+        );
+    }
+    let as_a_whole = suggestions
+        .iter()
+        .find(|suggestion| suggestion.message().starts_with("'As a whole'"))
+        .unwrap();
+    assert_eq!(
+        as_a_whole.message(),
+        "'As a whole' is a wordy or complex expression. In some cases, it might be \
+         preferable to omit it."
+    );
+    let matter_of_fact = suggestions
+        .iter()
+        .find(|suggestion| suggestion.message().starts_with("'as a matter of fact'"))
+        .unwrap();
+    assert!(matter_of_fact
+        .message()
+        .ends_with("preferable to use in fact or omit it."));
 }
 
 #[test]

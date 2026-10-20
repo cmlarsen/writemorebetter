@@ -58,6 +58,17 @@ style rules ship off:
 | `STYLE/SERIAL_COMMA_ON`, `STYLE/SERIAL_COMMA_OFF` | 8, 1 | a missing / a present Oxford comma (pick one) |
 | `STYLE/ELLIPSIS` | 1 | three periods instead of `…` |
 
+`EN_PLAIN_ENGLISH_REPLACE`'s word list (`wordiness.txt`) writes "delete this phrase" as the
+replacement `[OMIT]` (`as a whole=[OMIT]`, `as a matter of fact=in fact|[OMIT]`). LanguageTool
+6.6 suggests that marker literally. Here it becomes a deletion that leaves well-spaced prose:
+a phrase between paired commas or dashes goes with both marks (`was, as a matter of fact, late`
+→ `was late`); one before the end of a clause goes with the space, comma or dash before it; one
+before another word goes with the space after it, and at a sentence start also with a following
+comma, capitalizing the next word (`As a whole, the plan failed.` → `The plan failed.`). When the
+deletion reaches past the phrase, the span grows to cover it and the other replacements carry the
+same surrounding text. Where no clean deletion exists, only the other replacements are offered.
+The message says "omit it" instead of `[OMIT]`.
+
 Counts are compiled rules (each rule of a `<rulegroup>` counts once) on the default
 profile. `PASSIVE_VOICE`, `SERIAL_COMMA_*` and `ELLIPSIS` are rule groups inside the
 `STYLE` category, so a bare `PASSIVE_VOICE` is an unknown selector; `STYLE` alone

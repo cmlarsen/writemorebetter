@@ -52,6 +52,15 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   0.2.129: 5,495,225 → 5,678,797 bytes; 1,401,961 → 1,462,831 with `gzip -9`). The bundled table
   loads once, in about 4.5 ms natively.
 
+### Fixed
+
+- **`EN_PLAIN_ENGLISH_REPLACE` no longer suggests the literal text `[OMIT]`.** The word list
+  marks "delete this phrase" with `[OMIT]`, which LanguageTool 6.6 passes through as a
+  suggestion. The builtin now offers a deletion that also removes the surrounding space, or
+  paired commas or dashes, and capitalizes the next word at a sentence start; the message says
+  "omit it". See [`docs/PROFILE.md`](docs/PROFILE.md#enabling-rules).
+- `wmb-probe` exits with an error message instead of panicking on an unknown `ENABLE` selector.
+
 # 0.10.0 (2026-10-20)
 
 ### Added

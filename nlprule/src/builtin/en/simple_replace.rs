@@ -13,12 +13,16 @@
 //! `build/builtin-data/en/simple_replace_*.txt` at compile time; only the
 //! matching logic lives in this MIT/Apache-2.0 source file.
 
-use crate::types::{DefaultHashMap, Sentence, Span, Suggestion, Token};
+use crate::types::{DefaultHashMap, Position, Sentence, Span, Suggestion, Token};
 use serde::{Deserialize, Serialize};
 
 /// The maximum number of whitespace-separated words a phrase table entry may
 /// span.
 const MAX_TOKENS_IN_MULTIWORD: usize = 20;
+
+/// The replacement that marks "delete the phrase" in the plain-English table.
+/// LanguageTool 6.6 suggests it literally; it is turned into a deletion here.
+const OMIT: &str = "[OMIT]";
 
 /// How a table's wrong forms are matched against the text.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -290,7 +294,13 @@ impl SimpleReplace {
             }
         }
 
+        let sentence_start = tokens
+            .get(sent_start)
+            .map(|token| token.span().start().byte - sentence.span().start().byte);
         suggestions
+            .into_iter()
+            .map(|suggestion| resolve_omit(sentence, sentence_start, suggestion))
+            .collect()
     }
 
     /// Adds a match for `entries[index]` covering `tokens[start..=end]`, keeping
@@ -371,8 +381,22 @@ impl SimpleReplace {
         ));
     }
 
-    /// Renders the rule message, substituting `$match` and `$suggestions`.
+    /// Renders the rule message, substituting `$match` and `$suggestions`. An
+    /// `[OMIT]` replacement is rendered as "omit it", so "use $suggestions"
+    /// reads "use in fact or omit it", or just "omit it".
     fn message(&self, original: &str, replacements: &[String]) -> String {
+        let mut template = self.message.as_str();
+        let mut replacements: Vec<&str> = replacements.iter().map(String::as_str).collect();
+        let omit_only;
+        if replacements.contains(&OMIT) {
+            replacements.retain(|replacement| *replacement != OMIT);
+            if replacements.is_empty() {
+                omit_only = self.message.replacen("use $suggestions", "$suggestions", 1);
+                template = &omit_only;
+            }
+            replacements.push("omit it");
+        }
+
         let mut rendered = String::new();
         for (i, replacement) in replacements.iter().enumerate() {
             if i > 0 {
@@ -385,10 +409,178 @@ impl SimpleReplace {
             rendered.push_str(replacement);
         }
 
-        self.message
+        template
             .replacen("$match", &java_replacement(original), 1)
             .replacen("$suggestions", &java_replacement(&rendered), 1)
     }
+}
+
+/// Turns an `[OMIT]` replacement into a deletion that leaves well-spaced
+/// prose. Where the phrase sits decides what goes with it:
+///
+/// * between paired commas or dashes (`was, as a matter of fact, late`), both
+///   marks go too (`was late`); closed-up dashes leave one space;
+/// * before the end of the sentence or clause (`late as a matter of fact.`),
+///   the space, comma or dash before it goes too (`late.`);
+/// * before another word, the space after it goes too; at the start of the
+///   sentence, so does a comma after it, and the next word is capitalized
+///   (`As a whole, the plan failed.` -> `The plan failed.`).
+///
+/// Elsewhere there is no clean deletion and only the other replacements are
+/// kept. When the deletion reaches past the phrase, the span grows to cover it
+/// and the other replacements carry the same surrounding text, so every
+/// replacement still applies to the one span.
+fn resolve_omit(
+    sentence: &Sentence,
+    sentence_start: Option<usize>,
+    suggestion: Suggestion,
+) -> Suggestion {
+    if !suggestion.replacements().iter().any(|r| r == OMIT) {
+        return suggestion;
+    }
+    let text = sentence.text();
+    let origin = sentence.span().start();
+    let from = suggestion.span().start().byte - origin.byte;
+    let to = suggestion.span().end().byte - origin.byte;
+
+    let (start, end, replacements) = match omit_edit(text, from, to, sentence_start == Some(from)) {
+        Some(edit) => {
+            let (prefix, suffix) = (&text[edit.start..from], &text[to..edit.end]);
+            let replacements = suggestion
+                .replacements()
+                .iter()
+                .map(|replacement| {
+                    if replacement == OMIT {
+                        edit.replacement.clone()
+                    } else {
+                        format!("{}{}{}", prefix, replacement, suffix)
+                    }
+                })
+                .collect();
+            (edit.start, edit.end, replacements)
+        }
+        None => (
+            from,
+            to,
+            suggestion
+                .replacements()
+                .iter()
+                .filter(|replacement| *replacement != OMIT)
+                .cloned()
+                .collect(),
+        ),
+    };
+    let position = |byte: usize| Position {
+        byte: origin.byte + byte,
+        char: origin.char + text[..byte].chars().count(),
+    };
+    Suggestion::new(
+        suggestion.source().to_owned(),
+        suggestion.message().to_owned(),
+        Span::from_positions(position(start), position(end)),
+        replacements,
+    )
+}
+
+/// A deletion for `[OMIT]`: replace `text[start..end]` with `replacement`.
+struct OmitEdit {
+    start: usize,
+    end: usize,
+    replacement: String,
+}
+
+/// Where deleting `text[from..to]` leaves well-spaced prose; see
+/// [`resolve_omit`]. Offsets are byte offsets into the sentence text.
+fn omit_edit(text: &str, from: usize, to: usize, at_sentence_start: bool) -> Option<OmitEdit> {
+    let before = text[..from].trim_end_matches(is_inline_space);
+    let after = text[to..].trim_start_matches(is_inline_space);
+    let open = before.chars().next_back();
+    let close = after.chars().next();
+
+    if let (Some(open), Some(close)) = (open, close) {
+        if open == close && is_parenthetical_mark(open) {
+            let start = text[..before.len() - open.len_utf8()]
+                .trim_end_matches(is_inline_space)
+                .len();
+            let end = text.len() - after.len() + close.len_utf8();
+            let spaced = start == 0
+                || text[..start].ends_with(is_inline_space)
+                || text[end..]
+                    .chars()
+                    .next()
+                    .is_none_or(|c| c.is_whitespace() || is_closing_punctuation(c));
+            return Some(OmitEdit {
+                start,
+                end,
+                replacement: if spaced { "" } else { " " }.to_owned(),
+            });
+        }
+    }
+
+    if !at_sentence_start && close.is_none_or(is_closing_punctuation) {
+        let start = match open {
+            Some(mark) if is_parenthetical_mark(mark) => text[..before.len() - mark.len_utf8()]
+                .trim_end_matches(is_inline_space)
+                .len(),
+            _ if before.len() < from => before.len(),
+            _ => return None,
+        };
+        return Some(OmitEdit {
+            start,
+            end: to,
+            replacement: String::new(),
+        });
+    }
+
+    let rest = if after.len() < text.len() - to {
+        after
+    } else if at_sentence_start && after.starts_with(',') {
+        let rest = after[1..].trim_start_matches(is_inline_space);
+        if rest.len() == after.len() - 1 {
+            return None;
+        }
+        rest
+    } else {
+        return None;
+    };
+    let first = rest.chars().next()?;
+    if is_closing_punctuation(first) {
+        return None;
+    }
+    let mut end = text.len() - rest.len();
+    let mut replacement = String::new();
+    if at_sentence_start && first.is_lowercase() {
+        end += first.len_utf8();
+        replacement.extend(first.to_uppercase());
+    }
+    Some(OmitEdit {
+        start: from,
+        end,
+        replacement,
+    })
+}
+
+/// Whitespace inside a line; line and paragraph breaks (including U+2028) are
+/// not, so a deletion never joins two lines.
+fn is_inline_space(c: char) -> bool {
+    c.is_whitespace()
+        && !matches!(
+            c,
+            '\n' | '\r' | '\u{0b}' | '\u{0c}' | '\u{85}' | '\u{2028}' | '\u{2029}'
+        )
+}
+
+/// Marks that set off a parenthetical phrase in pairs.
+fn is_parenthetical_mark(c: char) -> bool {
+    matches!(c, ',' | '\u{2014}' | '\u{2013}')
+}
+
+/// Characters that end a clause, sentence, quotation or line after a phrase.
+fn is_closing_punctuation(c: char) -> bool {
+    matches!(
+        c,
+        '.' | '!' | '?' | '\u{2026}' | ';' | ':' | ')' | ']' | '"' | '\u{201d}' | '\u{2019}'
+    ) || (c.is_whitespace() && !is_inline_space(c))
 }
 
 /// Parses the single-token table format: `wrong=replacement`, with `|` for

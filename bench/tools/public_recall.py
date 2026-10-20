@@ -1,6 +1,6 @@
 """Run the in-tree engine over bench/public and fail if recall drops below a floor.
 
-Usage: python3 bench/tools/public_recall.py --min 39 [--profile fiction] [--enable PLAIN_ENGLISH,PASSIVE_VOICE] [--probe bench/tools/wmb-probe/target/release/wmb-probe] [--bins storage]
+Usage: python3 bench/tools/public_recall.py --min 39 [--profile fiction] [--enable PLAIN_ENGLISH,STYLE/PASSIVE_VOICE] [--probe bench/tools/wmb-probe/target/release/wmb-probe] [--bins storage]
 """
 import argparse
 import json
