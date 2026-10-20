@@ -46,6 +46,7 @@ MINIMUM_AGREEMENT = 0.85
 REVIEW_SPREAD = 1.5
 REVIEW_RIDGE = 1.5
 RIDGE_LAMBDA = 1.0
+EXCLUDED = {'claude-haiku-5-5': 'sample-to-sample Spearman 0.933, below the 0.97 stability gate'}
 FAMILIES = {'claude-': 'Anthropic', 'deepseek-': 'DeepSeek', 'muse-': 'Meta'}
 LANCASTER_DIMENSIONS = ['Auditory', 'Gustatory', 'Haptic', 'Interoceptive', 'Olfactory', 'Visual',
                         'Foot_leg', 'Hand_arm', 'Head', 'Mouth', 'Torso']
@@ -272,6 +273,8 @@ def load_ratings(raw=RAW):
             continue
         for line in path.read_text(encoding='utf-8').splitlines():
             row = json.loads(line)
+            if row['model'] in EXCLUDED:
+                continue
             samples = ratings.setdefault(row['model'], {}).setdefault(row['sample'], {})
             if row['word'] in samples:
                 sys.exit(f"duplicate rating for {row['word']} in {path.name}")
@@ -376,6 +379,9 @@ def header(result, sources, raw=RAW):
     counts = ', '.join(f'{m} ({len(result["ratings"][m])} samples)' for m in result['models'])
     edits = len(read_adjudication())
     digest = hashlib.sha256(Path(sources['glasgow']).read_bytes()).hexdigest()
+    excluded = ''.join(f'\n# {model} was also rated but is not used: {reason}.'
+                       for model, reason in sorted(EXCLUDED.items())
+                       if any(raw.glob(f'{model}-s*.jsonl')))
     return f"""\
 # writemorebetter concreteness ratings, AI-generated, 1 (abstract) to 5 (concrete), MIT OR Apache-2.0.
 # Generated {first}{'' if first == last else ' to ' + last} by prompting {counts}
@@ -389,7 +395,7 @@ def header(result, sources, raw=RAW):
 # https://doi.org/10.3758/s13428-018-1099-3; https://osf.io/42s65/, GlasgowNorms.xlsx, sha256
 # {digest}, CC BY 4.0), then rounded to one decimal.
 # No Glasgow ratings are included. {edits} values were adjudicated by hand
-# (bench/style/concreteness/adjudication.tsv). Built by scripts/build-concreteness-norms.py.
+# (bench/style/concreteness/adjudication.tsv). Built by scripts/build-concreteness-norms.py.{excluded}
 """
 
 

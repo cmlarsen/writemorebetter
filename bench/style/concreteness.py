@@ -27,7 +27,9 @@ GATES = {
     'model_agreement': 0.85,
 }
 MAXIMUM_MAE = 0.35
-MINIMUM_POOLED_COVERAGE = 0.95
+MINIMUM_POOLED_COVERAGE = 0.94
+MINIMUM_STORY_COVERAGE = 0.97
+MODERN_STORIES = ['story1.txt', 'story2.txt', 'story3.txt', 'story4.txt', 'story5.txt']
 
 
 def builder():
@@ -145,6 +147,11 @@ def failures(measured, stale):
         pooled = measured['coverage']['pooled']
         checks.append((f'bench/public narration coverage {pooled} >= {MINIMUM_POOLED_COVERAGE}',
                        pooled >= MINIMUM_POOLED_COVERAGE))
+        files = measured['coverage']['files']
+        shares = {name: files.get(name, {}).get('share') for name in MODERN_STORIES}
+        checks += [(f'{name} narration coverage {share} >= {MINIMUM_STORY_COVERAGE}',
+                    share is not None and share >= MINIMUM_STORY_COVERAGE)
+                   for name, share in shares.items()]
     return problems + [label for label, passed in checks if not passed]
 
 

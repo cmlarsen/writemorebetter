@@ -224,7 +224,7 @@ class BuildTests(unittest.TestCase):
         shifted = {w: min(5.0, r + 0.3) for w, r in words.items()}
         shifted['fair'] = 2.5
         return {'claude-opus-5-5': {1: words, 2: dict(words)},
-                'claude-haiku-5-5': {1: shifted}}
+                'claude-sonnet-5-5': {1: shifted}}
 
     def test_build_is_byte_reproducible_and_copies_spellings(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -239,7 +239,19 @@ class BuildTests(unittest.TestCase):
         self.assertTrue(all(len(value) == 3 for value in rows.values()))
         self.assertIn('claude-opus-5-5 (2 samples)', first['table.tsv'])
         self.assertIn('No Glasgow ratings are included', first['table.tsv'])
-        self.assertEqual(set(result['agreement']), {'claude-opus-5-5', 'claude-haiku-5-5'})
+        self.assertEqual(set(result['agreement']), {'claude-opus-5-5', 'claude-sonnet-5-5'})
+
+    def test_excluded_models_are_read_but_not_used(self):
+        ratings = self.ratings()
+        ratings['claude-haiku-5-5'] = {1: {w: 6 - r for w, r in ratings['claude-opus-5-5'][1].items()}}
+        with tempfile.TemporaryDirectory() as directory:
+            _, with_haiku = self.build(directory, ratings)
+            _, without = self.build(directory, self.ratings())
+        self.assertIn('# claude-haiku-5-5 was also rated but is not used: ', with_haiku['table.tsv'])
+        self.assertNotIn('claude-haiku-5-5', without['table.tsv'])
+        rows = [[line for line in text['table.tsv'].splitlines() if not line.startswith('#')]
+                for text in (with_haiku, without)]
+        self.assertEqual(rows[0], rows[1])
 
     def test_adjudication_applies_and_checks_the_before_value(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -254,7 +266,7 @@ class BuildTests(unittest.TestCase):
 
     def test_missing_words_fail_loudly(self):
         ratings = self.ratings()
-        del ratings['claude-haiku-5-5'][1]['kick']
+        del ratings['claude-sonnet-5-5'][1]['kick']
         with tempfile.TemporaryDirectory() as directory, self.assertRaisesRegex(SystemExit, 'missing'):
             self.build(directory, ratings)
 
