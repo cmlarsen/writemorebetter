@@ -65,10 +65,10 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   prepositions, conjunctions, pronouns, *to*, modals, forms of *be*/*have*/*do*) are at least 65% of a
   sentence of 15 or more words, and long subordinate clauses of 20 or more words, opened by a
   subordinating conjunction or relative/WH-word and bounded by punctuation, mode changes and
-  unpunctuated main clauses ([#302](https://github.com/cmlarsen/writemorebetter/issues/302)). It
+  unpunctuated (including coordinated) main clauses ([#302](https://github.com/cmlarsen/writemorebetter/issues/302)). It
   uses the existing tagger readings and chunker output, needs no new data, and measures neither
   sentence length nor `TOO_LONG_SENTENCE`. On published public-domain text the defaults flag 2.0% of
-  sentences as sticky and 1.0% for long clauses. Rust `StyleDocument::clarity`, Swift
+  sentences as sticky and 0.9% for long clauses. Rust `StyleDocument::clarity`, Swift
   `document.clarity()` with typed `ClarityReport`, and WASM `document.clarity()` with TypeScript
   types. See [`docs/STYLE-CLARITY.md`](docs/STYLE-CLARITY.md).
 

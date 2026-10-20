@@ -199,15 +199,28 @@ fn is_boundary(token: &Token) -> bool {
         && (token.text == "--" || token.text.chars().any(|c| BOUNDARIES.contains(c)))
 }
 
+/// Whether the next sentence-ending punctuation at or after `start` is a question mark.
+fn question_follows(tokens: &[&Token], start: usize) -> bool {
+    tokens[start..]
+        .iter()
+        .find(|t| {
+            !t.is_word && (t.text.contains('?') || t.text.contains('.') || t.text.contains('!'))
+        })
+        .is_some_and(|t| t.text.contains('?'))
+}
+
+/// `previous` is the last counted word before `index` in the same mode, if any.
 fn introducer(
     tokens: &[&Token],
     index: usize,
-    first_word: bool,
-    question: bool,
+    previous: Option<&Token>,
 ) -> Option<ClarityClauseIntroducer> {
     let token = tokens[index];
     let word = fold(&token.text);
-    if token.chunks.iter().any(|c| c == "B-SBAR") {
+    // The chunker also gives a demonstrative-pronoun "that" B-SBAR; a complementizer has a clause.
+    if token.chunks.iter().any(|c| c == "B-SBAR")
+        && (word != "that" || subject_and_verb(tokens, index + 1))
+    {
         // Bare "so" is a discourse marker; "so that" introduces a clause.
         let so_that = tokens
             .get(index + 1)
@@ -216,7 +229,7 @@ fn introducer(
     }
     if has_tag(token, &RELATIVES) && word != "however" {
         let wh_adverb = has_tag(token, &["WRB"]);
-        if first_word && (!wh_adverb || question) {
+        if previous.is_none() && (!wh_adverb || question_follows(tokens, index)) {
             return None;
         }
         // "that" is relative only as a one-word noun phrase, not as a determiner.
@@ -225,7 +238,13 @@ fn introducer(
         if word == "that" && !lone {
             return None;
         }
-        return Some(ClarityClauseIntroducer::Relative);
+        // An adverbial WH-word modifies a noun only right after one ("the night when").
+        let after_noun = previous.is_some_and(|p| has_prefix(p, &["NN"]) && in_chunk(p, "-NP"));
+        return Some(if wh_adverb && !after_noun {
+            ClarityClauseIntroducer::Subordinator
+        } else {
+            ClarityClauseIntroducer::Relative
+        });
     }
     if SUBORDINATORS.contains(&word.as_str()) && has_tag(token, &["IN", "CC"]) {
         // A clause, not a phrase: a noun phrase followed by a verb phrase.
@@ -254,30 +273,27 @@ struct OpenClause {
     introducer: usize,
     kind: ClarityClauseIntroducer,
     last: usize,
+    /// The counted word before `last`, for trimming a trailing conjunction.
+    before_last: usize,
     words: usize,
     mode: Mode,
     has_verb: bool,
 }
 
 /// Subordinate clauses in a sentence, each running from its introducer to the next punctuation
-/// boundary, change of mode, or unpunctuated main clause (a new subject and verb after a content
-/// word, once the clause has its own verb); `sentence` and `sentence_words` are filled by the caller.
+/// boundary, change of mode, or unpunctuated main clause (a new subject and verb, once the clause
+/// has its own verb, after a coordinating conjunction, a content word that isn't a verb, or a verb
+/// when the subject is a nominative pronoun); `sentence` and `sentence_words` are filled by the
+/// caller.
 fn clauses(document: &Document, sentence: &Sentence) -> Vec<ClarityLongClause> {
     let tokens: Vec<_> = sentence
         .tokens
         .iter()
         .filter(|t| !t.is_whitespace)
         .collect();
-    let question = tokens
-        .iter()
-        .rev()
-        .find(|t| {
-            !t.is_word && (t.text.contains('?') || t.text.contains('.') || t.text.contains('!'))
-        })
-        .is_some_and(|t| t.text.contains('?'));
     let mut result = Vec::new();
     let mut open: Option<OpenClause> = None;
-    let mut seen_word = false;
+    let mut previous: Option<(usize, Mode)> = None;
     let close = |open: &mut Option<OpenClause>, result: &mut Vec<_>| {
         if let Some(clause) = open.take() {
             let first = tokens[clause.introducer];
@@ -302,32 +318,50 @@ fn clauses(document: &Document, sentence: &Sentence) -> Vec<ClarityLongClause> {
             continue;
         }
         let mode = document.mode_at(token.span.byte.start);
-        if open.as_ref().is_some_and(|clause| {
+        if let Some(clause) = open.as_mut() {
             let previous = tokens[clause.last];
-            clause.mode != mode
-                || (clause.has_verb
-                    && token.chunks.iter().any(|c| c.starts_with("B-NP"))
-                    && subject_and_verb(&tokens, index)
-                    && !is_glue(previous)
-                    && !in_chunk(previous, "-VP"))
-        }) {
-            close(&mut open, &mut result);
+            let main_clause = clause.has_verb
+                && token.chunks.iter().any(|c| c.starts_with("B-NP"))
+                && subject_and_verb(&tokens, index);
+            let coordinated = matches!(fold(&previous.text).as_str(), "and" | "but" | "or" | "yet");
+            // A nominative pronoun can't be the object of a verb ending the clause.
+            let pronoun = matches!(
+                fold(&token.text).as_str(),
+                "i" | "he" | "she" | "we" | "they"
+            );
+            if main_clause && coordinated && clause.last > clause.introducer {
+                clause.last = clause.before_last;
+                clause.words -= 1;
+                close(&mut open, &mut result);
+            } else if clause.mode != mode
+                || (main_clause && !is_glue(previous) && (pronoun || !in_chunk(previous, "-VP")))
+            {
+                close(&mut open, &mut result);
+            }
         }
         if let Some(clause) = open.as_mut() {
             clause.words += 1;
+            clause.before_last = clause.last;
             clause.last = index;
             clause.has_verb |= in_chunk(token, "-VP");
-        } else if let Some(kind) = introducer(&tokens, index, !seen_word, question) {
+        } else if let Some(kind) = introducer(
+            &tokens,
+            index,
+            previous
+                .filter(|&(_, previous_mode)| previous_mode == mode)
+                .map(|(previous, _)| tokens[previous]),
+        ) {
             open = Some(OpenClause {
                 introducer: index,
                 kind,
                 last: index,
+                before_last: index,
                 words: 1,
                 mode,
                 has_verb: false,
             });
         }
-        seen_word = true;
+        previous = Some((index, mode));
     }
     close(&mut open, &mut result);
     result

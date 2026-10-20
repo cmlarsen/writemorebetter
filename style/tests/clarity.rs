@@ -281,3 +281,107 @@ fn options_validate_and_bindings_use_utf16_spans() {
         Err(StyleError::NeedsTokenDetails { .. })
     ));
 }
+
+#[test]
+fn quoted_questions_are_not_relative_clauses() {
+    for text in [
+        "“Why would anyone leave a perfectly good boat sitting out on the rocks all through the long winter like that?” she asked.",
+        "She turned to him and asked, “Why would anyone leave a perfectly good boat sitting out on the rocks all winter?”",
+        "“Where did you put the keys to the old blue truck that we left down by the river last week?” she asked.",
+    ] {
+        assert!(
+            clauses(text).iter().all(|(word, _)| word != "why" && word != "where"),
+            "{text}: {:#?}",
+            clauses(text)
+        );
+    }
+    // A WH-word inside a statement still opens a clause.
+    assert_eq!(
+        clauses("“I know why the boat sank,” she said."),
+        [("why".to_owned(), "why the boat sank".to_owned())]
+    );
+}
+
+#[test]
+fn fronted_clause_ending_in_a_verb_stops_at_the_main_clause_subject() {
+    assert_eq!(
+        clauses("When the rain finally stopped we pulled on our boots and walked down through the wet fields to the river to look at the flood."),
+        [("when".to_owned(), "When the rain finally stopped".to_owned())]
+    );
+    // A nested clause after glue stays inside.
+    assert_eq!(
+        clauses("She said she would come if we called."),
+        [("if".to_owned(), "if we called".to_owned())]
+    );
+}
+
+#[test]
+fn coordinated_main_clause_ends_the_subordinate_clause() {
+    assert_eq!(
+        clauses("She remembered the night when the storm had torn the roof from the barn and her father stood in the yard shouting at the sky for an hour."),
+        [(
+            "when".to_owned(),
+            "when the storm had torn the roof from the barn".to_owned()
+        )]
+    );
+    // Coordinated verbs without a new subject stay inside.
+    assert_eq!(
+        clauses("She met the man who sailed the sea and carried letters home."),
+        [(
+            "who".to_owned(),
+            "who sailed the sea and carried letters home".to_owned()
+        )]
+    );
+}
+
+#[test]
+fn demonstrative_that_opens_no_clause() {
+    assert!(
+        clauses("She knew that and kept it to herself for the rest of the long cold winter.")
+            .is_empty()
+    );
+    assert_eq!(
+        clauses("He said that the ship had sailed."),
+        [("that".to_owned(), "that the ship had sailed".to_owned())]
+    );
+}
+
+#[test]
+fn adverbial_wh_words_are_subordinators() {
+    let kinds = |text: &str| -> Vec<_> {
+        report_with(text, &ClarityOptions::new().with_long_clause_words(1))
+            .long_clauses
+            .iter()
+            .map(|c| (c.introducer.clone(), c.kind))
+            .collect()
+    };
+    assert_eq!(
+        kinds("When the rain stopped, we went out."),
+        [("when".to_owned(), ClarityClauseIntroducer::Subordinator)]
+    );
+    assert_eq!(
+        kinds("She remembered the night when the storm came."),
+        [("when".to_owned(), ClarityClauseIntroducer::Relative)]
+    );
+}
+
+#[test]
+fn line_separators_and_single_quotes() {
+    // U+2028 inside a clause is a soft line break, not a boundary.
+    assert_eq!(
+        clauses("He saw the man who ran past\u{2028}the cold harbour wall."),
+        [(
+            "who".to_owned(),
+            "who ran past\u{2028}the cold harbour wall".to_owned()
+        )]
+    );
+    // Current behaviour: a closing single quote is not a boundary, so an untagged-comma
+    // single-quoted line runs into its tag, and the quote reads as narration.
+    let text = "‘I saw the man who lived in the house on the hill’ she said.";
+    let r = report_with(text, &ClarityOptions::new().with_long_clause_words(1));
+    assert_eq!(
+        &text[r.long_clauses[0].span.byte.clone()],
+        "who lived in the house on the hill’ she said"
+    );
+    assert_eq!(r.long_clauses[0].mode, Mode::Narration);
+}

@@ -72,12 +72,18 @@ percentile of eligible sentences rather than at a "half the words" rule of thumb
 A clause opens at a word that is any of:
 
 - **Chunked `B-SBAR`** by the chunker (*because*, *although*, *whether*, *if*, *as*, *than*,
-  *before*, *so* in *so that*). Bare *so* is a discourse marker and does not open a clause.
+  *before*, *so* in *so that*). Bare *so* is a discourse marker and does not open a clause. The
+  chunker also gives a demonstrative pronoun *that* `B-SBAR`, so a `B-SBAR` *that* needs a noun
+  phrase and verb phrase after it (*He said that the ship had sailed*, not *She knew that and
+  kept it*).
 - **A WH-word** with a `WP`, `WP$`, `WDT` or `WRB` reading (*who*, *whom*, *whose*, *which*, *what*,
-  *when*, *where*, *how*, *why*; `kind: "relative"`). As the first word of a sentence, a WH pronoun
-  never opens a clause, and a WH adverb opens one only if the sentence is not a question
-  (*Who knows?* and *When will you come?* do not; *When she came, …* does). *That* opens a clause
-  only as a one-word noun phrase (*the house that stood*), never as a determiner (*that apple*).
+  *when*, *where*, *how*, *why*). As the first word of a sentence or of a quote, a WH pronoun never
+  opens a clause, and a WH adverb opens one only if the next sentence-ending mark after it is not
+  a question mark (*Who knows?*, *When will you come?* and *“Why did it sink?” she asked.* do not;
+  *When she came, …* does). *That* opens a clause only as a one-word noun phrase (*the house that
+  stood*), never as a determiner (*that apple*). The `kind` is `relative`, except that a WH adverb
+  that does not follow a noun (*When the rain stopped*, *she left when it rained*) is a
+  `subordinator`; *the night when* stays `relative`.
 - **A subordinating conjunction the chunker labels as a preposition**, such as *after*, *since*,
   *until*, *till*, *once*, *unless*, *while* (a fixed list in `clarity.rs`), with an `IN` or `CC`
   reading, and only when a noun phrase and then a verb phrase follow. That separates
@@ -88,12 +94,22 @@ The clause runs until the first of:
 - a punctuation boundary: `, ; : ( ) [ ] { } — – … " “ ” « » . ! ?` or `--`;
 - a change between narration and dialogue, so a quote edge ends a clause even without punctuation;
 - an **unpunctuated main clause**: once the clause has a verb phrase, a new noun phrase followed
-  (adverbs aside) by a verb phrase, directly after a content word that is not a verb. This keeps
-  *When I came back from the East last autumn* | *I felt …* from swallowing the main clause.
+  (adverbs aside) by a verb phrase, directly after
+  - a content word that is not a verb: *When I came back from the East last autumn* | *I felt …*;
+  - a verb, when the new subject is *I*, *he*, *she*, *we* or *they*, which cannot be its object:
+    *When the rain finally stopped* | *we pulled on …*;
+  - *and*, *but*, *or* or *yet*, which then stays outside the clause: *when the storm had torn the
+    roof from the barn* | *and her father stood …*. Coordinated verbs without a new subject
+    (*who sailed the sea and carried letters home*) stay inside.
+
+  A glue word before the new subject keeps it inside, so nested clauses (*if we called*) are not
+  cut off.
 
 Nested introducers inside an open clause extend it instead of starting a second, overlapping
 one, so a chain such as *which is why the island felt smaller …* is measured as one clause.
-U+2028 and hard-wrap line breaks are whitespace and do not end a clause. A clause of at least
+U+2028 and hard-wrap line breaks are whitespace and do not end a clause. A closing single quote
+`’` is not a boundary (it doubles as an apostrophe), so an untagged-comma single-quoted line
+(*‘…on the hill’ she said.*) runs into its tag, and single-quoted speech reads as narration. A clause of at least
 `longClauseWords` words is flagged. Each `longClauses` row carries the clause `span`, the
 `introducer` (folded) and its `introducerSpan`, `kind` (`subordinator` or `relative`), `words`, the
 whole sentence's `sentenceWords` for context, `sentence` and `mode`.
@@ -101,7 +117,10 @@ whole sentence's `sentenceWords` for context, `sentence` and `mode`.
 ## Groups
 
 `groups` is a `Split<ClarityGroup>` (`all`, `narration`, `dialogue`), with sentences assigned by
-the shared sentence mode and clauses by the mode at their introducer:
+the shared sentence mode and clauses by the mode at their introducer. `longClauses` therefore
+counts by the clause's mode and `longClauseSentences` by the sentence's mode: in *She turned to him
+and asked, “Why …”* with a long clause inside the quote, the clause counts under `dialogue` and the
+sentence under `narration`. Within `all` the two always agree.
 
 | Field | Meaning |
 |---|---|
@@ -136,7 +155,7 @@ Neither signal measures sentence length. `sentenceLength`'s `includeLongSentence
 `nlprule` port of LanguageTool's `TOO_LONG_SENTENCE` flag sentences by word count. Clarity's length
 floor only decides which sentences are long enough for a glue share to mean anything, and a long
 clause is measured from its introducer to its boundary, not over the sentence. At the defaults on
-the texts below, 3 of the 72 sticky flags and 11 of the 24 long-clause flags fall in sentences of
+the texts below, 3 of the 72 sticky flags and 11 of the 21 long-clause flags fall in sentences of
 40 or more words (sentence length's default `longSentenceWords`). The rest would not be flagged by
 either length check.
 
@@ -154,22 +173,22 @@ At the defaults (15 words, 65% glue, 20-word clauses):
 
 | Input | Words | Sentences | Eligible | Glue % | Eligible glue p50 / p95 | Sticky | Clauses | Long clauses |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
-| story1 | 2,209 | 119 | 74 | 53.7 | 53 / 65 | 5 | 69 | 1 |
+| story1 | 2,209 | 119 | 74 | 53.7 | 53 / 65 | 5 | 68 | 1 |
 | story2 | 2,038 | 131 | 69 | 55.3 | 56 / 64 | 2 | 72 | 1 |
 | story3 | 2,008 | 127 | 75 | 53.4 | 52 / 65 | 5 | 64 | 0 |
 | story4 | 2,175 | 128 | 78 | 53.6 | 54 / 65 | 5 | 77 | 0 |
-| story5 | 1,856 | 117 | 70 | 56.1 | 56 / 67 | 11 | 69 | 0 |
-| moby150k (hard-wrapped) | 25,002 | 1,126 | 693 | 49.7 | 50 / 62 | 20 | 709 | 9 |
-| The Mysterious Affair at Styles, ch. 1 | 4,161 | 354 | 99 | 49.1 | 50 / 62 | 4 | 104 | 0 |
-| The Great Gatsby, ch. 1 | 6,067 | 348 | 166 | 50.5 | 51 / 64 | 7 | 168 | 2 |
+| story5 | 1,856 | 117 | 70 | 56.1 | 56 / 67 | 11 | 67 | 0 |
+| moby150k (hard-wrapped) | 25,002 | 1,126 | 693 | 49.7 | 50 / 62 | 20 | 689 | 8 |
+| The Mysterious Affair at Styles, ch. 1 | 4,161 | 354 | 99 | 49.1 | 50 / 62 | 4 | 101 | 0 |
+| The Great Gatsby, ch. 1 | 6,067 | 348 | 166 | 50.5 | 51 / 64 | 7 | 163 | 2 |
 | The Sign of the Four, ch. 1 | 2,949 | 198 | 83 | 53.3 | 53 / 67 | 6 | 91 | 3 |
-| Anne of Avonlea, ch. 1 | 3,522 | 196 | 98 | 50.4 | 50 / 66 | 7 | 123 | 8 |
+| Anne of Avonlea, ch. 1 | 3,522 | 196 | 98 | 50.4 | 50 / 66 | 7 | 122 | 6 |
 
 **Published flag rates** (Moby plus the four chapters: 41,701 words, 2,222 sentences, 1,139
 eligible): 44 sticky sentences, which is 3.9% of eligible sentences, 2.0% of all sentences and
-1.1 per 1,000 words. 22 long clauses in 22 sentences, which is 1.0% of sentences and 0.5 per
+1.1 per 1,000 words. 19 long clauses in 19 sentences, which is 0.9% of sentences and 0.5 per
 1,000 words. Per text, sticky flags range from 1.1% (Styles) to 3.6% (Avonlea) of sentences,
-and long clauses from none (Styles) to 4.1% (Avonlea, whose first chapter is mostly long
+and long clauses from none (Styles) to 3.1% (Avonlea, whose first chapter is mostly long
 speeches). The invented stories flag more sticky sentences (28 of 622, 4.5%) and fewer long
 clauses (2).
 
@@ -185,11 +204,11 @@ Sweep, long clauses (published / stories):
 
 | Clause words | 15 | 18 | **20** | 25 | 30 |
 |---|---:|---:|---:|---:|---:|
-| Flags | 100 / 12 | 40 / 6 | **22 / 2** | 5 / 1 | 1 / 0 |
+| Flags | 90 / 9 | 34 / 4 | **19 / 2** | 4 / 1 | 1 / 0 |
 
 The defaults were chosen to keep each signal near or below one flag per 1,000 published words, so
 that a chapter shows a handful rather than a highlight on every page. At 60% glue the lens flagged
-one published sentence in eight eligible ones, and at 15 words a long-clause flag fell on 4.5% of
+one published sentence in eight eligible ones, and at 15 words a long-clause flag fell on 4.1% of
 published sentences. Neither rate supports a lens a writer would leave on.
 
 **Spot judgment (implementer, not blind).** All 72 default sticky flags were read with their glue
@@ -198,23 +217,27 @@ preposition (*I had thanked her, and she had looked embarrassed, and we had both
 about the measurements*), period dialogue and sermon, and *as if it were* constructions. One
 misclassification was seen: the noun *will* in *the will of God* counts as glue (a chunker miss),
 and that sentence stays above 65% without it. Plain conversational lines make up a visible share,
-which is the expected way this lens over-reads fiction. All 24 default long-clause
-flags were read: 19 are correctly bounded long subordinate or relative clauses. Of the other five,
-three run through *and*/*but* plus a new subject into what reads as a coordinated main clause
-(*… our pasture and I noticed the other day …*), one is a garden path where the relative clause
-absorbs the main verb (*which formed its back was adorned …*), and in one the preposition in
-*before you to be copied* was read as a conjunction. Before the unpunctuated-main-clause rule and the
-bare-*so* exclusion, the defaults gave 38 long-clause flags instead of 24, among them fronted clauses run into their main
-clauses (Gatsby's *When I came back from the East last autumn I felt …* and *When I reached my
-estate at West Egg I ran …*).
+which is the expected way this lens over-reads fiction. All 21 default long-clause
+flags were read: 19 are correctly bounded long subordinate or relative clauses. One is a garden
+path where the relative clause absorbs the main verb (*which formed its back was adorned …*), and
+in one a participial phrase of the main clause stays inside a fronted clause (*finally when it
+reached the house drifting up the side …*). Before the unpunctuated-main-clause rule and the
+bare-*so* exclusion, the defaults gave 38 long-clause flags, among them fronted clauses run into
+their main clauses (Gatsby's *When I came back from the East last autumn I felt …* and *When I
+reached my estate at West Egg I ran …*). The first review's version, with that rule but without
+the coordination and pronoun-subject closes, gave 24: three ran through *and*/*but* plus a new
+subject (*… our pasture and I noticed the other day …*, *… but I do place him …*). Those three
+were the only change when the coordination rule went in; sticky flags were unchanged.
 
 ## Limitations
 
 - The tagger is not disambiguated for every word and the chunker makes errors. *I like rain*
   chunks *like* as a preposition, so it counts as glue, while *They like the rain* chunks it as a
   verb.
-- Clause ends are heuristic. A coordinated *and*/*but* clause stays inside an open subordinate
-  clause, and clauses set off only by line breaks or by no punctuation at all can run long.
+- Clause ends are heuristic. A participial phrase or a main verb after an unpunctuated relative
+  clause (a garden path) stays inside it, a main clause after a verb and a noun subject (*When it
+  stopped the rain …*) is read as the clause's object, and clauses set off only by line breaks
+  or by no punctuation at all can run long.
 - Free relatives at a sentence start (*What he said was true*) are not detected, by design: the
   same words open questions.
 - The thresholds rest on public-domain and invented texts. A modern published-fiction calibration
