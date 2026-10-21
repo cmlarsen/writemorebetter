@@ -41,6 +41,8 @@ const DETERMINERS: [&str; 18] = [
     "a", "an", "the", "this", "that", "these", "those", "what", "some", "any", "every", "each",
     "no", "one", "all", "another", "which", "same",
 ];
+/// Tokens after which a capital starts a quote or a clause, not a name.
+const CLAUSE_OPENERS: [&str; 4] = ["“", "\"", "‘", "—"];
 const CLAUSE_PUNCTUATION: [&str; 9] = [",", "?", "!", ".", "…", "—", "–", ";", ":"];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -218,9 +220,11 @@ impl Words<'_> {
         if !token.is_word || token.is_skipped {
             return false;
         }
-        // A capital inside the sentence marks a name: "They flew to Nice."
+        // A capital inside the sentence marks a name: "They flew to Nice." After an opening quote
+        // or a dash it starts a clause: He said, “Nice work.”
         if at > 0
             && self.tokens[..at].iter().any(|t| t.is_word)
+            && !CLAUSE_OPENERS.contains(&self.tokens[at - 1].text.as_str())
             && token.text.starts_with(char::is_uppercase)
             && matches!(
                 entry.category,
@@ -267,6 +271,15 @@ impl Words<'_> {
             "in a way" | "in some ways" | "to a degree" | "to some extent" => {
                 next.is_none_or(|t| CLAUSE_PUNCTUATION.contains(&t.text.as_str()))
             }
+            // An amount: "a lot of", "a lot better", "talked a lot.", "a great deal more". Not
+            // "bought a lot near the river" or "struck a great deal with the dealer".
+            "a lot" | "a great deal" => next.is_none_or(|t| {
+                CLAUSE_PUNCTUATION.contains(&t.text.as_str())
+                    || matches!(fold(&t.text).as_str(), "of" | "more" | "less")
+                    || has_pos(t, "JJR")
+                    || has_pos(t, "RBR")
+                    || (has_pos(t, "RB") && !has_pos(t, "IN") && !noun_only(t))
+            }),
             "seem to" => next.is_some_and(|t| has_pos(t, "VB") && !has_pos(t, "PRP")),
             _ => match entry.category {
                 VagueWordCategory::Adjective | VagueWordCategory::Quantity

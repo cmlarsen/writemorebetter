@@ -49,10 +49,11 @@ match isn't reused. Every entry has a guard, so a listed word counts only in its
 | *in a way*, *in some ways*, *to a degree*, *to some extent* | before a comma or the end of a clause | *in a way we never had*, *to a degree that surprised her* |
 | *or so* | at the end of a clause | *Or so he said* |
 | *seem to* | before a verb | *seemed to him a stranger* |
-| *more or less*, *or something*, *a lot*, *lots of*, *a number of*, *a great deal* | always | |
+| *a lot*, *a great deal* | before *of*, *more*, *less*, a comparative, an adverb, clause punctuation or the end of the sentence | *bought a lot near the river*, *struck a great deal with the dealer* |
+| *more or less*, *or something*, *lots of*, *a number of* | always | |
 | *various*, *numerous*, *countless*, the adjectives | an adjective reading | |
 | *thing*, *stuff* | a common-noun reading (lemma) | *She stuffed the bag* |
-| adjectives and nouns | not capitalized inside a sentence | *They flew to Nice* |
+| adjectives and nouns | not capitalized inside a sentence, unless after an opening quote or a dash (*He said, “Nice work.”*) | *They flew to Nice* |
 | fillers *like*, *well*, *right*, *ok*, *okay*, *whatever*, *whenever*, *wherever*, *whoever* | standalone, between a clause edge and punctuation | *looked like her mother*, *did it well*, *all right* |
 | fillers *so*, *too*, *most*, *much*, *real*, *rather* | an adverb before an adjective or adverb (not a gerund), or *So,* alone | *so on*, *so far*, *do so*, *and so landed*, *the most*, *like most*, *as much as*, *or rather*, *would rather*, *rather than*, *me too* |
 | fillers *start*, *begin*, *try* | any form, before *to* or a gerund | *He tried the door* |
@@ -110,15 +111,17 @@ excerpt):
 | **all** | 315 / 33,672 | 9.35 | 23 / 1,616 | 14.23 |
 
 With `--books` (the 13 public-domain books and chapters in `bench/style/sources.json` plus
-bench/public), 6,282 matches in 581,826 narration words (10.80 per 1,000) and 3,959 in 289,952
-dialogue words (13.65 per 1,000). The commonest terms are *so* 1,673, *thing* 1,287, *might* 947,
+bench/public), 6,269 matches in 581,826 narration words (10.77 per 1,000) and 3,945 in 289,952
+dialogue words (13.61 per 1,000). The commonest terms are *so* 1,673, *thing* 1,287, *might* 947,
 *well* 520, *too* 451, *perhaps* 408, *seem to* 377 and *begin* 374.
 
 **Precision, hand-judged** (is the span the listed word in its vague sense?): 48 of 50 on a
 development sample of bench/public matches before the last guards; its two misses (*would rather*,
 conjunction *and so*) are guarded now. 48 of 50 on a held-out sample from the books afterwards
 (`--sample 50 --report vagueWords --seed 3072`); the misses are *that much blunt* (slang noun read
-as an adjective) and the formula *be so kind as to*. No recall measure.
+as an adjective) and the formula *be so kind as to*. No recall measure. The PR review's fixes (the
+*a lot* / *a great deal* guard, capitals after an opening quote) came after these samples, which
+were not re-judged; bench/public is unchanged.
 
 ## Size
 

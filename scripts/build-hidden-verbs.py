@@ -29,18 +29,20 @@ NOUN_MINIMUM = 1
 # lexicalized senses (information, government, reservation), things and places (shipment,
 # prescription, signature), fixed phrases (in addition, in accordance with, pay attention), states
 # a reader takes as feelings (arousal, fascination), and links whose verb is another word
-# (destination → destine, incursion → incur).
+# (destination → destine, incursion → incur). Action and assistance are left to LanguageTool's
+# PLAIN_ENGLISH rules (TAKE_ACTION_TO, ASSIST_ASSISTANCE), so a noun is never reported twice.
 EXCLUDED = set("""
-accordance action addition administration appearance armament arousal association attention
-attraction centrifugation collection commandment commutation compensation competition confidence
-constitution conviction damnation decoration destination difference disposition division dominance
-enclosure engagement entertainment equation establishment exhaustion expiration exposure expression
-fascination formation government ignorance imagination impression inclination incursion induction
-information inheritance inspiration installment insurance intersection location notation nourishment
-occupation operation organization possession precedence preferment prescription presentment
-pretension procedure profession proposition provision puzzlement qualification quotation regulation
-relation remembrance rendition requisition reservation resignation resolution seizure sensation
-shipment signature sorption stance suction temptation transportation
+accordance action addition administration appearance armament arousal assistance association
+attention attraction centrifugation collection commandment commutation compensation competition
+confidence constitution conviction damnation decoration destination difference disposition division
+dominance enclosure engagement entertainment equation establishment exhaustion exhibition expiration
+exposure expression fascination formation government ignorance imagination impression inclination
+incursion induction information inheritance inspiration installation installment insurance
+intersection location notation nourishment occupation operation organization possession precedence
+preferment prescription presentment pretension procedure profession proposition provision puzzlement
+qualification quotation regulation relation remembrance rendition requisition reservation
+resignation resolution seizure sensation shipment signature sorption stance suction temptation
+transportation
 """.split())
 
 

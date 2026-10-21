@@ -117,6 +117,32 @@ fn light_verbs_and_of_phrases() {
             OfPhrase,
         ),
         (
+            "They came to an agreement.",
+            "came to an agreement",
+            "agree",
+            LightVerb,
+        ),
+        // MAKE_DECISIONS_ABOUT matches the literal "make" only.
+        (
+            "They made decisions about the house.",
+            "made decisions",
+            "decide",
+            LightVerb,
+        ),
+        (
+            "She makes decisions about money.",
+            "makes decisions",
+            "decide",
+            LightVerb,
+        ),
+        // A concrete sense still counts in the light-verb frame: a known limit.
+        (
+            "She made a statement to the press.",
+            "made a statement",
+            "state",
+            LightVerb,
+        ),
+        (
             "The destruction of the city took a week.",
             "The destruction of",
             "destroy",
@@ -161,6 +187,17 @@ fn other_frames_and_senses_are_not_hidden_verbs() {
         "The board will make decisions about it.",
         // A name, not the noun.
         "They met Mr. Decision.",
+        // "come to" an event is motion, not a light verb.
+        "They came to the celebration.",
+        "We came to the performance last night.",
+        "She came to the graduation.",
+        "He came to the exhibition.",
+        // "of course" is an adverb.
+        "Her arrival of course surprised him.",
+        // Excluded: other PLAIN_ENGLISH rules (ASSIST_ASSISTANCE) and concrete senses.
+        "He provided assistance to the team.",
+        "They visited the exhibition of paintings.",
+        "She admired the installation of glass.",
     ] {
         assert!(found(text).is_empty(), "{text}: {:?}", found(text));
     }
@@ -337,6 +374,21 @@ fn bundled_table_carries_the_wordnet_notice() {
     let mut sorted = rows.clone();
     sorted.sort();
     assert_eq!(rows, sorted);
+    // Nouns LanguageTool's PLAIN_ENGLISH rules already flag (TAKE_ACTION_TO, ASSIST_ASSISTANCE)
+    // are excluded so no noun is reported twice; MAKE_DECISIONS_ABOUT is skipped by shape.
+    for noun in [
+        "action",
+        "assistance",
+        "attempt",
+        "effort",
+        "tendency",
+        "ability",
+    ] {
+        assert!(
+            !rows.iter().any(|row| row.split('\t').next() == Some(noun)),
+            "{noun} overlaps a PLAIN_ENGLISH rule"
+        );
+    }
     let notice = include_str!("../../NOTICE");
     assert!(notice.contains("style/data/hidden-verbs/nominalizations.tsv"));
 }

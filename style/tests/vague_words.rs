@@ -73,6 +73,31 @@ fn vague_words_by_category() {
         ("It was, like, huge.", "like", "like", Filler),
         ("Well, I suppose.", "Well", "well", Filler),
         ("He might be home.", "might", "might", Filler),
+        // A capital after an opening quote or a dash starts a clause, not a name.
+        ("He said, “Nice work.”", "Nice", "nice", Adjective),
+        ("He said, “Stuff happens.”", "Stuff", "stuff", Noun),
+        ("He said, \"Nice work.\"", "Nice", "nice", Adjective),
+        (
+            "She paused—Nice try, she thought.",
+            "Nice",
+            "nice",
+            Adjective,
+        ),
+        // Amounts.
+        ("It was a lot better.", "a lot", "a lot", Quantity),
+        ("They talked a lot.", "a lot", "a lot", Quantity),
+        (
+            "It cost a great deal more.",
+            "a great deal",
+            "a great deal",
+            Quantity,
+        ),
+        (
+            "She knew a great deal of it.",
+            "a great deal",
+            "a great deal",
+            Quantity,
+        ),
     ] {
         let result = report(text);
         let found: Vec<_> = result
@@ -113,6 +138,9 @@ fn literal_and_fixed_uses_are_not_vague() {
         "They flew to Nice in May.",
         "She stuffed the bag.",
         "He tried the door.",
+        // A plot of land and a bargain, not amounts.
+        "He bought a lot near the river.",
+        "They struck a great deal with the dealer.",
     ] {
         assert!(spans(text).is_empty(), "{text}: {:?}", found(text));
     }

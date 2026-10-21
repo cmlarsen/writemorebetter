@@ -45,6 +45,16 @@ const MODIFIERS: [&str; 16] = [
 ];
 /// Determiners that make *have* a light verb: *had no intention*, *had a discussion*.
 const HAVE_FRAMES: [&str; 8] = ["a", "an", "the", "no", "any", "some", "another", "such"];
+/// The nouns *come to* makes light: *came to a conclusion*. Before an event noun it is motion:
+/// *came to the celebration*.
+const COME_TO: [&str; 6] = [
+    "agreement",
+    "conclusion",
+    "decision",
+    "determination",
+    "realization",
+    "recognition",
+];
 /// Indirect objects: *gave her an explanation*.
 const OBJECTS: [&str; 6] = ["me", "him", "her", "us", "them", "you"];
 /// Determiners before *the X of*: *the destruction of*, *his arrival at* is not counted.
@@ -206,6 +216,9 @@ impl Words<'_> {
             next += 1;
         }
         let (noun, term) = nominalization(*self.tokens.get(next)?)?;
+        if verb == "come" && !COME_TO.contains(&noun) {
+            return None;
+        }
         let after = self.tokens.get(next + 1).copied();
         // A compound's modifier, not its head: *took the examination room*. *Today* and
         // *yesterday* also read as adverbs.
@@ -234,8 +247,9 @@ impl Words<'_> {
         {
             return None;
         }
-        // LanguageTool's PLAIN_ENGLISH rule MAKE_DECISIONS_ABOUT already flags "make decision(s) about".
-        if verb == "make"
+        // LanguageTool's PLAIN_ENGLISH rule MAKE_DECISIONS_ABOUT already flags "make decision(s)
+        // about", for the literal *make* only: *made decisions about* is still reported here.
+        if self.folded[at] == "make"
             && noun == "decision"
             && next == first
             && self.folded.get(next + 1).map(String::as_str) == Some("about")
@@ -248,7 +262,10 @@ impl Words<'_> {
     /// *the destruction of*: the determiner before the noun at `at`, which *of* follows.
     fn of_frame(&self, at: usize) -> Option<(usize, &'static str, &'static str)> {
         let (noun, term) = nominalization(self.tokens[at])?;
-        if self.folded.get(at + 1).map(String::as_str) != Some("of") {
+        // *of course* is an adverb, not the noun's object: *Her arrival of course surprised him*.
+        if self.folded.get(at + 1).map(String::as_str) != Some("of")
+            || self.folded.get(at + 2).map(String::as_str) == Some("course")
+        {
             return None;
         }
         let mut before = at.checked_sub(1)?;

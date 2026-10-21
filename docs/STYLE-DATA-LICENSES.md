@@ -563,3 +563,7 @@ reviewed inclusion and exclusion lists. Every lemma comes from WordNet. Details:
   `transitions.tsv` and `cognition.txt` were. *amazing* and *stuff* are in it as two of the
   commonest vague words, chosen independently; single common words are not a selection taken from
   words/fillers, whose other unattributed entry (*things*) is matched only as the lemma *thing*.
+  Seven of its common phrases also appear in the rejected lists (*sort of*, *kind of*, *a bit*,
+  *somewhat* and *more or less* in words/hedges; *a lot* and *various* in words/weasels). They were
+  chosen independently, as the ordinary English for hedging and vague amounts, not taken from those
+  lists.

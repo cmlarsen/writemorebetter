@@ -45,7 +45,8 @@ A noun from the bundled table, read as a common noun (lemma, so *decisions* coun
 frames inside one sentence:
 
 - **Light verb.** Any form of *make, take, give, have, conduct, perform, reach, offer, provide,
-  undertake*, *carry out* or *come to*, then up to four determiners, possessives, indirect objects
+  undertake*, *carry out* or *come to* (only before *agreement, conclusion, decision,
+  determination, realization* or *recognition*: *came to the celebration* is motion), then up to four determiners, possessives, indirect objects
   (*her*, *him*, *them*), adjectives, adverbs or numbers, then the noun: *made a decision*, *gave her
   an explanation*, *had a long discussion*, *came to the realization*, *carried out an
   investigation*. Not counted:
@@ -54,15 +55,18 @@ frames inside one sentence:
     (*made his isolation more complete*, *have the inquiry hampered*);
   - *have* without an article or negation, or with a possessive (*has expectations*, *had your
     statement*); with one it counts (*had no intention*, *have an argument*);
-  - *make decision(s) about* with no determiner, which LanguageTool's `MAKE_DECISIONS_ABOUT` flags.
+  - *make decision(s) about* with no determiner and the literal *make*, which LanguageTool's
+    `MAKE_DECISIONS_ABOUT` flags (*made* / *makes decisions about* are counted, since that rule
+    doesn't match them).
 - **Of-phrase.** A determiner or possessive (*the, a, this, his, their, any, no, …*), up to two
   adjectives, the noun and *of*: *the arrival of the train*, *a full discussion of*, *her
-  expectations of*. A noun already claimed by a light verb isn't counted again (*made the
+  expectations of*, but not before *of course* (*her arrival of course surprised him*). A noun
+  already claimed by a light verb isn't counted again (*made the
   decision of a lifetime* is one match).
 
 ## Table
 
-`style/data/hidden-verbs/nominalizations.tsv` has 316 `noun<TAB>verb` rows, 7,164 bytes (2,597
+`style/data/hidden-verbs/nominalizations.tsv` has 313 `noun<TAB>verb` rows, 7,106 bytes (2,584
 with `gzip -9`). It is `include_str!`'d into the style crate and parsed once on first use.
 
 It is derived from **Princeton WordNet 3.0** under the WordNet License, so it is a separate data
@@ -87,10 +91,10 @@ and keeps a noun→verb pair when:
 4. the SemCor tag counts in `index.sense` are at least 1 for the noun and 5 for the verb, so rare
    variants (*botheration*, *surprisal*) drop out and the verb is a common word;
 5. the noun is not in the emotion lexicon (feelings are the emotion-tells lens's), nor in a
-   reviewed list of 86 nouns whose fiction sense isn't their verb's action: lexicalized senses
+   reviewed list of 89 nouns whose fiction sense isn't their verb's action: lexicalized senses
    (*information*, *reservation*), things and places (*signature*, *prescription*), fixed phrases
-   (*in addition*, *pay attention*), feelings (*fascination*) and wrong links (*destination* →
-   *destine*).
+   (*in addition*, *pay attention*), feelings (*fascination*), wrong links (*destination* →
+   *destine*) and nouns another check already flags (*action*, *assistance*).
 
 One verb per noun: the one with the highest tag count. The script fails if an excluded noun is no
 longer selected, so the list can't go stale.
@@ -101,9 +105,10 @@ LanguageTool's `PLAIN_ENGLISH` category (off by default; presets can turn it on)
 nominalization rules: `MAKE_DECISIONS_ABOUT` (*make decision(s) about*, no determiner),
 `MAKE_AN_ATTEMPT` (*make an attempt / effort / try*), `TAKE_ACTION_TO`, `HAVE_A_TENDENCY`,
 `HAVE_THE_ABILITY_TO` and `ASSIST_ASSISTANCE`. Only the first overlaps the table, and the report
-skips that exact shape. *attempt*, *effort*, *try*, *tendency* and *ability* aren't suffix
-nominalizations and aren't in the table; *action* and *assistance* are excluded. Those rules match
-fixed phrases and suggest a replacement; this report matches any of 316 nouns in two frames, counts
+skips that exact shape (literal *make*, as the rule does). *attempt*, *effort*, *try*, *tendency*
+and *ability* aren't suffix nominalizations and aren't in the table; *action* and *assistance* are
+on the exclusion list, and a test asserts none of these nouns is in the table. Those rules match
+fixed phrases and suggest a replacement; this report matches any of 313 nouns in two frames, counts
 per mode and per term, and only names the related verb.
 
 ## Measurements (2026-10-21)
@@ -118,8 +123,8 @@ per mode and per term, and only names the related verb.
 The five contemporary CC0 stories have none: their narrators use plain verbs. In moby150k the eight
 are *the consideration of* (twice), *a description of* (twice), *come to the conclusion*, *make a
 full confession*, *an eruption of* (bears) and *giving utterance*. With `--books` (13
-public-domain books and chapters plus bench/public), 386 matches in 581,826 narration words (0.66
-per 1,000) and 117 in 289,952 dialogue words (0.40 per 1,000); the commonest verbs are *intend* 23
+public-domain books and chapters plus bench/public), 379 matches in 581,826 narration words (0.65
+per 1,000) and 113 in 289,952 dialogue words (0.39 per 1,000); the commonest verbs are *intend* 23
 (*had no intention of*), *explain* 18, *object* 17, *arrive* 17, *describe* 15 and *move* 15.
 
 **Precision, hand-judged** (is the span a nominalization doing its verb's work?): 54 of 60 on a
@@ -132,17 +137,25 @@ Fifth Avenue, *a suggestion of deference*) and causative *make* with the adjecti
 *of*-phrase (*make her former assurance of …ruin still more certain*, *make assurance doubly sure*).
 No recall measure.
 
+The PR review then found more false positives, now guarded or excluded (the samples above were not
+re-judged; bench/public is unchanged and the books lose 7 narration and 4 dialogue matches): *come
+to* before an event noun (*came to the celebration*), *of course* after a table noun, and the
+concrete senses of *assistance*, *exhibition* and *installation*. **Known false positives:** the
+table is sense-blind, so a concrete sense in a valid frame still counts: *had a statement from the
+bank* is reported like *made a statement*, and *the statement of account* like *the statement of
+his views*.
+
 ## Size
 
 Measured together with [vague words](STYLE-VAGUE-WORDS.md), against `main` at `2b90758`:
 
 | | Bytes | `gzip -9` |
 |---|---|---|
-| `nominalizations.tsv` | 7,164 | 2,597 |
+| `nominalizations.tsv` | 7,106 | 2,584 |
 | `vague-words.tsv` + `fillers.txt` | 759 + 1,137 | 403 + 669 |
 | `licenses/fillers.txt` (not compiled in) | 2,629 | |
 | `writemorebetter_wasm_bg.wasm`, before → after | 7,053,229 → 7,174,085 (+120,856, +1.7%) | 1,771,694 → 1,792,470 (+20,776, +1.2%) |
 
 Release build, wasm-bindgen 0.2.129, macOS, Rust's wasm32 target, no `wasm-opt`. Most of the WASM
 growth is code (the two reports, their serde records and bindings), not data: the three tables are
-9,060 bytes. The tables are parsed once, on first use, into a `HashMap` and a sorted entry list.
+9,002 bytes (the WASM sizes were measured before the review dropped three table rows). The tables are parsed once, on first use, into a `HashMap` and a sorted entry list.

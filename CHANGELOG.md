@@ -20,7 +20,7 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   (`term`: *decide*) but never rewrite. Options `fillers` and `ofPhrases` (both default true). The
   vague list is project-authored plus the 80 words/fillers entries backed by mikpanko/expresso
   (both MIT; `style/data/licenses/fillers.txt`, NOTICE); words already flagged by LanguageTool's
-  `TIRED_INTENSIFIERS` or the overused-words fillers are left out. The 316-row noun→verb table
+  `TIRED_INTENSIFIERS` or the overused-words fillers are left out. The 313-row noun→verb table
   (`style/data/hidden-verbs/nominalizations.tsv`, 7 KB) is derived from Princeton WordNet 3.0 by
   `scripts/build-hidden-verbs.py` and ships under the WordNet License beside the emotion lexicon;
   `scripts/build-filler-words.py` rebuilds the filler list. Hand-judged precision on public-domain
