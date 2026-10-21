@@ -197,6 +197,7 @@ let diction: DictionReport = try document.diction() // or diction(table:) with y
 let overused = try document.overusedWords()
 let transitions: TransitionsReport = try document.transitions()
 let pronouns: PronounStartsReport = try document.pronounStarts()
+let consistency: ConsistencyReport = try document.consistency()
 ```
 
 Every result is `Codable`, `Equatable` and `Sendable`. Each method takes optional `optionsJson`;
@@ -223,3 +224,7 @@ Transitions and pronoun starts are opt-in descriptive lenses. See [definitions, 
 measurements](../docs/STYLE-TRANSITIONS.md); neither has a baseline argument yet.
 
 The transitions lens also supports compact documents because it uses token text and position.
+
+Consistency is an opt-in lens that counts mixed quotes, apostrophes, ellipses, dashes,
+capitalization and hyphenation; it also runs on compact documents. See
+[definitions and public measurements](../docs/STYLE-CONSISTENCY.md).

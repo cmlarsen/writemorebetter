@@ -400,3 +400,35 @@ export interface PronounStartsReport {
   starts: Array<PronounStart>;
   groups: Split<PronounStartsGroup>;
 }
+
+export interface ConsistencyVariant {
+  form: string;
+  counts: Split<number>;
+  spans: Array<Span>;
+}
+
+export interface ConsistencyCheck {
+  mixed: boolean;
+  variants: Array<ConsistencyVariant>;
+}
+
+export interface ConsistencyCount {
+  form: string;
+  counts: Split<number>;
+}
+
+export interface ConsistencyWord {
+  word: string;
+  variants: Array<ConsistencyVariant>;
+}
+
+export interface ConsistencyReport {
+  doubleQuotes: ConsistencyCheck;
+  singleQuotes: ConsistencyCheck;
+  apostrophes: ConsistencyCheck;
+  ellipses: ConsistencyCheck;
+  dashes: ConsistencyCheck;
+  dashCharacters: Array<ConsistencyCount>;
+  capitalization: Array<ConsistencyWord>;
+  hyphenation: Array<ConsistencyWord>;
+}

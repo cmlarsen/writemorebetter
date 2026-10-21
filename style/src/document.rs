@@ -905,7 +905,7 @@ pub fn dialogue_spans_with_options(text: &str, options: &DocumentOptions) -> Vec
     detect_dialogue(text, &paragraph_spans_mode(text, options.hard_wrapped))
 }
 
-fn leading_elision(after: &str) -> bool {
+pub(crate) fn leading_elision(after: &str) -> bool {
     let word = after
         .chars()
         .take_while(|ch| ch.is_alphanumeric())
