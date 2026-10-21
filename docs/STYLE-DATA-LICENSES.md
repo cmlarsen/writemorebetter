@@ -534,3 +534,36 @@ participle names a feeling). It takes `noun.feeling` plus the hyponyms of `feeli
 is in that set or the bundled Lancaster table rates it dominantly interoceptive, then applies
 reviewed inclusion and exclusion lists. Every lemma comes from WordNet. Details:
 [STYLE-EMOTION-TELLS.md](STYLE-EMOTION-TELLS.md#lexicon).
+
+## Vague words and hidden verbs (#307)
+
+| File | Source | Version | License | Checked |
+|---|---|---|---|---|
+| `style/data/hidden-verbs/nominalizations.tsv` | Princeton WordNet 3.0, <https://wordnetcode.princeton.edu/3.0/WordNet-3.0.tar.gz> | release 3.0; sha256 `640db279c949a88f61f851dd54ebbb22d003f8b90b85267042ef85a3781d3a52` | WordNet License (SPDX `WordNet`) | 2026-10-21 |
+| `style/data/vague/fillers.txt` | words/fillers `data.txt`, <https://github.com/words/fillers>; mikpanko/expresso `corpora/fillers`, <https://github.com/mikpanko/expresso> | words/fillers tag 2.0.1 → `d1924b589e6b76d7cd8c4ee3c6d4859aadae8fc7`, `data.txt` sha256 `d35af8f76a8989a0fa96ae20a784a20561838008bc90bf32033c8cc57c15d4af`; expresso `2d58bbbcda716ba1e3acc4615c522ad538effe06` (last commit with the file), sha256 `011f59dc812b0d7b92a3937ce1d4f092605211ea32e422dd6ead65e6a49e4c03` | MIT (Titus Wormer, 2014); MIT (expresso, copyright line unfilled) | 2026-10-21 |
+| `style/data/vague/vague-words.tsv` | written for this project | — | MIT OR Apache-2.0 | 2026-10-21 |
+
+- **Hidden verbs.** Vendored as the [Princeton WordNet 3.0 decision](#princeton-wordnet-30--31-304-307-hidden-verbs)
+  requires, in the same way as the emotion lexicon: a separate data file with the copyright line
+  in its header, the existing `style/data/licenses/WordNet-LICENSE` (verbatim from the release, so
+  its text is unchanged), and the existing NOTICE entry, which now names both WordNet-derived
+  files and describes both derivations. The table is not relicensed. `scripts/build-hidden-verbs.py`
+  derives it from WordNet's noun→verb derivational pointers alone; no CatVar (OSL-1.1) or other
+  source is used. It reads `emotions.tsv` only to leave its nouns out. Details:
+  [STYLE-HIDDEN-VERBS.md](STYLE-HIDDEN-VERBS.md#table).
+- **Fillers.** Only the 80 words/fillers entries that expresso also lists are vendored, as the
+  [wave 3 check](#wordsfillers-wordsweasels-wordshedges-307) requires; the three unattributed
+  entries (*amazing*, *stuff*, *things*) are dropped by `scripts/build-filler-words.py`, which
+  checks both files' sha256s. expresso deleted `corpora/fillers` in `e4ee555` (2018); the pinned
+  commit is its parent. The file is Mikhail Panko's 2014 list: 79 words from `81e8c4a`
+  (2014-01-12) plus *too* from `55d0ae8` (2014-01-25), and no later change. Both MIT notices are
+  reproduced in `style/data/licenses/fillers.txt` and NOTICE credits Titus Wormer and Mikhail
+  Panko. words/hedges and words/weasels stay rejected; nothing from them is used.
+- **Project list.** `vague-words.tsv` was written by this project's contributors, as
+  `transitions.tsv` and `cognition.txt` were. *amazing* and *stuff* are in it as two of the
+  commonest vague words, chosen independently; single common words are not a selection taken from
+  words/fillers, whose other unattributed entry (*things*) is matched only as the lemma *thing*.
+  Seven of its common phrases also appear in the rejected lists (*sort of*, *kind of*, *a bit*,
+  *somewhat* and *more or less* in words/hedges; *a lot* and *various* in words/weasels). They were
+  chosen independently, as the ordinary English for hedging and vague amounts, not taken from those
+  lists.

@@ -1011,3 +1011,30 @@ pub fn title_case_json(
             message: error.to_string(),
         })
 }
+
+#[uniffi::export]
+impl StyleDocument {
+    /// Returns the opt-in vague-words lens on the retained analysis; narration and dialogue are
+    /// counted separately.
+    #[uniffi::method(default(options_json = None))]
+    pub fn vague_words_json(&self, options_json: Option<String>) -> Result<String, CheckError> {
+        self.inner
+            .vague_words(options_json.as_deref())
+            .map(|report| writemorebetter_style::reports::to_utf16_json(&report))
+            .map_err(|error| CheckError::ReportInput {
+                message: error.to_string(),
+            })
+    }
+
+    /// Returns the opt-in hidden-verbs lens on the retained analysis; each match names the related
+    /// verb but never rewrites.
+    #[uniffi::method(default(options_json = None))]
+    pub fn hidden_verbs_json(&self, options_json: Option<String>) -> Result<String, CheckError> {
+        self.inner
+            .hidden_verbs(options_json.as_deref())
+            .map(|report| writemorebetter_style::reports::to_utf16_json(&report))
+            .map_err(|error| CheckError::ReportInput {
+                message: error.to_string(),
+            })
+    }
+}

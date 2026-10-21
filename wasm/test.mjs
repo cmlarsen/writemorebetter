@@ -409,6 +409,25 @@ eq(emotions.tells.map(t => t.mode), ["narration", "dialogue"], "emotion tell mod
 eq(JSON.parse(emotionDocument.emotionTells()).tells.length, 1, "emotion tells skip dialogue by default");
 eq(styleError(() => emotionDocument.emotionTells('{"includeDialog":true}')).kind, "invalidOptions", "emotion tells reject unknown options");
 emotionDocument.free();
+const vagueText = "😀.\u2028It was sort of cold—then a little warmer… “Well, it’s kind of nice,” she said. She made a decision.";
+const vagueDocument = checker.styleDocument(vagueText);
+const vague = JSON.parse(vagueDocument.vagueWords());
+eq(vague.matches.map(m => vagueText.slice(m.span.start, m.span.end)), ["sort of", "a little", "Well", "kind of", "nice"], "UTF-16 vague words after emoji");
+eq(vague.matches.map(m => m.mode), ["narration", "narration", "dialogue", "dialogue", "dialogue"], "vague word modes");
+eq(JSON.parse(vagueDocument.vagueWords('{"fillers":false}')).matches.length, 4, "vague words without fillers");
+const hidden = JSON.parse(vagueDocument.hiddenVerbs());
+eq(hidden.matches.map(m => [vagueText.slice(m.span.start, m.span.end), m.term]), [["made a decision", "decide"]], "UTF-16 hidden verbs after emoji");
+eq(vagueText.slice(hidden.matches[0].lightVerb.start, hidden.matches[0].lightVerb.end), "made", "hidden verb light verb span");
+const vagueCompact = checker.styleDocument(vagueText, '{"includeTokenDetails":false}');
+for (const method of ["vagueWords", "hiddenVerbs"]) {
+  const fresh = checker.styleDocument(vagueText);
+  eq(JSON.parse(vagueDocument[method]()), JSON.parse(fresh[method]()), `shared analysis matches fresh ${method}`);
+  fresh.free();
+  eq(styleError(() => vagueDocument[method]('{"typo":true}')).kind, "invalidOptions", `${method} rejects unknown options`);
+  eq(styleError(() => vagueCompact[method]()).kind, "needsTokenDetails", `compact rejects ${method}`);
+}
+vagueCompact.free();
+vagueDocument.free();
 eq(sensory.groups.all.words, JSON.parse(senseDocument.stats()).words.all, "sensory denominator");
 eq(styleError(() => senseDocument.sensoryBalance('{"minimumStrength":9}')).kind, "invalidOptions", "sensory options validated");
 eq(styleError(() => senseDocument.sensoryBalance('{"singleSensePercent":85}')).kind, "invalidOptions", "removed singleSensePercent option rejected");

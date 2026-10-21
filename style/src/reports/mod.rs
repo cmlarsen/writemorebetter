@@ -7,6 +7,7 @@ pub mod dialogue_tags;
 pub mod diction;
 pub mod echoes;
 pub mod emotion_tells;
+pub mod hidden_verbs;
 pub mod house_style;
 mod norms;
 pub mod overused_words;
@@ -22,6 +23,7 @@ pub mod sentence_length;
 pub mod sentence_starts;
 pub mod title_case;
 pub mod transitions;
+pub mod vague_words;
 
 use std::ops::Range;
 use std::sync::OnceLock;

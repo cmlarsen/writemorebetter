@@ -760,3 +760,26 @@ pub fn title_case(headings_json: &str, options_json: Option<String>) -> Result<S
         .map(|report| reports::to_utf16_json(&report))
         .map_err(style_error)
 }
+
+#[wasm_bindgen]
+impl StyleDocument {
+    #[wasm_bindgen(js_name = vagueWords)]
+    /// Returns the opt-in vague-words lens (fillers, hedges, vague quantities, nouns and
+    /// adjectives) on the retained analysis, narration and dialogue counted separately.
+    pub fn vague_words(&self, options_json: Option<String>) -> Result<String, JsValue> {
+        self.inner
+            .vague_words(options_json.as_deref())
+            .map(|report| reports::to_utf16_json(&report))
+            .map_err(style_error)
+    }
+
+    #[wasm_bindgen(js_name = hiddenVerbs)]
+    /// Returns the opt-in hidden-verbs lens (nominalizations after a light verb or before *of*)
+    /// on the retained analysis; each match names the related verb but never rewrites.
+    pub fn hidden_verbs(&self, options_json: Option<String>) -> Result<String, JsValue> {
+        self.inner
+            .hidden_verbs(options_json.as_deref())
+            .map(|report| reports::to_utf16_json(&report))
+            .map_err(style_error)
+    }
+}

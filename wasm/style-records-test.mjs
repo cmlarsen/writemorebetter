@@ -88,6 +88,11 @@ export function checkStyleRecords(checker) {
   const emotionDocument = checker.styleDocument("She was afraid. “I was so angry,” he said.");
   results.push(["EmotionTellsReport", emotionDocument.emotionTells('{"includeDialogue":true}')]);
   emotionDocument.free();
+  const vagueDocument = checker.styleDocument("It was sort of cold. “Well, it’s a nice thing,” she said. She made a decision after the arrival of the train.");
+  results.push(["VagueWordsReport", vagueDocument.vagueWords()]);
+  results.push(["HiddenVerbsReport", vagueDocument.hiddenVerbs()]);
+  assert.deepEqual(JSON.parse(vagueDocument.hiddenVerbs()).matches.map(m => m.pattern), ["lightVerb", "ofPhrase"]);
+  vagueDocument.free();
   const presetDocument = checker.styleDocument("“Mom, I saw 7 crows at 5 AM,” I said. James’ dad walked towards it—okay—“slowly”.");
   results.push(["PresetReport", presetDocument.preset()]);
   results.push(["PresetReport", presetDocument.preset("uk")]);

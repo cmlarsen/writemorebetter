@@ -783,3 +783,66 @@ export interface TitleCaseReport {
   flaggedHeadings: number;
   matches: Array<TitleCaseMatch>;
 }
+
+export type VagueWordCategory = "filler" | "hedge" | "quantity" | "noun" | "adjective";
+
+export interface VagueWord {
+  span: Span;
+  sentence: number;
+  term: string;
+  category: VagueWordCategory;
+  mode: Mode;
+}
+
+export interface VagueWordTerm {
+  term: string;
+  category: VagueWordCategory;
+  count: number;
+  narration: number;
+  dialogue: number;
+}
+
+export interface VagueWordsGroup {
+  matches: number;
+  words: number;
+  perThousandWords: number | null;
+}
+
+export interface VagueWordsReport {
+  matches: Array<VagueWord>;
+  terms: Array<VagueWordTerm>;
+  groups: Split<VagueWordsGroup>;
+}
+
+export type HiddenVerbPattern = "lightVerb" | "ofPhrase";
+
+export interface HiddenVerb {
+  span: Span;
+  noun: Span;
+  lightVerb: Span | null;
+  nominalization: string;
+  term: string;
+  pattern: HiddenVerbPattern;
+  sentence: number;
+  mode: Mode;
+}
+
+export interface HiddenVerbTerm {
+  term: string;
+  nominalization: string;
+  count: number;
+  narration: number;
+  dialogue: number;
+}
+
+export interface HiddenVerbsGroup {
+  matches: number;
+  words: number;
+  perThousandWords: number | null;
+}
+
+export interface HiddenVerbsReport {
+  matches: Array<HiddenVerb>;
+  terms: Array<HiddenVerbTerm>;
+  groups: Split<HiddenVerbsGroup>;
+}

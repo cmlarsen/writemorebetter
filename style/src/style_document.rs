@@ -321,3 +321,19 @@ impl StyleDocument {
         crate::reports::alliteration::report(&self.document, &options(json)?)
     }
 }
+
+impl StyleDocument {
+    pub fn vague_words(
+        &self,
+        json: Option<&str>,
+    ) -> Result<crate::reports::vague_words::VagueWordsReport, StyleError> {
+        crate::reports::vague_words::report(&self.document, &options(json)?)
+    }
+
+    pub fn hidden_verbs(
+        &self,
+        json: Option<&str>,
+    ) -> Result<crate::reports::hidden_verbs::HiddenVerbsReport, StyleError> {
+        crate::reports::hidden_verbs::report(&self.document, &options(json)?)
+    }
+}

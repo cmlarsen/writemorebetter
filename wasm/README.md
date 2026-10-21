@@ -191,6 +191,8 @@ const pronouns = JSON.parse(document.pronounStarts());
 const adverbs = JSON.parse(document.adverbs());
 const house = JSON.parse(document.houseStyle('{"skipDialogue":true}', valeRulesYaml));
 const emotions = JSON.parse(document.emotionTells()); // '{"includeDialogue":true}' scans dialogue too
+const vague = JSON.parse(document.vagueWords()); // '{"fillers":false}' skips the bundled filler list
+const hidden = JSON.parse(document.hiddenVerbs()); // '{"ofPhrases":false}' keeps light verbs only
 document.free();
 ```
 

@@ -956,3 +956,79 @@ public enum TitleCase {
         try decodeStyle(titleCaseJson(headings: headings, optionsJson: optionsJson))
     }
 }
+
+public enum VagueWordCategory: String, Codable, Sendable { case filler, hedge, quantity, noun, adjective }
+
+public struct VagueWord: Codable, Equatable, Sendable {
+    public let span: Span
+    public let sentence: Int
+    public let term: String
+    public let category: VagueWordCategory
+    public let mode: Mode
+}
+
+public struct VagueWordTerm: Codable, Equatable, Sendable {
+    public let term: String
+    public let category: VagueWordCategory
+    public let count: Int
+    public let narration: Int
+    public let dialogue: Int
+}
+
+public struct VagueWordsGroup: Codable, Equatable, Sendable {
+    public let matches: Int
+    public let words: Int
+    public let perThousandWords: Double?
+}
+
+public struct VagueWordsReport: Codable, Equatable, Sendable {
+    public let matches: [VagueWord]
+    public let terms: [VagueWordTerm]
+    public let groups: Split<VagueWordsGroup>
+}
+
+public enum HiddenVerbPattern: String, Codable, Sendable { case lightVerb, ofPhrase }
+
+public struct HiddenVerb: Codable, Equatable, Sendable {
+    public let span: Span
+    public let noun: Span
+    public let lightVerb: Span?
+    public let nominalization: String
+    /// The related verb, named for the writer; the report never rewrites the text.
+    public let term: String
+    public let pattern: HiddenVerbPattern
+    public let sentence: Int
+    public let mode: Mode
+}
+
+public struct HiddenVerbTerm: Codable, Equatable, Sendable {
+    public let term: String
+    public let nominalization: String
+    public let count: Int
+    public let narration: Int
+    public let dialogue: Int
+}
+
+public struct HiddenVerbsGroup: Codable, Equatable, Sendable {
+    public let matches: Int
+    public let words: Int
+    public let perThousandWords: Double?
+}
+
+public struct HiddenVerbsReport: Codable, Equatable, Sendable {
+    public let matches: [HiddenVerb]
+    public let terms: [HiddenVerbTerm]
+    public let groups: Split<HiddenVerbsGroup>
+}
+
+public extension StyleDocument {
+    /// Narration and dialogue are counted separately; options may set `fillers` to false.
+    func vagueWords(optionsJson: String? = nil) throws -> VagueWordsReport {
+        try decodeStyle(vagueWordsJson(optionsJson: optionsJson))
+    }
+
+    /// Options may set `ofPhrases` to false to keep only light-verb matches.
+    func hiddenVerbs(optionsJson: String? = nil) throws -> HiddenVerbsReport {
+        try decodeStyle(hiddenVerbsJson(optionsJson: optionsJson))
+    }
+}

@@ -10,6 +10,25 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
 ### Added
 
+- **Vague words and hidden verbs lenses** ([#307](https://github.com/cmlarsen/writemorebetter/issues/307),
+  first half). Rust `StyleDocument::vague_words` / `hidden_verbs`, WASM
+  `document.vagueWords(optionsJSON?)` / `document.hiddenVerbs(optionsJSON?)` and Swift
+  `document.vagueWords()` / `document.hiddenVerbs()` count, per narration and dialogue, words that
+  blur a sentence (fillers, hedges such as *sort of* and *a bit*, *a lot*, *thing*, *nice*) and
+  nominalizations doing a verb's work (*made a decision*, *came to the realization*, *the arrival
+  of*). Each match has its span, term and category or pattern; hidden verbs name the related verb
+  (`term`: *decide*) but never rewrite. Options `fillers` and `ofPhrases` (both default true). The
+  vague list is project-authored plus the 80 words/fillers entries backed by mikpanko/expresso
+  (both MIT; `style/data/licenses/fillers.txt`, NOTICE); words already flagged by LanguageTool's
+  `TIRED_INTENSIFIERS` or the overused-words fillers are left out. The 313-row noun→verb table
+  (`style/data/hidden-verbs/nominalizations.tsv`, 7 KB) is derived from Princeton WordNet 3.0 by
+  `scripts/build-hidden-verbs.py` and ships under the WordNet License beside the emotion lexicon;
+  `scripts/build-filler-words.py` rebuilds the filler list. Hand-judged precision on public-domain
+  fiction: 48/50 (vague words) and 36/40 (hidden verbs) on held-out samples. The WASM module grows
+  by 121 KB (7,053,229 → 7,174,085 bytes; 1,771,694 → 1,792,470 with `gzip -9`). See
+  [`docs/STYLE-VAGUE-WORDS.md`](docs/STYLE-VAGUE-WORDS.md) and
+  [`docs/STYLE-HIDDEN-VERBS.md`](docs/STYLE-HIDDEN-VERBS.md).
+
 - **Regional spelling lens** ([#299](https://github.com/cmlarsen/writemorebetter/issues/299)).
   Rust `StyleDocument::regional_spelling(options)`, WASM `document.regionalSpelling(optionsJSON)`
   and Swift `document.regionalSpelling()` report mixed American and British spelling: counts for
