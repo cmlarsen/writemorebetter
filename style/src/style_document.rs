@@ -234,6 +234,7 @@ impl StyleDocument {
     ) -> Result<crate::reports::clarity::ClarityReport, StyleError> {
         crate::reports::clarity::report(&self.document, &options(json)?)
     }
+
     /// Runs caller-supplied house-style rules (YAML or JSON text); `None` is an error.
     pub fn house_style(
         &self,
