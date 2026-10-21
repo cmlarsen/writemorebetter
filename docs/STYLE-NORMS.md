@@ -654,3 +654,7 @@ bench/public showed no runs at 2.5 or 2.6, and the held-out Crane, Wharton and G
 not judged at either. 2.85 stays the default because the owner approved it, and diction is an
 opt-in lens, so a writer who turns it on asks for these flags. Choosing between 2.6 and 2.85 needs a
 judged sample of published or draft runs at 2.6, which this aggregate-only run cannot provide.
+
+**Decision (owner, 2026-10-21): keep 2.85.** About two runs per published chapter is an acceptable
+volume for an opt-in lens, and 2.85 is the only setting with judged runs (19 of 20 useful in the
+#313 review); 2.6 found no runs on bench/public.
