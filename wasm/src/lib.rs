@@ -648,6 +648,15 @@ impl StyleDocument {
             .map(|report| reports::to_utf16_json(&report))
             .map_err(style_error)
     }
+
+    #[wasm_bindgen(js_name = regionalSpelling)]
+    /// Returns this report on the retained analysis; options default when omitted.
+    pub fn regional_spelling(&self, options_json: Option<String>) -> Result<String, JsValue> {
+        self.inner
+            .regional_spelling(options_json.as_deref())
+            .map(|report| reports::to_utf16_json(&report))
+            .map_err(style_error)
+    }
 }
 
 #[wasm_bindgen(typescript_custom_section)]

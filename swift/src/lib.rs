@@ -882,4 +882,18 @@ impl StyleDocument {
                 message: error.to_string(),
             })
     }
+
+    /// Returns this report on the retained analysis; options default when omitted.
+    #[uniffi::method(default(options_json = None))]
+    pub fn regional_spelling_json(
+        &self,
+        options_json: Option<String>,
+    ) -> Result<String, CheckError> {
+        self.inner
+            .regional_spelling(options_json.as_deref())
+            .map(|report| writemorebetter_style::reports::to_utf16_json(&report))
+            .map_err(|error| CheckError::ReportInput {
+                message: error.to_string(),
+            })
+    }
 }

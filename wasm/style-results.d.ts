@@ -410,6 +410,21 @@ export interface ConsistencyVariant {
   spans: Array<Span>;
 }
 
+export type SpellingSystem = "american" | "british" | "oxford";
+export type RegionalSpellingReason = "system" | "form";
+
+export interface SpellingSystemCount {
+  system: SpellingSystem;
+  count: number;
+}
+
+export interface RegionalSpellingForm {
+  form: string;
+  systems: Array<SpellingSystem>;
+  counts: Split<number>;
+  spans: Array<Span>;
+}
+
 export interface ConsistencyCheck {
   mixed: boolean;
   variants: Array<ConsistencyVariant>;
@@ -590,4 +605,29 @@ export interface HouseStyleReport {
   unsupported: Array<HouseStyleRuleError>;
   matches: Array<HouseStyleMatch>;
   groups: Split<HouseStyleCounts>;
+}
+
+export interface RegionalSpellingWord {
+  word: string;
+  mixed: boolean;
+  forms: Array<RegionalSpellingForm>;
+}
+
+export interface RegionalSpellingFlag {
+  span: Span;
+  sentence: number;
+  form: string;
+  word: string;
+  systems: Array<SpellingSystem>;
+  reason: RegionalSpellingReason;
+  dominantForm: string | null;
+  mode: Mode;
+}
+
+export interface RegionalSpellingReport {
+  markers: number;
+  systems: Array<SpellingSystemCount>;
+  dominant: Array<SpellingSystem>;
+  words: Array<RegionalSpellingWord>;
+  flags: Array<RegionalSpellingFlag>;
 }

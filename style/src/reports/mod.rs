@@ -12,6 +12,7 @@ pub mod pacing;
 pub mod passive;
 pub mod pronoun_starts;
 pub mod readability;
+pub mod regional_spelling;
 pub mod repeated_phrases;
 pub mod sensory_balance;
 pub mod sentence_length;

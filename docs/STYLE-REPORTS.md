@@ -68,6 +68,7 @@ swift/, wasm/       one binding each, exposing check() + analyze() + analyzeDocu
 | [Passive voice](STYLE-PASSIVE.md) | #303 | POS, lemmas | per-mode p5–p95 band of passives per 100 sentences (none yet; a provisional public stand-in is opt-in as `"publicStandIn"` until an owner tier 3 run) |
 | [Clarity](STYLE-CLARITY.md) (sticky sentences, long subordinate clauses) | #302 | POS readings, chunks | none; thresholds calibrated on public-text flag rates (2026-10-20) |
 | [House style](STYLE-HOUSE-STYLE.md) (Vale-format rules) | #305 | paragraph and sentence text, speech spans | none; rules caller-supplied |
+| [Regional spelling](STYLE-REGIONAL-SPELLING.md) (US/UK mixing, opt-in) | #299 | word tokens, VarCon-derived table | none; table bundled (VarCon 2020.12.07, modified) |
 
 Sentence length and sentence starts are public modules under `style::reports`, with no flattened
 crate-root exports. [Sentence report definitions](STYLE-SENTENCES.md) specify word counting, Penn
@@ -176,7 +177,7 @@ annotate the value decoded with `JSON.parse`.
 
 Subplot chooses which methods to call. Its recommended default set is **clichés, dialogue tags,
 sentence length statistics and monotony, and sentence starts**. **Echoes, repeated phrases,
-long-sentence flags, overused and filler words, transitions, pronoun starts, adverbs, sensory balance, diction, pacing and readability** are opt-in lenses;
+long-sentence flags, overused and filler words, transitions, pronoun starts, adverbs, sensory balance, diction, pacing, readability and regional spelling** are opt-in lenses;
 sensory balance and diction stay opt-in until the owner has seen usefulness numbers on real manuscripts. Length statistics and monotony remain available without
 `includeLongSentences`. Pacing thresholds are calibrated on published-fiction flag rates (2026-10-16), not on labeled passages.
 A pacing strip should highlight only `slowRuns` and draw the per-paragraph signals as neutral
@@ -202,6 +203,7 @@ measurements: single paragraphs that meet two thresholds are mostly in-scene noi
 | readability | `readability::report(&Document, &ReadabilityOptions)`; `report_with(…, &dyn SyllableCounter)` takes another syllable counter | `minimumSentences`, `minimumParagraphWords`, `wordsPerMinute`, `excludeDialogueParagraphs` | none | no |
 | clarity | `clarity::report(&Document, &ClarityOptions)` | `minimumSentences`, `minimumSentenceWords`, `stickyGluePercent`, `longClauseWords` | none | yes |
 | house style | `house_style::report(&Document, &HouseStyleRules, &HouseStyleOptions)` | `skipDialogue` | none (rules caller-supplied: `HouseStyleRules::parse`) | no |
+| regional spelling (opt-in) | `regional_spelling::report(&Document, &RegionalSpellingOptions)` | `minimumMarkers`, `system` | none (table bundled) | no |
 
 Every entry point returns `Result<_, StyleError>`. Type names are prefixed with their report
 (`SentenceLengthReport`, `ClicheMatch`, `DialogueTagVerbClass`, …) so they stay unique in Swift's
@@ -505,6 +507,7 @@ Build rules for any baseline:
 | 2026-10-20 | #303: passive voice is an aggregate rate (passives per 100 sentences, per mode) with spans, *be*/*get* + VBN and adjectival-participle guards, and a bundled band built from public text (`bench/public` + *Pride and Prejudice*) until an owner tier 3 run replaces it | Per-instance flags belong to LanguageTool's `PASSIVE_VOICE` once the rule opt-in lands. The published-fiction export was not available to this change. The public band reflects Melville and Austen as much as fiction norms, so it is a replaceable baseline argument. See [STYLE-PASSIVE.md](STYLE-PASSIVE.md) |
 | 2026-10-20 | #303 review: the passive report has no default band; the public stand-in is opt-in as `"publicStandIn"` | The stand-in reflects Melville and Austen (median 12.5 per 100 sentences) while modern prose runs about 3–6, so as a default it would hide a heavily passive modern draft. Transitions and pronoun starts already ship with no band until a published-fiction run. See [STYLE-PASSIVE.md](STYLE-PASSIVE.md) |
 | 2026-10-20 | Clarity (#302) is an opt-in lens: sticky sentences at ≥65% glue words in sentences of ≥15 words, long subordinate clauses at ≥20 words, glue from closed-class readings resolved by chunk, clauses from `B-SBAR` chunks, WH-words and a short subordinator list | No new data; defaults keep published public-domain flag rates near 2% (sticky) and 1% (long clauses) of sentences ([STYLE-CLARITY.md](STYLE-CLARITY.md#public-calibration-2026-10-20)); it counts clause length and glue share, never sentence length, so it does not duplicate `sentenceLength` or `TOO_LONG_SENTENCE` |
+| 2026-10-20 | #299: opt-in regional-spelling lens from VarCon 2020.12.07 with American, British -ise and Oxford -ize systems; flag tokens no dominant system accepts and minority forms of one word; skip mid-sentence capitals as names; keep the overused-words British fold; no Harper vocabulary | Oxford spelling is British, so -ize alone never marks American; sense-dependent spellings (*check*, *tire*) are never markers. A separate report because #309 had not merged; its records follow #309's per-word shape. Harper's vocabulary pairs are mostly American words in another sense. See [STYLE-REGIONAL-SPELLING.md](STYLE-REGIONAL-SPELLING.md) |
 
 ## Accuracy benchmarks
 

@@ -248,6 +248,13 @@ impl StyleDocument {
         })?;
         house_style::report(&self.document, &*parsed_rules(rules)?, &options)
     }
+
+    pub fn regional_spelling(
+        &self,
+        json: Option<&str>,
+    ) -> Result<crate::reports::regional_spelling::RegionalSpellingReport, StyleError> {
+        crate::reports::regional_spelling::report(&self.document, &options(json)?)
+    }
 }
 
 fn parsed_rules(
