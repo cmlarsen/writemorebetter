@@ -3,7 +3,7 @@ name = "writemorebetter-wasm"
 version = "0.10.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
-description = "WebAssembly bindings for writemorebetter: English grammar and spelling checking without a JVM."
+description = "WebAssembly bindings for writemorebetter: English grammar and spelling checking without a JVM. Bundles third-party data under its own licenses (CMUdict, CC BY word norms); see NOTICE."
 publish = false
 
 [lib]

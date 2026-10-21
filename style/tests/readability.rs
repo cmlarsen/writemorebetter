@@ -1,7 +1,8 @@
 use nlprule::Tokenizer;
 use std::sync::{Arc, OnceLock};
 use writemorebetter_style::reports::readability::{
-    self, sentence_words, syllables, ReadabilityOptions, ReadabilityScores, SyllableCounter,
+    self, sentence_words, syllables, DictionarySyllables, HeuristicSyllables, ReadabilityOptions,
+    ReadabilityScores, SyllableCounter,
 };
 use writemorebetter_style::reports::{to_utf16_json, StyleResources};
 use writemorebetter_style::{
@@ -53,12 +54,16 @@ fn expect_scores(
 }
 
 fn accuracy(list: &str) -> (usize, usize, Vec<String>) {
+    accuracy_with(list, &HeuristicSyllables)
+}
+
+fn accuracy_with(list: &str, counter: &dyn SyllableCounter) -> (usize, usize, Vec<String>) {
     let mut misses = Vec::new();
     let mut total = 0;
     for line in list.lines() {
         let (word, expected) = line.split_once('\t').unwrap();
         total += 1;
-        let got = syllables(word);
+        let got = counter.syllables(word);
         if got != expected.parse::<usize>().unwrap() {
             misses.push(format!("{word}: {got} (expected {expected})"));
         }
@@ -405,4 +410,112 @@ fn excluding_dialogue_keeps_whole_text_reading_time() {
     close(Some(kept.groups.all.reading_minutes), 12.0 / 260.0);
     close(Some(excluded.groups.all.reading_minutes), 12.0 / 260.0);
     close(Some(excluded.groups.narration.reading_minutes), 4.0 / 260.0);
+}
+
+#[test]
+fn dictionary_counter_accuracy() {
+    // Phase 2: CMUdict counts for the words the heuristic misses. Both lists follow CMUdict's
+    // first entry, so the remaining misses are words CMUdict lacks or spells differently.
+    for (name, list, floor) in [
+        ("development", include_str!("fixtures/syllables.tsv"), 99),
+        (
+            "held-out",
+            include_str!("fixtures/syllables-heldout.tsv"),
+            99,
+        ),
+    ] {
+        let (before, total, _) = accuracy(list);
+        let (right, _, misses) = accuracy_with(list, &DictionarySyllables);
+        println!("{name} list: {before} → {right} of {total}");
+        for miss in &misses {
+            println!("  {miss}");
+        }
+        assert!(right >= before, "{name}: {right} < {before}");
+        assert!(
+            right * 100 >= total * floor,
+            "{right} of {total}: {misses:?}"
+        );
+    }
+}
+
+#[test]
+fn dictionary_counter_handles_typography() {
+    let counter = DictionarySyllables;
+    for (word, expected) in [
+        // In the table: the heuristic gets these wrong.
+        ("maybe", 2),
+        ("Maybe", 2),
+        ("‘maybe’", 2),
+        ("“Wednesday", 2),
+        ("Wednesday’s", 2),
+        ("Wednesday's", 2),
+        ("business-like", 3),
+        ("evening\u{2028}", 2),
+        ("our", 2),
+        ("U.S", 2),
+        ("u.s.", 2),
+        // Not in the table: the heuristic's count is CMUdict's.
+        ("didn’t", 2),
+        ("can’t", 1),
+        ("James’s", 2),
+        ("o’clock", 2),
+        ("well-known", 2),
+        ("naïve", 2),
+        ("Mrs", 2),
+        ("1999", 1),
+        ("hmm", 1),
+        ("’", 1),
+        ("…", 1),
+        ("—", 1),
+    ] {
+        assert_eq!(counter.syllables(word), expected, "{word}");
+    }
+}
+
+#[test]
+fn dictionary_is_the_default_counter() {
+    // 2 sentences; maybe (2), naked (2), evening (2) are heuristic misses.
+    let text = "“Maybe,” she said—naked…\u{2028}It was evening.";
+    let doc = document(text);
+    let default = readability::report(&doc, &ReadabilityOptions::new()).unwrap();
+    let dictionary =
+        readability::report_with(&doc, &ReadabilityOptions::new(), &DictionarySyllables).unwrap();
+    let heuristic =
+        readability::report_with(&doc, &ReadabilityOptions::new(), &HeuristicSyllables).unwrap();
+    assert_eq!(default, dictionary);
+    // Maybe she said naked It was evening: 2+1+1+2+1+1+2 = 10; the heuristic counts 9.
+    assert_eq!(default.groups.all.words, 7);
+    assert_eq!(default.groups.all.syllables, 10);
+    assert_eq!(heuristic.groups.all.syllables, 9);
+}
+
+#[test]
+fn bundled_syllable_table_is_well_formed() {
+    let table = include_str!("../data/pronunciation/cmudict-syllables.tsv");
+    assert!(table.contains("74790861f652b15e4ac49015a90074ad62a27690"));
+    assert!(table.contains("81917843c7f44ce2b094ac63873c2c7a4cf802040792c455ba3ca406891c3d22"));
+    let rows: Vec<(&str, usize)> = table
+        .lines()
+        .filter(|line| !line.starts_with('#'))
+        .map(|line| {
+            let (word, count) = line.split_once('\t').unwrap();
+            (word, count.parse().unwrap())
+        })
+        .collect();
+    assert_eq!(
+        rows.len(),
+        writemorebetter_style::pronunciation::syllable_exception_count()
+    );
+    assert!(rows.windows(2).all(|pair| pair[0].0 < pair[1].0));
+    for (word, count) in rows {
+        assert!((1..=12).contains(&count), "{word}");
+        assert!(
+            word.chars()
+                .all(|c| c.is_ascii_lowercase() || "'-.".contains(c)),
+            "{word}"
+        );
+        assert!(word.starts_with(|c: char| c.is_ascii_lowercase()), "{word}");
+        assert!(word.ends_with(|c: char| c.is_ascii_lowercase()), "{word}");
+        assert_eq!(DictionarySyllables.syllables(word), count, "{word}");
+    }
 }

@@ -226,3 +226,9 @@ The transitions lens also supports compact documents because it uses token text 
 Passive voice (`passive`) reports passives per 100 sentences per mode, with spans, and takes a baseline
 argument like the other banded reports. It has no default band yet (no comparison); `"publicStandIn"`
 opts in to a provisional band from public text. See [STYLE-PASSIVE.md](../docs/STYLE-PASSIVE.md).
+
+Readability counts syllables with a table derived from the CMU Pronouncing Dictionary, compiled
+into this module. CMUdict's license (BSD-2-Clause-style) requires that binary redistributions
+reproduce Carnegie Mellon University's copyright notice, conditions and disclaimer in their
+documentation; ship the CMUdict section of [`NOTICE`](../NOTICE) with apps that embed the style
+reports. See [readability](../docs/STYLE-READABILITY.md#dictionary-phase-2).

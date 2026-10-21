@@ -3,7 +3,7 @@ name = "writemorebetter-swift"
 version = "0.10.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
-description = "Swift bindings for writemorebetter: English grammar and spelling checking without a JVM."
+description = "Swift bindings for writemorebetter: English grammar and spelling checking without a JVM. Bundles third-party data under its own licenses (CMUdict, CC BY word norms); see NOTICE."
 publish = false
 
 [lib]

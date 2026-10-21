@@ -196,3 +196,8 @@ under the same licenses; see [`NOTICE`](NOTICE). Compiled rule and dictionary da
 LanguageTool are LGPL-2.1 and ship as separate files (see
 [`binaries/README.md`](binaries/README.md)). writemorebetter is not affiliated with LanguageTool or
 LanguageTooler GmbH.
+
+The `style` crate bundles data tables under their own licenses, listed in [`NOTICE`](NOTICE) with
+the license texts in `style/data/licenses/`. Its syllable table is derived from the CMU
+Pronouncing Dictionary (BSD-2-Clause-style): native, Swift and WASM builds that include the style
+reports must reproduce CMU's notice in their documentation; NOTICE has the text.
