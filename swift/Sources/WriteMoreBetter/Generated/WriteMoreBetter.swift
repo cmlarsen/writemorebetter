@@ -950,6 +950,11 @@ public protocol StyleDocumentProtocol: AnyObject, Sendable {
     func adverbsJson(optionsJson: String?) throws  -> String
     
     /**
+     * Returns the opt-in clarity lens (sticky sentences, long subordinate clauses).
+     */
+    func clarityJson(optionsJson: String?) throws  -> String
+    
+    /**
      * Returns this report on the retained analysis; options default when omitted.
      */
     func clichesJson(optionsJson: String?) throws  -> String
@@ -1097,6 +1102,19 @@ open func adverbsJson(optionsJson: String? = nil)throws  -> String  {
     return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
         uniffiCallStatus in
     uniffi_writemorebetter_swift_fn_method_styledocument_adverbs_json(
+            self.uniffiCloneHandle(),
+        FfiConverterOptionString.lower(optionsJson),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * Returns the opt-in clarity lens (sticky sentences, long subordinate clauses).
+     */
+open func clarityJson(optionsJson: String? = nil)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_method_styledocument_clarity_json(
             self.uniffiCloneHandle(),
         FfiConverterOptionString.lower(optionsJson),uniffiCallStatus
     )
@@ -2656,6 +2674,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_method_styledocument_adverbs_json() != 23195) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_writemorebetter_swift_checksum_method_styledocument_clarity_json() != 41668) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_method_styledocument_cliches_json() != 60906) {
