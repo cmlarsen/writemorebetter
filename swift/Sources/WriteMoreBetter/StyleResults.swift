@@ -868,6 +868,8 @@ public struct StylePresetSummary: Codable, Equatable, Sendable {
     public let name: String
     public let version: String?
     public let description: String?
+    /// The heading style to pass as `TitleCaseOptions.style`; `nil` means Chicago.
+    public let titleCase: TitleCaseStyle?
 }
 
 public enum StylePresets {

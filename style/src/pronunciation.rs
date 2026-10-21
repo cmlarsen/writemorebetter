@@ -73,7 +73,27 @@ pub const CONSONANTS: [&str; 24] = [
 /// A word's first phoneme guessed from its spelling: a consonant label from [`CONSONANTS`], or
 /// `"-"` for a vowel. `key` is lowercase with straight apostrophes, as for [`onset_exception`].
 pub fn spelled_onset(key: &str) -> &'static str {
-    let word = key.trim_start_matches(|c: char| !c.is_ascii_alphabetic());
+    let word = key.trim_start_matches(|c: char| !c.is_alphabetic());
+    // Loanwords keep their accents (`élan`, `Über`). An accented vowel is a vowel sound (never
+    // the glide of `unit`); other common Latin letters fold to their base letter, `ç` always soft.
+    if word.starts_with(|c: char| "àáâãäåāèéêëēìíîïīòóôõöøōùúûüū".contains(c)) {
+        return "-";
+    }
+    let word: String = word
+        .chars()
+        .map(|c| match c {
+            'à' | 'á' | 'â' | 'ã' | 'ä' | 'å' | 'ā' => 'a',
+            'è' | 'é' | 'ê' | 'ë' | 'ē' => 'e',
+            'ì' | 'í' | 'î' | 'ï' | 'ī' => 'i',
+            'ò' | 'ó' | 'ô' | 'õ' | 'ö' | 'ø' | 'ō' => 'o',
+            'ù' | 'ú' | 'û' | 'ü' | 'ū' => 'u',
+            'ç' => 's',
+            'ñ' => 'n',
+            'ý' | 'ÿ' => 'y',
+            c => c,
+        })
+        .collect();
+    let word = word.as_str();
     let next = |at: usize| word.as_bytes().get(at).copied().unwrap_or(b' ');
     let vowel = |c: u8| b"aeiou".contains(&c);
     const DIGRAPHS: [(&str, &str); 16] = [

@@ -574,6 +574,8 @@ final class CheckerTests: XCTestCase {
         let uk = try StylePresets.summary(StylePresets.load("uk"))
         XCTAssertEqual(uk.name, "uk")
         XCTAssertEqual(uk.version, "1.1.0")
+        XCTAssertEqual(uk.titleCase, .sentence)
+        XCTAssertEqual(try StylePresets.summary(StylePresets.load("ap")).titleCase, .ap)
         let mine = try StylePresets.parse("{\"format\": 1, \"name\": \"mine\", \"extends\": \"ap\", \"checks\": {\"numbers\": null}}")
         XCTAssertEqual(try StylePresets.summary(mine).name, "mine")
         XCTAssertThrowsError(try StylePresets.parse("{\"format\": 1, \"name\": \"x\", \"colour\": 1}")) { error in

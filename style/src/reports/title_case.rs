@@ -330,10 +330,12 @@ fn check(heading: &str, index: usize, options: &TitleCaseOptions, out: &mut Vec<
             let folded = fold(&element.text);
             let stem = folded.split('\'').next().unwrap_or(&folded);
             // Numbers and words that start with one (`3rd`), single letters other than *a*
-            // (`Plan B`) and skipped names keep their case.
+            // (`Plan B`), the pronoun *I* with its contractions (`I'm`) and skipped names keep
+            // their case.
             if skipped.iter().any(|name| *name == folded || name == stem)
                 || !element.text.chars().next().is_some_and(char::is_alphabetic)
                 || (folded.chars().count() == 1 && folded != "a")
+                || stem == "i"
             {
                 continue;
             }

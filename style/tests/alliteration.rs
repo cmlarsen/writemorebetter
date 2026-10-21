@@ -68,6 +68,20 @@ fn table_corrects_the_spelling() {
             "{word}"
         );
     }
+    // Accented first letters fold to their base letter instead of being dropped.
+    for (word, sound) in [
+        ("élan", "-"),
+        ("émigré", "-"),
+        ("école", "-"),
+        ("Über", "-"),
+        ("Ångström", "-"),
+        ("“Élan”", "-"),
+        ("ça", "s"),
+        ("ñandu", "n"),
+    ] {
+        assert_eq!(initial_sound(word), sound, "{word}");
+    }
+    assert_eq!(spelled_onset("élan"), "-");
     assert_eq!(initial_sound("Hour’s"), "-");
     assert_eq!(initial_sound("hour-long"), "-");
     assert_eq!(initial_sound("Sure-footed"), "sh");
@@ -104,6 +118,19 @@ fn function_words_and_repeats_do_not_count() {
     assert_eq!(
         words("Tom took the tram to the town that night."),
         vec![vec!["Tom", "took", "tram", "town"]]
+    );
+    // Reflexive and independent possessive pronouns are unstressed like `him` and `her`.
+    assert!(words("He hid himself in her hut.").is_empty());
+    assert_eq!(
+        words("He himself had hoped her horse would help."),
+        vec![vec!["hoped", "horse", "help"]]
+    );
+    assert!(words("The hut was hers, and the hat was theirs.").is_empty());
+    // Accented first letters keep their own sound: no `l` or `b` run here.
+    assert!(words("The élan, lovely, lithe.").is_empty());
+    assert_eq!(
+        words("Über bold bears bit."),
+        vec![vec!["bold", "bears", "bit"]]
     );
     // Only two different words.
     assert!(words("Dark, dark, dark days.").is_empty());

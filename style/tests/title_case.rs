@@ -176,6 +176,16 @@ fn sentence_case() {
         flags(Sentence, "the night"),
         vec![("the".into(), "The".into(), FirstWord)]
     );
+    // Contractions of `I` keep their capital too, with straight or curly apostrophes.
+    for heading in [
+        "Where I'm going",
+        "Where I’ve been",
+        "Where I'd go",
+        "What I’ll say…",
+        "Where I’m going—now",
+    ] {
+        assert!(words(Sentence, heading).is_empty(), "{heading}");
+    }
     // `I`, acronyms and names given in `skipNames` keep their capitals.
     let options =
         TitleCaseOptions::new(Sentence).with_skip_names(vec!["Mara Vale".into(), "London".into()]);
