@@ -74,6 +74,8 @@ pub enum Builtin {
     Dash(en::Dash),
     /// Flags a compound written as separate words, e.g. `"part time"`.
     Compounds(en::Compounds),
+    /// A narrow English word confusion adapted from Harper.
+    HarperConfusion(en::HarperConfusion),
 }
 
 impl Builtin {
@@ -102,6 +104,7 @@ impl Builtin {
             Builtin::SpecificCase(rule) => rule.id(),
             Builtin::Dash(rule) => rule.id(),
             Builtin::Compounds(rule) => rule.id(),
+            Builtin::HarperConfusion(rule) => rule.id(),
         }
     }
 
@@ -186,6 +189,9 @@ impl Builtin {
                 .iter()
                 .flat_map(|x| rule.check(x, speller))
                 .collect(),
+            Builtin::HarperConfusion(rule) => {
+                sentences.iter().flat_map(|x| rule.check(x)).collect()
+            }
         }
     }
 

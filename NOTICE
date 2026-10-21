@@ -4,6 +4,11 @@ Copyright (c) 2026 Caleb Larsen
 This project includes code from nlprule (https://github.com/bminixhofer/nlprule),
 Copyright (c) 2020-2021 Benjamin Minixhofer, licensed under MIT OR Apache-2.0.
 
+Selected English confusion builtin patterns are adapted from Harper
+(https://github.com/Automattic/harper/tree/master/harper-core/src/linting),
+commit 37d344cd6e41b0465f542d6a477483f26a734001. Copyright (c) Harper
+contributors, licensed under Apache-2.0.
+
 srx/ is vendored from the srx crate 0.1.4 (https://github.com/bminixhofer/srx),
 Copyright (c) Benjamin Minixhofer, licensed under MIT OR Apache-2.0, with
 modifications.
