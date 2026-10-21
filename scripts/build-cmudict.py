@@ -3,6 +3,9 @@
 
 Usage: scripts/build-cmudict.py cmudict.dict [out.tsv]
 
+Runs from any directory: relative paths are resolved against the current directory, and the
+default output is inside the repository.
+
 The input is cmudict.dict from https://github.com/cmusphinx/cmudict at commit
 74790861f652b15e4ac49015a90074ad62a27690:
 https://raw.githubusercontent.com/cmusphinx/cmudict/74790861f652b15e4ac49015a90074ad62a27690/cmudict.dict
@@ -12,8 +15,9 @@ Each headword's syllable count is the number of vowel phones (the phones carryin
 digit) in its first pronunciation. Only words the heuristic counter in
 style/src/reports/readability.rs gets wrong are written; the filtering runs that counter through
 `cargo run -p writemorebetter-style --example cmudict_syllables`, so rebuild the table whenever
-the heuristic changes. No phonemes are written. Later tables from the same pinned file (initial
-sounds for alliteration, #307) belong in this script next to `syllable_counts`.
+the heuristic changes; CI regenerates it and fails on any difference. No phonemes are written.
+Later tables from the same pinned file (initial sounds for alliteration, #307) belong in this
+script next to `syllable_counts`.
 """
 import hashlib
 import os
@@ -66,8 +70,11 @@ def syllable_counts(path):
 
 
 def main():
-    source = sys.argv[1]
-    out = sys.argv[2] if len(sys.argv) > 2 else 'style/data/pronunciation/cmudict-syllables.tsv'
+    source = os.path.abspath(sys.argv[1])
+    out = os.path.abspath(sys.argv[2]) if len(sys.argv) > 2 else None
+    # cargo finds the workspace from the current directory.
+    os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    out = out or 'style/data/pronunciation/cmudict-syllables.tsv'
     with open(source, 'rb') as handle:
         digest = hashlib.sha256(handle.read()).hexdigest()
     if digest != SHA256:
@@ -81,7 +88,7 @@ def main():
         kept = subprocess.run(
             ['cargo', 'run', '--quiet', '--release', '-p', 'writemorebetter-style',
              '--example', 'cmudict_syllables', '--', full],
-            check=True, capture_output=True, text=True).stdout
+            check=True, stdout=subprocess.PIPE, text=True).stdout
     lines = kept.splitlines()
     with open(out, 'w', encoding='utf-8', newline='\n') as handle:
         handle.write(HEADER.format(kept=f'{len(lines):,}', total=f'{len(counts):,}'))

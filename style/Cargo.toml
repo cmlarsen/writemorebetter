@@ -3,7 +3,7 @@ name = "writemorebetter-style"
 version = "0.10.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
-description = "Whole-document analysis for fiction style reports"
+description = "Whole-document analysis for fiction style reports. Bundles third-party data under its own licenses (CMUdict, CC BY word norms); see NOTICE."
 
 [dependencies]
 nlprule = { path = "../nlprule", default-features = false }

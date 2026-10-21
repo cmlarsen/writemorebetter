@@ -34,7 +34,10 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   from 189 to 190 of 190; whole-text indices on `bench/public` move by at most 0.5. Built by
   `scripts/build-cmudict.py` from a pinned sha256. Apps that ship the style reports must
   reproduce CMU's notice in their documentation; see NOTICE and
-  [`docs/STYLE-READABILITY.md`](docs/STYLE-READABILITY.md#dictionary-phase-2).
+  [`docs/STYLE-READABILITY.md`](docs/STYLE-READABILITY.md#dictionary-phase-2). The XCFramework
+  and data release zips now carry `NOTICE` and the third-party license texts, and `NOTICE` is
+  a release asset. CI regenerates the table from the pinned `cmudict.dict` and fails if it is
+  stale relative to the heuristic.
 
 - **Diction has a bundled concreteness table**
   ([#256](https://github.com/cmlarsen/writemorebetter/issues/256)).

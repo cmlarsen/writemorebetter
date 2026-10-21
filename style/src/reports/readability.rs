@@ -377,6 +377,10 @@ fn is_vowel_letter(c: char) -> bool {
     )
 }
 
+// The bundled CMUdict table (`style/data/pronunciation/cmudict-syllables.tsv`) holds only the
+// words this heuristic gets wrong. Any change from here through `vowel_group_syllables` needs the
+// table rebuilt with `scripts/build-cmudict.py`; CI regenerates it and fails on a stale table.
+
 /// Silent-e compounds: `something` is `some` + `thing`, not some-e-thing. Each prefix is one
 /// syllable there, `fire` too: CMUdict has `fireman` and `firework` as two.
 const SILENT_E_PREFIXES: [&str; 8] = [

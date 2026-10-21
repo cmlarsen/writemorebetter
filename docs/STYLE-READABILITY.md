@@ -224,7 +224,11 @@ key only if `syllables_with` misses CMUdict's count without it, and adds keys ba
 of the 125,159 gets CMUdict's count from the kept table. **8,437 keys are kept** (6.7%); the heuristic alone gets 8,830 keys wrong, and the other 393 come
 right once their stem or parts are looked up (`wednesday's`, `able-bodied`). Only counts are
 written, never phonemes. Rebuild the table whenever the heuristic changes, or words it used to get
-right may drift; the `bundled_syllable_table_is_well_formed` test checks every kept key.
+right may drift. The `bundled_syllable_table_is_well_formed` test checks only that the kept keys
+parse and have plausible counts; it can't see drift, because a kept key always returns its own
+count. The guard is CI: it downloads the pinned `cmudict.dict`, reruns the script and fails if
+`style/data/pronunciation/` differs, which catches both words the heuristic now gets wrong and
+entries it no longer needs.
 
 | Table | Rows | Bytes | `gzip -9` |
 |---|---:|---:|---:|

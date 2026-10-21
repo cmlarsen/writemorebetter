@@ -355,7 +355,15 @@ variants with three notices and a fixed release.
   1.3 MB full table above. Built by `scripts/build-cmudict.py`, which pins the sha256 above. The
   file header carries CMU's copyright line and marks it as modified; `LICENSE` is verbatim in
   `style/data/licenses/cmudict.txt`; NOTICE has the entry with the full notice and says binary
-  redistributions must reproduce it; the root, `wasm/` and `swift/` READMEs point to it. #307's
+  redistributions must reproduce it; the root, `wasm/` and `swift/` READMEs point to it. The
+  release workflow ships `NOTICE` and `style/data/licenses/` inside the XCFramework and data
+  zips and attaches `NOTICE` as a release asset (#321 review).
+- **Cargo metadata.** `license = "MIT OR Apache-2.0"` on `writemorebetter-style`,
+  `writemorebetter-swift` and `writemorebetter-wasm` covers the code only; the crates also compile
+  in this table and the CC BY data above. Their `description` says so, but notice generators that
+  read only the `license` field (`cargo-about`, `cargo-deny`) will not list CMU or the CC BY
+  sources. Consumers building a notice screen add CMU's notice and the CC BY credits from
+  `NOTICE` by hand. #307's
   alliteration table should be another output of the same script. See
   [STYLE-READABILITY.md](STYLE-READABILITY.md#dictionary-phase-2).
 
