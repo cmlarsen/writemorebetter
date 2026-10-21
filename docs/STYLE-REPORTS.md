@@ -69,6 +69,7 @@ swift/, wasm/       one binding each, exposing check() + analyze() + analyzeDocu
 | [Clarity](STYLE-CLARITY.md) (sticky sentences, long subordinate clauses) | #302 | POS readings, chunks | none; thresholds calibrated on public-text flag rates (2026-10-20) |
 | [House style](STYLE-HOUSE-STYLE.md) (Vale-format rules) | #305 | paragraph and sentence text, speech spans | none; rules caller-supplied |
 | [Regional spelling](STYLE-REGIONAL-SPELLING.md) (US/UK mixing, opt-in) | #299 | word tokens, VarCon-derived table | none; table bundled (VarCon 2020.12.07, modified) |
+| [Emotion tells](STYLE-EMOTION-TELLS.md) | #304 | POS, lemmas, quoted spans, WordNet-derived emotion lexicon | none; precision hand-judged on published chapters (2026-10-20) |
 
 Sentence length and sentence starts are public modules under `style::reports`, with no flattened
 crate-root exports. [Sentence report definitions](STYLE-SENTENCES.md) specify word counting, Penn
@@ -204,6 +205,7 @@ measurements: single paragraphs that meet two thresholds are mostly in-scene noi
 | clarity | `clarity::report(&Document, &ClarityOptions)` | `minimumSentences`, `minimumSentenceWords`, `stickyGluePercent`, `longClauseWords` | none | yes |
 | house style | `house_style::report(&Document, &HouseStyleRules, &HouseStyleOptions)` | `skipDialogue` | none (rules caller-supplied: `HouseStyleRules::parse`) | no |
 | regional spelling (opt-in) | `regional_spelling::report(&Document, &RegionalSpellingOptions)` | `minimumMarkers`, `system` | none (table bundled) | no |
+| emotion tells | `emotion_tells::report(&Document, &EmotionTellsOptions)` | `includeDialogue` | none (lexicon bundled) | yes |
 
 Every entry point returns `Result<_, StyleError>`. Type names are prefixed with their report
 (`SentenceLengthReport`, `ClicheMatch`, `DialogueTagVerbClass`, …) so they stay unique in Swift's
@@ -508,6 +510,7 @@ Build rules for any baseline:
 | 2026-10-20 | #303 review: the passive report has no default band; the public stand-in is opt-in as `"publicStandIn"` | The stand-in reflects Melville and Austen (median 12.5 per 100 sentences) while modern prose runs about 3–6, so as a default it would hide a heavily passive modern draft. Transitions and pronoun starts already ship with no band until a published-fiction run. See [STYLE-PASSIVE.md](STYLE-PASSIVE.md) |
 | 2026-10-20 | Clarity (#302) is an opt-in lens: sticky sentences at ≥65% glue words in sentences of ≥15 words, long subordinate clauses at ≥20 words, glue from closed-class readings resolved by chunk, clauses from `B-SBAR` chunks, WH-words and a short subordinator list | No new data; defaults keep published public-domain flag rates near 2% (sticky) and 1% (long clauses) of sentences ([STYLE-CLARITY.md](STYLE-CLARITY.md#public-calibration-2026-10-20)); it counts clause length and glue share, never sentence length, so it does not duplicate `sentenceLength` or `TOO_LONG_SENTENCE` |
 | 2026-10-20 | #299: opt-in regional-spelling lens from VarCon 2020.12.07 with American, British -ise and Oxford -ize systems; flag tokens no dominant system accepts and minority forms of one word; skip mid-sentence capitals as names; keep the overused-words British fold; no Harper vocabulary | Oxford spelling is British, so -ize alone never marks American; sense-dependent spellings (*check*, *tire*) are never markers. A separate report because #309 had not merged; its records follow #309's per-word shape. Harper's vocabulary pairs are mostly American words in another sense. See [STYLE-REGIONAL-SPELLING.md](STYLE-REGIONAL-SPELLING.md) |
+| 2026-10-20 | #304: emotion tells is an opt-in, narration-only lens (`includeDialogue` opts in) flagging a named feeling as predicate (*was afraid*, *made her angry*, *in love*), object of *feel / sense / experience* or *filled with* (*a surge of relief*), or subject of a body-movement verb with a person nearby (*fear washed over her*). Its lexicon is derived from Princeton WordNet 3.0 (`noun.feeling`, feeling/emotion hyponyms, derived adjectives and satellites, frame-10 emotion verbs), weighted by most frequent sense and Lancaster interoception, and ships as a separate WordNet-licensed data file | NRC EmoLex, WordNet-Affect and DepecheMood are non-commercial or unverifiable (#316). Quoted text counts as dialogue even without speech evidence. Hand-judged precision on 13 public-domain books and chapters: 0.941 on the 200-row development sample, 0.910 on a 100-row held-out sample; the remaining noise is non-sentient subjects and other senses (*mad* = insane). 1.45 tells per 1,000 published narration words, so it is not a default. See [STYLE-EMOTION-TELLS.md](STYLE-EMOTION-TELLS.md) |
 
 ## Accuracy benchmarks
 

@@ -255,6 +255,13 @@ impl StyleDocument {
     ) -> Result<crate::reports::regional_spelling::RegionalSpellingReport, StyleError> {
         crate::reports::regional_spelling::report(&self.document, &options(json)?)
     }
+
+    pub fn emotion_tells(
+        &self,
+        json: Option<&str>,
+    ) -> Result<crate::reports::emotion_tells::EmotionTellsReport, StyleError> {
+        crate::reports::emotion_tells::report(&self.document, &options(json)?)
+    }
 }
 
 fn parsed_rules(

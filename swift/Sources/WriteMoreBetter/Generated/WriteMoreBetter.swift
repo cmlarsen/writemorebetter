@@ -982,6 +982,11 @@ public protocol StyleDocumentProtocol: AnyObject, Sendable {
     func echoesJson(optionsJson: String?) throws  -> String
     
     /**
+     * Returns the opt-in emotion-tells lens on the retained analysis; narration only by default.
+     */
+    func emotionTellsJson(optionsJson: String?) throws  -> String
+    
+    /**
      * Runs caller-supplied house-style rules on the retained analysis; options default when omitted.
      * Rules: Vale-format YAML or JSON text; nil throws an invalid-rules error.
      */
@@ -1195,6 +1200,19 @@ open func echoesJson(optionsJson: String? = nil)throws  -> String  {
     return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
         uniffiCallStatus in
     uniffi_writemorebetter_swift_fn_method_styledocument_echoes_json(
+            self.uniffiCloneHandle(),
+        FfiConverterOptionString.lower(optionsJson),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * Returns the opt-in emotion-tells lens on the retained analysis; narration only by default.
+     */
+open func emotionTellsJson(optionsJson: String? = nil)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_method_styledocument_emotion_tells_json(
             self.uniffiCloneHandle(),
         FfiConverterOptionString.lower(optionsJson),uniffiCallStatus
     )
@@ -2731,6 +2749,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_method_styledocument_echoes_json() != 31563) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_writemorebetter_swift_checksum_method_styledocument_emotion_tells_json() != 218) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_method_styledocument_house_style_json() != 48244) {

@@ -190,6 +190,7 @@ const transitions = JSON.parse(document.transitions());
 const pronouns = JSON.parse(document.pronounStarts());
 const adverbs = JSON.parse(document.adverbs());
 const house = JSON.parse(document.houseStyle('{"skipDialogue":true}', valeRulesYaml));
+const emotions = JSON.parse(document.emotionTells()); // '{"includeDialogue":true}' scans dialogue too
 document.free();
 ```
 

@@ -347,7 +347,7 @@ check(typeof lengthReport.groups.all.meanDifference === "number", "bundled basel
 eq(JSON.parse(retained.sentenceLength(options, "none")).groups.all.meanDifference, null, "baseline disabled per call");
 const custom = JSON.parse(retained.sentenceLength(options, '{"mean":1}'));
 eq(custom.groups.all.meanDifference, custom.groups.all.mean - 1, "custom baseline per call");
-const calls = ["echoes", "repeatedPhrases", "cliches", "dialogueTags", "adverbs", "sentenceLength", "sentenceStarts", "sensoryBalance", "pacing", "overusedWords", "transitions", "pronounStarts", "stats"];
+const calls = ["echoes", "repeatedPhrases", "cliches", "dialogueTags", "adverbs", "sentenceLength", "sentenceStarts", "sensoryBalance", "pacing", "overusedWords", "transitions", "pronounStarts", "emotionTells", "stats"];
 for (const method of calls) {
   const fresh = checker.styleDocument(reportText);
   eq(JSON.parse(retained[method]()), JSON.parse(fresh[method]()), `shared analysis matches fresh ${method}`);
@@ -376,7 +376,7 @@ eq(invalid.kind, "invalidBaseline", "invalid baseline rejected");
 eq(invalid.report, "sentenceStarts", "error names report");
 eq(styleError(() => checker.styleDocument("text", '{"typo":true}')).kind, "invalidOptions", "document options validated");
 const compactStyle = checker.styleDocument(reportText, '{"includeTokenDetails":false}');
-for (const method of ["echoes", "repeatedPhrases", "dialogueTags", "adverbs", "sentenceStarts", "sensoryBalance", "pacing", "overusedWords", "pronounStarts"]) {
+for (const method of ["echoes", "repeatedPhrases", "dialogueTags", "adverbs", "sentenceStarts", "sensoryBalance", "pacing", "overusedWords", "pronounStarts", "emotionTells"]) {
   eq(styleError(() => compactStyle[method]()).kind, "needsTokenDetails", `compact rejects ${method}`);
 }
 eq(styleError(() => compactStyle.diction(undefined, '{"hope":1.5}')).kind, "needsTokenDetails", "compact rejects diction");
@@ -399,6 +399,14 @@ const sensory = JSON.parse(senseDocument.sensoryBalance('{"minimumSenseWords":1}
 eq(sensory.senseWords.map(w => senseText.slice(w.span.start, w.span.end)), ["red", "glow", "bell", "Perfume"], "UTF-16 sense words after emoji");
 eq(sensory.senseWords.map(w => w.modality), ["sight", "sight", "sound", "smell"], "sense modalities");
 eq(sensory.senseWords[3].mode, "dialogue", "sense word mode");
+const emotionText = "😀.\u2028She’d felt angry—then afraid… “I was so angry,” he said.";
+const emotionDocument = checker.styleDocument(emotionText);
+const emotions = JSON.parse(emotionDocument.emotionTells('{"includeDialogue":true}'));
+eq(emotions.tells.map(t => emotionText.slice(t.span.start, t.span.end)), ["felt angry", "was so angry"], "UTF-16 emotion tells after emoji");
+eq(emotions.tells.map(t => t.mode), ["narration", "dialogue"], "emotion tell modes");
+eq(JSON.parse(emotionDocument.emotionTells()).tells.length, 1, "emotion tells skip dialogue by default");
+eq(styleError(() => emotionDocument.emotionTells('{"includeDialog":true}')).kind, "invalidOptions", "emotion tells reject unknown options");
+emotionDocument.free();
 eq(sensory.groups.all.words, JSON.parse(senseDocument.stats()).words.all, "sensory denominator");
 eq(styleError(() => senseDocument.sensoryBalance('{"minimumStrength":9}')).kind, "invalidOptions", "sensory options validated");
 eq(styleError(() => senseDocument.sensoryBalance('{"singleSensePercent":85}')).kind, "invalidOptions", "removed singleSensePercent option rejected");

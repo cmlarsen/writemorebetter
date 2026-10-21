@@ -199,6 +199,7 @@ let transitions: TransitionsReport = try document.transitions()
 let pronouns: PronounStartsReport = try document.pronounStarts()
 let consistency: ConsistencyReport = try document.consistency()
 let adverbs: AdverbsReport = try document.adverbs()
+let emotions: EmotionTellsReport = try document.emotionTells()
 ```
 
 Every result is `Codable`, `Equatable` and `Sendable`. Each method takes optional `optionsJson`;

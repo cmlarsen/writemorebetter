@@ -801,3 +801,33 @@ public extension StyleDocument {
         try decodeStyle(regionalSpellingJson(optionsJson: optionsJson))
     }
 }
+
+public enum EmotionTellPattern: String, Codable, Sendable { case predicate, object, subject }
+
+public struct EmotionTell: Codable, Equatable, Sendable {
+    public let span: Span
+    public let emotion: Span
+    public let verb: Span
+    public let word: String
+    public let pattern: EmotionTellPattern
+    public let sentence: Int
+    public let mode: Mode
+}
+
+public struct EmotionTellsGroup: Codable, Equatable, Sendable {
+    public let tells: Int
+    public let words: Int
+    public let perThousandWords: Double?
+}
+
+public struct EmotionTellsReport: Codable, Equatable, Sendable {
+    public let tells: [EmotionTell]
+    public let groups: Split<EmotionTellsGroup>
+}
+
+public extension StyleDocument {
+    /// Narration only unless options set `includeDialogue`.
+    func emotionTells(optionsJson: String? = nil) throws -> EmotionTellsReport {
+        try decodeStyle(emotionTellsJson(optionsJson: optionsJson))
+    }
+}

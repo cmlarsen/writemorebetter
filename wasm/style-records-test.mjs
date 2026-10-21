@@ -84,6 +84,9 @@ export function checkStyleRecords(checker) {
   results.push(["RegionalSpellingReport", spelling]);
   assert.deepEqual(JSON.parse(spelling).flags.map(flag => [flag.form, flag.reason]), [["focused", "form"], ["color", "system"]]);
   spellingDocument.free();
+  const emotionDocument = checker.styleDocument("She was afraid. “I was so angry,” he said.");
+  results.push(["EmotionTellsReport", emotionDocument.emotionTells('{"includeDialogue":true}')]);
+  emotionDocument.free();
   for (const [type, json] of results) validate(JSON.parse(json), type, type);
   transitionDocument.free();
   normDocument.free();
