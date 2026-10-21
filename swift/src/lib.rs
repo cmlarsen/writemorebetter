@@ -40,6 +40,9 @@ pub enum CheckError {
     UnknownSpellVariant { message: String },
     #[error("invalid report input: {message}")]
     ReportInput { message: String },
+    /// `enable_rules` named rule selectors that match no rule.
+    #[error("unknown rule selectors: {selectors:?}")]
+    UnknownSelectors { selectors: Vec<String> },
 }
 
 /// A single flagged span.
@@ -468,6 +471,26 @@ impl Checker {
             .map(str::to_string)
             .collect()
     }
+
+    /// Enables rules that are off by default, such as LanguageTool's `picky` style rules, by the
+    /// selector syntax profiles use (`"PLAIN_ENGLISH"`, `"STYLE/PASSIVE_VOICE"`,
+    /// `"BUILTIN/EN_REDUNDANCY_REPLACE"`; see `docs/PROFILE.md`). It applies on top of the
+    /// constructor's profile, so it can turn back on a rule the profile disabled. Returns how
+    /// many rules changed from off to on. A selector that matches no rule throws and nothing is
+    /// enabled. Changes apply to the next `check`.
+    pub fn enable_rules(&self, selectors: Vec<String>) -> Result<u32, CheckError> {
+        self.write_rules()
+            .enable_rules(&selectors)
+            .map(|enabled| enabled as u32)
+            .map_err(|err| match err {
+                nlprule::Error::UnknownSelectors(selectors) => {
+                    CheckError::UnknownSelectors { selectors }
+                }
+                other => CheckError::Rules {
+                    message: other.to_string(),
+                },
+            })
+    }
 }
 
 /// Maps character indices in a string to UTF-16 code-unit indices.
@@ -555,6 +578,48 @@ mod tests {
 
         checker.set_mother_tongue(None);
         assert!(false_friends(&checker).is_empty());
+    }
+
+    #[test]
+    fn enable_rules_applies_after_the_profile() {
+        let checker = checker();
+        let text = "\u{201c}It\u{2019}s, in my opinion, wrong\u{2026}\u{201d} she said\u{2014}quietly.\u{2028}It was a free gift.";
+        let fired = |prefix: &str| {
+            checker
+                .check(text.to_string())
+                .into_iter()
+                .filter(|suggestion| suggestion.source.starts_with(prefix))
+                .map(|suggestion| (suggestion.start, suggestion.end))
+                .collect::<Vec<_>>()
+        };
+        assert!(fired("PLAIN_ENGLISH/").is_empty());
+        assert!(fired("REDUNDANCY/").is_empty());
+
+        assert!(
+            checker
+                .enable_rules(vec![
+                    "PLAIN_ENGLISH/IN_MY_OPINION".into(),
+                    "REDUNDANCY".into()
+                ])
+                .unwrap()
+                > 1
+        );
+        // UTF-16 offsets of ", in my opinion," / "in my opinion" after the curly quote and apostrophe.
+        let opinion = fired("PLAIN_ENGLISH/IN_MY_OPINION");
+        assert_eq!(opinion.len(), 1);
+        assert!(opinion[0].0 >= 5 && opinion[0].1 <= 21, "{opinion:?}");
+        assert!(!fired("REDUNDANCY/").is_empty());
+
+        match checker.enable_rules(vec![
+            "NO_SUCH_CATEGORY".into(),
+            "STYLE/PASSIVE_VOICE".into(),
+        ]) {
+            Err(super::CheckError::UnknownSelectors { selectors }) => {
+                assert_eq!(selectors, ["NO_SUCH_CATEGORY"])
+            }
+            other => panic!("unexpected result: {other:?}"),
+        }
+        assert_eq!(checker.enable_rules(Vec::new()).unwrap(), 0);
     }
 
     #[test]
@@ -667,6 +732,306 @@ impl StyleDocument {
     ) -> Result<String, CheckError> {
         self.inner
             .sentence_starts(options_json.as_deref(), baseline_json.as_deref())
+            .map(|report| writemorebetter_style::reports::to_utf16_json(&report))
+            .map_err(|error| CheckError::ReportInput {
+                message: error.to_string(),
+            })
+    }
+    /// Returns this report on the retained analysis; options default when omitted.
+    #[uniffi::method(default(options_json = None))]
+    pub fn transitions_json(&self, options_json: Option<String>) -> Result<String, CheckError> {
+        self.inner
+            .transitions(options_json.as_deref())
+            .map(|report| writemorebetter_style::reports::to_utf16_json(&report))
+            .map_err(|error| CheckError::ReportInput {
+                message: error.to_string(),
+            })
+    }
+    /// Returns this report on the retained analysis; options default when omitted.
+    #[uniffi::method(default(options_json = None))]
+    pub fn pronoun_starts_json(&self, options_json: Option<String>) -> Result<String, CheckError> {
+        self.inner
+            .pronoun_starts(options_json.as_deref())
+            .map(|report| writemorebetter_style::reports::to_utf16_json(&report))
+            .map_err(|error| CheckError::ReportInput {
+                message: error.to_string(),
+            })
+    }
+    /// Returns manner adverbs in narration and speech.
+    #[uniffi::method(default(options_json = None))]
+    pub fn adverbs_json(&self, options_json: Option<String>) -> Result<String, CheckError> {
+        self.inner
+            .adverbs(options_json.as_deref())
+            .map(|report| writemorebetter_style::reports::to_utf16_json(&report))
+            .map_err(|error| CheckError::ReportInput {
+                message: error.to_string(),
+            })
+    }
+    /// Returns this report on the retained analysis; options default when omitted.
+    #[uniffi::method(default(options_json = None))]
+    pub fn sensory_balance_json(&self, options_json: Option<String>) -> Result<String, CheckError> {
+        self.inner
+            .sensory_balance(options_json.as_deref())
+            .map(|report| writemorebetter_style::reports::to_utf16_json(&report))
+            .map_err(|error| CheckError::ReportInput {
+                message: error.to_string(),
+            })
+    }
+    /// Returns the opt-in pacing lens on the retained analysis.
+    #[uniffi::method(default(options_json = None))]
+    pub fn pacing_json(&self, options_json: Option<String>) -> Result<String, CheckError> {
+        self.inner
+            .pacing(options_json.as_deref())
+            .map(|report| writemorebetter_style::reports::to_utf16_json(&report))
+            .map_err(|error| CheckError::ReportInput {
+                message: error.to_string(),
+            })
+    }
+    /// Returns this report on the retained analysis; options default when omitted.
+    /// Table: a word-to-concreteness JSON object or TSV text; nil uses the bundled table.
+    #[uniffi::method(default(options_json = None, table = None))]
+    pub fn diction_json(
+        &self,
+        options_json: Option<String>,
+        table: Option<String>,
+    ) -> Result<String, CheckError> {
+        self.inner
+            .diction(options_json.as_deref(), table.as_deref())
+            .map(|report| writemorebetter_style::reports::to_utf16_json(&report))
+            .map_err(|error| CheckError::ReportInput {
+                message: error.to_string(),
+            })
+    }
+    /// Returns this report on the retained analysis; options default when omitted.
+    /// Baseline: omitted/null means bundled; "none" disables comparisons; otherwise pass a JSON object.
+    #[uniffi::method(default(options_json = None, baseline_json = None))]
+    pub fn overused_words_json(
+        &self,
+        options_json: Option<String>,
+        baseline_json: Option<String>,
+    ) -> Result<String, CheckError> {
+        self.inner
+            .overused_words(options_json.as_deref(), baseline_json.as_deref())
+            .map(|report| writemorebetter_style::reports::to_utf16_json(&report))
+            .map_err(|error| CheckError::ReportInput {
+                message: error.to_string(),
+            })
+    }
+    /// Returns the opt-in consistency lens on the retained analysis; options default when omitted.
+    #[uniffi::method(default(options_json = None))]
+    pub fn consistency_json(&self, options_json: Option<String>) -> Result<String, CheckError> {
+        self.inner
+            .consistency(options_json.as_deref())
+            .map(|report| writemorebetter_style::reports::to_utf16_json(&report))
+            .map_err(|error| CheckError::ReportInput {
+                message: error.to_string(),
+            })
+    }
+
+    /// Returns the opt-in readability lens on the retained analysis; options default when omitted.
+    #[uniffi::method(default(options_json = None))]
+    pub fn readability_json(&self, options_json: Option<String>) -> Result<String, CheckError> {
+        self.inner
+            .readability(options_json.as_deref())
+            .map(|report| writemorebetter_style::reports::to_utf16_json(&report))
+            .map_err(|error| CheckError::ReportInput {
+                message: error.to_string(),
+            })
+    }
+
+    /// Returns this report on the retained analysis; options default when omitted.
+    /// Baseline: omitted/null, "bundled" and "none" disable comparisons (no published band yet);
+    /// "publicStandIn" selects the provisional public stand-in band; otherwise pass a JSON object.
+    #[uniffi::method(default(options_json = None, baseline_json = None))]
+    pub fn passive_json(
+        &self,
+        options_json: Option<String>,
+        baseline_json: Option<String>,
+    ) -> Result<String, CheckError> {
+        self.inner
+            .passive(options_json.as_deref(), baseline_json.as_deref())
+            .map(|report| writemorebetter_style::reports::to_utf16_json(&report))
+            .map_err(|error| CheckError::ReportInput {
+                message: error.to_string(),
+            })
+    }
+
+    /// Returns the opt-in clarity lens (sticky sentences, long subordinate clauses).
+    #[uniffi::method(default(options_json = None))]
+    pub fn clarity_json(&self, options_json: Option<String>) -> Result<String, CheckError> {
+        self.inner
+            .clarity(options_json.as_deref())
+            .map(|report| writemorebetter_style::reports::to_utf16_json(&report))
+            .map_err(|error| CheckError::ReportInput {
+                message: error.to_string(),
+            })
+    }
+
+    /// Runs caller-supplied house-style rules on the retained analysis; options default when omitted.
+    /// Rules: Vale-format YAML or JSON text; nil throws an invalid-rules error.
+    #[uniffi::method(default(options_json = None, rules = None))]
+    pub fn house_style_json(
+        &self,
+        options_json: Option<String>,
+        rules: Option<String>,
+    ) -> Result<String, CheckError> {
+        self.inner
+            .house_style(options_json.as_deref(), rules.as_deref())
+            .map(|report| writemorebetter_style::reports::to_utf16_json(&report))
+            .map_err(|error| CheckError::ReportInput {
+                message: error.to_string(),
+            })
+    }
+
+    /// Returns this report on the retained analysis; options default when omitted.
+    #[uniffi::method(default(options_json = None))]
+    pub fn regional_spelling_json(
+        &self,
+        options_json: Option<String>,
+    ) -> Result<String, CheckError> {
+        self.inner
+            .regional_spelling(options_json.as_deref())
+            .map(|report| writemorebetter_style::reports::to_utf16_json(&report))
+            .map_err(|error| CheckError::ReportInput {
+                message: error.to_string(),
+            })
+    }
+
+    /// Returns the opt-in emotion-tells lens on the retained analysis; narration only by default.
+    #[uniffi::method(default(options_json = None))]
+    pub fn emotion_tells_json(&self, options_json: Option<String>) -> Result<String, CheckError> {
+        self.inner
+            .emotion_tells(options_json.as_deref())
+            .map(|report| writemorebetter_style::reports::to_utf16_json(&report))
+            .map_err(|error| CheckError::ReportInput {
+                message: error.to_string(),
+            })
+    }
+}
+
+/// The built-in style presets' names; the first, `"chicago-fiction"`, is the default.
+#[uniffi::export]
+pub fn style_preset_names() -> Vec<String> {
+    writemorebetter_style::preset::StylePreset::names()
+        .into_iter()
+        .map(str::to_owned)
+        .collect()
+}
+
+/// A built-in style preset by name, resolved to self-contained preset JSON.
+#[uniffi::export]
+pub fn load_style_preset_json(name: String) -> Result<String, CheckError> {
+    writemorebetter_style::preset::StylePreset::builtin(&name)
+        .map(|preset| preset.to_json())
+        .map_err(|error| CheckError::ReportInput {
+            message: error.to_string(),
+        })
+}
+
+/// Validates a preset file (JSON), resolves its `extends`, and returns self-contained preset JSON.
+#[uniffi::export]
+pub fn parse_style_preset_json(text: String) -> Result<String, CheckError> {
+    writemorebetter_style::preset::StylePreset::parse(&text)
+        .map(|preset| preset.to_json())
+        .map_err(|error| CheckError::ReportInput {
+            message: error.to_string(),
+        })
+}
+
+#[uniffi::export]
+impl Checker {
+    /// Applies a style preset's grammar settings: its profile, the rules it turns off and on, and its
+    /// speller variant. `preset` is a built-in preset's name or a preset file (JSON). Every selector
+    /// is checked first, so an unknown one throws and changes nothing. Returns how many rules went
+    /// from off to on. Apply a preset to a checker constructed with `profile: ""`; to switch presets,
+    /// construct another checker (profiles cannot be undone).
+    pub fn apply_preset(&self, preset: String) -> Result<u32, CheckError> {
+        writemorebetter_style::preset::StylePreset::load(&preset)
+            .and_then(|preset| preset.apply_to_rules(&mut self.write_rules()))
+            .map(|enabled| enabled as u32)
+            .map_err(|error| CheckError::ReportInput {
+                message: error.to_string(),
+            })
+    }
+}
+
+#[uniffi::export]
+impl StyleDocument {
+    /// Runs the built-in preset checks; options are `PresetChecks` JSON (every check off by default).
+    #[uniffi::method(default(options_json = None))]
+    pub fn preset_checks_json(&self, options_json: Option<String>) -> Result<String, CheckError> {
+        self.inner
+            .preset_checks(options_json.as_deref())
+            .map(|report| writemorebetter_style::reports::to_utf16_json(&report))
+            .map_err(|error| CheckError::ReportInput {
+                message: error.to_string(),
+            })
+    }
+
+    /// Runs every report a style preset drives (consistency, house style, preset checks).
+    /// `preset` is a built-in preset's name or a preset file (JSON); nil selects "chicago-fiction".
+    #[uniffi::method(default(preset = None))]
+    pub fn preset_json(&self, preset: Option<String>) -> Result<String, CheckError> {
+        self.inner
+            .preset(preset.as_deref())
+            .map(|report| writemorebetter_style::reports::to_utf16_json(&report))
+            .map_err(|error| CheckError::ReportInput {
+                message: error.to_string(),
+            })
+    }
+}
+
+#[uniffi::export]
+impl StyleDocument {
+    /// Returns the opt-in alliteration lens on the retained analysis; options default when omitted.
+    #[uniffi::method(default(options_json = None))]
+    pub fn alliteration_json(&self, options_json: Option<String>) -> Result<String, CheckError> {
+        self.inner
+            .alliteration(options_json.as_deref())
+            .map(|report| writemorebetter_style::reports::to_utf16_json(&report))
+            .map_err(|error| CheckError::ReportInput {
+                message: error.to_string(),
+            })
+    }
+}
+
+/// Checks headings such as chapter titles against a title-case style; options are
+/// `TitleCaseOptions` JSON (Chicago-style headline case when nil). Returns `TitleCaseReport` JSON
+/// with UTF-16 spans into each heading.
+#[uniffi::export(default(options_json = None))]
+pub fn title_case_json(
+    headings: Vec<String>,
+    options_json: Option<String>,
+) -> Result<String, CheckError> {
+    use writemorebetter_style::reports::title_case;
+    title_case::parse_options(options_json.as_deref())
+        .and_then(|options| title_case::report(&headings, &options))
+        .map(|report| writemorebetter_style::reports::to_utf16_json(&report))
+        .map_err(|error| CheckError::ReportInput {
+            message: error.to_string(),
+        })
+}
+
+#[uniffi::export]
+impl StyleDocument {
+    /// Returns the opt-in vague-words lens on the retained analysis; narration and dialogue are
+    /// counted separately.
+    #[uniffi::method(default(options_json = None))]
+    pub fn vague_words_json(&self, options_json: Option<String>) -> Result<String, CheckError> {
+        self.inner
+            .vague_words(options_json.as_deref())
+            .map(|report| writemorebetter_style::reports::to_utf16_json(&report))
+            .map_err(|error| CheckError::ReportInput {
+                message: error.to_string(),
+            })
+    }
+
+    /// Returns the opt-in hidden-verbs lens on the retained analysis; each match names the related
+    /// verb but never rewrites.
+    #[uniffi::method(default(options_json = None))]
+    pub fn hidden_verbs_json(&self, options_json: Option<String>) -> Result<String, CheckError> {
+        self.inner
+            .hidden_verbs(options_json.as_deref())
             .map(|report| writemorebetter_style::reports::to_utf16_json(&report))
             .map_err(|error| CheckError::ReportInput {
                 message: error.to_string(),

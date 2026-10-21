@@ -74,6 +74,27 @@ jobs:
           cargo build --release --manifest-path bench/tools/wmb-probe/Cargo.toml
           python3 bench/tools/public_recall.py --min "$RECALL_MIN"
 
+      # The tables keep only the words the heuristic syllable counter and the spelling-based
+      # first-sound guess get wrong, so any change to either must regenerate them. The script
+      # refuses any other sha256.
+      - name: Cache CMUdict
+        uses: actions/cache@v4
+        with:
+          path: data/cache/cmudict
+          key: cmudict-74790861f652b15e4ac49015a90074ad62a27690
+
+      - name: CMUdict syllable and onset tables are current
+        run: |
+          mkdir -p data/cache/cmudict
+          dict=data/cache/cmudict/cmudict.dict
+          [ -f "$dict" ] || curl -sSfL -o "$dict" \
+            https://raw.githubusercontent.com/cmusphinx/cmudict/74790861f652b15e4ac49015a90074ad62a27690/cmudict.dict
+          python3 scripts/build-cmudict.py "$dict"
+          if ! git diff --exit-code style/data/pronunciation/; then
+            echo "::error::style/data/pronunciation/ is stale; run scripts/build-cmudict.py after changing the syllable heuristic or spelled_onset"
+            exit 1
+          fi
+
       - name: Cache public style datasets
         uses: actions/cache@v4
         with:
@@ -90,15 +111,30 @@ jobs:
           cargo build --release --manifest-path bench/tools/wmb-cliches/Cargo.toml
           python3 -m unittest discover -s bench/style -p 'test_*.py'
           python3 bench/style/run.py tier1 --gate --analyzer bench/tools/wmb-analyze/target/release/wmb-analyze --document-probe bench/tools/wmb-document/target/release/wmb-document
+          python3 bench/style/run.py tier2 pacing --gate --document-probe bench/tools/wmb-document/target/release/pacing
+          python3 bench/style/run.py tier3 --pacing --self-test --probe bench/tools/wmb-document/target/release/pacing
+          python3 bench/style/pacing_labels.py check
+          python3 bench/style/pacing_labels.py score --gate --probe bench/tools/wmb-document/target/release/pacing
+          python3 bench/style/emotion_tells.py score --gate
           python3 bench/style/run.py tier2 smoke
+          python3 bench/style/transitions_pronouns.py --gate
           python3 bench/style/echoes.py --gate --probe bench/tools/wmb-document/target/release/wmb-echoes
           python3 bench/style/run.py cliches --gate --probe bench/tools/wmb-cliches/target/release/wmb-cliches
           python3 bench/style/run.py tier2 sentences --gate --document-probe bench/tools/wmb-document/target/release/wmb-document
           python3 bench/style/run.py tier3 --sentence-length --self-test --document-probe bench/tools/wmb-document/target/release/wmb-document
           python3 bench/style/run.py tier3 --self-test --analyzer bench/tools/wmb-analyze/target/release/wmb-analyze
           python3 bench/style/run.py tier3 --flag-rates --self-test --probe bench/tools/wmb-document/target/release/flag_rates
+          python3 bench/style/run.py tier3 --flag-rates --self-test --skip-diction --probe bench/tools/wmb-document/target/release/flag_rates
           python3 bench/style/run.py dialogue-tags tier2 --probe bench/tools/wmb-document/target/release/dialogue_tags
           python3 bench/style/run.py dialogue-tags tier3 --self-test --probe bench/tools/wmb-document/target/release/dialogue_tags
+          cargo build -p writemorebetter-style --release --example norm_reports
+          python3 bench/style/norms.py --probe target/release/examples/norm_reports
+          cargo build -p writemorebetter-style --release --example diction_coverage
+          python3 bench/style/concreteness.py --gate --probe target/release/examples/diction_coverage
+
+      - name: Style lexical report accuracy gates (256)
+        run: |
+          python3 bench/style/lexical.py --gate --probe bench/tools/wmb-document/target/release/lexical_reports
 
       - name: Disambiguation conformance
         env:

@@ -1,0 +1,3584 @@
+{
+  "version": 1,
+  "date": "2026-10-16",
+  "scope": "Public development measurements with single implementer spot judgments (not held-out accuracy); \"published\" holds the owner-run aggregate calibration that chose the 2026-10-16 defaults with the #293 label sweep.",
+  "defaults": {
+    "minimumParagraphs": 3,
+    "moreThanWords": 400,
+    "minimumSentenceLength": 18.0,
+    "minimumPastPerfectPercent": 15.0,
+    "minimumCognitionPercent": 15.0
+  },
+  "public": [
+    {
+      "source": "story1.txt",
+      "words": 2209,
+      "paragraphs": 96,
+      "twoSignalParagraphs": 30,
+      "runParagraphs": 12,
+      "runs": 3,
+      "signals": {
+        "dialoguePercent": {
+          "mean": 18.30359229280655,
+          "percentiles": {
+            "0": 0.0,
+            "5": 0.0,
+            "25": 0.0,
+            "50": 0.0,
+            "75": 0.0,
+            "95": 91.39492753623188,
+            "100": 100.0
+          }
+        },
+        "meanSentenceLength": {
+          "mean": 20.82465277777778,
+          "percentiles": {
+            "0": 4.0,
+            "5": 6.25,
+            "25": 12.0,
+            "50": 20.0,
+            "75": 28.0,
+            "95": 37.25,
+            "100": 47.0
+          }
+        },
+        "pastPerfectPercent": {
+          "mean": 10.773182957393484,
+          "percentiles": {
+            "0": 0.0,
+            "5": 0.0,
+            "25": 0.0,
+            "50": 0.0,
+            "75": 18.333333333333336,
+            "95": 50.0,
+            "100": 100.0
+          }
+        },
+        "cognitionPercent": {
+          "mean": 5.027568922305765,
+          "percentiles": {
+            "0": 0.0,
+            "5": 0.0,
+            "25": 0.0,
+            "50": 0.0,
+            "75": 0.0,
+            "95": 33.333333333333336,
+            "100": 66.66666666666667
+          }
+        }
+      }
+    },
+    {
+      "source": "story2.txt",
+      "words": 2038,
+      "paragraphs": 96,
+      "twoSignalParagraphs": 17,
+      "runParagraphs": 0,
+      "runs": 0,
+      "signals": {
+        "dialoguePercent": {
+          "mean": 16.53942647420137,
+          "percentiles": {
+            "0": 0.0,
+            "5": 0.0,
+            "25": 0.0,
+            "50": 0.0,
+            "75": 0.0,
+            "95": 88.39869281045752,
+            "100": 91.66666666666667
+          }
+        },
+        "meanSentenceLength": {
+          "mean": 18.255208333333332,
+          "percentiles": {
+            "0": 3.3333333333333335,
+            "5": 5.375,
+            "25": 10.0,
+            "50": 19.5,
+            "75": 24.25,
+            "95": 32.0,
+            "100": 37.0
+          }
+        },
+        "pastPerfectPercent": {
+          "mean": 6.287202380952381,
+          "percentiles": {
+            "0": 0.0,
+            "5": 0.0,
+            "25": 0.0,
+            "50": 0.0,
+            "75": 0.0,
+            "95": 33.333333333333336,
+            "100": 66.66666666666667
+          }
+        },
+        "cognitionPercent": {
+          "mean": 4.0749007936507935,
+          "percentiles": {
+            "0": 0.0,
+            "5": 0.0,
+            "25": 0.0,
+            "50": 0.0,
+            "75": 0.0,
+            "95": 25.0,
+            "100": 50.0
+          }
+        }
+      }
+    },
+    {
+      "source": "story3.txt",
+      "words": 2008,
+      "paragraphs": 96,
+      "twoSignalParagraphs": 21,
+      "runParagraphs": 0,
+      "runs": 0,
+      "signals": {
+        "dialoguePercent": {
+          "mean": 18.622899926918244,
+          "percentiles": {
+            "0": 0.0,
+            "5": 0.0,
+            "25": 0.0,
+            "50": 0.0,
+            "75": 5.555555555555555,
+            "95": 87.68382352941177,
+            "100": 92.5925925925926
+          }
+        },
+        "meanSentenceLength": {
+          "mean": 18.28472222222222,
+          "percentiles": {
+            "0": 3.6666666666666665,
+            "5": 5.25,
+            "25": 13.125,
+            "50": 20.0,
+            "75": 23.0,
+            "95": 29.0,
+            "100": 32.0
+          }
+        },
+        "pastPerfectPercent": {
+          "mean": 5.974702380952381,
+          "percentiles": {
+            "0": 0.0,
+            "5": 0.0,
+            "25": 0.0,
+            "50": 0.0,
+            "75": 0.0,
+            "95": 33.333333333333336,
+            "100": 75.0
+          }
+        },
+        "cognitionPercent": {
+          "mean": 4.471726190476191,
+          "percentiles": {
+            "0": 0.0,
+            "5": 0.0,
+            "25": 0.0,
+            "50": 0.0,
+            "75": 0.0,
+            "95": 25.0,
+            "100": 66.66666666666667
+          }
+        }
+      }
+    },
+    {
+      "source": "story4.txt",
+      "words": 2175,
+      "paragraphs": 93,
+      "twoSignalParagraphs": 27,
+      "runParagraphs": 0,
+      "runs": 0,
+      "signals": {
+        "dialoguePercent": {
+          "mean": 11.210346390961591,
+          "percentiles": {
+            "0": 0.0,
+            "5": 0.0,
+            "25": 0.0,
+            "50": 0.0,
+            "75": 0.0,
+            "95": 88.05555555555556,
+            "100": 90.0
+          }
+        },
+        "meanSentenceLength": {
+          "mean": 20.057347670250895,
+          "percentiles": {
+            "0": 4.0,
+            "5": 6.533333333333333,
+            "25": 17.0,
+            "50": 23.0,
+            "75": 25.0,
+            "95": 29.0,
+            "100": 31.0
+          }
+        },
+        "pastPerfectPercent": {
+          "mean": 6.884280593958014,
+          "percentiles": {
+            "0": 0.0,
+            "5": 0.0,
+            "25": 0.0,
+            "50": 0.0,
+            "75": 0.0,
+            "95": 33.333333333333336,
+            "100": 100.0
+          }
+        },
+        "cognitionPercent": {
+          "mean": 5.556835637480799,
+          "percentiles": {
+            "0": 0.0,
+            "5": 0.0,
+            "25": 0.0,
+            "50": 0.0,
+            "75": 0.0,
+            "95": 36.00000000000004,
+            "100": 66.66666666666667
+          }
+        }
+      }
+    },
+    {
+      "source": "story5.txt",
+      "words": 1856,
+      "paragraphs": 86,
+      "twoSignalParagraphs": 23,
+      "runParagraphs": 0,
+      "runs": 0,
+      "signals": {
+        "dialoguePercent": {
+          "mean": 14.838582489706933,
+          "percentiles": {
+            "0": 0.0,
+            "5": 0.0,
+            "25": 0.0,
+            "50": 0.0,
+            "75": 0.0,
+            "95": 89.86842105263158,
+            "100": 92.3076923076923
+          }
+        },
+        "meanSentenceLength": {
+          "mean": 18.430232558139537,
+          "percentiles": {
+            "0": 2.0,
+            "5": 5.833333333333334,
+            "25": 11.25,
+            "50": 20.5,
+            "75": 24.0,
+            "95": 31.0,
+            "100": 33.0
+          }
+        },
+        "pastPerfectPercent": {
+          "mean": 6.029900332225914,
+          "percentiles": {
+            "0": 0.0,
+            "5": 0.0,
+            "25": 0.0,
+            "50": 0.0,
+            "75": 0.0,
+            "95": 40.0,
+            "100": 60.0
+          }
+        },
+        "cognitionPercent": {
+          "mean": 8.910575858250278,
+          "percentiles": {
+            "0": 0.0,
+            "5": 0.0,
+            "25": 0.0,
+            "50": 0.0,
+            "75": 20.0,
+            "95": 40.0,
+            "100": 50.0
+          }
+        }
+      }
+    },
+    {
+      "source": "moby150k",
+      "words": 25002,
+      "paragraphs": 315,
+      "twoSignalParagraphs": 11,
+      "runParagraphs": 0,
+      "runs": 0,
+      "signals": {
+        "dialoguePercent": {
+          "mean": 40.95154623837289,
+          "percentiles": {
+            "0": 0.0,
+            "5": 0.0,
+            "25": 0.0,
+            "50": 2.830188679245283,
+            "75": 88.88888888888889,
+            "95": 100.0,
+            "100": 100.0
+          }
+        },
+        "meanSentenceLength": {
+          "mean": 22.508193997935198,
+          "percentiles": {
+            "0": 1.0,
+            "5": 2.925,
+            "25": 11.9,
+            "50": 21.0,
+            "75": 29.833333333333336,
+            "95": 48.30000000000001,
+            "100": 117.0
+          }
+        },
+        "pastPerfectPercent": {
+          "mean": 2.114627981271387,
+          "percentiles": {
+            "0": 0.0,
+            "5": 0.0,
+            "25": 0.0,
+            "50": 0.0,
+            "75": 0.0,
+            "95": 12.5,
+            "100": 50.0
+          }
+        },
+        "cognitionPercent": {
+          "mean": 2.5502932178626323,
+          "percentiles": {
+            "0": 0.0,
+            "5": 0.0,
+            "25": 0.0,
+            "50": 0.0,
+            "75": 2.5978407557354926,
+            "95": 13.392857142857142,
+            "100": 33.333333333333336
+          }
+        }
+      }
+    },
+    {
+      "source": "styles_ch1",
+      "words": 4161,
+      "paragraphs": 157,
+      "twoSignalParagraphs": 7,
+      "runParagraphs": 4,
+      "runs": 1,
+      "signals": {
+        "dialoguePercent": {
+          "mean": 54.67522259537561,
+          "percentiles": {
+            "0": 0.0,
+            "5": 0.0,
+            "25": 0.0,
+            "50": 76.19047619047619,
+            "75": 100.0,
+            "95": 100.0,
+            "100": 100.0
+          }
+        },
+        "meanSentenceLength": {
+          "mean": 11.200657906474692,
+          "percentiles": {
+            "0": 1.0,
+            "5": 2.8,
+            "25": 5.5,
+            "50": 9.0,
+            "75": 16.0,
+            "95": 24.999999999999986,
+            "100": 37.0
+          }
+        },
+        "pastPerfectPercent": {
+          "mean": 1.8252400305221435,
+          "percentiles": {
+            "0": 0.0,
+            "5": 0.0,
+            "25": 0.0,
+            "50": 0.0,
+            "75": 0.0,
+            "95": 15.054945054945042,
+            "100": 42.857142857142854
+          }
+        },
+        "cognitionPercent": {
+          "mean": 3.739013531930699,
+          "percentiles": {
+            "0": 0.0,
+            "5": 0.0,
+            "25": 0.0,
+            "50": 0.0,
+            "75": 0.0,
+            "95": 25.0,
+            "100": 66.66666666666667
+          }
+        }
+      }
+    },
+    {
+      "source": "gatsby_ch1",
+      "words": 6067,
+      "paragraphs": 152,
+      "twoSignalParagraphs": 10,
+      "runParagraphs": 0,
+      "runs": 0,
+      "signals": {
+        "dialoguePercent": {
+          "mean": 45.8879088634263,
+          "percentiles": {
+            "0": 0.0,
+            "5": 0.0,
+            "25": 0.0,
+            "50": 54.42307692307692,
+            "75": 87.84722222222223,
+            "95": 100.0,
+            "100": 100.0
+          }
+        },
+        "meanSentenceLength": {
+          "mean": 15.548323934837093,
+          "percentiles": {
+            "0": 1.0,
+            "5": 3.0,
+            "25": 7.0,
+            "50": 13.0,
+            "75": 23.0,
+            "95": 36.0,
+            "100": 44.0
+          }
+        },
+        "pastPerfectPercent": {
+          "mean": 2.55533373180432,
+          "percentiles": {
+            "0": 0.0,
+            "5": 0.0,
+            "25": 0.0,
+            "50": 0.0,
+            "75": 0.0,
+            "95": 18.833333333333353,
+            "100": 50.0
+          }
+        },
+        "cognitionPercent": {
+          "mean": 4.94863609995189,
+          "percentiles": {
+            "0": 0.0,
+            "5": 0.0,
+            "25": 0.0,
+            "50": 0.0,
+            "75": 0.0,
+            "95": 31.666666666666696,
+            "100": 100.0
+          }
+        }
+      }
+    },
+    {
+      "source": "sign_ch1",
+      "words": 2949,
+      "paragraphs": 56,
+      "twoSignalParagraphs": 4,
+      "runParagraphs": 0,
+      "runs": 0,
+      "signals": {
+        "dialoguePercent": {
+          "mean": 72.0685894569262,
+          "percentiles": {
+            "0": 0.0,
+            "5": 0.0,
+            "25": 61.50870406189556,
+            "50": 92.12121212121212,
+            "75": 100.0,
+            "95": 100.0,
+            "100": 100.0
+          }
+        },
+        "meanSentenceLength": {
+          "mean": 14.346569650587508,
+          "percentiles": {
+            "0": 2.0,
+            "5": 5.833333333333333,
+            "25": 9.25,
+            "50": 12.666666666666668,
+            "75": 17.947916666666668,
+            "95": 26.5,
+            "100": 38.0
+          }
+        },
+        "pastPerfectPercent": {
+          "mean": 2.5745884773662553,
+          "percentiles": {
+            "0": 0.0,
+            "5": 0.0,
+            "25": 0.0,
+            "50": 0.0,
+            "75": 0.0,
+            "95": 19.1875,
+            "100": 37.5
+          }
+        },
+        "cognitionPercent": {
+          "mean": 3.2090568896124454,
+          "percentiles": {
+            "0": 0.0,
+            "5": 0.0,
+            "25": 0.0,
+            "50": 0.0,
+            "75": 3.571428571428571,
+            "95": 17.395833333333336,
+            "100": 23.076923076923077
+          }
+        }
+      }
+    },
+    {
+      "source": "avonlea_ch1",
+      "words": 3522,
+      "paragraphs": 60,
+      "twoSignalParagraphs": 4,
+      "runParagraphs": 0,
+      "runs": 0,
+      "signals": {
+        "dialoguePercent": {
+          "mean": 53.057322864545974,
+          "percentiles": {
+            "0": 0.0,
+            "5": 0.0,
+            "25": 0.0,
+            "50": 80.06535947712419,
+            "75": 99.23857868020305,
+            "95": 100.0,
+            "100": 100.0
+          }
+        },
+        "meanSentenceLength": {
+          "mean": 18.852652116402115,
+          "percentiles": {
+            "0": 3.0,
+            "5": 5.633333333333334,
+            "25": 11.0,
+            "50": 17.0,
+            "75": 22.808333333333334,
+            "95": 37.68749999999997,
+            "100": 62.0
+          }
+        },
+        "pastPerfectPercent": {
+          "mean": 4.375182091506802,
+          "percentiles": {
+            "0": 0.0,
+            "5": 0.0,
+            "25": 0.0,
+            "50": 0.0,
+            "75": 0.0,
+            "95": 26.777777777777782,
+            "100": 50.0
+          }
+        },
+        "cognitionPercent": {
+          "mean": 5.4218598732813525,
+          "percentiles": {
+            "0": 0.0,
+            "5": 0.0,
+            "25": 0.0,
+            "50": 0.0,
+            "75": 8.333333333333334,
+            "95": 20.500000000000007,
+            "100": 40.0
+          }
+        }
+      }
+    }
+  ],
+  "sweep": [
+    {
+      "minimumSentenceLength": 15,
+      "minimumPastPerfectPercent": 10,
+      "minimumCognitionPercent": 10,
+      "runs": 8
+    },
+    {
+      "minimumSentenceLength": 20,
+      "minimumPastPerfectPercent": 10,
+      "minimumCognitionPercent": 10,
+      "runs": 6
+    },
+    {
+      "minimumSentenceLength": 20,
+      "minimumPastPerfectPercent": 15,
+      "minimumCognitionPercent": 15,
+      "runs": 2
+    },
+    {
+      "minimumSentenceLength": 18,
+      "minimumPastPerfectPercent": 20,
+      "minimumCognitionPercent": 20,
+      "runs": 1,
+      "previousDefaults": true
+    },
+    {
+      "minimumSentenceLength": 15,
+      "minimumPastPerfectPercent": 20,
+      "minimumCognitionPercent": 15,
+      "runs": 2
+    },
+    {
+      "minimumSentenceLength": 25,
+      "minimumPastPerfectPercent": 30,
+      "minimumCognitionPercent": 30,
+      "runs": 0
+    },
+    {
+      "minimumSentenceLength": 18,
+      "minimumPastPerfectPercent": 15,
+      "minimumCognitionPercent": 15,
+      "runs": 4
+    },
+    {
+      "minimumSentenceLength": 18,
+      "minimumPastPerfectPercent": 15,
+      "minimumCognitionPercent": 10,
+      "runs": 6
+    }
+  ],
+  "judgments": {
+    "loose15_10_10": {
+      "useful": 4,
+      "noise": 4,
+      "wrong": 0,
+      "rows": [
+        {
+          "source": "story1.txt",
+          "paragraphs": {
+            "start": 20,
+            "end": 25
+          },
+          "judgment": "noise"
+        },
+        {
+          "source": "story1.txt",
+          "paragraphs": {
+            "start": 65,
+            "end": 70
+          },
+          "judgment": "noise"
+        },
+        {
+          "source": "story1.txt",
+          "paragraphs": {
+            "start": 79,
+            "end": 83
+          },
+          "judgment": "useful"
+        },
+        {
+          "source": "story4.txt",
+          "paragraphs": {
+            "start": 0,
+            "end": 3
+          },
+          "judgment": "noise"
+        },
+        {
+          "source": "story4.txt",
+          "paragraphs": {
+            "start": 52,
+            "end": 55
+          },
+          "judgment": "noise"
+        },
+        {
+          "source": "moby150k",
+          "paragraphs": {
+            "start": 261,
+            "end": 263
+          },
+          "judgment": "useful"
+        },
+        {
+          "source": "styles_ch1",
+          "paragraphs": {
+            "start": 8,
+            "end": 12
+          },
+          "judgment": "useful"
+        },
+        {
+          "source": "gatsby_ch1",
+          "paragraphs": {
+            "start": 14,
+            "end": 20
+          },
+          "judgment": "useful"
+        }
+      ]
+    },
+    "sweep20_10_10": {
+      "useful": 2,
+      "noise": 4,
+      "wrong": 0,
+      "rows": [
+        {
+          "source": "story1.txt",
+          "paragraphs": {
+            "start": 20,
+            "end": 25
+          },
+          "judgment": "noise"
+        },
+        {
+          "source": "story1.txt",
+          "paragraphs": {
+            "start": 65,
+            "end": 69
+          },
+          "judgment": "noise"
+        },
+        {
+          "source": "story4.txt",
+          "paragraphs": {
+            "start": 0,
+            "end": 3
+          },
+          "judgment": "noise"
+        },
+        {
+          "source": "story4.txt",
+          "paragraphs": {
+            "start": 52,
+            "end": 55
+          },
+          "judgment": "noise"
+        },
+        {
+          "source": "moby150k",
+          "paragraphs": {
+            "start": 261,
+            "end": 263
+          },
+          "judgment": "useful"
+        },
+        {
+          "source": "gatsby_ch1",
+          "paragraphs": {
+            "start": 14,
+            "end": 20
+          },
+          "judgment": "useful"
+        }
+      ]
+    },
+    "sweep20_15_15": {
+      "useful": 0,
+      "noise": 2,
+      "wrong": 0,
+      "rows": [
+        {
+          "source": "story1.txt",
+          "paragraphs": {
+            "start": 22,
+            "end": 25
+          },
+          "judgment": "noise"
+        },
+        {
+          "source": "story1.txt",
+          "paragraphs": {
+            "start": 65,
+            "end": 69
+          },
+          "judgment": "noise"
+        }
+      ]
+    },
+    "previous18_20_20": {
+      "useful": 1,
+      "noise": 0,
+      "wrong": 0,
+      "rows": [
+        {
+          "source": "story1.txt",
+          "paragraphs": {
+            "start": 79,
+            "end": 83
+          },
+          "judgment": "useful"
+        }
+      ]
+    },
+    "candidate15_20_15": {
+      "useful": 2,
+      "noise": 0,
+      "wrong": 0,
+      "rows": [
+        {
+          "source": "story1.txt",
+          "paragraphs": {
+            "start": 79,
+            "end": 83
+          },
+          "judgment": "useful"
+        },
+        {
+          "source": "styles_ch1",
+          "paragraphs": {
+            "start": 8,
+            "end": 11
+          },
+          "judgment": "useful"
+        }
+      ]
+    },
+    "candidate18_15_20": {
+      "useful": 2,
+      "noise": 1,
+      "wrong": 0,
+      "borderline": 1,
+      "rows": [
+        {
+          "source": "story1.txt",
+          "paragraphs": {
+            "start": 22,
+            "end": 25
+          },
+          "judgment": "borderline"
+        },
+        {
+          "source": "story1.txt",
+          "paragraphs": {
+            "start": 65,
+            "end": 70
+          },
+          "judgment": "noise"
+        },
+        {
+          "source": "story1.txt",
+          "paragraphs": {
+            "start": 79,
+            "end": 83
+          },
+          "judgment": "useful"
+        },
+        {
+          "source": "styles_ch1",
+          "paragraphs": {
+            "start": 9,
+            "end": 12
+          },
+          "judgment": "useful"
+        }
+      ]
+    },
+    "defaults": {
+      "useful": 2,
+      "noise": 1,
+      "wrong": 0,
+      "borderline": 1,
+      "rows": [
+        {
+          "source": "story1.txt",
+          "paragraphs": {
+            "start": 22,
+            "end": 25
+          },
+          "judgment": "borderline"
+        },
+        {
+          "source": "story1.txt",
+          "paragraphs": {
+            "start": 65,
+            "end": 70
+          },
+          "judgment": "noise"
+        },
+        {
+          "source": "story1.txt",
+          "paragraphs": {
+            "start": 79,
+            "end": 83
+          },
+          "judgment": "useful"
+        },
+        {
+          "source": "styles_ch1",
+          "paragraphs": {
+            "start": 8,
+            "end": 12
+          },
+          "judgment": "useful"
+        }
+      ]
+    },
+    "candidate18_15_10": {
+      "useful": 3,
+      "noise": 3,
+      "wrong": 0,
+      "rows": [
+        {
+          "source": "story1.txt",
+          "paragraphs": {
+            "start": 20,
+            "end": 25
+          },
+          "judgment": "noise"
+        },
+        {
+          "source": "story1.txt",
+          "paragraphs": {
+            "start": 65,
+            "end": 70
+          },
+          "judgment": "noise"
+        },
+        {
+          "source": "story1.txt",
+          "paragraphs": {
+            "start": 79,
+            "end": 83
+          },
+          "judgment": "useful"
+        },
+        {
+          "source": "story4.txt",
+          "paragraphs": {
+            "start": 0,
+            "end": 3
+          },
+          "judgment": "noise"
+        },
+        {
+          "source": "styles_ch1",
+          "paragraphs": {
+            "start": 8,
+            "end": 12
+          },
+          "judgment": "useful"
+        },
+        {
+          "source": "gatsby_ch1",
+          "paragraphs": {
+            "start": 14,
+            "end": 18
+          },
+          "judgment": "useful"
+        }
+      ]
+    }
+  },
+  "tier2": {
+    "cases": 45,
+    "exactSpans": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "true_positive": 20,
+      "predicted": 20,
+      "gold": 20
+    },
+    "failures": 0
+  },
+  "published": {
+    "source": {
+      "dataset": "cmlarsen/fiction-baseline export at b464cac (EXTRACTOR_VERSION 1), 210 units, 71 author units",
+      "tool": "writemorebetter tier3 --pacing at 8e2e228 (thresholds swept; minimumParagraphs 3, moreThanWords 400)",
+      "run_date": "2026-10-16",
+      "units": 210,
+      "authors": 71,
+      "chapterWindows": 1559,
+      "scope": "whole units pooled per author, and chapter windows (scene-break split, target 2,000-6,000 words: closed after reaching 6,000 or at a scene break past 3,000; short tails merged); author-weighted",
+      "method": "eligibleParagraphSignals: weighted percentiles over paragraphs with no speech and at least one counted word, each weighted 1 / (its author's eligible paragraphs); chapter shares weight each window 1 / (its author's windows); authorsWithRunsPercent counts authors with a run in any whole unit. Aggregate numbers only."
+    },
+    "eligibleParagraphSignals": {
+      "meanSentenceLength": {
+        "mean": 15.461140909915304,
+        "percentiles": {
+          "5": 3.0,
+          "10": 5.0,
+          "25": 9.5,
+          "50": 14.5,
+          "75": 20.0,
+          "90": 26.0,
+          "95": 31.0
+        }
+      },
+      "pastPerfectPercent": {
+        "mean": 5.601944726228128,
+        "percentiles": {
+          "5": 0.0,
+          "10": 0.0,
+          "25": 0.0,
+          "50": 0.0,
+          "75": 7.6923076923076925,
+          "90": 20.0,
+          "95": 28.571428571428573
+        }
+      },
+      "cognitionPercent": {
+        "mean": 4.444493543742473,
+        "percentiles": {
+          "5": 0.0,
+          "10": 0.0,
+          "25": 0.0,
+          "50": 0.0,
+          "75": 5.882352941176471,
+          "90": 14.285714285714286,
+          "95": 22.22222222222222
+        }
+      }
+    },
+    "twoSignalParagraphShareAtPreviousDefaults": 0.06594134015423088,
+    "authorMeanSignals": {
+      "dialoguePercent": {
+        "mean": 33.864964846902375,
+        "percentiles": {
+          "0": 0.0,
+          "5": 6.084984495360311,
+          "25": 23.67772131825557,
+          "50": 36.29501938499805,
+          "75": 46.89556787149478,
+          "95": 55.47748318828117,
+          "100": 65.36629652463131
+        }
+      },
+      "meanSentenceLength": {
+        "mean": 12.775011890411045,
+        "percentiles": {
+          "0": 7.06881486093815,
+          "5": 8.431094084728361,
+          "25": 11.105819394450734,
+          "50": 12.644730881053134,
+          "75": 14.121128448600446,
+          "95": 16.719902257251167,
+          "100": 24.74661281179138
+        }
+      },
+      "pastPerfectPercent": {
+        "mean": 3.3736881715049436,
+        "percentiles": {
+          "0": 0.1908506899432489,
+          "5": 0.6811486334022349,
+          "25": 2.112726523886031,
+          "50": 3.0958437428212475,
+          "75": 4.4036665609275385,
+          "95": 6.709683025187044,
+          "100": 10.520797526783463
+        }
+      },
+      "cognitionPercent": {
+        "mean": 4.8319982371739085,
+        "percentiles": {
+          "0": 2.7092941697712907,
+          "5": 2.9629722264082488,
+          "25": 3.791733413185966,
+          "50": 4.66661328213528,
+          "75": 5.367761591371005,
+          "95": 7.9133539709014435,
+          "100": 11.299547623715274
+        }
+      }
+    },
+    "sweep": [
+      {
+        "minimumSentenceLength": 15,
+        "minimumPastPerfectPercent": 10,
+        "minimumCognitionPercent": 10,
+        "chapterFlaggedShare": 0.34717796285761915,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.4915326238460395
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 8.427151464649164
+        },
+        "authorsWithRunsPercent": 78.87323943661971,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.06620050477884894,
+          "95": 0.3339839897333916
+        }
+      },
+      {
+        "minimumSentenceLength": 15,
+        "minimumPastPerfectPercent": 10,
+        "minimumCognitionPercent": 15,
+        "chapterFlaggedShare": 0.25958096493250743,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.31510792339090055
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 6.803606072862578
+        },
+        "authorsWithRunsPercent": 73.2394366197183,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.04474873584821229,
+          "95": 0.2797440817553378
+        }
+      },
+      {
+        "minimumSentenceLength": 15,
+        "minimumPastPerfectPercent": 10,
+        "minimumCognitionPercent": 20,
+        "chapterFlaggedShare": 0.21295926929958425,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.3114139262747385
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 6.532475571761977
+        },
+        "authorsWithRunsPercent": 69.01408450704226,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.030467988300292494,
+          "95": 0.25146992061285967
+        }
+      },
+      {
+        "minimumSentenceLength": 15,
+        "minimumPastPerfectPercent": 10,
+        "minimumCognitionPercent": 25,
+        "chapterFlaggedShare": 0.20516220581113986,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.30066493870714084
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 5.578236138812431
+        },
+        "authorsWithRunsPercent": 69.01408450704226,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.02800767410270414,
+          "95": 0.2421815204558427
+        }
+      },
+      {
+        "minimumSentenceLength": 15,
+        "minimumPastPerfectPercent": 10,
+        "minimumCognitionPercent": 30,
+        "chapterFlaggedShare": 0.17676396279349524,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.29731409293040933
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 5.172413793103448
+        },
+        "authorsWithRunsPercent": 66.19718309859155,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.024345709068776627,
+          "95": 0.19216962195604187
+        }
+      },
+      {
+        "minimumSentenceLength": 15,
+        "minimumPastPerfectPercent": 15,
+        "minimumCognitionPercent": 10,
+        "chapterFlaggedShare": 0.24751450764814856,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.29346557186186206
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 5.156939597527041
+        },
+        "authorsWithRunsPercent": 73.2394366197183,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.030271535675004794,
+          "95": 0.25474686022263
+        }
+      },
+      {
+        "minimumSentenceLength": 15,
+        "minimumPastPerfectPercent": 15,
+        "minimumCognitionPercent": 15,
+        "chapterFlaggedShare": 0.14433103848742304,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.278902001145651
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 3.5714285714285716
+        },
+        "authorsWithRunsPercent": 61.971830985915496,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.011968737657239291,
+          "95": 0.16293391494659926
+        }
+      },
+      {
+        "minimumSentenceLength": 15,
+        "minimumPastPerfectPercent": 15,
+        "minimumCognitionPercent": 20,
+        "chapterFlaggedShare": 0.10454817965253975,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.2211184673784511
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 3.5590459673512473
+        },
+        "authorsWithRunsPercent": 57.74647887323944,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.008583764667507876,
+          "95": 0.13379339072544472
+        }
+      },
+      {
+        "minimumSentenceLength": 15,
+        "minimumPastPerfectPercent": 15,
+        "minimumCognitionPercent": 25,
+        "chapterFlaggedShare": 0.09793654271920044,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.20113890260694878
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 3.556960000895366
+        },
+        "authorsWithRunsPercent": 57.74647887323944,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.008583764667507876,
+          "95": 0.12543130380510445
+        }
+      },
+      {
+        "minimumSentenceLength": 15,
+        "minimumPastPerfectPercent": 15,
+        "minimumCognitionPercent": 30,
+        "chapterFlaggedShare": 0.08542530459116156,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.17575473082021997
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 2.9411764705882355
+        },
+        "authorsWithRunsPercent": 53.521126760563384,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0072244939242006095,
+          "95": 0.1056483898646102
+        }
+      },
+      {
+        "minimumSentenceLength": 15,
+        "minimumPastPerfectPercent": 20,
+        "minimumCognitionPercent": 10,
+        "chapterFlaggedShare": 0.17973501372038334,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.278218461443236
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 4.117209668127637
+        },
+        "authorsWithRunsPercent": 63.38028169014085,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.016550126194712234,
+          "95": 0.20229353026537916
+        }
+      },
+      {
+        "minimumSentenceLength": 15,
+        "minimumPastPerfectPercent": 20,
+        "minimumCognitionPercent": 15,
+        "chapterFlaggedShare": 0.09594895516841496,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.1623552146784081
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 3.10242059135842
+        },
+        "authorsWithRunsPercent": 47.88732394366197,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.12215979483488582
+        }
+      },
+      {
+        "minimumSentenceLength": 15,
+        "minimumPastPerfectPercent": 20,
+        "minimumCognitionPercent": 20,
+        "chapterFlaggedShare": 0.05621126227772908,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.15738232789818035
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 1.7400263408257963
+        },
+        "authorsWithRunsPercent": 42.25352112676056,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.09273115836398091
+        }
+      },
+      {
+        "minimumSentenceLength": 15,
+        "minimumPastPerfectPercent": 20,
+        "minimumCognitionPercent": 25,
+        "chapterFlaggedShare": 0.05262784999647558,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.14191596125763514
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 1.4762705752369492
+        },
+        "authorsWithRunsPercent": 42.25352112676056,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.08436907144364061
+        }
+      },
+      {
+        "minimumSentenceLength": 15,
+        "minimumPastPerfectPercent": 20,
+        "minimumCognitionPercent": 30,
+        "chapterFlaggedShare": 0.04045960564850399,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 35.2112676056338,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.044086705624300934
+        }
+      },
+      {
+        "minimumSentenceLength": 15,
+        "minimumPastPerfectPercent": 25,
+        "minimumCognitionPercent": 10,
+        "chapterFlaggedShare": 0.13293992628635382,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.19107640380967916
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 3.635337341640017
+        },
+        "authorsWithRunsPercent": 54.929577464788736,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.006361727845282779,
+          "95": 0.14043894596289946
+        }
+      },
+      {
+        "minimumSentenceLength": 15,
+        "minimumPastPerfectPercent": 25,
+        "minimumCognitionPercent": 15,
+        "chapterFlaggedShare": 0.05502674761215142,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.1477118199877887
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 1.6842574094610931
+        },
+        "authorsWithRunsPercent": 35.2112676056338,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.06263189663513433
+        }
+      },
+      {
+        "minimumSentenceLength": 15,
+        "minimumPastPerfectPercent": 25,
+        "minimumCognitionPercent": 20,
+        "chapterFlaggedShare": 0.030816314070732074,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 30.985915492957748,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.03316617634435148
+        }
+      },
+      {
+        "minimumSentenceLength": 15,
+        "minimumPastPerfectPercent": 25,
+        "minimumCognitionPercent": 25,
+        "chapterFlaggedShare": 0.028427880907651026,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 30.985915492957748,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.024852617702920007
+        }
+      },
+      {
+        "minimumSentenceLength": 15,
+        "minimumPastPerfectPercent": 25,
+        "minimumCognitionPercent": 30,
+        "chapterFlaggedShare": 0.025339716062294078,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 26.760563380281692,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.024852617702920007
+        }
+      },
+      {
+        "minimumSentenceLength": 15,
+        "minimumPastPerfectPercent": 30,
+        "minimumCognitionPercent": 10,
+        "chapterFlaggedShare": 0.11105684227500846,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.18847524975406782
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 3.545540545941048
+        },
+        "authorsWithRunsPercent": 49.29577464788732,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.12741840612378916
+        }
+      },
+      {
+        "minimumSentenceLength": 15,
+        "minimumPastPerfectPercent": 30,
+        "minimumCognitionPercent": 15,
+        "chapterFlaggedShare": 0.04194181041956898,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 25.35211267605634,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.044165391233831175
+        }
+      },
+      {
+        "minimumSentenceLength": 15,
+        "minimumPastPerfectPercent": 30,
+        "minimumCognitionPercent": 20,
+        "chapterFlaggedShare": 0.01845492379059466,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 19.718309859154928,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.018491498422886277
+        }
+      },
+      {
+        "minimumSentenceLength": 15,
+        "minimumPastPerfectPercent": 30,
+        "minimumCognitionPercent": 25,
+        "chapterFlaggedShare": 0.010076662771488614,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 16.901408450704224,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.01434046948873647
+        }
+      },
+      {
+        "minimumSentenceLength": 15,
+        "minimumPastPerfectPercent": 30,
+        "minimumCognitionPercent": 30,
+        "chapterFlaggedShare": 0.009530651662097227,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 15.492957746478874,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.01434046948873647
+        }
+      },
+      {
+        "minimumSentenceLength": 18,
+        "minimumPastPerfectPercent": 10,
+        "minimumCognitionPercent": 10,
+        "chapterFlaggedShare": 0.2359178405451111,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.3161555485298767
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 7.048539771470736
+        },
+        "authorsWithRunsPercent": 70.4225352112676,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.02896703551358554,
+          "95": 0.2818383050498024
+        }
+      },
+      {
+        "minimumSentenceLength": 18,
+        "minimumPastPerfectPercent": 10,
+        "minimumCognitionPercent": 15,
+        "chapterFlaggedShare": 0.1702208006403132,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.2933791830884105
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 4.134270907416251
+        },
+        "authorsWithRunsPercent": 60.563380281690144,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.015219541891789057,
+          "95": 0.20246342420376057
+        }
+      },
+      {
+        "minimumSentenceLength": 18,
+        "minimumPastPerfectPercent": 10,
+        "minimumCognitionPercent": 20,
+        "chapterFlaggedShare": 0.12834202103990575,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.2563496473027202
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 4.085248710931685
+        },
+        "authorsWithRunsPercent": 56.33802816901409,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.009654839488293506,
+          "95": 0.16397235861052678
+        }
+      },
+      {
+        "minimumSentenceLength": 18,
+        "minimumPastPerfectPercent": 10,
+        "minimumCognitionPercent": 25,
+        "chapterFlaggedShare": 0.12157645088825711,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.25298327797680886
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 4.066732302004319
+        },
+        "authorsWithRunsPercent": 54.929577464788736,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.009654839488293506,
+          "95": 0.15978391202159767
+        }
+      },
+      {
+        "minimumSentenceLength": 18,
+        "minimumPastPerfectPercent": 10,
+        "minimumCognitionPercent": 30,
+        "chapterFlaggedShare": 0.10259231869150691,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.2444853295786648
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 4.019143316346273
+        },
+        "authorsWithRunsPercent": 52.11267605633803,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.007609770945894529,
+          "95": 0.13645122031584397
+        }
+      },
+      {
+        "minimumSentenceLength": 18,
+        "minimumPastPerfectPercent": 15,
+        "minimumCognitionPercent": 10,
+        "chapterFlaggedShare": 0.1409096148481746,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.20250513020613078
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 3.424500246345984
+        },
+        "authorsWithRunsPercent": 59.15492957746479,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.010854934653293387,
+          "95": 0.1468030702331748
+        }
+      },
+      {
+        "minimumSentenceLength": 18,
+        "minimumPastPerfectPercent": 15,
+        "minimumCognitionPercent": 15,
+        "chapterFlaggedShare": 0.089937203306903,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.16151770987703426
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 2.692592728241778
+        },
+        "authorsWithRunsPercent": 46.478873239436616,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.1264742266575896
+        }
+      },
+      {
+        "minimumSentenceLength": 18,
+        "minimumPastPerfectPercent": 15,
+        "minimumCognitionPercent": 20,
+        "chapterFlaggedShare": 0.05300338947102264,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.14186349744825494
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 1.3581744945784324
+        },
+        "authorsWithRunsPercent": 42.25352112676056,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.058488913651822474
+        }
+      },
+      {
+        "minimumSentenceLength": 18,
+        "minimumPastPerfectPercent": 15,
+        "minimumCognitionPercent": 25,
+        "chapterFlaggedShare": 0.048156587193984766,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0842895709123154
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.6854608931171314
+        },
+        "authorsWithRunsPercent": 40.84507042253521,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.051771765826060245
+        }
+      },
+      {
+        "minimumSentenceLength": 18,
+        "minimumPastPerfectPercent": 15,
+        "minimumCognitionPercent": 30,
+        "chapterFlaggedShare": 0.045003326392143723,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.03177699869208263
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.25841737795433906
+        },
+        "authorsWithRunsPercent": 39.436619718309856,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.051771765826060245
+        }
+      },
+      {
+        "minimumSentenceLength": 18,
+        "minimumPastPerfectPercent": 20,
+        "minimumCognitionPercent": 10,
+        "chapterFlaggedShare": 0.09958969291207753,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.16304394783718443
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 3.0921096271867676
+        },
+        "authorsWithRunsPercent": 49.29577464788732,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.1264742266575896
+        }
+      },
+      {
+        "minimumSentenceLength": 18,
+        "minimumPastPerfectPercent": 20,
+        "minimumCognitionPercent": 15,
+        "chapterFlaggedShare": 0.07133345676183779,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.1577265841857209
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 2.0290769197931633
+        },
+        "authorsWithRunsPercent": 38.028169014084504,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.1095944550680985
+        }
+      },
+      {
+        "minimumSentenceLength": 18,
+        "minimumPastPerfectPercent": 20,
+        "minimumCognitionPercent": 20,
+        "chapterFlaggedShare": 0.03387077016090075,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 32.394366197183096,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.037365573274869134
+        }
+      },
+      {
+        "minimumSentenceLength": 18,
+        "minimumPastPerfectPercent": 20,
+        "minimumCognitionPercent": 25,
+        "chapterFlaggedShare": 0.029700505743499295,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 32.394366197183096,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.026659879178549454
+        }
+      },
+      {
+        "minimumSentenceLength": 18,
+        "minimumPastPerfectPercent": 20,
+        "minimumCognitionPercent": 30,
+        "chapterFlaggedShare": 0.027995206410327468,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 29.577464788732396,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.026659879178549454
+        }
+      },
+      {
+        "minimumSentenceLength": 18,
+        "minimumPastPerfectPercent": 25,
+        "minimumCognitionPercent": 10,
+        "chapterFlaggedShare": 0.08296467099759167,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.15963531324136343
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 2.4003601591148684
+        },
+        "authorsWithRunsPercent": 42.25352112676056,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.11410960783267589
+        }
+      },
+      {
+        "minimumSentenceLength": 18,
+        "minimumPastPerfectPercent": 25,
+        "minimumCognitionPercent": 15,
+        "chapterFlaggedShare": 0.04433323310414753,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.020286066196689472
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.185054904628249
+        },
+        "authorsWithRunsPercent": 26.760563380281692,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.0475397044436596
+        }
+      },
+      {
+        "minimumSentenceLength": 18,
+        "minimumPastPerfectPercent": 25,
+        "minimumCognitionPercent": 20,
+        "chapterFlaggedShare": 0.022444421602660056,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 23.943661971830984,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.02366465264516642
+        }
+      },
+      {
+        "minimumSentenceLength": 18,
+        "minimumPastPerfectPercent": 25,
+        "minimumCognitionPercent": 25,
+        "chapterFlaggedShare": 0.019816703058790408,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 23.943661971830984,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.01724682102939342
+        }
+      },
+      {
+        "minimumSentenceLength": 18,
+        "minimumPastPerfectPercent": 25,
+        "minimumCognitionPercent": 30,
+        "chapterFlaggedShare": 0.018492066078111914,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 21.12676056338028,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.01724682102939342
+        }
+      },
+      {
+        "minimumSentenceLength": 18,
+        "minimumPastPerfectPercent": 30,
+        "minimumCognitionPercent": 10,
+        "chapterFlaggedShare": 0.06356677311779718,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.13894025320427345
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 1.8330629222382036
+        },
+        "authorsWithRunsPercent": 33.80281690140845,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.09702911530131121
+        }
+      },
+      {
+        "minimumSentenceLength": 18,
+        "minimumPastPerfectPercent": 30,
+        "minimumCognitionPercent": 15,
+        "chapterFlaggedShare": 0.03714525938233861,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 19.718309859154928,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.03300018825457375
+        }
+      },
+      {
+        "minimumSentenceLength": 18,
+        "minimumPastPerfectPercent": 30,
+        "minimumCognitionPercent": 20,
+        "chapterFlaggedShare": 0.015354256957533483,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 16.901408450704224,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.01434046948873647
+        }
+      },
+      {
+        "minimumSentenceLength": 18,
+        "minimumPastPerfectPercent": 30,
+        "minimumCognitionPercent": 25,
+        "chapterFlaggedShare": 0.007161768694622725,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 15.492957746478874,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.009754680058896422
+        }
+      },
+      {
+        "minimumSentenceLength": 18,
+        "minimumPastPerfectPercent": 30,
+        "minimumCognitionPercent": 30,
+        "chapterFlaggedShare": 0.006693144986562398,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 14.084507042253522,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.009754680058896422
+        }
+      },
+      {
+        "minimumSentenceLength": 20,
+        "minimumPastPerfectPercent": 10,
+        "minimumCognitionPercent": 10,
+        "chapterFlaggedShare": 0.18899233731095988,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.29568700355641786
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 4.437919915608067
+        },
+        "authorsWithRunsPercent": 63.38028169014085,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.020962482872698654,
+          "95": 0.2567076255162278
+        }
+      },
+      {
+        "minimumSentenceLength": 20,
+        "minimumPastPerfectPercent": 10,
+        "minimumCognitionPercent": 15,
+        "chapterFlaggedShare": 0.11025499917224497,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.29284704269917483
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 3.4482758620689653
+        },
+        "authorsWithRunsPercent": 47.88732394366197,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.15911216634903003
+        }
+      },
+      {
+        "minimumSentenceLength": 20,
+        "minimumPastPerfectPercent": 10,
+        "minimumCognitionPercent": 20,
+        "chapterFlaggedShare": 0.08939193373988688,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.16340275052451772
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 2.6328926540693582
+        },
+        "authorsWithRunsPercent": 46.478873239436616,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.1398974587074892
+        }
+      },
+      {
+        "minimumSentenceLength": 20,
+        "minimumPastPerfectPercent": 10,
+        "minimumCognitionPercent": 25,
+        "chapterFlaggedShare": 0.07795549874187717,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.16149656203851018
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 2.127659574468085
+        },
+        "authorsWithRunsPercent": 43.66197183098591,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.09524122581656275
+        }
+      },
+      {
+        "minimumSentenceLength": 20,
+        "minimumPastPerfectPercent": 10,
+        "minimumCognitionPercent": 30,
+        "chapterFlaggedShare": 0.061969852544305225,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.1613429676334627
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 2.0632064318613876
+        },
+        "authorsWithRunsPercent": 40.84507042253521,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.04775841293210345
+        }
+      },
+      {
+        "minimumSentenceLength": 20,
+        "minimumPastPerfectPercent": 15,
+        "minimumCognitionPercent": 10,
+        "chapterFlaggedShare": 0.10699309705131174,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.16264543321616956
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 2.947700985057465
+        },
+        "authorsWithRunsPercent": 49.29577464788732,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.14106188760519142
+        }
+      },
+      {
+        "minimumSentenceLength": 20,
+        "minimumPastPerfectPercent": 15,
+        "minimumCognitionPercent": 15,
+        "chapterFlaggedShare": 0.052390510828552075,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.14126921397021536
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 1.400579702295052
+        },
+        "authorsWithRunsPercent": 36.61971830985915,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.05843441046654252
+        }
+      },
+      {
+        "minimumSentenceLength": 20,
+        "minimumPastPerfectPercent": 15,
+        "minimumCognitionPercent": 20,
+        "chapterFlaggedShare": 0.03520768153238861,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 33.80281690140845,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.03010574986727644
+        }
+      },
+      {
+        "minimumSentenceLength": 20,
+        "minimumPastPerfectPercent": 15,
+        "minimumCognitionPercent": 25,
+        "chapterFlaggedShare": 0.025904396770699233,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 32.394366197183096,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.021781402262725305
+        }
+      },
+      {
+        "minimumSentenceLength": 20,
+        "minimumPastPerfectPercent": 15,
+        "minimumCognitionPercent": 30,
+        "chapterFlaggedShare": 0.023915796190549368,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 29.577464788732396,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.021781402262725305
+        }
+      },
+      {
+        "minimumSentenceLength": 20,
+        "minimumPastPerfectPercent": 20,
+        "minimumCognitionPercent": 10,
+        "chapterFlaggedShare": 0.07779222322954742,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.16020544615736534
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 2.0935854736543384
+        },
+        "authorsWithRunsPercent": 43.66197183098591,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.11132054078226938
+        }
+      },
+      {
+        "minimumSentenceLength": 20,
+        "minimumPastPerfectPercent": 20,
+        "minimumCognitionPercent": 15,
+        "chapterFlaggedShare": 0.04450699984586588,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.02317987649256894
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.1885037338660791
+        },
+        "authorsWithRunsPercent": 33.80281690140845,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.04932412130596456
+        }
+      },
+      {
+        "minimumSentenceLength": 20,
+        "minimumPastPerfectPercent": 20,
+        "minimumCognitionPercent": 20,
+        "chapterFlaggedShare": 0.026795297784645702,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 25.35211267605634,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.02449548971874847
+        }
+      },
+      {
+        "minimumSentenceLength": 20,
+        "minimumPastPerfectPercent": 20,
+        "minimumCognitionPercent": 25,
+        "chapterFlaggedShare": 0.017569400424287403,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 23.943661971830984,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.01762385751387109
+        }
+      },
+      {
+        "minimumSentenceLength": 20,
+        "minimumPastPerfectPercent": 20,
+        "minimumCognitionPercent": 30,
+        "chapterFlaggedShare": 0.01625149065567342,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 22.535211267605632,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.01762385751387109
+        }
+      },
+      {
+        "minimumSentenceLength": 20,
+        "minimumPastPerfectPercent": 25,
+        "minimumCognitionPercent": 10,
+        "chapterFlaggedShare": 0.0491076691943731,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.10012833762759671
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.694963913730324
+        },
+        "authorsWithRunsPercent": 30.985915492957748,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.06958203136238472
+        }
+      },
+      {
+        "minimumSentenceLength": 20,
+        "minimumPastPerfectPercent": 25,
+        "minimumCognitionPercent": 15,
+        "chapterFlaggedShare": 0.03268698248216987,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 22.535211267605632,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.02529083990349474
+        }
+      },
+      {
+        "minimumSentenceLength": 20,
+        "minimumPastPerfectPercent": 25,
+        "minimumCognitionPercent": 20,
+        "chapterFlaggedShare": 0.017247121091604322,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 18.309859154929576,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.01724682102939342
+        }
+      },
+      {
+        "minimumSentenceLength": 20,
+        "minimumPastPerfectPercent": 25,
+        "minimumCognitionPercent": 25,
+        "chapterFlaggedShare": 0.008703909589988228,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 16.901408450704224,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.013509632415154422
+        }
+      },
+      {
+        "minimumSentenceLength": 20,
+        "minimumPastPerfectPercent": 25,
+        "minimumCognitionPercent": 30,
+        "chapterFlaggedShare": 0.008626522188657162,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 15.492957746478874,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.013509632415154422
+        }
+      },
+      {
+        "minimumSentenceLength": 20,
+        "minimumPastPerfectPercent": 30,
+        "minimumCognitionPercent": 10,
+        "chapterFlaggedShare": 0.03412046981807972,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 21.12676056338028,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.02693963294312677
+        }
+      },
+      {
+        "minimumSentenceLength": 20,
+        "minimumPastPerfectPercent": 30,
+        "minimumCognitionPercent": 15,
+        "chapterFlaggedShare": 0.028322923658594488,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 15.492957746478874,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.01724682102939342
+        }
+      },
+      {
+        "minimumSentenceLength": 20,
+        "minimumPastPerfectPercent": 30,
+        "minimumCognitionPercent": 20,
+        "chapterFlaggedShare": 0.01365156215624714,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 14.084507042253522,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.010794569089045759
+        }
+      },
+      {
+        "minimumSentenceLength": 20,
+        "minimumPastPerfectPercent": 30,
+        "minimumCognitionPercent": 25,
+        "chapterFlaggedShare": 0.006022454175026519,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 12.67605633802817,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.009754680058896422
+        }
+      },
+      {
+        "minimumSentenceLength": 20,
+        "minimumPastPerfectPercent": 30,
+        "minimumCognitionPercent": 30,
+        "chapterFlaggedShare": 0.005945066773695456,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 11.267605633802816,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.009754680058896422
+        }
+      },
+      {
+        "minimumSentenceLength": 22,
+        "minimumPastPerfectPercent": 10,
+        "minimumCognitionPercent": 10,
+        "chapterFlaggedShare": 0.10268448238970165,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.1870043419312656
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 3.1525113776913143
+        },
+        "authorsWithRunsPercent": 49.29577464788732,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.11724772103981902
+        }
+      },
+      {
+        "minimumSentenceLength": 22,
+        "minimumPastPerfectPercent": 10,
+        "minimumCognitionPercent": 15,
+        "chapterFlaggedShare": 0.05715305776638794,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.15969338869370808
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 1.5188153252412449
+        },
+        "authorsWithRunsPercent": 38.028169014084504,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.06495344119812042
+        }
+      },
+      {
+        "minimumSentenceLength": 22,
+        "minimumPastPerfectPercent": 10,
+        "minimumCognitionPercent": 20,
+        "chapterFlaggedShare": 0.05314194885098856,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.15099943898650994
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 1.4868765185055128
+        },
+        "authorsWithRunsPercent": 35.2112676056338,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.06495344119812042
+        }
+      },
+      {
+        "minimumSentenceLength": 22,
+        "minimumPastPerfectPercent": 10,
+        "minimumCognitionPercent": 25,
+        "chapterFlaggedShare": 0.04471746809329802,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.023147948954330574
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.30683666620165045
+        },
+        "authorsWithRunsPercent": 33.80281690140845,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.03827974539655835
+        }
+      },
+      {
+        "minimumSentenceLength": 22,
+        "minimumPastPerfectPercent": 10,
+        "minimumCognitionPercent": 30,
+        "chapterFlaggedShare": 0.04319699129047292,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0189062547060114
+        },
+        "authorsWithRunsPercent": 32.394366197183096,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.03827974539655835
+        }
+      },
+      {
+        "minimumSentenceLength": 22,
+        "minimumPastPerfectPercent": 15,
+        "minimumCognitionPercent": 10,
+        "chapterFlaggedShare": 0.05298540553313654,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.12793321906904578
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 1.4950403123177396
+        },
+        "authorsWithRunsPercent": 36.61971830985915,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.04725833151266129
+        }
+      },
+      {
+        "minimumSentenceLength": 22,
+        "minimumPastPerfectPercent": 15,
+        "minimumCognitionPercent": 15,
+        "chapterFlaggedShare": 0.025823620211147955,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 28.169014084507044,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.022091853490728407
+        }
+      },
+      {
+        "minimumSentenceLength": 22,
+        "minimumPastPerfectPercent": 15,
+        "minimumCognitionPercent": 20,
+        "chapterFlaggedShare": 0.024255848783563447,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 25.35211267605634,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.022091853490728407
+        }
+      },
+      {
+        "minimumSentenceLength": 22,
+        "minimumPastPerfectPercent": 15,
+        "minimumCognitionPercent": 25,
+        "chapterFlaggedShare": 0.015161582330142085,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 23.943661971830984,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.014567507906486407
+        }
+      },
+      {
+        "minimumSentenceLength": 22,
+        "minimumPastPerfectPercent": 15,
+        "minimumCognitionPercent": 30,
+        "chapterFlaggedShare": 0.014336116715944086,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 21.12676056338028,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.014567507906486407
+        }
+      },
+      {
+        "minimumSentenceLength": 22,
+        "minimumPastPerfectPercent": 20,
+        "minimumCognitionPercent": 10,
+        "chapterFlaggedShare": 0.04294424247848674,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 29.577464788732396,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.03485520589957257
+        }
+      },
+      {
+        "minimumSentenceLength": 22,
+        "minimumPastPerfectPercent": 20,
+        "minimumCognitionPercent": 15,
+        "chapterFlaggedShare": 0.020943672584795976,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 22.535211267605632,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.01724682102939342
+        }
+      },
+      {
+        "minimumSentenceLength": 22,
+        "minimumPastPerfectPercent": 20,
+        "minimumCognitionPercent": 20,
+        "chapterFlaggedShare": 0.020181621646688703,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 21.12676056338028,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.01724682102939342
+        }
+      },
+      {
+        "minimumSentenceLength": 22,
+        "minimumPastPerfectPercent": 20,
+        "minimumCognitionPercent": 25,
+        "chapterFlaggedShare": 0.011164742594598414,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 18.309859154929576,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.012103802236696187
+        }
+      },
+      {
+        "minimumSentenceLength": 22,
+        "minimumPastPerfectPercent": 20,
+        "minimumCognitionPercent": 30,
+        "chapterFlaggedShare": 0.011009967791936286,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 16.901408450704224,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.012103802236696187
+        }
+      },
+      {
+        "minimumSentenceLength": 22,
+        "minimumPastPerfectPercent": 25,
+        "minimumCognitionPercent": 10,
+        "chapterFlaggedShare": 0.020152901075732334,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 21.12676056338028,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.01837473312649937
+        }
+      },
+      {
+        "minimumSentenceLength": 22,
+        "minimumPastPerfectPercent": 25,
+        "minimumCognitionPercent": 15,
+        "chapterFlaggedShare": 0.014909792653783442,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 15.492957746478874,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.01434046948873647
+        }
+      },
+      {
+        "minimumSentenceLength": 22,
+        "minimumPastPerfectPercent": 25,
+        "minimumCognitionPercent": 20,
+        "chapterFlaggedShare": 0.014225129117007232,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 14.084507042253522,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.01434046948873647
+        }
+      },
+      {
+        "minimumSentenceLength": 22,
+        "minimumPastPerfectPercent": 25,
+        "minimumCognitionPercent": 25,
+        "chapterFlaggedShare": 0.005813548522328079,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 12.67605633802817,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.009382983832553236
+        }
+      },
+      {
+        "minimumSentenceLength": 22,
+        "minimumPastPerfectPercent": 25,
+        "minimumCognitionPercent": 30,
+        "chapterFlaggedShare": 0.005736161120997018,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 11.267605633802816,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.009382983832553236
+        }
+      },
+      {
+        "minimumSentenceLength": 22,
+        "minimumPastPerfectPercent": 30,
+        "minimumCognitionPercent": 10,
+        "chapterFlaggedShare": 0.01715992070135834,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 15.492957746478874,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.014591827145054914
+        }
+      },
+      {
+        "minimumSentenceLength": 22,
+        "minimumPastPerfectPercent": 30,
+        "minimumCognitionPercent": 15,
+        "chapterFlaggedShare": 0.012846535920400689,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 11.267605633802816,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.010367847661602881
+        }
+      },
+      {
+        "minimumSentenceLength": 22,
+        "minimumPastPerfectPercent": 30,
+        "minimumCognitionPercent": 20,
+        "chapterFlaggedShare": 0.012259681460306798,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 11.267605633802816,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.010367847661602881
+        }
+      },
+      {
+        "minimumSentenceLength": 22,
+        "minimumPastPerfectPercent": 30,
+        "minimumCognitionPercent": 25,
+        "chapterFlaggedShare": 0.004630573479086178,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 9.859154929577464,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.0075871749491051525
+        }
+      },
+      {
+        "minimumSentenceLength": 22,
+        "minimumPastPerfectPercent": 30,
+        "minimumCognitionPercent": 30,
+        "chapterFlaggedShare": 0.004553186077755116,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 8.450704225352112,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.0075871749491051525
+        }
+      },
+      {
+        "minimumSentenceLength": 25,
+        "minimumPastPerfectPercent": 10,
+        "minimumCognitionPercent": 10,
+        "chapterFlaggedShare": 0.038614249048735616,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 38.028169014084504,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.027362115625410945
+        }
+      },
+      {
+        "minimumSentenceLength": 25,
+        "minimumPastPerfectPercent": 10,
+        "minimumCognitionPercent": 15,
+        "chapterFlaggedShare": 0.0264390948281472,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 26.760563380281692,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.019059823121912234
+        }
+      },
+      {
+        "minimumSentenceLength": 25,
+        "minimumPastPerfectPercent": 10,
+        "minimumCognitionPercent": 20,
+        "chapterFlaggedShare": 0.025023375982850888,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 25.35211267605634,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.019059823121912234
+        }
+      },
+      {
+        "minimumSentenceLength": 25,
+        "minimumPastPerfectPercent": 10,
+        "minimumCognitionPercent": 25,
+        "chapterFlaggedShare": 0.016264454935197473,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 23.943661971830984,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.015450289528649793
+        }
+      },
+      {
+        "minimumSentenceLength": 25,
+        "minimumPastPerfectPercent": 10,
+        "minimumCognitionPercent": 30,
+        "chapterFlaggedShare": 0.014952996440640392,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 19.718309859154928,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.015450289528649793
+        }
+      },
+      {
+        "minimumSentenceLength": 25,
+        "minimumPastPerfectPercent": 15,
+        "minimumCognitionPercent": 10,
+        "chapterFlaggedShare": 0.020766274760869168,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 21.12676056338028,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.017577616695566345
+        }
+      },
+      {
+        "minimumSentenceLength": 25,
+        "minimumPastPerfectPercent": 15,
+        "minimumCognitionPercent": 15,
+        "chapterFlaggedShare": 0.015405583558478828,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 15.492957746478874,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.009273748341485793
+        }
+      },
+      {
+        "minimumSentenceLength": 25,
+        "minimumPastPerfectPercent": 15,
+        "minimumCognitionPercent": 20,
+        "chapterFlaggedShare": 0.014360679344560534,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 14.084507042253522,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.009273748341485793
+        }
+      },
+      {
+        "minimumSentenceLength": 25,
+        "minimumPastPerfectPercent": 15,
+        "minimumCognitionPercent": 25,
+        "chapterFlaggedShare": 0.006384230910365656,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 11.267605633802816,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.0070898461277494555
+        }
+      },
+      {
+        "minimumSentenceLength": 25,
+        "minimumPastPerfectPercent": 15,
+        "minimumCognitionPercent": 30,
+        "chapterFlaggedShare": 0.005636152697498716,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 8.450704225352112,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.005801039617307064
+        }
+      },
+      {
+        "minimumSentenceLength": 25,
+        "minimumPastPerfectPercent": 20,
+        "minimumCognitionPercent": 10,
+        "chapterFlaggedShare": 0.016967044319681733,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 18.309859154929576,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.009624219123679268
+        }
+      },
+      {
+        "minimumSentenceLength": 25,
+        "minimumPastPerfectPercent": 20,
+        "minimumCognitionPercent": 15,
+        "chapterFlaggedShare": 0.01269424800800318,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 11.267605633802816,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.009273748341485793
+        }
+      },
+      {
+        "minimumSentenceLength": 25,
+        "minimumPastPerfectPercent": 20,
+        "minimumCognitionPercent": 20,
+        "chapterFlaggedShare": 0.011540960763166647,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 9.859154929577464,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.007323912702570112
+        }
+      },
+      {
+        "minimumSentenceLength": 25,
+        "minimumPastPerfectPercent": 20,
+        "minimumCognitionPercent": 25,
+        "chapterFlaggedShare": 0.0036418997303028352,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 7.042253521126761,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.001963564208318527
+        }
+      },
+      {
+        "minimumSentenceLength": 25,
+        "minimumPastPerfectPercent": 20,
+        "minimumCognitionPercent": 30,
+        "chapterFlaggedShare": 0.003564512328971772,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 5.633802816901408,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.001384504624245445
+        }
+      },
+      {
+        "minimumSentenceLength": 25,
+        "minimumPastPerfectPercent": 25,
+        "minimumCognitionPercent": 10,
+        "chapterFlaggedShare": 0.011537851605786062,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 11.267605633802816,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.0075871749491051525
+        }
+      },
+      {
+        "minimumSentenceLength": 25,
+        "minimumPastPerfectPercent": 25,
+        "minimumCognitionPercent": 15,
+        "chapterFlaggedShare": 0.009099646209176042,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 7.042253521126761,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.001963564208318527
+        }
+      },
+      {
+        "minimumSentenceLength": 25,
+        "minimumPastPerfectPercent": 25,
+        "minimumCognitionPercent": 20,
+        "chapterFlaggedShare": 0.008806218979129095,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 7.042253521126761,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.001963564208318527
+        }
+      },
+      {
+        "minimumSentenceLength": 25,
+        "minimumPastPerfectPercent": 25,
+        "minimumCognitionPercent": 25,
+        "chapterFlaggedShare": 0.001177110997908481,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 5.633802816901408,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.0005790595840730819
+        }
+      },
+      {
+        "minimumSentenceLength": 25,
+        "minimumPastPerfectPercent": 25,
+        "minimumCognitionPercent": 30,
+        "chapterFlaggedShare": 0.001099723596577418,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 4.225352112676056,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.0
+        }
+      },
+      {
+        "minimumSentenceLength": 25,
+        "minimumPastPerfectPercent": 30,
+        "minimumCognitionPercent": 10,
+        "chapterFlaggedShare": 0.010981714513325764,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 9.859154929577464,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.0075871749491051525
+        }
+      },
+      {
+        "minimumSentenceLength": 25,
+        "minimumPastPerfectPercent": 30,
+        "minimumCognitionPercent": 15,
+        "chapterFlaggedShare": 0.008914323748093759,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 5.633802816901408,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.0005790595840730819
+        }
+      },
+      {
+        "minimumSentenceLength": 25,
+        "minimumPastPerfectPercent": 30,
+        "minimumCognitionPercent": 20,
+        "chapterFlaggedShare": 0.008620896518046811,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 5.633802816901408,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.0005790595840730819
+        }
+      },
+      {
+        "minimumSentenceLength": 25,
+        "minimumPastPerfectPercent": 30,
+        "minimumCognitionPercent": 25,
+        "chapterFlaggedShare": 0.0006983613067792522,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 4.225352112676056,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.0
+        }
+      },
+      {
+        "minimumSentenceLength": 25,
+        "minimumPastPerfectPercent": 30,
+        "minimumCognitionPercent": 30,
+        "chapterFlaggedShare": 0.0006209739054481893,
+        "chapterRunsPerThousandWords": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "chapterRunParagraphPercent": {
+          "50": 0.0,
+          "95": 0.0
+        },
+        "authorsWithRunsPercent": 2.816901408450704,
+        "authorRunsPerThousandWords": {
+          "5": 0.0,
+          "50": 0.0,
+          "95": 0.0
+        }
+      }
+    ]
+  }
+}

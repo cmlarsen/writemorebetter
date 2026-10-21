@@ -57,11 +57,24 @@ swift/, wasm/       one binding each, exposing check() + analyze() + analyzeDocu
 | [Echoes](STYLE-ECHOES.md) (same lemma nearby) | #245 | lemmas | none |
 | [Repeated phrases](STYLE-ECHOES.md#repeated-phrases) | #245 | lemma n-grams | none |
 | Clichés and redundancies | #246 | phrase lists | none |
-| Transitions, pronoun starts | #247 | #244's classifier, word list | Ngram `_START_` 2- to 4-grams (planned; not yet in #247) |
-| Overused words | #248 | lemma counts | Ngram fiction unigrams, or HTRC per-author counts |
+| [Transitions, pronoun starts](STYLE-TRANSITIONS.md) | #247 | #244's classifier, word list | none yet; published-author chapter-window p5–p95 bands per mode recorded for a future baseline argument |
+| [Manner adverbs](STYLE-ADVERBS.md) | #301 | token readings, dialogue-tag spans | none; per-1,000-word counts |
+| [Overused words](STYLE-OVERUSED-WORDS.md), filler words | #248 | lemma counts | Ngram English Fiction 1990–2019 unigrams, lemmatized (bundled) |
 | Dialogue tags | #249 | dialogue spans | published-fiction corpus (owner-run tier 3 command; see [STYLE-DIALOGUE-TAGS.md](STYLE-DIALOGUE-TAGS.md)) |
-| Diction (concreteness), sensory balance | #250 | word-norm tables | none, and the data license comes first |
-| Pacing | #251 | dialogue spans, sentence stats | published-fiction corpus, for threshold calibration |
+| [Sensory balance, diction (concreteness)](STYLE-NORMS.md) | #250 | lemmas, word-norm tables | none; Lancaster norms bundled (CC BY 4.0), writemorebetter's own concreteness table bundled (#256, a caller table overrides it); published sensory p5–p95 bands per mode recorded |
+| [Pacing](STYLE-PACING.md) | #251 | speech spans, sentence stats, POS | none; thresholds calibrated on published-fiction flag rates (2026-10-16) |
+| [Consistency](STYLE-CONSISTENCY.md) (quotes, ellipses, dashes, capitalization, hyphenation) | #298 | paragraph text, sentences; POS optional | none |
+| [Readability](STYLE-READABILITY.md) (indices, reading time) | #300 | sentences, heuristic syllables | none; values only, no flags |
+| [Passive voice](STYLE-PASSIVE.md) | #303 | POS, lemmas | per-mode p5–p95 band of passives per 100 sentences (none yet; a provisional public stand-in is opt-in as `"publicStandIn"` until an owner tier 3 run) |
+| [Clarity](STYLE-CLARITY.md) (sticky sentences, long subordinate clauses) | #302 | POS readings, chunks | none; thresholds calibrated on public-text flag rates (2026-10-20) |
+| [House style](STYLE-HOUSE-STYLE.md) (Vale-format rules) | #305 | paragraph and sentence text, speech spans | none; rules caller-supplied |
+| [Regional spelling](STYLE-REGIONAL-SPELLING.md) (US/UK mixing, opt-in) | #299 | word tokens, VarCon-derived table | none; table bundled (VarCon 2020.12.07, modified) |
+| [Emotion tells](STYLE-EMOTION-TELLS.md) | #304 | POS, lemmas, quoted spans, WordNet-derived emotion lexicon | none; precision hand-judged on published chapters (2026-10-20) |
+| [Style presets](STYLE-PRESETS.md) (Chicago fiction, AP, UK) and preset checks | #305 | paragraph text, speech spans, POS readings when present (family titles, possessives) | none; presets built in or caller-supplied |
+| [Alliteration](STYLE-ALLITERATION.md) (informational, opt-in) | #307 | word tokens, speech spans, CMUdict-derived first-sound table | none; counts per 1,000 words per mode on `bench/public` recorded |
+| [Title case](STYLE-TITLE-CASE.md) (chapter headings) | #307 | heading strings, not the document | none; style chosen by option or preset |
+| [Vague words](STYLE-VAGUE-WORDS.md) (fillers, hedges, vague quantities, nouns, adjectives) | #307 | POS readings, lemmas, speech spans, project list + expresso-backed fillers | none; per-1,000-word rates per mode, precision hand-judged on public text (2026-10-21) |
+| [Hidden verbs](STYLE-HIDDEN-VERBS.md) (nominalizations) | #307 | POS readings, lemmas, speech spans, WordNet-derived noun→verb table | none; per-1,000-word rates per mode, precision hand-judged on public text (2026-10-21) |
 
 Sentence length and sentence starts are public modules under `style::reports`, with no flattened
 crate-root exports. [Sentence report definitions](STYLE-SENTENCES.md) specify word counting, Penn
@@ -106,19 +119,32 @@ const tags = JSON.parse(document.dialogueTags());
 const stats = JSON.parse(document.stats());
 const echoes = JSON.parse(document.echoes());
 const phrases = JSON.parse(document.repeatedPhrases());
+const senses = JSON.parse(document.sensoryBalance());
+const pacing = JSON.parse(document.pacing());
+const diction = JSON.parse(document.diction()); // bundled table; diction(undefined, tableText) overrides it
+const overused = JSON.parse(document.overusedWords());
+const transitions = JSON.parse(document.transitions('{"repeatWindow":5}'));
+const pronouns = JSON.parse(document.pronounStarts());
+const adverbs = JSON.parse(document.adverbs());
 const long = JSON.parse(document.sentenceLength('{"includeLongSentences":true}'));
+const house = JSON.parse(document.houseStyle(undefined, valeRulesYaml));
 const descriptive = JSON.parse(document.sentenceLength(undefined, "none"));
+const readability = JSON.parse(document.readability('{"excludeDialogueParagraphs":true}'));
 document.free();
 ```
 
 Each method accepts that report's options JSON (omitted means defaults) and returns only its
 result as JSON. `stats()` returns `DocumentStats`. Baseline-aware methods (`sentenceLength`,
-`sentenceStarts`, `dialogueTags`) take a separate optional `baselineJSON`: omit it for bundled data,
+`sentenceStarts`, `dialogueTags`, `overusedWords`) take a separate optional `baselineJSON`: omit it for bundled data,
 pass a baseline object encoded as JSON to override it, use `"bundled"` explicitly, or use
 `"none"` to disable comparisons.
-There is no bundled dialogue-tag baseline yet. Options use camelCase, accept snake_case aliases,
+There is no bundled dialogue-tag baseline yet. `diction` takes no baseline; its optional second argument is
+a word-to-concreteness table (JSON object or TSV text) that replaces the bundled one for that call.
+Omitting it uses `ConcretenessTable::bundled()`. Options use camelCase, accept snake_case aliases,
 and reject unknown keys. Overrides never change later calls. Native Rust `report` functions take
 `Option<&Baseline>` explicitly; `XBaseline::bundled()` loads the matching bundled file.
+`OverusedWordsBaseline::bundled()` returns `Option<&'static OverusedWordsBaseline>`, parsed once,
+because its table holds 14,382 lemmas; pass it directly instead of through `.as_ref()`.
 
 Swift has typed `Codable`, `Equatable`, `Sendable` results decoded from the same UTF-16 JSON:
 
@@ -131,6 +157,15 @@ let cliches: ClicheReport = try document.cliches()
 let stats: DocumentStats = try document.stats()
 let echoes: EchoReport = try document.echoes()
 let phrases: RepeatedPhraseReport = try document.repeatedPhrases()
+let senses: SensoryBalanceReport = try document.sensoryBalance()
+let pacing: PacingReport = try document.pacing()
+let diction: DictionReport = try document.diction() // or diction(table:) with your own table
+let overused: OverusedWordsReport = try document.overusedWords()
+let transitions: TransitionsReport = try document.transitions()
+let pronouns: PronounStartsReport = try document.pronounStarts()
+let readability: ReadabilityReport = try document.readability()
+let adverbs: AdverbsReport = try document.adverbs()
+let house: HouseStyleReport = try document.houseStyle(rules: valeRulesYaml)
 let custom = try document.sentenceLength(baseline: .custom("{\"mean\":13}"))
 let descriptive = try document.sentenceLength(baseline: .none)
 if let match = cliches.matches.first {
@@ -147,18 +182,38 @@ JSON reports `invalidBaseline` with the report name. TypeScript result declarati
 annotate the value decoded with `JSON.parse`.
 
 Subplot chooses which methods to call. Its recommended default set is **clichés, dialogue tags,
-sentence length statistics and monotony, and sentence starts**. **Echoes, repeated phrases, and
-long-sentence flags** are opt-in lenses. Length statistics and monotony remain available without
-`includeLongSentences`. The library has no combined request or default report selection.
+sentence length statistics and monotony, and sentence starts**. **Echoes, repeated phrases,
+long-sentence flags, overused and filler words, transitions, pronoun starts, adverbs, sensory balance, diction, pacing, readability and regional spelling** are opt-in lenses;
+sensory balance and diction stay opt-in until the owner has seen usefulness numbers on real manuscripts. Length statistics and monotony remain available without
+`includeLongSentences`. Pacing thresholds are calibrated on published-fiction flag rates (2026-10-16), not on labeled passages.
+A pacing strip should highlight only `slowRuns` and draw the per-paragraph signals as neutral
+measurements: single paragraphs that meet two thresholds are mostly in-scene noise
+([STYLE-PACING.md](STYLE-PACING.md#signals-and-runs)). The library has no combined request or default report selection.
 
 | Report | Module and entry point | Options | Baseline | Needs readings |
 |---|---|---|---|---|
+| transitions | `transitions::report(&Document, &TransitionsOptions)` | `minimumSentences`, `repeatWindow` | none yet | no |
+| adverbs | `adverbs::report(&Document, &AdverbsOptions)` | none yet | none | yes |
+| pronoun starts | `pronoun_starts::report(&Document, &PronounStartsOptions)` | `minimumSentences` | none yet | yes |
 | echoes | `echoes::report(&Document, &EchoOptions)` | `window`, `matchForms` | none | yes |
 | repeated phrases | `repeated_phrases::report(&Document, &RepeatedPhraseOptions)` | `minimumLength`, `maximumLength`, `minimumContentWords`, `minimumOccurrences`, `nearbyWords` | none | yes |
 | clichés | `cliches::report(&Document, &ClicheList, &ClicheOptions)` | none yet | none | no |
 | dialogue tags | `dialogue_tags::report(&Document, &DialogueTagOptions, Option<&DialogueTagBaseline>)` | `maxUntaggedExchanges`, `minimumTags` | caller only | yes |
 | sentence length | `sentence_length::report(&Document, &SentenceLengthOptions, Option<&SentenceLengthBaseline>)` | `minimumSentences`, `includeLongSentences`, `longSentenceWords`, `longestPerChapter` | bundled | no |
 | sentence starts | `sentence_starts::report(&Document, &SentenceStartsOptions, Option<&SentenceStartsBaseline>)` | `minimumSentences` | bundled | yes |
+| sensory balance | `sensory_balance::report(&Document, &PerceptualNorms, &SensoryBalanceOptions)` | `minimumStrength`, `dominanceMargin`, `sightMargin`, `minimumSenseWords` | none (norms bundled: `PerceptualNorms::bundled()`) | yes |
+| diction | `diction::report(&Document, &ConcretenessTable, &DictionOptions)` | `abstractBelow`, `minimumRatedWords`, `minimumRunSentences` | none (table bundled: `ConcretenessTable::bundled()`; caller tables via `ConcretenessTable::parse`) | yes |
+| overused words | `overused_words::report(&Document, &OverusedWordsOptions, Option<&OverusedWordsBaseline>)` | `minimumRatio`, `minimumCount`, `minimumReferencePerMillion`, `includeNouns`, `countScaleWords` | bundled; fillers run without one | yes |
+| pacing | `pacing::report(&Document, &PacingOptions)` | `minimumParagraphs`, `moreThanWords`, `minimumSentenceLength`, `minimumPastPerfectPercent`, `minimumCognitionPercent` | none | yes |
+| consistency | `consistency::report(&Document, &ConsistencyOptions)` | `minimumMinority` | none | no |
+| readability | `readability::report(&Document, &ReadabilityOptions)`; `report_with(…, &dyn SyllableCounter)` takes another syllable counter | `minimumSentences`, `minimumParagraphWords`, `wordsPerMinute`, `excludeDialogueParagraphs` | none | no |
+| clarity | `clarity::report(&Document, &ClarityOptions)` | `minimumSentences`, `minimumSentenceWords`, `stickyGluePercent`, `longClauseWords` | none | yes |
+| house style | `house_style::report(&Document, &HouseStyleRules, &HouseStyleOptions)` | `skipDialogue` | none (rules caller-supplied: `HouseStyleRules::parse`) | no |
+| regional spelling (opt-in) | `regional_spelling::report(&Document, &RegionalSpellingOptions)` | `minimumMarkers`, `system` | none (table bundled) | no |
+| emotion tells | `emotion_tells::report(&Document, &EmotionTellsOptions)` | `includeDialogue` | none (lexicon bundled) | yes |
+| preset checks | `preset_checks::report(&Document, &PresetChecks)`; a whole preset: `StylePreset::report(&Document)` | `numbers`, `quotePunctuation`, `possessives`, `timeAbbreviations`, `familyTitles` | none | no |
+| vague words | `vague_words::report(&Document, &VagueWordsOptions)` | `fillers` | none (lists bundled) | yes |
+| hidden verbs | `hidden_verbs::report(&Document, &HiddenVerbsOptions)` | `ofPhrases` | none (table bundled) | yes |
 
 Every entry point returns `Result<_, StyleError>`. Type names are prefixed with their report
 (`SentenceLengthReport`, `ClicheMatch`, `DialogueTagVerbClass`, …) so they stay unique in Swift's
@@ -169,10 +224,15 @@ built with `new()` plus `with_*` builders.
 ### Errors
 
 Each method validates its inputs independently. Baseline parse errors identify the report and
-use `invalidBaseline`; options errors use `invalidOptions`. `StyleError` has three kinds: `invalidOptions`
+use `invalidBaseline`; options errors use `invalidOptions`. `StyleError` has seven kinds: `invalidOptions`
 (unparseable options or unknown keys), `invalidBaseline` (with `report`: invalid values, percentile
-or universal tags), and `needsTokenDetails` (with `report`: a compact document supplied to a report
-requiring readings). WASM throws an `Error` named `StyleError` with `kind` and `report`; Swift throws
+or universal tags), `needsTokenDetails` (with `report`: a compact document supplied to a report
+requiring readings), `missingTable` (with `report`; no longer returned since diction gained a bundled
+table, kept so existing matches compile and decode),
+`invalidTable` (with `report`: an unparseable, empty or non-finite word table) and `invalidRules`
+(with `report`: missing or invalid house-style rules; the message names the failing rule) and
+`invalidPreset` (an unparseable preset file, unknown keys or values, an unknown `extends` or a
+missing `name`; the message names the failing key). WASM throws an `Error` named `StyleError` with `kind` and `report`; Swift throws
 `CheckError.ReportInput` with the same message.
 
 ### Result
@@ -217,10 +277,52 @@ sentences and runs, refer only to that result’s own table:
 {"matches": [{"kind": "cliche", "mode": "narration", "phrase": "kick the bucket", "source": "no-cliches", "span": {"start": 90, "end": 107}}], "groups": {"all": {"cliches": 1, "redundancies": 0, "words": 19}, "narration": {}, "dialogue": {}}}
 ```
 
+`overusedWords` (here `minimumCount` and `minimumRatio` are 1; `fillers` holds records of the same
+shape with `word` instead of `lemma` and nullable reference fields):
+
+```json
+{"words": 19, "overused": [{"lemma": "grin", "count": 2, "perTenThousandWords": 1052.6315789473683, "referencePerTenThousandWords": 1.64, "ratio": 641.8485237483953, "spans": [{"start": 30, "end": 37}, {"start": 42, "end": 49}]}], "fillers": []}
+```
+
+`transitions` (the fixture has no transition, so `matches` and `repeats` are empty; each `types`
+row is `{"kind", "containing", "opening"}` for contrast, cause, time, addition, example and condition):
+
+```json
+{"matches": [], "repeats": [], "groups": {"all": {"sentences": 4, "lowConfidence": true, "containing": {"count": 0, "percent": 0.0, "difference": null, "highlighted": false}, "opening": {"count": 0, "percent": 0.0, "difference": null, "highlighted": false}, "types": [{"kind": "contrast", "containing": {"count": 0, "percent": 0.0, "difference": null, "highlighted": false}, "opening": {"count": 0, "percent": 0.0, "difference": null, "highlighted": false}}]}, "narration": {}, "dialogue": {}}}
+```
+
+For `However, she slept. However, he woke.`, a match and a repeat are:
+
+```json
+{"span": {"start": 0, "end": 7}, "sentence": 0, "phrase": "however", "kind": "contrast", "opening": true, "mode": "narration"}
+{"span": {"start": 0, "end": 27}, "phrase": "however", "spans": [{"start": 0, "end": 7}, {"start": 20, "end": 27}], "sentences": [0, 1], "mode": "narration"}
+```
+
+`pronounStarts` (runs are `{"span", "pronoun", "sentences": {"start", "end"}, "mode"}`):
+
+```json
+{"starts": [{"span": {"start": 26, "end": 29}, "sentence": 1, "pronoun": "she", "mode": "narration"}, {"span": {"start": 87, "end": 89}, "sentence": 3, "pronoun": "he", "mode": "narration"}], "groups": {"all": {"sentences": 4, "excludedSentences": 0, "lowConfidence": true, "pronounStarts": {"count": 2, "percent": 50.0, "difference": null, "highlighted": false}, "pronouns": [{"pronoun": "he", "count": 1, "percent": 25.0, "difference": null, "highlighted": false}, {"pronoun": "she", "count": 1, "percent": 25.0, "difference": null, "highlighted": false}], "runs": []}, "narration": {}, "dialogue": {}}}
+```
+
 `dialogueTags`:
 
 ```json
 {"words": {"all": 19, "narration": 18, "dialogue": 1}, "tags": [{"span": {"start": 8, "end": 24}, "clause": {"start": 8, "end": 25}, "verb": {"start": 13, "end": 17}, "verbText": "said", "lemma": "say", "class": "speech", "showy": false, "position": "after", "adverb": {"start": 18, "end": 24}, "quotes": [{"start": 0, "end": 7}]}], "beats": [], "untaggedRuns": [], "otherVerbs": [], "neutralVerbs": [{"lemma": "say", "class": "speech", "count": 1}], "showyVerbs": [], "lowConfidence": true, "dialogueSpans": 1, "speechSpans": 1, "taggedSpans": 1, "exchanges": 1, "untaggedExchanges": 0, "saidAsked": {"count": 1, "percent": 100, "difference": null, "highlighted": false}, "withAdverb": {"count": 1, "percent": 100, "difference": null, "highlighted": false}, "nonSpeech": {"count": 0, "percent": 0, "difference": null, "highlighted": false}}
+```
+
+`sensoryBalance` (with `minimumSenseWords: 1`; `chapters` and `scenes` are `{"span", "chapter",
+"groups"}` with `groups` shaped like the top-level one; every group lists all six
+modalities in a fixed order):
+
+```json
+{"words": {"all": 19, "narration": 18, "dialogue": 1}, "senseWords": [{"span": {"start": 18, "end": 24}, "lemma": "softly", "modality": "touch", "strength": 4.0, "mode": "narration"}, {"span": {"start": 64, "end": 67}, "lemma": "light", "modality": "sight", "strength": 4.6, "mode": "narration"}], "groups": {"all": {"words": 19, "senseWords": 2, "modalities": [{"modality": "sight", "count": 1, "percent": 50.0}]}, "narration": {}, "dialogue": {}}, "chapters": [{"span": {"start": 0, "end": 108}, "chapter": 0, "groups": {}}], "scenes": [{"span": {"start": 0, "end": 108}, "chapter": 0, "groups": {}}]}
+```
+
+`diction` (with `minimumRatedWords: 1` and the invented table `{"lamp": 4.8, "room": 4.5,
+"bucket": 4.9, "fine": 2.1, "grin": 3.9}`; groups have the same shape as `all`):
+
+```json
+{"words": {"all": 19, "narration": 18, "dialogue": 1}, "tableWords": 5, "sentences": [{"span": {"start": 0, "end": 26}, "mode": "dialogue", "words": 3, "ratedWords": 1, "mean": 2.1, "abstract": false}], "paragraphs": [{"span": {"start": 0, "end": 50}, "sentences": {"start": 0, "end": 2}, "ratedWords": 3, "mean": 3.3}], "groups": {"all": {"sentences": 4, "ratedWords": 7, "mean": 4.128571428571428, "abstractSentences": 0}, "narration": {}, "dialogue": {}}, "abstractRuns": []}
 ```
 
 Beats are `{"span", "quotes"}`, untagged runs `{"span", "quotes", "exchanges"}` and other verbs
@@ -239,6 +341,15 @@ Beats are `{"span", "quotes"}`, untagged runs `{"span", "quotes", "exchanges"}` 
 
 ```json
 {"sentences": [{"span": {"start": 0, "end": 26}, "mode": "dialogue", "words": 3}, {"span": {"start": 26, "end": 50}, "mode": "narration", "words": 4}, {"span": {"start": 51, "end": 87}, "mode": "narration", "words": 8}, {"span": {"start": 87, "end": 108}, "mode": "narration", "words": 4}], "words": {"all": 19, "narration": 18, "dialogue": 1}, "starts": [{"sentence": 0, "opener": {"start": 1, "end": 5}, "word": "fine", "category": "adverb", "ambiguous": true, "universalCandidates": ["ADJ", "ADV", "NOUN", "VERB"]}], "groups": {"all": {"sentences": 4, "lowConfidence": true, "excludedSentences": 0, "ambiguousStarts": 1, "unknownStarts": 0, "categories": [{"category": "subject", "count": 3, "percent": 75, "difference": 17.72164537024203, "highlighted": true}], "universal": [{"tag": "ADJ", "weight": 0.25, "percent": 6.25, "difference": 1.7130070188631956, "highlighted": false}], "sameWordRuns": []}, "narration": {}, "dialogue": {}}}
+```
+
+`readability` (with `minimumSentences` and `minimumParagraphWords` set to 1; `narration`, `dialogue`
+and each paragraph's `scores` have the same shape as `all`). Its word count is 20, not 19, because
+it counts skipped names, and it joins numbers, initialisms and contractions as a reader would; see
+[STYLE-READABILITY.md](STYLE-READABILITY.md#words-and-sentences):
+
+```json
+{"groups": {"all": {"sentences": 4, "words": 20, "syllables": 23, "characters": 82, "polysyllables": 0, "lowConfidence": false, "fleschReadingEase": 104.47000000000003, "fleschKincaidGrade": -0.07000000000000028, "colemanLiau": 2.3879999999999946, "automatedReadability": 0.3810000000000002, "readingMinutes": 0.07692307692307693}, "narration": {}, "dialogue": {}}, "paragraphs": [{"span": {"start": 0, "end": 50}, "dialogueOnly": false, "excluded": false, "scores": {"sentences": 2, "words": 8, "syllables": 10, "characters": 38, "polysyllables": 0, "lowConfidence": false, "fleschReadingEase": 97.025, "fleschKincaidGrade": 0.7199999999999989, "colemanLiau": 4.73, "automatedReadability": 2.942499999999999, "readingMinutes": 0.03076923076923077}}]}
 ```
 
 ### Conventions
@@ -296,7 +407,9 @@ genre-specific one. Default baseline files may ship in `style/data/baselines/`, 
 source and version; each report’s `XBaseline::bundled()` loads its file, so callers never strip the source wrapper
 by hand. They
 are built in the private `cmlarsen/fiction-baseline` repo; each committed baseline file names the build
-commit there. Where the numbers come from:
+commit there. The overused-words table is the exception: it comes from public Ngram counts and is
+rebuilt in this repository by `bench/style/overused_baseline.py` (see
+[STYLE-OVERUSED-WORDS.md](STYLE-OVERUSED-WORDS.md#reference-table)). Where the numbers come from:
 
 1. **Derived, openly licensed datasets (preferred).** These are counts, not text, and they cover modern
    in-copyright fiction:
@@ -347,12 +460,38 @@ Build rules for any baseline:
   a third party. Baseline files under `style/data/baselines/` carry their source record inside the file
   and need no NOTICE entry.
 - Word-norm datasets (concreteness, sensorimotor norms) are vendored only if their license allows
-  redistribution. Otherwise they are a caller-supplied input, like baselines.
+  redistribution. Otherwise they are a caller-supplied input, like baselines. The Lancaster
+  Sensorimotor Norms (CC BY 4.0) ship as a derived table in `style/data/norms/`; the Brysbaert
+  concreteness ratings (CC BY-NC-ND) do not ship and are never used in tests. The bundled
+  concreteness table is writemorebetter's own, rated by Claude models and calibrated on the Glasgow
+  Norms without copying them ([STYLE-DATA-LICENSES.md](STYLE-DATA-LICENSES.md#concreteness-256)).
 
 ## Decisions
 
 | Date | Decision | Why |
 |---|---|---|
+| 2026-10-20 | #256 (owner decision, Caleb): diction bundles writemorebetter's own concreteness table (`ConcretenessTable::bundled()`, `style/data/norms/concreteness.tsv`, MIT OR Apache-2.0) and uses it when no table is passed; a caller's table overrides it. This replaces the 2026-10-16 `missingTable` decision; the error kind stays for compatibility but is no longer returned. The table is built from Claude ratings only (Opus 5.5, Sonnet 5.5, Fable 5.1, three samples each) over the fiction lemma list plus 13 supplement words, calibrated on a 30% Glasgow split; no paid human ratings | Licensed human norms either cover too little fiction vocabulary (Glasgow, 4,682 words) or forbid redistribution (Brysbaert). On the 70% Glasgow held-out split the table scores Spearman 0.926, Pearson 0.925, abstract F1 0.755, MAE 0.289; convergent 0.806; stability ≥ 0.986. OpenCode Go (DeepSeek, Muse) is excluded by its terms; Haiku 5.5 is excluded by the 0.97 stability gate (0.933). See [STYLE-NORMS.md](STYLE-NORMS.md#bundled-concreteness-table-256), [STYLE-DATA-LICENSES.md](STYLE-DATA-LICENSES.md#concreteness-256) |
+| 2026-10-20 | #256: diction's default `abstractBelow` becomes 2.85 (was 2.5); `minimumRatedWords` 3 and `minimumRunSentences` 3 unchanged | With the bundled table, 2.5 flags 5.7% of bench/public narration sentences and no run in nine texts: sentence means average abstract and concrete words, so abstract interiors land at 2.5–2.9. Tuned on bench/public only (most useful runs at run precision ≥ 0.85: 9 runs, 8 useful / 1 noise). On held-out Crane, Wharton and Gatsby chapters: 11 runs, all useful; 20 sampled sentences 16 / 4 / 0; Crane's interior block flagged (9 sentences); on bench/public, Ishmael's harpooneer rumination (a run under the #281 proxy) is not flagged. Caller tables also get 2.85: a 1–5 human table should set `abstractBelow: 2.5` to keep the previous behaviour, and a table on another scale its own threshold ([STYLE-NORMS.md](STYLE-NORMS.md#bundled-concreteness-table-256)) |
+| 2026-10-20 | #301 review: condition phrases get compact-safe lexical ambiguity guards; pronoun word shares require POS and contextual checks, with *thou/ye* admitted as archaic exceptions; the adverb inventory excludes frequency words and adjective uses | Unguarded *as if*, *asked if*, length comparisons, participial *provided that night*, nominal *mine* and adjective *friendly/holy* inflated public counts. The guarded inventory adds 74 transition matches and 11 repeats across the seven calibrated public texts, down from 102 and 17. See [transitions](STYLE-TRANSITIONS.md) and [adverbs](STYLE-ADVERBS.md) |
+| 2026-10-20 | #301: add opt-in manner-adverb counts, pronoun shares of all words, and a guarded condition-transition inventory | Reuses the dialogue-tag *-ly* exclusion list and marks tag-adverb spans; pronoun word shares use each mode's word denominator; `while` stays out because its senses are ambiguous. See [adverbs](STYLE-ADVERBS.md) and [transitions](STYLE-TRANSITIONS.md) |
+| 2026-10-20 | #305: house style is a rule engine for a subset of Vale's schema (existence, substitution, consistency, occurrence) over caller-supplied YAML or JSON, parsed with `saphyr-parser` into the same `serde` schema as JSON. Matching uses `regex` with apostrophe-aware word boundaries over text with curly apostrophes and whitespace folded. Within a rule the longest overlapping match wins; consistency keeps the variant used first; unknown keys, unsupported Vale keys and YAML aliases are errors; `skipDialogue` drops speech entirely. Presets and Chicago rules wait for #309/#310 | Users can import existing Vale styles. `serde_yaml` is unmaintained, and JSON-only would force a conversion step. `regex` is already an `nlprule` dependency and runs in linear time. Unlike Vale's regexp2 it has no lookaround or backreferences, so a rule that uses them is listed as `unsupported` and skipped while the rest of the bundle runs. The WASM module grows 6.4% (+82 KB gzipped, 28 KB of it YAML). Strict keys catch typos that would otherwise silently disable a rule. A substitution's listed term is the rule's text, never generated prose. See [STYLE-HOUSE-STYLE.md](STYLE-HOUSE-STYLE.md) |
+| 2026-10-16 | #251/#241/#256 calibration: pacing defaults become 18-word mean length / 15% past perfect / 15% cognition (were 18 / 20 / 20); `minimumParagraphs` 3 and `moreThanWords` 400 unchanged | Joins the owner-run tier 3 sweep on published fiction (210 units, 71 authors, 1,559 chapter windows, aggregate only) with #293's five-model blind label sweep (305 public paragraphs) over their 64 shared settings, choosing the highest label F1 with at most about 15% of published chapter windows flagged. 18 / 15 / 15 raises paragraph F1 from 0.229 to 0.415 (precision 0.73 → 0.74, recall 0.14 → 0.29) and flags 9.0% of windows (46.5% of authors; was 3.4% and 32.4%). It also beats the first proposal, 15 / 20 / 15, on every label score and both published shares. 18 / 15 / 10 (F1 0.449, 14.1%) was rejected because it flags story4's untouched opening in every tier 2 negative control, which the consensus labels not slow. 15 / 15 / 30 ties on true positives but flags more authors and puts cognition above its published p95. On public text the defaults add one noise and one borderline story1 run to the two useful ones. See [STYLE-PACING.md](STYLE-PACING.md#label-accuracy-against-published-rates-2026-10-16) |
+| 2026-10-16 | #241/#256 calibration: every other default stays unchanged; record published flag rates for all merged reports except diction, and published-author chapter-window p5–p95 bands per mode for transitions, pronoun starts and sensory balance in `bench/style/published-bands-transitions-pronouns-sensory.json`, without adding a baseline argument | Published chapters show transition repeats in 66.5% of windows (43% even at a 2-sentence window), overused lemmas in 99.4% (1.44 per 1,000 words, below the public calibration's rate) and sensory sight p95 72.8%, so no sweep separates published prose from flags worth showing; changing those defaults would need judged published or draft samples. The bands follow the sentence-band convention so a later baseline argument can use them unchanged. Diction was skipped: no concreteness table is chosen. See [STYLE-TRANSITIONS.md](STYLE-TRANSITIONS.md#published-fiction-calibration-2026-10-16), [STYLE-NORMS.md](STYLE-NORMS.md#published-fiction-bands-2026-10-16), [STYLE-OVERUSED-WORDS.md](STYLE-OVERUSED-WORDS.md#published-fiction-flag-rates-2026-10-16) |
+| 2026-10-16 | #282 (owner decision, Caleb): remove the sensory `singleSense` flag. Chapters and scenes no longer carry `singleSense`, and the `singleSensePercent` option is gone, so passing it is rejected as an unknown option. The per-scene modality counts and percents remain the opt-in lens | On 114 eligible public scenes (≥ 20 narration sense words), the flag fires on 0/1/4/11 scenes at 85/80/75/70%, and none of the 11 is a useful warning. High sight share mostly measures setting nouns and filter verbs ([STYLE-NORMS.md](STYLE-NORMS.md#singlesense-removed)) |
+| 2026-10-16 | #284 review: pacing rows carry no per-paragraph verdict, verb heads need a verb-phrase chunk, past perfect skips adverbs with a lexical verb reading (*had still not forgotten*), and a failed pooled sequence reports its longest passing window | A seeded sample of 40 two-signal rows judged 15 useful / 25 noise, so a UI highlights only runs. The chunk rule removes *up*, *home*, *wrong* from the denominator (128 two-signal rows, default runs still 1). Without the window fallback, appending two reflective paragraphs could erase a flagged run. See [STYLE-PACING.md](STYLE-PACING.md) |
+| 2026-10-16 | #251: pacing is an opt-in lens over shared paragraphs and speech, requiring two signals and ≥3 paragraphs or >400 words; authored cognition list, configurable 18-word / 20% / 20% thresholds | Public-only measurement chooses conservative defaults; published-fiction calibration remains owner-run and no baseline or prose-quality judgment ships. See [STYLE-PACING.md](STYLE-PACING.md) |
+| 2026-10-16 | #282: preserve eligible participle surface ratings, floor decimal norms, share speech-tag detection, guard lexicalized compound suffixes, and keep sensory defaults unchanged | Nine-text imagery recovery restores 13 candidate hits (10 useful); changed-span audit nets +1 useful, +12 noise, −10 wrong. Expanded public calibration: 114 eligible scenes, flags at 85/80/75/70% = 0/1/4/11, none useful. See the next row for `singleSense` ([STYLE-NORMS.md](STYLE-NORMS.md#singlesense-removed)) |
+| 2026-10-16 | #247 review: in dialogue, each paragraph is a speaker turn that resets pronoun runs and the transition repeat window; `thus`, `besides`, `however` and `instead` get sense guards; name-led sentences stay in the transitions denominator. **Owner-confirmed 2026-10-16:** the pronoun-start lens leaves out narration runs that `sentence_starts.sameWordRuns` already reports, and keeps pronoun shares, single-speaker dialogue runs and the runs `sameWordRuns` suppresses | 10 of 18 dialogue flags in public text spanned two speakers (echoes uses the same paragraph proxy). Three of four narration pronoun runs were identical to the default flag, so enabling the lens showed one span twice. See [definitions](STYLE-TRANSITIONS.md) |
+| 2026-10-16 | #247: independent opt-in transitions and pronoun-start lenses; original transition inventory; no baseline yet; pronoun runs cross ordinary paragraphs and include dialogue, rhetorical and repeated-two-word uses | Descriptive census differs from the default `sameWordRuns` editorial signal; scene/chapter/mode boundaries reset runs; 50-sentence shares and low confidence below 200 follow #241. See [definitions](STYLE-TRANSITIONS.md) |
+| 2026-10-16 | #281 review: norm lookups prefer a verb reading's lemma over a base-form homograph (*felt* → *feel*), figurative and hearsay rules look past whitespace only, the bundled table keeps the 3.5/0.5 floor with haptic leads measured past interoception, defaults stay 4.0 / 1.0 / sight 3.0, and diction marks only narration sentences `abstract` | Past *felt* counted as the fabric and skipped the *feel* rule; *cold* (touch 4.11, interoception 3.53) could never count. Lowering default strength to 3.7 added *turn*, *wake* and *forget* as noise, so *warm*/*crimson* stay opt-in. Blind re-judging: 14/26/20 → 23/30/7 useful/noise/wrong ([STYLE-NORMS.md](STYLE-NORMS.md#re-review-281)) |
+| 2026-10-16 | #250: sensory balance is an opt-in lens over a derived Lancaster table: a sense word's strongest perceptual modality rates ≥ 4.0 and leads the next by ≥ 1.0 (sight by ≥ 3.0); `singleSense` needs ≥ 20 narration sense words and ≥ 85% in one modality | Calibrated on bench/public plus three Standard Ebooks chapters ([STYLE-NORMS.md](STYLE-NORMS.md)): nearly every concrete noun rates visual-dominant, so a uniform margin made sight 75–92% of every scene; the sight margin lifted useful sense words from 13 to 33 of 60 sampled. Published scenes peak at 77% one modality (Gatsby’s multi-sensory dawn), so 85% leaves no false flags on them |
+| 2026-10-16 | #250: diction takes a required caller-supplied concreteness table (JSON or TSV), flags runs of ≥ 3 consecutive abstract narration sentences (mean < 2.5 over ≥ 3 rated words), and errors without a table (superseded 2026-10-20 by #256's bundled table and 2.85 default) | Brysbaert is CC BY-NC-ND and stays out of the repository and tests; defaults assume its 1–5 scale. Real-world usefulness depends on the table Subplot supplies, an owner decision |
+| 2026-10-16 | #248: overused words is an opt-in lens with a bundled Ngram English Fiction 1990–2019 lemma table (14,382 lemmas ≥ 1 per million, 233 KB); flag at ratio ≥ 4, count ≥ 5, reference ≥ 10 per million, nouns opt-in | Calibrated to a median of 5 flags (2–9) on 14 public chapter-sized texts; an editor review judged 32/76 useful, 42 noise, 2 wrong. Nouns added 152 mostly topical flags; the floor drops rare, archaic and topical words. See [STYLE-OVERUSED-WORDS.md](STYLE-OVERUSED-WORDS.md) |
+| 2026-10-16 | #248 review: the overused-words reference adds Ngram `_ADP`, `_CONJ` and `_PRT` uses to lemmas with content uses, and folds 248 British spellings into their American lemma on both sides | A document counts prepositional *near*, *above* and *past* because they keep their adverb and adjective readings, so a reference without them inflated ratios up to 10× (*above* 20.2 → 202 per million). *grey* and *realise* had ratios 1.7–4.8× too high for British spelling. See [STYLE-OVERUSED-WORDS.md](STYLE-OVERUSED-WORDS.md#reference-table) |
+| 2026-10-16 | #248 review: above 10,000 words the overused-words `minimumCount` grows with √(words / 10,000), rounded to the nearest count (`countScaleWords`) | The defaults were calibrated on chapters; unscaled, the 25,002-word Moby-Dick excerpt gave 25 flags, and a novel would give dozens. Scaled it gives 7. Chapter-sized input is unchanged |
+| 2026-10-16 | #248 review: noun modifiers the tagger reads as adjectives (*express car*) stay counted; overused words keeps its own one-lemma-per-token choice instead of `lemma_index` or `echo_families` | Ngram's POS tags can't separate them: *tender* is NOUN 2.4M vs ADJ 183k, so a rule that dropped *express* would drop *a tender smile* too. `lemma_index` lists every reading and would double-count ambiguous tokens, so the same token can get a different lemma in echoes |
+| 2026-10-16 | #248: fixed filler list *just, really, very, quite, actually, simply, suddenly, somehow* and clause-opening *that*, reported by rate with or without a table | Short list of the words line editors cut first; rates rather than flags because every writer uses them |
+| 2026-10-16 | #269: listed dialogue interjections consistently open `introductory`, including bare utterances; retain their opener spans | Skipping comma-led interjections would contradict adjudicated `Ay`, `Oh` and `Yes` labels and lower the required floors. Extend the existing category convention to aye, alas, hey, okay, ok, yeah, yep, nope, hmm, um, uh, hurrah and nay |
 | 2026-10-16 | Owner direction (#275): independent methods on retained Swift/WASM `StyleDocument` objects; remove the combined API; each result owns its counts and sentence rows | Share the expensive analysis while letting Subplot choose its default set and opt-in lenses; typed per-report Swift and TypeScript results |
 | 2026-10-16 | #275: retained documents honor `includeTokenDetails: false`; only clichés and sentence length run on compact documents | Reverses the removed combined binding’s forced full analysis. Keep the default full options for style documents; compact `analyzeDocument` options should not be reused for the recommended report set |
 | 2026-10-14 | Reports live in a `style/` crate in this repo, consuming `analyze()` | One Rust library and one tokenizer per app; keeps `nlprule` a faithful port |
@@ -375,6 +514,19 @@ Build rules for any baseline:
 | 2026-10-16 | Superseded by #275: one public API for all reports before the bindings freeze it: report-prefixed type names, camelCase JSON, baselines as a separate argument, spans instead of document indexes, one sentence table, and `reports::run`/`run_json` as the single combined entry point | Swift and TypeScript types share one flat namespace, and separate per-report binding calls rebuilt the document each time |
 | 2026-10-16 | One narration/dialogue definition, computed in the document pass: a quote is speech unless it is embedded or the subject of a copula | The sentence reports, clichés and dialogue tags disagreed on the same passages |
 | 2026-10-16 | Reports that need readings reject compact documents (`StyleError::NeedsTokenDetails`) | Echoes, repeated phrases, sentence starts and dialogue tags silently degraded on them |
+| 2026-10-20 | #298: consistency is an opt-in lens that counts every form of quotes, apostrophes, ellipses, dashes, capitalization and hyphenation per document, with narration/dialogue counts and spans, and flags a check or word as `mixed` when a second form occurs (`minimumMinority`, default 1). It names no preferred form and uses no word list | LanguageTool's `EN_QUOTES` and `ELLIPSIS` prescribe a form; mixing is the author's question. Silent on the five consistent public stories; on `moby150k` 24 flags, 19 of them real mixes in the source. Capitalization needs function-word, noun/adjective-reading, emphasis, title-case and after-comma guards, which cut Moby from 75 words (mostly reflowed verse) to 18. See [STYLE-CONSISTENCY.md](STYLE-CONSISTENCY.md) |
+| 2026-10-20 | #300 phase 1: readability is an opt-in lens of statistics (Flesch Reading Ease, Flesch–Kincaid, Coleman–Liau, ARI, reading time at 260 wpm) for the text, narration, dialogue and each paragraph, with no flags; original heuristic syllable counter behind a `SyllableCounter` seam for a phase 2 CMUdict counter; words join across apostrophes and hyphens, numbers and initialisms stay whole, a typed `--` dash splits words, and skipped names count; `excludeDialogueParagraphs` changes the indices but not the whole-text reading time | Statistics, not matches, so it doesn't duplicate #207's READABILITY_RULE port; formulas assume words as readers count them; the split shows dialogue reading 4–6 grades easier than narration on `bench/public` |
+| 2026-10-20 | #303: passive voice is an aggregate rate (passives per 100 sentences, per mode) with spans, *be*/*get* + VBN and adjectival-participle guards, and a bundled band built from public text (`bench/public` + *Pride and Prejudice*) until an owner tier 3 run replaces it | Per-instance flags belong to LanguageTool's `PASSIVE_VOICE` once the rule opt-in lands. The published-fiction export was not available to this change. The public band reflects Melville and Austen as much as fiction norms, so it is a replaceable baseline argument. See [STYLE-PASSIVE.md](STYLE-PASSIVE.md) |
+| 2026-10-20 | #303 review: the passive report has no default band; the public stand-in is opt-in as `"publicStandIn"` | The stand-in reflects Melville and Austen (median 12.5 per 100 sentences) while modern prose runs about 3–6, so as a default it would hide a heavily passive modern draft. Transitions and pronoun starts already ship with no band until a published-fiction run. See [STYLE-PASSIVE.md](STYLE-PASSIVE.md) |
+| 2026-10-20 | Clarity (#302) is an opt-in lens: sticky sentences at ≥65% glue words in sentences of ≥15 words, long subordinate clauses at ≥20 words, glue from closed-class readings resolved by chunk, clauses from `B-SBAR` chunks, WH-words and a short subordinator list | No new data; defaults keep published public-domain flag rates near 2% (sticky) and 1% (long clauses) of sentences ([STYLE-CLARITY.md](STYLE-CLARITY.md#public-calibration-2026-10-20)); it counts clause length and glue share, never sentence length, so it does not duplicate `sentenceLength` or `TOO_LONG_SENTENCE` |
+| 2026-10-20 | #299: opt-in regional-spelling lens from VarCon 2020.12.07 with American, British -ise and Oxford -ize systems; flag tokens no dominant system accepts and minority forms of one word; skip mid-sentence capitals as names; keep the overused-words British fold; no Harper vocabulary | Oxford spelling is British, so -ize alone never marks American; sense-dependent spellings (*check*, *tire*) are never markers. A separate report because #309 had not merged; its records follow #309's per-word shape. Harper's vocabulary pairs are mostly American words in another sense. See [STYLE-REGIONAL-SPELLING.md](STYLE-REGIONAL-SPELLING.md) |
+| 2026-10-20 | #304: emotion tells is an opt-in, narration-only lens (`includeDialogue` opts in) flagging a named feeling as predicate (*was afraid*, *made her angry*, *in love*), object of *feel / sense / experience* or *filled with* (*a surge of relief*), or subject of a body-movement verb with a person nearby (*fear washed over her*). Its lexicon is derived from Princeton WordNet 3.0 (`noun.feeling`, feeling/emotion hyponyms, derived adjectives and satellites, frame-10 emotion verbs), weighted by most frequent sense and Lancaster interoception, and ships as a separate WordNet-licensed data file | NRC EmoLex, WordNet-Affect and DepecheMood are non-commercial or unverifiable (#316). Quoted text counts as dialogue even without speech evidence. Hand-judged precision on 13 public-domain books and chapters: 0.941 on the 200-row development sample, 0.910 on a 100-row held-out sample; the remaining noise is non-sentient subjects and other senses (*mad* = insane). 1.45 tells per 1,000 published narration words, so it is not a default. See [STYLE-EMOTION-TELLS.md](STYLE-EMOTION-TELLS.md) |
+| 2026-10-20 | #300 phase 2: readability's default syllable counter looks up CMUdict (commit `74790861`, first pronunciation, counts only) and falls back to the heuristic; the bundled table keeps only the 8,437 keys the heuristic misses, generated by `scripts/build-cmudict.py` through the heuristic itself | 14× smaller than the full 125,159-key table with identical counts for every headword; no phonemes until #307 needs initial sounds, which becomes a second output of the same script. Development list 467 → 482 of 484, held-out 189 → 190; WASM +34.9 KB gzipped; report time +3%. See [STYLE-READABILITY.md](STYLE-READABILITY.md#dictionary-phase-2) |
+| 2026-10-21 | #305: style presets are one versioned JSON file (`format: 1`) driving the grammar profile and rule selectors, the speller variant, the consistency report's new `preferred` forms, house-style rules (a name→rule map plus an embedded Vale bundle) and built-in preset checks for numbers, quote punctuation, possessives, *a.m.*/*p.m.* and *Mom*/*Dad*. `chicago-fiction` is the default; `ap` and `uk` extend it. A user preset `extends` a built-in one as an RFC 7396 merge patch, so `null` removes an inherited setting; validation is strict, and selectors are all checked before any rule changes | Merge patch over objects lets a user override one rule, selector or `swap` pair without copying the rest. The checks need number context, quotation structure or readings that the regex schema can't express; they diagnose and list at most a fixed term. Recall is 46/50 private and 55/60 public for main's defaults and every preset; on `bench/public` all preset-check matches were correct on review. See [STYLE-PRESETS.md](STYLE-PRESETS.md) |
+| 2026-10-21 | #305 review (PR #322): preset checks read lists and contractions. A numeral joined by *and*/*or*/*to*/*through* (or a comma inside a list) to a label, date or era is read the same way; a family word listed after a determined one shares its determiner; AP `apostropheOnly` skips `’s` that is *is*/*has* by readings or the next word; without readings, possessives skip sentence-initial capitals; undotted *a.m.* keeps its final period only at a sentence end; a user preset never inherits `name`, `version` or `description` | Each was a false positive on ordinary fiction prose or a misleading result. Carrying the reading across a conjunction misses `Chapter 2 and 4 cats`, which is rarer than `chapters 3 and 4`. A modified built-in reporting the built-in's name and version would mislabel results. On `bench/public` the only change is one fewer AP possessive (a contraction in story4). See [STYLE-PRESETS.md](STYLE-PRESETS.md) |
+| 2026-10-21 | #307: alliteration is an opt-in, informational lens: runs of 3+ different stressed words in one sentence and one mode (narration or dialogue) sharing a first consonant sound, with no word between them by default (`maximumGap` 0, `minimumWords` 3, `skipDialogue`); function words are skipped without breaking a run; first sounds come from CMUdict (commit `74790861`, first pronunciation, first phoneme only) with a spelling fallback, and the bundled table keeps only the 1,943 keys the spelling guess misses | Fiction alliterates on purpose, so the lens reports and never judges. Sound, not letter, groups *cat*/*kite* and splits *cheap*/*chemical*. Gap 1 tripled `moby150k` runs (51 → 151) with mostly incidental ones. Reading first-syllable stress would add about 19,600 table rows and no spelling rule predicts it. Table 20,888 bytes (7,018 gzipped); WASM +23.5 KB gzipped with the title-case check. See [STYLE-ALLITERATION.md](STYLE-ALLITERATION.md) |
+| 2026-10-21 | #307: title case checks heading strings (an API taking headings, not prose) against Chicago-style or AP-style headline case or sentence case, written from our own understanding rather than porting chicago-capitalize (MIT) or copying either manual; presets choose the style (`titleCase`: `chicago-fiction` Chicago, `ap` AP, `uk` sentence case) and the built-ins become 1.1.0 | A diagnosing check needs AP and sentence case and an "either case passes" answer for words that are prepositions only sometimes, which a rewriting capitalizer lacks. AP and Chicago differ on prepositions of four or more letters; British publishers commonly set headings in sentence case. Sentence case cannot tell a proper noun from a title-cased word, so names come from `skipNames`. See [STYLE-TITLE-CASE.md](STYLE-TITLE-CASE.md) |
+| 2026-10-21 | #307: vague words and hidden verbs are two opt-in lenses that count matches per mode and per term, never suggesting text. Vague words: a project-authored list (hedges, quantities, *thing*/*stuff*, judging adjectives) plus the 80 words/fillers entries expresso backs, every entry behind a POS or position guard; *really*, *very*, *quite*, *extremely*, *actually*, *just* and *simply* are left out. Hidden verbs: nominalizations after a light verb (*made a decision*, *came to the realization*) or between a determiner and *of* (*the arrival of*), from a 313-row noun→verb table derived from Princeton WordNet 3.0 derivational pointers (suffix, stem, abstract lexicographer files, SemCor counts, reviewed exclusions) and shipped beside `emotions.tsv` under the same WordNet License and NOTICE entry; each match names the verb as `term` | words/hedges and words/weasels are unlicensed (#316) and CatVar is OSL-1.1. Leaving out the `TIRED_INTENSIFIERS` words and the overused-words fillers means no word is reported twice; `MAKE_DECISIONS_ABOUT`, the only `PLAIN_ENGLISH` nominalization rule that overlaps the table, is skipped by shape, and *action* and *assistance* (`TAKE_ACTION_TO`, `ASSIST_ASSISTANCE`) are excluded from the table. Hand-judged precision on public text: vague words 48/50 held out, hidden verbs 36/40 held out (54/60 development). Published rates are about 11 vague words and 0.7 hidden verbs per 1,000 narration words, so neither is a default. WASM +20.8 KB gzipped. See [STYLE-VAGUE-WORDS.md](STYLE-VAGUE-WORDS.md) and [STYLE-HIDDEN-VERBS.md](STYLE-HIDDEN-VERBS.md) |
 
 ## Accuracy benchmarks
 
@@ -386,5 +538,29 @@ terminal punctuation), normalized lexical XPOS accuracy is 90.6768%, and normali
 95.4520% on 24,102 aligned tokens. Tag gates also require single-normalized-tag correctness not to drop
 and conditional mean tag count not to rise. Sentence-start total absolute fractional bias has a
 22.5595 pp ceiling, including 1 pp of explicit slack; per-tag biases remain diagnostic. LitBank original-prose test
-quote-span precision/recall/F1 is 85.3205% / 92.1817% / 88.6185% after #261 tentative-opener recovery. The benchmark README preserves initial vs reviewed numbers and conventions.
+quote-span precision/recall/F1 is 85.3205% / 92.1817% / 88.6185% after #261 tentative-opener recovery. QuoteLi3
+*Pride and Prejudice* test (47 chapters, benchmarking-only, no license found) quote-span P/R/F1 is
+98.5975% / 98.5284% / 98.5629%, and a synthetic multi-paragraph speech fixture must score 100%. The benchmark README preserves initial vs reviewed numbers and conventions.
 Tier 3 real-corpus calibration remains owner-only and emits aggregate numbers exclusively.
+
+The #256 completion audit is in [`bench/style/AUDIT-256.md`](../bench/style/AUDIT-256.md).
+All nine merged reports now have tier 2 coverage: the existing sentence, echo/phrase, cliché and
+dialogue suites plus `lexical.py` for overused words and fillers, sensory balance, and caller-table
+diction sentences and abstract runs. The test split scores 100% P/R/F1 per category on 1,534 cases
+(295–300 occurrences per overused lemma, 60 per filler word, 60 per sensory modality, 420 abstract
+sentences, 60 abstract runs), with targeted negative controls for each filter and threshold and zero
+changes on paired untouched prefixes; development has 1,545 cases. The 217 test-split predictions on
+the untouched public paragraphs are frozen and gated for equality, so a natural-text precision
+regression fails CI; a deliberate report change rebaselines them. These are injection regression
+scores, not editorial accuracy. All 21 report mutations tried (the reviewer's 12 plus 9 boundary
+changes, listed in the README) failed the gate when measured; #282 later removed the single-sense
+cases and the two `singleSensePercent` mutations along with the flag.
+Tier 3 flag-rate calibration now covers every merged report, including sensory modalities per mode,
+overused/filler counts, rated-word-weighted diction means, transitions and pronoun starts; a real run
+takes an owner-supplied diction table or `--skip-diction` (it does not yet default to the bundled
+table that #256 added). The 2026-10-16 owner-run calibration on
+the published-fiction export measured every report except diction and pacing's threshold sweep;
+its aggregate results and decisions are in the README and the Decisions table above. Approximately
+300 independent, owner-adjudicated judgment labels per report and a published-fiction diction
+calibration with the bundled table remain owed; the README lists existing model-label provenance explicitly, so #256 is
+referenced and remains open.

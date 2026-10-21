@@ -425,6 +425,19 @@ impl Checker {
         serde_json::to_string(&self.rules.mother_tongues())
             .map_err(|err| JsValue::from_str(&format!("failed to serialize mother tongues: {err}")))
     }
+
+    /// Enables rules that are off by default, such as LanguageTool's `picky` style rules, by
+    /// the selector syntax profiles use (`"PLAIN_ENGLISH"`, `"STYLE/PASSIVE_VOICE"`,
+    /// `"BUILTIN/EN_REDUNDANCY_REPLACE"`; see `docs/PROFILE.md`). It applies on top of the
+    /// constructor's profile, so it can turn back on a rule the profile disabled. Returns how
+    /// many rules changed from off to on. A selector that matches no rule is an error and
+    /// nothing is enabled. Changes apply to the next `check`.
+    #[wasm_bindgen(js_name = enableRules)]
+    pub fn enable_rules(&mut self, selectors: Vec<String>) -> Result<usize, JsValue> {
+        self.rules
+            .enable_rules(&selectors)
+            .map_err(|err| JsValue::from_str(&err.to_string()))
+    }
 }
 
 fn style_error(error: writemorebetter_style::StyleError) -> JsValue {
@@ -516,7 +529,257 @@ impl StyleDocument {
             .map(|report| reports::to_utf16_json(&report))
             .map_err(style_error)
     }
+    #[wasm_bindgen(js_name = transitions)]
+    pub fn transitions(&self, options_json: Option<String>) -> Result<String, JsValue> {
+        self.inner
+            .transitions(options_json.as_deref())
+            .map(|report| reports::to_utf16_json(&report))
+            .map_err(style_error)
+    }
+    #[wasm_bindgen(js_name = pronounStarts)]
+    pub fn pronoun_starts(&self, options_json: Option<String>) -> Result<String, JsValue> {
+        self.inner
+            .pronoun_starts(options_json.as_deref())
+            .map(|report| reports::to_utf16_json(&report))
+            .map_err(style_error)
+    }
+    /// Returns manner adverbs on the retained analysis; options default when omitted.
+    #[wasm_bindgen(js_name = adverbs)]
+    pub fn adverbs(&self, options_json: Option<String>) -> Result<String, JsValue> {
+        self.inner
+            .adverbs(options_json.as_deref())
+            .map(|report| reports::to_utf16_json(&report))
+            .map_err(style_error)
+    }
+    #[wasm_bindgen(js_name = sensoryBalance)]
+    /// Returns this report on the retained analysis; options default when omitted.
+    pub fn sensory_balance(&self, options_json: Option<String>) -> Result<String, JsValue> {
+        self.inner
+            .sensory_balance(options_json.as_deref())
+            .map(|report| reports::to_utf16_json(&report))
+            .map_err(style_error)
+    }
+    #[wasm_bindgen(js_name = pacing)]
+    /// Returns the opt-in pacing lens on the retained analysis.
+    pub fn pacing(&self, options_json: Option<String>) -> Result<String, JsValue> {
+        self.inner
+            .pacing(options_json.as_deref())
+            .map(|report| reports::to_utf16_json(&report))
+            .map_err(style_error)
+    }
+    #[wasm_bindgen(js_name = diction)]
+    /// Returns this report on the retained analysis; options default when omitted.
+    /// Table: a word-to-concreteness JSON object or TSV text; omitting it uses the bundled table.
+    pub fn diction(
+        &self,
+        options_json: Option<String>,
+        table: Option<String>,
+    ) -> Result<String, JsValue> {
+        self.inner
+            .diction(options_json.as_deref(), table.as_deref())
+            .map(|report| reports::to_utf16_json(&report))
+            .map_err(style_error)
+    }
+    #[wasm_bindgen(js_name = overusedWords)]
+    /// Returns this report on the retained analysis; options default when omitted.
+    /// Baseline: omitted/null means bundled; "none" disables comparisons; otherwise pass a JSON object.
+    pub fn overused_words(
+        &self,
+        options_json: Option<String>,
+        baseline_json: Option<String>,
+    ) -> Result<String, JsValue> {
+        self.inner
+            .overused_words(options_json.as_deref(), baseline_json.as_deref())
+            .map(|report| reports::to_utf16_json(&report))
+            .map_err(style_error)
+    }
+    #[wasm_bindgen(js_name = consistency)]
+    /// Returns the opt-in consistency lens on the retained analysis; options default when omitted.
+    pub fn consistency(&self, options_json: Option<String>) -> Result<String, JsValue> {
+        self.inner
+            .consistency(options_json.as_deref())
+            .map(|report| reports::to_utf16_json(&report))
+            .map_err(style_error)
+    }
+
+    #[wasm_bindgen(js_name = readability)]
+    /// Returns the opt-in readability lens on the retained analysis; options default when omitted.
+    pub fn readability(&self, options_json: Option<String>) -> Result<String, JsValue> {
+        self.inner
+            .readability(options_json.as_deref())
+            .map(|report| reports::to_utf16_json(&report))
+            .map_err(style_error)
+    }
+
+    #[wasm_bindgen(js_name = passive)]
+    /// Returns this report on the retained analysis; options default when omitted.
+    /// Baseline: omitted/null, "bundled" and "none" disable comparisons (no published band yet);
+    /// "publicStandIn" selects the provisional public stand-in band; otherwise pass a JSON object.
+    pub fn passive(
+        &self,
+        options_json: Option<String>,
+        baseline_json: Option<String>,
+    ) -> Result<String, JsValue> {
+        self.inner
+            .passive(options_json.as_deref(), baseline_json.as_deref())
+            .map(|report| reports::to_utf16_json(&report))
+            .map_err(style_error)
+    }
+
+    #[wasm_bindgen(js_name = clarity)]
+    /// Returns the opt-in clarity lens (sticky sentences, long subordinate clauses).
+    pub fn clarity(&self, options_json: Option<String>) -> Result<String, JsValue> {
+        self.inner
+            .clarity(options_json.as_deref())
+            .map(|report| reports::to_utf16_json(&report))
+            .map_err(style_error)
+    }
+
+    #[wasm_bindgen(js_name = houseStyle)]
+    /// Runs caller-supplied house-style rules (Vale-format YAML or JSON) on the retained analysis.
+    /// Omitting the rules is an invalidRules error; options default when omitted.
+    pub fn house_style(
+        &self,
+        options_json: Option<String>,
+        rules: Option<String>,
+    ) -> Result<String, JsValue> {
+        self.inner
+            .house_style(options_json.as_deref(), rules.as_deref())
+            .map(|report| reports::to_utf16_json(&report))
+            .map_err(style_error)
+    }
+
+    #[wasm_bindgen(js_name = regionalSpelling)]
+    /// Returns this report on the retained analysis; options default when omitted.
+    pub fn regional_spelling(&self, options_json: Option<String>) -> Result<String, JsValue> {
+        self.inner
+            .regional_spelling(options_json.as_deref())
+            .map(|report| reports::to_utf16_json(&report))
+            .map_err(style_error)
+    }
+
+    #[wasm_bindgen(js_name = emotionTells)]
+    /// Returns the opt-in emotion-tells lens on the retained analysis; narration only by default.
+    pub fn emotion_tells(&self, options_json: Option<String>) -> Result<String, JsValue> {
+        self.inner
+            .emotion_tells(options_json.as_deref())
+            .map(|report| reports::to_utf16_json(&report))
+            .map_err(style_error)
+    }
 }
 
 #[wasm_bindgen(typescript_custom_section)]
 const STYLE_RESULT_TYPES: &str = include_str!("../style-results.d.ts");
+
+/// The built-in style presets' names; the first, `"chicago-fiction"`, is the default.
+#[wasm_bindgen(js_name = stylePresetNames)]
+pub fn style_preset_names() -> Vec<String> {
+    writemorebetter_style::preset::StylePreset::names()
+        .into_iter()
+        .map(str::to_owned)
+        .collect()
+}
+
+/// A built-in style preset by name, resolved to self-contained `StylePreset` JSON.
+#[wasm_bindgen(js_name = loadStylePreset)]
+pub fn load_style_preset(name: &str) -> Result<String, JsValue> {
+    writemorebetter_style::preset::StylePreset::builtin(name)
+        .map(|preset| preset.to_json())
+        .map_err(style_error)
+}
+
+/// Validates a preset file (JSON), resolves its `extends`, and returns self-contained
+/// `StylePreset` JSON. Unknown keys and invalid values throw a `StyleError` (`invalidPreset`).
+#[wasm_bindgen(js_name = parseStylePreset)]
+pub fn parse_style_preset(text: &str) -> Result<String, JsValue> {
+    writemorebetter_style::preset::StylePreset::parse(text)
+        .map(|preset| preset.to_json())
+        .map_err(style_error)
+}
+
+#[wasm_bindgen]
+impl Checker {
+    /// Applies a style preset's grammar settings: its profile, the rules it turns off and on, and
+    /// its speller variant. `preset` is a built-in preset's name or a preset file (JSON). Every
+    /// selector is checked first, so an unknown one throws and changes nothing. Returns how many
+    /// rules went from off to on. Apply a preset to a new `Checker`; to switch presets, construct
+    /// another (profiles cannot be undone).
+    #[wasm_bindgen(js_name = applyPreset)]
+    pub fn apply_preset(&mut self, preset: &str) -> Result<usize, JsValue> {
+        writemorebetter_style::preset::StylePreset::load(preset)
+            .and_then(|preset| preset.apply_to_rules(&mut self.rules))
+            .map_err(style_error)
+    }
+}
+
+#[wasm_bindgen]
+impl StyleDocument {
+    #[wasm_bindgen(js_name = presetChecks)]
+    /// Runs the built-in preset checks; options are `PresetChecks` JSON (every check off by default).
+    pub fn preset_checks(&self, options_json: Option<String>) -> Result<String, JsValue> {
+        self.inner
+            .preset_checks(options_json.as_deref())
+            .map(|report| reports::to_utf16_json(&report))
+            .map_err(style_error)
+    }
+
+    #[wasm_bindgen(js_name = preset)]
+    /// Runs every report a style preset drives (consistency, house style, preset checks) and returns
+    /// `PresetReport` JSON. `preset` is a built-in preset's name or a preset file (JSON); omitted
+    /// selects `"chicago-fiction"`.
+    pub fn preset(&self, preset: Option<String>) -> Result<String, JsValue> {
+        self.inner
+            .preset(preset.as_deref())
+            .map(|report| reports::to_utf16_json(&report))
+            .map_err(style_error)
+    }
+}
+
+#[wasm_bindgen]
+impl StyleDocument {
+    #[wasm_bindgen(js_name = alliteration)]
+    /// Returns the opt-in alliteration lens on the retained analysis; options default when omitted.
+    pub fn alliteration(&self, options_json: Option<String>) -> Result<String, JsValue> {
+        self.inner
+            .alliteration(options_json.as_deref())
+            .map(|report| reports::to_utf16_json(&report))
+            .map_err(style_error)
+    }
+}
+
+/// Checks headings such as chapter titles against a title-case style and returns
+/// `TitleCaseReport` JSON. `headingsJSON` is a JSON array of strings; options are
+/// `TitleCaseOptions` JSON (Chicago-style headline case when omitted). Spans are UTF-16 offsets
+/// into each heading.
+#[wasm_bindgen(js_name = titleCase)]
+pub fn title_case(headings_json: &str, options_json: Option<String>) -> Result<String, JsValue> {
+    use writemorebetter_style::reports::title_case;
+    let headings = title_case::parse_headings(headings_json).map_err(style_error)?;
+    let options = title_case::parse_options(options_json.as_deref()).map_err(style_error)?;
+    title_case::report(&headings, &options)
+        .map(|report| reports::to_utf16_json(&report))
+        .map_err(style_error)
+}
+
+#[wasm_bindgen]
+impl StyleDocument {
+    #[wasm_bindgen(js_name = vagueWords)]
+    /// Returns the opt-in vague-words lens (fillers, hedges, vague quantities, nouns and
+    /// adjectives) on the retained analysis, narration and dialogue counted separately.
+    pub fn vague_words(&self, options_json: Option<String>) -> Result<String, JsValue> {
+        self.inner
+            .vague_words(options_json.as_deref())
+            .map(|report| reports::to_utf16_json(&report))
+            .map_err(style_error)
+    }
+
+    #[wasm_bindgen(js_name = hiddenVerbs)]
+    /// Returns the opt-in hidden-verbs lens (nominalizations after a light verb or before *of*)
+    /// on the retained analysis; each match names the related verb but never rewrites.
+    pub fn hidden_verbs(&self, options_json: Option<String>) -> Result<String, JsValue> {
+        self.inner
+            .hidden_verbs(options_json.as_deref())
+            .map(|report| reports::to_utf16_json(&report))
+            .map_err(style_error)
+    }
+}

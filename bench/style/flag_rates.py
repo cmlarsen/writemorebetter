@@ -24,11 +24,24 @@ STARTS_BASELINE = BASELINES / 'sentence-starts.json'
 TAG_FLAGS = ('other_speech_verb', 'non_speech_verb', 'manner_adverb', 'untagged_run')
 TAG_CONTEXT = ('tags', 'said_asked', 'unlisted_verb', 'beats')
 STAGES = ('document', 'sentence_length', 'sentence_starts', 'echoes', 'repeated_phrases', 'cliches',
-          'dialogue_tags')
+          'dialogue_tags', 'overused_words', 'sensory_balance', 'diction', 'transitions', 'pronoun_starts',
+          'overused_sweep', 'passive')
 FINE = ('subject', 'adverb', 'gerund', 'infinitive', 'subordinatingConjunction', 'coordinatingConjunction',
         'pastParticiple', 'inversion', 'introductory', 'other')
 UNIVERSAL = ('ADJ', 'ADP', 'ADV', 'CONJ', 'DET', 'NOUN', 'NUM', 'PRON', 'PRT', 'VERB', '.', 'X')
-STRUCTURE = frozenset(GROUPS + LENGTH_STATISTICS + TAG_FLAGS + TAG_CONTEXT + STAGES + FINE + UNIVERSAL
+MODALITIES = ('sight', 'sound', 'touch', 'smell', 'taste', 'interoception')
+TRANSITION_TYPES = ('contrast', 'cause', 'time', 'addition', 'example')
+PRONOUN_KEYS = ('i', 'you', 'he', 'she', 'it', 'we', 'they')
+DISCOURSE_KEYS = (TRANSITION_TYPES + PRONOUN_KEYS + (
+    'transitions', 'pronoun_starts', 'containing', 'opening', 'types', 'repeats', 'repeat_window', 'runs',
+    'pronouns', 'other', 'sense_word_density', 'modality_percent', 'minimum_ratio', 'overused_ratio_sweep',
+    'transitions_minimum_sentences', 'transitions_repeat_window', 'pronoun_starts_minimum_sentences',
+    'sensory_minimum_sense_words', 'overused_minimum_ratio', 'passive', 'passives', 'per_hundred_sentences',
+    'passive_minimum_sentences'))
+LEXICAL_KEYS = ('overused_words', 'sensory_balance', 'diction', 'overused', 'occurrences', 'fillers',
+                'sense_words', 'modalities', 'sight', 'sound', 'touch', 'smell', 'taste',
+                'interoception', 'abstract_sentences', 'abstract_runs', 'rated_words', 'rating_sum', 'mean_rating')
+STRUCTURE = frozenset(LEXICAL_KEYS + DISCOURSE_KEYS + GROUPS + LENGTH_STATISTICS + TAG_FLAGS + TAG_CONTEXT + STAGES + FINE + UNIVERSAL
                       + tuple(WINDOW_RULE) + (
     'units', 'authors', 'samples', 'words', 'mean', 'percentiles', 'run', 'seconds', 'probe_peak_rss_bytes',
     'harness_peak_rss_bytes', 'stage_seconds', 'defaults', 'window_rule', 'chapter', 'manuscript',
@@ -43,12 +56,12 @@ STRUCTURE = frozenset(GROUPS + LENGTH_STATISTICS + TAG_FLAGS + TAG_CONTEXT + STA
 
 
 class FlagProbe:
-    def __init__(self, executable, tokenizer):
+    def __init__(self, executable, tokenizer, diction_table):
         self.vocabulary = json.loads(subprocess.run(
             [str(executable), '--vocabulary', str(tokenizer)], capture_output=True, text=True,
             encoding='utf-8', check=True).stdout)
         self.process = subprocess.Popen(
-            [str(executable), str(tokenizer), str(LENGTH_BASELINE), str(STARTS_BASELINE)],
+            [str(executable), str(tokenizer), str(LENGTH_BASELINE), str(STARTS_BASELINE), str(diction_table)],
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True,
             encoding='utf-8', env={**os.environ, 'NLPRULE_PARALLELISM': 'off'})
         self.peak_rss_bytes = None
@@ -392,12 +405,118 @@ def dialogue_tags(samples):
             'top_categories': ranked(categories), 'top_patterns': ranked(verbs)}
 
 
+def lexical_reports(samples, defaults=None):
+    defaults = defaults or {}
+    reports = {
+        'overused_words': {'categories': family(samples, ('overused_words',),
+                                                ('overused', 'occurrences', 'fillers')),
+                           'minimum_ratio': {ratio: category(samples, lambda d, ratio=ratio: get(
+                               d, 'overused_ratio_sweep', ratio), words)
+                               for ratio in keys(samples, 'overused_ratio_sweep')}},
+        'sensory_balance': {'categories': family(samples, ('sensory_balance',),
+                                                 ('sense_words',)),
+                            'modalities': family(samples, ('sensory_balance', 'modalities'), MODALITIES),
+                            'measures': sensory_measures(samples, defaults.get('sensory_minimum_sense_words', 20))},
+    }
+    if any('diction' in data for _, data in samples):
+        reports['diction'] = {
+            'categories': family(samples, ('diction',), ('abstract_sentences', 'abstract_runs')),
+            'mean_rating': spread([(author, get(data, 'diction', 'rating_sum') / get(data, 'diction', 'rated_words'))
+                                   for author, data in samples if get(data, 'diction', 'rated_words')])}
+    return reports
+
+
+def eligible_spread(samples, minimum, denominator, numerator):
+    values = []
+    for author, data in samples:
+        total = denominator(data)
+        if total >= max(minimum, 1):
+            values.append((author, 100 * numerator(data) / total))
+    return spread(values)
+
+
+def measured_share(samples, minimum, denominator):
+    return share([(author, float(denominator(data) >= max(minimum, 1))) for author, data in samples])
+
+
+def sensory_measures(samples, minimum):
+    result = {}
+    for group in GROUPS:
+        senses = lambda d, group=group: get(d, 'sensory_balance', 'groups', group, 'sense_words')
+        group_total = lambda d, group=group: get(d, 'sensory_balance', 'groups', group, 'words')
+        result[group] = {
+            'eligible_share': measured_share(samples, minimum, senses),
+            'sense_word_density': spread([(author, 1000 * senses(data) / group_total(data))
+                                          for author, data in samples if group_total(data)]),
+            'modality_percent': {modality: eligible_spread(
+                samples, minimum, senses,
+                lambda d, group=group, modality=modality: get(
+                    d, 'sensory_balance', 'groups', group, 'modalities', modality))
+                for modality in MODALITIES}}
+    return result
+
+
+def mode_flags(samples, path):
+    return {group: category(samples, lambda d, group=group: get(d, *path, group),
+                            lambda d, group=group: group_words(d, group)) for group in GROUPS}
+
+
+def transitions(samples, defaults):
+    minimum = defaults.get('transitions_minimum_sentences', 50)
+    measures = {}
+    for group in GROUPS:
+        sentences = lambda d, group=group: get(d, 'transitions', 'groups', group, 'sentences')
+        count = lambda *path, group=group: lambda d: get(d, 'transitions', 'groups', group, *path)
+        measures[group] = {
+            'eligible_share': measured_share(samples, minimum, sentences),
+            'containing': eligible_spread(samples, minimum, sentences, count('containing')),
+            'opening': eligible_spread(samples, minimum, sentences, count('opening')),
+            'types': {kind: {name: eligible_spread(samples, minimum, sentences, count('types', kind, name))
+                             for name in ('containing', 'opening')} for kind in TRANSITION_TYPES}}
+    return {'flags_per_1000_words': {'repeats': mode_flags(samples, ('transitions', 'repeats'))},
+            'repeat_window': {window: mode_flags(samples, ('transitions', 'repeat_window', window))
+                              for window in keys(samples, 'transitions', 'repeat_window')},
+            'measures': measures}
+
+
+def pronoun_starts(samples, defaults):
+    minimum = defaults.get('pronoun_starts_minimum_sentences', 50)
+    measures = {}
+    for group in GROUPS:
+        sentences = lambda d, group=group: get(d, 'pronoun_starts', 'groups', group, 'sentences')
+        count = lambda *path, group=group: lambda d: get(d, 'pronoun_starts', 'groups', group, *path)
+        measures[group] = {
+            'eligible_share': measured_share(samples, minimum, sentences),
+            'pronoun_starts': eligible_spread(samples, minimum, sentences, count('pronoun_starts')),
+            'pronouns': {pronoun: eligible_spread(samples, minimum, sentences, count('pronouns', pronoun))
+                         for pronoun in PRONOUN_KEYS},
+            'other': eligible_spread(samples, minimum, sentences, count('other'))}
+    return {'flags_per_1000_words': {'runs': mode_flags(samples, ('pronoun_starts', 'runs'))},
+            'measures': measures}
+
+
+def passive(samples, defaults):
+    minimum = defaults.get('passive_minimum_sentences', 50)
+    measures = {}
+    for group in GROUPS:
+        sentences = lambda d, group=group: get(d, 'passive', 'groups', group, 'sentences')
+        passives = lambda d, group=group: get(d, 'passive', 'groups', group, 'passives')
+        measures[group] = {'eligible_share': measured_share(samples, minimum, sentences),
+                           'per_hundred_sentences': eligible_spread(samples, minimum, sentences, passives)}
+    return {'flags_per_1000_words': {'passives': mode_flags(samples, ('passive', 'passives'))},
+            'measures': measures}
+
+
 def section(samples, defaults, length_baseline, starts_baseline):
     return {'samples': len(samples), 'sample_words': spread([(author, words(data)) for author, data in samples]),
             'reports': {'sentence_length': sentence_length(samples, length_baseline, defaults),
                         'sentence_starts': sentence_starts(samples, starts_baseline, defaults),
                         'echoes': echoes(samples), 'repeated_phrases': repeated_phrases(samples),
-                        'cliches': cliches(samples), 'dialogue_tags': dialogue_tags(samples)}}
+                        'cliches': cliches(samples), 'dialogue_tags': dialogue_tags(samples),
+                        'transitions': transitions(samples, defaults),
+                        'pronoun_starts': pronoun_starts(samples, defaults),
+                        'passive': passive(samples, defaults),
+                        **lexical_reports(samples, defaults)}}
 
 
 def aggregate(count, authors, chapters, vocabulary, length_baseline, starts_baseline):
@@ -478,12 +597,28 @@ def synthetic_text(seed, paragraphs, dialogue=True):
                          + ' until night.')
         elif index % 17 == 5:
             lines.append('She ran home. She sat down. She stood up. She left again.')
+        elif index % 19 == 6:
+            lines.append(f'But {pronoun.lower()} stayed. But the {noun} fell. However, the {other} was old.')
         else:
             lines.append(sentence + f' The {noun} was old.')
     return '\n'.join(lines) + '\n'
 
 
-def self_test(probe, started=None):
+def self_test(probe, started=None, diction=True):
+    lexical = probe.measure('She glanced. ' * 6 + 'It was red. ' * 20 + 'It was very cold. ' * 3
+                            + 'She just left. ' + 'An idea, a belief, a truth. ' * 3)
+    assert lexical['overused_words']['overused'] >= 1
+    passives = probe.measure('The door was closed. ' * 3 + 'She was tired. ' + '“I was followed.”')['passive']
+    assert passives['groups']['all'] == {'sentences': 5, 'passives': 4}
+    assert passives['passives'] == {'all': 4, 'narration': 3, 'dialogue': 1}
+    assert lexical['overused_words']['fillers'] == 4
+    assert lexical['sensory_balance']['modalities']['sight'] == 26
+    assert lexical['sensory_balance']['modalities']['touch'] == 3
+    if diction:
+        assert lexical['diction']['abstract_sentences'] == 3
+        assert lexical['diction']['abstract_runs'] == 1
+    else:
+        assert 'diction' not in lexical
     with tempfile.TemporaryDirectory(prefix='style-synthetic-') as temporary:
         export = Path(temporary)
         (export / 'units').mkdir()
@@ -534,6 +669,16 @@ def self_test(probe, started=None):
         assert chapter['reports']['sentence_length']['baseline_comparison']['all']['mean']['eligible_share'] > 0
         assert result['run']['probe_peak_rss_bytes'] > 0 and result['run']['seconds'] > 0
         assert 'sentinel' not in output.lower() and temporary not in output
+        for name in ('overused_words', 'sensory_balance'):
+            assert name in reports and name in chapter['reports']
+        assert ('diction' in reports) is diction and ('diction' in chapter['reports']) is diction
+        assert reports['sensory_balance']['categories']['sense_words']['flagged_share'] == 1
+        assert reports['transitions']['flags_per_1000_words']['repeats']['narration']['flagged_share'] == 1
+        assert reports['transitions']['measures']['all']['types']['contrast']['opening']['mean'] > 0
+        assert reports['pronoun_starts']['measures']['all']['pronoun_starts']['mean'] > 0
+        assert reports['passive']['measures']['narration']['per_hundred_sentences']['samples'] > 0
+        assert reports['sensory_balance']['measures']['narration']['modality_percent']['sight']['samples'] > 0
+        assert set(reports['overused_words']['minimum_ratio']) == {'3', '4', '5', '6', '8'}
         assert numeric_only(result)
         return result
 
@@ -543,10 +688,19 @@ def run(args):
         raise ValueError('choose one tier 3 mode')
     executable = args.probe or probe_build()
     started = time.perf_counter()
-    probe = FlagProbe(executable, args.tokenizer)
+    if args.self_test:
+        table = None if args.skip_diction else ROOT / 'bench/style/diction-synthetic.json'
+    else:
+        table = args.diction_table
+    if table is None and not args.skip_diction:
+        raise ValueError('owner must supply a diction table or pass --skip-diction')
+    if table is not None and args.skip_diction:
+        raise ValueError('choose a diction table or --skip-diction')
+    table = '-' if table is None else table
+    probe = FlagProbe(executable, args.tokenizer, table)
     try:
         if args.self_test:
-            result = self_test(probe, started)
+            result = self_test(probe, started, diction=not args.skip_diction)
         elif args.export is None:
             raise ValueError('owner must pass an export directory')
         else:

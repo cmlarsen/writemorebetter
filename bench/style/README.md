@@ -88,6 +88,7 @@ a new archive hash without checking its contents.
 | LitBank quotation layer | `3e50db0ffc033d7ccbb94f4d88f6b99210328ed8` | [CC BY 4.0; David Bamman and collaborators](https://github.com/dbamman/litbank/blob/3e50db0ffc033d7ccbb94f4d88f6b99210328ed8/README.md) | direct speech |
 | Standard Ebooks, Austen's *Pride and Prejudice* | `ed94a32be3e875c0814568050c7544e03aad3ef5` | [CC0 dedication](https://standardebooks.org/about) | tier 2 source paragraphs |
 | Standard Ebooks, Melville's *Moby-Dick* | `013b51e2d9d6bb28b1d054bfc30beeeff4b85480` | [CC0 dedication](https://standardebooks.org/about) | tier 2 source paragraphs |
+| QuoteLi3, *Pride and Prejudice* only (`pp_full.xml`, `pp_test.xml`) | no upstream tag or commit; `Last-Modified` 2017-03-18 / 2021-04-27, sha256 in `sources.json` | **No license found.** Owner decision 2026-10-16: local/CI benchmarking only; annotations are downloaded at bench time, pinned by sha256, and never committed or redistributed. Muzny, Fang, Chang and Jurafsky, [EACL 2017](https://aclanthology.org/E17-1044/); [evidence](../../docs/STYLE-DATA-LICENSES.md#quoteli3-256) | direct speech |
 
 Standard Ebooks confirms that the underlying works are believed public domain in the US and dedicates
 its own contributions under CC0. Users elsewhere must check their jurisdiction. See also its
@@ -97,14 +98,20 @@ LitBank's quotation layer is described in the
 
 `splits.json` explicitly records every LitBank document: sorted filenames, first 20 dev, remaining 80
 test. This is our split, not an upstream standard. It is not author-disjoint and should not be used to
-claim generalization to unseen authors. EWT uses its official dev/test split. Tune only on dev; test
-scores are regression measurements. Splits must stay fixed when adding detectors.
+claim generalization to unseen authors. QuoteLi3 is split by chapter, also our own split and not
+upstream's: dev is chapters 1–2 (the excerpt LitBank's dev split already annotates) plus every fifth
+chapter (5, 10, …, 60), 14 chapters and 323 quotes; test is the other 47 chapters and 1,427 quotes.
+Upstream's own P&P test file (chapters 19–26) is pooled with `pp_full.xml` before splitting, so its
+chapters fall on both sides. One novel cannot support any claim beyond Austen. EWT uses its official
+dev/test split. Tune only on dev; test scores are regression measurements. Splits must stay fixed when adding detectors.
 
 Excluded datasets:
 
-- **QuoteLi3:** the [original Stanford release page](https://nlp.stanford.edu/~muzny/quoteli.html),
-  checked 2026-10-15, links XML and archives but gives no data license. A third-party card is insufficient
-  license evidence; neither those files nor QuoteLi3 are downloaded by this harness.
+- **QuoteLi3 *Emma* and *The Steppe*:** the EACL paper says they "were taken from the CQSC corpus"
+  (Elson and McKeown 2010), which Columbia distributes only under a non-commercial academic license.
+  Only QuoteLi3's *Pride and Prejudice* files are downloaded. QuoteLi3 itself has no license; a
+  third-party Hugging Face card's CC BY 4.0 tag is unsourced and not accepted. See the
+  [license evidence](../../docs/STYLE-DATA-LICENSES.md#quoteli3-256).
 - **UD English-GUM:** CC BY-NC-SA 4.0; excluded for its noncommercial restriction.
 - **PDNC:** no confirmed data license; excluded.
 
@@ -201,6 +208,47 @@ measured baseline and the Rust comparison are recorded in the document measureme
 corrected Rust test floors are precision **85.2799%**, recall **91.8838%**, and F1 **88.4588%**
 (1,234 exact matches, 1,447 predictions, 1,343 gold), above the historical Python floors.
 These supersede the inflated pre-recovery floors; the review correction is explained below. EWT floors are unchanged.
+
+### QuoteLi3 *Pride and Prejudice*
+
+`pp_full.xml` (53 chapters) and `pp_test.xml` (chapters 19–26) are parsed as data with the standard
+library XML parser. The document text is the concatenated character data of `<text>`, so every
+`<quote>` element's start and end are exact scalar offsets into it; no tokenized text is aligned.
+Chapters start at each `CHAPTER <roman> (<n>)` heading and run to the next, named `pp-01` … `pp-61`
+by the parenthesized absolute number. Inline `__` separators and volume lines stay in the text. A
+quote before the first heading or crossing a chapter, or a chapter in both files, fails the run.
+Spans include their delimiters. The text uses straight quotation marks throughout. The product probe
+and scorer are LitBank's (hard-wrapped mode, exact byte and UTF-16 endpoints, duplicates as extra false
+positives, micro-aggregated over chapters, including chapter 12 with no quotes).
+
+| Split | Precision | Recall | F1 | TP / predicted / gold |
+|---|---:|---:|---:|---:|
+| dev (14 chapters) | 97.5309% | 97.8328% | 97.6816% | 316 / 324 / 323 |
+| test (47 chapters) | **98.5975%** | **98.5284%** | **98.5629%** | 1,406 / 1,426 / 1,427 |
+
+The test values are the first measurement and are the floors in `tier1-baseline.json`; nothing was
+tuned on either split. All misses trace to two causes. Quoted letters (Darcy's, Collins's,
+the Gardiners', Lydia's and others) are annotated as one quote across paragraphs whose inner
+paragraphs open without a quotation mark, so the product drops the span at the first paragraph
+break (3 dev, 10 test). On test, 6 more misses follow from those letters: their closing mark opens a
+span that swallows the next quote. A quotation nested in the same straight double mark as its
+outer speech (`"You wanted me, I know, to say "Yes," that you might …"`) splits the outer span
+in two (4 dev, 5 test). The remaining false positives are two `" -- "` fragments inside a letter
+and one scare-quoted phrase in narration (`"very glad;"`) on test, and one empty `""` on dev where
+a nested close meets the outer close.
+
+### Multi-paragraph speech continuation
+
+QuoteLi3's P&P gold has no conventionally continued speech: its 13 quotes that cross a paragraph
+break are letters whose inner paragraphs open without a mark. Disabling continuation (an open
+quote carried into a paragraph that starts with the same mark) therefore *raises* QuoteLi3 test
+F1 from 98.56% to 98.98%, and LitBank's from 88.62% to 88.76%. Changes must not trade continuation
+for QuoteLi3 points. `labels/continuation.jsonl` is a small original fixture scored by the same
+probe and scorer in every tier 1 run: three spans of straight, curly double and curly single
+speech carried across two or three paragraphs (with curly apostrophes, an em dash, an ellipsis,
+U+2028 and an emoji), plus closed and unclosed controls that must not continue. Its floors in
+`tier1-baseline.json` are 100% precision, recall and F1; with continuation disabled only 6 of 9
+spans match and the gate fails. The Rust tests in `style/tests/document.rs` guard the rule as well.
 
 ## Tier 2 framework
 
@@ -662,7 +710,7 @@ calibration is invalid. No worker read private exports, titles, authors or unit 
 
 ```sh
 python3 bench/style/run.py tier3 --flag-rates --self-test
-python3 bench/style/run.py tier3 --flag-rates --export /path/to/fiction-baseline/out   # owner only
+python3 bench/style/run.py tier3 --flag-rates --export /path/to/fiction-baseline/out --diction-table /approved/ratings.json   # owner only
 ```
 
 This measures how often every style report flags published fiction, at the scale Subplot runs the
@@ -670,7 +718,7 @@ reports: per chapter and per manuscript. It reads the tier 3 export layout (`uni
 `units/<unit_id>.txt`, one paragraph per line, blank lines at scene breaks) and uses only
 `author_key` (a nonempty string) and `unit_id`. The probe `flag_rates` in `bench/tools/wmb-document`
 (built automatically; `--probe PATH` selects a prebuilt one) builds each document with default
-`DocumentOptions` (line mode, token details, no skipped names). It runs all six reports with their
+`DocumentOptions` (line mode, token details, no skipped names). It runs the six original reports with their
 default options: sentence length and sentence starts with the shipped
 `style/data/baselines/sentence-length.json` and `sentence-starts.json`, echoes, repeated phrases, the
 bundled cliché/redundancy list, and dialogue tags (no dialogue-tag baseline ships). The probe returns
@@ -788,3 +836,449 @@ and equal author weighting at both scales, weighted percentiles, the window rule
 percentiles, rejection of unlisted probe keys and of non-string author keys, and suppression of
 argparse and runtime errors in thirteen argument shapes, including `--e PATH` with no subcommand.
 CI runs only the self-test; no private corpus or export was read to build this.
+
+## Remaining #256 scope: lexical suites and owner obligations
+
+```sh
+python3 bench/style/lexical.py --split dev
+python3 bench/style/lexical.py --gate
+```
+
+`lexical.py` uses the shared tier 2 exact-byte/UTF-16 scorer and pinned Austen/Melville
+paragraph generator. Each book's paragraph indices 0–29 are development and 30–59 are test;
+these splits are fixed before measurement. Generated texts, manifests, answer keys, predictions
+and natural-paragraph predictions are written under ignored `out/lexical/`. The persistent
+`lexical_reports` Rust probe loads only the tokenizer, bundled overused-word baseline, bundled
+sensory norms, and a caller-supplied diction table. It changes no report logic.
+`diction-synthetic.json` contains twelve invented ratings (project MIT/Apache-2.0); they are
+mechanical test values, not human concreteness norms. No Brysbaert data is used. All report
+options are shipped defaults.
+
+Every public paragraph gets the same injected cases, each appended to the untouched paragraph:
+
+| Report / category | Positive injections (gold) | Controls that must stay silent |
+|---|---|---|
+| Overused words | five occurrences each of *glanced*, *shrugged*, *blinked* (the default minimum count) | four occurrences of each; five *said* in a 240-word padded text, whose ratio to the Ngram rate is below 4 |
+| Fillers | *very*, *just* and clause-opening *that* in `It was very cold. She just left. He knew that she had gone.` | adjective *just* and determiner *That* |
+| Sensory balance | one rated word per modality: *red*, *music*, *cold*, *stench*, *salty*, *nausea* | figurative *looked like* / *felt that*, flat adverb *pretty late*, the excluded lemma *speech*, and sight word *beautiful* whose margin (2.3) is below the sight margin |
+| Diction sentences and runs | three abstract sentences (mean 1.5) forming one run; one near-threshold sentence (mean 2.7); abstract, abstract, concrete, abstract (three sentences, no run) | three concrete sentences; the abstract sentence as dialogue; a sentence with mean 3.0; a sentence with two rated words |
+
+Overused cases skip a paragraph that already contains that lemma, and the ratio control skips
+paragraphs that contain *say*. Curly apostrophe, em dash, ellipsis and U+2028 precede injections
+to exercise both offset units; the Standard Ebooks paragraphs themselves supply curly double
+quotes. Diction gold sentence spans include trailing inter-sentence spaces, matching the
+documented analysis span convention.
+
+Natural text is not presumed flag-free, and the gate checks it two ways. First, **every**
+prediction of every category on the 60 untouched paragraphs of the split is frozen in
+`lexical-baseline.json` as per-category counts plus a SHA-256 of the sorted
+`(paragraph, report, category, byte span)` list; any change fails the gate. Second, each injected
+case is paired with its untouched prefix: predictions before the insertion boundary must match the
+prefix-only result as a multiset, and **all** predictions after the boundary are scored against the
+answer key, so unexpected suffix flags and duplicate spans count as false positives and wrong
+modalities populate the confusion matrix. The frozen natural predictions are a regression lock, not
+a judgment that they are right; a deliberate report change rebaselines with
+`python3 bench/style/lexical.py --split test --write-baseline` (and `--split dev`), and the PR
+records the count change. A tokenizer or document-analysis change that moves these flags also
+needs a rebaseline. Test paragraphs are disjoint from dev paragraphs, but vocabulary and templates
+are shared; these are regression scores, not held-out linguistic generalization claims.
+
+Measurements (`lexical-baseline.json`; test unless noted). Every category scores 100% precision,
+recall and F1 on both splits:
+
+| Report / category | Test gold (dev) |
+|---|---:|
+| Overused words: glance; shrug; blink | 295; 300; 300 (300 each) |
+| Fillers: very; just; that | 60 each (60 each) |
+| Sensory balance: each of six modalities | 60 each (60 each) |
+| Diction: abstract sentences; abstract runs | 420; 60 (420; 60) |
+| Cases / paired untouched-prefix comparisons changed | 1,534 / 0 (1,545 / 0) |
+| Frozen natural-paragraph predictions | 217 (223) |
+
+The test natural predictions are 140 sense words (93 of them sight), 70 fillers and
+7 *come* overused flags; development has 164 sense words, 46 fillers and 13 overused flags.
+
+#282 removed the single-sense scene flag, its three injected cases per paragraph (a 90% positive,
+80% and below-minimum controls) and its category, and rebaselined both splits. Its sensory fixes
+also moved the frozen sense words: test drops the speech tags *exclaimed* and *growled* and adds
+participles *singing* ×2 and *marked*; development drops *complained* (below the exact 4.0 strength) and adds *withered*
+and *flew*.
+
+Mutation check (2026-10-16; throwaway edits to `style/src/reports/`, reverted and never committed;
+each rebuilt `lexical_reports` and `flag_rates`, then ran this gate on the test split and the
+flag-rates self-test):
+
+| Mutation | Review run at `1f2c0dd` | This gate: what fails |
+|---|---|---|
+| Overused `minimumCount` 5→4 | caught | four-occurrence controls flag |
+| Overused `minimumCount` 5→6 | missed | five-occurrence positives drop |
+| Overused ratio test removed | missed | *said* below-ratio control flags |
+| Filler detection disabled | missed | natural freeze; filler recall (controls alone); tier 3 self-test |
+| Lancaster `h`/`o` letters swapped | caught | natural freeze; smell/touch confusion (controls alone); tier 3 self-test |
+| Sensory excluded-lemma, figurative and flat-adverb filters removed | missed | natural freeze; sight controls (controls alone) |
+| Sensory `sightMargin` 3.0→2.0 | missed | natural freeze; *beautiful* control (controls alone) |
+| Diction `minimumRatedWords` 3→4 | caught | abstract positives drop; tier 3 self-test |
+| Diction `abstractBelow` 2.5→4.0 | missed | mean-2.6 control flags |
+| Diction narration-only rule removed | missed | dialogue control flags |
+| Diction `minimumRunSentences` 3→4 (reviewer: tier 3) | caught (tier 3) | run positives drop; tier 3 self-test |
+| Sensory `singleSensePercent` 85→99 (reviewer: tier 3) | missed | natural freeze; 90% scene drops (controls alone); tier 3 self-test (option removed in #282) |
+| Sensory excluded-lemma filter alone removed | — | natural freeze; *speech* control (controls alone) |
+| Sensory figurative filter alone removed | — | natural freeze; *looked like* / *felt that* (controls alone) |
+| Sensory flat-adverb filter alone removed | — | natural freeze; *pretty late* (controls alone) |
+| Diction `minimumRunSentences` 3→2 | — | broken-run case flags a two-sentence run |
+| Sensory `singleSensePercent` 85→75 | — | 80% scene control flags (option removed in #282) |
+| Diction `minimumRatedWords` 3→2 | — | two-rated-word control flags |
+| Diction `abstractBelow` 2.5→2.0 | — | mean-2.4 positive drops |
+| Sensory `minimumSenseWords` 20→21 | — | 20-word scene positive drops |
+| Overused `minimumRatio` 4→3 | — | *said* below-ratio control flags |
+
+All 21 fail the tier 2 gate (the review run caught 3 of the first 10 in tier 2 and 1 of 2 in
+tier 3); the restored build passes. The natural freeze fails first for 8 of them, so those 8 were
+rerun with the freeze bypassed: the targeted controls and positives fail each of them on their own.
+Of the 12 reviewer mutations, the flag-rates self-test now fails 5. The suite does not catch a
+change that leaves every injected boundary case and every natural flag on the 60 gated test paragraphs
+unchanged, for example a filter edit that only matters for constructions absent from both.
+
+#256 moved diction's default `abstractBelow` from 2.5 to 2.85, so the invented near-threshold
+ratings moved from 2.4 / 2.6 to 2.7 / 3.0 and still straddle it. Rechecked 2026-10-20: `abstractBelow`
+2.85→3.1 fails abstract precision (the mean-3.0 control flags) and 2.85→2.6 fails abstract recall
+(the mean-2.7 positive drops); the restored build passes.
+The two `singleSensePercent` rows record the measurement at the time; #282 removed the option, the
+flag and the cases that caught them.
+
+CI's `English` job runs **Style lexical report accuracy gates (256)**; it gates the test-split
+P/R/F1 per category, gold coverage, case count, the paired-prefix count and the frozen natural
+predictions. Full confusion matrices are recorded in the baseline. The existing **Style benchmark
+accuracy gates** step continues to gate the other merged reports, tier 1, and synthetic tier 3. No
+transitions, pronoun-start or pacing suite is added here; #247 and #251 own those lanes.
+
+### Every merged report in owner-only tier 3
+
+The `--flag-rates` probe now includes overused words, sensory balance and diction alongside the
+six earlier reports. Run the self-test as before. A real owner run must supply the actual diction
+table chosen by the caller:
+
+```sh
+python3 bench/style/run.py tier3 --flag-rates --self-test
+# Owner only; use an approved export and a legally usable caller-supplied table:
+python3 bench/style/run.py tier3 --flag-rates --export /approved/export --diction-table /approved/ratings.json
+```
+
+The self-test alone uses the committed invented table. There is no synthetic fallback for a real
+export. Overused output counts flagged lemmas, their occurrences and filler tokens; sensory output
+counts sense words and each of six modalities; diction counts abstract
+sentences/runs and pools rated-word sums/counts into a mean rating. Each count has an author-weighted
+per-1,000-word distribution and flagged share at both chapter-window and manuscript/author scales.
+For sense-word and filler counts, `flagged_share` means a nonempty diagnostic, not an editorial
+warning. For diction, the chosen table determines coverage and interpretation. Manuscript samples
+pool units by author; ratings are weighted by rated words within an author and equally across authors.
+No matched lemmas, table vocabulary, paths or source text enter the output. The existing allowlist and
+numeric-only validator apply. Synthetic coverage checks all three added reports (including four
+filler words and 26 sight words of 29 sense words), author pooling, rating weighting and leak rejection. No private inputs were accessed for this work.
+
+### Transitions, pronoun starts and per-mode sensory shares
+
+The probe also runs transitions and pronoun starts with default options, keeps sensory balance's
+`all`/`narration`/`dialogue` groups, and re-runs two cheap sweeps on the same document: overused
+words at `minimumRatio` 3/4/5/6/8 and transition repeats at `repeatWindow` 2/3/4/5. The added
+output, at both scales:
+
+- `transitions`: `flags_per_1000_words.repeats` and `repeat_window.<n>` per mode (a repeat's mode
+  is its sentences' mode, rated per 1,000 words of that mode's sentences), and `measures` per mode:
+  the distribution of `containing` and `opening` shares and of each type's `containing`/`opening`
+  share, as percentages of eligible sentences, over samples with at least `minimumSentences` (50)
+  in that mode; `eligible_share` is the weighted share of samples meeting it.
+- `pronoun_starts`: `flags_per_1000_words.runs` per mode (after the `sameWordRuns` dedupe) and
+  `measures` per mode for `pronoun_starts`, each of *i, you, he, she, it, we, they*, and `other`.
+  The probe sums every other opener into `other`, so no unlisted word can reach the output.
+- `sensory_balance.measures` per mode: `sense_word_density` (sense words per 1,000 counted words of
+  that mode) and `modality_percent` for each modality over samples with at least
+  `minimumSenseWords` (20) sense words in that mode.
+- `overused_words.minimum_ratio.<ratio>`: flagged lemmas per 1,000 words at each ratio.
+
+`--skip-diction` runs a real export without a concreteness table and omits `diction` from the
+output; the owner has not chosen a table, so the 2026-10-16 run used it. `--diction-table` and
+`--skip-diction` are mutually exclusive. `--self-test` uses `diction-synthetic.json` unless
+`--skip-diction` is passed, and CI runs the self-test both ways. `published_bands.py AGGREGATE --dataset … --tool …
+--run-date … --output …` turns a saved aggregate into the band file below; it reads only the
+aggregate JSON. The unit tests cover the mode floors, author weighting, the bucketed pronoun
+allowlist and the band builder on invented counts.
+
+#### 2026-10-16 owner-run results
+
+Run on the published-fiction export (`cmlarsen/fiction-baseline` b464cac, EXTRACTOR_VERSION 1):
+210 units, 71 authors, 7,702,268 counted words, 1,559 chapter windows; 802 s wall clock, 664 s of it
+document construction; probe peak RSS 275 MB. No text, titles, author keys or unit identifiers were
+printed or kept; the aggregate stayed in the session scratchpad and was deleted after the numbers
+below and the band file were recorded. Shares are author-weighted. "Chapter" is the share of
+chapter windows with a flag and "authors" the share of authors whose pooled manuscripts have one;
+rates are flags per 1,000 words over chapter windows, median (p5–p95). Every report ran with its
+shipped defaults; no default changed except pacing (see [STYLE-PACING.md](../../docs/STYLE-PACING.md)).
+
+| Report and flag | Chapter | Authors | Per 1,000 words |
+|---|---:|---:|---|
+| Sentence length: long sentences (≥ 40 words, every one) | 84.1% | 97.2% | 0.48 (0–1.07) |
+| Sentence length: monotony runs | 53.7% | 84.5% | 0.16 (0–0.97) |
+| Sentence starts: same-word runs | 64.3% | 93.0% | 0.19 (0–1.44) |
+| Echoes (opt-in) | 100% | 100% | 20.36 (11.59–33.95) |
+| Repeated phrases (opt-in) | 100% | 100% | 4.69 (1.57–8.83) |
+| Clichés and redundancies | 59.8% | 85.9% | 0.16 (0–0.64) |
+| Dialogue tags: all flag categories | 92.3% | 97.2% | 1.62 (0–7.48) |
+| Dialogue tags: non-speech verbs | 15.7% | 53.5% | 0 (0–0.30) |
+| Dialogue tags: manner adverbs | 62.6% | 84.5% | 0.28 (0–2.29) |
+| Dialogue tags: untagged runs | 1.7% | 7.0% | 0 (0–0) |
+| Transitions: repeats (opt-in) | 66.5% | 95.8% | 0.28 (0–1.44) |
+| Pronoun starts: runs (opt-in) | 33.4% | 74.6% | 0 (0–0.48) |
+| Overused words: flagged lemmas (opt-in) | 99.4% | 100% | 1.44 (0.42–2.88) |
+| Sensory balance: sense words (no flag) | 100% | 100% | 33.80 (19.70–58.46) |
+
+The long-sentence row counts every sentence of at least 40 words, not the report's top-three UI
+selection, which caps a manuscript's flags (hence a 0.04 author median at manuscript scale). Dialogue
+tags' "all flag categories" includes the legacy `other_speech_verb` count (every speech verb except
+*say*/*ask*, 88.7% of chapters), not just the showy verbs the UI flags. Details and sweeps:
+[transitions and pronoun starts](../../docs/STYLE-TRANSITIONS.md#published-fiction-calibration-2026-10-16),
+[sensory bands](../../docs/STYLE-NORMS.md#published-fiction-bands-2026-10-16),
+[overused words](../../docs/STYLE-OVERUSED-WORDS.md#published-fiction-flag-rates-2026-10-16).
+[`published-bands-transitions-pronouns-sensory.json`](published-bands-transitions-pronouns-sensory.json)
+holds the transitions, pronoun-start and sensory p5/p95 bands per mode.
+
+### Label inventory and what the owner still owes
+
+| Set | Size | Actual labeler provenance | Still owed |
+|---|---:|---|---|
+| `labels/sentence-starts.jsonl` | 332 sentences | Codex + independent Claude; coordinator adjudication; second model saw the category definitions, not existing labels/predictions | Owner adjudication/acceptance; independent human labels if “hand-labeled” is literal; untouched evaluation set (current rows were used in development) |
+| `labels/sentence-starts-modern.jsonl` | 34 sentences | One implementing model; invented public story excerpts | Second independent labels and owner adjudication; diagnostic only, not part of the 332-row floor |
+| `labels/dialogue-tags.jsonl` | 238 records over 186 quote spans (70 tags, 10 beats) | Two Claude sessions, coordinator adjudication; detector-marked quote worksheets | Owner acceptance; independent human labels if required; not 238 independent sentences and not held out |
+| Transitions | No set on audited main | None | #247 lane plus approximately 300 public-domain sentences, two independent labelers and owner adjudication |
+| `labels/pacing/*.jsonl`, `labels/pacing-consensus.jsonl` | 305 paragraphs in 40 passages | Five independent, blind model labelers (2026-10-16, owner's choice): DeepSeek V4 Pro and Muse Spark 1.3 via OpenCode Go, Codex gpt-6.1-sol, Claude Opus 5.5 (`claude-opus-5-5`) and Claude Fable 5.1 (`claude-fable-5-1`). Each saw only the packet built from the committed item file (`itemsSha256` in the consensus meta row) and guidelines version 1. Where each labeler ran was not recorded. Merged by 5-way majority with no coordinator adjudication. Guidelines version 1 is [`labels/PACING-GUIDELINES-v1.md`](labels/PACING-GUIDELINES-v1.md), sha256 `d7eaa315…db6`, the wording first committed as `bf832a2`; the consensus meta row records it as `guidelines` | Owner acceptance; independent human labels optional; not held out (the threshold sweep tunes on it) |
+| Overused words, sensory balance, diction | No hand-labeled natural-text set | Deterministic generated answer keys only | Owner usefulness/calibration review; injections do not substitute for editorial judgments |
+
+The small `labels/example.jsonl` (3 records), `documents.jsonl` and `excerpt.txt` demonstrate the
+scorer format and are not an accuracy set. No second labeler or owner judgment was invented here.
+The original #256 request for about 300 sentences **per judgment report**, independently labeled
+and owner-adjudicated, is therefore still open. Private tier 3 measurements for newly merged reports,
+the chosen diction table and its calibration, and owner publication/acceptance of aggregate numbers
+also remain owner work. This PR references #256 rather than closing it. The requirement-by-requirement
+audit is in [`AUDIT-256.md`](AUDIT-256.md) and the PR body.
+
+## Pacing (#251)
+
+```sh
+python3 bench/style/run.py tier2 pacing --gate
+python3 bench/style/run.py tier3 --pacing --self-test
+python3 bench/style/pacing.py # public texts only; downloads pinned Standard Ebooks chapters to .cache
+python3 bench/style/run.py tier3 --pacing --export /approved/export # owner only; 2026-10-16 run chose the defaults
+```
+
+The dedicated `bench/tools/wmb-document` `pacing` JSONL probe runs the actual Rust report;
+`--document-probe` (tier 2) or `--probe` (tier 3) selects an existing executable. CI gates
+`pacing-baseline.json`: 45 cases with 20 exact byte/UTF-16 gold run spans, using injected
+backstory (three-paragraph, contracted Unicode, >400-word single paragraph, and hard-wrapped)
+among untouched paragraphs from each of `bench/public/story1.txt`–`story5.txt`. Negative
+controls cover untouched opening passages, action, dialogue, short exposition and scene breaks.
+These are development/regression fixtures, not held-out literary accuracy. The injections use
+one deliberately strong authored backstory passage, so perfect scores do not establish recall on
+natural exposition, and they saturate every signal, so they cannot tell nearby thresholds apart.
+The gate therefore also reruns the public texts (`story1`–`story5`, `moby150k` and the four pinned
+Standard Ebooks chapters) at the defaults and requires each text's `runs` and `twoSignalParagraphs` to
+match the recorded `public` block. Default thresholds and public flag distributions are recorded in
+[STYLE-PACING.md](../../docs/STYLE-PACING.md).
+
+Tier 3 is the owner-run calibration entry point; it ships no published-fiction baseline, but its
+2026-10-16 run chose the defaults and is recorded in the `published` block of
+`pacing-baseline.json`. The export layout is `units.jsonl` plus `units/<unit_id>.txt`, one paragraph
+per line; `author_key` pools all of an author's units. Output is aggregate-only: pooled
+per-paragraph signal distributions (mean and p0/5/25/50/75/95/100, each paragraph weighted
+equally), equally weighted distributions of author signal means and of per-author flag rates (share
+of paragraphs inside runs, runs per thousand words), and the share of authors with any run.
+`eligibleParagraphSignals` gives author-weighted percentiles (each paragraph weighted 1 / its author's
+eligible paragraphs) over paragraphs with no speech and at least one counted word, and
+`twoSignalParagraphShare` the share of them meeting two thresholds. `chapter` reruns every unit in
+the `--flag-rates` chapter windows (each window weighted 1 / its author's windows) and gives the
+share of windows with a run and the distributions of runs per thousand words and run-paragraph
+percent. `sweep.<length>.<pastPerfect>.<cognition>` repeats those chapter rates, the share of
+authors with any run and the author runs-per-thousand-words distribution for 125 threshold settings
+(the probe's `sweep` request field reruns the report on one built document). Null denominators are
+omitted for that measure. There are no per-author rows or exact word totals. It emits no text,
+titles, identifiers or author keys; a fixed output-key allowlist (decimal keys only for the recorded percentiles and, under `sweep`,
+the swept threshold values) and
+numeric-value check guard serialization, probe stderr is discarded, and run.py suppresses all tier 3
+argument/runtime errors. CI runs only synthetic `--self-test`, which checks author pooling, window
+weighting, a sweep entry and sentinel metadata suppression; the unit tests add a fake probe for the
+sweep and eligible-paragraph aggregates. The 2026-10-16 owner run read the export only through this
+command; see [STYLE-PACING.md](../../docs/STYLE-PACING.md#published-fiction-calibration-2026-10-16).
+
+### Pacing hand-label set (#256)
+
+```sh
+python3 bench/style/pacing_labels.py packet /path/to/packet   # labeler packet: passages + blank template + guidelines
+python3 bench/style/pacing_labels.py check                    # every item materializes from the pinned downloads
+python3 bench/style/pacing_labels.py validate labeler.jsonl …
+python3 bench/style/pacing_labels.py merge a.jsonl b.jsonl … --out consensus.jsonl --stats agreement.json
+python3 bench/style/pacing_labels.py score --consensus consensus.jsonl [--gate | --write-baseline]
+python3 bench/style/pacing_labels.py select                   # rebuilds items and strata; changes the frozen set
+```
+
+`labels/pacing-items.jsonl` holds 305 paragraphs in 40 passages of 6–10 consecutive paragraphs, one
+record per paragraph: `id` (`p07.3`), `passage`, 1-based `paragraph`, `source` (a `sources.json` key or
+`story1`–`story5`), `document` (the chapter file inside the pinned Standard Ebooks download, or the
+story file), half-open `char`/`byte`/`utf16` offsets and the paragraph's UTF-8 `sha256`. No book text is
+committed. A document's text is its body `<p>` elements outside headers, hgroups, footers, tables,
+figures and asides, whitespace-collapsed, without noteref markers, joined by `\n`, with `\n\n\n` at
+each `<hr/>`; the stories are used byte for byte. The packet materializer checks every offset and hash.
+
+Passages come from nine full Standard Ebooks novels (five added for this set: *The Thirty-Nine Steps*,
+*Treasure Island*, *The Hound of the Baskervilles*, *The Age of Innocence*, *Silas Marner*), the four
+pinned first chapters, and story1–5: 13 books and 5 stories. Windows never cross a scene break, include
+no blockquote paragraph (letters, verse) and hold at most 1,800 words. Selection is stratified on the
+current report (defaults and the loose 15 / 10 / 10 setting): 14 passages around a reported run, 13
+near-misses (two-threshold paragraphs but no run) and 13 ordinary passages, round-robin across
+sources and shuffled with seed 251256. The stratum key is `labels/pacing-strata.json`. **Labelers must
+not see it**, the item file or any report output; the packet contains only numbered passage text, the
+blank `labels-template.jsonl` and [`PACING-GUIDELINES.md`](labels/PACING-GUIDELINES.md), which does not name
+the repository or its tools. Give a labeler that can read files an empty directory holding only the
+packet.
+
+Labelers write one JSONL line per passage: per-paragraph `slow` (boolean) and `kind` (backstory,
+exposition, interior, description, action, dialogue, mixed), and inclusive slow-stretch ranges with
+severity 1–5; `validate` enforces the schema and that stretches cover exactly the slow paragraphs.
+`merge` takes a strict majority per paragraph (ties stay `null` and are excluded from scoring), records
+vote counts and labeler names, and reports Fleiss' kappa (`slow`, `kind`, passage has-stretch), pairwise
+Cohen's kappa, the pairwise Jaccard of each passage's slow paragraphs and its mean, the vote splits
+(`5-0`, `4-1`, `3-2`) and the share decided by one vote. Per labeler it records the number of slow
+paragraphs, mean pairwise Cohen's kappa for `slow` and `kind`, Cohen's kappa against the other
+labelers' strict majority (their ties excluded) and Fleiss' kappa without that labeler. A labeler is
+flagged as the `outlier` when its mean pairwise slow kappa is more than 0.1 below the median of the
+others'. `kind` takes the plurality; ties stay `null`. Consensus stretches are maximal runs of
+majority-slow paragraphs with the median of overlapping labelers' severities. With no file arguments,
+`merge` reads every `labels/pacing/*.jsonl` and writes `labels/pacing-consensus.jsonl` and
+`labels/pacing-agreement.json`.
+
+`score` runs the report over each whole document at defaults and the four named settings and scores
+paragraph-level P/R/F1 for `slow`, plus run-level any-overlap and IoU ≥ 0.5 matching of runs clipped
+to the passages. To give the report's F1 a human-like reference, it also scores each labeler against
+the strict majority of the other four (`labelersAgainstOthersMajority`; 2–2 ties are excluded at
+paragraph level and count as not slow when forming stretches) and the report against the same five
+leave-one-out majorities (`againstOthersMajority`). `--gate` re-merges the committed labeler files,
+checks the result equals the consensus file it scores (relative or absolute `--consensus`), and fails if any default paragraph or any-overlap
+precision, recall or F1 drops below `pacing-labels-baseline.json`. CI runs it. A change to the
+defaults that trades precision for recall needs a deliberate `--write-baseline`.
+
+```sh
+python3 bench/style/pacing_labels.py sweep --probe bench/tools/wmb-document/target/release/pacing
+```
+
+`sweep` scores the 350-setting grid in `GRID` (mean sentence length 0/10/12/15/18/20/25, where 0
+turns the length signal off; past perfect and cognition 5/10/15/20/30 %; minimum paragraphs 2/3; the
+400-word alternative is unchanged) against the consensus and the leave-one-out majorities, and writes
+`pacing-labels-sweep.json` sorted by paragraph F1. Each row's `sourceFlags` runs the same setting over
+every document of the 18 label sources (391 documents, 16,243 report paragraphs) and counts the runs,
+the flagged paragraphs, flags per 1,000 paragraphs and the flagged paragraphs outside the labeled
+windows (`outsideWindows`, `outsideWindowsShare`). The labels say nothing about those paragraphs, so a
+setting's precision only covers the in-window share. It takes about fifty minutes with five probes.
+
+The 2026-10-16 labels were made under guidelines version 1. The labelers reported ambiguities about
+habitual or iterative summary, backstory or recap that is the scene's point, and opening exposition
+before any scene. Version 2 (`PACING-GUIDELINES.md`) gives rules for all three, judges passage edges
+and story endings from the text rather than from where the excerpt was cut, and drops the script
+path; the set was not relabeled. `LABELED_GUIDELINES` in `pacing_labels.py` names the version the
+committed labels were made under, and `merge` records it in the consensus meta row. A labeler added
+to this set must work from version 1; a relabel under version 2 replaces all five files and updates
+`LABELED_GUIDELINES`, never mixes the two.
+
+Known contested items. The #293 review read six passages against the consensus and disagreed with
+three; the labels stand as merged, and these verdicts carry the most reference noise:
+
+- **p21** (story5, consensus stretch 7–9, severity 2, vote 3–2): the reviewer reads 7–9 as the
+  story's closing coda, a deliberate ending rather than a stall, and would mark it not slow.
+- **p17** (*The Great Gatsby* ch. 1, consensus stretch 7–9, severity 1.5): the reviewer reads 7–9 as
+  Tom's portrait at the moment Nick arrives, description inside the scene, and would mark it not
+  slow. The reviewer agrees with the 4–5 part of the 1–5 stretch.
+- **p40** (*Pride and Prejudice* ch. 36, consensus none slow, votes 1/1/2/2/2/0): the reviewer reads
+  ¶4–5 of Elizabeth rereading the letter as rehearsing what the reader has seen, slow at severity
+  2. The report's default run 3–4 counts as a false positive against the consensus.
+
+Results are in [STYLE-PACING.md](../../docs/STYLE-PACING.md#hand-label-set-256).
+
+## Sensory norms follow-ups (#282)
+
+`cargo build -p writemorebetter-style --release --example norm_reports` followed by
+`python3 bench/style/norms.py --probe target/release/examples/norm_reports` runs five tier 2
+synthetic cases: participles, literal versus predicative *feel*, transparent versus lexicalized
+compounds, adverb-interrupted figurative predicates, and speech tags. The fixtures include curly
+quotes/apostrophes, an em dash, an ellipsis and U+2028; byte and UTF-16 spans must agree. The
+`compounds` and `tags` cases assert exact surfaces; `tags` uses *shouted* and *murmured*, which the
+bundled table rates ≥ 4.0, so only the speech-tag detector can exclude them. The Rust suite
+additionally forces strongly rated speech tags through an invented table.
+
+`test_lancaster_norms.py` checks the derivation using invented means around strength/margin
+boundaries, including an exact decimal boundary that binary floating-point subtraction can lose.
+`WMB_NORM_JSON=bench/style/out/norms` makes the `norm_reports` example save one JSON result per
+input basename for public-text calibration; output belongs in ignored benchmark directories.
+The source text is never included in that JSON. The public calibration, the #286 review fixes and
+the owner decision to remove `singleSense` are recorded in [STYLE-NORMS.md](../../docs/STYLE-NORMS.md).
+
+## Transitions and pronoun starts (#247)
+
+`python3 bench/style/transitions_pronouns.py --gate` builds the native example probe and scores
+`labels/transitions.jsonl` (original, hand-labeled development examples, including known misses) with
+exact byte/UTF-16 spans for all five types. It also appends 14 varied fixtures, each once, after a
+different pinned public-domain passage with only a paragraph break, and scores pronoun runs and
+transition repeats in them: positives (same-two-word runs across a paragraph, contractions, U+2028,
+one speaker's dialogue, rhetorical questions, repeated connectors) and controls (a run `sameWordRuns`
+already reports, two-speaker exchanges, alternating pronouns, nominal `One`, determiner `Her`). Flags
+that start in the unchanged source are diagnostic counts. It also records candidate flag counts on all
+six `bench/public` texts and Pride and Prejudice chapters 1–6. The gate fails when any measurement
+differs from `transitions-pronouns-baseline.json`, which includes the scores, so improvements and
+regressions both require an inspected rebaseline. `--probe PATH` reuses an existing
+`transition_reports` example binary. The output under ignored `out/transitions-pronouns/` holds exact
+gold/prediction rows and aggregate measurements. See
+[definitions and limitations](../../docs/STYLE-TRANSITIONS.md).
+
+## Passive voice (#303)
+
+The flag-rate probe also runs the passive report with default options and reports `passive.groups.<mode>`
+`{sentences, passives}` and `passive.passives` by mode. Both are counts only, under the same key allowlist.
+The aggregate adds `reports.passive.measures.<mode>.per_hundred_sentences`, a distribution over
+windows with at least `passive_minimum_sentences` (50) sentences in that mode, and
+`flags_per_1000_words.passives`. `published_bands.py --passive` turns an aggregate into a baseline
+record. The public run below is shipped only as the opt-in stand-in
+`style/data/baselines/passive-public-stand-in.json`; the owner run on the published export becomes
+the default `style/data/baselines/passive.json`.
+
+The owner export was not available to #303, so the opt-in stand-in came from public text:
+
+```sh
+python3 bench/style/public_export.py /tmp/public-export
+python3 bench/style/run.py tier3 --flag-rates --export /tmp/public-export --skip-diction > public.json
+python3 bench/style/published_bands.py public.json --passive --dataset "…" --tool "…" --run-date … \
+    --output style/data/baselines/passive-public-stand-in.json
+```
+
+`public_export.py` lays out story1–5 (one author), unwrapped `moby150k` and the pinned *Pride and
+Prejudice* (all chapters) as 7 units from 3 authors. The numbers and caveats are in
+[STYLE-PASSIVE.md](../../docs/STYLE-PASSIVE.md#band-provisional-public-stand-in).
+
+## Emotion tells (#304)
+
+`python3 bench/style/emotion_tells.py score --gate` builds the `emotion_tells` probe, runs the report
+with default options over the public stories and the public-domain books and chapters pacing uses,
+and scores two hand-judged samples of its flags: `labels/emotion-tells.jsonl` (200 rows, seed 304,
+the development set) and `labels/emotion-tells-heldout.jsonl` (100 rows, seed 305, drawn after the
+last guards from flags not in the development set). Each row holds the tell, a short public-domain
+context window, the label and a note on false rows. A labeled flag the report no longer produces
+counts as dropped, not as a miss. The gate fails if either set's precision on kept flags falls
+below 0.85. `--write` updates `emotion-tells-baseline.json`. `sample` and `heldout` redraw the sets
+(unlabeled). Definitions, results and limitations are in
+[STYLE-EMOTION-TELLS.md](../../docs/STYLE-EMOTION-TELLS.md).
+
+## Vague words and hidden verbs (#307)
+
+`python3 bench/style/vague_hidden_verbs.py` builds the `vague_hidden_verbs` probe, runs both
+reports with default options over bench/public (story1–5 and `moby150k`) and prints matches, words
+and rates per 1,000 words for narration and dialogue, plus each report's commonest terms.
+`--books` adds the public-domain books and chapters pacing uses. `--sample N --report hiddenVerbs`
+(or `vagueWords`) `[--seed S]` prints N random matches with a short context window for hand
+judging; the samples behind the precision figures were judged in review and are not stored. Results
+are in [STYLE-VAGUE-WORDS.md](../../docs/STYLE-VAGUE-WORDS.md) and
+[STYLE-HIDDEN-VERBS.md](../../docs/STYLE-HIDDEN-VERBS.md).

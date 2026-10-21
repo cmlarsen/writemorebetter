@@ -59,6 +59,30 @@ fn main() {
             profile.name, unmatched
         );
     }
+    let enable: Vec<String> = std::env::var("ENABLE")
+        .unwrap_or_default()
+        .split(',')
+        .map(str::trim)
+        .filter(|selector| !selector.is_empty())
+        .map(str::to_owned)
+        .collect();
+    // Behind a default feature so performance CI can build this probe against a merge-base
+    // engine that predates `Rules::enable_rules`; it never sets ENABLE.
+    #[cfg(feature = "enable-rules")]
+    if !enable.is_empty() {
+        match rules.enable_rules(&enable) {
+            Ok(count) => println!("enable {}: {} rules enabled", enable.join(","), count),
+            Err(err) => {
+                eprintln!("ENABLE: {}", err);
+                std::process::exit(2);
+            }
+        }
+    }
+    #[cfg(not(feature = "enable-rules"))]
+    if !enable.is_empty() {
+        eprintln!("ENABLE: this probe was built without the enable-rules feature");
+        std::process::exit(2);
+    }
     let only: Option<Vec<String>> = std::env::var("ONLY").ok().map(|only| {
         only.split(',')
             .map(|prefix| prefix.trim().to_owned())

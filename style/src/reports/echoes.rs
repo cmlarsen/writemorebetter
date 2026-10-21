@@ -7,7 +7,7 @@ use crate::{Document, Span, Token};
 
 pub(crate) const REPORT: &str = "echoes";
 
-const CONTENT_TAGS: [&str; 4] = ["NN", "VB", "JJ", "RB"];
+pub(crate) const CONTENT_TAGS: [&str; 4] = ["NN", "VB", "JJ", "RB"];
 
 #[rustfmt::skip]
 const FUNCTION_WORDS: &[&str] = &[
@@ -88,11 +88,11 @@ pub(crate) fn fold(text: &str) -> String {
     text.replace('’', "'").to_lowercase()
 }
 
-fn listed(word: &str) -> bool {
+pub(crate) fn listed(word: &str) -> bool {
     FUNCTION_WORDS.binary_search(&word).is_ok()
 }
 
-fn echo_families(token: &Token) -> Vec<&'static str> {
+pub(crate) fn echo_families(token: &Token) -> Vec<&'static str> {
     let families: Vec<_> = CONTENT_TAGS
         .iter()
         .copied()

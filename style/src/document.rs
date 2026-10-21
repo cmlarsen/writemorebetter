@@ -178,10 +178,34 @@ pub struct Document {
     pub hard_wrapped: bool,
     #[serde(default)]
     pub skip_names_supplied: bool,
+    #[serde(default)]
+    pub compound_heads: BTreeMap<String, Vec<(String, String)>>,
 }
 
 fn token_details_default() -> bool {
     true
+}
+
+pub(crate) fn compound_head(text: &str) -> Option<String> {
+    let (_, head) = text.rsplit_once(['-', '‐'])?;
+    head.chars()
+        .all(char::is_alphabetic)
+        .then(|| head.to_lowercase())
+        .filter(|head| !head.is_empty())
+}
+
+fn head_readings(tokenizer: &Tokenizer, head: &str) -> Vec<(String, String)> {
+    let readings: BTreeSet<(String, String)> = tokenizer
+        .tagger()
+        .get_tags(head)
+        .map(|data| {
+            (
+                data.lemma().as_str().to_owned(),
+                data.pos().as_str().to_owned(),
+            )
+        })
+        .collect();
+    readings.into_iter().collect()
 }
 
 impl Document {
@@ -606,6 +630,7 @@ pub fn analyze_document(tokenizer: &Tokenizer, text: &str, options: &DocumentOpt
         token_details: options.include_token_details,
         skip_names_supplied: !options.skip_names.is_empty(),
         hard_wrapped: options.hard_wrapped,
+        compound_heads: BTreeMap::new(),
     };
     let mut previous_end = 0;
     let mut chapter_start = false;
@@ -677,6 +702,15 @@ pub fn analyze_document(tokenizer: &Tokenizer, text: &str, options: &DocumentOpt
                 let is_skipped = skipped[token_index];
                 if word && !is_skipped {
                     document.word_count += 1;
+                    if options.include_token_details && token.readings.is_empty() {
+                        if let Some(head) = compound_head(&token.text) {
+                            let readings = document.compound_heads.entry(head);
+                            if let std::collections::btree_map::Entry::Vacant(entry) = readings {
+                                let readings = head_readings(tokenizer, entry.key());
+                                entry.insert(readings);
+                            }
+                        }
+                    }
                     for lemma in &indexed_lemmas[token_index] {
                         document
                             .lemma_index
@@ -750,7 +784,9 @@ fn analyze_separators(
                 && text
                     .get(..byte)
                     .unwrap()
-                    .trim_end_matches([' ', '”', '’', '"', '\''])
+                    .trim_end_matches(|ch: char| {
+                        (ch.is_whitespace() && ch != '\u{2028}') || "”’\"'".contains(ch)
+                    })
                     .ends_with(['.', '!', '?', '…']))
             .then_some(byte + ch.len_utf8())
         })
@@ -758,7 +794,7 @@ fn analyze_separators(
     ends.push(text.len());
     let mut result = Vec::new();
     let mut start = 0;
-    for end in ends {
+    for (chunk, end) in ends.into_iter().enumerate() {
         let prefix = text.get(..start).unwrap();
         let base = Span {
             byte: start..start,
@@ -776,15 +812,21 @@ fn analyze_separators(
                 token.span.char = shifted.char;
                 token.span.utf16 = shifted.utf16;
             }
-            result.push(sentence);
+            result.push((chunk, sentence));
         }
         start = end;
     }
     let mut merged: Vec<nlprule::analysis::AnalysisSentence> = Vec::new();
-    for sentence in result {
-        let after_quote = merged
-            .last()
-            .is_some_and(|previous| previous.text.trim_end().ends_with(['”', '’', '"', '\'']));
+    let mut merged_chunks = Vec::new();
+    for (chunk, sentence) in result {
+        let same_chunk = merged_chunks.last() == Some(&chunk);
+        let after_quote = same_chunk
+            && merged.last().is_some_and(|previous| {
+                previous
+                    .text
+                    .trim_end_matches(|ch: char| ch.is_whitespace() && ch != '\u{2028}')
+                    .ends_with(['”', '’', '"', '\''])
+            });
         let possible_tag = after_quote
             && sentence
                 .tokens
@@ -822,6 +864,7 @@ fn analyze_separators(
             previous.tokens.extend(sentence.tokens);
         } else {
             merged.push(sentence);
+            merged_chunks.push(chunk);
         }
     }
     merged
@@ -862,7 +905,7 @@ pub fn dialogue_spans_with_options(text: &str, options: &DocumentOptions) -> Vec
     detect_dialogue(text, &paragraph_spans_mode(text, options.hard_wrapped))
 }
 
-fn leading_elision(after: &str) -> bool {
+pub(crate) fn leading_elision(after: &str) -> bool {
     let word = after
         .chars()
         .take_while(|ch| ch.is_alphanumeric())

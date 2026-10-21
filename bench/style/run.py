@@ -30,7 +30,7 @@ def main():
     one.add_argument('--output', type=Path)
     one.add_argument('--document-probe', type=Path)
     two = sub.add_parser('tier2')
-    two.add_argument('action', choices=['smoke', 'generate', 'score', 'sentences'])
+    two.add_argument('action', choices=['smoke', 'generate', 'score', 'sentences', 'pacing'])
     two.add_argument('--out', type=Path, default=ROOT / 'bench/style/out')
     two.add_argument('--gold', type=Path)
     two.add_argument('--predictions', type=Path)
@@ -48,8 +48,11 @@ def main():
     cliches.add_argument('--out', type=Path, default=ROOT / 'bench/style/out/cliches')
     three = sub.add_parser('tier3', allow_abbrev=False)
     three.add_argument('--self-test', action='store_true')
+    three.add_argument('--pacing', action='store_true')
     three.add_argument('--sentence-length', action='store_true')
     three.add_argument('--flag-rates', action='store_true')
+    three.add_argument('--diction-table', type=Path)
+    three.add_argument('--skip-diction', action='store_true')
     three.add_argument('--probe', type=Path)
     three.add_argument('--document-probe', type=Path)
     three.add_argument('--export', type=Path)
@@ -69,6 +72,10 @@ def main():
             args = parser.parse_args()
     else:
         args = parser.parse_args()
+    if (args.tier == 'tier2' and args.action == 'pacing') or (args.tier == 'tier3' and args.pacing):
+        import pacing
+        pacing.run(args)
+        return
     if args.tier == 'dialogue-tags':
         import dialogue_tags
         dialogue_tags.main(args)

@@ -68,7 +68,8 @@ the bundled file's `baseline` member.
 The bundled files preserve the exact owner-supplied `source` block and all seven calibration
 percentiles under `calibration`. Runtime bands use p5 and p95 separately for all/narration/dialogue;
 reference deltas subtract each measure's author-weighted mean. The calibration uses #270 at `273e7b5`,
-1,559 chapter windows of 2,000–6,000 words from 210 units and 71 author units, with equal author
+1,559 chapter windows (target 2,000–6,000 words: closed after reaching 6,000 or at a scene break
+past 3,000, short tails merged) from 210 units and 71 author units, with equal author
 weights. Eligible length/start samples are 1,515 all, 980 narration and 614 dialogue. Calibration
 predates this PR's segmentation refinements; provenance records that version rather than claiming
 a fresh corpus run. No private corpus was accessed for this integration.
@@ -126,7 +127,8 @@ imperative/fragment guard; nominal main-predicate evidence; remaining UH/unknown
 
 Unambiguous subordinator surfaces are `although because if unless though whereas while when whenever
 whether`, with IN/WRB/CC/DT/WDT/WP/RB evidence. Fixed discourse words are `however
-therefore meanwhile finally indeed instead moreover nevertheless furthermore well yes oh ah ay`;
+therefore meanwhile finally indeed instead moreover nevertheless furthermore well yes oh ah ay
+aye alas hey okay ok yeah yep nope hmm um uh hurrah nay`;
 `no` is introductory before punctuation/end. No phrase rules target labeled nominal time/odds rows. Auxiliary surfaces are `am is are was were do does did
 have has had can could will would shall should may might must`. One `n't`/`n’t` may intervene before
 the inverted subject. Indefinite-pronoun cues are `someone somebody something nobody nothing everyone
@@ -143,10 +145,29 @@ Surface particles/adverbs `still up down out away here there on off back` cannot
 immediately after NNS also supports a plural-subject predicate when chunking misses it. Subject-case
 pronouns additionally accept verb chunks despite tagger ambiguity. Relative/dependent clauses close
 after their first predicate; auxiliary continuations and coordinated relative verbs remain dependent,
-so the next main predicate can establish a subject. Comma/semicolon resets that state; post-comma
+so the next main predicate can establish a subject. Inside a dependent clause, determiner `that` before a
+singular noun does not reopen the dependent state (`The man who wrote that book died`); outside one it still
+opens a complement clause, so `The idea that people lie.` stays other. Comma/semicolon resets that state; post-comma
 subject-pronoun parentheticals and TO-scoped nonfinite verbs are excluded. Nominal/VB-ambiguous openings
 followed by noun/adjective/preposition evidence use the same scan, so `People on the mainland liked…`
-can be subject while `Look at me` remains other.
+can be subject while `Look at me` remains other. This imperative-branch scan stops at `and`, `or`,
+`but` or `nor` followed (after any pure adverbs) by a base-form verb, so a coordinated command (`Look at me and tell me`)
+cannot supply subject evidence while a coordinated noun phrase (`Pictures of John and Mary hung…`,
+`Father Mapple and his wife rose`) still reaches its predicate. An unknown capitalized
+second token also enters the scan, allowing nominal titles (`Father Mapple rose`, `Nurse Ratched came in`).
+POS-only `'s`/`’s` supplies predicate evidence when a word follows it and the following tokens do
+not continue a noun phrase (optionally modified by adjectives/adverbs); `Mom’s asleep` is subject,
+`Mom’s red car` and elliptical possessives (`Dinner at Mom’s.`) are other.
+This evidence respects relative-clause and quote scope.
+
+Listed interjections consistently open introductory, including bare utterances. They are retained
+as the opener rather than skipped before a comma; see the #269 decision in STYLE-REPORTS.md.
+This preserves the adjudicated interjection labels and applies the same convention to the added
+dialogue forms. U+2028 after terminal punctuation (including a closing quote) ends a sentence within
+its paragraph; attribution reattachment cannot cross that explicit boundary, with or without
+whitespace before the separator. A tag after the boundary (`“Where?”` U+2028 `she asked.`) therefore
+counts as its own short subject-led sentence in the start and length reports; the dialogue-tags
+report still attributes it. Without terminal punctuation U+2028 remains internal whitespace.
 
 Quote state matches the opening quote family and tracks nested families. An inner `‘ghost’` does not
 end an outer `“…”` scan; unquoted text can continue after quoted material. A closing outer quote still
@@ -233,7 +254,7 @@ rather than assumed absent or called errors.
 | subordinatingConjunction | 100.00% | 100.00% | 100.00% | 100.00% |
 
 All three injected suites have 100% precision/recall/F1: 43 long spans, 41 monotony runs and 44
-same-word runs, including the 3/1/4 natural-control occurrences respectively. All 94 review regression
+same-word runs, including the 3/1/4 natural-control occurrences respectively. All 149 review regression
 fixtures pass, including nominal past-tense predicates, restrictive relatives, nested quotes,
 NP-subject temporal clauses and preposition-followed imperatives. They were used during fixes and
 are reported separately from the development-label floors; they are not held out.
@@ -251,15 +272,52 @@ This excludes contents, etymology and extracts, but retains the narrative chapte
 contains 120,267 bytes; after exact numbered-heading exclusion it has 190 prose paragraphs and 854 sentences. It is separate from the timing
 workload, which remains the complete unchanged 149,091-byte file.
 
-Stories have **16/622 other (2.57%)**, ceiling **5%**. Narrative-only Moby has **106/854 other
+Stories have **15/622 other (2.41%)**, ceiling **5%**. Narrative-only Moby has **106/854 other
 (12.41%)**, ceiling **16%**, a 3.59 percentage-point margin. Top mutually exclusive narrative other
-surface shapes are 26 remaining verb-tagged openings (including literary/archaic constructions),
-26 vocative/interjection shapes, 16 command-like openers, 10 short fragment shapes, no chapter-number
+surface shapes are 28 remaining verb-tagged openings (including literary/archaic constructions),
+24 vocative/interjection shapes, 16 command-like openers, 10 short fragment shapes, no chapter-number
 headings, 2 article-led starts, 2 punctuation/markup-led starts, and 24 remaining openings. These
 are structural diagnostics, not independently adjudicated grammatical labels. Full counts/shares,
 source modes, paragraph counts and cut provenance are in `sentence-measurements.json`; ceilings are
 in `sentence-floors.json`. The sanity check complements the development F1 floors and makes no
 held-out accuracy claim.
+
+## Sentence-start follow-up (#269)
+
+Public distribution before (origin/main `397a88b`) and after the classifier fixes, using the same
+data and paragraph modes. Each cell is count (percent); totals remain 622 stories / 854 narrative Moby.
+
+| Category | Stories before | Stories after | Moby before | Moby after |
+|---|---:|---:|---:|---:|
+| adverb | 24 (3.86%) | 24 (3.86%) | 89 (10.42%) | 89 (10.42%) |
+| coordinatingConjunction | 26 (4.18%) | 26 (4.18%) | 135 (15.81%) | 135 (15.81%) |
+| gerund | 2 (0.32%) | 2 (0.32%) | 23 (2.69%) | 23 (2.69%) |
+| infinitive | 0 (0.00%) | 0 (0.00%) | 4 (0.47%) | 4 (0.47%) |
+| introductory | 46 (7.40%) | 46 (7.40%) | 125 (14.64%) | 129 (15.11%) |
+| inversion | 0 (0.00%) | 0 (0.00%) | 9 (1.05%) | 9 (1.05%) |
+| other | 16 (2.57%) | 15 (2.41%) | 106 (12.41%) | 103 (12.06%) |
+| pastParticiple | 0 (0.00%) | 0 (0.00%) | 7 (0.82%) | 7 (0.82%) |
+| subject | 500 (80.39%) | 501 (80.55%) | 329 (38.52%) | 328 (38.41%) |
+| subordinatingConjunction | 8 (1.29%) | 8 (1.29%) | 27 (3.16%) | 27 (3.16%) |
+
+Against origin/main, Moby's `Father Mapple rose, and …` moves from other to subject; `Aye,
+shipmates, …` and `Aye, well mightest thou …` move from subject to introductory, and `Hurrah, boys;
+…` and `Nay, to this very hour, …` from other to introductory, under the interjection convention.
+`Wave after wave thus leaps …`, `Savage though he was, …` and `Fill to _this_ mark, and your charge
+is …` stay subject as on origin/main; the last is a known imperative miss. In the stories,
+`“Everyone’s a stray out here,” I said.` moves from other to subject.
+
+All adjudicated per-category F1 values above are unchanged; no floor or ceiling changed. The
+review fixture set now contains 174 cases, each also tested inside curly quotes followed by a U+2028
+boundary and a second sentence with a curly apostrophe, em dash and ellipsis; the test asserts the
+split and classifies both sentences. Additional separator tests cover terminal/unterminated
+sentences, quoted attributions, repeated separators, both paragraph modes and byte/char/UTF-16 spans.
+
+Issue item 6 is closed by #276: each independent method accepts only its own baseline, so there
+is no unselected report baseline to ignore. Item 7’s Swift defaults are also covered by #276:
+typed methods default `optionsJson` to `nil` and `baseline` to `.bundled`; generated raw methods
+default both optional JSON arguments to `nil`. The old combined input records no longer exist.
+Generated bindings need no changes.
 
 ## Report cost
 

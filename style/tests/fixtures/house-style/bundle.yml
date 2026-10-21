@@ -1,0 +1,42 @@
+# Four Vale-format rules in one bundle: each YAML document is one rule file plus its name.
+name: House.Toward
+extends: substitution
+message: "Use '%s' instead of '%s'."
+level: error
+ignorecase: true
+swap:
+  towards: toward
+  afterwards: afterward
+  'e-mail': email
+  "(?:okay|O\\.K\\.)": OK
+---
+name: House.Hedging
+extends: existence
+message: "Consider cutting '%s'."
+link: https://example.com/house-style#hedging
+level: warning
+ignorecase: true
+action:
+  name: remove
+tokens:
+  - a bit
+  - sort of
+  - kind of
+  - somewhat
+---
+name: House.Adviser
+extends: consistency
+message: "Inconsistent spelling of '%s'."
+level: suggestion
+ignorecase: true
+either:
+  adviser: advisor
+  grey: gray
+---
+name: House.Commas
+extends: occurrence
+message: "More than three commas in one sentence."
+scope: sentence
+level: suggestion
+max: 3
+token: ','

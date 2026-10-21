@@ -15,10 +15,81 @@ use writemorebetter_style::reports::echoes::{report as echoes, EchoOptions};
 use writemorebetter_style::reports::repeated_phrases::{
     report as repeated_phrases, RepeatedPhraseOptions as PhraseOptions,
 };
-use writemorebetter_style::reports::{sentence_length, sentence_starts};
+use writemorebetter_style::reports::{
+    diction, overused_words, passive, pronoun_starts, sensory_balance, sentence_length,
+    sentence_starts, transitions, Split,
+};
 use writemorebetter_style::{analyze_document, DocumentOptions, Mode};
 
 const ECHO_BANDS: [(usize, &str); 4] = [(5, "1_5"), (10, "6_10"), (25, "11_25"), (50, "26_50")];
+const PRONOUNS: [&str; 7] = ["i", "you", "he", "she", "it", "we", "they"];
+const OVERUSED_RATIOS: [f64; 5] = [3.0, 4.0, 5.0, 6.0, 8.0];
+const REPEAT_WINDOWS: [usize; 4] = [2, 3, 4, 5];
+
+fn split<T>(groups: &Split<T>, value: impl Fn(&T) -> Value) -> Value {
+    json!({
+        "all": value(&groups.all),
+        "narration": value(&groups.narration),
+        "dialogue": value(&groups.dialogue),
+    })
+}
+
+fn by_mode(modes: impl Iterator<Item = Mode>) -> Value {
+    let (mut narration, mut dialogue) = (0, 0);
+    for mode in modes {
+        match mode {
+            Mode::Dialogue => dialogue += 1,
+            _ => narration += 1,
+        }
+    }
+    json!({"all": narration + dialogue, "narration": narration, "dialogue": dialogue})
+}
+
+fn transitions_group(group: &transitions::TransitionsGroup) -> Value {
+    let types: BTreeMap<String, Value> = group
+        .types
+        .iter()
+        .map(|share| {
+            (
+                name(share.kind),
+                json!({"containing": share.containing.count, "opening": share.opening.count}),
+            )
+        })
+        .collect();
+    json!({
+        "sentences": group.sentences,
+        "containing": group.containing.count,
+        "opening": group.opening.count,
+        "types": types,
+    })
+}
+
+fn pronoun_group(group: &pronoun_starts::PronounStartsGroup) -> Value {
+    let mut pronouns: BTreeMap<&str, usize> = PRONOUNS.iter().map(|p| (*p, 0)).collect();
+    let mut other = 0;
+    for share in &group.pronouns {
+        match pronouns.get_mut(share.pronoun.as_str()) {
+            Some(count) => *count += share.share.count,
+            None => other += share.share.count,
+        }
+    }
+    json!({
+        "sentences": group.sentences - group.excluded_sentences,
+        "pronoun_starts": group.pronoun_starts.count,
+        "pronouns": pronouns,
+        "other": other,
+        "runs": group.runs.len(),
+    })
+}
+
+fn sensory_group(group: &sensory_balance::SensoryGroup) -> Value {
+    let modalities: BTreeMap<String, usize> = group
+        .modalities
+        .iter()
+        .map(|share| (name(share.modality), share.count))
+        .collect();
+    json!({"words": group.words, "sense_words": group.sense_words, "modalities": modalities})
+}
 
 fn name<T: serde::Serialize>(value: T) -> String {
     serde_json::to_value(value)
@@ -133,6 +204,12 @@ fn vocabulary(tokenizer: &nlprule::Tokenizer) -> Value {
             "phrase_min_content_words": phrase_options.minimum_content_words,
             "max_untagged_exchanges": tag_options.max_untagged_exchanges,
             "dialogue_tag_min_tags": tag_options.minimum_tags,
+            "transitions_minimum_sentences": transitions::TransitionsOptions::new().minimum_sentences,
+            "transitions_repeat_window": transitions::TransitionsOptions::new().repeat_window,
+            "pronoun_starts_minimum_sentences": pronoun_starts::PronounStartsOptions::new().minimum_sentences,
+            "passive_minimum_sentences": passive::PassiveOptions::new().minimum_sentences,
+            "sensory_minimum_sense_words": sensory_balance::SensoryBalanceOptions::new().minimum_sense_words,
+            "overused_minimum_ratio": overused_words::OverusedWordsOptions::new().minimum_ratio,
         },
         "cliche_entries": entries,
         "cliche_sources": sources,
@@ -152,17 +229,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             writeln!(output)?;
             return Ok(());
         }
-        [tokenizer, length, starts] => (
+        [tokenizer, length, starts, _table] => (
             nlprule::Tokenizer::new(tokenizer)?,
             baseline::<sentence_length::SentenceLengthBaseline>(length)?,
             baseline::<sentence_starts::SentenceStartsBaseline>(starts)?,
         ),
         _ => {
             return Err(
-                "usage: flag_rates TOKENIZER LENGTH_BASELINE STARTS_BASELINE < texts.jsonl | flag_rates --vocabulary TOKENIZER"
+                "usage: flag_rates TOKENIZER LENGTH_BASELINE STARTS_BASELINE DICTION_TABLE < texts.jsonl | flag_rates --vocabulary TOKENIZER"
                     .into(),
             )
         }
+    };
+    let diction_table = match args[3].as_str() {
+        "-" => None,
+        path => Some(diction::ConcretenessTable::parse(
+            &std::fs::read_to_string(path)?,
+        )?),
     };
     let phrase_list = PhraseList::bundled(&tokenizer);
     let speech: Vec<&str> = speech_verbs().collect();
@@ -197,6 +280,62 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         lap("cliches", &mut timing);
         let tag_report = dialogue_tags(&document, &DialogueTagOptions::new(), None)?;
         lap("dialogue_tags", &mut timing);
+        let overused = overused_words::report(
+            &document,
+            &overused_words::OverusedWordsOptions::new(),
+            overused_words::OverusedWordsBaseline::bundled(),
+        )?;
+        lap("overused_words", &mut timing);
+        let sensory = sensory_balance::report(
+            &document,
+            sensory_balance::PerceptualNorms::bundled(),
+            &sensory_balance::SensoryBalanceOptions::new(),
+        )?;
+        lap("sensory_balance", &mut timing);
+        let diction = diction_table
+            .as_ref()
+            .map(|table| diction::report(&document, table, &diction::DictionOptions::new()))
+            .transpose()?;
+        lap("diction", &mut timing);
+        let transition_report =
+            transitions::report(&document, &transitions::TransitionsOptions::new())?;
+        let repeat_sweep: BTreeMap<String, Value> = REPEAT_WINDOWS
+            .iter()
+            .map(|&window| {
+                let options = transitions::TransitionsOptions::new().with_repeat_window(window);
+                transitions::report(&document, &options).map(|report| {
+                    (
+                        window.to_string(),
+                        by_mode(report.repeats.iter().map(|repeat| repeat.mode)),
+                    )
+                })
+            })
+            .collect::<Result<_, _>>()?;
+        lap("transitions", &mut timing);
+        let pronoun_report =
+            pronoun_starts::report(&document, &pronoun_starts::PronounStartsOptions::new())?;
+        lap("pronoun_starts", &mut timing);
+        let passive_report = passive::report(&document, &passive::PassiveOptions::new(), None)?;
+        lap("passive", &mut timing);
+        let ratio_sweep: BTreeMap<String, Value> = OVERUSED_RATIOS
+            .iter()
+            .map(|&ratio| {
+                overused_words::report(
+                    &document,
+                    &overused_words::OverusedWordsOptions::new().with_minimum_ratio(ratio),
+                    overused_words::OverusedWordsBaseline::bundled(),
+                )
+                .map(|report| (format!("{ratio}"), json!(report.overused.len())))
+            })
+            .collect::<Result<_, _>>()?;
+        lap("overused_sweep", &mut timing);
+        let modalities: BTreeMap<String, usize> = sensory
+            .groups
+            .all
+            .modalities
+            .iter()
+            .map(|share| (name(share.modality), share.count))
+            .collect();
 
         let mut bands: BTreeMap<&str, usize> = ECHO_BANDS.iter().map(|(_, n)| (*n, 0)).collect();
         let mut forms: BTreeMap<&str, usize> =
@@ -266,66 +405,100 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
 
-        serde_json::to_writer(
-            &mut output,
-            &json!({
-                "words": document.word_count,
-                "timing_ms": timing,
+        let mut row = json!({
+            "words": document.word_count,
+            "timing_ms": timing,
+            "overused_words": {
+                "overused": overused.overused.len(),
+                "occurrences": overused.overused.iter().map(|word| word.count).sum::<usize>(),
+                "fillers": overused.fillers.iter().map(|word| word.count).sum::<usize>(),
+            },
+            "overused_ratio_sweep": ratio_sweep,
+            "sensory_balance": {
+                "sense_words": sensory.sense_words.len(),
+                "modalities": modalities,
+                "groups": split(&sensory.groups, sensory_group),
+            },
+            "diction": diction.map(|diction| json!({
+                "abstract_sentences": diction.groups.all.abstract_sentences,
+                "abstract_runs": diction.abstract_runs.len(),
+                "rated_words": diction.groups.all.rated_words,
+                "rating_sum": diction.groups.all.mean.unwrap_or(0.0) * diction.groups.all.rated_words as f64,
+            })),
+            "transitions": {
+                "groups": split(&transition_report.groups, transitions_group),
+                "repeats": by_mode(transition_report.repeats.iter().map(|repeat| repeat.mode)),
+                "repeat_window": repeat_sweep,
+            },
+            "passive": {
+                "groups": split(&passive_report.groups, |group| json!({
+                    "sentences": group.sentences,
+                    "passives": group.passives,
+                })),
+                "passives": by_mode(passive_report.passives.iter().map(|found| found.mode)),
+            },
+            "pronoun_starts": {
+                "groups": split(&pronoun_report.groups, pronoun_group),
+                "runs": by_mode(pronoun_report.groups.all.runs.iter().map(|run| run.mode)),
+            },
+            "sentence_length": {
+                "all": length_group(&length.groups.all),
+                "narration": length_group(&length.groups.narration),
+                "dialogue": length_group(&length.groups.dialogue),
+            },
+            "sentence_starts": {
+                "all": starts_group(&starts.groups.all),
+                "narration": starts_group(&starts.groups.narration),
+                "dialogue": starts_group(&starts.groups.dialogue),
+            },
+            "echoes": {
+                "echoes": echo_report.echoes.len(),
+                "distance": bands,
+                "form": forms,
+            },
+            "repeated_phrases": {
+                "phrases": phrase_report.phrases.len(),
+                "occurrences": phrase_report.phrases.iter().map(|p| p.count).sum::<usize>(),
+                "length": lengths,
+            },
+            "cliches": {
+                "matches": cliche_report.matches.len(),
+                "narration_words": cliche_report.groups.narration.words,
+                "dialogue_words": cliche_report.groups.dialogue.words,
+                "kind": kinds,
+                "source": sources,
+                "entry": entries,
+            },
+            "dialogue_tags": {
+                "tags": tag_report.tags.len(),
+                "said_asked": tag_report.said_asked.count,
+                "other_speech_verb": other_speech,
+                "non_speech_verb": tag_report.non_speech.count,
+                "manner_adverb": tag_report.with_adverb.count,
+                "unlisted_verb": unlisted,
+                "untagged_run": tag_report.untagged_runs.len(),
+                "beats": tag_report.beats.len(),
+                "speech_spans": tag_report.speech_spans,
+                "exchanges": tag_report.exchanges,
+                "verb": verbs,
+            },
+            "unit_report": {
                 "sentence_length": {
-                    "all": length_group(&length.groups.all),
-                    "narration": length_group(&length.groups.narration),
-                    "dialogue": length_group(&length.groups.dialogue),
+                    "all": length_unit(&length.groups.all),
+                    "narration": length_unit(&length.groups.narration),
+                    "dialogue": length_unit(&length.groups.dialogue),
                 },
                 "sentence_starts": {
-                    "all": starts_group(&starts.groups.all),
-                    "narration": starts_group(&starts.groups.narration),
-                    "dialogue": starts_group(&starts.groups.dialogue),
+                    "all": starts_unit(&starts.groups.all),
+                    "narration": starts_unit(&starts.groups.narration),
+                    "dialogue": starts_unit(&starts.groups.dialogue),
                 },
-                "echoes": {
-                    "echoes": echo_report.echoes.len(),
-                    "distance": bands,
-                    "form": forms,
-                },
-                "repeated_phrases": {
-                    "phrases": phrase_report.phrases.len(),
-                    "occurrences": phrase_report.phrases.iter().map(|p| p.count).sum::<usize>(),
-                    "length": lengths,
-                },
-                "cliches": {
-                    "matches": cliche_report.matches.len(),
-                    "narration_words": cliche_report.groups.narration.words,
-                    "dialogue_words": cliche_report.groups.dialogue.words,
-                    "kind": kinds,
-                    "source": sources,
-                    "entry": entries,
-                },
-                "dialogue_tags": {
-                    "tags": tag_report.tags.len(),
-                    "said_asked": tag_report.said_asked.count,
-                    "other_speech_verb": other_speech,
-                    "non_speech_verb": tag_report.non_speech.count,
-                    "manner_adverb": tag_report.with_adverb.count,
-                    "unlisted_verb": unlisted,
-                    "untagged_run": tag_report.untagged_runs.len(),
-                    "beats": tag_report.beats.len(),
-                    "speech_spans": tag_report.speech_spans,
-                    "exchanges": tag_report.exchanges,
-                    "verb": verbs,
-                },
-                "unit_report": {
-                    "sentence_length": {
-                        "all": length_unit(&length.groups.all),
-                        "narration": length_unit(&length.groups.narration),
-                        "dialogue": length_unit(&length.groups.dialogue),
-                    },
-                    "sentence_starts": {
-                        "all": starts_unit(&starts.groups.all),
-                        "narration": starts_unit(&starts.groups.narration),
-                        "dialogue": starts_unit(&starts.groups.dialogue),
-                    },
-                },
-            }),
-        )?;
+            },
+        });
+        if row["diction"].is_null() {
+            row.as_object_mut().map(|row| row.remove("diction"));
+        }
+        serde_json::to_writer(&mut output, &row)?;
         writeln!(output)?;
         output.flush()?;
     }

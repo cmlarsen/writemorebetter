@@ -1,0 +1,27 @@
+{
+  "format": 1,
+  "name": "ap",
+  "version": "1.1.0",
+  "extends": "chicago-fiction",
+  "description": "US news conventions, modeled on the AP Stylebook as we understand common practice, over the Chicago fiction preset. Not affiliated with or endorsed by the Associated Press.",
+  "grammar": {
+    "rules": {
+      "STYLE/SERIAL_COMMA_ON": null,
+      "STYLE/SERIAL_COMMA_OFF": true
+    }
+  },
+  "consistency": {
+    "preferred": {
+      "dashes": "emSpaced"
+    }
+  },
+  "checks": {
+    "numbers": {
+      "spellOutThrough": 9,
+      "agesAsNumerals": true,
+      "matchLarger": false
+    },
+    "possessives": "apostropheOnly"
+  },
+  "titleCase": "ap"
+}

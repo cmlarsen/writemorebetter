@@ -1,0 +1,97 @@
+import json
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+import unittest
+
+import pacing
+
+
+class FakeProbe:
+    def report(self, text, sweep=None):
+        dialogue = text.startswith('“')
+        slow = 'remembered' in text
+        signals = dict(zip(pacing.SIGNALS,
+                           [100.0 if dialogue else 0.0, 10.0, 50.0 if slow else 0.0, 40.0 if slow else 0.0]))
+        signals['words'] = {'all': 10}
+        report = {'words': {'all': 10}, 'slowRuns': [{'paragraphs': {'start': 0, 'end': 1}}] if slow else [],
+                  'paragraphs': [{'signals': signals, 'hasSpeech': dialogue,
+                                  'triggeredSignals': ['pastPerfect', 'cognition'] if slow else []}]}
+        swept = [{'runs': int(slow and options['minimumPastPerfectPercent'] <= 20), 'runParagraphs': int(slow)}
+                 for options in sweep or []]
+        return {'report': report, 'sweep': swept}
+
+
+class PacingTests(unittest.TestCase):
+    def test_author_pooling_and_no_metadata(self):
+        with tempfile.TemporaryDirectory() as directory:
+            export = Path(directory)
+            (export / 'units').mkdir()
+            rows = []
+            for unit, author, text in [('a1', 'SECRET_A', 'remembered'), ('a2', 'SECRET_A', 'action'),
+                                       ('b1', 'SECRET_B', 'action')]:
+                rows.append({'unit_id': unit, 'author_key': author, 'title': 'SECRET_TITLE'})
+                (export / 'units' / (unit + '.txt')).write_text(text)
+            (export / 'units.jsonl').write_text('\n'.join(json.dumps(r) for r in rows))
+            result = pacing.calibrate(FakeProbe(), export)
+            self.assertEqual(result['authors'], 2)
+            self.assertEqual(result['authorMeanSignals']['pastPerfectPercent']['mean'], 12.5)
+            self.assertEqual(result['authorFlagRates']['runParagraphPercent']['mean'], 25)
+            self.assertEqual(result['authorsWithRunsPercent'], 50)
+            self.assertEqual(result['chapter']['flaggedShare'], 0.25)
+            self.assertEqual(result['chapter']['samples'], 3)
+            self.assertEqual(result['sweep']['18']['20']['20']['chapter']['flaggedShare'], 0.25)
+            self.assertEqual(result['sweep']['18']['25']['20']['chapter']['flaggedShare'], 0)
+            self.assertEqual(result['sweep']['18']['20']['20']['authorsWithRunsPercent'], 50)
+            self.assertEqual(result['twoSignalParagraphShare'], 0.25)
+            self.assertEqual(result['eligibleParagraphSignals']['pastPerfectPercent']['mean'], 12.5)
+            self.assertNotIn('words', json.dumps(result))
+            self.assertNotIn('SECRET', json.dumps(result))
+            self.assertTrue(pacing.aggregate_only(result))
+            rows[0]['unit_id'] = '../escape'
+            (export / 'units.jsonl').write_text(json.dumps(rows[0]))
+            with self.assertRaises(ValueError):
+                pacing.calibrate(FakeProbe(), export)
+
+    def test_public_drift_names_texts_whose_runs_or_two_signal_rows_moved(self):
+        recorded = [{'source': 'a', 'runs': 1, 'twoSignalParagraphs': 8, 'words': 10},
+                    {'source': 'b', 'runs': 0, 'twoSignalParagraphs': 3, 'words': 10}]
+        same = [{**row, 'words': 11} for row in recorded]
+        self.assertEqual(pacing.public_drift(same, recorded), [])
+        self.assertEqual(pacing.public_drift([recorded[0], {**recorded[1], 'runs': 1}], recorded), ['b'])
+        self.assertEqual(pacing.public_drift([{**recorded[0], 'twoSignalParagraphs': 7}, recorded[1]], recorded),
+                         ['a'])
+        self.assertEqual(pacing.public_drift(recorded[:1], recorded), ['b'])
+
+    def test_output_key_allowlist(self):
+        self.assertTrue(pacing.aggregate_only({'authors': 2, 'paragraphSignals': {'mean': None}}))
+        self.assertFalse(pacing.aggregate_only({'authorFlagRates': [{'runsPerThousandWords': 1.0}]}))
+        self.assertFalse(pacing.aggregate_only({'PRIVATE_SENTINEL': 3}))
+        self.assertFalse(pacing.aggregate_only({'words': 'PRIVATE_SENTINEL'}))
+        self.assertTrue(pacing.aggregate_only({'sweep': {'18': {'20': {'20': {'flaggedShare': 0.5}}}}}))
+        self.assertFalse(pacing.aggregate_only({'sweep': {'18': {'PRIVATE_SENTINEL': 1}}}))
+        self.assertFalse(pacing.aggregate_only({'sweep': {'19': {'20': {'20': {'flaggedShare': 0.5}}}}}))
+        self.assertFalse(pacing.aggregate_only({'sweep': {'18': {'20': {'20': {'7': 0.5}}}}}))
+        self.assertFalse(pacing.aggregate_only({'authors': {'2026': 1}}))
+        self.assertTrue(pacing.aggregate_only({'chapter': {'runsPerThousandWords': {'percentiles': {'90': 1.0}}}}))
+
+    def test_private_errors_are_suppressed(self):
+        command = [sys.executable, str(pacing.ROOT / 'bench/style/run.py')]
+        for args in [('tier3', '--pacing', '--export', 'PRIVATE_SENTINEL', '--typo'),
+                     ('tier3', '--pacing', '--probe', 'PRIVATE_SENTINEL', '--self-test')]:
+            result = subprocess.run(command + list(args), capture_output=True, text=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(result.stdout, '')
+            self.assertEqual(result.stderr.strip(), 'calibration failed; details suppressed to protect source metadata')
+
+    def test_injections_have_utf8_aligned_gold(self):
+        for _, text, _, spans in pacing.cases():
+            for span in spans:
+                raw = text.encode('utf-8')[span['byte']['start']:span['byte']['end']].decode('utf-8')
+                units = text.encode('utf-16-le')[2 * span['utf16']['start']:2 * span['utf16']['end']].decode('utf-16-le')
+                self.assertEqual(raw, units)
+
+
+if __name__ == '__main__':
+    unittest.main()

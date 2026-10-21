@@ -21,6 +21,7 @@ struct Reports {
     dialogue_tags: Option<dialogue_tags::DialogueTagReport>,
     sentence_length: Option<sentence_length::SentenceLengthReport>,
     sentence_starts: Option<sentence_starts::SentenceStartsReport>,
+    overused_words: Option<overused_words::OverusedWordsReport>,
 }
 
 fn collect_reports(document: &Document) -> Reports {
@@ -53,6 +54,17 @@ fn collect_reports(document: &Document) -> Reports {
         dialogue_tags: Some(dialogue_tags::report(document, &Default::default(), None).unwrap()),
         sentence_length: Some(length),
         sentence_starts: Some(starts),
+        overused_words: Some(
+            overused_words::report(
+                document,
+                &overused_words::OverusedWordsOptions::new()
+                    .with_minimum_count(1)
+                    .with_minimum_ratio(1.0)
+                    .with_include_nouns(true),
+                overused_words::OverusedWordsBaseline::bundled(),
+            )
+            .unwrap(),
+        ),
     }
 }
 
@@ -179,6 +191,20 @@ fn check(name: &str, text: &str, document: &Document, reports: &Reports) {
 
     let echoes = reports.echoes.as_ref().unwrap();
     assert_eq!(echoes.words, words.all, "{name}: echoes");
+    let overused = reports.overused_words.as_ref().unwrap();
+    assert_eq!(overused.words, words.all, "{name}: overused words");
+    let counted: Vec<_> = document.words().map(|token| &token.span).collect();
+    for span in overused
+        .overused
+        .iter()
+        .flat_map(|word| &word.spans)
+        .chain(overused.fillers.iter().flat_map(|filler| &filler.spans))
+    {
+        assert!(
+            counted.contains(&span),
+            "{name}: overused span is a counted word"
+        );
+    }
     let cliches = reports.cliches.as_ref().unwrap();
     assert_eq!(cliches.groups.all.words, words.all, "{name}: cliches");
     assert_eq!(
@@ -328,6 +354,10 @@ fn reports_agree_on_words_sentences_and_dialogue() {
                     echoes::report(&compact, &Default::default()),
                     Err(StyleError::NeedsTokenDetails { .. })
                 ));
+                assert!(matches!(
+                    overused_words::report(&compact, &Default::default(), None),
+                    Err(StyleError::NeedsTokenDetails { .. })
+                ));
                 assert_eq!(
                     sentence_length::report(&compact, &Default::default(), None).unwrap(),
                     sentence_length::report(&document, &Default::default(), None).unwrap()
@@ -423,6 +453,15 @@ fn retained_documents_match_separate_analyses_and_validate_calls() {
             shared.sentence_starts(None, None),
             build().sentence_starts(None, None)
         );
+        assert_eq!(shared.sensory_balance(None), build().sensory_balance(None));
+        let sensory = shared.sensory_balance(None).unwrap();
+        assert_eq!(sensory.words, shared.stats().words);
+        assert_eq!(sensory.groups.all.words, sensory.words.all);
+        let table = Some(r#"{"lamp": 4.8, "idea": 1.6}"#);
+        assert_eq!(shared.diction(None, table), build().diction(None, table));
+        let diction = shared.diction(None, table).unwrap();
+        assert_eq!(diction.words, shared.stats().words);
+        assert_eq!(diction.sentences.len(), shared.stats().sentences.all);
     }
     let shared = StyleDocument::new(
         tokenizer.clone(),
@@ -508,4 +547,16 @@ fn retained_documents_match_separate_analyses_and_validate_calls() {
     assert!(compact.repeated_phrases(None).is_err());
     assert!(compact.dialogue_tags(None, None).is_err());
     assert!(compact.sentence_starts(None, None).is_err());
+    assert!(matches!(
+        compact.sensory_balance(None),
+        Err(StyleError::NeedsTokenDetails { .. })
+    ));
+    assert!(matches!(
+        compact.diction(None, Some(r#"{"lamp": 4.8}"#)),
+        Err(StyleError::NeedsTokenDetails { .. })
+    ));
+    assert!(matches!(
+        compact.diction(None, None),
+        Err(StyleError::NeedsTokenDetails { .. })
+    ));
 }

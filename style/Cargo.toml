@@ -1,14 +1,17 @@
 [package]
 name = "writemorebetter-style"
-version = "0.9.0"
+version = "0.11.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
-description = "Whole-document analysis for fiction style reports"
+description = "Whole-document analysis for fiction style reports. Bundles third-party data under its own licenses (CMUdict, CC BY word norms); see NOTICE."
 
 [dependencies]
 nlprule = { path = "../nlprule", default-features = false }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+regex = "1"
+regex-syntax = "0.8"
+saphyr-parser = "0.2"
 
 [features]
 default = ["regex-onig"]

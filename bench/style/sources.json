@@ -86,5 +86,85 @@
     "license": "CC0 1.0",
     "sha256": "033f5eabe354e1168583358036761614ceb586e2169077f3603ca6b9a4ac8aaf",
     "license_url": "https://standardebooks.org/about/standard-ebooks-and-the-public-domain"
+  },
+  "quoteli3_pp_full": {
+    "filename": "quoteli3-pp_full.xml",
+    "url": "https://downloads.cs.stanford.edu/nlp/data/quoteattribution/pp_full.xml",
+    "version": "Last-Modified 2017-03-18T19:05:19Z",
+    "license": "none found; owner decision 2026-10-16: local/CI benchmarking only, never committed or redistributed",
+    "sha256": "d4f0c83d73085d02db6db938eb3e2371d4b082d4a8194345e3e527c9a0959a4f",
+    "license_url": "https://github.com/cmlarsen/writemorebetter/blob/main/docs/STYLE-DATA-LICENSES.md#quoteli3-256"
+  },
+  "quoteli3_pp_test": {
+    "filename": "quoteli3-pp_test.xml",
+    "url": "https://nlp.stanford.edu/~muzny/data/pp_test.xml",
+    "version": "Last-Modified 2021-04-27T21:09:12Z",
+    "license": "none found; owner decision 2026-10-16: local/CI benchmarking only, never committed or redistributed",
+    "sha256": "55056da60b81fa35d0b42214451d106248d36d14aa8fd92547fdc49d192590bf",
+    "license_url": "https://github.com/cmlarsen/writemorebetter/blob/main/docs/STYLE-DATA-LICENSES.md#quoteli3-256"
+  },
+  "thirty_nine_steps": {
+    "filename": "thirty_nine_steps.tar.gz",
+    "url": "https://codeload.github.com/standardebooks/john-buchan_the-thirty-nine-steps/tar.gz/38479284b92d570170f80c6e5e12572d691a5be0",
+    "version": "38479284b92d570170f80c6e5e12572d691a5be0",
+    "license": "CC0 1.0",
+    "sha256": "12640ab986b558f3bdd7b87adc9c2efc7d8810b6ef02be08e89d7b74f2016fd8",
+    "license_url": "https://standardebooks.org/about/standard-ebooks-and-the-public-domain"
+  },
+  "hound": {
+    "filename": "hound.tar.gz",
+    "url": "https://codeload.github.com/standardebooks/arthur-conan-doyle_the-hound-of-the-baskervilles/tar.gz/ba4c5526160e94e95d588ac5e84f8fae62d940ae",
+    "version": "ba4c5526160e94e95d588ac5e84f8fae62d940ae",
+    "license": "CC0 1.0",
+    "sha256": "537aaa922ac7bf7ad109ab6f20bc858ac973f54b3e0226b796a427f46fc4c267",
+    "license_url": "https://standardebooks.org/about/standard-ebooks-and-the-public-domain"
+  },
+  "age_of_innocence": {
+    "filename": "age_of_innocence.tar.gz",
+    "url": "https://codeload.github.com/standardebooks/edith-wharton_the-age-of-innocence/tar.gz/c8acc54bcdaf3a266cf37695c79a9927ccde26ee",
+    "version": "c8acc54bcdaf3a266cf37695c79a9927ccde26ee",
+    "license": "CC0 1.0",
+    "sha256": "e374e2a9c9b69b52c310046fc32d58129e3bdbcbbc6f8c8e4b4b861a4fd010e4",
+    "license_url": "https://standardebooks.org/about/standard-ebooks-and-the-public-domain"
+  },
+  "silas_marner": {
+    "filename": "silas_marner.tar.gz",
+    "url": "https://codeload.github.com/standardebooks/george-eliot_silas-marner/tar.gz/5e4a668b8ccfd6706cc3cfbfbed0a97d5e95fa7d",
+    "version": "5e4a668b8ccfd6706cc3cfbfbed0a97d5e95fa7d",
+    "license": "CC0 1.0",
+    "sha256": "d4b2ff94f0cfdbb33c746e40055e3244e49a0a03ab9626ac2601e30f6307db76",
+    "license_url": "https://standardebooks.org/about/standard-ebooks-and-the-public-domain"
+  },
+  "treasure_island": {
+    "filename": "treasure_island.tar.gz",
+    "url": "https://codeload.github.com/standardebooks/robert-louis-stevenson_treasure-island/tar.gz/c7fd6b42e8e856a49781be45d71a9aa18819f3b8",
+    "version": "c7fd6b42e8e856a49781be45d71a9aa18819f3b8",
+    "license": "CC0 1.0",
+    "sha256": "89af14791dc19ac7603bfe9aed53a6e217fdf8835b4dbeddcd2c29002439302f",
+    "license_url": "https://standardebooks.org/about/standard-ebooks-and-the-public-domain"
+  },
+  "glasgow": {
+    "filename": "GlasgowNorms.xlsx",
+    "url": "https://osf.io/download/ud367/",
+    "version": "OSF 42s65 file ud367 (the 2017 preprint release of Scott et al. 2019)",
+    "license": "CC BY 4.0",
+    "sha256": "9e3295f4c804289fdd5fa36f2c5fe415826bef3d839702deedd51641b3ff9a39",
+    "license_url": "https://osf.io/42s65/"
+  },
+  "lancaster": {
+    "filename": "Lancaster_sensorimotor_norms_for_39707_words.csv",
+    "url": "https://osf.io/download/48wsc/",
+    "version": "39,707-word aggregate release (Lynott et al. 2020)",
+    "license": "CC BY 4.0",
+    "sha256": "445d363fb1f9f3e50b86d88e2f46cdc9a22b5dd8a713ce4e7be2a773d57f43c5",
+    "license_url": "https://osf.io/7emr6/"
+  },
+  "wordnet": {
+    "filename": "WNdb-3.0.tar.gz",
+    "url": "https://wordnetcode.princeton.edu/3.0/WNdb-3.0.tar.gz",
+    "version": "Princeton WordNet 3.0 database files",
+    "license": "WordNet 3.0 license (commercial use permitted with notice)",
+    "sha256": "658b1ba191f5f98c2e9bae3e25c186013158f30ef779f191d2a44e5d25046dc8",
+    "license_url": "https://wordnet.princeton.edu/license-and-commercial-use"
   }
 }

@@ -13,6 +13,10 @@ pub enum StyleError {
     InvalidOptions { message: String },
     InvalidBaseline { report: String, message: String },
     NeedsTokenDetails { report: String },
+    MissingTable { report: String },
+    InvalidTable { report: String, message: String },
+    InvalidRules { report: String, message: String },
+    InvalidPreset { message: String },
 }
 
 impl StyleError {
@@ -25,6 +29,30 @@ impl StyleError {
     pub(crate) fn baseline(report: &str, message: impl fmt::Display) -> Self {
         Self::InvalidBaseline {
             report: report.to_owned(),
+            message: message.to_string(),
+        }
+    }
+
+    pub(crate) fn table(report: &str, message: impl fmt::Display) -> Self {
+        Self::InvalidTable {
+            report: report.to_owned(),
+            message: message.to_string(),
+        }
+    }
+
+    // The message names the failing rule when there is one.
+    pub(crate) fn rules(report: &str, rule: Option<&str>, message: impl fmt::Display) -> Self {
+        Self::InvalidRules {
+            report: report.to_owned(),
+            message: match rule {
+                Some(rule) => format!("rule {rule}: {message}"),
+                None => message.to_string(),
+            },
+        }
+    }
+
+    pub(crate) fn preset(message: impl fmt::Display) -> Self {
+        Self::InvalidPreset {
             message: message.to_string(),
         }
     }
@@ -47,6 +75,17 @@ impl fmt::Display for StyleError {
                 f,
                 "{report} needs token readings; analyze the document with include_token_details"
             ),
+            Self::MissingTable { report } => write!(
+                f,
+                "{report} needs a caller-supplied word table (a JSON object or TSV of word and rating); none was given"
+            ),
+            Self::InvalidTable { report, message } => {
+                write!(f, "invalid {report} table: {message}")
+            }
+            Self::InvalidRules { report, message } => {
+                write!(f, "invalid {report} rules: {message}")
+            }
+            Self::InvalidPreset { message } => write!(f, "invalid style preset: {message}"),
         }
     }
 }

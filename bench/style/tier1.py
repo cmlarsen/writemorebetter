@@ -2,6 +2,7 @@ from collections import Counter
 import json
 import re
 import tarfile
+from xml.etree import ElementTree
 
 from common import DocumentProbe, HERE, fetch, offsets, prf
 from tier2 import score
@@ -264,9 +265,85 @@ def score_litbank(split, document_probe=None):
     return {'documents': len(splits), **result['patterns']['dialogue']}
 
 
+def quoteli3_chapters(path):
+    parts, quotes, length = [], [], 0
+
+    def walk(element):
+        nonlocal length
+        start = length
+        if element.text:
+            parts.append(element.text)
+            length += len(element.text)
+        for child in element:
+            walk(child)
+            if child.tail:
+                parts.append(child.tail)
+                length += len(child.tail)
+        if element.tag == 'quote':
+            quotes.append((start, length))
+
+    walk(ElementTree.parse(path).getroot().find('text'))
+    text = ''.join(parts)
+    headings = list(re.finditer(r'CHAPTER [IVXLC]+ \((\d+)\)', text))
+    if not headings or any(start < headings[0].start() for start, _ in quotes):
+        raise ValueError('QuoteLi3 quote outside a chapter')
+    chapters = {}
+    for heading, following in zip(headings, headings[1:] + [None]):
+        start, end = heading.start(), following.start() if following else len(text)
+        spans = [(a - start, b - start) for a, b in quotes if start <= a < end]
+        if any(b > end - start for _, b in spans):
+            raise ValueError('QuoteLi3 quote crosses a chapter')
+        chapters['pp-%02d' % int(heading.group(1))] = (text[start:end], spans)
+    if len(chapters) != len(headings):
+        raise ValueError('duplicate QuoteLi3 chapter')
+    return chapters
+
+
+def score_quoteli3(split, document_probe=None):
+    splits = json.loads((HERE / 'splits.json').read_text())['quoteli3'][split]
+    chapters = {}
+    for key in ('quoteli3_pp_full', 'quoteli3_pp_test'):
+        parsed = quoteli3_chapters(fetch(key))
+        if chapters.keys() & parsed.keys():
+            raise ValueError('duplicate QuoteLi3 chapter')
+        chapters.update(parsed)
+    documents, gold_records = [], []
+    for chapter in splits:
+        text, spans = chapters[chapter]
+        documents.append({'file': chapter, 'text': text})
+        gold_records.extend({'file': chapter, **offsets(text, start, end), 'pattern': 'dialogue'}
+                            for start, end in spans)
+    predictions = (document_probe or DocumentProbe()).dialogue(documents)
+    if any(row.get('pattern') != 'dialogue' for row in predictions):
+        raise ValueError('unexpected document probe pattern')
+    result = score(gold_records, predictions, set(splits), pattern='dialogue')
+    return {'documents': len(splits), **result['patterns']['dialogue']}
+
+
+def score_continuation(document_probe=None):
+    documents, gold_records = [], []
+    for line in (HERE / 'labels/continuation.jsonl').read_text(encoding='utf-8').splitlines():
+        row = json.loads(line)
+        documents.append({'file': row['file'], 'text': row['text']})
+        end = 0
+        for quote in row['quotes']:
+            start = row['text'].find(quote, end)
+            if start < 0:
+                raise ValueError('continuation quote not found')
+            end = start + len(quote)
+            gold_records.append({'file': row['file'], **offsets(row['text'], start, end), 'pattern': 'dialogue'})
+    predictions = (document_probe or DocumentProbe()).dialogue(documents)
+    if any(row.get('pattern') != 'dialogue' for row in predictions):
+        raise ValueError('unexpected document probe pattern')
+    result = score(gold_records, predictions, {row['file'] for row in documents}, pattern='dialogue')
+    return {'documents': len(documents), **result['patterns']['dialogue']}
+
+
 def run(analyzer, split, gate=False, document_probe=None):
     result = {'split': split, 'ewt': score_ewt(analyzer, split),
-              'litbank': score_litbank(split, document_probe)}
+              'litbank': score_litbank(split, document_probe),
+              'quoteli3': score_quoteli3(split, document_probe),
+              'continuation': score_continuation(document_probe)}
     print(json.dumps(result, indent=2))
     if gate:
         if split != 'test':
