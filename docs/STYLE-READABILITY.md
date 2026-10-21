@@ -243,9 +243,9 @@ lists use, so `our`, `hour` and `fire` are 2 and `every` is 3.
 
 **Reuse.** `writemorebetter_style::pronunciation` holds the lookups derived from CMUdict:
 `syllable_exception(key)` for this table. Its `None` means "use the heuristic", not "not in
-CMUdict". The alliteration lens (#307) needs initial sounds, not counts; it should add its own
-derived table as a second output of `scripts/build-cmudict.py` from the same pinned file, with its
-own lookup in that module, so phonemes still aren't exposed.
+CMUdict". The [alliteration lens](STYLE-ALLITERATION.md) (#307) adds a second derived table from the
+same script and pinned file, `cmudict-onsets.tsv` (each word's first phoneme, only where the
+spelling guess misses it), with its own lookups `onset_exception(key)` and `initial_sound(word)`.
 
 ### Accuracy with the dictionary
 

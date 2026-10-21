@@ -55,7 +55,7 @@ fn builtin_presets_load_by_name() {
         let preset = StylePreset::builtin(name).unwrap();
         assert_eq!(preset.name, name);
         assert_eq!(preset.format, PRESET_FORMAT);
-        assert_eq!(preset.version.as_deref(), Some("1.0.0"));
+        assert_eq!(preset.version.as_deref(), Some("1.1.0"));
         assert!(preset.description.is_some());
         assert_eq!(StylePreset::load(name).unwrap().to_json(), preset.to_json());
     }
@@ -385,7 +385,7 @@ fn one_call_runs_every_report_a_preset_drives() {
     let style = document(text);
     let chicago = style.preset(None).unwrap();
     assert_eq!(chicago.preset, "chicago-fiction");
-    assert_eq!(chicago.version.as_deref(), Some("1.0.0"));
+    assert_eq!(chicago.version.as_deref(), Some("1.1.0"));
     let checks: Vec<(PresetCheck, &str)> = chicago
         .checks
         .matches

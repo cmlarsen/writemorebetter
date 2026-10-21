@@ -147,6 +147,26 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   presets and the Chicago rules from #305 will follow as rule bundles. See
   [`docs/STYLE-HOUSE-STYLE.md`](docs/STYLE-HOUSE-STYLE.md).
 
+- **Alliteration lens** ([#307](https://github.com/cmlarsen/writemorebetter/issues/307), part).
+  Rust `StyleDocument::alliteration(options)`, WASM `document.alliteration(optionsJSON)` and Swift
+  `document.alliteration()` report runs of three or more different stressed words in one sentence
+  that share a first consonant sound, separately for narration and dialogue, with per-1,000-word
+  counts. Informational only: fiction alliterates on purpose. Function words are skipped without
+  breaking a run; options `minimumWords` (3), `maximumGap` (0) and `skipDialogue`. First sounds
+  come from a new CMUdict-derived table, `style/data/pronunciation/cmudict-onsets.tsv` (each
+  word's first phoneme, only for the 1,943 words the spelling guess gets wrong; 20,888 bytes),
+  built by `scripts/build-cmudict.py` next to the syllable table and covered by CI's staleness
+  check. See [`docs/STYLE-ALLITERATION.md`](docs/STYLE-ALLITERATION.md).
+
+- **Title case for headings** ([#307](https://github.com/cmlarsen/writemorebetter/issues/307),
+  part). Rust `title_case::report(&headings, &options)` and `StylePreset::title_case`, WASM
+  `titleCase(headingsJSON, optionsJSON)` and Swift `TitleCase.check(_:optionsJson:)` check chapter
+  titles against Chicago-style or AP-style headline case or sentence case, with each word's rule
+  and its recased form; hyphenated compounds, words after colons and words that are prepositions
+  only sometimes are handled. Presets gain a `titleCase` key (`chicago-fiction`: Chicago, `ap`: AP,
+  `uk`: sentence case), and the built-in presets are now version 1.1.0. See
+  [`docs/STYLE-TITLE-CASE.md`](docs/STYLE-TITLE-CASE.md).
+
 ### Changed
 
 - **`diction` no longer needs a table.** Rust `StyleDocument::diction(options, None)`, WASM

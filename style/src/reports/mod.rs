@@ -1,4 +1,5 @@
 pub mod adverbs;
+pub mod alliteration;
 pub mod clarity;
 pub mod cliches;
 pub mod consistency;
@@ -19,6 +20,7 @@ pub mod repeated_phrases;
 pub mod sensory_balance;
 pub mod sentence_length;
 pub mod sentence_starts;
+pub mod title_case;
 pub mod transitions;
 
 use std::ops::Range;

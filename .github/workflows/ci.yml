@@ -74,15 +74,16 @@ jobs:
           cargo build --release --manifest-path bench/tools/wmb-probe/Cargo.toml
           python3 bench/tools/public_recall.py --min "$RECALL_MIN"
 
-      # The table keeps only the words the heuristic syllable counter gets wrong, so any
-      # heuristic change must regenerate it. The script refuses any other sha256.
+      # The tables keep only the words the heuristic syllable counter and the spelling-based
+      # first-sound guess get wrong, so any change to either must regenerate them. The script
+      # refuses any other sha256.
       - name: Cache CMUdict
         uses: actions/cache@v4
         with:
           path: data/cache/cmudict
           key: cmudict-74790861f652b15e4ac49015a90074ad62a27690
 
-      - name: CMUdict syllable table is current
+      - name: CMUdict syllable and onset tables are current
         run: |
           mkdir -p data/cache/cmudict
           dict=data/cache/cmudict/cmudict.dict
@@ -90,7 +91,7 @@ jobs:
             https://raw.githubusercontent.com/cmusphinx/cmudict/74790861f652b15e4ac49015a90074ad62a27690/cmudict.dict
           python3 scripts/build-cmudict.py "$dict"
           if ! git diff --exit-code style/data/pronunciation/; then
-            echo "::error::style/data/pronunciation/cmudict-syllables.tsv is stale; run scripts/build-cmudict.py after changing the syllable heuristic"
+            echo "::error::style/data/pronunciation/ is stale; run scripts/build-cmudict.py after changing the syllable heuristic or spelled_onset"
             exit 1
           fi
 

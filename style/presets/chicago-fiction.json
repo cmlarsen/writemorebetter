@@ -1,7 +1,7 @@
 {
   "format": 1,
   "name": "chicago-fiction",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "US book conventions for fiction, modeled on The Chicago Manual of Style as we understand common practice. Not affiliated with or endorsed by the University of Chicago Press.",
   "grammar": {
     "profile": "fiction",
@@ -56,5 +56,6 @@
     "possessives": "apostropheS",
     "timeAbbreviations": "dotted",
     "familyTitles": true
-  }
+  },
+  "titleCase": "chicago"
 }

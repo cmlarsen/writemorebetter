@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 
 export function checkStyleRecords(checker) {
   const declarations = readFileSync(new URL("./pkg/writemorebetter_wasm.d.ts", import.meta.url), "utf8");
@@ -93,6 +94,11 @@ export function checkStyleRecords(checker) {
   results.push(["PresetChecksReport", presetDocument.presetChecks('{"numbers":{"spellOutThrough":9},"familyTitles":true}')]);
   assert.equal(JSON.parse(presetDocument.preset()).checks.matches.length, 4);
   presetDocument.free();
+  const alliterationDocument = checker.styleDocument("“Please put the pail down,” Peter pleaded patiently.");
+  results.push(["AlliterationReport", alliterationDocument.alliteration()]);
+  alliterationDocument.free();
+  const { titleCase } = createRequire(import.meta.url)("./pkg/writemorebetter_wasm.js");
+  results.push(["TitleCaseReport", titleCase('["Gone With The Wind", "the long way home"]')]);
   for (const [type, json] of results) validate(JSON.parse(json), type, type);
   transitionDocument.free();
   normDocument.free();

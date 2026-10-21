@@ -597,6 +597,35 @@ houseDoc.free();
   doc.free();
 }
 
+// Alliteration (#307): runs per mode with UTF-16 spans.
+{
+  const { titleCase } = require(join(here, "pkg", "writemorebetter_wasm.js"));
+  const text = "“Please put the pail down,” Peter pleaded patiently.\u2028She’d seen seven swans—so still…";
+  const doc = checker.styleDocument(text);
+  const report = JSON.parse(doc.alliteration());
+  eq(report.runs.map((run) => [run.mode, run.sound, text.slice(run.span.start, run.span.end)]),
+    [["dialogue", "p", "Please put the pail"], ["narration", "p", "Peter pleaded patiently"], ["narration", "s", "seen seven swans—so still"]],
+    "alliteration runs with UTF-16 spans");
+  eq([report.groups.dialogue.runs, report.groups.narration.runs], [1, 2], "alliteration splits by mode");
+  eq(JSON.parse(doc.alliteration('{"skipDialogue":true}')).runs.length, 2, "alliteration skips dialogue on request");
+  eq(styleError(() => doc.alliteration('{"minimumWords":1}')).kind, "invalidOptions", "alliteration rejects a minimum below 2");
+  eq(styleError(() => doc.alliteration('{"gap":1}')).kind, "invalidOptions", "alliteration rejects unknown options");
+  doc.free();
+
+  // Title case for headings; a preset's titleCase picks the style.
+  const headings = ["Gone With the Wind", "“Don’t Look Back”—a Girl … From\u2028the 🌊 Sea"];
+  const chicago = JSON.parse(titleCase(JSON.stringify(headings)));
+  eq(chicago.matches.map((m) => [m.heading, headings[m.heading].slice(m.span.start, m.span.end), m.replacement, m.rule]),
+    [[0, "With", "with", "minorWord"], [1, "From", "from", "minorWord"]], "titleCase: Chicago with UTF-16 spans");
+  const style = JSON.parse(loadStylePreset("ap")).titleCase;
+  eq(style, "ap", "the ap preset chooses AP-style title case");
+  eq(JSON.parse(titleCase(JSON.stringify(headings), JSON.stringify({ style }))).matches.map((m) => m.word), [],
+    "titleCase: AP capitalizes With and From");
+  eq(JSON.parse(loadStylePreset("uk")).titleCase, "sentence", "the uk preset chooses sentence case");
+  eq(styleError(() => titleCase('["A"]', '{"style":"apa"}')).kind, "invalidOptions", "titleCase rejects unknown styles");
+  eq(styleError(() => titleCase('"A"')).kind, "invalidOptions", "titleCase needs an array of headings");
+}
+
 checkStyleRecords(checker);
 const independent = checker.styleDocument("She ran.");
 checker.free();

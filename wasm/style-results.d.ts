@@ -721,6 +721,8 @@ export type StylePreset = {
     vale?: string;
   };
   checks: PresetChecks;
+  /** How headings are capitalized; unset means Chicago-style headline case. */
+  titleCase?: TitleCaseStyle;
 };
 
 export interface PresetReport {
@@ -729,4 +731,55 @@ export interface PresetReport {
   consistency: ConsistencyReport;
   houseStyle: HouseStyleReport;
   checks: PresetChecksReport;
+}
+
+/** Options for `alliteration`. */
+export type AlliterationOptions = {
+  minimumWords?: number;
+  maximumGap?: number;
+  skipDialogue?: boolean;
+};
+
+/** `sound` is the shared first sound, a lowercase ARPAbet consonant label (`k`, `sh`, `jh`, …). */
+export interface AlliterationRun {
+  span: Span;
+  sound: string;
+  spans: Array<Span>;
+  words: Array<string>;
+  sentence: number;
+  mode: Mode;
+}
+
+export interface AlliterationGroup {
+  words: number;
+  runs: number;
+  perThousandWords: number;
+}
+
+export interface AlliterationReport {
+  runs: Array<AlliterationRun>;
+  groups: Split<AlliterationGroup>;
+}
+
+export type TitleCaseStyle = "chicago" | "ap" | "sentence";
+/** Options for `titleCase`. */
+export type TitleCaseOptions = {
+  style?: TitleCaseStyle;
+  skipNames?: Array<string>;
+};
+export type TitleCaseRule = "firstWord" | "lastWord" | "afterColon" | "majorWord" | "minorWord" | "sentenceCase";
+
+export interface TitleCaseMatch {
+  heading: number;
+  span: Span;
+  word: string;
+  replacement: string;
+  rule: TitleCaseRule;
+}
+
+export interface TitleCaseReport {
+  style: TitleCaseStyle;
+  headings: number;
+  flaggedHeadings: number;
+  matches: Array<TitleCaseMatch>;
 }

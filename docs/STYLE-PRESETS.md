@@ -7,7 +7,8 @@ Issue #305 (part of #296) adds **style presets**: one named, versioned JSON file
 2. the [consistency](STYLE-CONSISTENCY.md) report's preferred forms;
 3. [house-style](STYLE-HOUSE-STYLE.md) rules in Vale's format, as a rule map or an embedded bundle;
 4. the built-in **preset checks**, house rules that the regex schema can't express cleanly
-   (numbers, quote punctuation, possessives, *a.m.*/*p.m.* and *Mom*/*Dad*).
+   (numbers, quote punctuation, possessives, *a.m.*/*p.m.* and *Mom*/*Dad*);
+5. the [title-case](STYLE-TITLE-CASE.md) style for headings such as chapter titles (#307).
 
 Three presets are built in: **`chicago-fiction`** (the default), **`ap`** and **`uk`**. A user preset
 can extend a built-in one and override any part of it. Like every style report, a preset only
@@ -25,6 +26,7 @@ endorsed by their publishers.
 | Rust, grammar | `preset.apply_to_rules(&mut rules) -> Result<usize, StyleError>` |
 | Rust, reports | `preset.report(&document) -> PresetReport`; `document.preset(Some(name_or_json))` on a `StyleDocument` |
 | Rust, checks alone | `preset_checks::report(&Document, &PresetChecks)`; `document.preset_checks(options_json)` |
+| Rust, headings | `preset.title_case(&headings, skip_names) -> TitleCaseReport` |
 | WASM | `stylePresetNames()`, `loadStylePreset(name)`, `parseStylePreset(json)`, `checker.applyPreset(nameOrJson)`, `document.preset(nameOrJson?)`, `document.presetChecks(optionsJSON?)` |
 | Swift | `StylePresets.names`, `StylePresets.load(_:)`, `StylePresets.parse(_:)`, `StylePresets.summary(_:)`, `checker.applyPreset(preset:)`, `document.preset(_:) -> PresetReport`, `document.presetChecks(optionsJson:) -> PresetChecksReport` |
 
@@ -70,7 +72,8 @@ the last parsed preset is cached, so a repeated call doesn't reparse or recompil
     "possessives": "apostropheS",
     "timeAbbreviations": "dotted",
     "familyTitles": true
-  }
+  },
+  "titleCase": "chicago"
 }
 ```
 
@@ -78,7 +81,7 @@ the last parsed preset is cached, so a repeated call doesn't reparse or recompil
 |---|---|
 | `format` | Required. The file format; this engine reads `1` and rejects anything else |
 | `name` | Required, non-empty. Never inherited: a file that `extends` a built-in names itself |
-| `version` | The preset's own version, any string. The built-ins start at `1.0.0` and change it whenever their settings change. Not inherited |
+| `version` | The preset's own version, any string. The built-ins started at `1.0.0` and change it whenever their settings change; `titleCase` (#307) made them `1.1.0`. Not inherited |
 | `description` | Free text. Not inherited |
 | `extends` | A built-in preset to start from (see below) |
 | `grammar.profile` | `"default"` or `"fiction"`, applied first |
@@ -89,6 +92,7 @@ the last parsed preset is cached, so a repeated call doesn't reparse or recompil
 | `houseStyle.rules` | Rule name → Vale rule, with Vale's lowercase keys |
 | `houseStyle.vale` | A Vale bundle as YAML or JSON text, in any shape `HouseStyleRules::parse` reads. Its rules run after `rules`; a name in both is an error |
 | `checks` | The preset checks below; each is off when absent |
+| `titleCase` | How headings are capitalized: `"chicago"`, `"ap"` or `"sentence"` (see [STYLE-TITLE-CASE.md](STYLE-TITLE-CASE.md)); unset means `"chicago"`. Headings are a separate input, so `preset.report(&document)` does not use it; apps pass it to `titleCase` with the chapter titles |
 
 Validation is strict, as for every report's options. An unknown key at any level, a wrong type, an
 unknown profile, preferred form, check value or `extends`, a format other than 1, and any error the
@@ -137,6 +141,7 @@ inherited, with no `extends`. Parsing that output gives the same preset, so it i
 | Possessives | *James’s* | *James’* | inherited |
 | *a.m.* / *p.m.* | dotted | inherited | inherited |
 | *Mom* / *Dad* | on | inherited | inherited |
+| Headings (`titleCase`) | Chicago-style headline case | AP-style headline case (*With*, *From* capitalized) | sentence case |
 
 No ellipsis form is preferred: book publishers set the character or spaced periods at typesetting,
 and the consistency report still flags a manuscript that mixes them.

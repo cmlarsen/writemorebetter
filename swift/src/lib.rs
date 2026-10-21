@@ -980,3 +980,34 @@ impl StyleDocument {
             })
     }
 }
+
+#[uniffi::export]
+impl StyleDocument {
+    /// Returns the opt-in alliteration lens on the retained analysis; options default when omitted.
+    #[uniffi::method(default(options_json = None))]
+    pub fn alliteration_json(&self, options_json: Option<String>) -> Result<String, CheckError> {
+        self.inner
+            .alliteration(options_json.as_deref())
+            .map(|report| writemorebetter_style::reports::to_utf16_json(&report))
+            .map_err(|error| CheckError::ReportInput {
+                message: error.to_string(),
+            })
+    }
+}
+
+/// Checks headings such as chapter titles against a title-case style; options are
+/// `TitleCaseOptions` JSON (Chicago-style headline case when nil). Returns `TitleCaseReport` JSON
+/// with UTF-16 spans into each heading.
+#[uniffi::export(default(options_json = None))]
+pub fn title_case_json(
+    headings: Vec<String>,
+    options_json: Option<String>,
+) -> Result<String, CheckError> {
+    use writemorebetter_style::reports::title_case;
+    title_case::parse_options(options_json.as_deref())
+        .and_then(|options| title_case::report(&headings, &options))
+        .map(|report| writemorebetter_style::reports::to_utf16_json(&report))
+        .map_err(|error| CheckError::ReportInput {
+            message: error.to_string(),
+        })
+}
