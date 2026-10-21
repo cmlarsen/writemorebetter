@@ -58,6 +58,7 @@ swift/, wasm/       one binding each, exposing check() + analyze() + analyzeDocu
 | [Repeated phrases](STYLE-ECHOES.md#repeated-phrases) | #245 | lemma n-grams | none |
 | Clichés and redundancies | #246 | phrase lists | none |
 | [Transitions, pronoun starts](STYLE-TRANSITIONS.md) | #247 | #244's classifier, word list | none yet; published-author chapter-window p5–p95 bands per mode recorded for a future baseline argument |
+| [Manner adverbs](STYLE-ADVERBS.md) | #301 | token readings, dialogue-tag spans | none; per-1,000-word counts |
 | [Overused words](STYLE-OVERUSED-WORDS.md), filler words | #248 | lemma counts | Ngram English Fiction 1990–2019 unigrams, lemmatized (bundled) |
 | Dialogue tags | #249 | dialogue spans | published-fiction corpus (owner-run tier 3 command; see [STYLE-DIALOGUE-TAGS.md](STYLE-DIALOGUE-TAGS.md)) |
 | [Sensory balance, diction (concreteness)](STYLE-NORMS.md) | #250 | lemmas, word-norm tables | none; Lancaster norms bundled (CC BY 4.0), writemorebetter's own concreteness table bundled (#256, a caller table overrides it); published sensory p5–p95 bands per mode recorded |
@@ -114,6 +115,7 @@ const diction = JSON.parse(document.diction()); // bundled table; diction(undefi
 const overused = JSON.parse(document.overusedWords());
 const transitions = JSON.parse(document.transitions('{"repeatWindow":5}'));
 const pronouns = JSON.parse(document.pronounStarts());
+const adverbs = JSON.parse(document.adverbs());
 const long = JSON.parse(document.sentenceLength('{"includeLongSentences":true}'));
 const descriptive = JSON.parse(document.sentenceLength(undefined, "none"));
 const readability = JSON.parse(document.readability('{"excludeDialogueParagraphs":true}'));
@@ -151,6 +153,7 @@ let overused: OverusedWordsReport = try document.overusedWords()
 let transitions: TransitionsReport = try document.transitions()
 let pronouns: PronounStartsReport = try document.pronounStarts()
 let readability: ReadabilityReport = try document.readability()
+let adverbs: AdverbsReport = try document.adverbs()
 let custom = try document.sentenceLength(baseline: .custom("{\"mean\":13}"))
 let descriptive = try document.sentenceLength(baseline: .none)
 if let match = cliches.matches.first {
@@ -168,7 +171,7 @@ annotate the value decoded with `JSON.parse`.
 
 Subplot chooses which methods to call. Its recommended default set is **clichés, dialogue tags,
 sentence length statistics and monotony, and sentence starts**. **Echoes, repeated phrases,
-long-sentence flags, overused and filler words, transitions, pronoun starts, sensory balance, diction, pacing and readability** are opt-in lenses;
+long-sentence flags, overused and filler words, transitions, pronoun starts, adverbs, sensory balance, diction, pacing and readability** are opt-in lenses;
 sensory balance and diction stay opt-in until the owner has seen usefulness numbers on real manuscripts. Length statistics and monotony remain available without
 `includeLongSentences`. Pacing thresholds are calibrated on published-fiction flag rates (2026-10-16), not on labeled passages.
 A pacing strip should highlight only `slowRuns` and draw the per-paragraph signals as neutral
@@ -178,6 +181,7 @@ measurements: single paragraphs that meet two thresholds are mostly in-scene noi
 | Report | Module and entry point | Options | Baseline | Needs readings |
 |---|---|---|---|---|
 | transitions | `transitions::report(&Document, &TransitionsOptions)` | `minimumSentences`, `repeatWindow` | none yet | no |
+| adverbs | `adverbs::report(&Document, &AdverbsOptions)` | none yet | none | yes |
 | pronoun starts | `pronoun_starts::report(&Document, &PronounStartsOptions)` | `minimumSentences` | none yet | yes |
 | echoes | `echoes::report(&Document, &EchoOptions)` | `window`, `matchForms` | none | yes |
 | repeated phrases | `repeated_phrases::report(&Document, &RepeatedPhraseOptions)` | `minimumLength`, `maximumLength`, `minimumContentWords`, `minimumOccurrences`, `nearbyWords` | none | yes |
@@ -259,7 +263,7 @@ shape with `word` instead of `lemma` and nullable reference fields):
 ```
 
 `transitions` (the fixture has no transition, so `matches` and `repeats` are empty; each `types`
-row is `{"kind", "containing", "opening"}` for contrast, cause, time, addition and example):
+row is `{"kind", "containing", "opening"}` for contrast, cause, time, addition, example and condition):
 
 ```json
 {"matches": [], "repeats": [], "groups": {"all": {"sentences": 4, "lowConfidence": true, "containing": {"count": 0, "percent": 0.0, "difference": null, "highlighted": false}, "opening": {"count": 0, "percent": 0.0, "difference": null, "highlighted": false}, "types": [{"kind": "contrast", "containing": {"count": 0, "percent": 0.0, "difference": null, "highlighted": false}, "opening": {"count": 0, "percent": 0.0, "difference": null, "highlighted": false}}]}, "narration": {}, "dialogue": {}}}
@@ -446,6 +450,8 @@ Build rules for any baseline:
 |---|---|---|
 | 2026-10-20 | #256 (owner decision, Caleb): diction bundles writemorebetter's own concreteness table (`ConcretenessTable::bundled()`, `style/data/norms/concreteness.tsv`, MIT OR Apache-2.0) and uses it when no table is passed; a caller's table overrides it. This replaces the 2026-10-16 `missingTable` decision; the error kind stays for compatibility but is no longer returned. The table is built from Claude ratings only (Opus 5.5, Sonnet 5.5, Fable 5.1, three samples each) over the fiction lemma list plus 13 supplement words, calibrated on a 30% Glasgow split; no paid human ratings | Licensed human norms either cover too little fiction vocabulary (Glasgow, 4,682 words) or forbid redistribution (Brysbaert). On the 70% Glasgow held-out split the table scores Spearman 0.926, Pearson 0.925, abstract F1 0.755, MAE 0.289; convergent 0.806; stability ≥ 0.986. OpenCode Go (DeepSeek, Muse) is excluded by its terms; Haiku 5.5 is excluded by the 0.97 stability gate (0.933). See [STYLE-NORMS.md](STYLE-NORMS.md#bundled-concreteness-table-256), [STYLE-DATA-LICENSES.md](STYLE-DATA-LICENSES.md#concreteness-256) |
 | 2026-10-20 | #256: diction's default `abstractBelow` becomes 2.85 (was 2.5); `minimumRatedWords` 3 and `minimumRunSentences` 3 unchanged | With the bundled table, 2.5 flags 5.7% of bench/public narration sentences and no run in nine texts: sentence means average abstract and concrete words, so abstract interiors land at 2.5–2.9. Tuned on bench/public only (most useful runs at run precision ≥ 0.85: 9 runs, 8 useful / 1 noise). On held-out Crane, Wharton and Gatsby chapters: 11 runs, all useful; 20 sampled sentences 16 / 4 / 0; Crane's interior block flagged (9 sentences); on bench/public, Ishmael's harpooneer rumination (a run under the #281 proxy) is not flagged. Caller tables also get 2.85: a 1–5 human table should set `abstractBelow: 2.5` to keep the previous behaviour, and a table on another scale its own threshold ([STYLE-NORMS.md](STYLE-NORMS.md#bundled-concreteness-table-256)) |
+| 2026-10-20 | #301 review: condition phrases get compact-safe lexical ambiguity guards; pronoun word shares require POS and contextual checks, with *thou/ye* admitted as archaic exceptions; the adverb inventory excludes frequency words and adjective uses | Unguarded *as if*, *asked if*, length comparisons, participial *provided that night*, nominal *mine* and adjective *friendly/holy* inflated public counts. The guarded inventory adds 74 transition matches and 11 repeats across the seven calibrated public texts, down from 102 and 17. See [transitions](STYLE-TRANSITIONS.md) and [adverbs](STYLE-ADVERBS.md) |
+| 2026-10-20 | #301: add opt-in manner-adverb counts, pronoun shares of all words, and a guarded condition-transition inventory | Reuses the dialogue-tag *-ly* exclusion list and marks tag-adverb spans; pronoun word shares use each mode's word denominator; `while` stays out because its senses are ambiguous. See [adverbs](STYLE-ADVERBS.md) and [transitions](STYLE-TRANSITIONS.md) |
 | 2026-10-16 | #251/#241/#256 calibration: pacing defaults become 18-word mean length / 15% past perfect / 15% cognition (were 18 / 20 / 20); `minimumParagraphs` 3 and `moreThanWords` 400 unchanged | Joins the owner-run tier 3 sweep on published fiction (210 units, 71 authors, 1,559 chapter windows, aggregate only) with #293's five-model blind label sweep (305 public paragraphs) over their 64 shared settings, choosing the highest label F1 with at most about 15% of published chapter windows flagged. 18 / 15 / 15 raises paragraph F1 from 0.229 to 0.415 (precision 0.73 → 0.74, recall 0.14 → 0.29) and flags 9.0% of windows (46.5% of authors; was 3.4% and 32.4%). It also beats the first proposal, 15 / 20 / 15, on every label score and both published shares. 18 / 15 / 10 (F1 0.449, 14.1%) was rejected because it flags story4's untouched opening in every tier 2 negative control, which the consensus labels not slow. 15 / 15 / 30 ties on true positives but flags more authors and puts cognition above its published p95. On public text the defaults add one noise and one borderline story1 run to the two useful ones. See [STYLE-PACING.md](STYLE-PACING.md#label-accuracy-against-published-rates-2026-10-16) |
 | 2026-10-16 | #241/#256 calibration: every other default stays unchanged; record published flag rates for all merged reports except diction, and published-author chapter-window p5–p95 bands per mode for transitions, pronoun starts and sensory balance in `bench/style/published-bands-transitions-pronouns-sensory.json`, without adding a baseline argument | Published chapters show transition repeats in 66.5% of windows (43% even at a 2-sentence window), overused lemmas in 99.4% (1.44 per 1,000 words, below the public calibration's rate) and sensory sight p95 72.8%, so no sweep separates published prose from flags worth showing; changing those defaults would need judged published or draft samples. The bands follow the sentence-band convention so a later baseline argument can use them unchanged. Diction was skipped: no concreteness table is chosen. See [STYLE-TRANSITIONS.md](STYLE-TRANSITIONS.md#published-fiction-calibration-2026-10-16), [STYLE-NORMS.md](STYLE-NORMS.md#published-fiction-bands-2026-10-16), [STYLE-OVERUSED-WORDS.md](STYLE-OVERUSED-WORDS.md#published-fiction-flag-rates-2026-10-16) |
 | 2026-10-16 | #282 (owner decision, Caleb): remove the sensory `singleSense` flag. Chapters and scenes no longer carry `singleSense`, and the `singleSensePercent` option is gone, so passing it is rejected as an unknown option. The per-scene modality counts and percents remain the opt-in lens | On 114 eligible public scenes (≥ 20 narration sense words), the flag fires on 0/1/4/11 scenes at 85/80/75/70%, and none of the 11 is a useful warning. High sight share mostly measures setting nouns and filter verbs ([STYLE-NORMS.md](STYLE-NORMS.md#singlesense-removed)) |

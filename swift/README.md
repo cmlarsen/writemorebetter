@@ -198,6 +198,7 @@ let overused = try document.overusedWords()
 let transitions: TransitionsReport = try document.transitions()
 let pronouns: PronounStartsReport = try document.pronounStarts()
 let consistency: ConsistencyReport = try document.consistency()
+let adverbs: AdverbsReport = try document.adverbs()
 ```
 
 Every result is `Codable`, `Equatable` and `Sendable`. Each method takes optional `optionsJson`;
@@ -210,7 +211,7 @@ baseline JSON and return the JSON string directly. Spans carry UTF-16
 (JSON object or TSV text), which replaces it; `dictionJson(optionsJson:table:)` with a nil table
 uses the bundled one.
 
-Construction respects compact-document options. Echoes, phrases, overused words, pronoun starts, dialogue tags,
+Construction respects compact-document options. Echoes, phrases, overused words, pronoun starts, dialogue tags, adverbs,
 starts, sensory balance and diction require token details and throw on compact documents. Reports run on the retained analysis; construct a new
 object for changed text/options. See [the per-report API](../docs/STYLE-REPORTS.md#independent-reports-shared-analysis)
 for options, result JSON examples, baselines and Subplot’s recommended default set and opt-in lenses.

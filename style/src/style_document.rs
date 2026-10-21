@@ -145,6 +145,13 @@ impl StyleDocument {
         crate::reports::pronoun_starts::report(&self.document, &options(json)?)
     }
 
+    pub fn adverbs(
+        &self,
+        json: Option<&str>,
+    ) -> Result<crate::reports::adverbs::AdverbsReport, StyleError> {
+        crate::reports::adverbs::report(&self.document, &options(json)?)
+    }
+
     pub fn sensory_balance(
         &self,
         json: Option<&str>,

@@ -49,6 +49,7 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   cases, 99.5% on a 190-word held-out sample, 99.2% of `bench/public` tokens) that a dictionary-backed counter can replace later. Available as
   `StyleDocument::readability` in Rust, `document.readability()` in WASM and Swift. See
   [`docs/STYLE-READABILITY.md`](docs/STYLE-READABILITY.md).
+- Opt-in manner-adverb counts by lemma and mode, with dialogue-tag adverbs marked for deduplication; personal and possessive pronoun shares of words; and a condition transition category (`if`, `unless`, `provided that`, `as long as`, `in case`) ([#301](https://github.com/cmlarsen/writemorebetter/issues/301)).
 
 ### Changed
 

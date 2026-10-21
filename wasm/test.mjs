@@ -347,7 +347,7 @@ check(typeof lengthReport.groups.all.meanDifference === "number", "bundled basel
 eq(JSON.parse(retained.sentenceLength(options, "none")).groups.all.meanDifference, null, "baseline disabled per call");
 const custom = JSON.parse(retained.sentenceLength(options, '{"mean":1}'));
 eq(custom.groups.all.meanDifference, custom.groups.all.mean - 1, "custom baseline per call");
-const calls = ["echoes", "repeatedPhrases", "cliches", "dialogueTags", "sentenceLength", "sentenceStarts", "sensoryBalance", "pacing", "overusedWords", "transitions", "pronounStarts", "stats"];
+const calls = ["echoes", "repeatedPhrases", "cliches", "dialogueTags", "adverbs", "sentenceLength", "sentenceStarts", "sensoryBalance", "pacing", "overusedWords", "transitions", "pronounStarts", "stats"];
 for (const method of calls) {
   const fresh = checker.styleDocument(reportText);
   eq(JSON.parse(retained[method]()), JSON.parse(fresh[method]()), `shared analysis matches fresh ${method}`);
@@ -376,7 +376,7 @@ eq(invalid.kind, "invalidBaseline", "invalid baseline rejected");
 eq(invalid.report, "sentenceStarts", "error names report");
 eq(styleError(() => checker.styleDocument("text", '{"typo":true}')).kind, "invalidOptions", "document options validated");
 const compactStyle = checker.styleDocument(reportText, '{"includeTokenDetails":false}');
-for (const method of ["echoes", "repeatedPhrases", "dialogueTags", "sentenceStarts", "sensoryBalance", "pacing", "overusedWords", "pronounStarts"]) {
+for (const method of ["echoes", "repeatedPhrases", "dialogueTags", "adverbs", "sentenceStarts", "sensoryBalance", "pacing", "overusedWords", "pronounStarts"]) {
   eq(styleError(() => compactStyle[method]()).kind, "needsTokenDetails", `compact rejects ${method}`);
 }
 eq(styleError(() => compactStyle.diction(undefined, '{"hope":1.5}')).kind, "needsTokenDetails", "compact rejects diction");
@@ -489,6 +489,7 @@ eq(pronouns.groups.all.pronounStarts.difference, null, "pronouns: no baseline");
 check(pronouns.groups.all.lowConfidence, "pronouns: small sample marked");
 eq(JSON.parse(lensDoc.pronounStarts()).groups.all.pronounStarts.percent, null, "pronouns: default sample floor");
 eq(styleError(() => lensDoc.pronounStarts('{"typo":1}')).kind, "invalidOptions", "pronouns: unknown option");
+eq(styleError(() => lensDoc.adverbs('{"typo":1}')).kind, "invalidOptions", "adverbs: unknown option");
 lensDoc.free();
 const pronounGuardDoc = checker.styleDocument("Her coat was red. Hers was blue. Nobody left. This was easy. That’s fine. One evening it rained. What’s more, she paid.");
 eq(JSON.parse(pronounGuardDoc.pronounStarts()).starts.map(s => s.pronoun), ["hers", "nobody", "this", "that"], "pronouns: determiners, nominal one and what’s more excluded");

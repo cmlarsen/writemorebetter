@@ -42,6 +42,7 @@ export function checkStyleRecords(checker) {
     ["RepeatedPhraseReport", document.repeatedPhrases()],
     ["ClicheReport", document.cliches()],
     ["DialogueTagReport", document.dialogueTags(tagOptions, tagBaseline)],
+    ["AdverbsReport", document.adverbs()],
     ["SentenceLengthReport", document.sentenceLength(lengthOptions)],
     ["SentenceStartsReport", document.sentenceStarts('{"minimumSentences":1}')],
     ["OverusedWordsReport", document.overusedWords('{"minimumCount":1,"minimumRatio":1,"minimumReferencePerMillion":0,"includeNouns":true}')],

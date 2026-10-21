@@ -945,6 +945,11 @@ public func FfiConverterTypeChecker_lower(_ value: Checker) -> UInt64 {
 public protocol StyleDocumentProtocol: AnyObject, Sendable {
     
     /**
+     * Returns manner adverbs in narration and speech.
+     */
+    func adverbsJson(optionsJson: String?) throws  -> String
+    
+    /**
      * Returns this report on the retained analysis; options default when omitted.
      */
     func clichesJson(optionsJson: String?) throws  -> String
@@ -1077,6 +1082,19 @@ open class StyleDocument: StyleDocumentProtocol, @unchecked Sendable {
 
     
 
+    
+    /**
+     * Returns manner adverbs in narration and speech.
+     */
+open func adverbsJson(optionsJson: String? = nil)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_method_styledocument_adverbs_json(
+            self.uniffiCloneHandle(),
+        FfiConverterOptionString.lower(optionsJson),uniffiCallStatus
+    )
+})
+}
     
     /**
      * Returns this report on the retained analysis; options default when omitted.
@@ -2612,6 +2630,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_method_checker_words() != 61704) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_writemorebetter_swift_checksum_method_styledocument_adverbs_json() != 23195) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_method_styledocument_cliches_json() != 60906) {

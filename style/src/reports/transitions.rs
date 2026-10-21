@@ -14,14 +14,16 @@ pub enum TransitionType {
     Time,
     Addition,
     Example,
+    Condition,
 }
 impl TransitionType {
-    pub const ALL: [Self; 5] = [
+    pub const ALL: [Self; 6] = [
         Self::Contrast,
         Self::Cause,
         Self::Time,
         Self::Addition,
         Self::Example,
+        Self::Condition,
     ];
 }
 
@@ -107,6 +109,38 @@ pub struct TransitionsReport {
 type TransitionEntry = (TransitionType, &'static str, Vec<&'static str>);
 
 const SUBJECTS: [&str; 8] = ["i", "you", "he", "she", "it", "we", "they", "there"];
+// Heads whose `if` clause is a complement ("asks if", "not sure if"), matched by lemma
+// from the text so compact and detailed documents agree.
+const IF_COMPLEMENTS: &[&str] = &[
+    "ask", "wonder", "see", "know", "check", "decide", "remember", "doubt", "tell", "sure",
+    "unsure",
+];
+const IRREGULAR_FORMS: &[(&str, &str)] = &[
+    ("saw", "see"),
+    ("seen", "see"),
+    ("knew", "know"),
+    ("known", "know"),
+    ("told", "tell"),
+];
+const OBJECTS: [&str; 6] = ["me", "you", "him", "her", "us", "them"];
+const BE_FORMS: [&str; 8] = ["is", "was", "were", "are", "be", "been", "being", "'s"];
+
+fn inflects(word: &str, base: &str) -> bool {
+    // "decide" → "decides", "decided", "deciding"; "ask" → "asks", "asked", "asking".
+    let stem = base.strip_suffix('e').unwrap_or(base);
+    word == base
+        || IRREGULAR_FORMS.contains(&(word, base))
+        || ["s", "ed", "ing"]
+            .iter()
+            .any(|suffix| word.strip_prefix(base) == Some(suffix))
+        || ["es", "ed", "ing"]
+            .iter()
+            .any(|suffix| word.strip_prefix(stem) == Some(suffix))
+}
+
+fn is_if_complement(word: &str) -> bool {
+    IF_COMPLEMENTS.iter().any(|base| inflects(word, base))
+}
 
 fn phrases() -> &'static Vec<TransitionEntry> {
     static PHRASES: OnceLock<Vec<TransitionEntry>> = OnceLock::new();
@@ -121,6 +155,7 @@ fn phrases() -> &'static Vec<TransitionEntry> {
                     "time" => TransitionType::Time,
                     "addition" => TransitionType::Addition,
                     "example" => TransitionType::Example,
+                    "condition" => TransitionType::Condition,
                     _ => unreachable!(),
                 };
                 (
@@ -215,6 +250,24 @@ pub fn report(
                         "however" => comma || (comma_before && !next.is_some_and(|t| t.is_word)),
                         "finally" => comma || comma_before,
                         "instead" => following != Some("of"),
+                        "if" => {
+                            let prior = at.checked_sub(1).map(|i| folded[i].as_str());
+                            // "Tell me if": skip an object pronoun to reach the head.
+                            let head = match prior {
+                                Some(word) if OBJECTS.contains(&word) && at >= 2 => {
+                                    Some(folded[at - 2].as_str())
+                                }
+                                _ => prior,
+                            };
+                            prior != Some("as")
+                                && !prior.is_some_and(is_if_complement)
+                                && !head.is_some_and(is_if_complement)
+                        }
+                        // "was as long as it was wide" measures rather than conditions.
+                        "as long as" if at > 0 && BE_FORMS.contains(&folded[at - 1].as_str()) => {
+                            false
+                        }
+                        "as long as" | "provided that" => at == 0 || comma_before || subject,
                         _ => true,
                     }
                 });

@@ -543,6 +543,14 @@ impl StyleDocument {
             .map(|report| reports::to_utf16_json(&report))
             .map_err(style_error)
     }
+    /// Returns manner adverbs on the retained analysis; options default when omitted.
+    #[wasm_bindgen(js_name = adverbs)]
+    pub fn adverbs(&self, options_json: Option<String>) -> Result<String, JsValue> {
+        self.inner
+            .adverbs(options_json.as_deref())
+            .map(|report| reports::to_utf16_json(&report))
+            .map_err(style_error)
+    }
     #[wasm_bindgen(js_name = sensoryBalance)]
     /// Returns this report on the retained analysis; options default when omitted.
     pub fn sensory_balance(&self, options_json: Option<String>) -> Result<String, JsValue> {

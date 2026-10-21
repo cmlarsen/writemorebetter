@@ -326,7 +326,7 @@ export interface PacingReport {
   slowRuns: Array<PacingRun>;
 }
 
-export type TransitionType = "contrast" | "cause" | "time" | "addition" | "example";
+export type TransitionType = "contrast" | "cause" | "time" | "addition" | "example" | "condition";
 
 export interface TransitionMatch {
   span: Span;
@@ -394,6 +394,9 @@ export interface PronounStartsGroup {
   pronounStarts: Share;
   pronouns: Array<PronounStartsShare>;
   runs: Array<PronounStartsRun>;
+  words: number;
+  pronounWords: Share;
+  wordPronouns: Array<PronounStartsShare>;
 }
 
 export interface PronounStartsReport {
@@ -457,4 +460,29 @@ export interface ReadabilityParagraph {
 export interface ReadabilityReport {
   groups: Split<ReadabilityScores>;
   paragraphs: Array<ReadabilityParagraph>;
+}
+
+export interface AdverbMatch {
+  span: Span;
+  lemma: string;
+  mode: Mode;
+  tagAdverb: boolean;
+}
+
+export interface AdverbLemma {
+  lemma: string;
+  count: number;
+  perThousandWords: number;
+}
+
+export interface AdverbGroup {
+  words: number;
+  count: number;
+  perThousandWords: number;
+  lemmas: Array<AdverbLemma>;
+}
+
+export interface AdverbsReport {
+  matches: Array<AdverbMatch>;
+  groups: Split<AdverbGroup>;
 }
