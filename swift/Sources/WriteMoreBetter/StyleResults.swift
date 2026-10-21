@@ -529,6 +529,22 @@ public struct ConsistencyVariant: Codable, Equatable, Sendable {
     public let spans: [Span]
 }
 
+public enum SpellingSystem: String, Codable, Sendable { case american, british, oxford }
+
+public enum RegionalSpellingReason: String, Codable, Sendable { case system, form }
+
+public struct SpellingSystemCount: Codable, Equatable, Sendable {
+    public let system: SpellingSystem
+    public let count: Int
+}
+
+public struct RegionalSpellingForm: Codable, Equatable, Sendable {
+    public let form: String
+    public let systems: [SpellingSystem]
+    public let counts: Split<Int>
+    public let spans: [Span]
+}
+
 public struct ConsistencyCheck: Codable, Equatable, Sendable {
     public let mixed: Bool
     public let variants: [ConsistencyVariant]
@@ -752,5 +768,36 @@ public extension StyleDocument {
     /// `rules` is Vale-format YAML or JSON text supplied by the caller.
     func houseStyle(rules: String, optionsJson: String? = nil) throws -> HouseStyleReport {
         try decodeStyle(houseStyleJson(optionsJson: optionsJson, rules: rules))
+    }
+}
+
+public struct RegionalSpellingWord: Codable, Equatable, Sendable {
+    public let word: String
+    public let mixed: Bool
+    public let forms: [RegionalSpellingForm]
+}
+
+public struct RegionalSpellingFlag: Codable, Equatable, Sendable {
+    public let span: Span
+    public let sentence: Int
+    public let form: String
+    public let word: String
+    public let systems: [SpellingSystem]
+    public let reason: RegionalSpellingReason
+    public let dominantForm: String?
+    public let mode: Mode
+}
+
+public struct RegionalSpellingReport: Codable, Equatable, Sendable {
+    public let markers: Int
+    public let systems: [SpellingSystemCount]
+    public let dominant: [SpellingSystem]
+    public let words: [RegionalSpellingWord]
+    public let flags: [RegionalSpellingFlag]
+}
+
+public extension StyleDocument {
+    func regionalSpelling(optionsJson: String? = nil) throws -> RegionalSpellingReport {
+        try decodeStyle(regionalSpellingJson(optionsJson: optionsJson))
     }
 }

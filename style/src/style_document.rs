@@ -265,4 +265,10 @@ fn parsed_rules(
     let mut last = LAST.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
     *last = Some((text.to_owned(), rules.clone()));
     Ok(rules)
+    pub fn regional_spelling(
+        &self,
+        json: Option<&str>,
+    ) -> Result<crate::reports::regional_spelling::RegionalSpellingReport, StyleError> {
+        crate::reports::regional_spelling::report(&self.document, &options(json)?)
+    }
 }

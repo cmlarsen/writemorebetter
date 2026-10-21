@@ -78,6 +78,12 @@ export function checkStyleRecords(checker) {
   const lookaround = '\n---\nname: House.Look\nextends: existence\nmessage: m\ntokens: ["(?<!x)b"]\n';
   results.push(["HouseStyleReport", houseDocument.houseStyle(undefined, houseRules + lookaround)]);
   houseDocument.free();
+  const spellingText = readFileSync(new URL("../style/tests/fixtures/regional-spelling-records.txt", import.meta.url), "utf8");
+  const spellingDocument = checker.styleDocument(spellingText);
+  const spelling = spellingDocument.regionalSpelling();
+  results.push(["RegionalSpellingReport", spelling]);
+  assert.deepEqual(JSON.parse(spelling).flags.map(flag => [flag.form, flag.reason]), [["focused", "form"], ["color", "system"]]);
+  spellingDocument.free();
   for (const [type, json] of results) validate(JSON.parse(json), type, type);
   transitionDocument.free();
   normDocument.free();

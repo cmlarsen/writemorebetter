@@ -479,6 +479,13 @@ final class CheckerTests: XCTestCase {
         XCTAssertEqual(passive.groups.dialogue.passives, 2)
         XCTAssertNil(passive.groups.all.band)
         XCTAssertNotNil(try passiveDocument.passive(baseline: .passivePublicStandIn).groups.all.band)
+        let spellingText = try String(contentsOf: Self.repositoryRoot.appendingPathComponent("style/tests/fixtures/regional-spelling-records.txt"), encoding: .utf8)
+        let spellingDocument = try checker().styleDocument(text: spellingText)
+        try roundTrip(RegionalSpellingReport.self, spellingDocument.regionalSpellingJson(optionsJson: nil))
+        let spelling = try spellingDocument.regionalSpelling()
+        XCTAssertEqual(spelling.flags.map(\.form), ["focused", "color"])
+        XCTAssertEqual(spelling.flags.map(\.reason), [.form, .system])
+        XCTAssertEqual(spelling.dominant, [.british, .oxford])
         let normText = try String(contentsOf: Self.repositoryRoot.appendingPathComponent("style/tests/fixtures/norm-records.txt"), encoding: .utf8)
         let normDocument = try checker().styleDocument(text: normText)
         let table = "{\"hope\": 1.5, \"idea\": 1.6, \"freedom\": 1.3, \"lamp\": 4.8}"

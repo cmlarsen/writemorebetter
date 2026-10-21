@@ -458,3 +458,32 @@ A vague-words list for #307 should be authored by this project's contributors, a
 - Whether the 2014 DepecheMood page stated a CC license.
 - The license of Garst R. Reese's Canadian list in VarCon's original table.
 - The 1911 Roget editor, and so its public-domain status outside the US.
+
+## Regional spelling (#299)
+
+Vendored 2026-10-20 under the conditions recorded in the wave 3 check (#316).
+
+| Source | Pin | License | Decision |
+|---|---|---|---|
+| VarCon 2020.12.07 | `varcon-2020.12.07.tar.gz` from SourceForge `wordlist/VarCon/2020.12.07/`, sha256 `3b0720c5718008f37c02658a83d51d5598dd86531f0a2206d410c854006cb184`; `varcon.txt` inside it sha256 `340858b990255ec409adcf7faaf2b992aa2a76a16f30b4b9e2663863191dba33` | `README` "Copyright": Kevin Atkinson's and Benjamin Titze's permissive notices and Geoff Kuenning's 1993 Ispell notice (clause 4 removed) | **vendored as a modified, derived table** |
+| Harper `regionalisms.rs` | Automattic/harper `f4ebc61d77df1fc00b6aa8bc604e91af3534dad1` (v2.13.0) | Apache-2.0 | **not vendored** |
+
+- `style/data/spelling/regional.txt` (153,303 bytes, 5,308 rows, 10,689 spellings) is built by
+  `scripts/build-regional-spelling.py` from the archive, which checks both hashes. Only
+  `varcon.txt` is read; `voc.tab` cites web pages and is not used.
+- **Modified version.** The table's header and `style/data/licenses/varcon.txt` say "derived from
+  VarCon 2020.12.07; converted and filtered by writemorebetter", as Ispell clause 3 requires for
+  modified source and binary redistributions. The changes: clusters at SCOWL level 70 or below;
+  lowercase single words without apostrophes; American (`A`), British -ise (`B`) and British -ize
+  (`Z`) categories only, applying VarCon's rule that `B` implies `Z` when a line has no `Z` tag;
+  a spelling accepts a system when tagged preferred, equal (`.`) or variant (`v`); usages marked
+  rare or archaic (`(-)`) ignored; each spelling marked with the union of systems over all its
+  usages, and `~` where usages differ; rows whose spellings all suit the same systems dropped.
+- **Notices.** All three notices are reproduced verbatim in `style/data/licenses/varcon.txt` and
+  NOTICE, so they ship in source and in binary documentation (Ispell clauses 1 and 2). NOTICE says
+  the authors do not endorse writemorebetter (clause 5).
+- **Harper regionalisms** are usable (Apache-2.0, contributors' own knowledge) but not vendored:
+  most of the vocabulary pairs are ordinary American words in another sense (*pavement*, *lift*,
+  *flat*, *boot*, *jumper*), so flagging them needs word-sense information the report does not
+  have, and the 95 terms would add an attribution chain for a lower-confidence category. Revisit
+  with a sense filter.

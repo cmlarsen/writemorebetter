@@ -10,6 +10,17 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
 ### Added
 
+- **Regional spelling lens** ([#299](https://github.com/cmlarsen/writemorebetter/issues/299)).
+  Rust `StyleDocument::regional_spelling(options)`, WASM `document.regionalSpelling(optionsJSON)`
+  and Swift `document.regionalSpelling()` report mixed American and British spelling: counts for
+  American, British (-ise) and Oxford (-ize) spelling, the dominant system, the variant words seen,
+  and flags for tokens no dominant system accepts or minority forms of one word. Oxford -ize is
+  British, words valid in both are never markers, and mid-sentence capitals are skipped as names.
+  Options `minimumMarkers` (default 3) and `system` (fix the expected system). The bundled
+  `style/data/spelling/regional.txt` (153,303 bytes) is a modified table derived from VarCon
+  2020.12.07 by `scripts/build-regional-spelling.py`; its Atkinson, Titze and Ispell notices are in
+  NOTICE and `style/data/licenses/varcon.txt`. See
+  [`docs/STYLE-REGIONAL-SPELLING.md`](docs/STYLE-REGIONAL-SPELLING.md).
 - **Diction has a bundled concreteness table**
   ([#256](https://github.com/cmlarsen/writemorebetter/issues/256)).
   `style/data/norms/concreteness.tsv` is writemorebetter's own table (14,572 words, MIT OR
