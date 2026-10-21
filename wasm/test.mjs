@@ -473,6 +473,18 @@ eq(pacingReport.words, JSON.parse(pacingDocument.stats()).words, "pacing word co
 eq(styleError(() => pacingDocument.pacing('{"minimumParagraphs":0}')).kind, "invalidOptions", "pacing options validated");
 eq(styleError(() => pacingDocument.pacing('{"typo":0}')).kind, "invalidOptions", "pacing unknown options rejected");
 pacingDocument.free();
+const clarityText = "😀 It was as if he had been there for all of the time that she was in it with him. “It’s the man who had sailed every ocean on the map and carried letters across the cold northern sea for twenty long years,” she said—and smiled…";
+const clarityDocument = checker.styleDocument(clarityText);
+const clarity = JSON.parse(clarityDocument.clarity());
+eq(clarity.stickySentences.length, 1, "sticky sentence flagged");
+eq(clarityText.slice(clarity.stickySentences[0].glue[0].start, clarity.stickySentences[0].glue[0].end), "It", "UTF-16 glue span after emoji");
+eq(clarity.longClauses.length, 1, "long clause flagged");
+eq(clarityText.slice(clarity.longClauses[0].span.start, clarity.longClauses[0].span.end), "who had sailed every ocean on the map and carried letters across the cold northern sea for twenty long years", "UTF-16 clause span");
+eq(clarity.longClauses[0].mode, "dialogue", "clause mode");
+eq(clarity.words, JSON.parse(clarityDocument.stats()).words, "clarity word convention");
+eq(styleError(() => clarityDocument.clarity('{"typo":0}')).kind, "invalidOptions", "clarity unknown options rejected");
+eq(styleError(() => checker.styleDocument(clarityText, '{"includeTokenDetails":false}').clarity()).kind, "needsTokenDetails", "compact rejects clarity");
+clarityDocument.free();
 
 const lensText = "😀.\u2028“AS A RESULT, she’s tired—still… fine.”\u2028As a result, she left. As a result, she slept.\nShe was home. She was tired.\n\nShe was done.";
 const lensDoc = checker.styleDocument(lensText);

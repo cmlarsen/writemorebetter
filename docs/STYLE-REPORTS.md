@@ -66,6 +66,7 @@ swift/, wasm/       one binding each, exposing check() + analyze() + analyzeDocu
 | [Consistency](STYLE-CONSISTENCY.md) (quotes, ellipses, dashes, capitalization, hyphenation) | #298 | paragraph text, sentences; POS optional | none |
 | [Readability](STYLE-READABILITY.md) (indices, reading time) | #300 | sentences, heuristic syllables | none; values only, no flags |
 | [Passive voice](STYLE-PASSIVE.md) | #303 | POS, lemmas | per-mode p5–p95 band of passives per 100 sentences (none yet; a provisional public stand-in is opt-in as `"publicStandIn"` until an owner tier 3 run) |
+| [Clarity](STYLE-CLARITY.md) (sticky sentences, long subordinate clauses) | #302 | POS readings, chunks | none; thresholds calibrated on public-text flag rates (2026-10-20) |
 
 Sentence length and sentence starts are public modules under `style::reports`, with no flattened
 crate-root exports. [Sentence report definitions](STYLE-SENTENCES.md) specify word counting, Penn
@@ -196,6 +197,7 @@ measurements: single paragraphs that meet two thresholds are mostly in-scene noi
 | pacing | `pacing::report(&Document, &PacingOptions)` | `minimumParagraphs`, `moreThanWords`, `minimumSentenceLength`, `minimumPastPerfectPercent`, `minimumCognitionPercent` | none | yes |
 | consistency | `consistency::report(&Document, &ConsistencyOptions)` | `minimumMinority` | none | no |
 | readability | `readability::report(&Document, &ReadabilityOptions)`; `report_with(…, &dyn SyllableCounter)` takes another syllable counter | `minimumSentences`, `minimumParagraphWords`, `wordsPerMinute`, `excludeDialogueParagraphs` | none | no |
+| clarity | `clarity::report(&Document, &ClarityOptions)` | `minimumSentences`, `minimumSentenceWords`, `stickyGluePercent`, `longClauseWords` | none | yes |
 
 Every entry point returns `Result<_, StyleError>`. Type names are prefixed with their report
 (`SentenceLengthReport`, `ClicheMatch`, `DialogueTagVerbClass`, …) so they stay unique in Swift's
@@ -496,6 +498,7 @@ Build rules for any baseline:
 | 2026-10-20 | #300 phase 1: readability is an opt-in lens of statistics (Flesch Reading Ease, Flesch–Kincaid, Coleman–Liau, ARI, reading time at 260 wpm) for the text, narration, dialogue and each paragraph, with no flags; original heuristic syllable counter behind a `SyllableCounter` seam for a phase 2 CMUdict counter; words join across apostrophes and hyphens, numbers and initialisms stay whole, a typed `--` dash splits words, and skipped names count; `excludeDialogueParagraphs` changes the indices but not the whole-text reading time | Statistics, not matches, so it doesn't duplicate #207's READABILITY_RULE port; formulas assume words as readers count them; the split shows dialogue reading 4–6 grades easier than narration on `bench/public` |
 | 2026-10-20 | #303: passive voice is an aggregate rate (passives per 100 sentences, per mode) with spans, *be*/*get* + VBN and adjectival-participle guards, and a bundled band built from public text (`bench/public` + *Pride and Prejudice*) until an owner tier 3 run replaces it | Per-instance flags belong to LanguageTool's `PASSIVE_VOICE` once the rule opt-in lands. The published-fiction export was not available to this change. The public band reflects Melville and Austen as much as fiction norms, so it is a replaceable baseline argument. See [STYLE-PASSIVE.md](STYLE-PASSIVE.md) |
 | 2026-10-20 | #303 review: the passive report has no default band; the public stand-in is opt-in as `"publicStandIn"` | The stand-in reflects Melville and Austen (median 12.5 per 100 sentences) while modern prose runs about 3–6, so as a default it would hide a heavily passive modern draft. Transitions and pronoun starts already ship with no band until a published-fiction run. See [STYLE-PASSIVE.md](STYLE-PASSIVE.md) |
+| 2026-10-20 | Clarity (#302) is an opt-in lens: sticky sentences at ≥65% glue words in sentences of ≥15 words, long subordinate clauses at ≥20 words, glue from closed-class readings resolved by chunk, clauses from `B-SBAR` chunks, WH-words and a short subordinator list | No new data; defaults keep published public-domain flag rates near 2% (sticky) and 1% (long clauses) of sentences ([STYLE-CLARITY.md](STYLE-CLARITY.md#public-calibration-2026-10-20)); it counts clause length and glue share, never sentence length, so it does not duplicate `sentenceLength` or `TOO_LONG_SENTENCE` |
 
 ## Accuracy benchmarks
 

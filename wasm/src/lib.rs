@@ -625,6 +625,15 @@ impl StyleDocument {
             .map(|report| reports::to_utf16_json(&report))
             .map_err(style_error)
     }
+
+    #[wasm_bindgen(js_name = clarity)]
+    /// Returns the opt-in clarity lens (sticky sentences, long subordinate clauses).
+    pub fn clarity(&self, options_json: Option<String>) -> Result<String, JsValue> {
+        self.inner
+            .clarity(options_json.as_deref())
+            .map(|report| reports::to_utf16_json(&report))
+            .map_err(style_error)
+    }
 }
 
 #[wasm_bindgen(typescript_custom_section)]

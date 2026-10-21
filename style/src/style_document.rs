@@ -227,4 +227,11 @@ impl StyleDocument {
         };
         crate::reports::passive::report(&self.document, &options(json)?, baseline.as_ref())
     }
+
+    pub fn clarity(
+        &self,
+        json: Option<&str>,
+    ) -> Result<crate::reports::clarity::ClarityReport, StyleError> {
+        crate::reports::clarity::report(&self.document, &options(json)?)
+    }
 }
