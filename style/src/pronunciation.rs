@@ -76,7 +76,8 @@ pub fn spelled_onset(key: &str) -> &'static str {
     let word = key.trim_start_matches(|c: char| !c.is_alphabetic());
     // Loanwords keep their accents (`élan`, `Über`). An accented vowel is a vowel sound (never
     // the glide of `unit`); other common Latin letters fold to their base letter, `ç` always soft.
-    if word.starts_with(|c: char| "àáâãäåāèéêëēìíîïīòóôõöøōùúûüū".contains(c)) {
+    if word.starts_with(|c: char| "àáâãäåāèéêëēìíîïīòóôõöøōùúûüū".contains(c))
+    {
         return "-";
     }
     let word: String = word
