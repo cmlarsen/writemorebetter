@@ -102,11 +102,22 @@ impl SyllableCounter for HeuristicSyllables {
     }
 }
 
+/// The phase 2 counter and the report's default: CMUdict's count for the words the heuristic
+/// gets wrong, the heuristic for everything else. See [`crate::pronunciation`].
+#[derive(Debug, Clone, Copy, Default)]
+pub struct DictionarySyllables;
+
+impl SyllableCounter for DictionarySyllables {
+    fn syllables(&self, word: &str) -> usize {
+        syllables_with(word, &crate::pronunciation::syllable_exception)
+    }
+}
+
 pub fn report(
     document: &Document,
     options: &ReadabilityOptions,
 ) -> Result<ReadabilityReport, StyleError> {
-    report_with(document, options, &HeuristicSyllables)
+    report_with(document, options, &DictionarySyllables)
 }
 
 pub fn report_with(
@@ -262,14 +273,28 @@ pub fn sentence_words(sentence: &Sentence) -> Vec<String> {
 
 /// Heuristic syllable count for one word; always at least 1.
 pub fn syllables(word: &str) -> usize {
+    syllables_with(word, &|_| None)
+}
+
+/// A lookup from a lowercased key to a syllable count; `None` falls back to the heuristic.
+pub type SyllableLookup<'a> = &'a dyn Fn(&str) -> Option<usize>;
+
+/// Syllable count for one word, asking `lookup` first. Keys are lowercase with straight
+/// apostrophes and no leading or trailing punctuation: the whole word (`well-known`, `u.s`),
+/// then each hyphen-separated part, then the stem before a contraction or possessive (`ahab`
+/// in `Ahab’s`). The heuristic counts whatever the lookup doesn't know.
+pub fn syllables_with(word: &str, lookup: SyllableLookup) -> usize {
     let word: String = word
         .chars()
         .map(|c| if c == '’' { '\'' } else { c })
         .flat_map(char::to_lowercase)
         .collect();
+    if let Some(count) = lookup(word.trim_matches(|c: char| !c.is_alphanumeric())) {
+        return count.max(1);
+    }
     word.split(['-', '\u{2010}', '\u{2011}'])
         .filter(|part| part.chars().any(char::is_alphanumeric))
-        .map(clitic_syllables)
+        .map(|part| clitic_syllables(part, lookup))
         .sum::<usize>()
         .max(1)
 }
@@ -289,10 +314,14 @@ fn ends_in_consonant_sound(stem: &str) -> bool {
 }
 
 /// Handles contractions and possessives before counting the stem.
-fn clitic_syllables(part: &str) -> usize {
+fn clitic_syllables(part: &str, lookup: SyllableLookup) -> usize {
     let part = part.trim_matches(|c: char| !c.is_alphanumeric());
+    if let Some(count) = lookup(part) {
+        return count;
+    }
+    let stem_syllables = |stem: &str| lookup(stem).unwrap_or_else(|| letters_syllables(stem));
     if let Some(stem) = part.strip_suffix("n't") {
-        return letters_syllables(stem) + usize::from(ends_in_consonant_sound(stem));
+        return stem_syllables(stem) + usize::from(ends_in_consonant_sound(stem));
     }
     if let Some((stem, clitic)) = part.rsplit_once('\'') {
         if !stem.is_empty() {
@@ -304,7 +333,7 @@ fn clitic_syllables(part: &str) -> usize {
                 "m" => false,
                 _ => return letters_syllables(&part.replace('\'', "")),
             };
-            return letters_syllables(stem) + usize::from(extra);
+            return stem_syllables(stem) + usize::from(extra);
         }
     }
     letters_syllables(&part.replace('\'', ""))

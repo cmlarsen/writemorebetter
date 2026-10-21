@@ -349,6 +349,15 @@ variants with three notices and a fixed release.
 - **Conditions.** Separate data file, `LICENSE` verbatim in `style/data/licenses/`, NOTICE entry
   naming CMU and the commit, and the notice in the documentation of WASM and native builds that
   embed it.
+- **Vendored by #300 phase 2 (2026-10-20).** `style/data/pronunciation/cmudict-syllables.tsv`:
+  syllable counts only (vowel phones of the first pronunciation), no phonemes, for the 8,437 of
+  125,159 keys the heuristic counter gets wrong; 92,749 bytes, 32,885 gzipped, instead of the
+  1.3 MB full table above. Built by `scripts/build-cmudict.py`, which pins the sha256 above. The
+  file header carries CMU's copyright line and marks it as modified; `LICENSE` is verbatim in
+  `style/data/licenses/cmudict.txt`; NOTICE has the entry with the full notice and says binary
+  redistributions must reproduce it; the root, `wasm/` and `swift/` READMEs point to it. #307's
+  alliteration table should be another output of the same script. See
+  [STYLE-READABILITY.md](STYLE-READABILITY.md#dictionary-phase-2).
 
 ### Princeton WordNet 3.0 / 3.1 (#304, #307 hidden verbs)
 
@@ -445,7 +454,7 @@ A vague-words list for #307 should be authored by this project's contributors, a
 | Issue | Recommendation | Rejected or not preferred |
 |---|---|---|
 | #299 US/UK spelling | VarCon 2020.12.07 `varcon.txt`, three notices, marked modified; optionally Harper `regionalisms.rs` for vocabulary (Apache-2.0, US/UK/CA/AU rows only) | SCOWL v2/ESDB (more notices, no data release); VarCon `voc.tab` (web-page sources) |
-| #300 readability phase 2 | CMUdict `74790861` syllable-count table (≈1.3 MB raw, ≈400 KB gzipped), heuristic fallback | — |
+| #300 readability phase 2 | CMUdict `74790861` syllable-count table, heuristic fallback; vendored as the heuristic's 8,437 misses (92,749 bytes, 32,885 gzipped) | — |
 | #304 emotion tells | Lancaster norms (already vendored) ∩ Princeton WordNet 3.0 `noun.feeling` plus `feeling.n.01`/`emotion.n.01` hyponyms, as a separate file under the WordNet License; Roget 1911 (#22, PG references stripped) as fallback | NRC EmoLex, WordNet-Affect, DepecheMood; OEWN acceptable but needs two attribution chains |
 | #307 vague words | Project-authored list plus words/fillers' 80 expresso-backed entries | words/weasels, words/hedges (unlicensed origins); Harper boring/hedging/filler (usable but 10 entries) |
 | #307 hidden verbs | Princeton WordNet 3.0 noun→verb derivational pointers, separate file under the WordNet License | CatVar (OSL-1.1, per #307) |

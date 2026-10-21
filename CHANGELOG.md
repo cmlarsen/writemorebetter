@@ -22,6 +22,20 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   2020.12.07 by `scripts/build-regional-spelling.py`; its Atkinson, Titze and Ispell notices are in
   NOTICE and `style/data/licenses/varcon.txt`. See
   [`docs/STYLE-REGIONAL-SPELLING.md`](docs/STYLE-REGIONAL-SPELLING.md).
+
+- **Readability counts syllables with CMUdict**
+  ([#300](https://github.com/cmlarsen/writemorebetter/issues/300), phase 2). The readability
+  report's default counter, `DictionarySyllables`, looks words up in a table derived from the CMU
+  Pronouncing Dictionary (commit `74790861`, BSD-2-Clause-style) and falls back to the phase 1
+  heuristic, which stays available as `HeuristicSyllables`. The table holds only the 8,437
+  CMUdict words the heuristic gets wrong (92,749 bytes; +34.9 KB to the gzipped WASM module), so
+  every CMUdict headword gets CMUdict's first-pronunciation count; no phonemes are bundled.
+  Accuracy on the development word list rises from 467 to 482 of 484 and on the held-out list
+  from 189 to 190 of 190; whole-text indices on `bench/public` move by at most 0.5. Built by
+  `scripts/build-cmudict.py` from a pinned sha256. Apps that ship the style reports must
+  reproduce CMU's notice in their documentation; see NOTICE and
+  [`docs/STYLE-READABILITY.md`](docs/STYLE-READABILITY.md#dictionary-phase-2).
+
 - **Diction has a bundled concreteness table**
   ([#256](https://github.com/cmlarsen/writemorebetter/issues/256)).
   `style/data/norms/concreteness.tsv` is writemorebetter's own table (14,572 words, MIT OR

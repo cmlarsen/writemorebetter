@@ -1,6 +1,6 @@
 # Readability: indices and reading time
 
-`style::reports::readability` (#300, phase 1) is an **opt-in lens** that reports document
+`style::reports::readability` (#300) is an **opt-in lens** that reports document
 statistics: Flesch Reading Ease, Flesch–Kincaid grade, Coleman–Liau, the Automated Readability
 Index (ARI), estimated reading time, and the same values for every paragraph. It flags nothing and
 never suggests replacement prose. Fiction aimed at adults routinely scores at grade 4–8 on these
@@ -90,7 +90,9 @@ The report counts words the way the formulas assume, which differs on purpose fr
   initialisms across periods between single letters (`p.m.`, `U.S.`).
 - Skipped names count: a reader reads them.
 - Any token with a letter or digit is a word, so `1999` and `1,000` are one word of one syllable
-  each, and `p.m.` is one syllable. Spelling numbers out is a dictionary's job (phase 2).
+  each. CMUdict has no numerals, so the dictionary doesn't spell them out either. Initialisms it
+  lists are read letter by letter (`U.S.` 2, `a.m.` 2); others fall back to the heuristic
+  (`p.m.` 1).
 
 Sentences come from the document pass; one with no words (`…`, `* * *`) is not counted. U+2028
 inside a paragraph is whitespace, so it neither splits words nor ends a sentence by itself.
@@ -118,7 +120,11 @@ times cover the words in their own group.
 
 ## Syllable counter
 
-`syllables(word)` is a heuristic: count vowel groups, then apply English exceptions. All rules are
+`report` counts syllables with `DictionarySyllables` (phase 2, [below](#dictionary-phase-2)):
+CMUdict's count for the words the heuristic gets wrong, the heuristic for everything else.
+`report_with(document, options, &HeuristicSyllables)` gives the phase 1 counts.
+
+`syllables(word)` is the heuristic: count vowel groups, then apply English exceptions. All rules are
 original to this crate.
 
 - **Vowels.** a e i o u y and accented Latin vowels. `u` after `q` is a consonant (`queen`). `y` is
@@ -161,7 +167,9 @@ original to this crate.
 
 ### Accuracy
 
-Counts are compared with the first CMUdict pronunciation of each word.
+Counts are compared with the first CMUdict pronunciation of each word. This section measures the
+heuristic alone; see [the dictionary's accuracy](#accuracy-with-the-dictionary) for the default
+counter.
 
 | List | Words | Correct | Accuracy |
 |---|---:|---:|---:|
@@ -191,12 +199,79 @@ words with two common pronunciations removed. It was labeled after the rules wer
 miss is `priest` (counted as `-iest`, 2). Running prose is dominated by one-syllable words, so the
 per-token accuracy on real text is higher than either figure.
 
-### Seam for a dictionary (phase 2)
+## Dictionary (phase 2)
 
-`report_with(document, options, &dyn SyllableCounter)` takes any counter. `report` uses
-`HeuristicSyllables`. Phase 2 can add a counter backed by vendored CMUdict counts that falls back
-to `syllables()` for unknown words, without changing the formulas or the result types. Check the
-size impact before bundling it.
+`DictionarySyllables` asks a table derived from the CMU Pronouncing Dictionary first and the
+heuristic second, through `syllables_with(word, lookup)`. The lookup is tried on the whole word,
+then on each hyphen-separated part, then on the stem before a contraction or possessive, so
+`Wednesday’s` gets CMUdict's `wednesday` plus the heuristic's possessive rule. Keys are lowercase
+with straight apostrophes and no outer punctuation; curly quotes, curly apostrophes, em dashes,
+ellipses and U+2028 never reach a key.
+
+**Source.** `cmudict.dict` from [cmusphinx/cmudict](https://github.com/cmusphinx/cmudict) at
+commit `74790861f652b15e4ac49015a90074ad62a27690` (sha256
+`81917843c7f44ce2b094ac63873c2c7a4cf802040792c455ba3ca406891c3d22`, 3,618,488 bytes),
+BSD-2-Clause-style; the license is in `style/data/licenses/cmudict.txt` and NOTICE. See
+[STYLE-DATA-LICENSES.md](STYLE-DATA-LICENSES.md#cmudict-300-307-alliteration).
+
+**Table.** `scripts/build-cmudict.py cmudict.dict` refuses any other sha256, takes each headword's
+first pronunciation, and counts its vowel phones (the phones with a stress digit; at least 1).
+Keys are the headwords, with initialisms (`u.s.`) stored without their final period, since the
+word joiner leaves the sentence's period off; other trailing-period abbreviations (`corp.`, `dr.`)
+and headwords with a leading apostrophe (`'em`) are dropped, and `dogs'` defers to `dogs`. That
+gives 125,159 keys. The script then runs `cargo run --example cmudict_syllables`, which keeps a
+key only if `syllables_with` misses CMUdict's count without it, and adds keys back until every one
+of the 125,159 gets CMUdict's count from the kept table. **8,437 keys are kept** (6.7%); the heuristic alone gets 8,830 keys wrong, and the other 393 come
+right once their stem or parts are looked up (`wednesday's`, `able-bodied`). Only counts are
+written, never phonemes. Rebuild the table whenever the heuristic changes, or words it used to get
+right may drift; the `bundled_syllable_table_is_well_formed` test checks every kept key.
+
+| Table | Rows | Bytes | `gzip -9` |
+|---|---:|---:|---:|
+| Every key, `word\tcount` | 125,159 | 1,312,434 | 394,477 |
+| Heuristic misses only (bundled) | 8,437 | 92,749 | 32,885 |
+
+Keeping only the misses is 14× smaller raw and 12× smaller gzipped than the full table, with the
+same counts for every CMUdict headword. The trade is the coupling to the heuristic above.
+
+**First pronunciation.** The table follows CMUdict's first entry, the same reference the accuracy
+lists use, so `our`, `hour` and `fire` are 2 and `every` is 3.
+
+**Reuse.** `writemorebetter_style::pronunciation` holds the lookups derived from CMUdict:
+`syllable_exception(key)` for this table. Its `None` means "use the heuristic", not "not in
+CMUdict". The alliteration lens (#307) needs initial sounds, not counts; it should add its own
+derived table as a second output of `scripts/build-cmudict.py` from the same pinned file, with its
+own lookup in that module, so phonemes still aren't exposed.
+
+### Accuracy with the dictionary
+
+| List | Words | Heuristic | Dictionary |
+|---|---:|---:|---:|
+| Development (`style/tests/fixtures/syllables.tsv`) | 484 | 467 (96.5%) | 482 (99.6%) |
+| Held out (`style/tests/fixtures/syllables-heldout.tsv`) | 190 | 189 (99.5%) | 190 (100%) |
+| Every CMUdict key (first pronunciation) | 125,159 | 116,329 (92.9%) | 125,159 (100%) |
+
+The two development misses are `beautifully` and `convenient`, labeled 4 in the list; CMUdict's
+first (and only) entry gives 3 for both (`B Y UW1 T AH0 F L IY0`, `K AH0 N V IY1 N Y AH0 N T`), and
+both counters say 3. Words outside CMUdict (names, coinages, misspellings) keep the heuristic's
+accuracy.
+
+### Cost
+
+- **Size.** The table adds 92,749 bytes to the crate source. The WASM module after `wasm-bindgen`
+  grows from 5,909,360 to 6,009,357 bytes (+99,997, +1.7%); gzipped with `gzip -9`, from
+  1,502,780 to 1,537,709 (+34,929, +2.3%). Measured against main at `10c81ac` on macOS with Rust's
+  wasm32 target, without `wasm-opt`.
+- **Load.** The table is parsed into a hash map on the first lookup: 0.8 ms native (release), held
+  for the life of the process (estimated at a few hundred KB for 8,437 entries; not measured).
+- **Check time.** A readability report on a 2,000-word story takes 1.0–1.2 ms with either counter
+  (+0.04 ms with the dictionary); on `moby150k`, 13.8 ms → 14.3 ms (+3%). Native release, median
+  of 21 runs:
+
+  ```sh
+  cargo run --release -p writemorebetter-style --example readability_report -- --timing \
+    bench/public/story{1,2,3,4,5}.txt bench/public/moby150k.txt
+  ```
 
 ## Public measurements (2026-10-20)
 
@@ -205,32 +280,50 @@ cargo run --release -p writemorebetter-style --example readability_report -- \
   bench/public/story{1,2,3,4,5}.txt bench/public/moby150k.txt
 ```
 
-`moby150k.txt` is read hard-wrapped. Default options.
+`moby150k.txt` is read hard-wrapped. Default options, with the dictionary counter; pass
+`--heuristic` first for the phase 1 values.
 
-| Text | Sentences | Words | Syll./word | FRE | FKGL | CLI | ARI | Minutes |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| story1 | 119 | 2190 | 1.29 | 79.3 | 6.8 | 6.1 | 6.6 | 8.4 |
-| story1 narration | 82 | 1871 | 1.30 | 73.9 | 8.6 | 6.7 | 9.0 | 7.2 |
-| story1 dialogue | 37 | 319 | 1.22 | 94.7 | 2.2 | 2.9 | 0.6 | 1.2 |
-| story2 | 131 | 2018 | 1.22 | 88.3 | 4.8 | 5.0 | 4.4 | 7.8 |
-| story2 narration | 91 | 1681 | 1.22 | 85.2 | 6.0 | 5.4 | 6.0 | 6.5 |
-| story2 dialogue | 40 | 337 | 1.22 | 95.4 | 2.1 | 3.0 | 0.6 | 1.3 |
-| story3 | 127 | 1986 | 1.23 | 86.5 | 5.1 | 5.2 | 4.7 | 7.6 |
-| story3 narration | 83 | 1654 | 1.24 | 82.0 | 6.8 | 5.6 | 6.9 | 6.4 |
-| story3 dialogue | 44 | 332 | 1.23 | 95.5 | 1.8 | 2.9 | 0.5 | 1.3 |
-| story4 | 128 | 2156 | 1.25 | 84.0 | 5.7 | 5.4 | 5.4 | 8.3 |
-| story4 narration | 100 | 1888 | 1.26 | 81.2 | 6.6 | 5.6 | 6.4 | 7.3 |
-| story4 dialogue | 28 | 268 | 1.18 | 97.1 | 2.1 | 3.4 | 1.2 | 1.0 |
-| story5 | 117 | 1837 | 1.23 | 87.0 | 5.0 | 4.8 | 4.5 | 7.1 |
-| story5 narration | 85 | 1581 | 1.23 | 84.2 | 6.1 | 5.0 | 5.8 | 6.1 |
-| story5 dialogue | 32 | 256 | 1.24 | 93.6 | 2.2 | 4.0 | 1.4 | 1.0 |
-| moby150k | 1125 | 24753 | 1.40 | 66.3 | 9.5 | 8.6 | 10.2 | 95.2 |
-| moby150k narration | 760 | 17560 | 1.42 | 63.6 | 10.1 | 8.9 | 10.9 | 67.5 |
-| moby150k dialogue | 365 | 7193 | 1.35 | 72.6 | 8.0 | 7.8 | 8.6 | 27.7 |
+| Text | Sentences | Words | Syllables | Syll./word | FRE | FKGL | CLI | ARI | Minutes |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| story1 | 119 | 2190 | 2818 | 1.29 | 79.3 | 6.8 | 6.1 | 6.6 | 8.4 |
+| story1 narration | 82 | 1871 | 2429 | 1.30 | 73.8 | 8.6 | 6.7 | 9.0 | 7.2 |
+| story1 dialogue | 37 | 319 | 389 | 1.22 | 94.9 | 2.2 | 2.9 | 0.6 | 1.2 |
+| story2 | 131 | 2018 | 2466 | 1.22 | 87.8 | 4.8 | 5.0 | 4.4 | 7.8 |
+| story2 narration | 91 | 1681 | 2054 | 1.22 | 84.7 | 6.0 | 5.4 | 6.0 | 6.5 |
+| story2 dialogue | 40 | 337 | 412 | 1.22 | 94.9 | 2.1 | 3.0 | 0.6 | 1.3 |
+| story3 | 127 | 1986 | 2456 | 1.24 | 86.3 | 5.1 | 5.2 | 4.7 | 7.6 |
+| story3 narration | 83 | 1654 | 2049 | 1.24 | 81.8 | 6.8 | 5.6 | 6.9 | 6.4 |
+| story3 dialogue | 44 | 332 | 407 | 1.23 | 95.5 | 1.8 | 2.9 | 0.5 | 1.3 |
+| story4 | 128 | 2156 | 2700 | 1.25 | 83.8 | 5.8 | 5.4 | 5.4 | 8.3 |
+| story4 narration | 100 | 1888 | 2383 | 1.26 | 80.9 | 6.7 | 5.6 | 6.4 | 7.3 |
+| story4 dialogue | 28 | 268 | 317 | 1.18 | 97.1 | 2.1 | 3.4 | 1.2 | 1.0 |
+| story5 | 117 | 1837 | 2252 | 1.23 | 87.2 | 5.0 | 4.8 | 4.5 | 7.1 |
+| story5 narration | 85 | 1581 | 1935 | 1.22 | 84.4 | 6.1 | 5.0 | 5.8 | 6.1 |
+| story5 dialogue | 32 | 256 | 317 | 1.24 | 94.0 | 2.1 | 4.0 | 1.4 | 1.0 |
+| moby150k | 1125 | 24753 | 34578 | 1.40 | 66.3 | 9.5 | 8.6 | 10.2 | 95.2 |
+| moby150k narration | 760 | 17560 | 24864 | 1.42 | 63.6 | 10.1 | 8.9 | 10.9 | 67.5 |
+| moby150k dialogue | 365 | 7193 | 9714 | 1.35 | 72.6 | 8.0 | 7.8 | 8.6 | 27.7 |
 
 With `excludeDialogueParagraphs`, `all` has the same counts and indices as `narration` for stories 1–4 (their dialogue is all
-in dialogue-only paragraphs). Story 5 becomes 86 sentences, 1586 words, FKGL 6.1; moby150k
+in dialogue-only paragraphs). Story 5 becomes 86 sentences, 1586 words, FKGL 6.0; moby150k
 becomes 907 sentences, 20640 words, FKGL 9.9. Reading time stays at the whole text's.
+
+**Phase 1 → phase 2.** The dictionary changes the count of 9–16 words per story and 226 in
+`moby150k`, in both directions, so totals move little:
+
+| Text | Syllables (heuristic → dictionary) | FRE | FKGL |
+|---|---|---|---|
+| story1 | 2818 → 2818 | 79.3 → 79.3 | 6.8 → 6.8 |
+| story2 | 2454 → 2466 | 88.3 → 87.8 | 4.8 → 4.8 |
+| story3 | 2452 → 2456 | 86.5 → 86.3 | 5.1 → 5.1 |
+| story4 | 2694 → 2700 | 84.0 → 83.8 | 5.7 → 5.8 |
+| story5 | 2257 → 2252 | 87.0 → 87.2 | 5.0 → 5.0 |
+| moby150k | 34578 → 34578 | 66.3 → 66.3 | 9.5 → 9.5 |
+
+No index moves by more than 0.5 in any group (story2 FRE 88.3 → 87.8, story2 dialogue
+95.4 → 94.9). Since the heuristic was already right on about 99% of tokens in running fiction,
+the dictionary matters for single paragraphs and unusual vocabulary rather than whole-text scores.
+Coleman–Liau and ARI don't use syllables and are unchanged.
 
 Per-paragraph Flesch–Kincaid grade, over paragraphs with at least 30 words:
 
@@ -239,9 +332,9 @@ Per-paragraph Flesch–Kincaid grade, over paragraphs with at least 30 words:
 | story1 | 96 | 22 | 3.0 | 12.2 | 18.3 |
 | story2 | 96 | 9 | 4.8 | 11.6 | 13.9 |
 | story3 | 96 | 4 | 8.3 | 10.9 | 12.5 |
-| story4 | 93 | 8 | 3.0 | 9.0 | 11.1 |
+| story4 | 93 | 8 | 3.0 | 9.3 | 11.1 |
 | story5 | 86 | 10 | 5.8 | 10.6 | 11.6 |
-| moby150k | 315 | 208 | 1.8 | 10.4 | 47.6 |
+| moby150k | 315 | 208 | 2.4 | 10.4 | 47.6 |
 
 What the numbers show:
 
