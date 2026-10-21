@@ -554,4 +554,18 @@ final class CheckerTests: XCTestCase {
             XCTAssertTrue(message.hasPrefix("invalid houseStyle rules"))
         }
     }
+
+    func testEmotionTellsLens() throws {
+        let text = "😀 “I’m afraid of heights,” he said. She was afraid—then angry.\u{2028}Fear washed over her."
+        let document = try checker().styleDocument(text: text)
+        let tells = try document.emotionTells()
+        XCTAssertEqual(tells.tells.map { (text as NSString).substring(with: $0.span.nsRange) }, ["was afraid", "Fear washed"])
+        XCTAssertEqual(tells.tells.map(\.pattern), [.predicate, .subject])
+        XCTAssertEqual(tells.groups.dialogue.tells, 0)
+        let withDialogue = try document.emotionTells(optionsJson: "{\"includeDialogue\":true}")
+        XCTAssertEqual(withDialogue.groups.dialogue.tells, 1)
+        let roundTrip = try JSONDecoder().decode(EmotionTellsReport.self, from: Data(document.emotionTellsJson().utf8))
+        XCTAssertEqual(roundTrip, tells)
+        XCTAssertThrowsError(try document.emotionTells(optionsJson: "{\"typo\":true}"))
+    }
 }

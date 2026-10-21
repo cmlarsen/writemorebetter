@@ -33,6 +33,20 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   script and validation gate are committed under `bench/style/concreteness/`, and the build is
   byte-reproducible from them. See [`docs/STYLE-NORMS.md`](docs/STYLE-NORMS.md#bundled-concreteness-table-256)
   and NOTICE.
+- **Emotion tells lens** ([#304](https://github.com/cmlarsen/writemorebetter/issues/304)). Rust
+  `StyleDocument::emotion_tells`, WASM `document.emotionTells(optionsJSON?)` and Swift
+  `document.emotionTells()` flag narration that names a feeling: *she was afraid*, *he felt angry*,
+  *she felt a surge of relief*, *fear washed over her*. Each tell has its span, the emotion and verb
+  spans, the lexicon word and its pattern (`predicate`, `object`, `subject`). Per-mode counts and
+  rates are in `groups`. Dialogue, quoted text included, is skipped unless `includeDialogue` is
+  set, and hedges such as *I'm afraid so* and *I'm sorry* are never flagged. The lexicon
+  (`style/data/emotions/emotions.tsv`, 760 words, 10 KB) is derived from Princeton WordNet 3.0,
+  weighted by the bundled Lancaster norms, and ships as a separate data file under the WordNet
+  License (`style/data/licenses/WordNet-LICENSE`, NOTICE). `scripts/build-emotion-lexicon.py`
+  rebuilds it. Hand-judged precision on public-domain published fiction is 0.91 on a held-out
+  sample of 100 (0.94 on the 200-row development sample). The WASM module grows by 44 KB
+  (5,678,182 → 5,722,250 bytes; 1,461,541 → 1,473,072 with `gzip -9`). See
+  [`docs/STYLE-EMOTION-TELLS.md`](docs/STYLE-EMOTION-TELLS.md).
 
 - **Enable off-by-default rules.** `Rules::enable_rules(&selectors)` turns on LanguageTool's
   `default="off"` and `picky` rules, such as `PLAIN_ENGLISH`, `REDUNDANCY`, `STYLE/PASSIVE_VOICE` and

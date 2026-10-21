@@ -1,0 +1,63 @@
+{
+ "flags": 810,
+ "narrationWords": 555918,
+ "perThousandWords": 1.457,
+ "patternFlags": {
+  "predicate": 764,
+  "object": 42,
+  "subject": 4
+ },
+ "development": {
+  "all": {
+   "labeled": 200,
+   "kept": 188,
+   "precision": 0.941,
+   "droppedTrue": 1,
+   "droppedFalse": 11
+  },
+  "object": {
+   "labeled": 10,
+   "kept": 10,
+   "precision": 1.0,
+   "droppedTrue": 0,
+   "droppedFalse": 0
+  },
+  "predicate": {
+   "labeled": 190,
+   "kept": 178,
+   "precision": 0.938,
+   "droppedTrue": 1,
+   "droppedFalse": 11
+  }
+ },
+ "heldout": {
+  "all": {
+   "labeled": 100,
+   "kept": 100,
+   "precision": 0.91,
+   "droppedTrue": 0,
+   "droppedFalse": 0
+  },
+  "object": {
+   "labeled": 5,
+   "kept": 5,
+   "precision": 1.0,
+   "droppedTrue": 0,
+   "droppedFalse": 0
+  },
+  "predicate": {
+   "labeled": 94,
+   "kept": 94,
+   "precision": 0.904,
+   "droppedTrue": 0,
+   "droppedFalse": 0
+  },
+  "subject": {
+   "labeled": 1,
+   "kept": 1,
+   "precision": 1.0,
+   "droppedTrue": 0,
+   "droppedFalse": 0
+  }
+ }
+}

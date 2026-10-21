@@ -173,3 +173,20 @@ HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
 LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
 OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 SUCH DAMAGE.
+
+style/data/emotions/emotions.tsv is derived from Princeton WordNet 3.0
+(https://wordnet.princeton.edu/), release tarball WordNet-3.0.tar.gz (sha256
+640db279c949a88f61f851dd54ebbb22d003f8b90b85267042ef85a3781d3a52). WordNet 3.0
+Copyright 2006 by Princeton University. All rights reserved. It is used and
+modified under the WordNet License, whose full text, including the disclaimer,
+is in style/data/licenses/WordNet-LICENSE; the table is not licensed MIT OR
+Apache-2.0. Modified by writemorebetter: single-word lemmas of the noun.feeling
+synsets and the hyponyms of feeling.n.01 and emotion.n.01, adjectives derived
+from or attributes of those nouns and their satellites, and verbs whose
+participle names a feeling, filtered by WordNet's most frequent sense, by the
+Lancaster Sensorimotor Norms above (dominant interoception) and by reviewed
+inclusion and exclusion lists (scripts/build-emotion-lexicon.py). Princeton
+asks that WordNet be cited as: George A. Miller (1995). WordNet: A Lexical
+Database for English. Communications of the ACM, 38(11), 39-41; and Christiane
+Fellbaum (1998, ed.). WordNet: An Electronic Lexical Database. Cambridge, MA:
+MIT Press. Princeton University does not endorse writemorebetter.

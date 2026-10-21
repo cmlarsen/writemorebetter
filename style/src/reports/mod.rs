@@ -6,6 +6,7 @@ pub mod dialogue_tags;
 pub mod diction;
 pub mod echoes;
 pub mod house_style;
+pub mod emotion_tells;
 mod norms;
 pub mod overused_words;
 pub mod pacing;

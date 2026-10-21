@@ -631,3 +631,26 @@ export interface RegionalSpellingReport {
   words: Array<RegionalSpellingWord>;
   flags: Array<RegionalSpellingFlag>;
 }
+
+export type EmotionTellPattern = "predicate" | "object" | "subject";
+
+export interface EmotionTell {
+  span: Span;
+  emotion: Span;
+  verb: Span;
+  word: string;
+  pattern: EmotionTellPattern;
+  sentence: number;
+  mode: Mode;
+}
+
+export interface EmotionTellsGroup {
+  tells: number;
+  words: number;
+  perThousandWords: number | null;
+}
+
+export interface EmotionTellsReport {
+  tells: Array<EmotionTell>;
+  groups: Split<EmotionTellsGroup>;
+}

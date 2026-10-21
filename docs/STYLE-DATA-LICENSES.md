@@ -487,3 +487,27 @@ Vendored 2026-10-20 under the conditions recorded in the wave 3 check (#316).
   *flat*, *boot*, *jumper*), so flagging them needs word-sense information the report does not
   have, and the 95 terms would add an attribution chain for a lower-confidence category. Revisit
   with a sense filter.
+
+## Emotion lexicon (#304)
+
+| File | Source | Version | License | Checked |
+|---|---|---|---|---|
+| `style/data/emotions/emotions.tsv` | Princeton WordNet 3.0, <https://wordnetcode.princeton.edu/3.0/WordNet-3.0.tar.gz> | release 3.0; sha256 `640db279c949a88f61f851dd54ebbb22d003f8b90b85267042ef85a3781d3a52`, 11,537,239 bytes | WordNet License (SPDX `WordNet`) | 2026-10-20 |
+
+Vendored as the [Princeton WordNet 3.0 decision](#princeton-wordnet-30--31-304-307-hidden-verbs)
+above requires: a separate data file, never inlined into engine source, with the copyright line
+in its header, `style/data/licenses/WordNet-LICENSE` copied verbatim from the tarball's `LICENSE`
+(including its "WordNet Release 3.0" version line), and a NOTICE entry with the version, sha256,
+derivation and Princeton's requested citation (Miller 1995; Fellbaum 1998). The table is not
+relicensed: the style crate's MIT/Apache license covers its code, not this file. The Lancaster
+norms are used only as a filter (dominant interoception), so no Lancaster values are copied into
+the table. They remain credited under CC BY 4.0.
+
+**Derivation.** `scripts/build-emotion-lexicon.py` reads the tarball in place, checks the sha256
+and rebuilds the table byte for byte: 760 lemmas (438 nouns, 235 adjectives, 112 verbs whose
+participle names a feeling). It takes `noun.feeling` plus the hyponyms of `feeling.n.01` and
+`emotion.n.01`, those nouns' derived and attribute adjectives with their satellites, and
+`verb.emotion` or noun-derived verbs with frame 10. It keeps a lemma when its most frequent sense
+is in that set or the bundled Lancaster table rates it dominantly interoceptive, then applies
+reviewed inclusion and exclusion lists. Every lemma comes from WordNet. Details:
+[STYLE-EMOTION-TELLS.md](STYLE-EMOTION-TELLS.md#lexicon).

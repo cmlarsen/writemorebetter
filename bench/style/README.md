@@ -1259,3 +1259,15 @@ python3 bench/style/published_bands.py public.json --passive --dataset "…" --t
 Prejudice* (all chapters) as 7 units from 3 authors. The numbers and caveats are in
 [STYLE-PASSIVE.md](../../docs/STYLE-PASSIVE.md#band-provisional-public-stand-in).
 
+## Emotion tells (#304)
+
+`python3 bench/style/emotion_tells.py score --gate` builds the `emotion_tells` probe, runs the report
+with default options over the public stories and the public-domain books and chapters pacing uses,
+and scores two hand-judged samples of its flags: `labels/emotion-tells.jsonl` (200 rows, seed 304,
+the development set) and `labels/emotion-tells-heldout.jsonl` (100 rows, seed 305, drawn after the
+last guards from flags not in the development set). Each row holds the tell, a short public-domain
+context window, the label and a note on false rows. A labeled flag the report no longer produces
+counts as dropped, not as a miss. The gate fails if either set's precision on kept flags falls
+below 0.85. `--write` updates `emotion-tells-baseline.json`. `sample` and `heldout` redraw the sets
+(unlabeled). Definitions, results and limitations are in
+[STYLE-EMOTION-TELLS.md](../../docs/STYLE-EMOTION-TELLS.md).

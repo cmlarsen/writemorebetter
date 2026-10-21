@@ -657,6 +657,15 @@ impl StyleDocument {
             .map(|report| reports::to_utf16_json(&report))
             .map_err(style_error)
     }
+
+    #[wasm_bindgen(js_name = emotionTells)]
+    /// Returns the opt-in emotion-tells lens on the retained analysis; narration only by default.
+    pub fn emotion_tells(&self, options_json: Option<String>) -> Result<String, JsValue> {
+        self.inner
+            .emotion_tells(options_json.as_deref())
+            .map(|report| reports::to_utf16_json(&report))
+            .map_err(style_error)
+    }
 }
 
 #[wasm_bindgen(typescript_custom_section)]
