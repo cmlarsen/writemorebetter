@@ -40,6 +40,9 @@ pub enum CheckError {
     UnknownSpellVariant { message: String },
     #[error("invalid report input: {message}")]
     ReportInput { message: String },
+    /// `enable_rules` named rule selectors that match no rule.
+    #[error("unknown rule selectors: {selectors:?}")]
+    UnknownSelectors { selectors: Vec<String> },
 }
 
 /// A single flagged span.
@@ -468,6 +471,26 @@ impl Checker {
             .map(str::to_string)
             .collect()
     }
+
+    /// Enables rules that are off by default, such as LanguageTool's `picky` style rules, by the
+    /// selector syntax profiles use (`"PLAIN_ENGLISH"`, `"STYLE/PASSIVE_VOICE"`,
+    /// `"BUILTIN/EN_REDUNDANCY_REPLACE"`; see `docs/PROFILE.md`). It applies on top of the
+    /// constructor's profile, so it can turn back on a rule the profile disabled. Returns how
+    /// many rules changed from off to on. A selector that matches no rule throws and nothing is
+    /// enabled. Changes apply to the next `check`.
+    pub fn enable_rules(&self, selectors: Vec<String>) -> Result<u32, CheckError> {
+        self.write_rules()
+            .enable_rules(&selectors)
+            .map(|enabled| enabled as u32)
+            .map_err(|err| match err {
+                nlprule::Error::UnknownSelectors(selectors) => {
+                    CheckError::UnknownSelectors { selectors }
+                }
+                other => CheckError::Rules {
+                    message: other.to_string(),
+                },
+            })
+    }
 }
 
 /// Maps character indices in a string to UTF-16 code-unit indices.
@@ -555,6 +578,48 @@ mod tests {
 
         checker.set_mother_tongue(None);
         assert!(false_friends(&checker).is_empty());
+    }
+
+    #[test]
+    fn enable_rules_applies_after_the_profile() {
+        let checker = checker();
+        let text = "\u{201c}It\u{2019}s, in my opinion, wrong\u{2026}\u{201d} she said\u{2014}quietly.\u{2028}It was a free gift.";
+        let fired = |prefix: &str| {
+            checker
+                .check(text.to_string())
+                .into_iter()
+                .filter(|suggestion| suggestion.source.starts_with(prefix))
+                .map(|suggestion| (suggestion.start, suggestion.end))
+                .collect::<Vec<_>>()
+        };
+        assert!(fired("PLAIN_ENGLISH/").is_empty());
+        assert!(fired("REDUNDANCY/").is_empty());
+
+        assert!(
+            checker
+                .enable_rules(vec![
+                    "PLAIN_ENGLISH/IN_MY_OPINION".into(),
+                    "REDUNDANCY".into()
+                ])
+                .unwrap()
+                > 1
+        );
+        // UTF-16 offsets of ", in my opinion," / "in my opinion" after the curly quote and apostrophe.
+        let opinion = fired("PLAIN_ENGLISH/IN_MY_OPINION");
+        assert_eq!(opinion.len(), 1);
+        assert!(opinion[0].0 >= 5 && opinion[0].1 <= 21, "{opinion:?}");
+        assert!(!fired("REDUNDANCY/").is_empty());
+
+        match checker.enable_rules(vec![
+            "NO_SUCH_CATEGORY".into(),
+            "STYLE/PASSIVE_VOICE".into(),
+        ]) {
+            Err(super::CheckError::UnknownSelectors { selectors }) => {
+                assert_eq!(selectors, ["NO_SUCH_CATEGORY"])
+            }
+            other => panic!("unexpected result: {other:?}"),
+        }
+        assert_eq!(checker.enable_rules(Vec::new()).unwrap(), 0);
     }
 
     #[test]

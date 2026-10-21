@@ -110,6 +110,9 @@ pub enum Error {
     /// incompatible engine version. Carries a human-readable explanation.
     #[error("{0}")]
     Format(String),
+    /// Rule selectors passed to [Rules::enable_rules] that name no rule.
+    #[error("unknown rule selectors: {0:?}")]
+    UnknownSelectors(Vec<String>),
 }
 
 /// The magic bytes that prefix every serialized [Tokenizer] binary.

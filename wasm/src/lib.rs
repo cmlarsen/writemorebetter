@@ -425,6 +425,19 @@ impl Checker {
         serde_json::to_string(&self.rules.mother_tongues())
             .map_err(|err| JsValue::from_str(&format!("failed to serialize mother tongues: {err}")))
     }
+
+    /// Enables rules that are off by default, such as LanguageTool's `picky` style rules, by
+    /// the selector syntax profiles use (`"PLAIN_ENGLISH"`, `"STYLE/PASSIVE_VOICE"`,
+    /// `"BUILTIN/EN_REDUNDANCY_REPLACE"`; see `docs/PROFILE.md`). It applies on top of the
+    /// constructor's profile, so it can turn back on a rule the profile disabled. Returns how
+    /// many rules changed from off to on. A selector that matches no rule is an error and
+    /// nothing is enabled. Changes apply to the next `check`.
+    #[wasm_bindgen(js_name = enableRules)]
+    pub fn enable_rules(&mut self, selectors: Vec<String>) -> Result<usize, JsValue> {
+        self.rules
+            .enable_rules(&selectors)
+            .map_err(|err| JsValue::from_str(&err.to_string()))
+    }
 }
 
 fn style_error(error: writemorebetter_style::StyleError) -> JsValue {

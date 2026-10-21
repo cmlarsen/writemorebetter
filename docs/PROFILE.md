@@ -41,6 +41,65 @@ Surfaces:
 - `bench/tools/public_recall.py --profile <name>` passes `PROFILE` to the probe and
   prints the flag count.
 
+## Enabling rules
+
+Profiles only disable. LanguageTool also ships rules that are off until a user turns
+them on: `default="off"` rules and categories, and `tags="picky"` rules (its
+Level.PICKY). The compiler keeps them in the rules binary but disabled, so these
+style rules ship off:
+
+| Selector | Off rules it enables | What it flags |
+|---|---|---|
+| `PLAIN_ENGLISH` | 98 | wordy phrases with a plainer form, e.g. `IN_MY_OPINION`, `TIRED_INTENSIFIERS` ("really", "very") |
+| `BUILTIN/EN_PLAIN_ENGLISH_REPLACE` | 1 | the word-list companion of `PLAIN_ENGLISH` |
+| `REDUNDANCY` | 28 (159 after `fiction`) | redundant phrases, e.g. "free gift", `IN_ORDER_TO` |
+| `BUILTIN/EN_REDUNDANCY_REPLACE` | 1 | the word-list companion of `REDUNDANCY` |
+| `STYLE/PASSIVE_VOICE`, `STYLE/PASSIVE_VOICE_SIMPLE` | 7, 37 | passive constructions |
+| `STYLE/SERIAL_COMMA_ON`, `STYLE/SERIAL_COMMA_OFF` | 8, 1 | a missing / a present Oxford comma (pick one) |
+| `STYLE/ELLIPSIS` | 1 | three periods instead of `…` |
+
+`EN_PLAIN_ENGLISH_REPLACE`'s word list (`wordiness.txt`) writes "delete this phrase" as the
+replacement `[OMIT]` (`as a whole=[OMIT]`, `as a matter of fact=in fact|[OMIT]`). LanguageTool
+6.6 suggests that marker literally. Here it becomes a deletion that leaves well-spaced prose:
+a phrase between paired commas or dashes goes with both marks (`was, as a matter of fact, late`
+→ `was late`); one before the end of a clause goes with the space, comma or dash before it; one
+before another word goes with the space after it, and at a sentence start also with a following
+comma, capitalizing the next word (`As a whole, the plan failed.` → `The plan failed.`). When the
+deletion reaches past the phrase, the span grows to cover it and the other replacements carry the
+same surrounding text. Where no clean deletion exists, only the other replacements are offered.
+The message says "omit it" instead of `[OMIT]`.
+
+Counts are compiled rules (each rule of a `<rulegroup>` counts once) on the default
+profile. `PASSIVE_VOICE`, `SERIAL_COMMA_*` and `ELLIPSIS` are rule groups inside the
+`STYLE` category, so a bare `PASSIVE_VOICE` is an unknown selector; `STYLE` alone
+would enable all 112 off `STYLE` rules.
+
+`Rules::enable_rules(&selectors)` turns rules on by the profile selector syntax:
+`CATEGORY`, `CATEGORY/RULE_ID` (any `Selector` prefix) or `BUILTIN/ID`. The builtin
+case form (`BUILTIN/ID/CASE`) only disables, so it is not accepted here. Callers
+apply it **after** the profile, so an enabled selector wins: `fiction` plus
+`REDUNDANCY` runs the redundancy rules, and enabling a `TOO_OFTEN_USED_*_EN` builtin
+under `fiction` keeps the profile's `DIRECT_SPEECH` skip.
+
+Every selector is checked before any rule changes. If one matches no rule, nothing is
+enabled and the call fails with `Error::UnknownSelectors` listing the unmatched ones,
+as an unknown profile name fails. On success it returns how many rules went from off
+to on (0 if they were already on). Enabling a rule changes no other rule's matches
+beyond LanguageTool's usual overlap handling between rules that flag the same span.
+
+With no selectors the rule set is exactly the profile's, so conformance and recall
+are unchanged.
+
+Surfaces:
+
+- Swift: `checker.enableRules(selectors: ["PLAIN_ENGLISH", "STYLE/PASSIVE_VOICE"])` returns
+  the count and throws `CheckError.UnknownSelectors(selectors:)`. It applies on top
+  of the constructor's profile (`"fiction"` by default) and to the next `check`.
+- WASM: `checker.enableRules(["PLAIN_ENGLISH", "STYLE/PASSIVE_VOICE"])` returns the count
+  and throws a string naming the unknown selectors.
+- `bench/tools/wmb-probe` reads `ENABLE`, a comma-separated selector list applied
+  after `PROFILE`; `bench/tools/public_recall.py --enable <list>` passes it through.
+
 ## The fiction profile
 
 Disables exactly these:

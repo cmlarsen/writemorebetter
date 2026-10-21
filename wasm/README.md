@@ -30,6 +30,10 @@ deprecated later. Prefer `start16` / `end16`. Pass `undefined`
 disable nothing; `"fiction"` applies the fiction profile (see `docs/PROFILE.md`) and any other
 name is an error.
 
+`checker.enableRules(["PLAIN_ENGLISH", "STYLE/PASSIVE_VOICE"])` turns on rules that are off by
+default, on top of the profile, and returns how many it enabled; an unknown selector throws and
+enables nothing. See "Enabling rules" in `docs/PROFILE.md` for the selectors.
+
 ### User dictionary
 
 Add words the app knows (character names, invented places, coinages) so the speller stops

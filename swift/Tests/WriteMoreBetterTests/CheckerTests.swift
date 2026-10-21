@@ -298,6 +298,33 @@ final class CheckerTests: XCTestCase {
         XCTAssertTrue(falseFriends().isEmpty)
     }
 
+    func testEnableRulesAfterProfile() throws {
+        let checker = try Checker(
+            tokenizerPath: Self.dataPath("en_tokenizer.bin"),
+            rulesPath: Self.dataPath("en_rules.bin")
+        )
+        let text = "\u{201C}It\u{2019}s, in my opinion, wrong\u{2026}\u{201D} she said\u{2014}quietly.\u{2028}It was a free gift."
+        let fired = { (prefix: String) in
+            checker.check(text: text).filter { $0.source.hasPrefix(prefix) }
+        }
+        XCTAssertTrue(fired("PLAIN_ENGLISH/").isEmpty, "plain-English rules are off by default")
+
+        let enabled = try checker.enableRules(selectors: ["PLAIN_ENGLISH/IN_MY_OPINION", "REDUNDANCY"])
+        XCTAssertGreaterThan(enabled, 1)
+        guard let opinion = fired("PLAIN_ENGLISH/IN_MY_OPINION").first else {
+            return XCTFail("IN_MY_OPINION did not fire once enabled")
+        }
+        XCTAssertTrue((text as NSString).substring(with: opinion.nsRange).contains("in my opinion"))
+        XCTAssertFalse(fired("REDUNDANCY/").isEmpty, "REDUNDANCY is back on after the fiction profile")
+
+        XCTAssertThrowsError(try checker.enableRules(selectors: ["NO_SUCH_CATEGORY"])) { error in
+            guard case let CheckError.UnknownSelectors(selectors) = error else {
+                return XCTFail("unexpected error: \(error)")
+            }
+            XCTAssertEqual(selectors, ["NO_SUCH_CATEGORY"])
+        }
+    }
+
     func testUnknownProfileThrows() throws {
         let tokenizer = try Self.dataPath("en_tokenizer.bin")
         let rules = try Self.dataPath("en_rules.bin")

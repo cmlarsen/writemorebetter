@@ -22,6 +22,14 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   byte-reproducible from them. See [`docs/STYLE-NORMS.md`](docs/STYLE-NORMS.md#bundled-concreteness-table-256)
   and NOTICE.
 
+- **Enable off-by-default rules.** `Rules::enable_rules(&selectors)` turns on LanguageTool's
+  `default="off"` and `picky` rules, such as `PLAIN_ENGLISH`, `REDUNDANCY`, `STYLE/PASSIVE_VOICE` and
+  `STYLE/SERIAL_COMMA_ON`, by the selector syntax profiles use (`CATEGORY`, `CATEGORY/RULE_ID`,
+  `BUILTIN/ID`), applied after the profile; unknown selectors are an error and enable nothing.
+  Swift gets `Checker.enableRules(selectors:)` and WASM `checker.enableRules([...])`. With no
+  selectors the rule set is unchanged. See [`docs/PROFILE.md`](docs/PROFILE.md#enabling-rules)
+  ([#297](https://github.com/cmlarsen/writemorebetter/issues/297)).
+
 ### Changed
 
 - **`diction` no longer needs a table.** Rust `StyleDocument::diction(options, None)`, WASM
@@ -43,6 +51,15 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 - **The WASM module grows by 184 KB** (`writemorebetter_wasm_bg.wasm`, release, wasm-bindgen
   0.2.129: 5,495,225 → 5,678,797 bytes; 1,401,961 → 1,462,831 with `gzip -9`). The bundled table
   loads once, in about 4.5 ms natively.
+
+### Fixed
+
+- **`EN_PLAIN_ENGLISH_REPLACE` no longer suggests the literal text `[OMIT]`.** The word list
+  marks "delete this phrase" with `[OMIT]`, which LanguageTool 6.6 passes through as a
+  suggestion. The builtin now offers a deletion that also removes the surrounding space, or
+  paired commas or dashes, and capitalizes the next word at a sentence start; the message says
+  "omit it". See [`docs/PROFILE.md`](docs/PROFILE.md#enabling-rules).
+- `wmb-probe` exits with an error message instead of panicking on an unknown `ENABLE` selector.
 
 # 0.10.0 (2026-10-20)
 
