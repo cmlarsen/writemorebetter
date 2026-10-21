@@ -734,3 +734,29 @@ impl StyleDocument {
             .map_err(style_error)
     }
 }
+
+#[wasm_bindgen]
+impl StyleDocument {
+    #[wasm_bindgen(js_name = alliteration)]
+    /// Returns the opt-in alliteration lens on the retained analysis; options default when omitted.
+    pub fn alliteration(&self, options_json: Option<String>) -> Result<String, JsValue> {
+        self.inner
+            .alliteration(options_json.as_deref())
+            .map(|report| reports::to_utf16_json(&report))
+            .map_err(style_error)
+    }
+}
+
+/// Checks headings such as chapter titles against a title-case style and returns
+/// `TitleCaseReport` JSON. `headingsJSON` is a JSON array of strings; options are
+/// `TitleCaseOptions` JSON (Chicago-style headline case when omitted). Spans are UTF-16 offsets
+/// into each heading.
+#[wasm_bindgen(js_name = titleCase)]
+pub fn title_case(headings_json: &str, options_json: Option<String>) -> Result<String, JsValue> {
+    use writemorebetter_style::reports::title_case;
+    let headings = title_case::parse_headings(headings_json).map_err(style_error)?;
+    let options = title_case::parse_options(options_json.as_deref()).map_err(style_error)?;
+    title_case::report(&headings, &options)
+        .map(|report| reports::to_utf16_json(&report))
+        .map_err(style_error)
+}

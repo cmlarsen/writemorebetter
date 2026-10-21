@@ -311,3 +311,13 @@ fn parsed_preset(text: &str) -> Result<Arc<crate::preset::StylePreset>, StyleErr
     *last = Some((text.to_owned(), preset.clone()));
     Ok(preset)
 }
+
+impl StyleDocument {
+    /// Runs the alliteration lens (#307): runs of stressed words that share a first sound.
+    pub fn alliteration(
+        &self,
+        json: Option<&str>,
+    ) -> Result<crate::reports::alliteration::AlliterationReport, StyleError> {
+        crate::reports::alliteration::report(&self.document, &options(json)?)
+    }
+}

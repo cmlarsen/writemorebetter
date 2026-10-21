@@ -191,15 +191,17 @@ Database for English. Communications of the ACM, 38(11), 39-41; and Christiane
 Fellbaum (1998, ed.). WordNet: An Electronic Lexical Database. Cambridge, MA:
 MIT Press. Princeton University does not endorse writemorebetter.
 
-style/data/pronunciation/cmudict-syllables.tsv is derived from the CMU
+style/data/pronunciation/cmudict-syllables.tsv and
+style/data/pronunciation/cmudict-onsets.tsv are derived from the CMU
 Pronouncing Dictionary (https://github.com/cmusphinx/cmudict, cmudict.dict at
 commit 74790861f652b15e4ac49015a90074ad62a27690, sha256
 81917843c7f44ce2b094ac63873c2c7a4cf802040792c455ba3ca406891c3d22), built by
-scripts/build-cmudict.py. Changes: syllable counts only (the vowel phones of
-each headword's first pronunciation), no phonemes; keys lowercased; only the
-words writemorebetter's heuristic syllable counter gets wrong. The table is
-compiled into the writemorebetter-style crate and every native, Swift and WASM
-build that includes it; redistributions of those builds must reproduce the
+scripts/build-cmudict.py. Changes: syllable counts (the vowel phones of each
+headword's first pronunciation) and each headword's first phoneme only, never
+whole pronunciations; keys lowercased; only the words writemorebetter's
+heuristic syllable counter or spelling-based first-sound guess gets wrong. The
+tables are compiled into the writemorebetter-style crate and every native, Swift
+and WASM build that includes them; redistributions of those builds must reproduce the
 following notice (also in style/data/licenses/cmudict.txt) in their
 documentation or other materials:
 

@@ -894,3 +894,63 @@ public extension StyleDocument {
         try decodeStyle(presetJson(preset: preset))
     }
 }
+
+public struct AlliterationRun: Codable, Equatable, Sendable {
+    public let span: Span
+    /// The shared first sound, as a lowercase ARPAbet consonant label (`k`, `sh`, `jh`, …).
+    public let sound: String
+    public let spans: [Span]
+    public let words: [String]
+    public let sentence: Int
+    public let mode: Mode
+}
+
+public struct AlliterationGroup: Codable, Equatable, Sendable {
+    public let words: Int
+    public let runs: Int
+    public let perThousandWords: Double
+}
+
+public struct AlliterationReport: Codable, Equatable, Sendable {
+    public let runs: [AlliterationRun]
+    public let groups: Split<AlliterationGroup>
+}
+
+public extension StyleDocument {
+    /// Runs of stressed words in a sentence that share a first sound; informational only.
+    func alliteration(optionsJson: String? = nil) throws -> AlliterationReport {
+        try decodeStyle(alliterationJson(optionsJson: optionsJson))
+    }
+}
+
+public enum TitleCaseStyle: String, Codable, Sendable { case chicago, ap, sentence }
+
+public enum TitleCaseRule: String, Codable, Sendable {
+    case firstWord, lastWord, afterColon, majorWord, minorWord, sentenceCase
+}
+
+public struct TitleCaseMatch: Codable, Equatable, Sendable {
+    /// Index of the heading in the input.
+    public let heading: Int
+    /// UTF-16 offsets into that heading.
+    public let span: Span
+    public let word: String
+    /// The same word recased.
+    public let replacement: String
+    public let rule: TitleCaseRule
+}
+
+public struct TitleCaseReport: Codable, Equatable, Sendable {
+    public let style: TitleCaseStyle
+    public let headings: Int
+    public let flaggedHeadings: Int
+    public let matches: [TitleCaseMatch]
+}
+
+public enum TitleCase {
+    /// Checks headings such as chapter titles; `optionsJson` is a `TitleCaseOptions` object
+    /// (`{"style":"ap","skipNames":["Mara"]}`), Chicago-style headline case when nil.
+    public static func check(_ headings: [String], optionsJson: String? = nil) throws -> TitleCaseReport {
+        try decodeStyle(titleCaseJson(headings: headings, optionsJson: optionsJson))
+    }
+}

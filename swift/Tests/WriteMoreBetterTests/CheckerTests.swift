@@ -573,7 +573,7 @@ final class CheckerTests: XCTestCase {
         XCTAssertEqual(StylePresets.names, ["chicago-fiction", "ap", "uk"])
         let uk = try StylePresets.summary(StylePresets.load("uk"))
         XCTAssertEqual(uk.name, "uk")
-        XCTAssertEqual(uk.version, "1.0.0")
+        XCTAssertEqual(uk.version, "1.1.0")
         let mine = try StylePresets.parse("{\"format\": 1, \"name\": \"mine\", \"extends\": \"ap\", \"checks\": {\"numbers\": null}}")
         XCTAssertEqual(try StylePresets.summary(mine).name, "mine")
         XCTAssertThrowsError(try StylePresets.parse("{\"format\": 1, \"name\": \"x\", \"colour\": 1}")) { error in
@@ -600,5 +600,26 @@ final class CheckerTests: XCTestCase {
         XCTAssertEqual(report.consistency.dashes.preferred, "emClosed")
         let checks = try document.presetChecks(optionsJson: "{\"familyTitles\": true}")
         XCTAssertEqual(checks.matches.count, 0)
+    }
+
+    func testAlliterationAndTitleCase() throws {
+        let text = "\u{201C}Please put the pail down,\u{201D} Peter pleaded patiently.\u{2028}She\u{2019}d seen seven swans\u{2014}so still\u{2026}"
+        let document = try checker().styleDocument(text: text)
+        let report = try document.alliteration()
+        XCTAssertEqual(report.runs.map(\.mode), [.dialogue, .narration, .narration])
+        XCTAssertEqual(report.runs.map(\.sound), ["p", "p", "s"])
+        XCTAssertEqual((text as NSString).substring(with: report.runs[2].span.nsRange), "seen seven swans\u{2014}so still")
+        XCTAssertEqual(report.groups.dialogue.runs, 1)
+        XCTAssertThrowsError(try document.alliteration(optionsJson: "{\"gap\":1}"))
+
+        let headings = ["Gone With the Wind", "\u{201C}Don\u{2019}t Look Back\u{201D}\u{2014}a Girl \u{2026} From\u{2028}the \u{1F30A} Sea"]
+        let chicago = try TitleCase.check(headings)
+        XCTAssertEqual(chicago.style, .chicago)
+        XCTAssertEqual(chicago.matches.map(\.word), ["With", "From"])
+        XCTAssertEqual((headings[1] as NSString).substring(with: chicago.matches[1].span.nsRange), "From")
+        XCTAssertEqual(chicago.matches[1].rule, .minorWord)
+        let ap = try TitleCase.check(headings, optionsJson: "{\"style\":\"ap\"}")
+        XCTAssertEqual(ap.matches.map(\.word), [])
+        XCTAssertThrowsError(try TitleCase.check(headings, optionsJson: "{\"style\":\"apa\"}"))
     }
 }

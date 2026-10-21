@@ -976,6 +976,11 @@ public protocol StyleDocumentProtocol: AnyObject, Sendable {
     func adverbsJson(optionsJson: String?) throws  -> String
     
     /**
+     * Returns the opt-in alliteration lens on the retained analysis; options default when omitted.
+     */
+    func alliterationJson(optionsJson: String?) throws  -> String
+    
+    /**
      * Returns the opt-in clarity lens (sticky sentences, long subordinate clauses).
      */
     func clarityJson(optionsJson: String?) throws  -> String
@@ -1155,6 +1160,19 @@ open func adverbsJson(optionsJson: String? = nil)throws  -> String  {
     return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
         uniffiCallStatus in
     uniffi_writemorebetter_swift_fn_method_styledocument_adverbs_json(
+            self.uniffiCloneHandle(),
+        FfiConverterOptionString.lower(optionsJson),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * Returns the opt-in alliteration lens on the retained analysis; options default when omitted.
+     */
+open func alliterationJson(optionsJson: String? = nil)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_method_styledocument_alliteration_json(
             self.uniffiCloneHandle(),
         FfiConverterOptionString.lower(optionsJson),uniffiCallStatus
     )
@@ -2774,6 +2792,20 @@ public func stylePresetNames() -> [String]  {
     )
 })
 }
+/**
+ * Checks headings such as chapter titles against a title-case style; options are
+ * `TitleCaseOptions` JSON (Chicago-style headline case when nil). Returns `TitleCaseReport` JSON
+ * with UTF-16 spans into each heading.
+ */
+public func titleCaseJson(headings: [String], optionsJson: String? = nil)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_func_title_case_json(
+        FfiConverterSequenceString.lower(headings),
+        FfiConverterOptionString.lower(optionsJson),uniffiCallStatus
+    )
+})
+}
 
 private enum InitializationResult {
     case ok
@@ -2797,6 +2829,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_func_style_preset_names() != 16914) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_writemorebetter_swift_checksum_func_title_case_json() != 12393) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_method_checker_add_words() != 62584) {
@@ -2839,6 +2874,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_method_styledocument_adverbs_json() != 23195) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_writemorebetter_swift_checksum_method_styledocument_alliteration_json() != 13991) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_method_styledocument_clarity_json() != 41668) {

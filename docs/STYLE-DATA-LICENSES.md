@@ -358,6 +358,12 @@ variants with three notices and a fixed release.
   redistributions must reproduce it; the root, `wasm/` and `swift/` READMEs point to it. The
   release workflow ships `NOTICE` and `style/data/licenses/` inside the XCFramework and data
   zips and attaches `NOTICE` as a release asset (#321 review).
+- **Vendored by #307 alliteration (2026-10-21).** `style/data/pronunciation/cmudict-onsets.tsv`:
+  each headword's first phoneme (first pronunciation; one lowercase ARPAbet consonant or `-` for
+  a vowel), never a whole pronunciation, for the 1,943 of 125,159 keys whose first sound the
+  spelling guess `spelled_onset` gets wrong; 20,888 bytes, 7,018 gzipped, instead of 1,324,850
+  (358,104) for every key. Same script, pinned file, header, license file and NOTICE entry as the
+  syllable table; CI's staleness check covers the whole `style/data/pronunciation/` directory.
 - **Cargo metadata.** `license = "MIT OR Apache-2.0"` on `writemorebetter-style`,
   `writemorebetter-swift` and `writemorebetter-wasm` covers the code only; the crates also compile
   in this table and the CC BY data above. Their `description` says so, but notice generators that
@@ -466,7 +472,7 @@ A vague-words list for #307 should be authored by this project's contributors, a
 | #304 emotion tells | Lancaster norms (already vendored) ∩ Princeton WordNet 3.0 `noun.feeling` plus `feeling.n.01`/`emotion.n.01` hyponyms, as a separate file under the WordNet License; Roget 1911 (#22, PG references stripped) as fallback | NRC EmoLex, WordNet-Affect, DepecheMood; OEWN acceptable but needs two attribution chains |
 | #307 vague words | Project-authored list plus words/fillers' 80 expresso-backed entries | words/weasels, words/hedges (unlicensed origins); Harper boring/hedging/filler (usable but 10 entries) |
 | #307 hidden verbs | Princeton WordNet 3.0 noun→verb derivational pointers, separate file under the WordNet License | CatVar (OSL-1.1, per #307) |
-| #307 alliteration | CMUdict (same table or file as #300) | — |
+| #307 alliteration | CMUdict `74790861`, a second derived table from the same file as #300: each headword's first phoneme, vendored as the spelling guess's 1,943 misses (20,888 bytes, 7,018 gzipped) | — |
 
 #### Still unverified
 

@@ -12,6 +12,7 @@ use serde_json::{Map, Value};
 use crate::reports::consistency::{self, ConsistencyOptions, ConsistencyReport};
 use crate::reports::house_style::{self, HouseStyleOptions, HouseStyleReport, HouseStyleRules};
 use crate::reports::preset_checks::{self, PresetChecks, PresetChecksReport};
+use crate::reports::title_case::{self, TitleCaseOptions, TitleCaseReport, TitleCaseStyle};
 use crate::{Document, StyleError};
 
 /// The preset file format this engine reads.
@@ -101,6 +102,8 @@ struct PresetFile {
     house_style: PresetHouseStyle,
     #[serde(default)]
     checks: PresetChecks,
+    #[serde(default)]
+    title_case: Option<TitleCaseStyle>,
 }
 
 /// A resolved, validated preset. `to_json` writes it back as a self-contained file.
@@ -122,6 +125,9 @@ pub struct StylePreset {
     pub consistency: ConsistencyOptions,
     pub house_style: PresetHouseStyle,
     pub checks: PresetChecks,
+    /// How headings are capitalized; unset means Chicago-style headline case.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title_case: Option<TitleCaseStyle>,
     #[serde(skip)]
     compiled: Arc<HouseStyleRules>,
 }
@@ -213,6 +219,7 @@ impl StylePreset {
             consistency: file.consistency,
             house_style: file.house_style,
             checks: file.checks,
+            title_case: file.title_case,
             compiled,
         })
     }
@@ -278,6 +285,20 @@ impl StylePreset {
             house_style: house_style::report(document, &self.compiled, &self.house_style.options)?,
             checks: preset_checks::report(document, &self.checks)?,
         })
+    }
+}
+
+impl StylePreset {
+    /// Checks headings (chapter titles) against this preset's `titleCase` style; `skip_names`
+    /// keeps names as written.
+    pub fn title_case<S: AsRef<str>>(
+        &self,
+        headings: &[S],
+        skip_names: Vec<String>,
+    ) -> Result<TitleCaseReport, StyleError> {
+        let options =
+            TitleCaseOptions::new(self.title_case.unwrap_or_default()).with_skip_names(skip_names);
+        title_case::report(headings, &options)
     }
 }
 
