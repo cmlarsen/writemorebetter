@@ -42,11 +42,12 @@ Canadian and Australian spellings are not modeled.
 ## Matching
 
 Each word token, and each part of a hyphenated compound (*grey-green*), is lowercased and looked up.
-Skipped names (`skipNames`) are ignored. **Proper nouns:** a capitalized word counts only first in
-its sentence or after an opening quote or parenthesis, and not when the next word is also
-capitalized; all-caps words count. So *Pearl Harbor*, *the Labour Party*, *Lincoln Center* and a
-sentence-initial *Labour Party members* are skipped, while *Colour drained* and *“Colour me
-surprised”* count.
+Skipped names (`skipNames`) are ignored. **Proper nouns:** a capitalized word counts only as the first
+word of its sentence (after any dash, ellipsis or punctuation), after an opening parenthesis, or
+after an opening quote inside dialogue, and not when the next word is also capitalized; all-caps
+words count. So *Pearl Harbor*, *the Labour Party*, *Lincoln Center*, a sentence-initial *Labour
+Party members* and a quoted title in narration (*the “Endeavour”*) are skipped, while *Colour
+drained*, *—Colour drained* and *“Colour me surprised”* count.
 
 A **marker** is a token whose spelling some system rejects. `systems` counts, for American,
 British and Oxford, the markers each system accepts. `dominant` holds the systems with the highest
@@ -67,7 +68,8 @@ flagged; `systems` and `words` are still reported.
   marked `~` never make a word mixed: *check* beside *cheque* is not a variant pair.
 
 Each flag has its `span`, global `sentence` index, `form`, the row's `word` (the American spelling
-where there is one), the form's `systems`, `reason`, `dominantForm` and sentence `mode`. `words`
+where there is one), the form's `systems`, `reason`, `dominantForm` and the `mode` at the marker
+(a tagged line holds both). `words`
 lists every row seen in the document with a marker form, the forms seen, their narration/dialogue
 `counts` and `spans`.
 

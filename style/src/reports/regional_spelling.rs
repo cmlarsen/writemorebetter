@@ -164,15 +164,22 @@ fn capitalized(text: &str) -> bool {
     text.chars().next().is_some_and(char::is_uppercase)
 }
 
-/// A capitalized word counts only where any word is capitalized: first in its sentence or after an
-/// opening quote or parenthesis, and not followed by another capitalized word (`Labour Party`,
-/// `Harbor Street`). All-caps words count. Elsewhere a capital marks a name (`Pearl Harbor`).
-fn probable_name(tokens: &[&Token], at: usize) -> bool {
-    let text = &tokens[at].text;
-    if !capitalized(text) || text.chars().all(|c| !c.is_lowercase()) {
+/// A capitalized word counts only where any word is capitalized: the first word of its sentence
+/// (after any dash, ellipsis or punctuation), after an opening parenthesis, or after an opening
+/// quote inside dialogue, and not followed by another capitalized word (`Labour Party`,
+/// `Harbor Street`). All-caps words count. Elsewhere a capital marks a name (`Pearl Harbor`),
+/// and a capital after a quote in narration marks a title (`the “Endeavour”`).
+fn probable_name(document: &Document, tokens: &[&Token], at: usize) -> bool {
+    let token = tokens[at];
+    if !capitalized(&token.text) || token.text.chars().all(|c| !c.is_lowercase()) {
         return false;
     }
-    let opening = at == 0 || ["\"", "“", "‘", "'", "("].contains(&tokens[at - 1].text.as_str());
+    let previous = at.checked_sub(1).map(|i| tokens[i].text.as_str());
+    let opening = if previous.is_some_and(|p| ["\"", "“", "‘", "'"].contains(&p)) {
+        document.mode_at(token.span.byte.start) == Mode::Dialogue
+    } else {
+        previous == Some("(") || tokens[..at].iter().all(|t| !t.is_word)
+    };
     !opening
         || tokens
             .get(at + 1)
@@ -228,7 +235,7 @@ pub fn report(
             .collect();
         for at in 0..tokens.len() {
             let token = tokens[at];
-            if !token.is_word || token.is_skipped || probable_name(&tokens, at) {
+            if !token.is_word || token.is_skipped || probable_name(document, &tokens, at) {
                 continue;
             }
             for (start, part) in parts(&token.text) {
@@ -238,7 +245,7 @@ pub fn report(
                         span: part_span(&token.span, &token.text, start, part),
                         sentence: index,
                         form,
-                        mode: document.sentence_mode(sentence),
+                        mode: document.mode_at(token.span.byte.start),
                     });
                 }
             }

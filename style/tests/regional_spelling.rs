@@ -7,7 +7,7 @@ use writemorebetter_style::reports::{
     },
     StyleResources,
 };
-use writemorebetter_style::{analyze_document, DocumentOptions, StyleDocument, StyleError};
+use writemorebetter_style::{analyze_document, DocumentOptions, Mode, StyleDocument, StyleError};
 
 use SpellingSystem::{American, British, Oxford};
 
@@ -155,6 +155,43 @@ fn proper_nouns_are_skipped() {
     // All-caps words count.
     let report = run("The color. The honor. “COLOUR!” she shouted.");
     assert_eq!(flagged(&report), vec!["colour"]);
+}
+
+#[test]
+fn capitals_after_a_dash_or_ellipsis_open_the_sentence() {
+    let report = run("—Colour drained from his face. …Honour, then. The color. The center.");
+    assert_eq!(report.markers, 4);
+    assert_eq!(report.dominant, vec![American, British, Oxford]);
+    let report = run("—Colour drained from his face. The color. The honor. The center.");
+    assert_eq!(flagged(&report), vec!["colour"]);
+}
+
+#[test]
+fn quoted_titles_in_narration_are_skipped() {
+    // A capital after a quote in narration is a title, not speech; in dialogue it still counts.
+    let report = run("They boarded the “Endeavour” at dawn. The color. The honor. The center.");
+    assert_eq!(report.markers, 3);
+    assert!(report.flags.is_empty());
+    let report = run("The color. The honor. The center. She looked up and said, “Grey.”");
+    assert_eq!(flagged(&report), vec!["grey"]);
+}
+
+#[test]
+fn mode_is_per_token() {
+    // A tagged line holds dialogue and narration in one sentence; each marker takes its own mode.
+    let text = "“Fine,” she said, studying the colour. She stared at the wall and said, “Grey.” \
+                The color. The honor. The center.";
+    let report = run(text);
+    assert_eq!(flagged(&report), vec!["colour", "grey"]);
+    assert_eq!(report.flags[0].mode, Mode::Narration);
+    assert_eq!(report.flags[1].mode, Mode::Dialogue);
+    let form = |word: &str, form: &str| {
+        let word = report.words.iter().find(|w| w.word == word).unwrap();
+        let form = word.forms.iter().find(|f| f.form == form).unwrap();
+        (form.counts.dialogue, form.counts.narration)
+    };
+    assert_eq!(form("color", "colour"), (0, 1));
+    assert_eq!(form("gray", "grey"), (1, 0));
 }
 
 #[test]

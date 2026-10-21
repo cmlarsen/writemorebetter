@@ -15,7 +15,8 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   and Swift `document.regionalSpelling()` report mixed American and British spelling: counts for
   American, British (-ise) and Oxford (-ize) spelling, the dominant system, the variant words seen,
   and flags for tokens no dominant system accepts or minority forms of one word. Oxford -ize is
-  British, words valid in both are never markers, and mid-sentence capitals are skipped as names.
+  British, words valid in both are never markers, mid-sentence capitals and quoted titles in
+  narration are skipped as names, and each flag carries the narration/dialogue mode at the marker.
   Options `minimumMarkers` (default 3) and `system` (fix the expected system). The bundled
   `style/data/spelling/regional.txt` (153,303 bytes) is a modified table derived from VarCon
   2020.12.07 by `scripts/build-regional-spelling.py`; its Atkinson, Titze and Ispell notices are in
