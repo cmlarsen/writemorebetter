@@ -63,6 +63,7 @@ swift/, wasm/       one binding each, exposing check() + analyze() + analyzeDocu
 | [Sensory balance, diction (concreteness)](STYLE-NORMS.md) | #250 | lemmas, word-norm tables | none; Lancaster norms bundled (CC BY 4.0), writemorebetter's own concreteness table bundled (#256, a caller table overrides it); published sensory p5–p95 bands per mode recorded |
 | [Pacing](STYLE-PACING.md) | #251 | speech spans, sentence stats, POS | none; thresholds calibrated on published-fiction flag rates (2026-10-16) |
 | [Consistency](STYLE-CONSISTENCY.md) (quotes, ellipses, dashes, capitalization, hyphenation) | #298 | paragraph text, sentences; POS optional | none |
+| [Readability](STYLE-READABILITY.md) (indices, reading time) | #300 | sentences, heuristic syllables | none; values only, no flags |
 
 Sentence length and sentence starts are public modules under `style::reports`, with no flattened
 crate-root exports. [Sentence report definitions](STYLE-SENTENCES.md) specify word counting, Penn
@@ -115,6 +116,7 @@ const transitions = JSON.parse(document.transitions('{"repeatWindow":5}'));
 const pronouns = JSON.parse(document.pronounStarts());
 const long = JSON.parse(document.sentenceLength('{"includeLongSentences":true}'));
 const descriptive = JSON.parse(document.sentenceLength(undefined, "none"));
+const readability = JSON.parse(document.readability('{"excludeDialogueParagraphs":true}'));
 document.free();
 ```
 
@@ -148,6 +150,7 @@ let diction: DictionReport = try document.diction() // or diction(table:) with y
 let overused: OverusedWordsReport = try document.overusedWords()
 let transitions: TransitionsReport = try document.transitions()
 let pronouns: PronounStartsReport = try document.pronounStarts()
+let readability: ReadabilityReport = try document.readability()
 let custom = try document.sentenceLength(baseline: .custom("{\"mean\":13}"))
 let descriptive = try document.sentenceLength(baseline: .none)
 if let match = cliches.matches.first {
@@ -165,7 +168,7 @@ annotate the value decoded with `JSON.parse`.
 
 Subplot chooses which methods to call. Its recommended default set is **clichés, dialogue tags,
 sentence length statistics and monotony, and sentence starts**. **Echoes, repeated phrases,
-long-sentence flags, overused and filler words, transitions, pronoun starts, sensory balance, diction and pacing** are opt-in lenses;
+long-sentence flags, overused and filler words, transitions, pronoun starts, sensory balance, diction, pacing and readability** are opt-in lenses;
 sensory balance and diction stay opt-in until the owner has seen usefulness numbers on real manuscripts. Length statistics and monotony remain available without
 `includeLongSentences`. Pacing thresholds are calibrated on published-fiction flag rates (2026-10-16), not on labeled passages.
 A pacing strip should highlight only `slowRuns` and draw the per-paragraph signals as neutral
@@ -187,6 +190,7 @@ measurements: single paragraphs that meet two thresholds are mostly in-scene noi
 | overused words | `overused_words::report(&Document, &OverusedWordsOptions, Option<&OverusedWordsBaseline>)` | `minimumRatio`, `minimumCount`, `minimumReferencePerMillion`, `includeNouns`, `countScaleWords` | bundled; fillers run without one | yes |
 | pacing | `pacing::report(&Document, &PacingOptions)` | `minimumParagraphs`, `moreThanWords`, `minimumSentenceLength`, `minimumPastPerfectPercent`, `minimumCognitionPercent` | none | yes |
 | consistency | `consistency::report(&Document, &ConsistencyOptions)` | `minimumMinority` | none | no |
+| readability | `readability::report(&Document, &ReadabilityOptions)`; `report_with(…, &dyn SyllableCounter)` takes another syllable counter | `minimumSentences`, `minimumParagraphWords`, `wordsPerMinute`, `excludeDialogueParagraphs` | none | no |
 
 Every entry point returns `Result<_, StyleError>`. Type names are prefixed with their report
 (`SentenceLengthReport`, `ClicheMatch`, `DialogueTagVerbClass`, …) so they stay unique in Swift's
@@ -311,6 +315,15 @@ Beats are `{"span", "quotes"}`, untagged runs `{"span", "quotes", "exchanges"}` 
 
 ```json
 {"sentences": [{"span": {"start": 0, "end": 26}, "mode": "dialogue", "words": 3}, {"span": {"start": 26, "end": 50}, "mode": "narration", "words": 4}, {"span": {"start": 51, "end": 87}, "mode": "narration", "words": 8}, {"span": {"start": 87, "end": 108}, "mode": "narration", "words": 4}], "words": {"all": 19, "narration": 18, "dialogue": 1}, "starts": [{"sentence": 0, "opener": {"start": 1, "end": 5}, "word": "fine", "category": "adverb", "ambiguous": true, "universalCandidates": ["ADJ", "ADV", "NOUN", "VERB"]}], "groups": {"all": {"sentences": 4, "lowConfidence": true, "excludedSentences": 0, "ambiguousStarts": 1, "unknownStarts": 0, "categories": [{"category": "subject", "count": 3, "percent": 75, "difference": 17.72164537024203, "highlighted": true}], "universal": [{"tag": "ADJ", "weight": 0.25, "percent": 6.25, "difference": 1.7130070188631956, "highlighted": false}], "sameWordRuns": []}, "narration": {}, "dialogue": {}}}
+```
+
+`readability` (with `minimumSentences` and `minimumParagraphWords` set to 1; `narration`, `dialogue`
+and each paragraph's `scores` have the same shape as `all`). Its word count is 20, not 19, because
+it counts skipped names, and it joins numbers, initialisms and contractions as a reader would; see
+[STYLE-READABILITY.md](STYLE-READABILITY.md#words-and-sentences):
+
+```json
+{"groups": {"all": {"sentences": 4, "words": 20, "syllables": 23, "characters": 82, "polysyllables": 0, "lowConfidence": false, "fleschReadingEase": 104.47000000000003, "fleschKincaidGrade": -0.07000000000000028, "colemanLiau": 2.3879999999999946, "automatedReadability": 0.3810000000000002, "readingMinutes": 0.07692307692307693}, "narration": {}, "dialogue": {}}, "paragraphs": [{"span": {"start": 0, "end": 50}, "dialogueOnly": false, "excluded": false, "scores": {"sentences": 2, "words": 8, "syllables": 10, "characters": 38, "polysyllables": 0, "lowConfidence": false, "fleschReadingEase": 97.025, "fleschKincaidGrade": 0.7199999999999989, "colemanLiau": 4.73, "automatedReadability": 2.942499999999999, "readingMinutes": 0.03076923076923077}}]}
 ```
 
 ### Conventions
@@ -473,6 +486,7 @@ Build rules for any baseline:
 | 2026-10-16 | One narration/dialogue definition, computed in the document pass: a quote is speech unless it is embedded or the subject of a copula | The sentence reports, clichés and dialogue tags disagreed on the same passages |
 | 2026-10-16 | Reports that need readings reject compact documents (`StyleError::NeedsTokenDetails`) | Echoes, repeated phrases, sentence starts and dialogue tags silently degraded on them |
 | 2026-10-20 | #298: consistency is an opt-in lens that counts every form of quotes, apostrophes, ellipses, dashes, capitalization and hyphenation per document, with narration/dialogue counts and spans, and flags a check or word as `mixed` when a second form occurs (`minimumMinority`, default 1). It names no preferred form and uses no word list | LanguageTool's `EN_QUOTES` and `ELLIPSIS` prescribe a form; mixing is the author's question. Silent on the five consistent public stories; on `moby150k` 24 flags, 19 of them real mixes in the source. Capitalization needs function-word, noun/adjective-reading, emphasis, title-case and after-comma guards, which cut Moby from 75 words (mostly reflowed verse) to 18. See [STYLE-CONSISTENCY.md](STYLE-CONSISTENCY.md) |
+| 2026-10-20 | #300 phase 1: readability is an opt-in lens of statistics (Flesch Reading Ease, Flesch–Kincaid, Coleman–Liau, ARI, reading time at 260 wpm) for the text, narration, dialogue and each paragraph, with no flags; original heuristic syllable counter behind a `SyllableCounter` seam for a phase 2 CMUdict counter; words join across apostrophes and hyphens, numbers and initialisms stay whole, a typed `--` dash splits words, and skipped names count; `excludeDialogueParagraphs` changes the indices but not the whole-text reading time | Statistics, not matches, so it doesn't duplicate #207's READABILITY_RULE port; formulas assume words as readers count them; the split shows dialogue reading 4–6 grades easier than narration on `bench/public` |
 
 ## Accuracy benchmarks
 

@@ -195,4 +195,11 @@ impl StyleDocument {
     ) -> Result<crate::reports::consistency::ConsistencyReport, StyleError> {
         crate::reports::consistency::report(&self.document, &options(json)?)
     }
+
+    pub fn readability(
+        &self,
+        json: Option<&str>,
+    ) -> Result<crate::reports::readability::ReadabilityReport, StyleError> {
+        crate::reports::readability::report(&self.document, &options(json)?)
+    }
 }

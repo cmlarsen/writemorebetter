@@ -62,6 +62,7 @@ export function checkStyleRecords(checker) {
   const consistencyDocument = checker.styleDocument(consistencyText);
   results.push(["ConsistencyReport", consistencyDocument.consistency()]);
   consistencyDocument.free();
+  results.push(["ReadabilityReport", transitionDocument.readability('{"minimumSentences":1}')]);
   for (const [type, json] of results) validate(JSON.parse(json), type, type);
   transitionDocument.free();
   normDocument.free();
