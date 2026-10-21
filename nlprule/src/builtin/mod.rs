@@ -316,6 +316,15 @@ impl BuiltinRule {
         self.enabled = false;
     }
 
+    /// Whether this rule has a case named `case` that [`BuiltinRule::disable_case`] can turn off.
+    pub fn has_case(&self, case: &str) -> bool {
+        matches!(
+            (&self.builtin, case),
+            (Builtin::MultipleWhitespace(_), "INDENTATION")
+                | (Builtin::TooOftenUsed(_), "DIRECT_SPEECH")
+        )
+    }
+
     /// Stops this rule from reporting one of its cases, named `case`, while it
     /// keeps reporting the others. Returns whether the rule has such a case.
     /// The cases are `INDENTATION` of `WHITESPACE_RULE`, see

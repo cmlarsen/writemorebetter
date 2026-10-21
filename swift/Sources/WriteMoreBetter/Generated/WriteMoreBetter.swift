@@ -587,6 +587,15 @@ public protocol CheckerProtocol: AnyObject, Sendable {
     func analyzeDocument(text: String, options: DocumentOptions?)  -> Document
     
     /**
+     * Applies a style preset's grammar settings: its profile, the rules it turns off and on, and its
+     * speller variant. `preset` is a built-in preset's name or a preset file (JSON). Every selector
+     * is checked first, so an unknown one throws and changes nothing. Returns how many rules went
+     * from off to on. Apply a preset to a checker constructed with `profile: ""`; to switch presets,
+     * construct another checker (profiles cannot be undone).
+     */
+    func applyPreset(preset: String) throws  -> UInt32
+    
+    /**
      * Checks `text` and returns every flagged span. See [`Suggestion`] for the offset units.
      */
     func check(text: String)  -> [Suggestion]
@@ -767,6 +776,23 @@ open func analyzeDocument(text: String, options: DocumentOptions?) -> Document  
             self.uniffiCloneHandle(),
         FfiConverterString.lower(text),
         FfiConverterOptionTypeDocumentOptions.lower(options),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * Applies a style preset's grammar settings: its profile, the rules it turns off and on, and its
+     * speller variant. `preset` is a built-in preset's name or a preset file (JSON). Every selector
+     * is checked first, so an unknown one throws and changes nothing. Returns how many rules went
+     * from off to on. Apply a preset to a checker constructed with `profile: ""`; to switch presets,
+     * construct another checker (profiles cannot be undone).
+     */
+open func applyPreset(preset: String)throws  -> UInt32  {
+    return try  FfiConverterUInt32.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_method_checker_apply_preset(
+            self.uniffiCloneHandle(),
+        FfiConverterString.lower(preset),uniffiCallStatus
     )
 })
 }
@@ -1009,6 +1035,17 @@ public protocol StyleDocumentProtocol: AnyObject, Sendable {
      * "publicStandIn" selects the provisional public stand-in band; otherwise pass a JSON object.
      */
     func passiveJson(optionsJson: String?, baselineJson: String?) throws  -> String
+    
+    /**
+     * Runs the built-in preset checks; options are `PresetChecks` JSON (every check off by default).
+     */
+    func presetChecksJson(optionsJson: String?) throws  -> String
+    
+    /**
+     * Runs every report a style preset drives (consistency, house style, preset checks).
+     * `preset` is a built-in preset's name or a preset file (JSON); nil selects "chicago-fiction".
+     */
+    func presetJson(preset: String?) throws  -> String
     
     /**
      * Returns this report on the retained analysis; options default when omitted.
@@ -1274,6 +1311,33 @@ open func passiveJson(optionsJson: String? = nil, baselineJson: String? = nil)th
             self.uniffiCloneHandle(),
         FfiConverterOptionString.lower(optionsJson),
         FfiConverterOptionString.lower(baselineJson),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * Runs the built-in preset checks; options are `PresetChecks` JSON (every check off by default).
+     */
+open func presetChecksJson(optionsJson: String? = nil)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_method_styledocument_preset_checks_json(
+            self.uniffiCloneHandle(),
+        FfiConverterOptionString.lower(optionsJson),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * Runs every report a style preset drives (consistency, house style, preset checks).
+     * `preset` is a built-in preset's name or a preset file (JSON); nil selects "chicago-fiction".
+     */
+open func presetJson(preset: String? = nil)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_method_styledocument_preset_json(
+            self.uniffiCloneHandle(),
+        FfiConverterOptionString.lower(preset),uniffiCallStatus
     )
 })
 }
@@ -2678,6 +2742,38 @@ fileprivate struct FfiConverterDictionaryStringSequenceTypeTokenPosition: FfiCon
         return dict
     }
 }
+/**
+ * A built-in style preset by name, resolved to self-contained preset JSON.
+ */
+public func loadStylePresetJson(name: String)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_func_load_style_preset_json(
+        FfiConverterString.lower(name),uniffiCallStatus
+    )
+})
+}
+/**
+ * Validates a preset file (JSON), resolves its `extends`, and returns self-contained preset JSON.
+ */
+public func parseStylePresetJson(text: String)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_func_parse_style_preset_json(
+        FfiConverterString.lower(text),uniffiCallStatus
+    )
+})
+}
+/**
+ * The built-in style presets' names; the first, `"chicago-fiction"`, is the default.
+ */
+public func stylePresetNames() -> [String]  {
+    return try!  FfiConverterSequenceString.lift(try! rustCall() {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_func_style_preset_names(uniffiCallStatus
+    )
+})
+}
 
 private enum InitializationResult {
     case ok
@@ -2694,6 +2790,15 @@ private let initializationResult: InitializationResult = {
     if bindings_contract_version != scaffolding_contract_version {
         return InitializationResult.contractVersionMismatch
     }
+    if (uniffi_writemorebetter_swift_checksum_func_load_style_preset_json() != 6118) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_writemorebetter_swift_checksum_func_parse_style_preset_json() != 18265) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_writemorebetter_swift_checksum_func_style_preset_names() != 16914) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_writemorebetter_swift_checksum_method_checker_add_words() != 62584) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -2701,6 +2806,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_method_checker_analyze_document() != 58231) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_writemorebetter_swift_checksum_method_checker_apply_preset() != 53913) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_method_checker_check() != 47217) {
@@ -2764,6 +2872,12 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_method_styledocument_passive_json() != 30217) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_writemorebetter_swift_checksum_method_styledocument_preset_checks_json() != 25905) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_writemorebetter_swift_checksum_method_styledocument_preset_json() != 24366) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_method_styledocument_pronoun_starts_json() != 24727) {

@@ -908,3 +908,75 @@ impl StyleDocument {
             })
     }
 }
+
+/// The built-in style presets' names; the first, `"chicago-fiction"`, is the default.
+#[uniffi::export]
+pub fn style_preset_names() -> Vec<String> {
+    writemorebetter_style::preset::StylePreset::names()
+        .into_iter()
+        .map(str::to_owned)
+        .collect()
+}
+
+/// A built-in style preset by name, resolved to self-contained preset JSON.
+#[uniffi::export]
+pub fn load_style_preset_json(name: String) -> Result<String, CheckError> {
+    writemorebetter_style::preset::StylePreset::builtin(&name)
+        .map(|preset| preset.to_json())
+        .map_err(|error| CheckError::ReportInput {
+            message: error.to_string(),
+        })
+}
+
+/// Validates a preset file (JSON), resolves its `extends`, and returns self-contained preset JSON.
+#[uniffi::export]
+pub fn parse_style_preset_json(text: String) -> Result<String, CheckError> {
+    writemorebetter_style::preset::StylePreset::parse(&text)
+        .map(|preset| preset.to_json())
+        .map_err(|error| CheckError::ReportInput {
+            message: error.to_string(),
+        })
+}
+
+#[uniffi::export]
+impl Checker {
+    /// Applies a style preset's grammar settings: its profile, the rules it turns off and on, and its
+    /// speller variant. `preset` is a built-in preset's name or a preset file (JSON). Every selector
+    /// is checked first, so an unknown one throws and changes nothing. Returns how many rules went
+    /// from off to on. Apply a preset to a checker constructed with `profile: ""`; to switch presets,
+    /// construct another checker (profiles cannot be undone).
+    pub fn apply_preset(&self, preset: String) -> Result<u32, CheckError> {
+        writemorebetter_style::preset::StylePreset::load(&preset)
+            .and_then(|preset| preset.apply_to_rules(&mut self.write_rules()))
+            .map(|enabled| enabled as u32)
+            .map_err(|error| CheckError::ReportInput {
+                message: error.to_string(),
+            })
+    }
+}
+
+#[uniffi::export]
+impl StyleDocument {
+    /// Runs the built-in preset checks; options are `PresetChecks` JSON (every check off by default).
+    #[uniffi::method(default(options_json = None))]
+    pub fn preset_checks_json(&self, options_json: Option<String>) -> Result<String, CheckError> {
+        self.inner
+            .preset_checks(options_json.as_deref())
+            .map(|report| writemorebetter_style::reports::to_utf16_json(&report))
+            .map_err(|error| CheckError::ReportInput {
+                message: error.to_string(),
+            })
+    }
+
+    /// Runs every report a style preset drives (consistency, house style, preset checks).
+    /// `preset` is a built-in preset's name or a preset file (JSON); nil selects "chicago-fiction".
+    #[uniffi::method(default(preset = None))]
+    pub fn preset_json(&self, preset: Option<String>) -> Result<String, CheckError> {
+        self.inner
+            .preset(preset.as_deref())
+            .map(|report| writemorebetter_style::reports::to_utf16_json(&report))
+            .map_err(|error| CheckError::ReportInput {
+                message: error.to_string(),
+            })
+    }
+}

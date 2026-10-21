@@ -38,6 +38,24 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   and data release zips now carry `NOTICE` and the third-party license texts, and `NOTICE` is
   a release asset. CI regenerates the table from the pinned `cmudict.dict` and fails if it is
   stale relative to the heuristic.
+- **Style presets** ([#305](https://github.com/cmlarsen/writemorebetter/issues/305)). A preset is one
+  named, versioned JSON file that drives the grammar checker's profile, rule selectors and speller
+  variant, the consistency report's preferred forms, Vale-format house-style rules and new built-in
+  preset checks. `chicago-fiction` (the default), `ap` and `uk` are built in; a user preset can
+  `extends` one and override any part as a JSON merge patch (`null` removes an inherited setting).
+  Unknown keys and values are `invalidPreset` errors, and a user preset must set its own `name`
+  (`name`, `version` and `description` are never inherited). The preset checks flag numerals that prose
+  spells out (zero to one hundred, or one to nine for AP, with exceptions for dates, times,
+  addresses, years, percentages, decimals and labels), periods and commas outside closing quotes (or,
+  for UK, inside a quoted non-speech phrase), *James’* versus *James’s*, *AM*/*a.m.* after a time,
+  and *my Mom* versus *Mom* as a name. Rust: `StylePreset::{builtin, parse, load}`,
+  `apply_to_rules`, `report`, `StyleDocument::preset` and `preset_checks`. WASM: `stylePresetNames`,
+  `loadStylePreset`, `parseStylePreset`, `checker.applyPreset`, `document.preset` and
+  `document.presetChecks`, with TypeScript types. Swift: `StylePresets`, `checker.applyPreset(preset:)`,
+  `document.preset(_:)` and `document.presetChecks(optionsJson:)`. The consistency report gains a
+  `preferred` option and `preferred`/`nonPreferred` on each check, and `nlprule` gains
+  `Rules::unmatched_selectors`. Recall is unchanged for every preset (46/50 private, 55/60 public).
+  See [`docs/STYLE-PRESETS.md`](docs/STYLE-PRESETS.md).
 
 - **Diction has a bundled concreteness table**
   ([#256](https://github.com/cmlarsen/writemorebetter/issues/256)).

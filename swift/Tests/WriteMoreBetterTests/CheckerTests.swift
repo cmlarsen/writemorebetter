@@ -568,4 +568,37 @@ final class CheckerTests: XCTestCase {
         XCTAssertEqual(roundTrip, tells)
         XCTAssertThrowsError(try document.emotionTells(optionsJson: "{\"typo\":true}"))
     }
+
+    func testStylePresets() throws {
+        XCTAssertEqual(StylePresets.names, ["chicago-fiction", "ap", "uk"])
+        let uk = try StylePresets.summary(StylePresets.load("uk"))
+        XCTAssertEqual(uk.name, "uk")
+        XCTAssertEqual(uk.version, "1.0.0")
+        let mine = try StylePresets.parse("{\"format\": 1, \"name\": \"mine\", \"extends\": \"ap\", \"checks\": {\"numbers\": null}}")
+        XCTAssertEqual(try StylePresets.summary(mine).name, "mine")
+        XCTAssertThrowsError(try StylePresets.parse("{\"format\": 1, \"name\": \"x\", \"colour\": 1}")) { error in
+            guard case CheckError.ReportInput(let message) = error else { return XCTFail("unexpected error: \(error)") }
+            XCTAssertTrue(message.hasPrefix("invalid style preset"))
+        }
+
+        let checker = try Checker(
+            tokenizerPath: Self.dataPath("en_tokenizer.bin"),
+            rulesPath: Self.dataPath("en_rules.bin"),
+            profile: ""
+        )
+        XCTAssertGreaterThan(try checker.applyPreset(preset: "ap"), 0)
+        let serial = checker.check(text: "We bought apples, pears, and plums.").map(\.source)
+        XCTAssertTrue(serial.contains { $0.hasPrefix("STYLE/SERIAL_COMMA_OFF") }, "\(serial)")
+
+        let text = "\u{201C}Mom, it\u{2019}s 7\u{2026}\u{201D} I said\u{2014}then James\u{2019} dad left.\u{2028}He called it \u{201C}art\u{201D}."
+        let document = try checker.styleDocument(text: text)
+        let report = try document.preset()
+        XCTAssertEqual(report.preset, "chicago-fiction")
+        XCTAssertEqual(report.checks.matches.map(\.check), [.numbers, .possessives, .quotePunctuation])
+        XCTAssertEqual((text as NSString).substring(with: report.checks.matches[0].span.nsRange), "7")
+        XCTAssertEqual(report.checks.matches[0].mode, .dialogue)
+        XCTAssertEqual(report.consistency.dashes.preferred, "emClosed")
+        let checks = try document.presetChecks(optionsJson: "{\"familyTitles\": true}")
+        XCTAssertEqual(checks.matches.count, 0)
+    }
 }

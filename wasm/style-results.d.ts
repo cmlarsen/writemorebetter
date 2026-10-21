@@ -428,6 +428,10 @@ export interface RegionalSpellingForm {
 export interface ConsistencyCheck {
   mixed: boolean;
   variants: Array<ConsistencyVariant>;
+  /** The preferred form from the options (a style preset), or null without one. */
+  preferred: string | null;
+  /** Occurrences of every form other than `preferred`; 0 without a preference. */
+  nonPreferred: number;
 }
 
 export interface ConsistencyCount {
@@ -653,4 +657,76 @@ export interface EmotionTellsGroup {
 export interface EmotionTellsReport {
   tells: Array<EmotionTell>;
   groups: Split<EmotionTellsGroup>;
+}
+
+export type QuotePunctuation = "inside" | "outside";
+export type Possessives = "apostropheS" | "apostropheOnly";
+export type TimeAbbreviations = "dotted" | "undotted";
+// Inputs are type aliases rather than interfaces: style-records-test.mjs checks every interface
+// against a result record.
+export type NumberCheck = {
+  spellOutThrough?: number;
+  agesAsNumerals?: boolean;
+  matchLarger?: boolean;
+};
+/** Options for `presetChecks`, and a preset's `checks`. Every check is off by default. */
+export type PresetChecks = {
+  numbers?: NumberCheck | null;
+  quotePunctuation?: QuotePunctuation | null;
+  possessives?: Possessives | null;
+  timeAbbreviations?: TimeAbbreviations | null;
+  familyTitles?: boolean;
+};
+
+export type PresetCheck = "numbers" | "quotePunctuation" | "possessives" | "timeAbbreviations" | "familyTitles";
+export interface PresetCheckMatch {
+  check: PresetCheck;
+  message: string;
+  span: Span;
+  mode: Mode;
+  replacement: string | null;
+}
+
+export interface PresetChecksReport {
+  matches: Array<PresetCheckMatch>;
+  counts: Split<number>;
+}
+
+export type ConsistencyPreferred = {
+  doubleQuotes?: "curly" | "straight";
+  singleQuotes?: "curly" | "straight";
+  apostrophes?: "curly" | "straight";
+  ellipses?: "character" | "periods" | "spacedPeriods";
+  dashes?: "emClosed" | "emSpaced" | "enSpaced" | "doubleHyphen" | "spacedHyphen";
+};
+
+/** A resolved style preset, as `loadStylePreset` and `parseStylePreset` return it. */
+export type StylePreset = {
+  format: 1;
+  name: string;
+  version?: string;
+  description?: string;
+  grammar: {
+    profile?: string;
+    /** Selector → on (true) or off (false); every false applies before every true. */
+    rules: Record<string, boolean>;
+    spellVariant?: string;
+  };
+  consistency: { minimumMinority: number; preferred: ConsistencyPreferred };
+  houseStyle: {
+    options: { skipDialogue: boolean };
+    /** Rule name → Vale rule. */
+    rules: Record<string, Record<string, unknown>>;
+    /** A Vale bundle as YAML or JSON text. */
+    vale?: string;
+  };
+  checks: PresetChecks;
+};
+
+export interface PresetReport {
+  preset: string;
+  version: string | null;
+  consistency: ConsistencyReport;
+  houseStyle: HouseStyleReport;
+  checks: PresetChecksReport;
 }

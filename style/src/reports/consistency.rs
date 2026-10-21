@@ -14,12 +14,59 @@ use crate::{Document, Mode, Paragraph, Span, StyleError, Token};
 pub struct ConsistencyOptions {
     #[serde(alias = "minimum_minority")]
     pub minimum_minority: usize,
+    /// The house form of each punctuation check, as a style preset sets it. A check with a
+    /// preferred form counts every occurrence of the other forms in `nonPreferred`.
+    pub preferred: ConsistencyPreferred,
 }
 impl Default for ConsistencyOptions {
     fn default() -> Self {
         Self {
             minimum_minority: 1,
+            preferred: ConsistencyPreferred::default(),
         }
+    }
+}
+
+/// A preferred form per punctuation check, named as the report names its forms. `None` leaves a
+/// check without a preference.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields, rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct ConsistencyPreferred {
+    #[serde(alias = "double_quotes", skip_serializing_if = "Option::is_none")]
+    pub double_quotes: Option<String>,
+    #[serde(alias = "single_quotes", skip_serializing_if = "Option::is_none")]
+    pub single_quotes: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub apostrophes: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ellipses: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dashes: Option<String>,
+}
+
+impl ConsistencyPreferred {
+    /// Each check's name, preference and allowed forms, in report order.
+    fn checks(&self) -> [(&'static str, Option<&str>, &'static [&'static str]); 5] {
+        [
+            ("doubleQuotes", self.double_quotes.as_deref(), &QUOTE_FORMS),
+            ("singleQuotes", self.single_quotes.as_deref(), &QUOTE_FORMS),
+            ("apostrophes", self.apostrophes.as_deref(), &QUOTE_FORMS),
+            ("ellipses", self.ellipses.as_deref(), &ELLIPSIS_FORMS),
+            ("dashes", self.dashes.as_deref(), &DASH_FORMS),
+        ]
+    }
+
+    pub(crate) fn validate(&self) -> Result<(), StyleError> {
+        for (check, preferred, forms) in self.checks() {
+            if let Some(form) = preferred.filter(|form| !forms.contains(form)) {
+                return Err(StyleError::options(format!(
+                    "preferred.{check} must be one of {}, got {form:?}",
+                    forms.join(", ")
+                )));
+            }
+        }
+        Ok(())
     }
 }
 impl ConsistencyOptions {
@@ -46,6 +93,10 @@ pub struct ConsistencyVariant {
 pub struct ConsistencyCheck {
     pub mixed: bool,
     pub variants: Vec<ConsistencyVariant>,
+    /// The preferred form from the options, if one was set.
+    pub preferred: Option<String>,
+    /// Occurrences of every form other than `preferred`; 0 without a preference.
+    pub non_preferred: usize,
 }
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -595,26 +646,32 @@ pub fn report(
             "minimumMinority must be at least 1 occurrence",
         ));
     }
+    options.preferred.validate()?;
     let mut report = ConsistencyReport {
         double_quotes: ConsistencyCheck {
             mixed: false,
             variants: variants(&QUOTE_FORMS),
+            ..Default::default()
         },
         single_quotes: ConsistencyCheck {
             mixed: false,
             variants: variants(&QUOTE_FORMS),
+            ..Default::default()
         },
         apostrophes: ConsistencyCheck {
             mixed: false,
             variants: variants(&QUOTE_FORMS),
+            ..Default::default()
         },
         ellipses: ConsistencyCheck {
             mixed: false,
             variants: variants(&ELLIPSIS_FORMS),
+            ..Default::default()
         },
         dashes: ConsistencyCheck {
             mixed: false,
             variants: variants(&DASH_FORMS),
+            ..Default::default()
         },
         ..Default::default()
     };
@@ -815,6 +872,26 @@ pub fn report(
         &mut report.dashes,
     ] {
         check.mixed = mixed(&check.variants, options.minimum_minority);
+    }
+    let preferred = options.preferred.checks();
+    for (check, (_, form, _)) in [
+        &mut report.double_quotes,
+        &mut report.single_quotes,
+        &mut report.apostrophes,
+        &mut report.ellipses,
+        &mut report.dashes,
+    ]
+    .into_iter()
+    .zip(preferred)
+    {
+        let Some(form) = form else { continue };
+        check.non_preferred = check
+            .variants
+            .iter()
+            .filter(|variant| variant.form != form)
+            .map(|variant| variant.counts.all)
+            .sum();
+        check.preferred = Some(form.to_owned());
     }
     Ok(report)
 }

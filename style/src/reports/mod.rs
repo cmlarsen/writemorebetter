@@ -11,6 +11,7 @@ mod norms;
 pub mod overused_words;
 pub mod pacing;
 pub mod passive;
+pub mod preset_checks;
 pub mod pronoun_starts;
 pub mod readability;
 pub mod regional_spelling;

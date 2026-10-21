@@ -18,7 +18,9 @@ const require = createRequire(import.meta.url);
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, "..");
 
-const { Checker } = require(join(here, "pkg", "writemorebetter_wasm.js"));
+const { Checker, stylePresetNames, loadStylePreset, parseStylePreset } = require(
+  join(here, "pkg", "writemorebetter_wasm.js"),
+);
 
 const checker = new Checker(
   readFileSync(join(root, "storage", "en_tokenizer.bin")),
@@ -548,6 +550,52 @@ const lookaround = JSON.parse(houseDoc.houseStyle(undefined, JSON.stringify([
 ])));
 eq([lookaround.unsupported.map(u => u.rule), lookaround.matches.map(m => m.rule)], [["T.Look"], ["T.Sort"]], "houseStyle: an unsupported rule is skipped alone");
 houseDoc.free();
+
+// Style presets: load by name, parse a user preset over a built-in, apply to a checker and a document.
+{
+  eq(stylePresetNames(), ["chicago-fiction", "ap", "uk"], "built-in preset names");
+  const chicago = JSON.parse(loadStylePreset("chicago-fiction"));
+  eq(chicago.grammar.rules, { "STYLE/SERIAL_COMMA_ON": true }, "chicago enables the serial-comma rule");
+  const mine = JSON.parse(parseStylePreset(JSON.stringify({
+    format: 1, name: "mine", extends: "uk",
+    checks: { numbers: null },
+    houseStyle: { rules: { "Preset.OK": null } },
+  })));
+  eq([mine.name, mine.grammar.spellVariant, mine.checks.quotePunctuation, mine.checks.numbers, Object.keys(mine.houseStyle.rules)],
+    ["mine", "en_GB", "outside", undefined, ["Preset.Meridiem"]], "a user preset extends and overrides uk");
+  let error = null;
+  try {
+    parseStylePreset('{"format": 1, "name": "x", "colour": 1}');
+  } catch (err) {
+    error = err;
+  }
+  eq([error?.name, error?.kind], ["StyleError", "invalidPreset"], "unknown preset keys throw");
+  const ap = new Checker(
+    readFileSync(join(root, "storage", "en_tokenizer.bin")),
+    readFileSync(join(root, "storage", "en_rules.bin")),
+  );
+  check(ap.applyPreset("ap") > 0, "applyPreset counts enabled rules");
+  const serial = JSON.parse(ap.check("We bought apples, pears, and plums.")).map((item) => item.source);
+  check(serial.some((source) => source.startsWith("STYLE/SERIAL_COMMA_OFF")), `ap flags the serial comma: ${serial}`);
+  error = null;
+  try {
+    ap.applyPreset('{"format": 1, "name": "x", "grammar": {"rules": {"NO_SUCH_RULE": true}}}');
+  } catch (err) {
+    error = err;
+  }
+  check(String(error).includes("NO_SUCH_RULE"), `unknown selector throws: ${error}`);
+  ap.free();
+  const text = "“Mom, it’s 7…” I said—then James’ dad left at 5 AM.\u2028He called it “art”.";
+  const doc = checker.styleDocument(text);
+  const report = JSON.parse(doc.preset());
+  eq(report.preset, "chicago-fiction", "preset() defaults to chicago-fiction");
+  eq(report.checks.matches.map((m) => [m.check, text.slice(m.span.start, m.span.end)]),
+    [["numbers", "7"], ["possessives", "’"], ["timeAbbreviations", "AM."], ["quotePunctuation", "”."]],
+    "preset checks with UTF-16 spans");
+  const uk = JSON.parse(doc.preset("uk"));
+  eq(uk.checks.matches.filter((m) => m.check === "quotePunctuation"), [], "uk keeps a quoted word's period outside");
+  doc.free();
+}
 
 checkStyleRecords(checker);
 const independent = checker.styleDocument("She ran.");

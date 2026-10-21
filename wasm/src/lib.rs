@@ -670,3 +670,67 @@ impl StyleDocument {
 
 #[wasm_bindgen(typescript_custom_section)]
 const STYLE_RESULT_TYPES: &str = include_str!("../style-results.d.ts");
+
+/// The built-in style presets' names; the first, `"chicago-fiction"`, is the default.
+#[wasm_bindgen(js_name = stylePresetNames)]
+pub fn style_preset_names() -> Vec<String> {
+    writemorebetter_style::preset::StylePreset::names()
+        .into_iter()
+        .map(str::to_owned)
+        .collect()
+}
+
+/// A built-in style preset by name, resolved to self-contained `StylePreset` JSON.
+#[wasm_bindgen(js_name = loadStylePreset)]
+pub fn load_style_preset(name: &str) -> Result<String, JsValue> {
+    writemorebetter_style::preset::StylePreset::builtin(name)
+        .map(|preset| preset.to_json())
+        .map_err(style_error)
+}
+
+/// Validates a preset file (JSON), resolves its `extends`, and returns self-contained
+/// `StylePreset` JSON. Unknown keys and invalid values throw a `StyleError` (`invalidPreset`).
+#[wasm_bindgen(js_name = parseStylePreset)]
+pub fn parse_style_preset(text: &str) -> Result<String, JsValue> {
+    writemorebetter_style::preset::StylePreset::parse(text)
+        .map(|preset| preset.to_json())
+        .map_err(style_error)
+}
+
+#[wasm_bindgen]
+impl Checker {
+    /// Applies a style preset's grammar settings: its profile, the rules it turns off and on, and
+    /// its speller variant. `preset` is a built-in preset's name or a preset file (JSON). Every
+    /// selector is checked first, so an unknown one throws and changes nothing. Returns how many
+    /// rules went from off to on. Apply a preset to a new `Checker`; to switch presets, construct
+    /// another (profiles cannot be undone).
+    #[wasm_bindgen(js_name = applyPreset)]
+    pub fn apply_preset(&mut self, preset: &str) -> Result<usize, JsValue> {
+        writemorebetter_style::preset::StylePreset::load(preset)
+            .and_then(|preset| preset.apply_to_rules(&mut self.rules))
+            .map_err(style_error)
+    }
+}
+
+#[wasm_bindgen]
+impl StyleDocument {
+    #[wasm_bindgen(js_name = presetChecks)]
+    /// Runs the built-in preset checks; options are `PresetChecks` JSON (every check off by default).
+    pub fn preset_checks(&self, options_json: Option<String>) -> Result<String, JsValue> {
+        self.inner
+            .preset_checks(options_json.as_deref())
+            .map(|report| reports::to_utf16_json(&report))
+            .map_err(style_error)
+    }
+
+    #[wasm_bindgen(js_name = preset)]
+    /// Runs every report a style preset drives (consistency, house style, preset checks) and returns
+    /// `PresetReport` JSON. `preset` is a built-in preset's name or a preset file (JSON); omitted
+    /// selects `"chicago-fiction"`.
+    pub fn preset(&self, preset: Option<String>) -> Result<String, JsValue> {
+        self.inner
+            .preset(preset.as_deref())
+            .map(|report| reports::to_utf16_json(&report))
+            .map_err(style_error)
+    }
+}

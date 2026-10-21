@@ -426,3 +426,60 @@ fn public_counts() {
         }
     }
 }
+
+#[test]
+fn preferred_forms_count_every_other_form() {
+    let text =
+        "“Wait—” she said. \"Fine\" he left — then… then... ‘no’ and don't.\u{2028}It’s late.";
+    let style = StyleDocument::new(
+        tokenizer().clone(),
+        Arc::new(StyleResources::new()),
+        text,
+        &DocumentOptions::new(),
+    );
+    let report = style
+        .consistency(Some(
+            r#"{"preferred": {"doubleQuotes": "curly", "apostrophes": "curly", "ellipses": "character", "dashes": "emClosed"}}"#,
+        ))
+        .unwrap();
+    assert_eq!(report.double_quotes.preferred.as_deref(), Some("curly"));
+    assert_eq!(report.double_quotes.non_preferred, 2);
+    assert_eq!(report.apostrophes.non_preferred, 1);
+    assert_eq!(report.ellipses.non_preferred, 1);
+    assert_eq!(report.dashes.non_preferred, 1);
+    // Without a preference, nothing is counted against the document.
+    assert_eq!(report.single_quotes.preferred, None);
+    assert_eq!(report.single_quotes.non_preferred, 0);
+    // A preference changes nothing else: `mixed` still compares the forms with each other.
+    let plain = style.consistency(None).unwrap();
+    assert_eq!(plain.double_quotes.mixed, report.double_quotes.mixed);
+    assert_eq!(plain.double_quotes.non_preferred, 0);
+    let json: serde_json::Value = serde_json::from_str(&to_utf16_json(&report)).unwrap();
+    assert_eq!(json["dashes"]["preferred"], "emClosed");
+    assert_eq!(json["dashes"]["nonPreferred"], 1);
+    assert_eq!(json["singleQuotes"]["preferred"], serde_json::Value::Null);
+}
+
+#[test]
+fn preferred_forms_are_validated() {
+    let style = StyleDocument::new(
+        tokenizer().clone(),
+        Arc::new(StyleResources::new()),
+        "Text.",
+        &DocumentOptions::new(),
+    );
+    for bad in [
+        r#"{"preferred": {"dashes": "emDash"}}"#,
+        r#"{"preferred": {"quotes": "curly"}}"#,
+        r#"{"preferred": {"ellipses": "curly"}}"#,
+    ] {
+        let error = style.consistency(Some(bad)).unwrap_err();
+        assert!(
+            matches!(error, StyleError::InvalidOptions { .. }),
+            "{bad}: {error}"
+        );
+    }
+    assert!(style
+        .consistency(Some(r#"{"preferred": {"double_quotes": "straight"}}"#))
+        .is_ok());
+}
