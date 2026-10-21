@@ -1018,6 +1018,11 @@ public protocol StyleDocumentProtocol: AnyObject, Sendable {
     /**
      * Returns this report on the retained analysis; options default when omitted.
      */
+    func regionalSpellingJson(optionsJson: String?) throws  -> String
+    
+    /**
+     * Returns this report on the retained analysis; options default when omitted.
+     */
     func repeatedPhrasesJson(optionsJson: String?) throws  -> String
     
     /**
@@ -1275,6 +1280,19 @@ open func readabilityJson(optionsJson: String? = nil)throws  -> String  {
     return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
         uniffiCallStatus in
     uniffi_writemorebetter_swift_fn_method_styledocument_readability_json(
+            self.uniffiCloneHandle(),
+        FfiConverterOptionString.lower(optionsJson),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * Returns this report on the retained analysis; options default when omitted.
+     */
+open func regionalSpellingJson(optionsJson: String? = nil)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_method_styledocument_regional_spelling_json(
             self.uniffiCloneHandle(),
         FfiConverterOptionString.lower(optionsJson),uniffiCallStatus
     )
@@ -2731,6 +2749,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_method_styledocument_readability_json() != 16718) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_writemorebetter_swift_checksum_method_styledocument_regional_spelling_json() != 28938) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_method_styledocument_repeated_phrases_json() != 39140) {
