@@ -41,9 +41,10 @@ z zh`. `jh` is the sound of *j* in *jam* and *g* in *gem*, `dh` is *th* in *then
 
 - **Sound, not spelling.** *Cats keep chorus lines* is one `k` run; *Cheap chemical charts* is not a
   run (`ch`, `k`, `ch`); *Gentle girls get gems* is not (`jh`, `g`, `g`, `jh`); *Nine knotted nets* is
-  an `n` run. *Once* starts with `w` and *hour* with a vowel. Words that start with a vowel sound
+  an `n` run. *Once* starts with `w` and *hour* with a vowel. A word that starts with an accented vowel
+  (*élan*, *Über*) starts with a vowel sound; *ç* sounds as `s` and *ñ* as `n`. Words that start with a vowel sound
   never form runs, but they still sit between other words and count toward the gap.
-- **Stressed words.** Articles, pronouns, prepositions, conjunctions, question words, auxiliaries
+- **Stressed words.** Articles, pronouns (including *himself* and *theirs*), prepositions, conjunctions, question words, auxiliaries
   and modals (and their contractions: *she’d*, *don’t*) are unstressed in running speech. They are skipped:
   they neither join a run nor break one, so *Tom took the tram to the town* is one `t` run. Clitics
   the tokenizer splits off (`’s`, `’d`, `n’t`) are skipped the same way. *Up*, *down*, *out*,

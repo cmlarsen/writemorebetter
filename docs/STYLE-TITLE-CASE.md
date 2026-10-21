@@ -63,7 +63,7 @@ wording) and `rule`:
   start, not its text.
 - **Left as written.** Words with a capital after their first letter (`FBI`, `McCall’s`, `iPhone`),
   words that start with a digit (`3rd`, `12`), single letters other than *a* (`Plan B`, *I*, the *n*
-  of *rock ’n’ roll*), and names in `skipNames`. A heading with no lowercase letters at all
+  of *rock ’n’ roll*), contractions of *I* (*I’m*, *I’ve*, *I’d*), and names in `skipNames`. A heading with no lowercase letters at all
   (`CHAPTER ONE`) is a typographic choice and is skipped whole.
 - **Hyphenated compounds.** The first part is capitalized. Later parts follow the word rules, so an
   article, conjunction or preposition stays lowercase (`Up-to-Date`, `Mother-in-Law`) and other
