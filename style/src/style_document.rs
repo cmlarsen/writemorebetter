@@ -280,3 +280,34 @@ fn parsed_rules(
     *last = Some((text.to_owned(), rules.clone()));
     Ok(rules)
 }
+
+impl StyleDocument {
+    /// Runs the built-in preset checks; the options are a `PresetChecks` object (all off by default).
+    pub fn preset_checks(
+        &self,
+        json: Option<&str>,
+    ) -> Result<crate::reports::preset_checks::PresetChecksReport, StyleError> {
+        crate::reports::preset_checks::report(&self.document, &options(json)?)
+    }
+
+    /// Runs every report a style preset drives. `preset` is a built-in preset's name or a preset
+    /// file (JSON); `None` selects the default preset.
+    pub fn preset(&self, preset: Option<&str>) -> Result<crate::preset::PresetReport, StyleError> {
+        parsed_preset(preset.unwrap_or(crate::preset::DEFAULT_PRESET))?.report(&self.document)
+    }
+}
+
+fn parsed_preset(text: &str) -> Result<Arc<crate::preset::StylePreset>, StyleError> {
+    use crate::preset::StylePreset;
+    static LAST: Mutex<Option<(String, Arc<StylePreset>)>> = Mutex::new(None);
+    {
+        let last = LAST.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        if let Some((_, preset)) = last.as_ref().filter(|(cached, _)| cached == text) {
+            return Ok(preset.clone());
+        }
+    }
+    let preset = Arc::new(StylePreset::load(text)?);
+    let mut last = LAST.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    *last = Some((text.to_owned(), preset.clone()));
+    Ok(preset)
+}

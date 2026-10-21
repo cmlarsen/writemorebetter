@@ -548,6 +548,10 @@ public struct RegionalSpellingForm: Codable, Equatable, Sendable {
 public struct ConsistencyCheck: Codable, Equatable, Sendable {
     public let mixed: Bool
     public let variants: [ConsistencyVariant]
+    /// The preferred form from the options (a style preset), or nil without one.
+    public let preferred: String?
+    /// Occurrences of every form other than `preferred`; 0 without a preference.
+    public let nonPreferred: Int
 }
 
 public struct ConsistencyCount: Codable, Equatable, Sendable {
@@ -829,5 +833,64 @@ public extension StyleDocument {
     /// Narration only unless options set `includeDialogue`.
     func emotionTells(optionsJson: String? = nil) throws -> EmotionTellsReport {
         try decodeStyle(emotionTellsJson(optionsJson: optionsJson))
+    }
+}
+
+public enum PresetCheck: String, Codable, Sendable {
+    case numbers, quotePunctuation, possessives, timeAbbreviations, familyTitles
+}
+
+public struct PresetCheckMatch: Codable, Equatable, Sendable {
+    public let check: PresetCheck
+    public let message: String
+    public let span: Span
+    public let mode: Mode
+    /// A fixed term from the check's table, when the check has one.
+    public let replacement: String?
+}
+
+public struct PresetChecksReport: Codable, Equatable, Sendable {
+    public let matches: [PresetCheckMatch]
+    public let counts: Split<Int>
+}
+
+public struct PresetReport: Codable, Equatable, Sendable {
+    public let preset: String
+    public let version: String?
+    public let consistency: ConsistencyReport
+    public let houseStyle: HouseStyleReport
+    public let checks: PresetChecksReport
+}
+
+/// The identifying fields of a resolved style preset; the full JSON passes through unchanged.
+public struct StylePresetSummary: Codable, Equatable, Sendable {
+    public let format: Int
+    public let name: String
+    public let version: String?
+    public let description: String?
+}
+
+public enum StylePresets {
+    /// The built-in presets' names; the first is the default.
+    public static var names: [String] { stylePresetNames() }
+
+    /// A built-in preset by name, as self-contained preset JSON.
+    public static func load(_ name: String) throws -> String { try loadStylePresetJson(name: name) }
+
+    /// Validates a preset file and resolves its `extends`, returning self-contained preset JSON.
+    public static func parse(_ json: String) throws -> String { try parseStylePresetJson(text: json) }
+
+    public static func summary(_ json: String) throws -> StylePresetSummary { try decodeStyle(json) }
+}
+
+public extension StyleDocument {
+    /// `optionsJson` is a `PresetChecks` object; every check is off by default.
+    func presetChecks(optionsJson: String? = nil) throws -> PresetChecksReport {
+        try decodeStyle(presetChecksJson(optionsJson: optionsJson))
+    }
+
+    /// `preset` is a built-in preset's name or a preset file (JSON); nil selects "chicago-fiction".
+    func preset(_ preset: String? = nil) throws -> PresetReport {
+        try decodeStyle(presetJson(preset: preset))
     }
 }

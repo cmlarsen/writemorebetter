@@ -217,6 +217,31 @@ impl Rules {
         Ok(enabled)
     }
 
+    /// The selectors in `selectors` that name no grammar or builtin rule, without changing any
+    /// rule. With `cases`, the builtin case form (`"BUILTIN/ID/CASE"`) that
+    /// [`Rules::apply_profile`] accepts is checked too; without it, as for
+    /// [`Rules::enable_rules`], that form is unmatched.
+    pub fn unmatched_selectors<S: AsRef<str>>(&self, selectors: &[S], cases: bool) -> Vec<String> {
+        selectors
+            .iter()
+            .map(AsRef::as_ref)
+            .filter(|selector| {
+                let case = selector
+                    .strip_prefix(BUILTIN_PREFIX)
+                    .and_then(|id| id.split_once('/'))
+                    .filter(|_| cases);
+                match case {
+                    Some((id, case)) => !self
+                        .builtins
+                        .iter()
+                        .any(|rule| rule.id() == id && rule.has_case(case)),
+                    None => !self.selector_matches(selector),
+                }
+            })
+            .map(str::to_owned)
+            .collect()
+    }
+
     /// Whether an enable selector names at least one grammar or builtin rule.
     fn selector_matches(&self, selector: &str) -> bool {
         match selector.strip_prefix(BUILTIN_PREFIX) {

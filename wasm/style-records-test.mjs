@@ -87,6 +87,12 @@ export function checkStyleRecords(checker) {
   const emotionDocument = checker.styleDocument("She was afraid. “I was so angry,” he said.");
   results.push(["EmotionTellsReport", emotionDocument.emotionTells('{"includeDialogue":true}')]);
   emotionDocument.free();
+  const presetDocument = checker.styleDocument("“Mom, I saw 7 crows at 5 AM,” I said. James’ dad walked towards it—okay—“slowly”.");
+  results.push(["PresetReport", presetDocument.preset()]);
+  results.push(["PresetReport", presetDocument.preset("uk")]);
+  results.push(["PresetChecksReport", presetDocument.presetChecks('{"numbers":{"spellOutThrough":9},"familyTitles":true}')]);
+  assert.equal(JSON.parse(presetDocument.preset()).checks.matches.length, 4);
+  presetDocument.free();
   for (const [type, json] of results) validate(JSON.parse(json), type, type);
   transitionDocument.free();
   normDocument.free();

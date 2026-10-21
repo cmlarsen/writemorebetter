@@ -16,6 +16,7 @@ pub enum StyleError {
     MissingTable { report: String },
     InvalidTable { report: String, message: String },
     InvalidRules { report: String, message: String },
+    InvalidPreset { message: String },
 }
 
 impl StyleError {
@@ -50,6 +51,12 @@ impl StyleError {
         }
     }
 
+    pub(crate) fn preset(message: impl fmt::Display) -> Self {
+        Self::InvalidPreset {
+            message: message.to_string(),
+        }
+    }
+
     pub(crate) fn needs_token_details(report: &str) -> Self {
         Self::NeedsTokenDetails {
             report: report.to_owned(),
@@ -78,6 +85,7 @@ impl fmt::Display for StyleError {
             Self::InvalidRules { report, message } => {
                 write!(f, "invalid {report} rules: {message}")
             }
+            Self::InvalidPreset { message } => write!(f, "invalid style preset: {message}"),
         }
     }
 }

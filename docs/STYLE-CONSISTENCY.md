@@ -19,6 +19,7 @@ snake_case aliases and reject unknown keys:
 | Option | Default | Meaning |
 |---|---|---|
 | `minimumMinority` | 1 | A check or word is `mixed` only when its second most common form occurs at least this often. Must be at least 1. Raise it to hide a single stray form. |
+| `preferred` | none | A house form per punctuation check, as a [style preset](STYLE-PRESETS.md) sets it: `{"doubleQuotes", "singleQuotes", "apostrophes": "curly" \| "straight", "ellipses": "character" \| "periods" \| "spacedPeriods", "dashes": "emClosed" \| "emSpaced" \| "enSpaced" \| "doubleHyphen" \| "spacedHyphen"}`. An unknown check or form is an `invalidOptions` error. |
 
 ## Result
 
@@ -28,11 +29,16 @@ ConsistencyReport {
   dashCharacters: [ConsistencyCount]          // hyphen, enDash, emDash
   capitalization, hyphenation: [ConsistencyWord]  // mixed words only
 }
-ConsistencyCheck   { mixed, variants: [ConsistencyVariant] }
+ConsistencyCheck   { mixed, variants: [ConsistencyVariant], preferred, nonPreferred }
 ConsistencyVariant { form, counts: Split<number>, spans: [Span] }
 ConsistencyCount   { form, counts: Split<number> }
 ConsistencyWord    { word, variants: [ConsistencyVariant] }
 ```
+
+A check with a `preferred` form echoes it and counts every occurrence of its other forms in
+`nonPreferred` (0 without a preference). The preference changes nothing else: `mixed` still compares
+the forms with each other, and a document written entirely in the other form is not `mixed` but has
+a nonzero `nonPreferred`.
 
 Every punctuation check lists all of its forms in a fixed order, including forms with zero
 count, so a UI can show "curly 412 · straight 3". `counts` splits each form into narration and

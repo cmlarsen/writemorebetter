@@ -6437,3 +6437,31 @@ fn word_statistics_builtins_check_text_as_a_whole() {
         Vec::<usize>::new()
     );
 }
+
+/// `unmatched_selectors` reports unknown selectors without changing any rule, and accepts the
+/// builtin case form only when asked to.
+#[test]
+fn unmatched_selectors_checks_without_changing_rules() {
+    let rules = Rules::new(RULES_PATH).unwrap();
+    let selectors = [
+        "STYLE/SERIAL_COMMA_ON",
+        "BUILTIN/WHITESPACE_RULE",
+        "BUILTIN/WHITESPACE_RULE/INDENTATION",
+        "BUILTIN/WHITESPACE_RULE/NO_SUCH_CASE",
+        "NO_SUCH_CATEGORY",
+    ];
+    assert_eq!(
+        rules.unmatched_selectors(&selectors, true),
+        ["BUILTIN/WHITESPACE_RULE/NO_SUCH_CASE", "NO_SUCH_CATEGORY"]
+    );
+    assert_eq!(
+        rules.unmatched_selectors(&selectors, false),
+        [
+            "BUILTIN/WHITESPACE_RULE/INDENTATION",
+            "BUILTIN/WHITESPACE_RULE/NO_SUCH_CASE",
+            "NO_SUCH_CATEGORY"
+        ]
+    );
+    let serial = Selector::try_from("STYLE/SERIAL_COMMA_ON").unwrap();
+    assert!(rules.select(&serial).all(|rule| !rule.enabled()));
+}
