@@ -10,6 +10,7 @@
 31 | BUILTIN/COMMA_PARENTHESIS_WHITESPACE | " ," -> [","] | Put a space after the comma, but not before the comma.
 32 | CONFUSED_WORDS/TROUGH_THROUGH/0 | "trough" -> ["through"] | Did you mean the preposition through (e.g. "walk through a door")?
 33 | GRAMMAR/A_NNS/2 | "a boxes" -> ["a box", "boxes"] | The plural noun "boxes" cannot be used with the article "a". Did you mean a box or boxes?
+34 | TYPOS/PEAKED_THROUGH/0 | "peaked" -> ["peeked"] | Did you mean peeked (looked quickly)?
 40 | SPELLCHECK/SINGLE | "definately" -> ["definitely"] | Possibly misspelled word.
 41 | SPELLCHECK/SINGLE | "wierd" -> ["wired", "weird", "wield", "WEIRD", "Wired"] | Possibly misspelled word.
 42 | SPELLCHECK/SINGLE | "beleive" -> ["believe"] | Possibly misspelled word.

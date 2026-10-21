@@ -8,6 +8,7 @@
 38 | BUILTIN/COMMA_PARENTHESIS_WHITESPACE | " ," -> [","] | Put a space after the comma, but not before the comma.
 41 | GRAMMAR/DT_PRP/0 | "The we" -> ["The", "We"] | Possible typo. Did you mean The or we?
 42 | TYPOS/MODAL_OF/0 | "could of" -> ["could have", "could've"] | It's never correct to use 'of' after a modal verb. Use could have, or, in informal register, could've.
+44 | TYPOS/YOUR_YOU_RE/11 | "Your" -> ["You're"] | Did you mean you're (short for 'you are')?
 45 | GRAMMAR/HE_VERB_AGR/0 | "book" -> ["books", "booked"] | The pronoun 'He' is usually used with a third-person or a past tense verb.
 46 | SPELLCHECK/SINGLE | "knowlege" -> ["knowledge"] | Possibly misspelled word.
 47 | BUILTIN/ENGLISH_WORD_REPEAT_RULE | "to to" -> ["to"] | Possible typo: you repeated a word.

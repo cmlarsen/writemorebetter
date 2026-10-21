@@ -77,6 +77,7 @@ impl Profile {
                 "PUNCTUATION/DASH_RULE",
                 // Comma before "and" in a compound sentence (23).
                 "PUNCTUATION/COMMA_COMPOUND_SENTENCE",
+                "PUNCTUATION/COMMA_COMPOUND_SENTENCE_2",
                 // Missing comma after an introductory phrase (6).
                 "PUNCTUATION/MISSING_COMMA_AFTER_INTRODUCTORY_PHRASE",
                 // Dialogue informality: gonna/gotta/wanna (9/4/1).

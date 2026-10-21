@@ -69,7 +69,7 @@ jobs:
 
       - name: Public corpus recall
         env:
-          RECALL_MIN: 55
+          RECALL_MIN: 60
         run: |
           cargo build --release --manifest-path bench/tools/wmb-probe/Cargo.toml
           python3 bench/tools/public_recall.py --min "$RECALL_MIN"
@@ -164,8 +164,8 @@ jobs:
       - name: Grammar conformance
         env:
           RUST_LOG: WARN
-          GRAMMAR_PASSING: 6074
-          GRAMMAR_RUNNABLE: 6074
+          GRAMMAR_PASSING: 6085
+          GRAMMAR_RUNNABLE: 6085
         run: |
           # the binary exits 1 when any rule fails its examples; the floors below are the gate
           cargo run --release --all-features --bin test -- --tokenizer storage/en_tokenizer.bin --rules storage/en_rules.bin > storage/grammar_conformance.log 2>&1 || true

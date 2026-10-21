@@ -818,6 +818,21 @@ fn spellchecker_accepts_fiction_punctuation() {
 }
 
 #[test]
+fn spellchecker_ignores_words_with_digits() {
+    for text in &[
+        "\u{201c}Back in the 1860s\u{2014}or the \u{2019}80s\u{2014}nobody cared,\u{201d} she said.",
+        "The 75mm gun fired at 3:21pm\u{2026} then at 8:12pm.\u{2028}It was the 22nd.",
+        "He bought a 4k screen and a 443m cable for the FM-27s.",
+    ] {
+        assert_eq!(spelling_errors(text), Vec::<&str>::new(), "{}", text);
+    }
+    assert_eq!(
+        spelling_errors("\u{201c}The 1940s were teh worst,\u{201d} he said\u{2014}75mm recieved."),
+        vec!["teh", "recieved"]
+    );
+}
+
+#[test]
 fn spellchecker_ignores_lone_format_characters() {
     for text in &[
         "\u{201c}Yes\u{200f}\u{2014}no,\u{201d} she said\u{2026}",
@@ -1788,6 +1803,85 @@ fn builtin_comma_flags_whitespace_before_full_stop() {
 }
 
 #[test]
+fn builtin_comma_ignores_spaced_ellipsis() {
+    for text in &[
+        "\u{201c}So . . . how was the drive?\u{201d}",
+        "She waited for an answer . . .",
+        "The radio crackled. \u{201c} . . . day. Mayday.\u{201d}",
+        "\u{201c}I just . . . couldn\u{2019}t\u{2014}not then.\u{201d}",
+        "He stopped. . . . Then he left.",
+        "Wait\u{2028}. . . and then what?",
+        "\u{201c}Wait\u{00a0}.\u{00a0}.\u{00a0}. what?\u{201d}",
+    ] {
+        assert!(
+            comma_flags(text).is_empty(),
+            "{:?}: {:?}",
+            text,
+            comma_flags(text)
+        );
+    }
+}
+
+#[test]
+fn builtin_comma_ignores_quote_spaced_from_ellipsis() {
+    for text in &[
+        "\u{201c}It will work. The trouble is . . . \u{201d}",
+        "\"What on earth . . . \" Mara whispered.",
+        "\u{201c}I thought . . . \u{201d} She stopped\u{2014}then went on.",
+        "She said \u{201c} . . . and then nothing\u{2019}s left.\u{201d}",
+        "\u{2018}Maybe . . . \u{2019}\u{2028}he said.",
+        "\u{201c}Yeah . . . ,\u{201d} Alan said.",
+        "\"Uh . . . , James\u{2014}no, Josh.\"",
+        "\"He said, 'Not now . . . ' \" she told me.",
+        "\u{201c}She called it \u{2018}the plan,\u{2019} \u{201d} he said.",
+        "\" 'Crossing the line.' I like that!\"",
+        "What sort of \u{201c} \u{2018}trouble\u{2019} \u{201d} sends you here?",
+    ] {
+        assert!(
+            comma_flags(text).is_empty(),
+            "{:?}: {:?}",
+            text,
+            comma_flags(text)
+        );
+    }
+    assert_eq!(
+        comma_flags("\"Well, I fixed the fence \"\n\"Then what?\""),
+        vec![(
+            " \"\n".to_string(),
+            vec!["\" ".to_string(), " \"".to_string()]
+        )]
+    );
+    assert_eq!(
+        comma_flags("He said \u{201c} hello \u{201d} to me . . . twice."),
+        vec![
+            (
+                " \u{201c} ".to_string(),
+                vec!["\u{201c} ".to_string(), " \u{201c}".to_string()]
+            ),
+            (
+                " \u{201d} ".to_string(),
+                vec!["\u{201d} ".to_string(), " \u{201d}".to_string()]
+            )
+        ]
+    );
+}
+
+#[test]
+fn builtin_comma_flags_full_stop_next_to_short_dot_run() {
+    assert_eq!(
+        comma_flags("It ended . Then . . . nothing."),
+        vec![(" .".to_string(), vec![".".to_string()])]
+    );
+    assert_eq!(
+        comma_flags("It ended . . Then it began."),
+        vec![
+            (" .".to_string(), vec![".".to_string()]),
+            (" .".to_string(), vec![".".to_string()])
+        ]
+    );
+}
+
+#[test]
 fn builtin_comma_flags_all_planted_public_errors() {
     // The four punctuation errors planted in the public corpus.
     assert_eq!(
@@ -2389,6 +2483,26 @@ fn builtin_uppercase_sentence_start_ignores_dialogue_tag_after_comma() {
         "\u{201c}I don\u{2019}t know,\u{201d} she said."
     )
     .is_empty());
+}
+
+#[test]
+fn builtin_uppercase_sentence_start_ignores_lowercase_after_spaced_ellipsis() {
+    for text in &[
+        "\u{201c}So . . . how was the drive?\u{201d}",
+        "\u{201c}Wait . . . and then what?\u{201d}",
+        "He stopped. . . . and then he left.",
+        "I just . . . couldn\u{2019}t\u{2014}not then.",
+    ] {
+        assert!(
+            builtin_uppercase_sentence_start_flags(text).is_empty(),
+            "{:?}",
+            text
+        );
+    }
+    assert_eq!(
+        builtin_uppercase_sentence_start_flags("He waited . . . Then she came. bad start."),
+        vec![("bad".to_string(), "Bad".to_string())]
+    );
 }
 
 #[test]

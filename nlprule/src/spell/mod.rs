@@ -452,6 +452,7 @@ impl VariantChecker {
             || word.chars().all(|x| {
                 x.is_symbol() || x.is_punctuation() || x.is_numeric() || x.is_mark() || x.is_other()
             })
+            || word.chars().any(char::is_numeric)
             || (recurse
                 // for title case words, it is enough if the lowercase variant is known.
                 // it is possible that `is_title_case` is still true for word where `.to_lowercase()` was called so we need a `recurse` parameter.

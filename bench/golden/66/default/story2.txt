@@ -17,7 +17,7 @@
 81 | BUILTIN/COMMA_PARENTHESIS_WHITESPACE | ",and" -> [", and"] | Put a space after the comma.
 82 | PUNCTUATION/COMMA_COMPOUND_SENTENCE_2/3 | " and" -> [", and"] | Use a comma before "and" if it connects two independent clauses (unless they are closely connected and short).
 84 | BUILTIN/ENGLISH_WORD_REPEAT_BEGINNING_RULE | "It" -> ["Furthermore, it", "Likewise, it", "Not only that, but it"] | Three successive sentences begin with the same word. Consider rewording the sentence or use a thesaurus to find a synonym.
-86 | GRAMMAR/A_INFINITIVE/1 | "the heal" -> ["to heal", "the Head", "the Leal", "the head", "the hemal", "the leal", "the real", "they heal"] | The verb 'heal' does not usually follow articles like 'the'. Check that 'heal' is spelled correctly; using 'heal' as a noun may be non-standard.
+86 | TYPOS/HEAL_OF/0 | "heal" -> ["heel"] | Did you mean heel (the back of the foot or shoe)?
 89 | SPELLCHECK/SINGLE | "embarass" -> ["embarrass"] | Possibly misspelled word.
 90 | SPELLCHECK/SINGLE | "tomorow" -> ["tomorrow"] | Possibly misspelled word.
 93 | GRAMMAR/MOST_COMPARATIVE/1 | "more better" -> ["better"] | Use only better (without 'more') when you use the comparative.

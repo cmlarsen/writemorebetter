@@ -109,6 +109,7 @@ Disables exactly these:
 | `TYPOGRAPHY/EN_QUOTES` | straight-to-curly quote suggestions (592) |
 | `PUNCTUATION/DASH_RULE` | dash typography (18) |
 | `PUNCTUATION/COMMA_COMPOUND_SENTENCE` | comma before "and" (23) |
+| `PUNCTUATION/COMMA_COMPOUND_SENTENCE_2` | comma before "and", "but" or "so" between clauses (4 on the private corpus; 1,166 for 61 of 70 authors in published fiction) |
 | `PUNCTUATION/MISSING_COMMA_AFTER_INTRODUCTORY_PHRASE` | (6) |
 | `STYLE/GONNA` | dialogue informality (9) |
 | `STYLE/GOTTA` | dialogue informality (4) |
@@ -126,7 +127,7 @@ that ends in a closing quote. Dialogue followed by a tag (`“Definitely,” she
 said.`) is still checked. Its word list is short (about 40 words such as
 "nice", "amazing", "definitely"), so an author who turns it on gets few flags.
 
-Applying it to the compiled English rules disables 162 rules and reports 0
+Applying it to the compiled English rules disables 171 rules and reports 0
 unmatched selectors.
 
 The fiction profile does not need to name rules that are off by default. Of the

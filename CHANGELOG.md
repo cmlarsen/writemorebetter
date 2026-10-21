@@ -6,6 +6,40 @@ inherited 0.6.4 track this project's own release line. Each version is a top-lev
 `# <version>` heading; the Release workflow copies that section verbatim into the GitHub
 release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
+# Unreleased
+
+### Fixed
+
+- **"One way or other" and "something or other" are no longer flagged.** `OTHER_OTHERS`
+  suggested "others" when the idiom "X or other" came before a verb ("one way or other
+  served"). The English `grammar.xml` is now a fork of LanguageTool 6.6's, committed at
+  `build/lt-rules/en/grammar.xml` with its local edits listed in the README next to it;
+  `scripts/build-data.sh` builds from it, so the data binaries need rebuilding.
+- **Spaced ellipses (". . .") are no longer flagged.** Each run produced a "space before the full
+  stop" flag from `COMMA_PARENTHESIS_WHITESPACE`, and the sentence split after it flagged the next
+  lowercase word under `UPPERCASE_SENTENCE_START` (about 15,000 flags on 7.5M words of published
+  fiction). `segment.srx` is now a fork of LanguageTool 6.6's (`build/lt-rules/core/`) with the two
+  no-break rules LanguageTool added after 6.6, and the builtin skips full stops in a run of three or
+  more separated by whitespace, as LanguageTool's `IMMUNIZE_ELLIPSIS` does. The tokenizer binary
+  needs rebuilding.
+- **Spacing that publishers use around ellipses and nested quotes is no longer flagged.** A space
+  between a spaced ellipsis and a quote mark or comma (`. . . ”`, `. . . ,`) and a space between two
+  adjacent quote marks (`‘trouble’ ”`, `' "`) were reported as stray whitespace; LanguageTool 6.9
+  reports them too. A space before a quote at a line end is still flagged.
+- **Words with digits are no longer spell checked**, matching LanguageTool's Morfologik default
+  (`1860s`, `75mm`, `3:21pm`, `21st`).
+- **The fiction profile disables `COMMA_COMPOUND_SENTENCE_2`** as well as
+  `COMMA_COMPOUND_SENTENCE`; it fired for 61 of 70 authors in published fiction.
+
+### Added
+
+- **Rules for errors LanguageTool misses or needs n-grams for.** The forked `grammar.xml` adds
+  `PEAKED_THROUGH` (peaked → peeked), `HEAL_OF` and `HEAL_POCKET` (heal → heel),
+  `EACH_OF_NNS_VBP` ("…each of the dogs are" → "is" mid-sentence), `THERE_ARE_WHAT` ("There are
+  what I thought was" → "is"), and new sub-rules of `YOUR_YOU_RE` ("Your welcome here anytime",
+  "your welcome to stay") and `HE_THE` ("Popping he SD card" → "the"). Recall is now 50 / 50 on
+  the private corpus and 60 / 60 on the public one; the CI floors are raised to match.
+
 # 0.11.0 (2026-10-21)
 
 ### Added
