@@ -116,7 +116,8 @@ fn straight_single_quotes_and_elisions() {
 
 #[test]
 fn opening_curly_quote_before_elision_is_a_quote() {
-    let text = "‘Tis’ he said. 'Hello' she said. ‘Em’s here,’ she said.\u{2028}‘Tis late… ’em—fine.\n";
+    let text =
+        "‘Tis’ he said. 'Hello' she said. ‘Em’s here,’ she said.\u{2028}‘Tis late… ’em—fine.\n";
     let report = run(text);
     assert_eq!(
         counts(&report.single_quotes),
