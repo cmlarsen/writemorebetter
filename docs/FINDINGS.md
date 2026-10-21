@@ -224,25 +224,74 @@ English first; other languages later as data plus per-language builtins behind a
 7. **Gate every step** on LT's own embedded rule examples (conformance) and on this corpus's recall table
    (`bench/tools/recall.py`).
 
-## Status (2026-10-11, end of the first overnight run)
+## Status
 
-Measured on `main` with both build dirs CI uses (LT 5.2 from upstream's `en.zip`; LT 6.6 generated from
-the desktop release), on an idle machine. Conformance pass rate = rules passing their embedded examples /
-`<rule>` elements.
+First measured 2026-10-11 at the end of the first overnight run, on `main` with both build dirs CI used then
+(LT 5.2 from upstream's `en.zip`; LT 6.6 generated from the desktop release), on an idle machine. The
+LT 6.6 column was re-measured on 2026-10-21 at `main` `2b90758` (after #308–#322, rules binary format 32).
+Conformance pass rate = rules passing their embedded examples / `<rule>` elements.
 
 As of release 0.7.0, LanguageTool 5.2 is no longer built: CI and the release workflow build the LT 6.6
-data only (`scripts/build-data.sh`). The LT 5.2 columns below are kept as history.
+data only (`scripts/build-data.sh`). The nlprule 0.6.4 and LT 5.2 columns are kept as history from
+2026-10-11.
 
-| | nlprule 0.6.4 | writemorebetter, LT 5.2 rules | writemorebetter, LT 6.6 rules |
+| | nlprule 0.6.4 | writemorebetter, LT 5.2 rules (2026-10-11) | writemorebetter, LT 6.6 rules (2026-10-21) |
 |---|---|---|---|
-| Grammar pass rate | 3,749 / 4,366 = 85.9% | 4,320 / 4,366 = 98.9% | 5,977 / 6,098 = 98.0% |
-| Disambiguation pass rate | 843 / 855 = 98.6% | 843 / 855 = 98.6% | 1,012 / 1,060 = 95.5% |
-| Private corpus recall (50) | 5 | 43 | **46** (LT 6.9 API: 49) |
-| Private corpus flags, fiction profile | 682 (no profile) | 186 | **180** (LT 6.9 API: 279) |
-| Public corpus recall (60) | 9 | 54 | 55 (LT 6.9 API: 56) |
-| Peak RSS, 150 KB of Moby-Dick, speller on | 159 MB | 78 MB | 100 MB |
-| Check time, same text (same run, machine under load) | 2.21 s | 2.16 s | 2.63 s |
-| Data on disk (tokenizer + rules) | 11.6 + 7.6 MB | 14.6 + 7.9 MB | 11.9 + 12.6 MB |
+| Grammar pass rate | 3,749 / 4,366 = 85.9% | 4,320 / 4,366 = 98.9% | 6,074 / 6,098 = 99.6% |
+| Disambiguation pass rate | 843 / 855 = 98.6% | 843 / 855 = 98.6% | 1,016 / 1,060 = 95.8% |
+| Private corpus recall (50), default and fiction profiles | 5 | 43 | **46** (LT 6.9 API: 49) |
+| Private corpus flags, default profile | — | — | 297 |
+| Private corpus flags, fiction profile | 682 (no profile) | 186 | **190** (LT 6.9 API: 279) |
+| Public corpus recall (60), default and fiction profiles | 9 | 54 | 55 (LT 6.9 API: 56) |
+| Public corpus flags (5 stories), default / fiction profile | — | — | 98 / 85 |
+| Peak RSS, 150 KB of Moby-Dick, speller on | 159 MB | 78 MB | 101 MB (96.5 MiB) |
+| Check time, same text (machine under load) | 2.21 s | 2.16 s | 2.5 s |
+| Data on disk (tokenizer + rules) | 11.6 + 7.6 MB | 14.6 + 7.9 MB | 14.5 + 15.3 MB |
+
+**Recall baseline (the `bench/tools/recall.py` gate in `AGENTS.md`):** 46 of 50 on the private corpus with
+either profile (spelling 28/28, repeated words 7/7, grammar 9/10, comma spacing 2/2, n-gram 0/3), and
+55 of 60 on the public corpus (`bench/tools/public_recall.py`, the CI floor). Recall must not drop
+below these. Flags count every suggestion `wmb-probe` reports across all five private files (the four
+drafts in the truth set plus the edited short piece, which has no truth entries) with the en_US speller
+on. Counted over the four drafts alone, as `docs/STYLE-PRESETS.md` does, the same run gives 254 flags
+(default) and 176 (fiction).
+
+What moved since 2026-10-11 (LT 6.6 column):
+
+- **Private recall 46 and public recall 55: unchanged.** The default profile gives the same 46 as the
+  fiction profile; the builtins, rule opt-in (#310), Harper confusions (#311) and presets (#322) add
+  no catches and lose none.
+- **Fiction-profile flags 180 → 190.** The whitespace builtins from #186 (issue #80) add 13
+  (`WHITESPACE_RULE` 10, `SENTENCE_WHITESPACE` 3; the same PR keeps the fiction profile from
+  flagging paragraph indentation), and `EN_COMPOUNDS` from #231 (issue #81) adds 2. Rule and speller
+  fixes in between account for the remaining net −5; they were not re-measured one by one, and the
+  2026-10-11 run did not record which files it counted. The Harper confusion builtins from #311
+  raise nothing on the private corpus, the opt-in rules from #310 are off by default, and #322 adds
+  no rules to either profile.
+- **Grammar conformance 5,977 → 6,074 and disambiguation 1,012 → 1,016**: the 2026-10-14 wave of
+  filter, matcher and builtin fixes (#181–#254; e.g. the speller-backed rule filters and the
+  `min_prev_matches` repetition rules). #308–#322 did not change it; CI gates 6,074 and 1,016.
+- **Peak RSS 100 → 101 MB and check time 2.63 → 2.5 s**: unchanged within noise (both runs on a
+  loaded machine; this one at load average ~4.5).
+- **Rules binary 12.6 → 15.3 MB** with the Java builtins ported since and their tables; **tokenizer
+  11.9 → 14.5 MB**, mostly the exact-chunker parameter tables (+1.9 MB, issues #154 and #165).
+
+### Style presets (2026-10-21)
+
+Each preset from #322 run through `wmb-probe` with its grammar settings (`chicago-fiction` = fiction
+profile + `STYLE/SERIAL_COMMA_ON`; `ap` = fiction profile + `STYLE/SERIAL_COMMA_OFF`; `uk` = fiction
+profile, en_GB speller). The presets' own style checks are not counted here; see `docs/STYLE-PRESETS.md`.
+
+| Preset | Private recall (50) | Private flags | Public recall (60) | Public flags |
+|---|---|---|---|---|
+| `chicago-fiction` | 46 | 193 | 55 | 85 |
+| `ap` | 46 | 197 | 55 | 85 |
+| `uk` | 46 | 235 | 55 | 97 |
+
+The serial-comma rules add 3 (`chicago-fiction`) and 7 (`ap`) flags over the fiction profile on the
+private corpus; `uk` adds British-spelling flags on American text, as it should.
+
+### History (2026-10-11)
 
 On the private drafts, LT 6.6 rules miss only the three n-gram confusions (out of scope on-device) and one
 grammar error. What closed the gap: the speller (M0); inflection synthesis for `<match postag_replace>`
