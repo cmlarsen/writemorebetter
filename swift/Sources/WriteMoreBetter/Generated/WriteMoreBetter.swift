@@ -2679,7 +2679,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_writemorebetter_swift_checksum_method_styledocument_pacing_json() != 10494) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_writemorebetter_swift_checksum_method_styledocument_passive_json() != 46539) {
+    if (uniffi_writemorebetter_swift_checksum_method_styledocument_passive_json() != 30217) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_method_styledocument_pronoun_starts_json() != 24727) {
