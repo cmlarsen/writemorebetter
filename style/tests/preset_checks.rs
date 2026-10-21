@@ -97,6 +97,18 @@ fn number_exceptions_dates_times_addresses_years_percentages_decimals() {
 }
 
 #[test]
+fn numbers_listed_after_labels_and_dates_are_labels_and_dates() {
+    let text = "Read chapters 3 and 4 tonight. See pages 5 and 6. On May 5 and 6 we met. \
+                On May 5, 6, and 7 we met. Rooms 12 and 14 were empty. Pages 5 to 9— \
+                verses 10 through 12… AD 70 or 80.\u{2028}“Chapters 3 & 4,” she said.";
+    let found = run(text, &numbers(100));
+    assert!(found.is_empty(), "{:?}", texts(text, &found));
+    // A comma alone carries the date only into a list; after it, a plain number still counts.
+    let text = "On May 5, 3 people came. Page 5. And 6 more.";
+    assert_eq!(texts(text, &run(text, &numbers(100))), ["3", "6"]);
+}
+
+#[test]
 fn small_numbers_beside_a_large_one_stay_numerals() {
     let text = "Of 250 guests, 12 stayed. Then 12 left. In 1998, 3 left.";
     // A year is not a larger quantity.
@@ -186,6 +198,28 @@ fn possessive_of_names_ending_in_s() {
 }
 
 #[test]
+fn apostrophe_only_skips_contracted_s() {
+    let text = "Chris’s going home. James’s here now. Ross's been gone a year.\u{2028}\
+                “Jess’s not coming—” Thomas’s gone… Chris’s car.";
+    let found = run(text, &possessives(Possessives::ApostropheOnly));
+    assert_eq!(texts(text, &found), ["’s"]);
+    assert_eq!(found[0].span.byte.start, text.rfind("’s car").unwrap());
+}
+
+#[test]
+fn possessives_without_token_readings_skip_sentence_start() {
+    let text = "Parents’ evening was long. Dogs’ tails wag. “Students’ desks were bare.”\u{2028}\
+                Then James’ car—gone…";
+    let compact = DocumentOptions::new().with_token_details(false);
+    let found = run_with(text, &possessives(Possessives::ApostropheS), &compact);
+    assert_eq!(texts(text, &found), ["’"]);
+    assert_eq!(found[0].span.byte.start, text.find("’ car").unwrap());
+    // With readings, the plurals are told apart by their tags.
+    let found = run(text, &possessives(Possessives::ApostropheS));
+    assert_eq!(texts(text, &found), ["’"]);
+}
+
+#[test]
 fn possessive_check_skips_closing_quotes_and_typography() {
     let text = "‘Ask Charles’ she said.\u{2028}“James’—no.” Thomas’…";
     assert!(run(text, &possessives(Possessives::ApostropheS)).is_empty());
@@ -209,8 +243,19 @@ fn time_abbreviations() {
     );
     let undotted = "At 9 a.m. on Friday and at 10 P.M.";
     let found = run(undotted, &times(TimeAbbreviations::Undotted));
-    assert_eq!(texts(undotted, &found), ["a.m", "P.M"]);
+    // Mid-sentence both periods go; a final one that ends the sentence stays.
+    assert_eq!(texts(undotted, &found), ["a.m.", "P.M"]);
     assert_eq!(replacements(&found), [Some("am"), Some("pm")]);
+}
+
+#[test]
+fn undotted_times_keep_only_a_sentence_ending_period() {
+    let text = "“At 9 a.m.” She left at 5 p.m.\u{2028}Then 6 a.m.—no, 7 a.m.… at 8 am. on Friday.";
+    let found = run(text, &times(TimeAbbreviations::Undotted));
+    assert_eq!(texts(text, &found), ["a.m", "p.m", "a.m.", "a.m."]);
+    assert!(found
+        .iter()
+        .all(|m| m.replacement.as_deref() == Some("am") || m.replacement.as_deref() == Some("pm")));
 }
 
 #[test]
@@ -235,6 +280,21 @@ fn family_titles_as_names_and_after_possessives() {
         ]
     );
     assert_eq!(found[1].mode, Mode::Narration);
+}
+
+#[test]
+fn family_titles_listed_after_a_determiner_share_it() {
+    let text = "My mom, dad, and I went home. Her mom, dad and sister came. \
+                My sister, dad and I ate. The kids' mom waved. The kids’ mom waved.\u{2028}\
+                “Our mom, dad—” Their mom, dad…";
+    let found = run(text, &family());
+    assert!(found.is_empty(), "{:?}", texts(text, &found));
+    // A list without a determiner, a vocative and a straight opening quote still read as names.
+    let text = "Mom, dad and I went. Thanks, dad. He said, 'dad, wait.'";
+    assert_eq!(texts(text, &run(text, &family())), ["dad", "dad", "dad"]);
+    let compact = DocumentOptions::new().with_token_details(false);
+    let text = "My mom, dad, and I went home. The kids' mom waved.";
+    assert!(run_with(text, &family(), &compact).is_empty());
 }
 
 #[test]

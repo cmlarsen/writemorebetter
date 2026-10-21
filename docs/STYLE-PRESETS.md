@@ -77,9 +77,9 @@ the last parsed preset is cached, so a repeated call doesn't reparse or recompil
 | Key | Meaning |
 |---|---|
 | `format` | Required. The file format; this engine reads `1` and rejects anything else |
-| `name` | Required, non-empty |
-| `version` | The preset's own version, any string. The built-ins start at `1.0.0` and change it whenever their settings change |
-| `description` | Free text |
+| `name` | Required, non-empty. Never inherited: a file that `extends` a built-in names itself |
+| `version` | The preset's own version, any string. The built-ins start at `1.0.0` and change it whenever their settings change. Not inherited |
+| `description` | Free text. Not inherited |
 | `extends` | A built-in preset to start from (see below) |
 | `grammar.profile` | `"default"` or `"fiction"`, applied first |
 | `grammar.rules` | Selector → `true` (enable) or `false` (disable). Every `false` applies before every `true`, so `{"STYLE": false, "STYLE/ELLIPSIS": true}` keeps `ELLIPSIS` on. A disabled selector may use the builtin case form (`BUILTIN/WHITESPACE_RULE/INDENTATION`) |
@@ -147,8 +147,9 @@ and the consistency report still flags a manuscript that mixes them.
 Every match carries `check`, `message`, `span` (UTF-16 `{start, end}` in the bindings), `mode`
 (narration or dialogue) and `replacement`. `counts` splits the matches by mode. Matches that touch a
 skipped name are dropped. The checks read the text with curly and straight quotes and apostrophes,
-em dashes, ellipses and U+2028 line separators alike, and work on compact documents; only family
-titles use token readings, and fall back to word lists without them.
+em dashes, ellipses and U+2028 line separators alike, and work on compact documents. Family titles
+and possessives use token readings when the document has them, and fall back to word lists and
+position without them (see each check).
 
 ### `numbers`
 
@@ -165,7 +166,11 @@ Flags a whole number from zero through `spellOutThrough` written as a numeral, i
 - a **decimal or grouped number**: `2.5`, `0.75`, `1,000`;
 - **part of a code or range**: `4x4`, `3D`, `B-52`, `3–2`, `5'10"`, a leading zero (`07`), a
   decade (`the 90s`, `’90s`);
-- a **list marker** at the start of a paragraph (`1.`, `2)`).
+- a **list marker** at the start of a paragraph (`1.`, `2)`);
+- **listed after** a label, date or era: a numeral joined to one of those by *and*, *or*, *&*, *to*
+  or *through* (`chapters 3 and 4`, `May 5 and 6`, `Rooms 12 and 14`), or by a comma inside a list
+  (`May 5, 6, and 7`). A comma alone does not carry the reading into a plain number (`On May 5, 3
+  people came` is flagged), but a conjunction does: `Chapter 2 and 4 cats` is read as two labels.
 
 With `matchLarger` (the default), a sentence that has a numeral for a larger quantity keeps its
 small ones as numerals too (`Of 250 guests, 12 stayed`), so the numbers it compares read alike. With
@@ -189,15 +194,23 @@ Closing quotation marks are read by direction (`”`) or by context (straight qu
 apostrophes (`don’t`, `dogs’`, `’em`, `rock ’n’ roll`), inch and foot marks (`5'10"`) and an
 ellipsis after a quote (`”...`) are never flagged.
 
+Known limitation of `outside`: a quoted word nested inside speech (`‘He called it “rubbish.”’`) is
+not checked. The document's speech spans cover the outer quotation only, so the inner one has no
+span to read as non-speech.
+
 ### `possessives`
 
 - `apostropheS`: a capitalized word ending in *s*, followed by an apostrophe alone and then a word
   (`James’ car`), is flagged at the apostrophe with `’s` (or `'s`) as the replacement.
 - `apostropheOnly`: the same names followed by `’s` (`James’s car`) are flagged, with the apostrophe
-  alone as the replacement.
+  alone as the replacement. A `’s` that stands for *is* or *has* (`Chris’s going`, `Ross's been
+  gone`) is skipped: when its readings are not possessive, or when the next word is one that only
+  follows *is* or *has* (`been`, `going`, `gone`, `got`, `here`, `there`, `not`, an article, …).
 
 Plural names are left alone: after *the* (`the Joneses’ house`), and words whose readings are plural
-nouns only (`Americans’`). An apostrophe that closes a single quotation (`‘Ask Charles’ she said`) is
+nouns only (`Americans’`). Without readings (a compact document), a capitalized word that opens its
+sentence is skipped instead, since it may be a plural common noun capitalized by position
+(`Parents’ evening`). An apostrophe that closes a single quotation (`‘Ask Charles’ she said`) is
 not a possessive. Lowercase nouns (`the boss’ office`) are not checked, because their plurals (`the
 dogs’ bowls`) look the same.
 
@@ -206,7 +219,9 @@ dogs’ bowls`) look the same.
 After a time (`5`, `10:30`, with or without a space, including a no-break space), `dotted` flags
 `AM`, `am`, `pm`, `a.m` and the like and lists `a.m.` or `p.m.`; `undotted` flags dotted forms and lists
 `am` or `pm`. In dotted mode an undotted form's sentence-ending period is part of the span (`5 AM.` →
-`5 a.m.`); in undotted mode a final period stays out of the span, since it may end the sentence. The
+`5 a.m.`). In undotted mode a final period stays out of the span when it ends the sentence (the end
+of the paragraph, or a space and then a capital or opening quote): `at 5 p.m. Then` → `at 5 pm.
+Then`. Mid-sentence the span takes both periods, so `at 9 a.m. on Friday` → `at 9 am on Friday`. The
 uppercase dotted forms `A.M.` and `P.M.` are left to the `Preset.Meridiem` house rule in dotted mode,
 which flags them anywhere.
 
@@ -222,8 +237,10 @@ a name and lowercase after a possessive or article:
   when it is used as a name: at the start of a sentence or after a comma or quotation mark (`Thanks,
   mom`), or after a verb or preposition (`I asked mom`, `with dad`). It is left alone after a
   determiner, an adjective or noun (`a single dad`, `soccer mom`), before a noun it modifies (`dad
-  jokes`), and in a pair that shares a determiner (`my mom and dad`). Without token readings, only
-  a short list of verbs and prepositions marks name use.
+  jokes`), and in a list that shares a determiner (`my mom and dad`, `my mom, dad, and I`, `her
+  sister, dad and aunt`). An apostrophe attached to a plural (`the kids' mom`, `the kids’ mom`) is a
+  possessive; a straight quote with a space before it (`'dad, wait'`) opens a quotation. Without
+  token readings, only a short list of verbs and prepositions marks name use.
 
 ## Grammar settings and recall
 
@@ -255,7 +272,7 @@ these. Stories use line mode and `moby150k` hard-wrapped mode, as in the other s
 | | moby150k | 1 (numbers) | 28 (`Preset.Toward`) | 1 |
 | `ap` | story1 | 1 (quote punctuation) | 0 | 2 |
 | | story2 | 0 | 0 | 1 |
-| | story4 | 4 (possessives) | 0 | 0 |
+| | story4 | 3 (possessives) | 0 | 0 |
 | | story3, story5 | 0 | 0 | 0 |
 | | moby150k | 3 (possessives) | 28 (`Preset.Toward`) | 204 |
 | `uk` | story1 | 0 | 0 | 2 |

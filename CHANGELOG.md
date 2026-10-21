@@ -43,7 +43,8 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   variant, the consistency report's preferred forms, Vale-format house-style rules and new built-in
   preset checks. `chicago-fiction` (the default), `ap` and `uk` are built in; a user preset can
   `extends` one and override any part as a JSON merge patch (`null` removes an inherited setting).
-  Unknown keys and values are `invalidPreset` errors. The preset checks flag numerals that prose
+  Unknown keys and values are `invalidPreset` errors, and a user preset must set its own `name`
+  (`name`, `version` and `description` are never inherited). The preset checks flag numerals that prose
   spells out (zero to one hundred, or one to nine for AP, with exceptions for dates, times,
   addresses, years, percentages, decimals and labels), periods and commas outside closing quotes (or,
   for UK, inside a quoted non-speech phrase), *James’* versus *James’s*, *AM*/*a.m.* after a time,

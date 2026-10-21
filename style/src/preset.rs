@@ -332,6 +332,12 @@ fn resolve(value: Value, depth: usize) -> Result<Value, StyleError> {
         Some(_) => return Err(StyleError::preset("`extends` must name a built-in preset")),
     };
     let mut merged = builtin_value(&base, depth + 1)?;
+    // A preset names, versions and describes itself; a file that changes a built-in is not it.
+    if let Value::Object(merged) = &mut merged {
+        for key in ["name", "version", "description"] {
+            merged.remove(key);
+        }
+    }
     merge(&mut merged, Value::Object(file));
     Ok(merged)
 }

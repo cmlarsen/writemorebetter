@@ -513,6 +513,8 @@ struct Numeral {
 /// Every run of digits in the paragraph, with its separators.
 fn numerals(text: &Text, check: &NumberCheck) -> Vec<Numeral> {
     let mut found = Vec::new();
+    // The end of the last numeral read as a label, date or era, for the numerals listed after it.
+    let mut label_end = None;
     let mut index = 0;
     while index < text.chars.len() {
         if !text.chars[index].1.is_ascii_digit() {
@@ -545,10 +547,14 @@ fn numerals(text: &Text, check: &NumberCheck) -> Vec<Numeral> {
             .then(|| digits.replace(',', ""))
             .filter(|digits| digits.len() <= 15 && !(digits.len() > 1 && digits.starts_with('0')))
             .and_then(|digits| digits.parse::<u64>().ok());
+        let labelled = labelled(text, start) || coordinated(text, label_end, start, end);
+        if labelled {
+            label_end = Some(end);
+        }
         found.push(Numeral {
             chars: start..end,
             amount,
-            quantity: quantity(text, start, end, check),
+            quantity: !labelled && quantity(text, start, end, check),
         });
     }
     found
@@ -625,13 +631,8 @@ fn quantity(text: &Text, start: usize, end: usize, check: &NumberCheck) -> bool 
         .filter(|ch| matches!(ch, '-' | '‐'))
         .map(|_| key(text.slice(end, text.words_after(end, 1).first().map_or(end, |w| w.end))));
     let next = after.first().map(String::as_str);
-    if let Some(before) = before.as_deref() {
-        if LABELS.contains(&before) || MONTHS.contains(&before) || ERAS.contains(&before) {
-            return false;
-        }
-        if check.ages_as_numerals && AGE_WORDS.contains(&before) {
-            return false;
-        }
+    if check.ages_as_numerals && before.is_some_and(|before| AGE_WORDS.contains(&before.as_str())) {
+        return false;
     }
     if next.is_some_and(|next| MONTHS.contains(&next) && month_after(text, end)) {
         return false;
@@ -662,6 +663,46 @@ fn quantity(text: &Text, start: usize, end: usize, check: &NumberCheck) -> bool 
         }
     }
     !address(text, end)
+}
+
+/// Whether the word right before the numeral at char `start` makes it a label, date or era
+/// (`Chapter 5`, `May 5`, `AD 70`).
+fn labelled(text: &Text, start: usize) -> bool {
+    text.word_before(start).is_some_and(|word| {
+        let before = key(text.slice(word.start, word.end));
+        LABELS.contains(&before.as_str())
+            || MONTHS.contains(&before.as_str())
+            || ERAS.contains(&before.as_str())
+    })
+}
+
+/// `chapters 3 and 4`, `May 5, 6, and 7`: a numeral listed right after one read as a label, date
+/// or era (ending at char `label_end`) is read the same way. A comma alone joins only a numeral
+/// that is itself followed by a comma or a conjunction, so `May 5, 3 people came` still counts.
+fn coordinated(text: &Text, label_end: Option<usize>, start: usize, end: usize) -> bool {
+    let Some(label_end) = label_end else {
+        return false;
+    };
+    let gap = text.slice(label_end, start);
+    let words: Vec<String> = gap
+        .split(|ch: char| ch.is_whitespace() || ch == ',')
+        .filter(|word| !word.is_empty())
+        .map(key)
+        .collect();
+    match words.as_slice() {
+        [] => {
+            gap.contains(',')
+                && (text.char(end) == Some(',')
+                    || text.words_after(end, 1).first().is_some_and(|word| {
+                        matches!(key(text.slice(word.start, word.end)).as_str(), "and" | "or")
+                    }))
+        }
+        [word] => matches!(
+            word.as_str(),
+            "and" | "or" | "&" | "to" | "through" | "thru"
+        ),
+        _ => false,
+    }
 }
 
 /// Whether the word after the numeral is capitalized, so `5 May` is a date while `5 may` is not.
@@ -871,12 +912,34 @@ fn has_tag(token: &Token, prefixes: &[&str]) -> bool {
     })
 }
 
+/// Whether the word at char `start` is the first word of its sentence, past any opening quotes.
+fn opens_sentence(text: &Text, paragraph: &Paragraph, start: usize) -> bool {
+    let byte = text.bytes(start, start).start;
+    paragraph
+        .sentences
+        .iter()
+        .find(|sentence| sentence.span.byte.contains(&byte))
+        .and_then(|sentence| {
+            let from = sentence.span.byte.start.checked_sub(text.span.byte.start)?;
+            text.text.get(from..byte - text.span.byte.start)
+        })
+        .is_some_and(|before| !before.chars().any(char::is_alphanumeric))
+}
+
+/// Words after `’s` that make it *is* or *has* (`Chris’s going`, `Ross’s been`), not a possessive.
+const AFTER_CONTRACTED_S: &[&str] = &[
+    "been", "being", "going", "gone", "got", "gotten", "coming", "done", "doing", "had", "here",
+    "there", "not", "never", "always", "just", "still", "already", "really", "probably", "a", "an",
+    "the", "so", "too", "very", "gonna", "dead", "alive", "late", "right", "fine", "okay",
+];
+
 fn possessive_matches(
     text: &Text,
     paragraph: &Paragraph,
     style: Possessives,
     out: &mut Vec<Found>,
 ) {
+    let closers = closers(text);
     let mut index = 0;
     while index < text.chars.len() {
         let start = index;
@@ -911,7 +974,10 @@ fn possessive_matches(
             has_tag(token, &["NNPS", "NNS"])
                 && !token.readings.iter().any(|reading| reading.pos == "NNP")
         });
-        if plural_family || plural {
+        // Without readings, a capitalized word that opens a sentence may be a plural common noun
+        // (`Parents’ evening`), capitalized only by its position.
+        let unread = token.is_none_or(|token| token.readings.is_empty());
+        if plural_family || plural || (unread && opens_sentence(text, paragraph, start)) {
             continue;
         }
         let apostrophe = text.chars[end].1;
@@ -920,7 +986,7 @@ fn possessive_matches(
                 // `James’ car`: an apostrophe and then the possessed word.
                 let followed = text.char(end + 1).is_some_and(char::is_whitespace)
                     && text.char(end + 2).is_some_and(char::is_alphabetic);
-                if followed && !closers(text).contains(&end) {
+                if followed && !closers.contains(&end) {
                     out.push((
                         PresetCheck::Possessives,
                         "Form the possessive of a singular name ending in s with apostrophe-s."
@@ -932,9 +998,23 @@ fn possessive_matches(
             }
             Possessives::ApostropheOnly => {
                 // `James’s car`
-                if text.char(end + 1) == Some('s')
-                    && !text.char(end + 2).is_some_and(char::is_alphanumeric)
+                if text.char(end + 1) != Some('s')
+                    || text.char(end + 2).is_some_and(char::is_alphanumeric)
                 {
+                    continue;
+                }
+                // `Chris’s going`: readings or the next word say `’s` is *is* or *has*.
+                let clitic = paragraph
+                    .sentences
+                    .iter()
+                    .flat_map(|sentence| &sentence.tokens)
+                    .find(|token| token.span.byte.start == text.bytes(end, end).start);
+                let contracted = clitic
+                    .is_some_and(|token| !token.readings.is_empty() && !has_tag(token, &["POS"]))
+                    || text.words_after(end + 2, 1).first().is_some_and(|word| {
+                        AFTER_CONTRACTED_S.contains(&key(text.slice(word.start, word.end)).as_str())
+                    });
+                if !contracted {
                     out.push((
                         PresetCheck::Possessives,
                         "Form the possessive of a singular name ending in s with the apostrophe alone."
@@ -1005,8 +1085,13 @@ fn time_matches(text: &Text, style: TimeAbbreviations, out: &mut Vec<Found>) {
         let (wanted, span_end) = match style {
             TimeAbbreviations::Dotted => (format!("{lower}.m."), end),
             TimeAbbreviations::Undotted => {
-                // A final period that may also end the sentence stays out of the span.
-                let span_end = if second_dot { end - 1 } else { end };
+                // A final period that also ends the sentence stays out of the span, and so does
+                // one after an undotted `am.`; mid-sentence, `a.m.` loses both its periods.
+                let span_end = if second_dot && (!first_dot || ends_sentence(text, end)) {
+                    end - 1
+                } else {
+                    end
+                };
                 (format!("{lower}m"), span_end)
             }
         };
@@ -1019,6 +1104,28 @@ fn time_matches(text: &Text, style: TimeAbbreviations, out: &mut Vec<Found>) {
             ));
         }
         index = end;
+    }
+}
+
+/// Whether the text from char `index` reads as the end of a sentence: the end of the paragraph or
+/// a space and then a capital, past any closing quotes or brackets.
+fn ends_sentence(text: &Text, mut index: usize) -> bool {
+    while text
+        .char(index)
+        .is_some_and(|ch| matches!(ch, '”' | '’' | '"' | '\'' | ')' | ']'))
+    {
+        index += 1;
+    }
+    match text.char(index) {
+        None => true,
+        Some(ch) if ch.is_whitespace() => {
+            while text.char(index).is_some_and(char::is_whitespace) {
+                index += 1;
+            }
+            text.char(index)
+                .is_none_or(|ch| ch.is_uppercase() || matches!(ch, '“' | '"' | '‘' | '\''))
+        }
+        Some(_) => false,
     }
 }
 
@@ -1049,6 +1156,38 @@ const KIN: &[(&str, &str, bool)] = &[
 const DETERMINERS: &[&str] = &[
     "my", "your", "his", "her", "our", "their", "its", "the", "a", "an", "this", "that", "whose",
     "one's", "every", "each", "any", "some", "no", "another",
+];
+
+/// Family nouns that can head a list of relatives sharing one determiner (`my sister, dad and I`).
+const RELATIVES: &[&str] = &[
+    "sister",
+    "sisters",
+    "brother",
+    "brothers",
+    "aunt",
+    "aunts",
+    "uncle",
+    "uncles",
+    "cousin",
+    "cousins",
+    "wife",
+    "husband",
+    "son",
+    "sons",
+    "daughter",
+    "daughters",
+    "parents",
+    "grandparents",
+    "stepmom",
+    "stepdad",
+    "stepmother",
+    "stepfather",
+    "father",
+    "grandad",
+    "granddad",
+    "kids",
+    "children",
+    "family",
 ];
 
 /// Words that come right before a kinship word used as a name (`asked Mom`, `with Dad`) in
@@ -1083,11 +1222,40 @@ fn family_matches(paragraph: &Paragraph, out: &mut Vec<Found>) {
             // A split-off `'s` is possessive unless its readings say it is `is` or `has`.
             let clitic = previous_text == "'s"
                 && (previous.readings.is_empty() || has_tag(previous, &["POS"]));
+            // A lone apostrophe is possessive only right after a plural (`the kids' mom`); with
+            // a space before it, it opens a quotation.
+            let plural_possessive = previous_text == "'"
+                && index >= 2
+                && words[index - 2].is_word
+                && words[index - 2].span.byte.end == previous.span.byte.start
+                && lower(index - 2).ends_with('s');
             DETERMINERS.contains(&previous_text.as_str())
                 || clitic
-                || previous_text == "'"
+                || plural_possessive
                 || (previous_text.len() > 2 && previous_text.ends_with("'s"))
                 || has_tag(previous, &["PRP$", "DT"])
+        };
+        let family_word = |index: usize| {
+            let word = lower(index);
+            KIN.iter().any(|(kin, ..)| *kin == word) || RELATIVES.contains(&word.as_str())
+        };
+        // Whether the word at `index` is listed after a family word with a determiner, so it
+        // shares that determiner: `my mom and dad`, `her mom, dad and sister`.
+        let shares_determiner = |index: usize| -> bool {
+            let mut at = index;
+            loop {
+                let mut before = at;
+                while before > 0 && matches!(lower(before - 1).as_str(), "," | "and" | "or" | "&") {
+                    before -= 1;
+                }
+                if before == at || before == 0 || !family_word(before - 1) {
+                    return false;
+                }
+                if determined(before - 1) {
+                    return true;
+                }
+                at = before - 1;
+            }
         };
         for (index, token) in words.iter().enumerate() {
             if !token.is_word || token.is_skipped {
@@ -1120,23 +1288,20 @@ fn family_matches(paragraph: &Paragraph, out: &mut Vec<Found>) {
                 continue;
             }
             let named = match index.checked_sub(1).map(|i| words[i]) {
+                None => true,
+                Some(_) if determined(index) || shares_determiner(index) => false,
                 // At the start of a sentence, or after a comma or a quotation mark: a name or a
                 // vocative (`Thanks, mom`).
-                None => true,
                 Some(previous) if !previous.is_word => {
                     matches!(
                         previous.text.as_str(),
                         "," | "“" | "\"" | "‘" | "'" | "—" | "(" | "…" | ";" | ":"
                     )
                 }
-                Some(_) if determined(index) => false,
                 Some(previous) => {
                     let previous_text = lower(index - 1);
                     if matches!(previous_text.as_str(), "and" | "or" | "&") {
-                        // `my mom and dad` shares the first word's determiner.
-                        !(index >= 2
-                            && KIN.iter().any(|(word, ..)| lower(index - 2) == *word)
-                            && determined(index - 2))
+                        true
                     } else if !previous.readings.is_empty() {
                         !has_tag(
                             previous,

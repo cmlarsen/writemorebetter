@@ -232,3 +232,31 @@ into this module. CMUdict's license (BSD-2-Clause-style) requires that binary re
 reproduce Carnegie Mellon University's copyright notice, conditions and disclaimer in their
 documentation; ship the CMUdict section of [`NOTICE`](../NOTICE) with apps that embed the style
 reports. See [readability](../docs/STYLE-READABILITY.md#dictionary-phase-2).
+
+### Style presets
+
+A style preset is one JSON file that drives the grammar checker and the preset-driven reports; see
+[`docs/STYLE-PRESETS.md`](../docs/STYLE-PRESETS.md). Pass the same name or preset file to both sides:
+
+```javascript
+const names = stylePresetNames();                 // ["chicago-fiction", "ap", "uk"]; the first is the default
+const builtIn = JSON.parse(loadStylePreset("uk")); // resolved, self-contained preset JSON
+const mine = parseStylePreset('{"format":1,"name":"my-uk","extends":"uk","checks":{"numbers":null}}');
+
+const checker = new Checker(tokenizerBytes, rulesBytes);
+checker.applyPreset(mine);                        // grammar profile, rule selectors, speller variant
+
+const document = checker.styleDocument(text);
+const report = JSON.parse(document.preset(mine)); // PresetReport: consistency, houseStyle, checks
+const checks = JSON.parse(document.presetChecks('{"numbers":{"spellOutThrough":9}}'));
+document.free();
+```
+
+`parseStylePreset` validates and resolves a file (its `extends` merged in) and returns the stored
+form; a preset that `extends` a built-in must set its own `name`. `applyPreset` returns how many
+rules it turned on; apply a preset to a new `Checker`, since profiles cannot be undone.
+`preset(nameOrJson?)` runs the consistency, house-style and preset-check reports with the preset's
+settings (omitted: `"chicago-fiction"`). `presetChecks(optionsJSON?)` runs the checks alone with
+`PresetChecks` options, every check off by default. An invalid preset throws a `StyleError` with
+kind `invalidPreset`. Result types are `PresetReport` and `PresetChecksReport` in
+`style-results.d.ts`; spans are UTF-16 `{start, end}`.

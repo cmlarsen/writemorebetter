@@ -212,6 +212,20 @@ fn resolved_presets_round_trip() {
 }
 
 #[test]
+fn a_user_preset_does_not_inherit_the_builtin_name_version_or_description() {
+    let error = invalid(r#"{"extends": "uk", "checks": {"numbers": null}}"#);
+    assert!(error.contains("missing field `name`"), "{error}");
+    let preset =
+        StylePreset::parse(r#"{"name": "house", "extends": "uk", "checks": {"numbers": null}}"#)
+            .unwrap();
+    assert_eq!(preset.name, "house");
+    assert_eq!(preset.version, None);
+    assert_eq!(preset.description, None);
+    assert_eq!(preset.extends.as_deref(), Some("uk"));
+    assert!(invalid(r#"{"name": " ", "extends": "uk"}"#).contains("`name` must not be empty"));
+}
+
+#[test]
 fn presets_are_validated_strictly() {
     for (text, expected) in [
         (
