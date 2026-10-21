@@ -66,6 +66,9 @@ fn main() {
         .filter(|selector| !selector.is_empty())
         .map(str::to_owned)
         .collect();
+    // Behind a default feature so performance CI can build this probe against a merge-base
+    // engine that predates `Rules::enable_rules`; it never sets ENABLE.
+    #[cfg(feature = "enable-rules")]
     if !enable.is_empty() {
         match rules.enable_rules(&enable) {
             Ok(count) => println!("enable {}: {} rules enabled", enable.join(","), count),
@@ -74,6 +77,11 @@ fn main() {
                 std::process::exit(2);
             }
         }
+    }
+    #[cfg(not(feature = "enable-rules"))]
+    if !enable.is_empty() {
+        eprintln!("ENABLE: this probe was built without the enable-rules feature");
+        std::process::exit(2);
     }
     let variant = std::env::var("SPELL").unwrap_or_else(|_| "en_US".into());
     if !variant.is_empty() {
