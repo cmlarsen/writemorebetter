@@ -50,6 +50,17 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   `StyleDocument::readability` in Rust, `document.readability()` in WASM and Swift. See
   [`docs/STYLE-READABILITY.md`](docs/STYLE-READABILITY.md).
 - Opt-in manner-adverb counts by lemma and mode, with dialogue-tag adverbs marked for deduplication; personal and possessive pronoun shares of words; and a condition transition category (`if`, `unless`, `provided that`, `as long as`, `in case`) ([#301](https://github.com/cmlarsen/writemorebetter/issues/301)).
+- **Passive-voice rate** ([#303](https://github.com/cmlarsen/writemorebetter/issues/303)): passive
+  clauses (*be*/*get* + past participle, with guards for adjectival participles such as *was
+  tired* and *was married*) per 100 sentences, with narration and dialogue reported separately.
+  Each passive has a span, and the rate is compared with a p5–p95 band through a replaceable
+  baseline argument. Available as `StyleDocument::passive` in Rust, `passive()` in WASM
+  (`PassiveReport`) and `passive(optionsJson:baseline:)` in Swift. There is **no default band**
+  yet (no comparison) because the published-fiction export was not available. A **provisional
+  public stand-in** band built from `bench/public` and the pinned *Pride and Prejudice* is opt-in
+  with the `"publicStandIn"` baseline (Swift `.passivePublicStandIn`). The flag-rate probe and
+  `published_bands.py --passive` can build the real band from that export. See
+  [`docs/STYLE-PASSIVE.md`](docs/STYLE-PASSIVE.md).
 
 ### Changed
 

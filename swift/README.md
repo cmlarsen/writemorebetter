@@ -229,3 +229,7 @@ The transitions lens also supports compact documents because it uses token text 
 Consistency is an opt-in lens that counts mixed quotes, apostrophes, ellipses, dashes,
 capitalization and hyphenation; it also runs on compact documents. See
 [definitions and public measurements](../docs/STYLE-CONSISTENCY.md).
+
+Passive voice (`passive`) reports passives per 100 sentences per mode, with spans, and takes a baseline
+argument like the other banded reports. It has no default band yet (no comparison); `"publicStandIn"`
+opts in to a provisional band from public text. See [STYLE-PASSIVE.md](../docs/STYLE-PASSIVE.md).

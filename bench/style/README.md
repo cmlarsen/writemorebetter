@@ -1234,3 +1234,28 @@ regressions both require an inspected rebaseline. `--probe PATH` reuses an exist
 `transition_reports` example binary. The output under ignored `out/transitions-pronouns/` holds exact
 gold/prediction rows and aggregate measurements. See
 [definitions and limitations](../../docs/STYLE-TRANSITIONS.md).
+
+## Passive voice (#303)
+
+The flag-rate probe also runs the passive report with default options and reports `passive.groups.<mode>`
+`{sentences, passives}` and `passive.passives` by mode. Both are counts only, under the same key allowlist.
+The aggregate adds `reports.passive.measures.<mode>.per_hundred_sentences`, a distribution over
+windows with at least `passive_minimum_sentences` (50) sentences in that mode, and
+`flags_per_1000_words.passives`. `published_bands.py --passive` turns an aggregate into a baseline
+record. The public run below is shipped only as the opt-in stand-in
+`style/data/baselines/passive-public-stand-in.json`; the owner run on the published export becomes
+the default `style/data/baselines/passive.json`.
+
+The owner export was not available to #303, so the opt-in stand-in came from public text:
+
+```sh
+python3 bench/style/public_export.py /tmp/public-export
+python3 bench/style/run.py tier3 --flag-rates --export /tmp/public-export --skip-diction > public.json
+python3 bench/style/published_bands.py public.json --passive --dataset "…" --tool "…" --run-date … \
+    --output style/data/baselines/passive-public-stand-in.json
+```
+
+`public_export.py` lays out story1–5 (one author), unwrapped `moby150k` and the pinned *Pride and
+Prejudice* (all chapters) as 7 units from 3 authors. The numbers and caveats are in
+[STYLE-PASSIVE.md](../../docs/STYLE-PASSIVE.md#band-provisional-public-stand-in).
+

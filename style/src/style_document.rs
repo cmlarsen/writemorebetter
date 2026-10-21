@@ -209,4 +209,22 @@ impl StyleDocument {
     ) -> Result<crate::reports::readability::ReadabilityReport, StyleError> {
         crate::reports::readability::report(&self.document, &options(json)?)
     }
+
+    pub fn passive(
+        &self,
+        json: Option<&str>,
+        baseline_selector: Option<&str>,
+    ) -> Result<crate::reports::passive::PassiveReport, StyleError> {
+        let baseline = match baseline_selector {
+            Some("publicStandIn") => {
+                Some(crate::reports::passive::PassiveBaseline::public_stand_in())
+            }
+            _ => baseline(
+                baseline_selector,
+                crate::reports::passive::PassiveBaseline::bundled,
+                crate::reports::passive::REPORT,
+            )?,
+        };
+        crate::reports::passive::report(&self.document, &options(json)?, baseline.as_ref())
+    }
 }

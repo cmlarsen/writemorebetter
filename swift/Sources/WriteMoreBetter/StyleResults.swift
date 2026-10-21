@@ -623,3 +623,46 @@ public extension StyleDocument {
         try decodeStyle(adverbsJson(optionsJson: optionsJson))
     }
 }
+
+public enum PassiveAuxiliary: String, Codable, Sendable { case be, get }
+
+public struct PercentileBand: Codable, Equatable, Sendable {
+    public let p5: Double
+    public let p95: Double
+}
+
+public struct PassiveMatch: Codable, Equatable, Sendable {
+    public let span: Span
+    public let participle: Span
+    public let sentence: Int
+    public let auxiliary: PassiveAuxiliary
+    public let progressive: Bool
+    public let agent: Bool
+    public let mode: Mode
+}
+
+public struct PassiveGroup: Codable, Equatable, Sendable {
+    public let sentences: Int
+    public let lowConfidence: Bool
+    public let passives: Int
+    public let perHundredSentences: Double?
+    public let band: PercentileBand?
+    public let highlighted: Bool
+}
+
+public struct PassiveReport: Codable, Equatable, Sendable {
+    public let passives: [PassiveMatch]
+    public let groups: Split<PassiveGroup>
+}
+
+public extension StyleBaseline {
+    /// Passive voice only: the provisional band from public text, until a published-fiction band exists.
+    static let passivePublicStandIn = StyleBaseline.custom("publicStandIn")
+}
+
+public extension StyleDocument {
+    /// The bundled baseline is no comparison until a published-fiction band exists.
+    func passive(optionsJson: String? = nil, baseline: StyleBaseline = .bundled) throws -> PassiveReport {
+        try decodeStyle(passiveJson(optionsJson: optionsJson, baselineJson: baseline.selector))
+    }
+}
