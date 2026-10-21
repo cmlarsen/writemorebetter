@@ -34,6 +34,15 @@ license text is in style/data/licenses/.
   2016 Titus Wormer, MIT License
   (style/data/licenses/retext-redundant-acronyms.txt). One acronym and expansion
   per line, converted from JavaScript to tab-separated text.
+- style/data/vague/fillers.txt: data.txt from words/fillers
+  (https://github.com/words/fillers) at tag 2.0.1, commit
+  d1924b589e6b76d7cd8c4ee3c6d4859aadae8fc7, Copyright (c) 2014 Titus Wormer, MIT
+  License, keeping only the 80 entries also in corpora/fillers of
+  mikpanko/expresso (https://github.com/mikpanko/expresso) at commit
+  2d58bbbcda716ba1e3acc4615c522ad538effe06, by Mikhail Panko, MIT License (its
+  copyright line is unfilled). Both notices are in
+  style/data/licenses/fillers.txt. One word per line, order unchanged
+  (scripts/build-filler-words.py).
 - style/data/cliches/proselint.txt and style/data/redundancy/proselint-ras.tsv:
   proselint/checks/cliches/hell.py and proselint/checks/redundancy/ras_syndrome.py
   from proselint (https://github.com/amperser/proselint) at commit
@@ -174,18 +183,25 @@ LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
 OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 SUCH DAMAGE.
 
-style/data/emotions/emotions.tsv is derived from Princeton WordNet 3.0
-(https://wordnet.princeton.edu/), release tarball WordNet-3.0.tar.gz (sha256
+style/data/emotions/emotions.tsv and style/data/hidden-verbs/nominalizations.tsv
+are derived from Princeton WordNet 3.0 (https://wordnet.princeton.edu/), release
+tarball WordNet-3.0.tar.gz (sha256
 640db279c949a88f61f851dd54ebbb22d003f8b90b85267042ef85a3781d3a52). WordNet 3.0
-Copyright 2006 by Princeton University. All rights reserved. It is used and
+Copyright 2006 by Princeton University. All rights reserved. They are used and
 modified under the WordNet License, whose full text, including the disclaimer,
-is in style/data/licenses/WordNet-LICENSE; the table is not licensed MIT OR
-Apache-2.0. Modified by writemorebetter: single-word lemmas of the noun.feeling
-synsets and the hyponyms of feeling.n.01 and emotion.n.01, adjectives derived
-from or attributes of those nouns and their satellites, and verbs whose
+is in style/data/licenses/WordNet-LICENSE; the tables are not licensed MIT OR
+Apache-2.0. emotions.tsv, modified by writemorebetter: single-word lemmas of
+the noun.feeling synsets and the hyponyms of feeling.n.01 and emotion.n.01,
+adjectives derived from or attributes of those nouns and their satellites, and verbs whose
 participle names a feeling, filtered by WordNet's most frequent sense, by the
 Lancaster Sensorimotor Norms above (dominant interoception) and by reviewed
-inclusion and exclusion lists (scripts/build-emotion-lexicon.py). Princeton
+inclusion and exclusion lists (scripts/build-emotion-lexicon.py).
+nominalizations.tsv, modified by writemorebetter: noun-verb pairs from WordNet's
+noun-to-verb derivational pointers, for single-word -tion, -sion, -ment, -ance,
+-ence, -al and -ure nouns formed from the verb's stem, in the noun.act,
+noun.cognition, noun.communication, noun.event, noun.process and noun.state
+files, filtered by sense rank and SemCor tag counts, minus a reviewed exclusion
+list and the nouns of emotions.tsv (scripts/build-hidden-verbs.py). Princeton
 asks that WordNet be cited as: George A. Miller (1995). WordNet: A Lexical
 Database for English. Communications of the ACM, 38(11), 39-41; and Christiane
 Fellbaum (1998, ed.). WordNet: An Electronic Lexical Database. Cambridge, MA:

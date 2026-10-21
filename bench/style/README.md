@@ -1271,3 +1271,14 @@ counts as dropped, not as a miss. The gate fails if either set's precision on ke
 below 0.85. `--write` updates `emotion-tells-baseline.json`. `sample` and `heldout` redraw the sets
 (unlabeled). Definitions, results and limitations are in
 [STYLE-EMOTION-TELLS.md](../../docs/STYLE-EMOTION-TELLS.md).
+
+## Vague words and hidden verbs (#307)
+
+`python3 bench/style/vague_hidden_verbs.py` builds the `vague_hidden_verbs` probe, runs both
+reports with default options over bench/public (story1–5 and `moby150k`) and prints matches, words
+and rates per 1,000 words for narration and dialogue, plus each report's commonest terms.
+`--books` adds the public-domain books and chapters pacing uses. `--sample N --report hiddenVerbs`
+(or `vagueWords`) `[--seed S]` prints N random matches with a short context window for hand
+judging; the samples behind the precision figures were judged in review and are not stored. Results
+are in [STYLE-VAGUE-WORDS.md](../../docs/STYLE-VAGUE-WORDS.md) and
+[STYLE-HIDDEN-VERBS.md](../../docs/STYLE-HIDDEN-VERBS.md).

@@ -624,4 +624,22 @@ final class CheckerTests: XCTestCase {
         XCTAssertEqual(ap.matches.map(\.word), [])
         XCTAssertThrowsError(try TitleCase.check(headings, optionsJson: "{\"style\":\"apa\"}"))
     }
+
+    func testVagueWordsAndHiddenVerbs() throws {
+        let text = "😀 It was sort of cold—then a little warmer… “Well, it’s kind of nice,” she said.\u{2028}She made a decision."
+        let document = try checker().styleDocument(text: text)
+        let vague = try document.vagueWords()
+        XCTAssertEqual(vague.matches.map { (text as NSString).substring(with: $0.span.nsRange) }, ["sort of", "a little", "Well", "kind of", "nice"])
+        XCTAssertEqual(vague.matches.map(\.mode), [.narration, .narration, .dialogue, .dialogue, .dialogue])
+        XCTAssertEqual(vague.groups.dialogue.matches, 3)
+        XCTAssertEqual(try document.vagueWords(optionsJson: "{\"fillers\":false}").matches.count, 4)
+        let hidden = try document.hiddenVerbs()
+        XCTAssertEqual(hidden.matches.map { (text as NSString).substring(with: $0.span.nsRange) }, ["made a decision"])
+        XCTAssertEqual(hidden.matches.map(\.term), ["decide"])
+        XCTAssertEqual(hidden.matches.map(\.pattern), [.lightVerb])
+        let roundTrip = try JSONDecoder().decode(HiddenVerbsReport.self, from: Data(document.hiddenVerbsJson().utf8))
+        XCTAssertEqual(roundTrip, hidden)
+        XCTAssertThrowsError(try document.vagueWords(optionsJson: "{\"typo\":true}"))
+        XCTAssertThrowsError(try document.hiddenVerbs(optionsJson: "{\"typo\":true}"))
+    }
 }

@@ -200,6 +200,8 @@ let pronouns: PronounStartsReport = try document.pronounStarts()
 let consistency: ConsistencyReport = try document.consistency()
 let adverbs: AdverbsReport = try document.adverbs()
 let emotions: EmotionTellsReport = try document.emotionTells()
+let vague: VagueWordsReport = try document.vagueWords()
+let hidden: HiddenVerbsReport = try document.hiddenVerbs()
 ```
 
 Every result is `Codable`, `Equatable` and `Sendable`. Each method takes optional `optionsJson`;

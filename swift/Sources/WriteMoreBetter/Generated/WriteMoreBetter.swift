@@ -1018,6 +1018,12 @@ public protocol StyleDocumentProtocol: AnyObject, Sendable {
     func emotionTellsJson(optionsJson: String?) throws  -> String
     
     /**
+     * Returns the opt-in hidden-verbs lens on the retained analysis; each match names the related
+     * verb but never rewrites.
+     */
+    func hiddenVerbsJson(optionsJson: String?) throws  -> String
+    
+    /**
      * Runs caller-supplied house-style rules on the retained analysis; options default when omitted.
      * Rules: Vale-format YAML or JSON text; nil throws an invalid-rules error.
      */
@@ -1098,6 +1104,12 @@ public protocol StyleDocumentProtocol: AnyObject, Sendable {
      * Returns this report on the retained analysis; options default when omitted.
      */
     func transitionsJson(optionsJson: String?) throws  -> String
+    
+    /**
+     * Returns the opt-in vague-words lens on the retained analysis; narration and dialogue are
+     * counted separately.
+     */
+    func vagueWordsJson(optionsJson: String?) throws  -> String
     
 }
 open class StyleDocument: StyleDocumentProtocol, @unchecked Sendable {
@@ -1268,6 +1280,20 @@ open func emotionTellsJson(optionsJson: String? = nil)throws  -> String  {
     return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
         uniffiCallStatus in
     uniffi_writemorebetter_swift_fn_method_styledocument_emotion_tells_json(
+            self.uniffiCloneHandle(),
+        FfiConverterOptionString.lower(optionsJson),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * Returns the opt-in hidden-verbs lens on the retained analysis; each match names the related
+     * verb but never rewrites.
+     */
+open func hiddenVerbsJson(optionsJson: String? = nil)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_method_styledocument_hidden_verbs_json(
             self.uniffiCloneHandle(),
         FfiConverterOptionString.lower(optionsJson),uniffiCallStatus
     )
@@ -1474,6 +1500,20 @@ open func transitionsJson(optionsJson: String? = nil)throws  -> String  {
     return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
         uniffiCallStatus in
     uniffi_writemorebetter_swift_fn_method_styledocument_transitions_json(
+            self.uniffiCloneHandle(),
+        FfiConverterOptionString.lower(optionsJson),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * Returns the opt-in vague-words lens on the retained analysis; narration and dialogue are
+     * counted separately.
+     */
+open func vagueWordsJson(optionsJson: String? = nil)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_method_styledocument_vague_words_json(
             self.uniffiCloneHandle(),
         FfiConverterOptionString.lower(optionsJson),uniffiCallStatus
     )
@@ -2900,6 +2940,9 @@ private let initializationResult: InitializationResult = {
     if (uniffi_writemorebetter_swift_checksum_method_styledocument_emotion_tells_json() != 218) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_writemorebetter_swift_checksum_method_styledocument_hidden_verbs_json() != 56138) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_writemorebetter_swift_checksum_method_styledocument_house_style_json() != 48244) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -2943,6 +2986,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_method_styledocument_transitions_json() != 58172) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_writemorebetter_swift_checksum_method_styledocument_vague_words_json() != 15335) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_constructor_checker_new() != 1239) {
