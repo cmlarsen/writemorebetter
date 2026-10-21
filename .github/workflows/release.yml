@@ -114,13 +114,13 @@ jobs:
         run: scripts/build-data.sh
 
       # NOTICE and the third-party license texts ship in both zips and as a release asset:
-      # CMUdict's license (style/data/licenses/cmudict.txt) requires binary redistributions
-      # to reproduce its notice in materials provided with the distribution.
+      # the CMUdict, VarCon and WordNet licenses (style/data/licenses/) require binary
+      # redistributions to reproduce their notices in materials provided with the distribution.
       - name: Package data
         run: |
           cp NOTICE dist/data/NOTICE
           mkdir -p dist/data/licenses
-          cp style/data/licenses/*.txt dist/data/licenses/
+          cp style/data/licenses/* dist/data/licenses/
           cd dist/data
           zip -r "$GITHUB_WORKSPACE/writemorebetter-data-${{ needs.validate.outputs.version }}.zip" \
             en_tokenizer.bin en_rules.bin SHA256SUMS README.md LICENSE-LGPL-2.1.txt NOTICE licenses
@@ -157,7 +157,7 @@ jobs:
         run: |
           cp NOTICE dist/NOTICE
           mkdir -p dist/licenses
-          cp style/data/licenses/*.txt dist/licenses/
+          cp style/data/licenses/* dist/licenses/
           cd dist
           zip -qry "$GITHUB_WORKSPACE/WriteMoreBetterFFI.xcframework.zip" WriteMoreBetterFFI.xcframework NOTICE licenses
 

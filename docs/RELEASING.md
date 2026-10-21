@@ -75,10 +75,11 @@ The `publish` job, only when `dry_run` is false:
    changelog section as the notes.
 
 Both zips also carry `NOTICE` and the third-party license texts (`licenses/`, copied from
-`style/data/licenses/`) at their root, next to the XCFramework or the data binaries. CMUdict's
-license requires binary redistributions to reproduce its notice in materials provided with the
-distribution, and the XCFramework compiles in the style crate's CMUdict table. SwiftPM ignores
-the extra files when it resolves the binary target.
+`style/data/licenses/`, including `cmudict.txt`, `varcon.txt` and `WordNet-LICENSE`) at their
+root, next to the XCFramework or the data binaries. The CMUdict, VarCon and WordNet licenses
+require binary redistributions to reproduce their notices in materials provided with the
+distribution, and the XCFramework compiles in the style crate's CMUdict, regional-spelling and
+emotion tables. SwiftPM ignores the extra files when it resolves the binary target.
 
 So a release is exactly one commit on `main` that points `Package.swift` at the new asset,
 plus the tag and the release pointing at it.
