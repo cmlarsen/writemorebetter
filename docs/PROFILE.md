@@ -117,6 +117,7 @@ Disables exactly these:
 | `GRAMMAR/YOU_GOOD` | verbless dialogue questions, "You okay?" (2) |
 | `REDUNDANCY` | stylistic redundancy advice, not errors (whole category) |
 | `BUILTIN/WHITESPACE_RULE/INDENTATION` | spaces that indent a paragraph or line; LT 6.6 flags them after a sentence end or a CRLF (403 on moby150k). Repeated spaces inside a line are still flagged. |
+| `TYPOGRAPHY/CONSECUTIVE_SPACES` | two spaces between words; the `WHITESPACE_RULE` builtin flags the same spaces, so only its message ("Possible typo: repeated spaces") is shown |
 | `BUILTIN/ENGLISH_WORD_REPEAT_BEGINNING_RULE` | three sentences in a row that begin with the same word ("He waited. He listened. He...") are a deliberate rhythm in fiction |
 | `BUILTIN/TOO_OFTEN_USED_ADJECTIVE_EN/DIRECT_SPEECH`, `…_NOUN_EN/…`, `…_VERB_EN/…` | these word-frequency hints are off by default, as in LT. Once an author enables them, words inside dialogue are neither counted nor flagged (LT's `setWithoutDirectSpeech`): characters repeat words on purpose, and the narration is what the hint is for. |
 
@@ -127,7 +128,7 @@ that ends in a closing quote. Dialogue followed by a tag (`“Definitely,” she
 said.`) is still checked. Its word list is short (about 40 words such as
 "nice", "amazing", "definitely"), so an author who turns it on gets few flags.
 
-Applying it to the compiled English rules disables 171 rules and reports 0
+Applying it to the compiled English rules disables 172 rules and reports 0
 unmatched selectors.
 
 The fiction profile does not need to name rules that are off by default. Of the

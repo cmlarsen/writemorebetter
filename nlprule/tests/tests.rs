@@ -5608,6 +5608,44 @@ fn fiction_profile_keeps_other_whitespace_flags() {
     );
 }
 
+/// Under the fiction profile every double space between words gets the builtin's message;
+/// LanguageTool's `CONSECUTIVE_SPACES` says the same thing in other words and is disabled.
+#[test]
+fn fiction_profile_reports_double_spaces_once() {
+    let text = "\u{201c}It was a  cold night\u{2014}the  coldest\u{2026}\u{201d} She didn\u{2019}t  move.\u{2028}He  waited.";
+    let flags = |name: &str| -> Vec<(String, String, String)> {
+        let mut rules = Rules::new(RULES_PATH).unwrap();
+        assert!(rules
+            .apply_profile(&Profile::by_name(name).unwrap())
+            .is_empty());
+        let chars: Vec<char> = text.chars().collect();
+        rules
+            .suggest(text, &TOKENIZER)
+            .into_iter()
+            .map(|suggestion| {
+                (
+                    chars[suggestion.span().char().clone()].iter().collect(),
+                    suggestion.source().to_owned(),
+                    suggestion.message().to_owned(),
+                )
+            })
+            .filter(|(flagged, _, _): &(String, _, _)| flagged.trim().is_empty())
+            .collect()
+    };
+
+    let builtin = |flagged: &str| {
+        (
+            flagged.to_owned(),
+            "BUILTIN/WHITESPACE_RULE".to_owned(),
+            "Possible typo: repeated spaces".to_owned(),
+        )
+    };
+    assert_eq!(flags("fiction"), vec![builtin("  "); 4]);
+    assert!(flags("default")
+        .iter()
+        .any(|(_, source, _)| source == "TYPOGRAPHY/CONSECUTIVE_SPACES/0"));
+}
+
 fn builtin_enabled(id: &str) -> bool {
     RULES
         .builtins()
