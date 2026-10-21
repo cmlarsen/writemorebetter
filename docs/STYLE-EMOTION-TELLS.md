@@ -3,7 +3,7 @@
 Issue #304 (part of #296) adds an **opt-in lens** that flags narration naming a feeling outright:
 *she was afraid*, *he felt angry*, *fear washed over her*, *she felt a surge of relief*. It
 diagnoses only. It shows the span and the emotion word, never a replacement, and it doesn't say a
-tell is wrong: writers use them on purpose, and published fiction is full of them (1.46 per 1,000
+tell is wrong: writers use them on purpose, and published fiction is full of them (1.45 per 1,000
 narration words below).
 
 | Surface | Call |
@@ -25,7 +25,8 @@ camelCase JSON with snake_case aliases. Unknown keys are `invalidOptions`.
 `{tells, groups}`. Each tell has:
 
 - `span`: from the verb to the feeling (`was afraid`, `felt a surge of relief`), or from the
-  feeling to its verb for subject tells (`Fear washed`).
+  feeling to its verb for subject tells (`Fear washed`). Coordinated feelings on one verb are one
+  tell whose span covers them all (`was angry and afraid`); `emotion` and `word` name the first.
 - `emotion` and `verb`: the two tokens' spans.
 - `word`: the lexicon entry. For an adjective or noun this is its lemma (`afraid`, `relief`). For a
   participle it is the verb whose participle names the feeling (`startled` → `startle`).
@@ -42,7 +43,8 @@ bindings, like every other report.
 A tell is a feeling from the bundled lexicon in one of three constructions, inside one sentence:
 
 - **Predicate.** A linking verb (*be, feel, become, get, grow, seem, look, sound, appear, remain,
-  stay*) followed by an emotion adjective or participle. Adverbs, negation, *a little* / *a bit*
+  stay*) followed by an emotion adjective or participle. *felt* after *’d* counts as *feel* even
+  though nlprule reads it as the verb *to felt* (*She’d felt angry*). Adverbs, negation, *a little* / *a bit*
   and coordinated adjectives may come between (*was not so well pleased*, *was tired and afraid*).
   Causatives with an object pronoun or name (*made her angry*, *left him shaken*) and states after
   *in* (*was in love*, *fell back in dismay*, *was in mortal fear*) count too.
@@ -63,17 +65,24 @@ are the showing a writer would use instead (*a chill ran down her spine*).
 
 ### Guards
 
-- *I'm afraid so / not*, and first-person present *I'm afraid* not followed by *of / to / for*
-  (*I'm afraid I can't help you*): hedges. *I'm sorry* without *for*: an apology.
+- *I'm afraid so / not*, and first-person present *I'm afraid* followed by a clause opener (*I, we,
+  you, he, she, it, they, that, there, the*) or a comma (*I'm afraid I can't help you*, *had more, I
+  am afraid, than*): hedges. *I am afraid.* at the end of a sentence is first-person narration and
+  counts. *I'm sorry* without *for*: an apology.
 - *I'd be glad to help* and other adjectives followed by *to* after *would / will*: offers.
   *pleased to call*, *happy to say*, *to term / report / inform / announce / approve*: formulas.
 - *content to / with*: willing or settling (*was content to wait*, *content with less*).
 - *concerned* only before *about, for, that, at*. *As far as she was concerned* and *where they
   were concerned* mean involved.
 - *guilty* only after *feel, look, seem, sound*; *was guilty* is usually a verdict.
+- *hurt* after an injury adverb (*badly, seriously, slightly, severely, critically, fatally,
+  mortally, gravely*) or before *in* means injured (*was badly hurt in the crash*). *His pride was
+  hurt* still counts.
 - An adjective directly followed by a noun is attributive (*his mother’s troubled forehead*,
-  *being shy and retiring persons*).
-- Subjects *it, this, that, there, what, which, everything* (*It was sad*).
+  *being shy and retiring persons*), unless a verb or modal follows the noun. That noun is the
+  subject of a that-less clause (*She was afraid things would go wrong*).
+- Subjects *it, this, that, there, what, which, everything* (*It was sad*). After a noun, *that* and
+  *which* are relative pronouns, so *the man that was afraid* counts.
 - Quoted text is dialogue even when the document has no speech evidence for it. An untagged
   quotation's feelings are still a character's words. This is stricter than the shared
   narration/dialogue split, which needs a tag or speech context.
@@ -137,8 +146,8 @@ from `bench/corpus` was read.
 | | Value |
 |---|---:|
 | Narration words scanned | 555,918 |
-| Tells | 810 (764 predicate, 42 object, 4 subject) |
-| Per 1,000 narration words | 1.46 |
+| Tells | 808 (762 predicate, 42 object, 4 subject) |
+| Per 1,000 narration words | 1.45 |
 
 Two seeded samples were judged one at a time by Claude Opus 5.5. A row is true when narration
 names a character's (or the narrator's) feeling through the flagged construction. The labels and
@@ -147,7 +156,7 @@ a note on each false row are in `bench/style/labels/emotion-tells.jsonl` and
 
 | Sample | Rows | Kept by current code | True | Precision |
 |---|---:|---:|---:|---:|
-| Development (seed 304), judged before the last guards | 200 | 188 | 177 | **0.941** (178 / 200 = 0.89 before the guards) |
+| Development (seed 304), judged before the last guards | 200 | 187 | 176 | **0.941** (178 / 200 = 0.89 before the guards) |
 | Held-out (seed 305), drawn and judged after them, from flags not in the development sample | 100 | 100 | 91 | **0.910** |
 
 By pattern on the held-out sample: predicate 85 / 94 (0.904), object 5 / 5, subject 1 / 1. Across
@@ -159,6 +168,15 @@ The guards added after the development sample removed 11 false and 1 true row. T
 to / with* (7), formulas such as *graciously pleased to approve* and *are pleased to call* (3), the
 attributive *mother’s troubled forehead* and *shy and retiring persons* (2), and an untagged
 quotation read as narration (1).
+
+The review fixes (PR #320) changed 24 flags: 810 became 808. Thirteen overlapping tells merged into
+the coordinated tell beside them (*was considerably upset and worried* is now one tell, not two).
+Four labeled rows were rekeyed to the merged span with their labels unchanged. One more, *became
+pensive*, merged into a row the development sample already labels, so it counts as dropped true. Eleven
+flags are new, nine of them from the fixed *a little* path. They are outside both seeded samples and
+left unlabeled there, but judged by hand they are 10 true and 1 false. The false one is *that wild
+madness that’s only calm*, a non-sentient subject after a relative *that*. The *’d felt*, that-less
+clause, *hurt* and hedge fixes changed no flags in these texts.
 
 The held-out sample's 9 false rows, left untuned, show the remaining limits:
 
@@ -178,6 +196,6 @@ adjudication of these labels is owed, as for the other judged sets.
 ## Size
 
 Bundled into WASM, the lexicon and report grow `writemorebetter_wasm_bg.wasm` (release,
-wasm-bindgen 0.2.129, macOS, Rust's wasm32 target, no `wasm-opt`) from 5,678,182 to 5,722,250
-bytes (+44,068, +0.8%), and from 1,461,541 to 1,473,072 with `gzip -9` (+11,531). The data file itself
+wasm-bindgen 0.2.129, macOS, Rust's wasm32 target, no `wasm-opt`) from 5,678,182 to 5,724,344
+bytes (+46,162, +0.8%), and from 1,461,541 to 1,474,140 with `gzip -9` (+12,599). The data file itself
 is 10,042 bytes (3,671 gzipped).

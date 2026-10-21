@@ -234,10 +234,12 @@ fn has_lemma(token: &Token, lemmas: &[&str]) -> bool {
 }
 
 fn verb_lemma(token: &Token, lemmas: &[&str]) -> bool {
-    token.readings.iter().any(|r| {
-        (r.pos.starts_with("VB") || r.pos.starts_with("MD"))
-            && lemmas.contains(&fold(&r.lemma).as_str())
-    })
+    // After *’d*, nlprule reads *felt* as the verb *to felt*: *She’d felt angry*.
+    (lemmas.contains(&"feel") && fold(&token.text) == "felt")
+        || token.readings.iter().any(|r| {
+            (r.pos.starts_with("VB") || r.pos.starts_with("MD"))
+                && lemmas.contains(&fold(&r.lemma).as_str())
+        })
 }
 
 fn adverb(token: &Token) -> bool {
@@ -322,6 +324,16 @@ impl<'a> Words<'a> {
         None
     }
 
+    /// A dummy subject (*It was sad*), but not a relative pronoun after a noun (*the man that was
+    /// afraid*).
+    fn expletive(&self, at: usize) -> bool {
+        let word = self.word(at);
+        EXPLETIVE.contains(&word.as_str())
+            && !(matches!(word.as_str(), "that" | "which")
+                && at > 0
+                && has_pos(self.tokens[at - 1], "NN"))
+    }
+
     /// The subject of a verb at `at`, skipping auxiliaries, adverbs and negation.
     fn subject(&self, at: usize) -> Option<usize> {
         self.back(at, 4, |token| {
@@ -338,14 +350,19 @@ impl<'a> Words<'a> {
                     .subject(verb)
                     .is_some_and(|subject| matches!(self.word(subject).as_str(), "i" | "we"))
         };
-        // "his mother’s troubled forehead", "being shy and retiring persons": attributive.
+        // "his mother’s troubled forehead", "being shy and retiring persons": attributive. A noun
+        // followed by a verb opens a that-less clause instead: "afraid things would go wrong".
         if self.tokens.get(emotion + 1).is_some_and(|token| {
             !token.readings.is_empty()
                 && token
                     .readings
                     .iter()
                     .all(|r| r.pos.starts_with("NN") && r.pos != "NNP")
-        }) {
+        }) && !self
+            .tokens
+            .get(emotion + 2)
+            .is_some_and(|token| has_pos(token, "VB") || has_pos(token, "MD"))
+        {
             return true;
         }
         // "she was pleased to call it", "he was happy to say": formulas, not feelings.
@@ -362,15 +379,48 @@ impl<'a> Words<'a> {
         match entry {
             // "content to wait", "content with less": willing or settling, not a feeling.
             "content" => matches!(next, Some("to" | "with")),
-            // "I'm afraid so", "I'm afraid I can't": a hedge, not fear.
+            // "I'm afraid so", "I'm afraid I can't", "had more, I am afraid, than": a hedge, not fear.
+            // "I am afraid." is fear.
             "afraid" => {
                 matches!(next, Some("so" | "not"))
-                    || (present_first_person() && !matches!(next, Some("of" | "to" | "for")))
+                    || (present_first_person()
+                        && matches!(
+                            next,
+                            Some(
+                                "i" | "we"
+                                    | "you"
+                                    | "he"
+                                    | "she"
+                                    | "it"
+                                    | "they"
+                                    | "that"
+                                    | "there"
+                                    | "the"
+                                    | ","
+                            )
+                        ))
             }
             // "I'm sorry": an apology.
             "sorry" => present_first_person() && next != Some("for"),
             // "as far as she was concerned", "where they were concerned": involved, not worried.
             "concerned" => !matches!(next, Some("about" | "for" | "that" | "at")),
+            // "he was badly hurt in the crash": injured. "his pride was hurt" is a feeling.
+            "hurt" => {
+                next == Some("in")
+                    || (verb + 1..emotion).any(|at| {
+                        matches!(
+                            self.word(at).as_str(),
+                            "badly"
+                                | "seriously"
+                                | "slightly"
+                                | "severely"
+                                | "critically"
+                                | "fatally"
+                                | "mortally"
+                                | "gravely"
+                        )
+                    })
+            }
             // "the jury found him guilty", "he was guilty of theft": culpable, not ashamed.
             "guilty" => !verb_lemma(self.tokens[verb], &["feel", "look", "seem", "sound"]),
             _ => {
@@ -393,7 +443,14 @@ impl<'a> Words<'a> {
                 || matches!(token.text.as_str(), "and" | "or" | ",")
         };
         let mut before = self.back(at, 6, coordinated)?;
-        if matches!(self.word(before).as_str(), "little" | "bit")
+        // *a bit*, or *a little* read as a noun, stops the walk on *bit* / *little*; *a little* read as
+        // an adjective is skipped and stops it on *a*.
+        if self.word(before) == "a"
+            && before + 1 < at
+            && matches!(self.word(before + 1).as_str(), "little" | "bit")
+        {
+            before = self.back(before, 4, adverb)?;
+        } else if matches!(self.word(before).as_str(), "little" | "bit")
             && before > 0
             && self.word(before - 1) == "a"
         {
@@ -401,7 +458,7 @@ impl<'a> Words<'a> {
         }
         let verb = if verb_lemma(self.tokens[before], &LINKING) {
             let subject = self.subject(before);
-            if subject.is_some_and(|s| EXPLETIVE.contains(&self.word(s).as_str())) {
+            if subject.is_some_and(|s| self.expletive(s)) {
                 return None;
             }
             before
@@ -422,9 +479,7 @@ impl<'a> Words<'a> {
         }
         let verb = self.back(preposition, 3, adverb)?;
         (verb_lemma(self.tokens[verb], &["be", "fall"])
-            && !self
-                .subject(verb)
-                .is_some_and(|s| EXPLETIVE.contains(&self.word(s).as_str())))
+            && !self.subject(verb).is_some_and(|s| self.expletive(s)))
         .then_some((verb, entry))
     }
 
@@ -538,6 +593,15 @@ pub fn report(
                 continue;
             };
             if mode_at(document, words.tokens[verb].span.byte.start) != mode {
+                continue;
+            }
+            // Coordinated feelings on one verb are one tell: *was angry and afraid*.
+            if let Some(previous) = tells.last_mut().filter(|previous: &&mut EmotionTell| {
+                pattern == EmotionTellPattern::Predicate
+                    && previous.pattern == pattern
+                    && previous.verb == words.tokens[verb].span
+            }) {
+                previous.span = Span::covering(&previous.span, &emotion.span);
                 continue;
             }
             tells.push(EmotionTell {

@@ -1,18 +1,18 @@
 {
- "flags": 810,
+ "flags": 808,
  "narrationWords": 555918,
- "perThousandWords": 1.457,
+ "perThousandWords": 1.453,
  "patternFlags": {
-  "predicate": 764,
+  "predicate": 762,
   "object": 42,
   "subject": 4
  },
  "development": {
   "all": {
    "labeled": 200,
-   "kept": 188,
+   "kept": 187,
    "precision": 0.941,
-   "droppedTrue": 1,
+   "droppedTrue": 2,
    "droppedFalse": 11
   },
   "object": {
@@ -24,9 +24,9 @@
   },
   "predicate": {
    "labeled": 190,
-   "kept": 178,
+   "kept": 177,
    "precision": 0.938,
-   "droppedTrue": 1,
+   "droppedTrue": 2,
    "droppedFalse": 11
   }
  },

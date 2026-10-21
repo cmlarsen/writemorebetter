@@ -121,6 +121,72 @@ fn named_emotions_in_narration() {
             "panic",
             Subject,
         ),
+        // After *’d*, nlprule reads *felt* as the verb *to felt*.
+        ("She’d felt angry.", "felt angry", "angry", Predicate),
+        ("She'd felt angry.", "felt angry", "angry", Predicate),
+        ("He’d felt fear.", "felt fear", "fear", Object),
+        (
+            "He’d felt a pang of guilt.",
+            "felt a pang of guilt",
+            "guilt",
+            Object,
+        ),
+        // A noun followed by a verb opens a that-less clause; the adjective isn't attributive.
+        (
+            "She was afraid things would go wrong.",
+            "was afraid",
+            "afraid",
+            Predicate,
+        ),
+        ("He was glad nobody saw.", "was glad", "glad", Predicate),
+        (
+            "She was a little afraid.",
+            "was a little afraid",
+            "afraid",
+            Predicate,
+        ),
+        (
+            "She looked a bit worried.",
+            "looked a bit worried",
+            "worried",
+            Predicate,
+        ),
+        // Coordinated feelings on one verb are one tell covering both.
+        (
+            "She was angry and afraid.",
+            "was angry and afraid",
+            "angry",
+            Predicate,
+        ),
+        ("He felt hurt.", "felt hurt", "hurt", Predicate),
+        ("His pride was hurt.", "was hurt", "hurt", Predicate),
+        (
+            "She was a little relieved by his smile.",
+            "was a little relieved",
+            "relieve",
+            Predicate,
+        ),
+        // First-person present narration, not a hedge.
+        ("I am afraid.", "am afraid", "afraid", Predicate),
+        (
+            "I’m afraid. The door creaks open.",
+            "’m afraid",
+            "afraid",
+            Predicate,
+        ),
+        // A relative *that* is not a dummy subject.
+        (
+            "The man that was afraid ran away.",
+            "was afraid",
+            "afraid",
+            Predicate,
+        ),
+        (
+            "The man who was afraid ran away.",
+            "was afraid",
+            "afraid",
+            Predicate,
+        ),
     ] {
         let tells = found(text);
         assert_eq!(tells.len(), 1, "{text}: {tells:?}");
@@ -138,6 +204,8 @@ fn idioms_metaphors_and_other_senses_are_not_tells() {
         // Hedges and formulas.
         "I’m afraid I can’t help you.",
         "I'm afraid I can't help you.",
+        "I’m afraid the door is locked.",
+        "I am afraid that it is too late.",
         "I’m sorry.",
         "I’d be glad to help.",
         "She was pleased to call it a garden.",
@@ -147,6 +215,9 @@ fn idioms_metaphors_and_other_senses_are_not_tells() {
         "Where their two selves only were concerned, nothing changed.",
         "The jury decided he was guilty.",
         "She was moved to the hospital.",
+        "He was badly hurt in the crash.",
+        "She was hurt in the fall.",
+        "I had more, I am afraid, than I should.",
         "He was content to wait.",
         "She was content with less.",
         // Attributive and non-predicate uses.
@@ -155,6 +226,7 @@ fn idioms_metaphors_and_other_senses_are_not_tells() {
         "Her fear of the dark was legendary.",
         "The fear spread through the city.",
         "It was sad.",
+        "That was sad.",
         // Feelings named by verbs, and sensations, are not named emotions.
         "She feared him.",
         "He loved her.",
@@ -210,6 +282,11 @@ fn utf8_text_keeps_spans_on_char_boundaries() {
             vec!["felt a surge of relief"],
         ),
         ("Ça va. Zoë felt angry.", vec!["felt angry"]),
+        (
+            "She stood still.\u{2028}Fear washed over her. Anger surged through him.",
+            vec!["Fear washed", "Anger surged"],
+        ),
+        ("She’d felt angry—then afraid…", vec!["felt angry"]),
     ] {
         let result = report(text);
         let spans: Vec<_> = result
@@ -251,7 +328,8 @@ fn groups_count_words_and_rates() {
 
 #[test]
 fn options_bindings_and_errors() {
-    let text = "“Hi,” she said. Zoë was afraid.";
+    // Astral characters make UTF-16 offsets differ from char offsets.
+    let text = "😀 “Hi,” she said. 😀 Zoë was afraid.";
     let retained = StyleDocument::new(
         tokenizer().clone(),
         Arc::new(StyleResources::new()),
