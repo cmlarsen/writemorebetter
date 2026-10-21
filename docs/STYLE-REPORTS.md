@@ -67,6 +67,7 @@ swift/, wasm/       one binding each, exposing check() + analyze() + analyzeDocu
 | [Readability](STYLE-READABILITY.md) (indices, reading time) | #300 | sentences, heuristic syllables | none; values only, no flags |
 | [Passive voice](STYLE-PASSIVE.md) | #303 | POS, lemmas | per-mode p5–p95 band of passives per 100 sentences (none yet; a provisional public stand-in is opt-in as `"publicStandIn"` until an owner tier 3 run) |
 | [Clarity](STYLE-CLARITY.md) (sticky sentences, long subordinate clauses) | #302 | POS readings, chunks | none; thresholds calibrated on public-text flag rates (2026-10-20) |
+| [House style](STYLE-HOUSE-STYLE.md) (Vale-format rules) | #305 | paragraph and sentence text, speech spans | none; rules caller-supplied |
 
 Sentence length and sentence starts are public modules under `style::reports`, with no flattened
 crate-root exports. [Sentence report definitions](STYLE-SENTENCES.md) specify word counting, Penn
@@ -119,6 +120,7 @@ const transitions = JSON.parse(document.transitions('{"repeatWindow":5}'));
 const pronouns = JSON.parse(document.pronounStarts());
 const adverbs = JSON.parse(document.adverbs());
 const long = JSON.parse(document.sentenceLength('{"includeLongSentences":true}'));
+const house = JSON.parse(document.houseStyle(undefined, valeRulesYaml));
 const descriptive = JSON.parse(document.sentenceLength(undefined, "none"));
 const readability = JSON.parse(document.readability('{"excludeDialogueParagraphs":true}'));
 document.free();
@@ -156,6 +158,7 @@ let transitions: TransitionsReport = try document.transitions()
 let pronouns: PronounStartsReport = try document.pronounStarts()
 let readability: ReadabilityReport = try document.readability()
 let adverbs: AdverbsReport = try document.adverbs()
+let house: HouseStyleReport = try document.houseStyle(rules: valeRulesYaml)
 let custom = try document.sentenceLength(baseline: .custom("{\"mean\":13}"))
 let descriptive = try document.sentenceLength(baseline: .none)
 if let match = cliches.matches.first {
@@ -198,6 +201,7 @@ measurements: single paragraphs that meet two thresholds are mostly in-scene noi
 | consistency | `consistency::report(&Document, &ConsistencyOptions)` | `minimumMinority` | none | no |
 | readability | `readability::report(&Document, &ReadabilityOptions)`; `report_with(…, &dyn SyllableCounter)` takes another syllable counter | `minimumSentences`, `minimumParagraphWords`, `wordsPerMinute`, `excludeDialogueParagraphs` | none | no |
 | clarity | `clarity::report(&Document, &ClarityOptions)` | `minimumSentences`, `minimumSentenceWords`, `stickyGluePercent`, `longClauseWords` | none | yes |
+| house style | `house_style::report(&Document, &HouseStyleRules, &HouseStyleOptions)` | `skipDialogue` | none (rules caller-supplied: `HouseStyleRules::parse`) | no |
 
 Every entry point returns `Result<_, StyleError>`. Type names are prefixed with their report
 (`SentenceLengthReport`, `ClicheMatch`, `DialogueTagVerbClass`, …) so they stay unique in Swift's
@@ -208,12 +212,13 @@ built with `new()` plus `with_*` builders.
 ### Errors
 
 Each method validates its inputs independently. Baseline parse errors identify the report and
-use `invalidBaseline`; options errors use `invalidOptions`. `StyleError` has five kinds: `invalidOptions`
+use `invalidBaseline`; options errors use `invalidOptions`. `StyleError` has six kinds: `invalidOptions`
 (unparseable options or unknown keys), `invalidBaseline` (with `report`: invalid values, percentile
 or universal tags), `needsTokenDetails` (with `report`: a compact document supplied to a report
 requiring readings), `missingTable` (with `report`; no longer returned since diction gained a bundled
-table, kept so existing matches compile and decode) and
-`invalidTable` (with `report`: an unparseable, empty or non-finite word table). WASM throws an `Error` named `StyleError` with `kind` and `report`; Swift throws
+table, kept so existing matches compile and decode),
+`invalidTable` (with `report`: an unparseable, empty or non-finite word table) and `invalidRules`
+(with `report`: missing or invalid house-style rules; the message names the failing rule). WASM throws an `Error` named `StyleError` with `kind` and `report`; Swift throws
 `CheckError.ReportInput` with the same message.
 
 ### Result
@@ -455,6 +460,7 @@ Build rules for any baseline:
 | 2026-10-20 | #256: diction's default `abstractBelow` becomes 2.85 (was 2.5); `minimumRatedWords` 3 and `minimumRunSentences` 3 unchanged | With the bundled table, 2.5 flags 5.7% of bench/public narration sentences and no run in nine texts: sentence means average abstract and concrete words, so abstract interiors land at 2.5–2.9. Tuned on bench/public only (most useful runs at run precision ≥ 0.85: 9 runs, 8 useful / 1 noise). On held-out Crane, Wharton and Gatsby chapters: 11 runs, all useful; 20 sampled sentences 16 / 4 / 0; Crane's interior block flagged (9 sentences); on bench/public, Ishmael's harpooneer rumination (a run under the #281 proxy) is not flagged. Caller tables also get 2.85: a 1–5 human table should set `abstractBelow: 2.5` to keep the previous behaviour, and a table on another scale its own threshold ([STYLE-NORMS.md](STYLE-NORMS.md#bundled-concreteness-table-256)) |
 | 2026-10-20 | #301 review: condition phrases get compact-safe lexical ambiguity guards; pronoun word shares require POS and contextual checks, with *thou/ye* admitted as archaic exceptions; the adverb inventory excludes frequency words and adjective uses | Unguarded *as if*, *asked if*, length comparisons, participial *provided that night*, nominal *mine* and adjective *friendly/holy* inflated public counts. The guarded inventory adds 74 transition matches and 11 repeats across the seven calibrated public texts, down from 102 and 17. See [transitions](STYLE-TRANSITIONS.md) and [adverbs](STYLE-ADVERBS.md) |
 | 2026-10-20 | #301: add opt-in manner-adverb counts, pronoun shares of all words, and a guarded condition-transition inventory | Reuses the dialogue-tag *-ly* exclusion list and marks tag-adverb spans; pronoun word shares use each mode's word denominator; `while` stays out because its senses are ambiguous. See [adverbs](STYLE-ADVERBS.md) and [transitions](STYLE-TRANSITIONS.md) |
+| 2026-10-20 | #305: house style is a rule engine for a subset of Vale's schema (existence, substitution, consistency, occurrence) over caller-supplied YAML or JSON, parsed with `saphyr-parser` into the same `serde` schema as JSON. Matching uses `regex` with apostrophe-aware word boundaries over text with curly apostrophes and whitespace folded. Within a rule the longest overlapping match wins; consistency keeps the variant used first; unknown keys, unsupported Vale keys and YAML aliases are errors; `skipDialogue` drops speech entirely. Presets and Chicago rules wait for #309/#310 | Users can import existing Vale styles. `serde_yaml` is unmaintained, and JSON-only would force a conversion step. `regex` is already an `nlprule` dependency and runs in linear time. Unlike Vale's regexp2 it has no lookaround or backreferences, so a rule that uses them is listed as `unsupported` and skipped while the rest of the bundle runs. The WASM module grows 6.4% (+82 KB gzipped, 28 KB of it YAML). Strict keys catch typos that would otherwise silently disable a rule. A substitution's listed term is the rule's text, never generated prose. See [STYLE-HOUSE-STYLE.md](STYLE-HOUSE-STYLE.md) |
 | 2026-10-16 | #251/#241/#256 calibration: pacing defaults become 18-word mean length / 15% past perfect / 15% cognition (were 18 / 20 / 20); `minimumParagraphs` 3 and `moreThanWords` 400 unchanged | Joins the owner-run tier 3 sweep on published fiction (210 units, 71 authors, 1,559 chapter windows, aggregate only) with #293's five-model blind label sweep (305 public paragraphs) over their 64 shared settings, choosing the highest label F1 with at most about 15% of published chapter windows flagged. 18 / 15 / 15 raises paragraph F1 from 0.229 to 0.415 (precision 0.73 → 0.74, recall 0.14 → 0.29) and flags 9.0% of windows (46.5% of authors; was 3.4% and 32.4%). It also beats the first proposal, 15 / 20 / 15, on every label score and both published shares. 18 / 15 / 10 (F1 0.449, 14.1%) was rejected because it flags story4's untouched opening in every tier 2 negative control, which the consensus labels not slow. 15 / 15 / 30 ties on true positives but flags more authors and puts cognition above its published p95. On public text the defaults add one noise and one borderline story1 run to the two useful ones. See [STYLE-PACING.md](STYLE-PACING.md#label-accuracy-against-published-rates-2026-10-16) |
 | 2026-10-16 | #241/#256 calibration: every other default stays unchanged; record published flag rates for all merged reports except diction, and published-author chapter-window p5–p95 bands per mode for transitions, pronoun starts and sensory balance in `bench/style/published-bands-transitions-pronouns-sensory.json`, without adding a baseline argument | Published chapters show transition repeats in 66.5% of windows (43% even at a 2-sentence window), overused lemmas in 99.4% (1.44 per 1,000 words, below the public calibration's rate) and sensory sight p95 72.8%, so no sweep separates published prose from flags worth showing; changing those defaults would need judged published or draft samples. The bands follow the sentence-band convention so a later baseline argument can use them unchanged. Diction was skipped: no concreteness table is chosen. See [STYLE-TRANSITIONS.md](STYLE-TRANSITIONS.md#published-fiction-calibration-2026-10-16), [STYLE-NORMS.md](STYLE-NORMS.md#published-fiction-bands-2026-10-16), [STYLE-OVERUSED-WORDS.md](STYLE-OVERUSED-WORDS.md#published-fiction-flag-rates-2026-10-16) |
 | 2026-10-16 | #282 (owner decision, Caleb): remove the sensory `singleSense` flag. Chapters and scenes no longer carry `singleSense`, and the `singleSensePercent` option is gone, so passing it is rejected as an unknown option. The per-scene modality counts and percents remain the opt-in lens | On 114 eligible public scenes (≥ 20 narration sense words), the flag fires on 0/1/4/11 scenes at 85/80/75/70%, and none of the 11 is a useful warning. High sight share mostly measures setting nouns and filter verbs ([STYLE-NORMS.md](STYLE-NORMS.md#singlesense-removed)) |

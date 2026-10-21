@@ -528,4 +528,23 @@ final class CheckerTests: XCTestCase {
         XCTAssertThrowsError(try document.pacing(optionsJson: "{\"minimumParagraphs\":0}"))
     }
 
+
+    func testHouseStyleRules() throws {
+        let rules = try String(contentsOf: Self.repositoryRoot.appendingPathComponent("style/tests/fixtures/house-style/bundle.yml"), encoding: .utf8)
+        let text = "“Towards the door,” she said, walking towards it — sort of."
+        let document = try checker().styleDocument(text: text)
+        let report = try document.houseStyle(rules: rules)
+        XCTAssertEqual(report.rules, 4)
+        XCTAssertEqual(report.unsupported, [])
+        XCTAssertEqual(report.matches.map(\.rule), ["House.Toward", "House.Toward", "House.Hedging"])
+        XCTAssertEqual(report.matches[0].mode, .dialogue)
+        XCTAssertEqual(report.matches[0].replacement, "toward")
+        XCTAssertEqual((text as NSString).substring(with: report.matches[2].span.nsRange), "sort of")
+        let narration = try document.houseStyle(rules: rules, optionsJson: "{\"skipDialogue\":true}")
+        XCTAssertEqual(narration.matches.count, 2)
+        XCTAssertThrowsError(try document.houseStyleJson(optionsJson: nil, rules: nil)) { error in
+            guard case CheckError.ReportInput(let message) = error else { return XCTFail("unexpected error: \(error)") }
+            XCTAssertTrue(message.hasPrefix("invalid houseStyle rules"))
+        }
+    }
 }

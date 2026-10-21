@@ -71,6 +71,19 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   sentences as sticky and 0.9% for long clauses. Rust `StyleDocument::clarity`, Swift
   `document.clarity()` with typed `ClarityReport`, and WASM `document.clarity()` with TypeScript
   types. See [`docs/STYLE-CLARITY.md`](docs/STYLE-CLARITY.md).
+- **House-style rules.** `StyleDocument.houseStyle` (Rust `house_style`, Swift
+  `houseStyle(rules:)`) runs caller-supplied rules in a subset of [Vale](https://vale.sh)'s YAML
+  rule format: `existence`, `substitution`, `consistency` and `occurrence`, with `ignorecase`,
+  `nonword`, `scope`, `exceptions`, `limit` and `link`
+  ([#305](https://github.com/cmlarsen/writemorebetter/issues/305)). Rules come as YAML or JSON
+  text: one rule per YAML document, a list of rules, or `{rules: …}`, so an existing Vale style can be
+  imported. Each match carries its span, rule name, level, message and narration or dialogue mode,
+  and the `skipDialogue` option leaves quoted speech out. Curly apostrophes, em dashes, ellipses and
+  U+2028 are handled, and invalid rules return an `invalidRules` error that names the rule. A rule
+  that needs regex features this engine lacks (lookaround, backreferences) is listed in the
+  report's `unsupported` and skipped, while the rest of the bundle runs. Style
+  presets and the Chicago rules from #305 will follow as rule bundles. See
+  [`docs/STYLE-HOUSE-STYLE.md`](docs/STYLE-HOUSE-STYLE.md).
 
 ### Changed
 

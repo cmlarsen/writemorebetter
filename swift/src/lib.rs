@@ -866,4 +866,20 @@ impl StyleDocument {
                 message: error.to_string(),
             })
     }
+
+    /// Runs caller-supplied house-style rules on the retained analysis; options default when omitted.
+    /// Rules: Vale-format YAML or JSON text; nil throws an invalid-rules error.
+    #[uniffi::method(default(options_json = None, rules = None))]
+    pub fn house_style_json(
+        &self,
+        options_json: Option<String>,
+        rules: Option<String>,
+    ) -> Result<String, CheckError> {
+        self.inner
+            .house_style(options_json.as_deref(), rules.as_deref())
+            .map(|report| writemorebetter_style::reports::to_utf16_json(&report))
+            .map_err(|error| CheckError::ReportInput {
+                message: error.to_string(),
+            })
+    }
 }

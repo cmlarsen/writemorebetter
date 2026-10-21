@@ -982,6 +982,12 @@ public protocol StyleDocumentProtocol: AnyObject, Sendable {
     func echoesJson(optionsJson: String?) throws  -> String
     
     /**
+     * Runs caller-supplied house-style rules on the retained analysis; options default when omitted.
+     * Rules: Vale-format YAML or JSON text; nil throws an invalid-rules error.
+     */
+    func houseStyleJson(optionsJson: String?, rules: String?) throws  -> String
+    
+    /**
      * Returns this report on the retained analysis; options default when omitted.
      * Baseline: omitted/null means bundled; "none" disables comparisons; otherwise pass a JSON object.
      */
@@ -1186,6 +1192,21 @@ open func echoesJson(optionsJson: String? = nil)throws  -> String  {
     uniffi_writemorebetter_swift_fn_method_styledocument_echoes_json(
             self.uniffiCloneHandle(),
         FfiConverterOptionString.lower(optionsJson),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * Runs caller-supplied house-style rules on the retained analysis; options default when omitted.
+     * Rules: Vale-format YAML or JSON text; nil throws an invalid-rules error.
+     */
+open func houseStyleJson(optionsJson: String? = nil, rules: String? = nil)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_method_styledocument_house_style_json(
+            self.uniffiCloneHandle(),
+        FfiConverterOptionString.lower(optionsJson),
+        FfiConverterOptionString.lower(rules),uniffiCallStatus
     )
 })
 }
@@ -2692,6 +2713,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_method_styledocument_echoes_json() != 31563) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_writemorebetter_swift_checksum_method_styledocument_house_style_json() != 48244) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_method_styledocument_overused_words_json() != 59855) {

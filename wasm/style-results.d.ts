@@ -558,3 +558,36 @@ export interface ClarityReport {
   longClauses: Array<ClarityLongClause>;
   groups: Split<ClarityGroup>;
 }
+
+export type HouseStyleExtends = "existence" | "substitution" | "consistency" | "occurrence";
+export type HouseStyleLevel = "suggestion" | "warning" | "error";
+export interface HouseStyleMatch {
+  rule: string;
+  extends: HouseStyleExtends;
+  level: HouseStyleLevel;
+  message: string;
+  span: Span;
+  mode: Mode;
+  replacement: string | null;
+  count: number | null;
+  link: string | null;
+}
+
+export interface HouseStyleCounts {
+  suggestions: number;
+  warnings: number;
+  errors: number;
+  words: number;
+}
+
+export interface HouseStyleRuleError {
+  rule: string;
+  message: string;
+}
+
+export interface HouseStyleReport {
+  rules: number;
+  unsupported: Array<HouseStyleRuleError>;
+  matches: Array<HouseStyleMatch>;
+  groups: Split<HouseStyleCounts>;
+}
