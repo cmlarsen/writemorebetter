@@ -4738,6 +4738,49 @@ fn raw_pos_rule_matches_pre_disambiguation_tags() {
     }
 }
 
+#[test]
+fn apply_matches_raw_pos_rules_on_sentences_piped_with_needs_raw() {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    let selector: Selector = "typos/look_slike".try_into().unwrap();
+    rules
+        .rules_mut()
+        .iter_mut()
+        .filter(|rule| !selector.is_match(rule.id()))
+        .for_each(|rule| rule.disable());
+    rules
+        .builtins_mut()
+        .iter_mut()
+        .for_each(|rule| rule.disable());
+    assert!(!rules.needs_raw());
+    rules.select_mut(&selector).for_each(|x| x.enable());
+    assert!(rules.needs_raw());
+
+    let applied = |text: &str, keep_raw: bool| -> Vec<_> {
+        TOKENIZER
+            .pipe_with_raw(text, keep_raw)
+            .flat_map(|sentence| rules.apply(&sentence))
+            .map(|s| (s.span().char().clone(), s.replacements().to_vec()))
+            .collect()
+    };
+    for text in [
+        "He always look sfor challenges. It’s fine.",
+        "Dogs always look sfor food.\u{2028}Cats don’t.",
+        "The dog quickly look sfor the bone…",
+        "She’d never look sfor trouble—never.",
+        "“This sound slike an error,” she said—quietly…",
+    ] {
+        assert_eq!(
+            applied(text, rules.needs_raw()),
+            look_slike_matches(&rules, text),
+            "{}",
+            text
+        );
+    }
+    // Without the raw tokens the rule sees the disambiguated tags and misses.
+    assert_eq!(applied("This sound slike an error.", true).len(), 1);
+    assert!(applied("This sound slike an error.", false).is_empty());
+}
+
 fn sent_start_num_matches(rules: &Rules, text: &str) -> Vec<(std::ops::Range<usize>, Vec<String>)> {
     rules
         .suggest(text, &*TOKENIZER)
@@ -4782,11 +4825,16 @@ fn spell_number_synthesis_spells_out_a_sentence_start_number() {
 }
 
 #[test]
-fn pipe_keeps_the_raw_sentence() {
-    let sentence = TOKENIZER
-        .pipe("“This sound slike an error,” she said—quietly…")
-        .next()
-        .unwrap();
+fn pipe_with_raw_keeps_the_raw_sentence() {
+    let text = "“This sound slike an error,” she said—quietly…";
+    assert!(TOKENIZER
+        .pipe(text)
+        .all(|sentence| sentence.raw().is_none()));
+    assert!(TOKENIZER
+        .pipe_with_raw(text, false)
+        .all(|sentence| sentence.raw().is_none()));
+
+    let sentence = TOKENIZER.pipe_with_raw(text, true).next().unwrap();
     let raw = sentence.raw().unwrap();
     let has_vb = |sentence: &nlprule::types::Sentence| {
         sentence

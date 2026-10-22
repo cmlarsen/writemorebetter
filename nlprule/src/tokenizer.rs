@@ -429,6 +429,15 @@ impl<'t> Iterator for SentenceIter<'t> {
     }
 }
 
+/// How many rules disambiguation tries serially right after a rule changed the sentence, before
+/// it searches the remaining rules in parallel. The parallel search evaluates rules past the
+/// first one that applies and discards their results, since they ran on the sentence before that
+/// rule's change. On long sentences most rules apply somewhere, usually within a few rules of the
+/// previous one, so that discarded work made parallel disambiguation several times slower than
+/// serial. On ordinary sentences few rules apply, the next one is usually much further
+/// away, and the remaining rules still run in parallel.
+const SERIAL_RULES_AFTER_CHANGE: usize = 16;
+
 /// The complete Tokenizer doing tagging, chunking and disambiguation.
 #[derive(Serialize, Deserialize, Default, Clone)]
 pub struct Tokenizer {
@@ -509,6 +518,8 @@ impl Tokenizer {
             self.rules.iter().position(|x| x.id == *id).unwrap()
         });
         let mut i = 0;
+        // Rules before this index are tried serially (see `SERIAL_RULES_AFTER_CHANGE`).
+        let mut serial_end = 0;
         let mut start_positions = Default::default();
         let mut complete_sentence = sentence.clone().into_sentence();
 
@@ -516,8 +527,13 @@ impl Tokenizer {
             let mut match_sentence = MatchSentence::new(&complete_sentence);
             match_sentence.start_positions = start_positions;
 
-            let result = self.rules[i..n]
-                .maybe_par_iter()
+            let (end, parallel) = if i < serial_end {
+                (serial_end, false)
+            } else {
+                (n, true)
+            };
+            let result = self.rules[i..end]
+                .maybe_par_iter_cond(parallel)
                 .enumerate()
                 .filter_map(|(j, rule)| {
                     let changes = rule.apply(&self.parts, &match_sentence);
@@ -535,8 +551,9 @@ impl Tokenizer {
                 let changed = self.rules[index].change(&mut sentence, changes);
                 complete_sentence.refresh_tokens(&sentence, changed);
                 i = index + 1;
+                serial_end = (i + SERIAL_RULES_AFTER_CHANGE).min(n);
             } else {
-                i = n;
+                i = end;
             }
         }
 
@@ -892,14 +909,16 @@ impl Tokenizer {
     }
 
     /// Applies the entire tokenization pipeline including sentencization, tagging, chunking and disambiguation.
-    /// Each sentence keeps its [raw][Sentence::raw] tokens.
+    /// The sentences do not keep their [raw][Sentence::raw] tokens; to pass them to
+    /// [Rules::apply][crate::Rules::apply], use [Tokenizer::pipe_with_raw] with
+    /// [Rules::needs_raw][crate::Rules::needs_raw].
     pub fn pipe<'t>(&'t self, text: &'t str) -> SentenceIter<'t> {
-        self.pipe_with_raw(text, true)
+        self.pipe_with_raw(text, false)
     }
 
-    /// Like [Tokenizer::pipe], but keeps each sentence's [raw][Sentence::raw] tokens only with
-    /// `keep_raw`.
-    pub(crate) fn pipe_with_raw<'t>(&'t self, text: &'t str, keep_raw: bool) -> SentenceIter<'t> {
+    /// Like [Tokenizer::pipe], but with `keep_raw` each sentence also keeps its
+    /// [raw][Sentence::raw] tokens, which costs one copy of the tokens per sentence.
+    pub fn pipe_with_raw<'t>(&'t self, text: &'t str, keep_raw: bool) -> SentenceIter<'t> {
         SentenceIter {
             inner: self.sentencize_with_raw(text, keep_raw),
             tokenizer: &self,
@@ -1056,6 +1075,15 @@ mod tests {
                 });
             }
         }
+        // The examples glued into one long sentence, in which most rules apply, often several in
+        // a row: the case `SERIAL_RULES_AFTER_CHANGE` is for.
+        let glued = texts[2..]
+            .iter()
+            .take(400)
+            .map(|x| x.replace(['.', '!', '?'], ","))
+            .collect::<Vec<_>>()
+            .join(" ");
+        texts.push(glued);
 
         for text in &texts {
             if let Some(sentence) = tokenizer.tokenize(text) {
