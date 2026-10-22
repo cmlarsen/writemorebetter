@@ -4745,6 +4745,94 @@ fn scope_next_exception_sees_unknown_as_the_first_reading() {
     );
 }
 
+/// The readings of each sentence's last token, without the empty reading every token carries.
+fn last_token_readings(text: &str) -> Vec<Vec<String>> {
+    TOKENIZER
+        .pipe(text)
+        .map(|sentence| {
+            let last = sentence.tokens().last().unwrap();
+            last.word()
+                .tags()
+                .iter()
+                .map(|x| x.pos().as_str().to_string())
+                .filter(|pos| !pos.is_empty())
+                .collect()
+        })
+        .collect()
+}
+
+/// A sentence's last token has its `SENT_END` reading right after the tagger's readings, before
+/// the ones disambiguation adds, so it is the first reading of a token the tagger left untagged.
+/// Orders checked against LanguageTool 6.6 (`--taggeronly`, -l en-US): `!` is `[</S>, !/PCT]`,
+/// `.` is `[./., </S>, ./PCT]`, `Xyzzyq` is `[</S>]`, `fine` is `[fine/JJ, …, </S>]`.
+#[test]
+fn sent_end_is_the_first_reading_of_an_untagged_final_token() {
+    let strs = |tags: &[&str]| tags.iter().map(|x| x.to_string()).collect::<Vec<_>>();
+    for (text, last) in [
+        ("It was a3ft!", vec![strs(&["SENT_END", "PCT"])]),
+        ("Was it a3ft?", vec![strs(&["SENT_END", "PCT"])]),
+        ("It was a3ft\u{2026}", vec![strs(&["SENT_END", "PCT"])]),
+        ("It wasn\u{2019}t a3ft!", vec![strs(&["SENT_END", "PCT"])]),
+        ("It was Xyzzyq", vec![strs(&["SENT_END", "UNKNOWN"])]),
+        (
+            "\u{201c}It was Xyzzyq\u{201d}",
+            vec![strs(&["SENT_END", "UNKNOWN"])],
+        ),
+        ("It was a3ft.", vec![strs(&[".", "SENT_END", "PCT"])]),
+        (
+            "It was fine",
+            vec![strs(&["JJ", "NN", "RB", "VB", "VBP", "SENT_END"])],
+        ),
+    ] {
+        assert_eq!(last_token_readings(text), last, "{:?}", text);
+    }
+    assert_eq!(
+        last_token_readings("She sighed.\u{2028}It was a3ft?")
+            .last()
+            .unwrap(),
+        &strs(&["SENT_END", "PCT"])
+    );
+}
+
+/// `TYPOS/A3FT/0`'s `scope="next"` exception (`UNKNOWN|PCT|,`) sees only the next token's
+/// first reading, which is `SENT_END` for a final `!` or `?`. Expected flags checked against
+/// LanguageTool 6.6 (-l en-US, A3FT only).
+#[test]
+fn scope_next_exception_sees_sent_end_as_the_first_reading() {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    // NUMBERS_IN_WORDS flags the same span.
+    rules
+        .select_mut(&Selector::try_from("TYPOS/NUMBERS_IN_WORDS").unwrap())
+        .for_each(|rule| rule.disable());
+
+    let a3ft = |flag: &str| vec![(flag.to_string(), vec![flag.replacen('3', " 3", 1)])];
+    for text in [
+        "It was a3ft!",
+        "Was it a3ft?",
+        "It was a3ft.",
+        "It was a3ft\u{2026}",
+        "It wasn\u{2019}t a3ft!",
+        "She sighed.\u{2028}It was a3ft?",
+    ] {
+        assert_eq!(
+            rule_flags_with(&rules, text, "TYPOS/A3FT/"),
+            a3ft("a3ft"),
+            "{:?}",
+            text
+        );
+    }
+    for text in [
+        "\u{201c}It was a3ft!\u{201d}",
+        "It was a3ft\u{2014}then not!",
+    ] {
+        assert!(
+            rule_flags_with(&rules, text, "TYPOS/A3FT/").is_empty(),
+            "{:?}",
+            text
+        );
+    }
+}
+
 /// A `scope="next"` exception on a token whose predecessor has a `skip` is not checked, as in
 /// LanguageTool 6.6, so `TYPOGRAPHY/GERMAN_QUOTES/3` flags a closing quote even when a
 /// lowercase word follows it without a space. Expected flags checked against LanguageTool 6.6

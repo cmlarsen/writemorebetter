@@ -268,7 +268,7 @@ pub enum Atom {
 
 pub mod concrete {
     use super::{Atomable, Context, Matcher, TextMatcher, WordDataMatcher};
-    use crate::types::SpecialPos;
+    use crate::types::{SpecialPos, WordData};
     use serde::{Deserialize, Serialize};
 
     #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -324,9 +324,18 @@ pub mod concrete {
             let (sentence, _) = context;
             let tags = sentence.index(position).word().tags();
             let tags = if self.first_reading {
+                let is = |x: Option<&WordData>, pos: SpecialPos| {
+                    x.map_or(false, |x| x.pos().id().value() == pos as u16)
+                };
                 tags.iter()
-                    .position(|x| x.pos().id().value() != SpecialPos::None as u16)
-                    .map_or(&tags[..0], |i| &tags[i..i + 1])
+                    .position(|x| !is(Some(x), SpecialPos::None))
+                    .map_or(&tags[..0], |i| {
+                        // An untagged token's leading `SENT_END` reading is followed by its
+                        // `UNKNOWN` one, which LanguageTool sees on every reading.
+                        let untagged_end = is(Some(&tags[i]), SpecialPos::SentEnd)
+                            && is(tags.get(i + 1), SpecialPos::Unknown);
+                        &tags[i..i + if untagged_end { 2 } else { 1 }]
+                    })
             } else {
                 tags
             };

@@ -456,6 +456,12 @@ pub struct IncompleteToken<'t> {
     has_space_before: bool,
     chunks: Vec<String>,
     ignore_spelling: bool,
+    /// Where the `SENT_END` reading goes if this token ends the sentence: after this many
+    /// readings, or last if `None`. LanguageTool adds it right after the tagger's readings,
+    /// replacing the empty reading of an untagged token, so the readings disambiguation adds
+    /// come after it; its `filter`, `replace` and `unify` actions rebuild the readings and
+    /// append `SENT_END` last.
+    sent_end_at: Option<usize>,
 }
 
 impl<'t> IncompleteToken<'t> {
@@ -466,6 +472,9 @@ impl<'t> IncompleteToken<'t> {
         has_space_before: bool,
         chunks: Vec<String>,
     ) -> Self {
+        let tagged = word.tags.iter().any(|x| !x.pos.as_str().is_empty());
+        let sent_end_at = Some(if tagged { word.tags.len() } else { 0 });
+
         IncompleteToken {
             word,
             span,
@@ -473,30 +482,43 @@ impl<'t> IncompleteToken<'t> {
             has_space_before,
             chunks,
             ignore_spelling: false,
+            sent_end_at,
         }
     }
 
     /// Converts this incomplete token to a complete token.
     pub fn into_token(self) -> Token<'t> {
-        let mut word = self.word.clone();
+        let mut word = self.word;
+        let special = |pos| WordData::new(word.text.clone(), PosId::special(pos));
+        let (none, unknown, sent_end) = (
+            special(SpecialPos::None),
+            special(SpecialPos::Unknown),
+            special(SpecialPos::SentEnd),
+        );
+        let untagged = word.tags.iter().all(|x| x.pos.as_str().is_empty());
+        let n = word.tags.len();
 
-        word.tags.push(WordData::new(
-            self.word.text.clone(),
-            PosId::special(SpecialPos::None),
-        ));
+        word.tags.push(none);
 
-        if word.tags.iter().all(|x| x.pos.as_str().is_empty()) {
-            word.tags.push(WordData::new(
-                self.word.text.clone(),
-                PosId::special(SpecialPos::Unknown),
-            ));
-        }
+        match self.sent_end_at {
+            // `SENT_END` replaced the empty reading. `UNKNOWN` follows it so a check of the first
+            // reading sees both, as LanguageTool marks every reading of a token without a real
+            // tag as untagged.
+            Some(_) if self.is_sentence_end && untagged => {
+                word.tags.splice(0..0, vec![sent_end, unknown]);
+            }
+            Some(at) if self.is_sentence_end => {
+                word.tags.insert(at.min(n), sent_end);
+            }
+            _ => {
+                if untagged {
+                    word.tags.push(unknown);
+                }
 
-        if self.is_sentence_end {
-            word.tags.push(WordData::new(
-                self.word.text,
-                PosId::special(SpecialPos::SentEnd),
-            ));
+                if self.is_sentence_end {
+                    word.tags.push(sent_end);
+                }
+            }
         }
 
         Token {
@@ -556,6 +578,29 @@ impl<'t> IncompleteToken<'t> {
     #[allow(missing_docs)]
     pub fn ignore_spelling_mut(&mut self) -> &mut bool {
         &mut self.ignore_spelling
+    }
+
+    /// Equivalent to [Word::retain], keeping the `SENT_END` reading after the same readings.
+    pub(crate) fn retain_tags<F: FnMut(&WordData<'t>) -> bool>(&mut self, mut f: F) {
+        let at = self.sent_end_at;
+        let (mut i, mut removed) = (0, 0);
+
+        self.word.tags.retain(|data| {
+            let keep = data.frozen() || f(data);
+            if !keep && at.map_or(false, |at| i < at) {
+                removed += 1;
+            }
+            i += 1;
+            keep
+        });
+
+        self.sent_end_at = at.map(|at| at - removed);
+    }
+
+    /// Moves the `SENT_END` reading after all others, as LanguageTool does when it rebuilds a
+    /// token's readings.
+    pub(crate) fn put_sent_end_last(&mut self) {
+        self.sent_end_at = None;
     }
 
     /// Shift the span of this token right by the specified amount.

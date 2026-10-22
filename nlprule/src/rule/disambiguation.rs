@@ -20,10 +20,6 @@ impl PosFilter {
         data.retain(|x| self.is_word_data_match(x))
     }
 
-    fn remove(&self, data: &mut Word) {
-        data.retain(|x| !self.is_word_data_match(x))
-    }
-
     pub fn and(filters: &[&Self], data: &Word) -> bool {
         data.tags()
             .iter()
@@ -64,7 +60,7 @@ impl Disambiguation {
                                 let any_pos = data.pos.as_ref().is_empty();
                                 let any_lemma = data.lemma.as_ref().is_empty();
 
-                                token.word_mut().retain(|x| {
+                                token.retain_tags(|x| {
                                     let matches = (any_pos || *x.pos() == data.pos.as_ref_id())
                                         && (any_lemma || *x.lemma() == data.lemma.as_ref_id());
 
@@ -72,7 +68,7 @@ impl Disambiguation {
                                 });
                             }
                             either::Right(filter) => {
-                                filter.remove(token.word_mut());
+                                token.retain_tags(|x| !filter.is_word_data_match(x));
                             }
                         }
                     }
@@ -96,6 +92,7 @@ impl Disambiguation {
                                         .rposition(|x| *x.pos() == limit.pos.as_ref_id());
 
                                     if let Some(kept) = kept {
+                                        token.put_sent_end_last();
                                         let mut index = 0;
                                         token.word_mut().retain(|_| {
                                             index += 1;
@@ -126,6 +123,13 @@ impl Disambiguation {
                                 // tag, so one reading always matches there. `negate_pos` is not
                                 // carried into that filter; no English filterall rule uses it.)
                                 for token in group.into_iter() {
+                                    // LanguageTool filters only a token with a matching real
+                                    // reading, and then appends `SENT_END` last.
+                                    if token.word().tags().iter().any(|x| {
+                                        !x.pos().as_str().is_empty() && filter.is_word_data_match(x)
+                                    }) {
+                                        token.put_sent_end_last();
+                                    }
                                     if PosFilter::and(&[filter], token.word()) {
                                         filter.keep(token.word_mut())
                                     }
@@ -148,7 +152,7 @@ impl Disambiguation {
                         );
 
                         token.word_mut().push(data);
-                        token.word_mut().retain(|x| !x.pos().as_str().is_empty());
+                        token.retain_tags(|x| !x.pos().as_str().is_empty());
                     }
                 }
             }
@@ -166,6 +170,7 @@ impl Disambiguation {
 
                         token.word_mut().clear();
                         token.word_mut().push(data);
+                        token.put_sent_end_last();
                     }
                 }
             }
@@ -232,6 +237,8 @@ impl Disambiguation {
                             if token.word().tags().is_empty() && !keeps_sentence_end {
                                 *token.word_mut() = before;
                             }
+
+                            token.put_sent_end_last();
                         }
                     }
                 }
@@ -328,5 +335,64 @@ mod tests {
             .expect("a JJS reading must have been added");
 
         assert_eq!(added.lemma().as_str(), "large");
+    }
+
+    fn readings(token: &IncompleteToken) -> Vec<String> {
+        token
+            .clone()
+            .into_token()
+            .word()
+            .tags()
+            .iter()
+            .map(|x| x.pos().as_str().to_string())
+            .filter(|pos| !pos.is_empty())
+            .collect()
+    }
+
+    /// `SENT_END` stays after the tagger's readings when disambiguation adds or removes readings,
+    /// and goes last when it replaces them, as in LanguageTool 6.6 (a final `.` is
+    /// `[./., </S>, ./PCT]`, a final `!` is `[</S>, !/PCT]`).
+    #[test]
+    fn sent_end_stays_after_the_tagger_readings() {
+        let text = WordId("\u{2026}".into(), None);
+        let pos = |tag: &'static str, id| PosId::regular(tag, PosIdInt::from_value_unchecked(id));
+        let data = |tag: &str, id| {
+            owned::WordData::new(
+                owned::WordId("".into(), None),
+                owned::PosId(tag.into(), PosIdInt::from_value_unchecked(id)),
+            )
+        };
+        let token = |tags: Vec<PosId<'static>>| {
+            IncompleteToken::new(
+                Word::new(
+                    text.clone(),
+                    tags.into_iter()
+                        .map(|x| WordData::new(text.clone(), x))
+                        .collect(),
+                ),
+                Span::new(0..3, 0..1),
+                true,
+                false,
+                Vec::new(),
+            )
+        };
+        let add_pct = Disambiguation::Add(vec![data("PCT", 1)]);
+
+        let mut tagged = token(vec![pos(".", 0)]);
+        add_pct.apply(vec![vec![&mut tagged]]);
+        assert_eq!(readings(&tagged), vec![".", "SENT_END", "PCT"]);
+
+        let remove_period = Disambiguation::Remove(vec![either::Left(data(".", 0))]);
+        remove_period.apply(vec![vec![&mut tagged]]);
+        assert_eq!(readings(&tagged), vec!["SENT_END", "PCT"]);
+
+        let mut untagged = token(vec![]);
+        assert_eq!(readings(&untagged), vec!["SENT_END", "UNKNOWN"]);
+        add_pct.apply(vec![vec![&mut untagged]]);
+        assert_eq!(readings(&untagged), vec!["SENT_END", "PCT"]);
+
+        let replace = Disambiguation::Replace(vec![data(":", 2)]);
+        replace.apply(vec![vec![&mut untagged]]);
+        assert_eq!(readings(&untagged), vec![":", "SENT_END"]);
     }
 }
