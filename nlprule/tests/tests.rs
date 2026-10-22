@@ -5349,6 +5349,15 @@ fn number_in_word_filter_matches_languagetool_on_fiction_text() {
     let flagged = rule_flags("\u{201c}H3llo,\u{201d} she said\u{2026}", rule);
     assert_eq!(flagged.len(), 1);
     assert_eq!(flagged[0].1.first().map(String::as_str), Some("Hello"));
+    // An invented name: the distance-3 retry (#182) gives `Mirrwen` candidates, as in
+    // LanguageTool 6.6, so the rule flags it (#199).
+    let flagged = rule_flags("Mirr0wen smiled at the door\u{2026}", rule);
+    assert_eq!(flagged.len(), 1);
+    assert_eq!(flagged[0].0, "Mirr0wen");
+    assert_eq!(
+        flagged[0].1[..4],
+        strings(&["Married", "Warren", "Mirror", "Marries"])[..]
+    );
 }
 
 #[test]

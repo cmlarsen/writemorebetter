@@ -186,6 +186,9 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   suffix or stray letter ("re view", "use full") are dropped using LanguageTool's English list,
   now a builtin data file (`speller_split_filter.txt`, LGPL) compiled into `en_rules.bin`.
   Probe top-1 agreement 94.2% → 99.4% (#183).
+- **`NUMBERS_IN_WORDS` flags invented names again.** It drops a match when the speller has no
+  suggestions for the word without its digits; with the distance-3 retry, "Mirr0wen" now gets
+  LanguageTool 6.6's Married, Warren, Mirror, … (#199).
 
 ### Removed
 
