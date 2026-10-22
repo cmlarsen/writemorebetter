@@ -1421,11 +1421,15 @@ fn parse_tag_form(form: &str, info: &mut BuildInfo) -> Result<owned::Word, Error
 }
 
 impl owned::WordData {
+    /// A `<wd>` without a lemma takes its text as the lemma, as LT's `add` and `replace`
+    /// do; with neither, the lemma is empty and the token text is used at runtime.
     fn from_structure(data: structure::WordData, info: &mut BuildInfo) -> Self {
+        let lemma = data
+            .lemma
+            .or(data.text.map(String::from).filter(|text| !text.is_empty()))
+            .unwrap_or_default();
         owned::WordData::new(
-            info.tagger
-                .id_word(data.lemma.unwrap_or_else(String::new).into())
-                .to_owned_id(),
+            info.tagger.id_word(lemma.into()).to_owned_id(),
             info.tagger
                 .id_tag(data.pos.as_ref().map_or("", |x| x.as_str().trim()))
                 .to_owned_id(),
@@ -1448,6 +1452,96 @@ fn parse_pos_filter(postag: &str, postag_regexp: Option<&str>, info: &mut BuildI
             info,
         )),
     }
+}
+
+/// The tokens a `<disambig>` acts on: the marker's if there is one, else the pattern's.
+/// `None` stands for a token that is not a plain `<token>` (an `<and>` or `<or>`).
+fn disambiguated_tokens(pattern: &structure::Pattern) -> Vec<Option<&structure::Token>> {
+    let mut tokens = Vec::new();
+    let mut marker_tokens = Vec::new();
+    let mut has_marker = false;
+    for part in &pattern.parts {
+        match part {
+            structure::PatternPart::Marker(marker) => {
+                has_marker = true;
+                for token in &marker.tokens {
+                    match token {
+                        structure::TokenCombination::Token(token) => {
+                            marker_tokens.push(Some(token))
+                        }
+                        structure::TokenCombination::And(_)
+                        | structure::TokenCombination::Or(_) => marker_tokens.push(None),
+                        structure::TokenCombination::Feature(_) => {}
+                    }
+                }
+            }
+            structure::PatternPart::Token(token) => tokens.push(Some(token)),
+            structure::PatternPart::And(_) | structure::PatternPart::Or(_) => tokens.push(None),
+            structure::PatternPart::Feature(_)
+            | structure::PatternPart::Example(_)
+            | structure::PatternPart::Phraseref(_) => {}
+        }
+    }
+    if has_marker {
+        marker_tokens
+    } else {
+        tokens
+    }
+}
+
+/// The readings of LT's `replace` action (also the default action with `<wd>` children).
+///
+/// LT 6.6 refuses a rule whose `<wd>` count differs from the matched-token count
+/// (`DisambiguationRuleHandler`), and a `<wd>`'s text becomes the token's surface text
+/// (`DisambiguationPatternRuleReplacer`). We have no per-reading surface text, so a `<wd>`
+/// text is accepted only where it cannot change the surface: the token is a plain,
+/// case-sensitive literal with exactly that text.
+fn replace_word_datas(
+    word_datas: Vec<either::Either<owned::WordData, PosFilter>>,
+    wd_texts: &[Option<String>],
+    pattern: &structure::Pattern,
+) -> Result<Vec<owned::WordData>, Error> {
+    if word_datas.iter().any(either::Either::is_right) {
+        return Err(Error::Unimplemented(
+            "`<match>` in a replacing `<disambig>`".into(),
+        ));
+    }
+    let tokens = disambiguated_tokens(pattern);
+    if !word_datas.is_empty() && word_datas.len() != tokens.len() {
+        return Err(Error::Unimplemented(format!(
+            "{} `<wd>` readings for {} matched tokens in a replacing `<disambig>`",
+            word_datas.len(),
+            tokens.len()
+        )));
+    }
+    for (text, token) in wd_texts.iter().zip(&tokens) {
+        let Some(text) = text else { continue };
+        let keeps_surface = token.is_some_and(|token| {
+            let literal = token.parts.iter().flatten().find_map(|part| match part {
+                structure::TokenPart::Text(text) => Some(text.trim()),
+                _ => None,
+            });
+            let case_sensitive = match token.case_sensitive.as_deref() {
+                Some(x) => x == "yes",
+                None => pattern.case_sensitive.as_deref() == Some("yes"),
+            };
+            token.regexp.as_deref() != Some("yes")
+                && token.inflected.as_deref() != Some("yes")
+                && token.negate.as_deref() != Some("yes")
+                && case_sensitive
+                && literal == Some(text.as_str())
+        });
+        if !keeps_surface {
+            return Err(Error::Unimplemented(format!(
+                "`<wd>` text {:?} would change the token's surface text",
+                text
+            )));
+        }
+    }
+    Ok(word_datas
+        .into_iter()
+        .filter_map(either::Either::left)
+        .collect())
 }
 
 impl DisambiguationRule {
@@ -1492,10 +1586,18 @@ impl DisambiguationRule {
                 .collect(),
         });
 
+        // `owned::WordData` has no token text, so keep each `<wd>`'s text alongside it.
+        let mut wd_texts: Vec<Option<String>> = Vec::new();
         let word_datas: Vec<_> = if let Some(wds) = data.disambig.word_datas {
             wds.into_iter()
                 .map(|part| match part {
                     structure::DisambiguationPart::WordData(x) => {
+                        wd_texts.push(
+                            x.text
+                                .as_ref()
+                                .map(|text| text.trim().to_string())
+                                .filter(|text| !text.is_empty()),
+                        );
                         either::Left(owned::WordData::from_structure(x, info))
                     }
                     structure::DisambiguationPart::Match(x) => either::Right(parse_pos_filter(
@@ -1508,10 +1610,22 @@ impl DisambiguationRule {
         } else {
             Vec::new()
         };
+        let wd_has_text = wd_texts.iter().any(Option::is_some);
 
         let disambiguations = match data.disambig.action.as_deref() {
+            // LT's `AnalyzedToken.matches` also compares a `<wd>`'s text to the token text,
+            // which `owned::WordData` cannot express.
+            Some("remove") if wd_has_text => Err(Error::Unimplemented(
+                "`<wd>` with text in `<disambig action=\"remove\">`".into(),
+            )),
             Some("remove") => {
-                if let Some(postag) = data.disambig.postag.as_ref() {
+                // As in LT, `<wd>` readings take precedence over `postag`.
+                if let Some(postag) = data
+                    .disambig
+                    .postag
+                    .as_ref()
+                    .filter(|_| !word_datas.iter().any(either::Either::is_left))
+                {
                     Ok(Disambiguation::Remove(vec![either::Right(
                         parse_pos_filter(postag, Some("yes"), info),
                     )]))
@@ -1538,15 +1652,8 @@ impl DisambiguationRule {
                     ))
                 }
             }
-            Some("replace") => Ok(Disambiguation::Replace(
-                word_datas
-                    .into_iter()
-                    .map(|x| {
-                        x.left()
-                            .expect("match not supported for `replace` disambiguation")
-                    })
-                    .collect(),
-            )),
+            Some("replace") => replace_word_datas(word_datas, &wd_texts, &data.pattern)
+                .map(Disambiguation::Replace),
             Some("ignore_spelling") => Ok(Disambiguation::IgnoreSpelling),
             Some("immunize") => Ok(Disambiguation::Nop), // immunize can probably not be ignored
             Some("filterall") => {
@@ -1621,6 +1728,12 @@ impl DisambiguationRule {
                         )))],
                         info.tagger().lang_options().retain_last,
                     ))
+                } else if word_datas.iter().any(either::Either::is_left) {
+                    // LT 6.6 never hands `<wd>` readings to a `filter` action; it filters
+                    // by the absent `postag` and throws, so there is nothing to match.
+                    Err(Error::Unimplemented(
+                        "`<wd>` without `postag` in `<disambig action=\"filter\">`".into(),
+                    ))
                 } else {
                     Ok(Disambiguation::Filter(
                         word_datas.into_iter().map(Some).collect(),
@@ -1680,6 +1793,12 @@ impl DisambiguationRule {
                 };
 
                 Ok(Disambiguation::Unify(unify_filters.clone(), disambig, mask))
+            }
+            // The default action is LT's `replace`: `<wd>` readings replace the token's
+            // readings and take precedence over `postag`.
+            None if word_datas.iter().any(either::Either::is_left) => {
+                replace_word_datas(word_datas, &wd_texts, &data.pattern)
+                    .map(Disambiguation::Replace)
             }
             None => {
                 if let Some(postag) = data.disambig.postag.as_ref() {

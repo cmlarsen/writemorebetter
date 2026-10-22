@@ -173,8 +173,9 @@ pub(crate) struct TaggerLangOptions {
     pub tag_g_dropped_ing: bool,
     /// Used part-of-speech tags which are not in the tagger dictionary.
     pub extra_tags: Vec<String>,
-    /// Whether to retain the last tag if disambiguation leads to an empty tag.
-    /// Language-specific in LT so it has to be an option.
+    /// Whether a default-action `<disambig postag="…">` that finds no reading with that tag
+    /// gives the new reading the lemma of the token's first reading, as LT does, instead of
+    /// the token text.
     pub retain_last: bool,
 }
 

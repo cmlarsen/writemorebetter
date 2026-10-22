@@ -610,7 +610,7 @@ pub struct DisambiguationExample {
 #[serde(deny_unknown_fields)]
 pub struct WordData {
     pub pos: Option<String>,
-    pub text: Option<String>,
+    pub text: Option<XmlString>,
     pub lemma: Option<String>,
 }
 
