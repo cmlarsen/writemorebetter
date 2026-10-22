@@ -32,7 +32,10 @@ const END_QUOTES: [char; 4] = ['\u{201d}', '"', '\'', '\u{2019}'];
 /// disambiguator adds `_apostrophe_contraction_` to the mark of a clipped word
 /// such as `o’`, `jus’` or `tho’`, and `POS` to a possessive mark such as the one
 /// in `Texas’ cities`. LanguageTool's English rule never treats a mark carrying
-/// one of these tags as a quotation mark.
+/// one of these tags as a quotation mark. This is a partial port: LanguageTool
+/// tests these tags on every quote token and drops the "followed by a word"
+/// check, while we test them only on `'` and `’` (the only marks the
+/// disambiguator tags this way) and keep the adjacency check alongside.
 const APOSTROPHE_TAGS: [&str; 3] = ["_apostrophe_contraction_", "POS", "NNP"];
 
 /// One character of a paragraph with its exact position and the sentence it came
@@ -70,12 +73,15 @@ fn flatten<'s>(sentences: &'s [Sentence<'_>]) -> Vec<Piece<'s>> {
             let text = &sentence_text[token.span().byte().start - sentence_start
                 ..token.span().byte().end - sentence_start];
             let start = token.span().start();
-            let apostrophe_tag = text.chars().count() == 1
-                && token
-                    .word()
-                    .tags()
-                    .iter()
-                    .any(|reading| APOSTROPHE_TAGS.contains(&reading.pos().as_str()));
+            let mut chars = text.chars();
+            let apostrophe_tag = matches!(
+                (chars.next(), chars.next()),
+                (Some('\'' | '\u{2019}'), None)
+            ) && token
+                .word()
+                .tags()
+                .iter()
+                .any(|reading| APOSTROPHE_TAGS.contains(&reading.pos().as_str()));
             let tail_byte = text
                 .char_indices()
                 .last()
