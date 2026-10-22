@@ -635,35 +635,45 @@ impl VariantChecker {
         // Morfologik searches at most 14 words and stops at a rewrite shorter than 4 letters.
         const MAX_SEARCHES: usize = 14;
         const MIN_REWRITE_LEN: usize = 4;
-        for (i, query) in checked.iter().take(MAX_SEARCHES).enumerate() {
-            let len = query.chars().count();
-            if i > 0 && len < MIN_REWRITE_LEN {
-                break;
-            }
-            let query = levenshtein::Levenshtein::new(
-                query,
-                search_distance(len),
-                self.options.prefix_length,
-            )
-            .replacements(pairs)
-            .fold_case(true);
+        let search = |out: &mut BinaryHeap<Candidate>, max_distance: usize| {
+            for (i, query) in checked.iter().take(MAX_SEARCHES).enumerate() {
+                let len = query.chars().count();
+                if i > 0 && len < MIN_REWRITE_LEN {
+                    break;
+                }
+                let query = levenshtein::Levenshtein::new(
+                    query,
+                    search_distance(len).min(max_distance),
+                    self.options.prefix_length,
+                )
+                .replacements(pairs)
+                .fold_case(true);
 
-            self.push_candidates(&mut out, fst, &query, &restore_case);
-            if !self.user.suggestion_fst.is_empty() {
-                let user_map = Map::new(self.user.suggestion_fst.as_slice())
-                    .expect("serialized user suggestion fst must be valid.");
-                self.push_candidates(&mut out, &user_map, &query, &restore_case);
+                self.push_candidates(out, fst, &query, &restore_case);
+                if !self.user.suggestion_fst.is_empty() {
+                    let user_map = Map::new(self.user.suggestion_fst.as_slice())
+                        .expect("serialized user suggestion fst must be valid.");
+                    self.push_candidates(out, &user_map, &query, &restore_case);
+                }
             }
-        }
+        };
 
         // LanguageTool takes the candidates of a distance-1 search, and adds those of a
         // distance-2 search when there are none or the best one differs from the word only in
-        // case.
-        let out = out.into_sorted_vec();
-        let first_tier_only = out.first().is_some_and(|x| {
-            x.tier <= 1 && !(x.distance == 0 && x.term.to_lowercase() == word.to_lowercase())
-        });
-        out.into_iter()
+        // case. The distance-1 search is much cheaper, so the wider one runs only when needed.
+        let first_tier_only = |out: &BinaryHeap<Candidate>| {
+            out.iter().min().is_some_and(|x| {
+                x.tier <= 1 && !(x.distance == 0 && x.term.to_lowercase() == word.to_lowercase())
+            })
+        };
+        search(&mut out, 1);
+        if !first_tier_only(&out) {
+            search(&mut out, usize::MAX);
+        }
+
+        let first_tier_only = first_tier_only(&out);
+        out.into_sorted_vec()
+            .into_iter()
             .take_while(|x| !first_tier_only || x.tier <= 1)
             .map(|x| x.term)
             .collect()
