@@ -5168,6 +5168,29 @@ fn speller_backed_filters_consult_the_spellers_languagetool_uses() {
 }
 
 #[test]
+fn multitoken_run_on_check_uses_the_en_us_speller() {
+    // LanguageTool 6.6 builds its English multitoken speller once, with the en_US spelling
+    // rule, so with en_GB selected "Lincol nCenter" is still a run-on of "Lincoln Center"
+    // (left to the speller) and "Roger sCentre" is not one of "Rogers Centre".
+    let text = "\u{201c}We met at Lincol nCenter\u{2014}twice\u{2026}\u{201d} she said.\u{2028}\
+                \u{2018}Then at Roger sCentre,\u{2019} he\u{2019}d say. We met at Lincoln Centr again.";
+    let expected = vec![
+        ("Roger sCentre".into(), strings(&["Rogers Centre"])),
+        ("Lincoln Centr".into(), strings(&["Lincoln Center"])),
+    ];
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    for variant in ["en_GB", "en_US"] {
+        rules.spell_mut().options_mut().variant = Some(rules.spell().variant(variant).unwrap());
+        assert_eq!(
+            rule_flags_with(&rules, text, "MULTITOKEN_SPELLING/"),
+            expected,
+            "{}",
+            variant
+        );
+    }
+}
+
+#[test]
 fn tokenizer_keeps_g_dropped_words_whole() {
     assert_eq!(
         token_texts("\u{201c}How you doin\u{2019}?\u{201d} he asked\u{2026}\u{2028}\u{201c}Nothin\u{2019}\u{2014}just somethin' I was goin' on about.\u{201d}"),

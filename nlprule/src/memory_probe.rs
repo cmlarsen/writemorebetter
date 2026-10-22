@@ -27,7 +27,7 @@ use crate::tokenizer::chunk::{
     Chunker, MaxentChunker, MaxentPosTagger, MaxentTokenizer, Pmap, TagDict,
 };
 use crate::tokenizer::multiword::MultiwordTagger;
-use crate::types::{DefaultHashMap, PosIdInt};
+use crate::types::PosIdInt;
 use crate::utils::regex::Regex;
 use crate::{Rules, Tokenizer};
 
@@ -1227,14 +1227,7 @@ pub fn describe(tokenizer_bin: &Path, rules_bin: &Path) -> Result<Vec<(String, S
     ));
     facts.push((
         "spell.multitoken phrases".into(),
-        rules
-            .spell
-            .multitoken
-            .by_key_without_spaces
-            .values()
-            .map(Vec::len)
-            .sum::<usize>()
-            .to_string(),
+        rules.spell.multitoken.len().to_string(),
     ));
     facts.push((
         "spell.map entries".into(),

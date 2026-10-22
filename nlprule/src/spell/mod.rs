@@ -719,6 +719,13 @@ impl Spell {
             })
     }
 
+    /// Drops the spare capacity deserialization leaves in the larger buffers.
+    pub(crate) fn shrink_to_fit(&mut self) {
+        self.fst.shrink_to_fit();
+        self.phrases.shrink_to_fit();
+        self.multitoken.shrink_to_fit();
+    }
+
     pub(crate) fn ingest_options(&mut self) {
         let mut existing: Vec<VariantChecker> = self
             .variant_checker

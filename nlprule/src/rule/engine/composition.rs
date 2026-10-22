@@ -825,6 +825,21 @@ pub struct PartPool {
 }
 
 impl PartPool {
+    /// Drops the spare capacity deserialization leaves in the pools.
+    pub(crate) fn shrink_to_fit(&mut self) {
+        self.parts.shrink_to_fit();
+        self.antipatterns.shrink_to_fit();
+        self.antipattern_markers.shrink_to_fit();
+    }
+
+    /// Whether any pool holds more capacity than it uses.
+    #[cfg(test)]
+    pub(crate) fn has_spare_capacity(&self) -> bool {
+        self.parts.capacity() > self.parts.len()
+            || self.antipatterns.capacity() > self.antipatterns.len()
+            || self.antipattern_markers.capacity() > self.antipattern_markers.len()
+    }
+
     pub(crate) fn antipattern(&self, id: AntipatternId) -> &Composition {
         &self.antipatterns[id.0 as usize]
     }

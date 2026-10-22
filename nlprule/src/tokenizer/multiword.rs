@@ -11,7 +11,9 @@ pub(crate) struct MultiwordTaggerFields {
 }
 
 impl From<MultiwordTaggerFields> for MultiwordTagger {
-    fn from(data: MultiwordTaggerFields) -> Self {
+    fn from(mut data: MultiwordTaggerFields) -> Self {
+        // serde grows a deserialized `Vec` past 1 MiB by doubling; drop the spare capacity.
+        data.multiwords.shrink_to_fit();
         let mut full = DefaultHashMap::default();
         let mut start_space: DefaultHashMap<String, usize> = DefaultHashMap::default();
         let mut start_no_space: DefaultHashMap<char, usize> = DefaultHashMap::default();
@@ -223,6 +225,27 @@ mod tests {
             .into_iter()
             .map(|hit| (hit.start, hit.end, tagger.multiwords[hit.index].1.clone()))
             .collect()
+    }
+
+    #[test]
+    fn loaded_phrase_list_has_no_spare_capacity() {
+        let pos = owned::PosId("NNP".into(), PosIdInt::from_value_unchecked(0));
+        let len = 30_000;
+        let fields = MultiwordTaggerFields {
+            multiwords: (0..len)
+                .map(|i| {
+                    (
+                        format!("O\u{2019}Brien\u{2014}{}", i),
+                        "O\u{2019}Brien".into(),
+                        pos.clone(),
+                    )
+                })
+                .collect(),
+        };
+        let bytes = bincode::serialize(&fields).unwrap();
+        let loaded: MultiwordTagger = bincode::deserialize(&bytes).unwrap();
+        assert_eq!(loaded.multiwords.len(), len);
+        assert_eq!(loaded.multiwords.capacity(), len);
     }
 
     #[test]
