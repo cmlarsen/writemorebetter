@@ -24,10 +24,7 @@ use crate::{
         DisambiguationRule, Repetition, Rule,
     },
     rules::{Rules, RulesLangOptions},
-    spell::{
-        multitoken::{normalize_key, MultitokenSpeller},
-        Spell, SpellInt, SpellLangOptions,
-    },
+    spell::{multitoken::MultitokenSpeller, Spell, SpellInt, SpellLangOptions},
     tokenizer::{
         chunk,
         multiword::{MultiwordTagger, MultiwordTaggerFields},
@@ -306,69 +303,13 @@ impl Spell {
 }
 
 impl MultitokenSpeller {
-    /// Reads the phrase list (one spelling per line), as `MultitokenSpeller.initMultitokenSpeller`
-    /// does after `prepareLineForSpeller`. Single-word keys are skipped.
+    /// Reads the phrase list (one spelling per line). See [MultitokenSpeller::from_lines].
     pub(in crate::compile) fn from_file(path: impl AsRef<Path>) -> io::Result<Self> {
-        let mut by_first_char: DefaultHashMap<char, Vec<(String, Vec<String>)>> =
-            DefaultHashMap::default();
-        let mut key_indices: DefaultHashMap<String, usize> = DefaultHashMap::default();
-        let mut by_key_without_spaces: DefaultHashMap<String, Vec<String>> =
-            DefaultHashMap::default();
-
-        let push_unique = |spellings: &mut Vec<String>, line: &str| {
-            if !spellings.iter().any(|x| x == line) {
-                spellings.push(line.to_owned());
-            }
-        };
-
-        for line in BufReader::new(File::open(path.as_ref())?).lines() {
-            let line = line?;
-            let key = normalize_key(&line);
-            if !key.contains(' ') {
-                continue;
-            }
-            let first = key.chars().next().expect("key contains a space");
-            let entries = by_first_char.entry(first).or_default();
-            let index = *key_indices.entry(key.clone()).or_insert_with(|| {
-                entries.push((key.clone(), Vec::new()));
-                entries.len() - 1
-            });
-            push_unique(&mut entries[index].1, &line);
-            push_unique(
-                by_key_without_spaces
-                    .entry(key.replace(' ', ""))
-                    .or_default(),
-                &line,
-            );
-        }
-
-        for entries in by_first_char.values_mut() {
-            let mask = java_hash_map_capacity(entries.len()) - 1;
-            entries.sort_by_key(|(key, _)| java_hash_map_hash(key) & mask);
-        }
-
-        Ok(MultitokenSpeller {
-            by_first_char,
-            by_key_without_spaces,
-        })
+        let lines = BufReader::new(File::open(path.as_ref())?)
+            .lines()
+            .collect::<io::Result<Vec<_>>>()?;
+        Ok(Self::from_lines(lines))
     }
-}
-
-/// `HashMap.hash(key)` for a Java `String` key: `String.hashCode` with its high half folded in.
-fn java_hash_map_hash(key: &str) -> u32 {
-    let hash = key
-        .encode_utf16()
-        .fold(0u32, |hash, c| hash.wrapping_mul(31).wrapping_add(c as u32));
-    hash ^ (hash >> 16)
-}
-
-/// The table size of a Java `HashMap` after `len` insertions at the default load factor.
-fn java_hash_map_capacity(len: usize) -> u32 {
-    let mut capacity = 16;
-    while len > capacity * 3 / 4 {
-        capacity *= 2;
-    }
-    capacity as u32
 }
 
 impl Tagger {
@@ -2598,55 +2539,6 @@ mod tests {
             }
             assert_eq!(flagged, vec![(rule.to_string(), expected)], "{:?}", text);
         }
-    }
-
-    #[test]
-    fn multitoken_phrases_keep_the_java_hash_map_order() {
-        assert_eq!(java_hash_map_hash("hello"), 99162322 ^ (99162322 >> 16));
-        assert_eq!(java_hash_map_capacity(12), 16);
-        assert_eq!(java_hash_map_capacity(13), 32);
-
-        let path = std::env::temp_dir().join(format!("wmb-multitoken-{}.txt", std::process::id()));
-        std::fs::write(
-            &path,
-            "New York\nNoah Harari\nNotre Dame\nNorth Sea\nNova Scotia\nnoah harari\nNoah Harari\n\
-             Harari\nZo\u{eb} Quill\nZoe-Quill\nMara\u{2014}Venn\nO\u{2019}Brien Hall\n",
-        )
-        .unwrap();
-        let speller = MultitokenSpeller::from_file(&path).unwrap();
-        std::fs::remove_file(&path).unwrap();
-
-        let keys: Vec<&str> = speller.by_first_char[&'n']
-            .iter()
-            .map(|(key, _)| key.as_str())
-            .collect();
-        assert_eq!(
-            keys,
-            [
-                "noah harari",
-                "nova scotia",
-                "north sea",
-                "notre dame",
-                "new york"
-            ]
-        );
-        assert_eq!(
-            speller.by_first_char[&'n'][0].1,
-            ["Noah Harari", "noah harari"]
-        );
-        assert_eq!(
-            speller.by_first_char[&'z'],
-            [(
-                "zoe quill".to_owned(),
-                vec!["Zo\u{eb} Quill".to_owned(), "Zoe-Quill".to_owned()]
-            )]
-        );
-        assert_eq!(
-            speller.by_key_without_spaces["o\u{2019}brienhall"],
-            ["O\u{2019}Brien Hall"]
-        );
-        assert!(!speller.by_first_char.contains_key(&'h'));
-        assert!(!speller.by_first_char.contains_key(&'m'));
     }
 
     #[test]

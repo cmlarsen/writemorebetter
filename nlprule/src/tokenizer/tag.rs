@@ -225,7 +225,15 @@ impl From<Tagger> for TaggerFields {
 }
 
 impl From<TaggerFields> for Tagger {
-    fn from(data: TaggerFields) -> Self {
+    fn from(mut data: TaggerFields) -> Self {
+        // serde grows a deserialized `Vec` past 1 MiB by doubling; drop the spare capacity.
+        for fst in [
+            &mut data.word_store_fst,
+            &mut data.tag_fst,
+            &mut data.synth_fst,
+        ] {
+            fst.shrink_to_fit();
+        }
         let word_store_fst = Map::new(data.word_store_fst).unwrap();
         let tag_fst = Map::new(data.tag_fst).unwrap();
         let synth_fst = Map::new(data.synth_fst).unwrap();

@@ -129,7 +129,9 @@ impl RuleFilter {
             RuleFilter::FindSuggestions(f) => f.accept(m, sentence, graph),
             RuleFilter::SuppressMisspelledSuggestions(f) => f.accept(m, sentence, speller),
             RuleFilter::NumberInWord(f) => f.accept(m, sentence, graph, ctx.default_speller),
-            RuleFilter::MultitokenSpeller => multitoken::accept(m, sentence, graph, speller),
+            RuleFilter::MultitokenSpeller => {
+                multitoken::accept(m, sentence, graph, speller, ctx.default_speller)
+            }
         }
     }
 }

@@ -14,13 +14,18 @@ const MAX_LENGTH_DIFF: usize = 3;
 
 /// Suggests the known multi-word name or phrase closest to the matched text, and vetoes the
 /// match when there is none.
+///
+/// `speller` is the selected variant's. The run-on check asks `default_speller` instead, as
+/// LanguageTool's `EnglishMultitokenSpeller` is built once with the `en_US` spelling rule.
 pub(super) fn accept<'t>(
     mut m: FilterMatch,
     sentence: &'t MatchSentence<'t>,
     graph: &MatchGraph<'t>,
     speller: Option<&Speller>,
+    default_speller: Option<&Speller>,
 ) -> Option<FilterMatch> {
     let speller = speller?;
+    let run_on_speller = default_speller.unwrap_or(speller);
     let mut tokens: Vec<&Token> = Vec::new();
     let mut n = 1;
     while let Some(g) = group(graph, n) {
@@ -37,7 +42,7 @@ pub(super) fn accept<'t>(
         speller.multitoken(),
         underlined,
         accepted_by_speller,
-        |word| !word.is_empty() && !speller.is_correct(word),
+        |word| !word.is_empty() && !run_on_speller.is_correct(word),
     );
     if replacements.is_empty() {
         return None;
@@ -81,7 +86,8 @@ fn dedup_without(replacements: impl Iterator<Item = String>, underlined: &str) -
     out
 }
 
-/// `MultitokenSpeller.getSuggestions`. `is_misspelled` answers for single words.
+/// `MultitokenSpeller.getSuggestions`. `is_misspelled` answers for single words, for the run-on
+/// check.
 pub(super) fn suggestions(
     speller: &MultitokenSpeller,
     original: &str,
@@ -94,26 +100,19 @@ pub(super) fn suggestions(
         return Vec::new();
     }
     let normalized = normalize_key(&word);
-    let mut weighted: Vec<(&String, usize)> = Vec::new();
-    if let Some(candidates) = speller
-        .by_key_without_spaces
-        .get(&normalized.replace(' ', ""))
-    {
-        if stop_searching(candidates, &original) {
+    let mut weighted: Vec<(&str, usize)> = Vec::new();
+    if let Some(candidates) = speller.spellings_without_spaces(&normalized.replace(' ', "")) {
+        if stop_searching(candidates.clone(), &original) {
             return Vec::new();
         }
-        weighted.extend(candidates.iter().map(|candidate| (candidate, 0)));
+        weighted.extend(candidates.map(|candidate| (candidate, 0)));
     }
 
-    let entries = normalized
-        .chars()
-        .next()
-        .and_then(|first| speller.by_first_char.get(&first));
-    if let (true, Some(entries)) = (weighted.is_empty(), entries) {
+    if let (true, Some(first)) = (weighted.is_empty(), normalized.chars().next()) {
         let word_len = utf16_len(&word);
         let word_parts = split_by_space(&normalized);
-        for (key, candidates) in entries {
-            if stop_searching(candidates, &original) {
+        for (key, candidates) in speller.phrases_starting_with(first) {
+            if stop_searching(candidates.clone(), &original) {
                 return Vec::new();
             }
             let key_len = utf16_len(key);
@@ -124,7 +123,7 @@ pub(super) fn suggestions(
             let distances = distances_per_word(&key_parts, &word_parts, key, &normalized);
             let total: usize = distances.iter().sum();
             if total < 1 {
-                weighted.extend(candidates.iter().map(|candidate| (candidate, 0)));
+                weighted.extend(candidates.map(|candidate| (candidate, 0)));
                 if weighted.len() == 2 {
                     break;
                 }
@@ -146,7 +145,7 @@ pub(super) fn suggestions(
                 continue;
             }
             if total as i64 <= max_edit_distance(key, &normalized) {
-                weighted.extend(candidates.iter().map(|candidate| (candidate, total)));
+                weighted.extend(candidates.map(|candidate| (candidate, total)));
             }
         }
     }
@@ -162,7 +161,7 @@ pub(super) fn suggestions(
     weighted
         .into_iter()
         .filter(|(_, weight)| *weight == first_weight)
-        .map(|(candidate, _)| candidate.clone())
+        .map(|(candidate, _)| candidate.to_owned())
         .collect()
 }
 
@@ -218,10 +217,13 @@ fn discard_run_on_words(word: &str, is_misspelled: &impl Fn(&str) -> bool) -> bo
     !is_misspelled(&format!("{}{}", first, second_first)) && !is_misspelled(second_rest)
 }
 
-fn stop_searching(candidates: &[String], original: &str) -> bool {
-    candidates.iter().any(|candidate| candidate == original)
-        || candidates.iter().any(|candidate| {
-            *candidate == candidate.to_lowercase() && title_case(candidate) == original
+fn stop_searching<'a>(
+    mut candidates: impl Iterator<Item = &'a str> + Clone,
+    original: &str,
+) -> bool {
+    candidates.clone().any(|candidate| candidate == original)
+        || candidates.any(|candidate| {
+            candidate == candidate.to_lowercase() && title_case(candidate) == original
         })
 }
 
@@ -375,28 +377,9 @@ fn number_of_correct_chars(s1: &str, s2: &str) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::DefaultHashMap;
 
     fn speller(lines: &[&str]) -> MultitokenSpeller {
-        let mut by_first_char: DefaultHashMap<char, Vec<(String, Vec<String>)>> =
-            DefaultHashMap::default();
-        let mut by_key_without_spaces: DefaultHashMap<String, Vec<String>> =
-            DefaultHashMap::default();
-        for line in lines {
-            let key = normalize_key(line);
-            by_first_char
-                .entry(key.chars().next().unwrap())
-                .or_default()
-                .push((key.clone(), vec![line.to_string()]));
-            by_key_without_spaces
-                .entry(key.replace(' ', ""))
-                .or_default()
-                .push(line.to_string());
-        }
-        MultitokenSpeller {
-            by_first_char,
-            by_key_without_spaces,
-        }
+        MultitokenSpeller::from_lines(lines.iter().map(|line| line.to_string()))
     }
 
     fn suggest(speller: &MultitokenSpeller, text: &str) -> Vec<String> {

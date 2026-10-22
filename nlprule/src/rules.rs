@@ -163,6 +163,11 @@ impl Rules {
         let mut reader = reader;
         crate::read_binary_header(&mut reader, BinaryKind::Rules, RULES_FORMAT_VERSION)?;
         let mut rules: Rules = bincode::deserialize_from(reader)?;
+        // serde preallocates at most 1 MiB for a deserialized `Vec` and grows the rest by
+        // doubling, so the larger collections would load with up to half their allocation spare.
+        rules.rules.shrink_to_fit();
+        rules.parts.shrink_to_fit();
+        rules.spell.shrink_to_fit();
         rules.spell.ingest_options();
         Ok(rules)
     }
@@ -760,5 +765,27 @@ impl IntoIterator for Rules {
     type IntoIter = std::vec::IntoIter<Rule>;
     fn into_iter(self) -> Self::IntoIter {
         self.rules.into_iter()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn loaded_binaries_have_no_spare_capacity() {
+        let tokenizer = Tokenizer::new("../storage/en_tokenizer.bin").unwrap();
+        let rules = Rules::new("../storage/en_rules.bin").unwrap();
+
+        assert!(rules.rules.len() * std::mem::size_of::<Rule>() > 1 << 20);
+        assert_eq!(rules.rules.capacity(), rules.rules.len());
+        assert!(!rules.parts.has_spare_capacity());
+        assert_eq!(rules.spell.fst.capacity(), rules.spell.fst.len());
+        assert_eq!(rules.spell.phrases.capacity(), rules.spell.phrases.len());
+        let tagger = &tokenizer.tagger;
+        for fst in [&tagger.tag_fst, &tagger.synth_fst, &tagger.word_store_fst] {
+            let bytes = fst.as_fst().as_inner();
+            assert_eq!(bytes.capacity(), bytes.len());
+        }
     }
 }
