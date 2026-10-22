@@ -26,8 +26,10 @@ checker loads them from disk, so an app ships them as resources.
    `# 0.7.0 (2026-10-12)`) and merge it to `main` **before** dispatching. The release notes
    are that section verbatim, and the run fails if the version's section is missing.
 2. Every workspace crate that ships together — `nlprule`, `build`, `swift`
-   (`writemorebetter-swift`) and `wasm` — must already be at `<version>` on `main`.
-   (`srx` and `python` are versioned independently.) The run fails on a mismatch.
+   (`writemorebetter-swift`), `wasm` and `python` (`writemorebetter-python`, whose version is
+   the Python package's) — must already be at `<version>` on `main`. (`srx` is versioned
+   independently.) The run fails on a mismatch. A Python wheel must be paired with the data zip
+   of the same version.
 3. The tag `<version>` must not exist yet. The run fails if it does.
 4. Dispatch from `main`. A real release refuses to run from any other ref, because the tag
    is placed on the exact commit that was built; a dry run may come from a branch (see

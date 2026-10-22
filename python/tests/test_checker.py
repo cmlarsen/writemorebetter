@@ -7,6 +7,7 @@ look in the checkout's storage/ and dist/data/.
 
 import os
 import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -251,3 +252,69 @@ def test_threads_share_one_checker(checker):
     for thread in threads:
         thread.join()
     assert len(results) == 20 and all(r == expected for r in results)
+
+
+def test_profile_none_applies_no_profile(data_dir):
+    text = "“I’m gonna go,” she said."
+    none = Checker.from_dir(data_dir, profile=None)
+    default = Checker.from_dir(data_dir, profile="default")
+    assert sources(none.check(text)) == sources(default.check(text))
+
+
+def test_style_error_attributes(checker):
+    document = checker.style_document("🙂 She walked slowly.")
+    with pytest.raises(StyleError) as error:
+        document.echoes({"no_such_option": 1})
+    assert error.value.kind == "invalidOptions"
+    assert error.value.report is None or isinstance(error.value.report, str)
+    assert isinstance(error.value.message, str) and error.value.message
+    # Inputs the binding rejects itself are StyleErrors too, with the same attributes.
+    with pytest.raises(StyleError) as error:
+        document._report("echoes", None, "none")
+    assert (error.value.kind, error.value.report) == ("invalidOptions", "echoes")
+    with pytest.raises(StyleError) as error:
+        document._report("house_style", None, None)
+    assert (error.value.kind, error.value.report) == ("invalidRules", "houseStyle")
+    with pytest.raises(StyleError) as error:
+        document._report("preset", {"window": 1}, None)
+    assert error.value.report == "preset"
+    with pytest.raises(StyleError) as error:
+        document._report("no_such_report")
+    assert (error.value.kind, error.value.report) == ("unknownReport", None)
+
+
+def test_dictionary_edits_do_not_hold_the_gil(data_dir):
+    """add_words waits for a running check's read lock; other Python threads must keep running
+    meanwhile, so the heartbeat's longest gap stays well below the wait."""
+    checker = Checker.from_dir(data_dir)
+    text = "She was went home. " * 1500
+    started = threading.Event()
+
+    def long_check():
+        started.set()
+        checker.check(text)
+
+    worker = threading.Thread(target=long_check)
+    worker.start()
+    started.wait()
+    time.sleep(0.05)
+    beats = []
+    stop = threading.Event()
+
+    def heartbeat():
+        while not stop.is_set():
+            beats.append(time.perf_counter())
+            time.sleep(0.005)
+
+    beater = threading.Thread(target=heartbeat)
+    beater.start()
+    time.sleep(0.05)
+    before = time.perf_counter()
+    checker.add_words(["Zorbath"])
+    waited = time.perf_counter() - before
+    time.sleep(0.05)
+    stop.set()
+    beater.join()
+    worker.join()
+    gaps = [b - a for a, b in zip(beats, beats[1:])]
+    assert waited < 0.1 or max(gaps) < 0.5 * waited, (waited, max(gaps))

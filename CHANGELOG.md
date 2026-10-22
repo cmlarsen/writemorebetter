@@ -38,6 +38,8 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   reports: before, they always ran without a speller and kept suggestions LanguageTool and
   `Rules::suggest` drop, such as `Yojong` for `Kim Yo jong`
   ([#233](https://github.com/cmlarsen/writemorebetter/issues/233)).
+- **The Release workflow checks `python/Cargo.toml`'s version** with the other crates, so a
+  wheel's version always names the data release it pairs with.
 
 ### Fixed
 
@@ -87,6 +89,13 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   tags `_apostrophe_contraction_`, `POS` or `NNP` now counts as an apostrophe. Plural possessives
   inside single quotes are unchanged and still match 6.6
   (part of [#187](https://github.com/cmlarsen/writemorebetter/issues/187)).
+
+### Removed
+
+- **Upstream's `scripts/maturin.sh`** and the `BUILD_BINDINGS_*` markers it rewrote in
+  `Cargo.toml`, `nlprule/Cargo.toml` and `build/Cargo.toml`. It renamed `nlprule` to
+  `nlprule-core` and would break the new binding's path dependency; build wheels with
+  `maturin build` in `python/` instead.
 
 # 0.12.0 (2026-10-22)
 

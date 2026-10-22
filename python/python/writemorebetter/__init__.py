@@ -86,9 +86,9 @@ class Checker:
     :param rules_path: path to ``en_rules.bin``.
     :param spell_variant: a speller dictionary such as ``"en_US"`` or ``"en_GB"``; ``None`` (the
         default) or ``""`` leaves spelling off.
-    :param profile: a rule profile. ``"fiction"`` (the default) turns off rules that misfire on
-        fiction voice; ``"default"`` or ``""`` disables nothing. An unknown name raises
-        :class:`ValueError`.
+    :param profile: a rule profile. ``"fiction"`` (the default, as in Swift) turns off rules that
+        misfire on fiction voice; ``None``, ``""`` or ``"default"`` disables nothing (WASM's
+        default). An unknown name raises :class:`ValueError`.
     :raises OSError: a data file cannot be read.
     :raises WriteMoreBetterError: a data file is corrupt or from another version.
     """
@@ -99,7 +99,7 @@ class Checker:
         rules_path: PathLike,
         *,
         spell_variant: Optional[str] = None,
-        profile: str = "fiction",
+        profile: Optional[str] = "fiction",
     ) -> None:
         self._native = _native.Checker(
             os.fspath(tokenizer_path), os.fspath(rules_path), spell_variant, profile
@@ -111,7 +111,7 @@ class Checker:
         data_dir: PathLike,
         *,
         spell_variant: Optional[str] = None,
-        profile: str = "fiction",
+        profile: Optional[str] = "fiction",
     ) -> "Checker":
         """Loads ``en_tokenizer.bin`` and ``en_rules.bin`` from one directory, such as the
         unpacked release data zip."""
@@ -212,7 +212,9 @@ class StyleDocument:
 
     Each report returns a ``dict`` (the same records as the WASM and Swift bindings, documented
     in ``wasm/style-results.d.ts``) whose spans are ``{"start", "end"}`` code-point ranges into
-    the analyzed text. Options default when omitted; bad options raise :class:`StyleError`.
+    the analyzed text. Options default when omitted; any bad report input (options, baseline,
+    table, rules, or a second input the report does not take) raises :class:`StyleError`, whose
+    ``kind``, ``report`` (``None`` when no report is named) and ``message`` are always set.
     """
 
     def __init__(self, native: "_native.StyleDocument") -> None:

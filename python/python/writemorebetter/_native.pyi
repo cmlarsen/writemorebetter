@@ -6,7 +6,7 @@ class WriteMoreBetterError(Exception): ...
 
 class StyleError(ValueError):
     kind: str
-    report: str
+    report: Optional[str]
     message: str
 
 class Checker:
@@ -15,7 +15,7 @@ class Checker:
         tokenizer_path: str,
         rules_path: str,
         spell_variant: Optional[str] = None,
-        profile: str = "fiction",
+        profile: Optional[str] = "fiction",
     ) -> None: ...
     def check(self, text: str) -> List[Tuple[int, int, str, str, List[str]]]: ...
     def analyze_json(self, text: str) -> str: ...

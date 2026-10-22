@@ -63,9 +63,10 @@ jobs:
             exit 1
           fi
 
-          # The workspace crates that ship together; srx and python are versioned
-          # independently on purpose.
-          for manifest in nlprule/Cargo.toml build/Cargo.toml swift/Cargo.toml wasm/Cargo.toml; do
+          # The workspace crates that ship together; srx is versioned independently on
+          # purpose. python is checked too: its users must pair a wheel with the data zip of
+          # the same version.
+          for manifest in nlprule/Cargo.toml build/Cargo.toml swift/Cargo.toml wasm/Cargo.toml python/Cargo.toml; do
             crate_version=$(sed -n 's/^version = "\(.*\)"/\1/p' "$manifest" | head -n1)
             if [ "$crate_version" != "$version" ]; then
               echo "error: $manifest is at $crate_version, not $version" >&2

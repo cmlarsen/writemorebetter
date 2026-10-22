@@ -34,26 +34,52 @@ create_exception!(
     writemorebetter,
     StyleError,
     PyValueError,
-    "Invalid input to a style report. `kind` names the error; `report` and `message` are set \
-     when the error carries them."
+    "Invalid input to a style report. `kind` names the error (e.g. `invalidOptions`); `report` \
+     is the report's camelCase name or None; `message` is always set."
 );
 
+/// A `StyleError` whose `kind`, `report` (`None` when the error names no report) and `message`
+/// attributes are always set, matching `_native.pyi`.
+fn new_style_error(kind: &str, report: Option<&str>, message: String) -> PyErr {
+    Python::attach(|py| {
+        let err = StyleError::new_err(message.clone());
+        let value = err.value(py);
+        let _ = value.setattr("kind", kind);
+        let _ = value.setattr("report", report);
+        let _ = value.setattr("message", message);
+        err
+    })
+}
+
 fn style_error(error: writemorebetter_style::StyleError) -> PyErr {
-    let message = error.to_string();
+    let display = error.to_string();
     let fields = match serde_json::to_value(&error) {
         Ok(serde_json::Value::Object(fields)) => fields,
         _ => Default::default(),
     };
-    Python::attach(|py| {
-        let err = StyleError::new_err(message);
-        let value = err.value(py);
-        for (key, field) in fields {
-            if let Some(field) = field.as_str() {
-                let _ = value.setattr(key.as_str(), field);
-            }
+    let field = |key: &str| fields.get(key).and_then(|value| value.as_str());
+    new_style_error(
+        field("kind").unwrap_or("styleError"),
+        field("report"),
+        field("message").map_or(display, str::to_owned),
+    )
+}
+
+/// The style crate's camelCase report name for a snake_case one, e.g. `houseStyle`.
+fn camel_case(name: &str) -> String {
+    let mut out = String::with_capacity(name.len());
+    let mut upper = false;
+    for ch in name.chars() {
+        if ch == '_' {
+            upper = true;
+        } else if upper {
+            out.extend(ch.to_uppercase());
+            upper = false;
+        } else {
+            out.push(ch);
         }
-        err
-    })
+    }
+    out
 }
 
 fn to_json<T: Serialize>(value: &T) -> String {
@@ -290,15 +316,23 @@ impl Checker {
 #[pymethods]
 impl Checker {
     #[new]
-    #[pyo3(signature = (tokenizer_path, rules_path, spell_variant=None, profile=String::from("fiction")))]
+    /// `profile=None` (or `""`) applies no profile, like WASM's `undefined`.
+    #[pyo3(signature = (tokenizer_path, rules_path, spell_variant=None, profile=Some(String::from("fiction"))))]
     fn new(
         py: Python<'_>,
         tokenizer_path: PathBuf,
         rules_path: PathBuf,
         spell_variant: Option<String>,
-        profile: String,
+        profile: Option<String>,
     ) -> PyResult<Self> {
-        py.detach(|| Checker::load(tokenizer_path, rules_path, spell_variant, profile))
+        py.detach(|| {
+            Checker::load(
+                tokenizer_path,
+                rules_path,
+                spell_variant,
+                profile.unwrap_or_default(),
+            )
+        })
     }
 
     /// Returns `(start, end, source, message, replacements)` tuples; offsets are code points.
@@ -369,49 +403,57 @@ impl Checker {
         }))
     }
 
-    fn add_words(&self, words: Vec<String>) -> usize {
-        self.write_rules().add_words(words)
+    // Every lock below is taken with the GIL released: a writer waits for in-flight checks
+    // (which hold the read lock for as long as they run), and other Python threads must keep
+    // running meanwhile.
+
+    fn add_words(&self, py: Python<'_>, words: Vec<String>) -> usize {
+        py.detach(|| self.write_rules().add_words(words))
     }
 
-    fn remove_words(&self, words: Vec<String>) -> usize {
-        self.write_rules().remove_words(words)
+    fn remove_words(&self, py: Python<'_>, words: Vec<String>) -> usize {
+        py.detach(|| self.write_rules().remove_words(words))
     }
 
-    fn set_words(&self, words: Vec<String>) -> usize {
-        self.write_rules().set_words(words)
+    fn set_words(&self, py: Python<'_>, words: Vec<String>) -> usize {
+        py.detach(|| self.write_rules().set_words(words))
     }
 
-    fn clear_words(&self) {
-        self.write_rules().clear_words();
+    fn clear_words(&self, py: Python<'_>) {
+        py.detach(|| self.write_rules().clear_words());
     }
 
-    fn words(&self) -> Vec<String> {
-        self.read_rules().words()
+    fn words(&self, py: Python<'_>) -> Vec<String> {
+        py.detach(|| self.read_rules().words())
     }
 
     #[pyo3(signature = (mother_tongue=None))]
-    fn set_mother_tongue(&self, mother_tongue: Option<String>) {
-        self.write_rules()
-            .set_mother_tongue(mother_tongue.as_deref().filter(|code| !code.is_empty()));
+    fn set_mother_tongue(&self, py: Python<'_>, mother_tongue: Option<String>) {
+        py.detach(|| {
+            self.write_rules()
+                .set_mother_tongue(mother_tongue.as_deref().filter(|code| !code.is_empty()))
+        });
     }
 
-    fn mother_tongues(&self) -> Vec<String> {
-        self.read_rules()
-            .mother_tongues()
-            .into_iter()
-            .map(str::to_string)
-            .collect()
+    fn mother_tongues(&self, py: Python<'_>) -> Vec<String> {
+        py.detach(|| {
+            self.read_rules()
+                .mother_tongues()
+                .into_iter()
+                .map(str::to_string)
+                .collect()
+        })
     }
 
-    fn enable_rules(&self, selectors: Vec<String>) -> PyResult<usize> {
-        self.write_rules()
-            .enable_rules(&selectors)
+    fn enable_rules(&self, py: Python<'_>, selectors: Vec<String>) -> PyResult<usize> {
+        py.detach(|| self.write_rules().enable_rules(&selectors))
             .map_err(|err| PyValueError::new_err(err.to_string()))
     }
 
-    fn apply_preset(&self, preset: String) -> PyResult<usize> {
-        writemorebetter_style::preset::StylePreset::load(&preset)
-            .and_then(|preset| preset.apply_to_rules(&mut self.write_rules()))
+    fn apply_preset(&self, py: Python<'_>, preset: String) -> PyResult<usize> {
+        let preset =
+            writemorebetter_style::preset::StylePreset::load(&preset).map_err(style_error)?;
+        py.detach(|| preset.apply_to_rules(&mut self.write_rules()))
             .map_err(style_error)
     }
 }
@@ -443,11 +485,15 @@ impl StyleDocument {
         let doc = &self.inner;
         let options = options_json.as_deref();
         let extra = extra.as_deref();
+        // Binding-level input errors are StyleErrors too, so callers catch one type for any
+        // bad report input.
         let no_extra = |name: &str| {
             if extra.is_some() {
-                Err(PyValueError::new_err(format!(
-                    "the {name} report takes no second input"
-                )))
+                Err(new_style_error(
+                    "invalidOptions",
+                    Some(&camel_case(name)),
+                    format!("the {name} report takes no second input"),
+                ))
             } else {
                 Ok(())
             }
@@ -485,8 +531,10 @@ impl StyleDocument {
             "preset_checks" => no_extra(name).and_then(|_| run!(doc.preset_checks(options))),
             "preset" => {
                 if options.is_some() {
-                    return Err(PyValueError::new_err(
-                        "the preset report takes the preset only, not options",
+                    return Err(new_style_error(
+                        "invalidOptions",
+                        Some("preset"),
+                        "the preset report takes the preset only, not options".to_owned(),
                     ));
                 }
                 run!(doc.preset(extra))
@@ -494,7 +542,11 @@ impl StyleDocument {
             "alliteration" => no_extra(name).and_then(|_| run!(doc.alliteration(options))),
             "vague_words" => no_extra(name).and_then(|_| run!(doc.vague_words(options))),
             "hidden_verbs" => no_extra(name).and_then(|_| run!(doc.hidden_verbs(options))),
-            _ => Err(PyValueError::new_err(format!("unknown report: {name}"))),
+            _ => Err(new_style_error(
+                "unknownReport",
+                None,
+                format!("unknown report: {name}"),
+            )),
         }
     }
 }

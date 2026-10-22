@@ -68,8 +68,11 @@ too.
 - `spell_variant` selects a speller dictionary (`"en_US"`, `"en_GB"`, …); `None` or `""` leaves
   spelling off.
 - `profile`: `"fiction"` (the default) turns off rules that misfire on fiction voice — straight-to-
-  curly typography, dialogue informality, comma style, redundancy advice; `"default"` or `""`
-  disables nothing. See [`docs/PROFILE.md`](../docs/PROFILE.md).
+  curly typography, dialogue informality, comma style, redundancy advice; `None`, `""` or
+  `"default"` disables nothing. See
+  [`docs/PROFILE.md`](https://github.com/cmlarsen/writemorebetter/blob/main/docs/PROFILE.md).
+  Python and Swift default to `"fiction"`; the WASM constructor defaults to no profile when
+  `profile` is omitted, so pass it explicitly when results must match across bindings.
 - Errors: `OSError` (`FileNotFoundError`, …) when a file can't be read, `WriteMoreBetterError`
   when it is corrupt or from another version, `ValueError` for an unknown profile or variant.
 
@@ -113,9 +116,10 @@ style.preset("chicago-fiction")
 ```
 
 Reports return plain `dict`s with the same records as the WASM and Swift bindings (typed in
-[`wasm/style-results.d.ts`](../wasm/style-results.d.ts)), with spans as `{"start", "end"}`
-code-point ranges. Options are a `dict` (or JSON text); bad options raise `StyleError`, a
-`ValueError` with `kind` (e.g. `"invalidOptions"`) and, where set, `report` and `message`.
+[`wasm/style-results.d.ts`](https://github.com/cmlarsen/writemorebetter/blob/main/wasm/style-results.d.ts)),
+with spans as `{"start", "end"}` code-point ranges. Options are a `dict` (or JSON text). Any bad
+report input raises `StyleError`, a `ValueError` whose `kind` (e.g. `"invalidOptions"`),
+`report` (camelCase, or `None`) and `message` are always set.
 
 The reports are `echoes`, `repeated_phrases`, `cliches`, `dialogue_tags`, `sentence_length`,
 `sentence_starts`, `transitions`, `pronoun_starts`, `adverbs`, `sensory_balance`, `pacing`,
@@ -123,13 +127,14 @@ The reports are `echoes`, `repeated_phrases`, `cliches`, `dialogue_tags`, `sente
 `regional_spelling`, `emotion_tells`, `preset_checks`, `preset`, `alliteration`, `vague_words`
 and `hidden_verbs`. Module functions: `style_preset_names()`, `load_style_preset(name)`,
 `parse_style_preset(json)` and `title_case(headings)`. See
-[`docs/STYLE-REPORTS.md`](../docs/STYLE-REPORTS.md).
+[`docs/STYLE-REPORTS.md`](https://github.com/cmlarsen/writemorebetter/blob/main/docs/STYLE-REPORTS.md).
 
 ### Threads
 
-A `Checker` is thread-safe. `check`, `analyze` and the style reports release the GIL, so threads
-can check different paragraphs in parallel against one checker; the user-dictionary and rule
-methods take a write lock and apply to the next check.
+A `Checker` is thread-safe and every method releases the GIL while it works or waits, so threads
+can check different paragraphs in parallel against one checker. The user-dictionary and rule
+methods take a write lock, so they wait for checks already running (without blocking other
+Python threads) and apply to the next check.
 
 ## Testing
 
