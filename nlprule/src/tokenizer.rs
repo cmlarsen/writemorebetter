@@ -60,7 +60,7 @@ pub(crate) fn is_apostrophe(c: char) -> bool {
 }
 
 /// Whether `c` falls in one of the sorted, non-overlapping inclusive `ranges`.
-fn in_ranges(ranges: &[(char, char)], c: char) -> bool {
+pub(crate) fn in_ranges(ranges: &[(char, char)], c: char) -> bool {
     ranges
         .binary_search_by(|&(start, end)| {
             if end < c {

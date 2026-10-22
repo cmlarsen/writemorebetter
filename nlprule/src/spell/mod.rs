@@ -14,7 +14,7 @@ use unicode_categories::UnicodeCategories;
 
 use crate::{
     types::*,
-    utils::{apply_to_first, is_title_case, is_uppercase},
+    utils::{apply_to_first, has_latin_script, is_title_case, is_uppercase},
     Error,
 };
 
@@ -178,6 +178,11 @@ pub(crate) struct SpellLangOptions {
     /// rule filters work with spellchecking off. `None` leaves them without a speller.
     #[serde(default)]
     pub default_variant: Option<Variant>,
+    /// Whether the language is written in the Latin script. If so, a token with no Latin-script
+    /// character (a Greek, Cyrillic or CJK word quoted in English prose) is never misspelled, as
+    /// in LanguageTool's `isLatinScript()`. A token mixing scripts is still checked.
+    #[serde(default)]
+    pub latin_script: bool,
 }
 
 impl Default for SpellOptions {
@@ -493,9 +498,12 @@ impl VariantChecker {
     }
 
     /// Checks one word like [`VariantChecker::check_word`], also accepting a word whose
-    /// hyphen- or dash-separated parts are all correct.
+    /// hyphen- or dash-separated parts are all correct, or, in a Latin-script language, a word
+    /// with no Latin-script character. That last test looks at the whole word only, as
+    /// LanguageTool does: in `Привет-friend` the Cyrillic part alone does not pass.
     fn check_separated(&self, fst: &Map<&[u8]>, word: &str) -> bool {
-        let mut word_is_correct = self.check_word(fst, word, true);
+        let mut word_is_correct = self.check_word(fst, word, true)
+            || (self.lang_options.latin_script && !has_latin_script(word));
 
         if !word_is_correct {
             // there exist multiple valid hyphens, see https://jkorpela.fi/dashes.html
@@ -569,7 +577,9 @@ impl VariantChecker {
         };
 
         let all_caps = is_all_caps(word);
-        let convert_case = all_caps || is_title_case(word);
+        // As LanguageTool does, a word starting with a capital gets capitalized candidates, also
+        // when it is mixed case (`LeBRON` -> `Learn`, not `learn`).
+        let convert_case = all_caps || word.chars().next().is_some_and(char::is_uppercase);
         let query =
             levenshtein::Levenshtein::new(word, search_distance, self.options.prefix_length)
                 .fold_case(true);
