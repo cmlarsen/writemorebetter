@@ -785,6 +785,23 @@ fn guards_from_published_prose_shapes() {
         found("He came in (all, thought Ann, because Kit is cruel to him) and sat down, Ann thought, watching."),
         []
     );
+    // A noun after a non-reporting verb is its object, a sentence-initial name is not an order,
+    // and a leading tag's clause cut short by a quote is an aside.
+    for text in [
+        "I drank a small glass of wine, finished the paper, and left.",
+        "Harry, he reported, had promised to come.",
+        "He mentioned, it is true, “my dear friend Pope” every other second.",
+    ] {
+        let tagged: Vec<Found> = found(text)
+            .into_iter()
+            .filter(|f| f.source == VoiceSource::Tag)
+            .collect();
+        assert_eq!(tagged, [], "{text}");
+    }
+    assert_eq!(
+        found("I’m done, said the old man.")[0].tag.as_deref(),
+        Some("said the old man")
+    );
     // A second tag in the sentence bounds the next clause.
     assert_eq!(
         found("So it ends then, thought Ann, so it ends, she thought.")

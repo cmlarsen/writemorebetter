@@ -1,0 +1,849 @@
+{
+ "synthetic": {
+  "seed": 353,
+  "items": 624,
+  "hosts": 60,
+  "falsePositives": 0,
+  "groups": {
+   "negative": {
+    "items": 42,
+    "falsePositives": 0
+   },
+   "speech/apostrophe/curly": {
+    "items": 108,
+    "recall": 0.972
+   },
+   "speech/apostrophe/straight": {
+    "items": 132,
+    "recall": 0.97
+   },
+   "speech/kind/firstPersonPresent": {
+    "items": 69,
+    "recall": 1.0
+   },
+   "speech/kind/imperative": {
+    "items": 67,
+    "recall": 0.896
+   },
+   "speech/kind/split": {
+    "items": 80,
+    "recall": 1.0
+   },
+   "speech/kind/thirdPersonPresent": {
+    "items": 24,
+    "recall": 1.0
+   },
+   "speech/leading": {
+    "items": 80,
+    "recall": 0.938,
+    "exact": 0.938,
+    "falsePositives": 0
+   },
+   "speech/mid": {
+    "items": 80,
+    "recall": 1.0,
+    "exact": 1.0,
+    "falsePositives": 0
+   },
+   "speech/separator/,": {
+    "items": 113,
+    "recall": 0.965
+   },
+   "speech/separator/:": {
+    "items": 42,
+    "recall": 0.976
+   },
+   "speech/separator/—": {
+    "items": 85,
+    "recall": 0.976
+   },
+   "speech/trailing": {
+    "items": 80,
+    "recall": 0.975,
+    "exact": 0.975,
+    "falsePositives": 0
+   },
+   "thought/agreeingFirstPerson": {
+    "items": 4,
+    "falsePositives": 0
+   },
+   "thought/apostrophe/curly": {
+    "items": 206,
+    "recall": 0.956
+   },
+   "thought/apostrophe/straight": {
+    "items": 136,
+    "recall": 0.978
+   },
+   "thought/bare": {
+    "items": 80,
+    "recall": 1.0,
+    "exact": 1.0,
+    "falsePositives": 0
+   },
+   "thought/guard": {
+    "items": 8,
+    "recall": 1.0,
+    "exact": 1.0,
+    "falsePositives": 0
+   },
+   "thought/kind/firstPersonPast": {
+    "items": 8,
+    "recall": 0.5
+   },
+   "thought/kind/firstPersonPresent": {
+    "items": 62,
+    "recall": 1.0
+   },
+   "thought/kind/imperative": {
+    "items": 57,
+    "recall": 0.86
+   },
+   "thought/kind/question": {
+    "items": 109,
+    "recall": 1.0
+   },
+   "thought/kind/split": {
+    "items": 80,
+    "recall": 1.0
+   },
+   "thought/kind/thirdPersonPresent": {
+    "items": 26,
+    "recall": 1.0
+   },
+   "thought/leading": {
+    "items": 80,
+    "recall": 0.938,
+    "exact": 0.938,
+    "falsePositives": 0
+   },
+   "thought/mid": {
+    "items": 80,
+    "recall": 1.0,
+    "exact": 1.0,
+    "falsePositives": 0
+   },
+   "thought/separator/,": {
+    "items": 101,
+    "recall": 0.931
+   },
+   "thought/separator/:": {
+    "items": 43,
+    "recall": 0.93
+   },
+   "thought/separator/?": {
+    "items": 21,
+    "recall": 1.0
+   },
+   "thought/separator/U+2028": {
+    "items": 39,
+    "recall": 1.0
+   },
+   "thought/separator/space": {
+    "items": 49,
+    "recall": 1.0
+   },
+   "thought/separator/—": {
+    "items": 68,
+    "recall": 0.985
+   },
+   "thought/separator/…": {
+    "items": 21,
+    "recall": 0.952
+   },
+   "thought/swapPerson": {
+    "items": 4,
+    "recall": 1.0,
+    "exact": 1.0,
+    "falsePositives": 0
+   },
+   "thought/swapTense": {
+    "items": 6,
+    "recall": 1.0,
+    "exact": 1.0,
+    "falsePositives": 0
+   },
+   "thought/trailing": {
+    "items": 80,
+    "recall": 0.963,
+    "exact": 0.963,
+    "falsePositives": 0
+   }
+  }
+ },
+ "natural": {
+  "flags": 807,
+  "flagsByVoice": {
+   "thought": 72,
+   "speech": 735
+  },
+  "flagsByAnchor": {
+   "thought/trailing": 61,
+   "speech/trailing": 634,
+   "speech/leading": 7,
+   "thought/mid": 10,
+   "thought/leading": 1,
+   "speech/mid": 94
+  },
+  "flagsBySource": {
+   "story2": 1,
+   "moby": 2,
+   "to_the_lighthouse": 57,
+   "jacobs_room": 7,
+   "portrait": 234,
+   "ulysses": 405,
+   "voyage_out": 1,
+   "this_side_of_paradise": 1,
+   "main_street": 2,
+   "orlando": 10,
+   "sound_and_the_fury": 64,
+   "as_i_lay_dying": 4,
+   "a_farewell_to_arms": 19
+  },
+  "development": {
+   "all": {
+    "labeled": 150,
+    "kept": 148,
+    "precision": 0.993,
+    "wilsonLower": 0.963,
+    "droppedTrue": 2,
+    "droppedFalse": 0
+   },
+   "lemma/decide": {
+    "labeled": 1,
+    "kept": 1,
+    "precision": 1.0,
+    "wilsonLower": 0.207,
+    "droppedTrue": 0,
+    "droppedFalse": 0
+   },
+   "lemma/reflect": {
+    "labeled": 1,
+    "kept": 1,
+    "precision": 1.0,
+    "wilsonLower": 0.207,
+    "droppedTrue": 0,
+    "droppedFalse": 0
+   },
+   "lemma/think": {
+    "labeled": 24,
+    "kept": 24,
+    "precision": 1.0,
+    "wilsonLower": 0.862,
+    "droppedTrue": 0,
+    "droppedFalse": 0
+   },
+   "speech": {
+    "labeled": 121,
+    "kept": 119,
+    "precision": 0.992,
+    "wilsonLower": 0.954,
+    "droppedTrue": 2,
+    "droppedFalse": 0
+   },
+   "speech/leading": {
+    "labeled": 5,
+    "kept": 3,
+    "precision": 0.667,
+    "wilsonLower": 0.208,
+    "droppedTrue": 2,
+    "droppedFalse": 0
+   },
+   "speech/mid": {
+    "labeled": 49,
+    "kept": 49,
+    "precision": 1.0,
+    "wilsonLower": 0.927,
+    "droppedTrue": 0,
+    "droppedFalse": 0
+   },
+   "speech/trailing": {
+    "labeled": 67,
+    "kept": 67,
+    "precision": 1.0,
+    "wilsonLower": 0.946,
+    "droppedTrue": 0,
+    "droppedFalse": 0
+   },
+   "thought": {
+    "labeled": 29,
+    "kept": 29,
+    "precision": 1.0,
+    "wilsonLower": 0.883,
+    "droppedTrue": 0,
+    "droppedFalse": 0
+   },
+   "thought/leading": {
+    "labeled": 1,
+    "kept": 1,
+    "precision": 1.0,
+    "wilsonLower": 0.207,
+    "droppedTrue": 0,
+    "droppedFalse": 0
+   },
+   "thought/mid": {
+    "labeled": 3,
+    "kept": 3,
+    "precision": 1.0,
+    "wilsonLower": 0.438,
+    "droppedTrue": 0,
+    "droppedFalse": 0
+   },
+   "thought/trailing": {
+    "labeled": 25,
+    "kept": 25,
+    "precision": 1.0,
+    "wilsonLower": 0.867,
+    "droppedTrue": 0,
+    "droppedFalse": 0
+   }
+  },
+  "heldout": {
+   "all": {
+    "labeled": 100,
+    "kept": 94,
+    "precision": 0.979,
+    "wilsonLower": 0.926,
+    "droppedTrue": 3,
+    "droppedFalse": 3
+   },
+   "lemma/conclude": {
+    "labeled": 2,
+    "kept": 2,
+    "precision": 0.0,
+    "wilsonLower": 0.0,
+    "droppedTrue": 0,
+    "droppedFalse": 0
+   },
+   "lemma/muse": {
+    "labeled": 1,
+    "kept": 1,
+    "precision": 1.0,
+    "wilsonLower": 0.207,
+    "droppedTrue": 0,
+    "droppedFalse": 0
+   },
+   "lemma/think": {
+    "labeled": 22,
+    "kept": 19,
+    "precision": 1.0,
+    "wilsonLower": 0.832,
+    "droppedTrue": 0,
+    "droppedFalse": 3
+   },
+   "speech": {
+    "labeled": 71,
+    "kept": 68,
+    "precision": 1.0,
+    "wilsonLower": 0.947,
+    "droppedTrue": 3,
+    "droppedFalse": 0
+   },
+   "speech/leading": {
+    "labeled": 2,
+    "kept": 2,
+    "precision": 1.0,
+    "wilsonLower": 0.342,
+    "droppedTrue": 0,
+    "droppedFalse": 0
+   },
+   "speech/mid": {
+    "labeled": 32,
+    "kept": 29,
+    "precision": 1.0,
+    "wilsonLower": 0.883,
+    "droppedTrue": 3,
+    "droppedFalse": 0
+   },
+   "speech/trailing": {
+    "labeled": 37,
+    "kept": 37,
+    "precision": 1.0,
+    "wilsonLower": 0.906,
+    "droppedTrue": 0,
+    "droppedFalse": 0
+   },
+   "thought": {
+    "labeled": 29,
+    "kept": 26,
+    "precision": 0.923,
+    "wilsonLower": 0.759,
+    "droppedTrue": 0,
+    "droppedFalse": 3
+   },
+   "thought/mid": {
+    "labeled": 4,
+    "kept": 3,
+    "precision": 0.333,
+    "wilsonLower": 0.061,
+    "droppedTrue": 0,
+    "droppedFalse": 1
+   },
+   "thought/trailing": {
+    "labeled": 25,
+    "kept": 23,
+    "precision": 1.0,
+    "wilsonLower": 0.857,
+    "droppedTrue": 0,
+    "droppedFalse": 2
+   }
+  },
+  "heldout2": {
+   "all": {
+    "labeled": 100,
+    "kept": 97,
+    "precision": 0.99,
+    "wilsonLower": 0.944,
+    "droppedTrue": 0,
+    "droppedFalse": 3
+   },
+   "lemma/conclude": {
+    "labeled": 2,
+    "kept": 2,
+    "precision": 1.0,
+    "wilsonLower": 0.342,
+    "droppedTrue": 0,
+    "droppedFalse": 0
+   },
+   "lemma/think": {
+    "labeled": 7,
+    "kept": 7,
+    "precision": 1.0,
+    "wilsonLower": 0.646,
+    "droppedTrue": 0,
+    "droppedFalse": 0
+   },
+   "lemma/wonder": {
+    "labeled": 1,
+    "kept": 1,
+    "precision": 1.0,
+    "wilsonLower": 0.207,
+    "droppedTrue": 0,
+    "droppedFalse": 0
+   },
+   "speech": {
+    "labeled": 87,
+    "kept": 84,
+    "precision": 0.988,
+    "wilsonLower": 0.936,
+    "droppedTrue": 0,
+    "droppedFalse": 3
+   },
+   "speech/leading": {
+    "labeled": 3,
+    "kept": 2,
+    "precision": 1.0,
+    "wilsonLower": 0.342,
+    "droppedTrue": 0,
+    "droppedFalse": 1
+   },
+   "speech/trailing": {
+    "labeled": 84,
+    "kept": 82,
+    "precision": 0.988,
+    "wilsonLower": 0.934,
+    "droppedTrue": 0,
+    "droppedFalse": 2
+   },
+   "thought": {
+    "labeled": 13,
+    "kept": 13,
+    "precision": 1.0,
+    "wilsonLower": 0.772,
+    "droppedTrue": 0,
+    "droppedFalse": 0
+   },
+   "thought/mid": {
+    "labeled": 4,
+    "kept": 4,
+    "precision": 1.0,
+    "wilsonLower": 0.51,
+    "droppedTrue": 0,
+    "droppedFalse": 0
+   },
+   "thought/trailing": {
+    "labeled": 9,
+    "kept": 9,
+    "precision": 1.0,
+    "wilsonLower": 0.701,
+    "droppedTrue": 0,
+    "droppedFalse": 0
+   }
+  }
+ },
+ "misses": {
+  "labeled": 100,
+  "missedDirectThought": 6,
+  "missRate": 0.06
+ },
+ "narrationDelta": {
+  "story1": {
+   "modeNarrationSentences": 82,
+   "voiceNarrationSentences": 82,
+   "wordsMovedFromNarration": {},
+   "tagSpansPerThousandNarrationWords": {
+    "thought": 0.0,
+    "speech": 0.0
+   }
+  },
+  "story2": {
+   "modeNarrationSentences": 91,
+   "voiceNarrationSentences": 90,
+   "wordsMovedFromNarration": {
+    "thought": 0.00225
+   },
+   "tagSpansPerThousandNarrationWords": {
+    "thought": 0.562,
+    "speech": 0.0
+   }
+  },
+  "story3": {
+   "modeNarrationSentences": 83,
+   "voiceNarrationSentences": 83,
+   "wordsMovedFromNarration": {},
+   "tagSpansPerThousandNarrationWords": {
+    "thought": 0.0,
+    "speech": 0.0
+   }
+  },
+  "story4": {
+   "modeNarrationSentences": 100,
+   "voiceNarrationSentences": 100,
+   "wordsMovedFromNarration": {},
+   "tagSpansPerThousandNarrationWords": {
+    "thought": 0.0,
+    "speech": 0.0
+   }
+  },
+  "story5": {
+   "modeNarrationSentences": 85,
+   "voiceNarrationSentences": 85,
+   "wordsMovedFromNarration": {},
+   "tagSpansPerThousandNarrationWords": {
+    "thought": 0.0,
+    "speech": 0.0
+   }
+  },
+  "pride": {
+   "modeNarrationSentences": 2535,
+   "voiceNarrationSentences": 2535,
+   "wordsMovedFromNarration": {
+    "quoted": 0.00085
+   },
+   "tagSpansPerThousandNarrationWords": {
+    "thought": 0.0,
+    "speech": 0.0
+   }
+  },
+  "moby": {
+   "modeNarrationSentences": 5699,
+   "voiceNarrationSentences": 5695,
+   "wordsMovedFromNarration": {
+    "thought": 7e-05,
+    "quoted": 0.00105
+   },
+   "tagSpansPerThousandNarrationWords": {
+    "thought": 0.012,
+    "speech": 0.0
+   }
+  },
+  "blue_castle": {
+   "modeNarrationSentences": 3302,
+   "voiceNarrationSentences": 3288,
+   "wordsMovedFromNarration": {
+    "quoted": 0.00512
+   },
+   "tagSpansPerThousandNarrationWords": {
+    "thought": 0.0,
+    "speech": 0.0
+   }
+  },
+  "ackroyd": {
+   "modeNarrationSentences": 2071,
+   "voiceNarrationSentences": 2063,
+   "wordsMovedFromNarration": {
+    "quoted": 0.00228
+   },
+   "tagSpansPerThousandNarrationWords": {
+    "thought": 0.0,
+    "speech": 0.0
+   }
+  },
+  "thirty_nine_steps": {
+   "modeNarrationSentences": 1721,
+   "voiceNarrationSentences": 1717,
+   "wordsMovedFromNarration": {
+    "quoted": 0.00248
+   },
+   "tagSpansPerThousandNarrationWords": {
+    "thought": 0.0,
+    "speech": 0.0
+   }
+  },
+  "hound": {
+   "modeNarrationSentences": 1148,
+   "voiceNarrationSentences": 1146,
+   "wordsMovedFromNarration": {
+    "quoted": 0.00029
+   },
+   "tagSpansPerThousandNarrationWords": {
+    "thought": 0.0,
+    "speech": 0.0
+   }
+  },
+  "age_of_innocence": {
+   "modeNarrationSentences": 2619,
+   "voiceNarrationSentences": 2616,
+   "wordsMovedFromNarration": {
+    "quoted": 0.00526
+   },
+   "tagSpansPerThousandNarrationWords": {
+    "thought": 0.0,
+    "speech": 0.0
+   }
+  },
+  "silas_marner": {
+   "modeNarrationSentences": 1215,
+   "voiceNarrationSentences": 1213,
+   "wordsMovedFromNarration": {
+    "quoted": 0.00289
+   },
+   "tagSpansPerThousandNarrationWords": {
+    "thought": 0.0,
+    "speech": 0.0
+   }
+  },
+  "treasure_island": {
+   "modeNarrationSentences": 1759,
+   "voiceNarrationSentences": 1757,
+   "wordsMovedFromNarration": {
+    "quoted": 0.00238
+   },
+   "tagSpansPerThousandNarrationWords": {
+    "thought": 0.0,
+    "speech": 0.0
+   }
+  },
+  "styles_ch1": {
+   "modeNarrationSentences": 140,
+   "voiceNarrationSentences": 138,
+   "wordsMovedFromNarration": {
+    "quoted": 0.0026
+   },
+   "tagSpansPerThousandNarrationWords": {
+    "thought": 0.0,
+    "speech": 0.0
+   }
+  },
+  "gatsby_ch1": {
+   "modeNarrationSentences": 181,
+   "voiceNarrationSentences": 181,
+   "wordsMovedFromNarration": {
+    "quoted": 0.00255
+   },
+   "tagSpansPerThousandNarrationWords": {
+    "thought": 0.0,
+    "speech": 0.0
+   }
+  },
+  "sign_ch1": {
+   "modeNarrationSentences": 30,
+   "voiceNarrationSentences": 29,
+   "wordsMovedFromNarration": {},
+   "tagSpansPerThousandNarrationWords": {
+    "thought": 0.0,
+    "speech": 0.0
+   }
+  },
+  "avonlea_ch1": {
+   "modeNarrationSentences": 60,
+   "voiceNarrationSentences": 60,
+   "wordsMovedFromNarration": {
+    "quoted": 0.00537
+   },
+   "tagSpansPerThousandNarrationWords": {
+    "thought": 0.0,
+    "speech": 0.0
+   }
+  },
+  "to_the_lighthouse": {
+   "modeNarrationSentences": 3270,
+   "voiceNarrationSentences": 3213,
+   "wordsMovedFromNarration": {
+    "thought": 0.00483,
+    "speech": 0.00138,
+    "quoted": 0.00311
+   },
+   "tagSpansPerThousandNarrationWords": {
+    "thought": 0.633,
+    "speech": 0.206
+   }
+  },
+  "jacobs_room": {
+   "modeNarrationSentences": 2391,
+   "voiceNarrationSentences": 2379,
+   "wordsMovedFromNarration": {
+    "thought": 0.00097,
+    "speech": 0.00045,
+    "quoted": 0.00177
+   },
+   "tagSpansPerThousandNarrationWords": {
+    "thought": 0.122,
+    "speech": 0.02
+   }
+  },
+  "portrait": {
+   "modeNarrationSentences": 5699,
+   "voiceNarrationSentences": 5494,
+   "wordsMovedFromNarration": {
+    "thought": 0.00034,
+    "speech": 0.01796
+   },
+   "tagSpansPerThousandNarrationWords": {
+    "thought": 0.047,
+    "speech": 2.69
+   }
+  },
+  "ulysses": {
+   "modeNarrationSentences": 19134,
+   "voiceNarrationSentences": 18743,
+   "wordsMovedFromNarration": {
+    "thought": 0.00034,
+    "speech": 0.01042
+   },
+   "tagSpansPerThousandNarrationWords": {
+    "thought": 0.013,
+    "speech": 1.753
+   }
+  },
+  "sons_and_lovers": {
+   "modeNarrationSentences": 9245,
+   "voiceNarrationSentences": 9226,
+   "wordsMovedFromNarration": {
+    "quoted": 0.00119
+   },
+   "tagSpansPerThousandNarrationWords": {
+    "thought": 0.0,
+    "speech": 0.0
+   }
+  },
+  "voyage_out": {
+   "modeNarrationSentences": 4049,
+   "voiceNarrationSentences": 4037,
+   "wordsMovedFromNarration": {
+    "speech": 4e-05,
+    "quoted": 0.0009
+   },
+   "tagSpansPerThousandNarrationWords": {
+    "thought": 0.0,
+    "speech": 0.01
+   }
+  },
+  "night_and_day": {
+   "modeNarrationSentences": 4806,
+   "voiceNarrationSentences": 4800,
+   "wordsMovedFromNarration": {
+    "quoted": 0.0011
+   },
+   "tagSpansPerThousandNarrationWords": {
+    "thought": 0.0,
+    "speech": 0.0
+   }
+  },
+  "women_in_love": {
+   "modeNarrationSentences": 8513,
+   "voiceNarrationSentences": 8506,
+   "wordsMovedFromNarration": {
+    "quoted": 0.00055
+   },
+   "tagSpansPerThousandNarrationWords": {
+    "thought": 0.0,
+    "speech": 0.0
+   }
+  },
+  "howards_end": {
+   "modeNarrationSentences": 3838,
+   "voiceNarrationSentences": 3823,
+   "wordsMovedFromNarration": {
+    "quoted": 0.00403
+   },
+   "tagSpansPerThousandNarrationWords": {
+    "thought": 0.0,
+    "speech": 0.0
+   }
+  },
+  "this_side_of_paradise": {
+   "modeNarrationSentences": 2318,
+   "voiceNarrationSentences": 2304,
+   "wordsMovedFromNarration": {
+    "speech": 0.00012,
+    "quoted": 0.00773
+   },
+   "tagSpansPerThousandNarrationWords": {
+    "thought": 0.0,
+    "speech": 0.02
+   }
+  },
+  "main_street": {
+   "modeNarrationSentences": 5834,
+   "voiceNarrationSentences": 5801,
+   "wordsMovedFromNarration": {
+    "thought": 9e-05,
+    "quoted": 0.01855
+   },
+   "tagSpansPerThousandNarrationWords": {
+    "thought": 0.02,
+    "speech": 0.0
+   }
+  },
+  "orlando": {
+   "modeNarrationSentences": 2961,
+   "voiceNarrationSentences": 2948,
+   "wordsMovedFromNarration": {
+    "thought": 0.00088,
+    "speech": 0.0005,
+    "quoted": 0.00514
+   },
+   "tagSpansPerThousandNarrationWords": {
+    "thought": 0.094,
+    "speech": 0.04
+   }
+  },
+  "sound_and_the_fury": {
+   "modeNarrationSentences": 4181,
+   "voiceNarrationSentences": 4109,
+   "wordsMovedFromNarration": {
+    "thought": 0.0005,
+    "speech": 0.00575,
+    "quoted": 0.00213
+   },
+   "tagSpansPerThousandNarrationWords": {
+    "thought": 0.061,
+    "speech": 0.915
+   }
+  },
+  "as_i_lay_dying": {
+   "modeNarrationSentences": 2561,
+   "voiceNarrationSentences": 2557,
+   "wordsMovedFromNarration": {
+    "speech": 0.00064
+   },
+   "tagSpansPerThousandNarrationWords": {
+    "thought": 0.0,
+    "speech": 0.092
+   }
+  },
+  "a_farewell_to_arms": {
+   "modeNarrationSentences": 3934,
+   "voiceNarrationSentences": 3910,
+   "wordsMovedFromNarration": {
+    "speech": 0.00203,
+    "quoted": 0.00055
+   },
+   "tagSpansPerThousandNarrationWords": {
+    "thought": 0.0,
+    "speech": 0.351
+   }
+  }
+ }
+}

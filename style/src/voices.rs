@@ -45,6 +45,11 @@ const REFLEXIVES: [&str; 8] = [
     "themselves",
     "oneself",
 ];
+/// Verbs that invert with a noun subject: *said the old man*, *thought the doctor*.
+const INVERTING: [&str; 14] = [
+    "say", "ask", "reply", "answer", "cry", "think", "whisper", "exclaim", "shout", "add",
+    "continue", "repeat", "observe", "remark",
+];
 const COORDINATORS: [&str; 7] = ["and", "but", "or", "nor", "so", "then", "yet"];
 
 fn parse_list(data: &'static str) -> HashSet<&'static str> {
@@ -508,11 +513,18 @@ impl<'a> Parser<'a, '_> {
         // VERB SUBJECT: *thought Anne*, after the clause only.
         if parsed.is_none() && position == Position::Trailing {
             if let Some((Tense::Past, reflexive)) = self.verb(at, lexicon, position) {
-                // The longest name: *thought Lily Briscoe*, not *thought Lily*.
+                // The longest name: *thought Lily Briscoe*, not *thought Lily*. A noun subject
+                // inverts only after a reporting verb (*said the old man*); after another verb it
+                // is an object (*finished the paper*).
+                let noun_subject_ok = items[at].token.readings.iter().any(|reading| {
+                    reading.pos == "VBD"
+                        && INVERTING.contains(&reading.lemma.to_lowercase().as_str())
+                });
                 if let Some(&(end, person, gender)) = self
                     .subjects(at + 1, position)
                     .iter()
                     .filter(|(_, person, _)| *person == NarrativePerson::Third)
+                    .filter(|_| noun_subject_ok || !is_determiner(items[at + 1].token))
                     .max_by_key(|(end, _, _)| *end)
                 {
                     let tag = Tag {
@@ -648,7 +660,7 @@ impl<'a> Parser<'a, '_> {
                     chain.class,
                     ChainClass::Present | ChainClass::Modal { present: true }
                 )
-            }) || self.imperative(&tokens));
+            }) || self.imperative(clause));
         match (person, tense) {
             (true, true) => Some(VoiceShift::Both),
             (true, false) => Some(VoiceShift::Person),
@@ -660,19 +672,28 @@ impl<'a> Parser<'a, '_> {
     /// `imperative_start`, plus a capitalized verb the tagger read only as a name after a tag
     /// (*She thought, Stay calm.*): its lowercase form must have a bare-verb reading in the
     /// lexicon, and the chunker must have opened a verb phrase on it.
-    fn imperative(&self, tokens: &[&Token]) -> bool {
-        if imperative_start(tokens) {
+    fn imperative(&self, range: &Range<usize>) -> bool {
+        let tokens = self.tokens(range);
+        if imperative_start(&tokens) {
             return true;
         }
-        let Some(first) = tokens.iter().find(|token| token.is_word) else {
+        let Some(offset) = tokens.iter().position(|token| token.is_word) else {
             return false;
         };
+        let first = tokens[offset];
+        // Only after a tag's comma or colon: a sentence-initial capital is a name (*Harry, he
+        // reported, …*), and the tagger reads a sentence-initial verb as a verb anyway.
+        let at = range.start + offset;
+        let after_tag = at > 0
+            && self.items[at - 1].sentence == self.items[at].sentence
+            && matches!(self.items[at - 1].token.text.as_str(), "," | ":");
         let named = !first.readings.is_empty()
             && first
                 .readings
                 .iter()
                 .all(|reading| reading.pos.starts_with("NNP"));
         named
+            && after_tag
             && capitalized_word(first)
             && first.chunks.iter().any(|chunk| chunk == "B-VP")
             && self
@@ -730,7 +751,7 @@ impl<'a> Parser<'a, '_> {
             .rev()
             .find(|token| !matches!(token.text.as_str(), "”" | "’" | "\"" | "'" | ")"))
             .is_some_and(|token| token.text.contains(['?', '!', '…']));
-        ends || self.imperative(&tokens)
+        ends || self.imperative(range)
             || (0..tokens.len()).any(|index| {
                 pronoun_person(&tokens, index).map(|(person, _)| person)
                     == Some(NarrativePerson::First)
@@ -917,15 +938,19 @@ impl<'a> Parser<'a, '_> {
                 // prays now, she says, that…*: a coordinator, a second predicate or a second tag
                 // continues the narration instead of opening the tag's content.
                 let opening = items[clause.clone()].iter().position(|item| is_word(item));
-                let continued = opening.is_some_and(|offset| {
-                    let first = &items[start + offset];
-                    COORDINATORS.contains(&word(first).as_str())
-                        || predicate_opening(first.token)
-                        || [Lexicon::Thought, Lexicon::Speech].iter().any(|&lexicon| {
-                            self.tag(start + offset, lexicon, Position::Trailing)
-                                .is_some()
-                        })
-                });
+                // *He mentioned, it is true, “my dear friend”*: a clause cut short by a quote is a
+                // parenthetical aside, not the tag's content.
+                let aside = end < bounds.end && items[end].blocked;
+                let continued = aside
+                    || opening.is_some_and(|offset| {
+                        let first = &items[start + offset];
+                        COORDINATORS.contains(&word(first).as_str())
+                            || predicate_opening(first.token)
+                            || [Lexicon::Thought, Lexicon::Speech].iter().any(|&lexicon| {
+                                self.tag(start + offset, lexicon, Position::Trailing)
+                                    .is_some()
+                            })
+                    });
                 if let Some(shift) = self.shift(&clause, &tag).filter(|_| !continued) {
                     let mut end = end;
                     if thought && end == bounds.end {

@@ -426,10 +426,10 @@ pub fn imperative_start(tokens: &[&Token]) -> bool {
     if token.is_skipped || readings(token, "VB").next().is_none() {
         return false;
     }
-    // Chunked as a verb phrase, or with no noun or adjective reading whatever the chunk
-    // (*Breathe slowly* is chunked as a noun phrase).
+    // Chunked as a verb phrase, or with no noun, name or adjective reading whatever the chunk
+    // (*Breathe slowly* is chunked as a noun phrase; *Harry* is a name and a verb).
     let chunked = chunk(token, "B-VP");
-    let bare = !common_noun(token) && !has_pos(token, "JJ");
+    let bare = !common_noun(token) && !has_pos(token, "JJ") && !has_pos(token, "NNP");
     // *Do you…*, *Have you…*: a question, not an order.
     let question = tokens
         .get(first + 1)
