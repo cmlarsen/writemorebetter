@@ -7,6 +7,7 @@ use std::{
     convert::TryFrom,
     hash::{Hash, Hasher},
 };
+use unicode_normalization::UnicodeNormalization;
 
 #[derive(Clone, Debug)]
 pub struct LevenshteinState {
@@ -49,6 +50,8 @@ pub struct Levenshtein {
     distance: usize,
     prefix: usize,
     fold_case: bool,
+    // the base letter of each query character (see `base`) if accents are ignored, else empty
+    query_base: Vec<char>,
     // zero-cost edits from replacement pairs, indexed by the query position where they start
     edits: Vec<Vec<Edit>>,
 }
@@ -60,6 +63,7 @@ impl Levenshtein {
             distance,
             prefix,
             fold_case: false,
+            query_base: Vec::new(),
             edits: Vec::new(),
         }
     }
@@ -80,6 +84,18 @@ impl Levenshtein {
             self.query.iter_mut().for_each(|c| *c = fold(*c));
         }
         self.fold_case = fold_case;
+        self
+    }
+
+    /// Lets a key character match a query character with the same base letter (`é` matches `e`
+    /// and `ë`), as Morfologik's `areEqual` does for dictionaries that ignore diacritics. Must be
+    /// called after [Levenshtein::fold_case].
+    pub fn ignore_diacritics(mut self, ignore: bool) -> Self {
+        self.query_base = if ignore {
+            self.query.iter().map(|c| base(*c)).collect()
+        } else {
+            Vec::new()
+        };
         self
     }
 
@@ -106,6 +122,15 @@ fn fold(c: char) -> char {
         (Some(lower), None) => lower,
         _ => c,
     }
+}
+
+/// The first character of `c`'s canonical decomposition (NFD): `é` -> `e`. `ø` has none, so it
+/// stays `ø`.
+fn base(c: char) -> char {
+    if c.is_ascii() {
+        return c;
+    }
+    c.nfd().next().unwrap_or(c)
 }
 
 fn utf8_width(lead: u8) -> usize {
@@ -174,6 +199,7 @@ impl Automaton for Levenshtein {
             let raw = c;
             let c = self.normalize(c);
 
+            let c_base = if self.query_base.is_empty() { c } else { base(c) };
             let row = &state.row;
             let mut next_row = state.row.to_vec();
 
@@ -222,7 +248,9 @@ impl Automaton for Levenshtein {
             next_row[0] = state.n + 1;
 
             for i in 1..next_row.len() {
-                let mut cost = if c == self.query[i - 1] {
+                let same = c == self.query[i - 1]
+                    || self.query_base.get(i - 1).is_some_and(|q| *q == c_base);
+                let mut cost = if same {
                     row[i - 1]
                 } else {
                     min(
@@ -361,6 +389,36 @@ mod tests {
             Some(0)
         );
         assert_eq!(distance("\u{c9}LCAIR", "\u{e9}clair", true), Some(1));
+    }
+
+    #[test]
+    fn ignore_diacritics_matches_base_letters() {
+        let distance = |query: &str, key: &str| {
+            let automaton = Levenshtein::new(query, 2, 0)
+                .fold_case(true)
+                .ignore_diacritics(true);
+            let mut state = automaton.start();
+            for byte in key.bytes() {
+                state = automaton.accept(&state, byte);
+            }
+            state.map(|state| state.dist())
+        };
+        assert_eq!(distance("Zoe", "Zo\u{eb}"), Some(0));
+        assert_eq!(distance("Zo\u{e9}", "Zo\u{eb}"), Some(0));
+        assert_eq!(distance("REN\u{c9}E", "Renee"), Some(0));
+        assert_eq!(distance("NA\u{cf}VEE", "naive"), Some(1));
+        assert_eq!(distance("Nescafee", "Nescaf\u{e9}"), Some(1));
+        // `\u{f8}` has no decomposition.
+        assert_eq!(distance("Soren", "S\u{f8}ren"), Some(1));
+        // Punctuation is unaffected.
+        assert_eq!(distance("\u{2019}\u{2014}\u{2026}", "'-."), None);
+        // Off unless asked for.
+        let automaton = Levenshtein::new("Zoe", 2, 0).fold_case(true);
+        let mut state = automaton.start();
+        for byte in "Zo\u{eb}".bytes() {
+            state = automaton.accept(&state, byte);
+        }
+        assert_eq!(state.map(|state| state.dist()), Some(1));
     }
 
     #[test]

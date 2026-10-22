@@ -111,6 +111,13 @@ struct Candidate {
     tier: usize,
     distance: usize,
     freq: usize,
+    /// Whether the candidate came from the edit-distance search rather than a dictionary lookup
+    /// of the word's own case forms. Among equally good candidates, Morfologik lists the
+    /// lookups first (`ren\u{e9}e` -> Ren\u{e9}e, Renee), then the search results in dictionary
+    /// order (`Ren\u{e9}ee` -> Renee, Ren\u{e9}e).
+    searched: bool,
+    /// The dictionary entry, before [Candidate::term] restored the word's case.
+    key: String,
     term: String,
 }
 impl PartialOrd for Candidate {
@@ -124,6 +131,8 @@ impl Ord for Candidate {
             .cmp(&other.tier)
             .then_with(|| self.distance.cmp(&other.distance))
             .then_with(|| other.freq.cmp(&self.freq))
+            .then_with(|| self.searched.cmp(&other.searched))
+            .then_with(|| self.key.cmp(&other.key))
             .then_with(|| self.term.cmp(&other.term))
     }
 }
@@ -195,10 +204,22 @@ pub(crate) struct SpellLangOptions {
 
 /// Settings of one variant's speller dictionary, read from its Morfologik `.info` file at
 /// compile time. Part of the (LGPL) data binary.
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub(crate) struct VariantInfo {
     /// `fsa.dict.speller.replacement-pairs`: letter groups commonly misspelled for one another.
     pub replacement_pairs: ReplacementPairs,
+    /// `fsa.dict.speller.ignore-diacritics`: an accent difference (`e`/`é`) costs no edit.
+    pub ignore_diacritics: bool,
+}
+
+impl Default for VariantInfo {
+    /// Morfologik's defaults.
+    fn default() -> Self {
+        VariantInfo {
+            replacement_pairs: ReplacementPairs::default(),
+            ignore_diacritics: true,
+        }
+    }
 }
 
 impl Default for SpellOptions {
@@ -616,10 +637,10 @@ impl VariantChecker {
         let mut out = BinaryHeap::with_capacity(self.options.top_n);
         let pairs = &self.info.replacement_pairs;
         // As in Morfologik, the longer replacement pairs rewrite the word (`enuff` -> `enough`):
-        // a rewrite that is a word is a candidate at distance 0, and the word and its first
-        // rewrites are all searched.
+        // a rewrite, or a case form of the word or a rewrite, that is a word is a candidate at
+        // distance 0, and the word and its first rewrites are all searched.
         let checked = pairs.rewrites(word);
-        for rewrite in checked.iter().skip(1) {
+        for rewrite in &checked {
             let lower = rewrite.to_lowercase();
             let forms = [
                 rewrite.clone(),
@@ -628,8 +649,11 @@ impl VariantChecker {
                 lower,
             ];
             for form in forms {
+                if form == word {
+                    continue;
+                }
                 if let Some(id) = self.lookup(fst, &form) {
-                    self.push(&mut out, restore_case(form), 0, 0, id.freq());
+                    self.push(&mut out, form, &restore_case, 0, 0, id.freq(), false);
                 }
             }
         }
@@ -649,7 +673,8 @@ impl VariantChecker {
                     self.options.prefix_length,
                 )
                 .replacements(pairs)
-                .fold_case(true);
+                .fold_case(true)
+                .ignore_diacritics(self.info.ignore_diacritics);
 
                 self.push_candidates(out, fst, &query, &restore_case);
                 if !self.user.suggestion_fst.is_empty() {
@@ -700,26 +725,30 @@ impl VariantChecker {
 
             let state = s.expect("matching levenshtein state is always `Some`.");
 
-            let term =
-                recase(String::from_utf8(k.to_vec()).expect("fst keys must be valid utf-8."));
-            self.push(out, term, state.dist(), state.reach(), id.freq());
+            let key = String::from_utf8(k.to_vec()).expect("fst keys must be valid utf-8.");
+            self.push(out, key, recase, state.dist(), state.reach(), id.freq(), true);
         }
     }
 
     /// Pushes one candidate into `out`, keeping the best entry per term and at most `top_n`.
+    #[allow(clippy::too_many_arguments)]
     fn push(
         &self,
         out: &mut BinaryHeap<Candidate>,
-        term: String,
+        key: String,
+        recase: &dyn Fn(String) -> String,
         distance: usize,
         reach: usize,
         freq: usize,
+        searched: bool,
     ) {
         let candidate = Candidate {
             tier: reach.max(1),
             distance,
             freq,
-            term,
+            searched,
+            term: recase(key.clone()),
+            key,
         };
         if let Some(existing) = out.iter().find(|x| x.term == candidate.term) {
             if *existing <= candidate {

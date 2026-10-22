@@ -169,6 +169,11 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   defaults to 0, no limit, as in LanguageTool: "Tyerman" gets German, "Davenant" gets Covenant,
   "IPHONE" gets PRONE. The distance-2 search now runs only when distance 1 finds nothing, which
   pays for most of the wider search (#195).
+- **Suggestions ignore accents as LanguageTool does.** The English dictionaries set
+  `fsa.dict.speller.ignore-diacritics`, now read into the data binary: a letter matches the same
+  letter with any accent at no cost ("Citroen" gets Citroën, "Nescafee" Nescafé, "Zoee" Zoé and
+  Zoë). Ties now keep dictionary order with the word's own case forms first, as in Morfologik
+  ("renée" gets Renée, then Renee). Probe top-1 agreement 88.0% → 91.9% (#219).
 
 ### Removed
 

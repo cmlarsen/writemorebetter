@@ -224,7 +224,8 @@ pub const TOKENIZER_FORMAT_VERSION: u32 = 18;
 /// Version 33: `SpellLangOptions::latin_script` was added.
 /// Version 34: the `ConsistentApostrophes` builtin was added.
 /// Version 35: `Spell::multitoken` stores each spelling once, indexed from both of its lookups.
-/// Version 36: `Spell::variant_info` (the speller dictionaries' replacement pairs) was added.
+/// Version 36: `Spell::variant_info` (the speller dictionaries' replacement pairs and
+/// ignore-diacritics setting) was added.
 pub const RULES_FORMAT_VERSION: u32 = 36;
 
 /// The longest engine version string accepted in a binary header.

@@ -926,15 +926,17 @@ fn speller_accepts_and_suggests_words_from_the_global_list() {
 #[test]
 fn speller_folds_the_case_of_accented_letters() {
     let speller = RULES.spell().speller().unwrap();
+    // An accent difference costs no edit (see `speller_ignores_diacritics`), so the unaccented
+    // forms follow at the same distance, as in LanguageTool 6.6.
     assert_eq!(
         speller.suggest("\u{c9}CLAIRR", 5),
-        vec!["\u{c9}CLAIR", "\u{c9}CLAIRS"]
+        vec!["\u{c9}CLAIR", "\u{c9}CLAIRS", "ECLAIR", "ECLAIRS"]
     );
     assert_eq!(
         speller.suggest("\u{c9}clairr", 5),
-        vec!["\u{c9}clair", "\u{c9}clairs"]
+        vec!["Declarer", "\u{c9}clair", "\u{c9}clairs", "Eclair", "Eclairs"]
     );
-    assert_eq!(speller.suggest("NA\u{cf}VEE", 1), vec!["NA\u{cf}VE"]);
+    assert_eq!(speller.suggest("NA\u{cf}VEE", 2), vec!["NAIVE", "NA\u{cf}VE"]);
     assert_eq!(speller.suggest("S\u{d8}RENN", 5), vec!["S\u{d8}REN"]);
     assert_eq!(
         speller.suggest("WH\u{152}L", 5),
@@ -961,7 +963,49 @@ fn speller_folds_the_case_of_accented_letters() {
         first_replacements,
         vec![
             ("S\u{d8}RENN", "S\u{d8}REN".to_string()),
-            ("\u{c9}clairr", "\u{c9}clair".to_string()),
+            ("\u{c9}clairr", "Declarer".to_string()),
+        ]
+    );
+}
+
+#[test]
+fn speller_ignores_diacritics() {
+    // LanguageTool 6.6 (`We saw <word> there.`, en-US): the dictionary sets
+    // `fsa.dict.speller.ignore-diacritics`, so a letter matches the same letter with any accent
+    // at no cost, and accented and plain candidates rank by frequency alone. `\u{f8}` has no
+    // decomposition, so it does not match `o`.
+    let speller = RULES.spell().speller().unwrap();
+    for (word, expected) in [
+        ("Zoee", &["Zone", "Zoe", "ZEE", "Zoey", "Zo\u{e9}", "Zo\u{eb}"][..]),
+        ("Zo\u{eb}e", &["Zone", "Zoe", "ZEE", "Zoey", "Zo\u{e9}", "Zo\u{eb}"][..]),
+        ("REN\u{c9}EE", &["RENEE", "REN\u{c9}E", "RENEGE"][..]),
+        // Ties keep dictionary order, except that the word's own case forms come first.
+        ("Ren\u{e9}ee", &["Renee", "Ren\u{e9}e", "Renege"][..]),
+        ("ren\u{e9}e", &["Ren\u{e9}e", "Renee", "renew", "Ren\u{e9}", "Rene"][..]),
+        ("zo\u{eb}", &["Zoe", "Zo\u{eb}", "Zo\u{e9}", "zone", "Joe"][..]),
+        ("Nescafee", &["Nescaf\u{e9}"][..]),
+        ("Citroen", &["Citro\u{eb}n", "Citron", "Citro\u{eb}ns"][..]),
+        ("Soreen", &["Screen", "Doreen", "Noreen", "Moreen"][..]),
+        ("S\u{d8}RENN", &["S\u{d8}REN"][..]),
+    ] {
+        assert_eq!(speller.suggest(word, expected.len()), expected, "{}", word);
+    }
+
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    rules.spell_mut().options_mut().variant = Some(rules.spell().variant("en_US").unwrap());
+    let text = "\u{201c}Zoee\u{2019}s Citroen\u{2014}gone\u{2026}\u{201d}\u{2028}\u{2018}Nescafee?\u{2019}";
+    let first_replacements: Vec<(&str, String)> = rules
+        .suggest(text, &*TOKENIZER)
+        .into_iter()
+        .filter(|x| x.source().starts_with("SPELLCHECK"))
+        .map(|x| (&text[x.span().byte().clone()], x.replacements()[0].clone()))
+        .collect();
+    assert_eq!(
+        first_replacements,
+        vec![
+            ("Zoee", "Zone".to_string()),
+            ("Citroen", "Citro\u{eb}n".to_string()),
+            ("Nescafee", "Nescaf\u{e9}".to_string()),
         ]
     );
 }
@@ -998,7 +1042,9 @@ fn speller_suggests_the_name_first_for_a_lowercased_name() {
         flags,
         vec![
             ("s\u{f8}ren", strings(&["S\u{f8}ren", "siren"])),
-            ("zo\u{eb}", strings(&["Zo\u{eb}", "zoo"])),
+            // As in LanguageTool 6.6: `Zoe` costs no edit with diacritics ignored and is
+            // more frequent.
+            ("zo\u{eb}", strings(&["Zoe", "Zo\u{eb}"])),
         ]
     );
 }

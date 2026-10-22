@@ -156,7 +156,16 @@ impl Spell {
             })
             .unwrap_or_default();
 
-        Ok(VariantInfo { replacement_pairs })
+        let ignore_diacritics = properties
+            .get("fsa.dict.speller.ignore-diacritics")
+            .map_or(VariantInfo::default().ignore_diacritics, |value| {
+                value.eq_ignore_ascii_case("true")
+            });
+
+        Ok(VariantInfo {
+            replacement_pairs,
+            ignore_diacritics,
+        })
     }
 
     fn casing_variants(entry: &str) -> Vec<String> {
