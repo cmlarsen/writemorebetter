@@ -597,10 +597,19 @@ impl<'t> IncompleteToken<'t> {
         self.sent_end_at = at.map(|at| at - removed);
     }
 
-    /// Moves the `SENT_END` reading after all others, as LanguageTool does when it rebuilds a
-    /// token's readings.
+    /// Puts the `SENT_END` reading after the current readings, as LanguageTool does when it
+    /// rebuilds a token's readings. Call it after the rebuild: readings added later come after
+    /// `SENT_END`, as in LanguageTool.
     pub(crate) fn put_sent_end_last(&mut self) {
-        self.sent_end_at = None;
+        self.sent_end_at = Some(self.word.tags.len());
+    }
+
+    /// Drops every reading but `SENT_END`, as a LanguageTool `unify` does when its filter matches
+    /// only the `SENT_END` reading of the sentence's last token. LanguageTool then counts the
+    /// token as untagged, so it reads `[SENT_END, UNKNOWN]` like any untagged final token.
+    pub(crate) fn keep_only_sent_end(&mut self) {
+        self.word.tags.clear();
+        self.sent_end_at = Some(0);
     }
 
     /// Shift the span of this token right by the specified amount.

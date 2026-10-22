@@ -4833,6 +4833,73 @@ fn scope_next_exception_sees_sent_end_as_the_first_reading() {
     }
 }
 
+/// LanguageTool appends `SENT_END` after the readings a disambiguation rule rebuilds: a filter
+/// that adds a reading the token lacked (`1847` -> `CD`), a multiword replacement (`U.S.`, with
+/// the later `PCT` after it) and a unify, whose `SENT_END|VB.` filter keeps only `SENT_END` on a
+/// final punctuation mark. Orders checked against LanguageTool 6.6 (`--taggeronly`, -l en-US):
+/// `1847[1847/CD,</S>]`, `.[U.S./NNP,</S>,./PCT]`, `![</S>]`, `…[</S>]`, `—[</S>]`.
+#[test]
+fn sent_end_follows_the_readings_a_rule_rebuilds() {
+    let strs = |tags: &[&str]| tags.iter().map(|x| x.to_string()).collect::<Vec<_>>();
+    for (text, last) in [
+        ("The year was 1847", strs(&["CD", "SENT_END"])),
+        (
+            "She sighed.\u{2028}The year was 1847",
+            strs(&["CD", "SENT_END"]),
+        ),
+        ("It was the U.S.", strs(&["NNP", "SENT_END", "PCT"])),
+        ("How a fugitive!", strs(&["SENT_END", "UNKNOWN"])),
+        (
+            "It wasn\u{2019}t a fugitive!",
+            strs(&["SENT_END", "UNKNOWN"]),
+        ),
+        (
+            "He looked at the sea\u{2026}",
+            strs(&["SENT_END", "UNKNOWN"]),
+        ),
+        (
+            "He looked at the sea\u{2014}",
+            strs(&["SENT_END", "UNKNOWN"]),
+        ),
+        (
+            "\u{201c}He looked at the sea.\u{201d}",
+            strs(&["SENT_END", "UNKNOWN"]),
+        ),
+    ] {
+        assert_eq!(
+            last_token_readings(text).last().unwrap(),
+            &last,
+            "{:?}",
+            text
+        );
+    }
+}
+
+/// `THE_THIRD_PARTY`'s `scope="next"` exception (`NN.*|UNKNOWN|CD|JJ`) sees `CD` as the first
+/// reading of a final bare number, so it stays silent there. Expected flags checked against
+/// LanguageTool 6.6 (-l en-US, THE_THIRD_PARTY only).
+#[test]
+fn scope_next_exception_sees_a_filtered_reading_before_sent_end() {
+    for text in [
+        "We paid the third-party 500",
+        "She sighed.\u{2028}We paid the third-party 500",
+        "\u{201c}We paid the third-party 500\u{201d}",
+        "It wasn\u{2019}t the third-party 500",
+        "We paid the third-party\u{2014}500",
+        "We paid the third-party 500\u{2026}",
+    ] {
+        assert!(
+            rule_flags(text, "GRAMMAR/THE_THIRD_PARTY/").is_empty(),
+            "{:?}",
+            text
+        );
+    }
+    assert_eq!(
+        rule_flags("We paid the third-party.", "GRAMMAR/THE_THIRD_PARTY/"),
+        vec![("third-party".to_string(), vec!["third party".to_string()])]
+    );
+}
+
 /// A `scope="next"` exception on a token whose predecessor has a `skip` is not checked, as in
 /// LanguageTool 6.6, so `TYPOGRAPHY/GERMAN_QUOTES/3` flags a closing quote even when a
 /// lowercase word follows it without a space. Expected flags checked against LanguageTool 6.6

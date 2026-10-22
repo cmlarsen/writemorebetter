@@ -92,7 +92,6 @@ impl Disambiguation {
                                         .rposition(|x| *x.pos() == limit.pos.as_ref_id());
 
                                     if let Some(kept) = kept {
-                                        token.put_sent_end_last();
                                         let mut index = 0;
                                         token.word_mut().retain(|_| {
                                             index += 1;
@@ -113,6 +112,10 @@ impl Disambiguation {
                                                 .push(WordData::new(lemma, limit.pos.as_ref_id()));
                                         }
                                     }
+
+                                    // Either way LanguageTool rebuilds the token and appends
+                                    // `SENT_END` after the new reading.
+                                    token.put_sent_end_last();
                                 }
                             }
                             either::Right(filter) => {
@@ -125,13 +128,14 @@ impl Disambiguation {
                                 for token in group.into_iter() {
                                     // LanguageTool filters only a token with a matching real
                                     // reading, and then appends `SENT_END` last.
-                                    if token.word().tags().iter().any(|x| {
+                                    let rebuilt = token.word().tags().iter().any(|x| {
                                         !x.pos().as_str().is_empty() && filter.is_word_data_match(x)
-                                    }) {
-                                        token.put_sent_end_last();
-                                    }
+                                    });
                                     if PosFilter::and(&[filter], token.word()) {
-                                        filter.keep(token.word_mut())
+                                        filter.keep(token.word_mut());
+                                    }
+                                    if rebuilt {
+                                        token.put_sent_end_last();
                                     }
                                 }
                             }
@@ -208,7 +212,6 @@ impl Disambiguation {
                         },
                     )
                     .collect();
-                let sentence_end = PosId::special(SpecialPos::SentEnd);
 
                 for ((group, disambig), use_mask_val) in groups.into_iter().zip(disambigs).zip(mask)
                 {
@@ -216,29 +219,33 @@ impl Disambiguation {
                         for token in group.into_iter() {
                             let before = token.word().clone();
 
+                            // In LanguageTool `SENT_END` is one of the readings the unify
+                            // filters, so a filter like `SENT_END|VB.` keeps it.
+                            let keeps_sent_end = token.is_sentence_end() && {
+                                let sent_end = WordData::new(
+                                    token.word().text().clone(),
+                                    PosId::special(SpecialPos::SentEnd),
+                                );
+                                to_apply.iter().any(|filter| {
+                                    filter.iter().all(|f| f.is_word_data_match(&sent_end))
+                                }) && disambig
+                                    .as_ref()
+                                    .map_or(true, |d| d.is_word_data_match(&sent_end))
+                            };
+
                             PosFilter::apply(&to_apply, token.word_mut());
 
                             if let Some(disambig) = disambig {
                                 disambig.keep(token.word_mut());
                             }
 
-                            // The sentence end's SENT_END reading is only added when the token
-                            // is finalized. When it is the one reading that unifies, LanguageTool
-                            // keeps it alone, so "!" in "He saw the city!" loses its `.` and `PCT`
-                            // tags.
-                            let keeps_sentence_end = token.is_sentence_end()
-                                && to_apply.iter().any(|filter| {
-                                    filter.iter().all(|f| f.matcher.is_match(&sentence_end))
-                                })
-                                && disambig
-                                    .as_ref()
-                                    .map_or(true, |d| d.matcher.is_match(&sentence_end));
-
-                            if token.word().tags().is_empty() && !keeps_sentence_end {
+                            if !token.word().tags().is_empty() {
+                                token.put_sent_end_last();
+                            } else if keeps_sent_end {
+                                token.keep_only_sent_end();
+                            } else {
                                 *token.word_mut() = before;
                             }
-
-                            token.put_sent_end_last();
                         }
                     }
                 }
