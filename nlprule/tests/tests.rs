@@ -2023,6 +2023,43 @@ fn spellchecker_does_not_search_very_long_tokens() {
     );
 }
 
+/// `EN_CONSISTENT_APOS` flags apostrophe tokens that other rules also flag, so `suggest` can
+/// return overlapping suggestions. `apply_suggestions` used to shift later spans by the length
+/// change of earlier ones and underflow; it now applies the first of overlapping suggestions.
+/// The text is the stress harness's generated input from #351, also in the crash corpus.
+#[test]
+fn overlapping_whole_text_suggestions_apply_cleanly() {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    assert!(rules.apply_profile(&Profile::fiction()).is_empty());
+    rules.spell_mut().options_mut().variant = Some(rules.spell().variant("en_US").unwrap());
+
+    let text = "I she\u{2019}s don\u{2019}t is heroin matter Willdidn't \0 Dr. saidwindow\u{201d}t";
+    let suggestions = rules.suggest(text, &*TOKENIZER);
+    assert!(
+        suggestions
+            .windows(2)
+            .any(|pair| pair[1].span().char().start < pair[0].span().char().end),
+        "{:?}",
+        suggestions
+    );
+    let corrected = nlprule::rules::apply_suggestions(text, &suggestions);
+    assert!(
+        corrected.starts_with('I') && corrected.ends_with('t'),
+        "{}",
+        corrected
+    );
+
+    // Suggestions out of text order are skipped rather than applied at shifted offsets.
+    for text in [
+        "It's don\u{2019}t \u{2014} it\u{2019}s\u{2026}\u{2028}'tis",
+        "a\u{2019}b",
+    ] {
+        let mut suggestions = rules.suggest(text, &*TOKENIZER);
+        suggestions.reverse();
+        let _ = nlprule::rules::apply_suggestions(text, &suggestions);
+    }
+}
+
 #[test]
 fn suggestions_at_a_second_sentence_start_apply_cleanly() {
     // U+2029 starts a new sentence. A rule matching the first token of a later

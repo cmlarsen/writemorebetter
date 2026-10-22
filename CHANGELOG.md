@@ -110,6 +110,11 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
 ### Fixed
 
+- **`apply_suggestions` (and so `Rules::correct`) no longer panics on overlapping suggestions.**
+  It shifted each span by the length change of the replacements before it, which underflowed
+  once two suggestions overlapped, as `EN_CONSISTENT_APOS` and another rule do on the same word.
+  It now applies suggestions in order and skips one that overlaps or precedes an applied one or
+  reaches past the end of the text. The stress harness's input is in the fuzz crash corpus.
 - **The multitoken run-on check uses the en_US speller in every variant, as in LanguageTool
   6.6.** It used the selected variant's speller, so with en_GB "Lincol nCenter" was flagged as a
   misspelled phrase and "Roger sCentre" (→ "Rogers Centre") was not. Both now match

@@ -738,23 +738,29 @@ fn overlaps(a: &Suggestion, b: &Suggestion) -> bool {
 /// Correct a text by applying suggestions to it.
 /// - In case of multiple possible replacements, always chooses the first one.
 /// - In case of a suggestion without any replacements, ignores the suggestion.
+/// - Suggestions are applied in order; one that overlaps an applied suggestion, starts
+///   before it, or reaches past the end of `text` is skipped. Whole-text rules such as
+///   `EN_CONSISTENT_APOS` can flag the same word as another rule.
 pub fn apply_suggestions(text: &str, suggestions: &[Suggestion]) -> String {
-    let mut offset: isize = 0;
-    let mut chars: Vec<_> = text.chars().collect();
+    let chars: Vec<char> = text.chars().collect();
+    let mut out = String::with_capacity(text.len());
+    // The char offset in `text` up to which `out` is built.
+    let mut done = 0;
 
     for suggestion in suggestions {
-        if let Some(replacement) = suggestion.replacements().get(0) {
-            let replacement: Vec<_> = replacement.chars().collect();
-            chars.splice(
-                (suggestion.span().char().start as isize + offset) as usize
-                    ..(suggestion.span().char().end as isize + offset) as usize,
-                replacement.iter().cloned(),
-            );
-            offset = offset + replacement.len() as isize - suggestion.span().char().len() as isize;
+        let span = suggestion.span().char();
+        let Some(replacement) = suggestion.replacements().first() else {
+            continue;
+        };
+        if span.start < done || span.start > span.end || span.end > chars.len() {
+            continue;
         }
+        out.extend(&chars[done..span.start]);
+        out.push_str(replacement);
+        done = span.end;
     }
-
-    chars.into_iter().collect()
+    out.extend(&chars[done..]);
+    out
 }
 
 /// An iterator over references to rules.
