@@ -921,6 +921,7 @@ pub(crate) struct MaxentPosTagger {
     pub(crate) model: Model,
     pub(crate) tagdict: TagDict,
     /// The [`TagDict`] id of each outcome label (`None` if no word allows it), built on first use.
+    /// Replacing `model` or `tagdict` after the first tag would leave it stale.
     #[serde(skip)]
     outcome_tag_ids: OnceLock<Box<[Option<u16>]>>,
 }
@@ -1124,7 +1125,7 @@ impl ChunkTables {
 #[derive(Serialize, Deserialize, Clone)]
 pub(crate) struct MaxentChunker {
     pub(crate) model: Model,
-    /// Built from `model` on first use.
+    /// Built from `model` on first use; replacing `model` afterwards would leave it stale.
     #[serde(skip)]
     tables: OnceLock<ChunkTables>,
 }

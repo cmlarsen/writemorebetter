@@ -856,7 +856,9 @@ are byte-identical before and after):
 - `Pmap` keeps its sorted entries but adds a bucket index by the top bits of the key (about 4
   entries per bucket), so a lookup scans one bucket instead of binary-searching the whole table.
   The keys are SipHash outputs, so the buckets are even. The index is rebuilt at load and not
-  serialized, so the data binaries are unchanged; it adds 0.31 MiB of live heap.
+  serialized, so the data binaries are unchanged; it adds 0.31 MiB of live heap. (The
+  per-model tables below are built on first use and are not in that figure; with under 50
+  labels they are a few KiB.)
 - The two `p_2` features and the chunk-tag transition check depend only on the previous two
   outcomes, so they are looked up once per model in a table indexed by outcome
   (`ChunkTables`). The POS tagger maps each outcome label to its tag-dictionary id once.
