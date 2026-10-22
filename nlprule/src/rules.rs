@@ -281,6 +281,15 @@ impl Rules {
     /// [Tokenizer::pipe_with_raw] with [Rules::needs_raw] to match it as [Rules::suggest] does.
     /// Rules with LanguageTool's `min_prev_matches` only count earlier matches in this sentence.
     pub fn apply(&self, sentence: &Sentence) -> Vec<Suggestion> {
+        if sentence.raw().is_none() && self.needs_raw() {
+            static WARNED: std::sync::Once = std::sync::Once::new();
+            WARNED.call_once(|| {
+                log::warn!(
+                    "Rules::apply: a raw_pos rule is enabled but the sentence kept no raw tokens; \
+                     pipe with Tokenizer::pipe_with_raw(text, rules.needs_raw())"
+                )
+            });
+        }
         let builtin_suggestions =
             self.builtin_suggestions(std::slice::from_ref(sentence), &[], true);
         let matches = self.sentence_matches(sentence, builtin_suggestions, true);
