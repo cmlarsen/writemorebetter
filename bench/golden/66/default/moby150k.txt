@@ -34,9 +34,9 @@
 320 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: repeated spaces
 320 | SPELLCHECK/SINGLE | "Hackluyt" -> ["Hakluyt"] | Possibly misspelled word.
 322 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: repeated spaces
-322 | SPELLCHECK/SINGLE | "hval" -> ["oval", "heal", "HVAC", "Hal", "Val"] | Possibly misspelled word.
+322 | SPELLCHECK/SINGLE | "hval" -> ["Oval", "Heal", "HVAC", "Hal", "Val"] | Possibly misspelled word.
 323 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: repeated spaces
-323 | SPELLCHECK/SINGLE | "hvalt" -> ["halt"] | Possibly misspelled word.
+323 | SPELLCHECK/SINGLE | "hvalt" -> ["Halt"] | Possibly misspelled word.
 324 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: repeated spaces
 326 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: repeated spaces
 326 | SPELLCHECK/SINGLE | "Dut" -> ["But", "Out", "Due", "Cut", "Put", "Duty", "Duo", "Duet", "Dust", "Dot"] | Possibly misspelled word.
@@ -670,7 +670,7 @@
 1663 | SPELLCHECK/SINGLE | "grego" -> ["Greg", "Greco", "Gregg", "Gregor", "gr ego"] | Possibly misspelled word.
 1686 | SPELLCHECK/SINGLE | "debel" -> ["rebel", "Bebel"] | Possibly misspelled word.
 1691 | BUILTIN/UPPERCASE_SENTENCE_START | "save" -> ["Save"] | This sentence does not start with an uppercase letter.
-1693 | SPELLCHECK/SINGLE | "tell-ee" -> ["teller", "Teller", "Téllez", "tellies"] | Possibly misspelled word.
+1693 | SPELLCHECK/SINGLE | "tell-ee" -> ["Teller", "Téllez", "Tellies"] | Possibly misspelled word.
 1693 | SPELLCHECK/SINGLE | "who-ee" -> ["whole", "whose", "wholes", "whee", "whoopee", "whoaed", "whore", "whored", "whores", "Shopee"] | Possibly misspelled word.
 1694 | SPELLCHECK/SINGLE | "flourishings" -> ["flourishing"] | Possibly misspelled word.
 1699 | SPELLCHECK/SINGLE | "Queequeg" -> ["Queue", "Queues", "Queued", "Queening", "Queened", "Queering", "Queenie", "Queenies", "Queered", "Queerer"] | Possibly misspelled word.

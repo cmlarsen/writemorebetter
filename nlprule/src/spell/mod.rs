@@ -19,10 +19,12 @@ use crate::{
     Error,
 };
 
+pub(crate) mod curated;
 pub(crate) mod levenshtein;
 pub(crate) mod multitoken;
 pub(crate) mod replacements;
 pub(crate) mod split;
+use curated::{Curated, CuratedSuggestions};
 use multitoken::MultitokenSpeller;
 use replacements::ReplacementPairs;
 use split::SplitFilter;
@@ -462,6 +464,47 @@ fn phrase_len(phrases: &Fst<&[u8]>, tokens: &[Token]) -> usize {
     len
 }
 
+/// `StringTools.isPunctuationMark`: one punctuation character or an apostrophe.
+fn is_punctuation_mark(text: &str) -> bool {
+    let mut chars = text.chars();
+    matches!((chars.next(), chars.next()), (Some(c), None) if c.is_punctuation() || c == '\'')
+}
+
+/// `StringTools.uppercaseFirstChar`: uppercases the first letter or digit (`'tis` -> `'Tis`).
+/// As Java's `Character.toUpperCase`, a letter whose uppercase is several characters (`ß`)
+/// stays as it is.
+fn uppercase_first_char(text: &str) -> String {
+    let mut chars: Vec<char> = text.chars().collect();
+    let pos = chars
+        .iter()
+        .position(|c| c.is_alphanumeric())
+        .unwrap_or_else(|| chars.len().saturating_sub(1));
+    if let Some(c) = chars.get_mut(pos) {
+        let mut upper = c.to_uppercase();
+        if let (Some(u), None) = (upper.next(), upper.next()) {
+            *c = u;
+        }
+    }
+    chars.into_iter().collect()
+}
+
+/// The suggestions for a sentence's first word: each all-lowercase suggestion capitalized,
+/// keeping the first of any duplicates.
+fn capitalize_sentence_start(replacements: Vec<String>) -> Vec<String> {
+    let mut out: Vec<String> = Vec::with_capacity(replacements.len());
+    for replacement in replacements {
+        let replacement = if replacement.to_lowercase() == replacement {
+            uppercase_first_char(&replacement)
+        } else {
+            replacement
+        };
+        if !out.contains(&replacement) {
+            out.push(replacement);
+        }
+    }
+    out
+}
+
 fn is_all_caps(word: &str) -> bool {
     is_uppercase(word) && word.chars().any(char::is_uppercase)
 }
@@ -492,6 +535,7 @@ pub(crate) struct VariantChecker {
     user: UserMatcher,
     info: VariantInfo,
     split_filter: SplitFilter,
+    curated: CuratedSuggestions,
     cache: SearchCache,
 }
 
@@ -663,6 +707,33 @@ impl VariantChecker {
             return vec![candidate.to_owned()];
         }
 
+        // As LanguageTool's `calcSpellerSuggestions` does, a curated "only" answer replaces the
+        // speller's candidates and skips the search; other curated answers go before them.
+        let top = match self.curated.lookup(word, self.variant.as_str(), |rewrite| {
+            self.check_word(fst, rewrite, true)
+        }) {
+            Curated::Only(only) => return only,
+            Curated::Top(top) => top,
+        };
+        let candidates = self.speller_candidates(fst, word);
+        if top.is_empty() {
+            return candidates;
+        }
+        let mut out: Vec<String> = Vec::with_capacity(top.len() + candidates.len());
+        for term in top
+            .into_iter()
+            .filter(|term| self.split_filter.keeps(term))
+            .chain(candidates)
+        {
+            if !out.contains(&term) {
+                out.push(term);
+            }
+        }
+        out
+    }
+
+    /// The speller's own candidates for `word`, best first.
+    fn speller_candidates(&self, fst: &Map<&[u8]>, word: &str) -> Vec<String> {
         // The finite-state search cost grows sharply with the query length; a pasted
         // run of characters with no word break (a token far longer than any word) is
         // not worth correcting, so skip the search rather than let it dominate a check.
@@ -870,6 +941,8 @@ pub struct Spell {
     pub(crate) variant_info: Vec<VariantInfo>,
     /// The split suggestions this language drops.
     pub(crate) split_filter: SplitFilter,
+    /// Hand-written suggestions for common misspellings, before or instead of the speller's.
+    pub(crate) curated: CuratedSuggestions,
     /// The structure containing the actual spellchecking logic. Computed based on the selected variant.
     #[serde(skip)]
     pub(crate) variant_checker: Option<VariantChecker>,
@@ -982,6 +1055,7 @@ impl Spell {
                     .cloned()
                     .unwrap_or_default(),
                 split_filter: self.split_filter.clone(),
+                curated: self.curated.clone(),
                 cache: SearchCache::default(),
             },
         };
@@ -1179,6 +1253,9 @@ impl Spell {
 
         let mut suggestions = Vec::new();
         let mut correct_mask = vec![false; tokens.len()];
+        // Whether no token other than punctuation came before, as in LanguageTool's
+        // `MorfologikSpellerRule.match`.
+        let mut first_word = true;
 
         for (i, token) in tokens.iter().enumerate() {
             let text = token.word().text().as_str();
@@ -1192,14 +1269,23 @@ impl Spell {
                 variant_checker.check(&fst, &tokens[i..], &mut correct_mask[i..]);
             }
             if correct_mask[i] || token.ignore_spelling() {
+                first_word &= is_punctuation_mark(text);
                 continue;
             }
+
+            let mut replacements = variant_checker.search(&fst, text);
+            // LanguageTool capitalizes the lowercase suggestions for a sentence's first word,
+            // unless the word is the sentence's last token.
+            if first_word && i + 1 < tokens.len() {
+                replacements = capitalize_sentence_start(replacements);
+            }
+            first_word = false;
 
             suggestions.push(Suggestion::new(
                 "SPELLCHECK/SINGLE".into(),
                 "Possibly misspelled word.".into(),
                 token.span().clone(),
-                variant_checker.search(&fst, text),
+                replacements,
             ));
         }
 
@@ -1265,6 +1351,27 @@ impl<'a> Speller<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn sentence_start_capitalizes_lowercase_suggestions() {
+        let strings = |x: &[&str]| x.iter().map(|x| x.to_string()).collect::<Vec<_>>();
+        assert_eq!(
+            capitalize_sentence_start(strings(&["a lot", "lot", "Lot", "iPhone", "LOT"])),
+            strings(&["A lot", "Lot", "iPhone", "LOT"])
+        );
+        assert_eq!(uppercase_first_char("'tis"), "'Tis");
+        assert_eq!(uppercase_first_char("\u{2019}tis"), "\u{2019}Tis");
+        assert_eq!(uppercase_first_char("\u{e9}t\u{e9}"), "\u{c9}t\u{e9}");
+        assert_eq!(uppercase_first_char("\u{df}x"), "\u{df}x");
+        assert_eq!(uppercase_first_char("\u{2014}\u{2026}"), "\u{2014}\u{2026}");
+        assert_eq!(uppercase_first_char(""), "");
+        for mark in ["\u{201c}", "\u{2019}", "'", "\u{2014}", "\u{2026}", "\""] {
+            assert!(is_punctuation_mark(mark), "{:?}", mark);
+        }
+        for text in ["\u{2028}", "a", "\u{201c}\u{201c}", "3", ""] {
+            assert!(!is_punctuation_mark(text), "{:?}", text);
+        }
+    }
 
     #[test]
     fn canonicalize_trims_collapses_and_straightens() {

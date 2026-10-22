@@ -857,9 +857,14 @@ fn spellchecker_works() -> Result<(), Error> {
     let mut rules = Rules::new(RULES_PATH).unwrap();
     rules.spell_mut().options_mut().variant = Some(rules.spell().variant("en_GB")?);
 
+    // As in LanguageTool 6.6 (en-GB), the first word's suggestion is capitalized.
     assert_eq!(
         rules.correct("color spellhceking", &*TOKENIZER),
-        "colour spellchecking"
+        "Colour spellchecking"
+    );
+    assert_eq!(
+        rules.correct("The color spellhceking", &*TOKENIZER),
+        "The colour spellchecking"
     );
 
     Ok(())
@@ -1491,6 +1496,131 @@ fn speller_suggests_splits_of_run_together_words() {
             ("Magwitch", strings(&["Mag witch"])),
             ("Aduke", strings(&["Duke", "A duke"])),
         ]
+    );
+}
+
+fn spelling_suggestions(text: &str, n: usize) -> Vec<(&str, Vec<String>)> {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    rules.spell_mut().options_mut().variant = Some(rules.spell().variant("en_US").unwrap());
+    rules
+        .suggest(text, &*TOKENIZER)
+        .into_iter()
+        .filter(|x| x.source().starts_with("SPELLCHECK"))
+        .map(|x| {
+            let mut replacements = x.replacements().to_vec();
+            replacements.truncate(n);
+            (&text[x.span().byte().clone()], replacements)
+        })
+        .collect()
+}
+
+#[test]
+fn speller_puts_curated_suggestions_first() {
+    // LanguageTool 6.6 (`She said <word> again.`, en-US): a curated "only" answer replaces the
+    // speller's candidates, a curated list goes before them, and a word ending in `ys` gets the
+    // `ies` form first when that is a word.
+    let speller = RULES.spell().speller().unwrap();
+    for (word, expected) in [
+        ("wierd", &["weird"][..]),
+        ("Wierd", &["Weird"][..]),
+        ("freinds", &["friends"][..]),
+        ("cemetary", &["cemetery"][..]),
+        (
+            "tonite",
+            &["tonight", "finite", "tone", "tongue", "Monte"][..],
+        ),
+        ("alot", &["a lot", "lot", "plot", "slot", "alto"][..]),
+        ("babys", &["babies", "baby", "bays", "Babs", "babas"][..]),
+        ("Lullabys", &["Lullabies", "Lullaby"][..]),
+        ("ur", &["your", "you are"][..]),
+    ] {
+        let mut suggestions = speller.suggest(word, 10);
+        suggestions.truncate(expected.len());
+        assert_eq!(suggestions, expected, "{}", word);
+    }
+    // The patterns are case-sensitive: an all-caps word gets the speller's candidates.
+    let wierd = speller.suggest("WIERD", 10);
+    assert!(
+        wierd.len() > 1 && wierd.contains(&"WEIRD".to_string()),
+        "{:?}",
+        wierd
+    );
+    // A word in no list keeps the speller's order.
+    assert_eq!(speller.suggest("recieve", 1), vec!["receive"]);
+}
+
+#[test]
+fn speller_capitalizes_suggestions_for_a_sentence_start() {
+    // LanguageTool 6.6 capitalizes the lowercase suggestions for a sentence's first word
+    // (after any punctuation), unless the word ends the sentence.
+    assert_eq!(
+        spelling_suggestions(
+            "\u{201c}Wierd,\u{201d} she said\u{2014}her freind\u{2019}s cemetary\u{2026} tonite.\u{2028}\u{201c}alot of babys,\u{201d} he said.",
+            5
+        ),
+        vec![
+            ("Wierd", strings(&["Weird"])),
+            ("freind", strings(&["friend"])),
+            ("cemetary", strings(&["cemetery"])),
+            ("tonite", strings(&["tonight", "finite", "tone", "tongue", "Monte"])),
+            ("alot", strings(&["a lot", "lot", "plot", "slot", "alto"])),
+            ("babys", strings(&["babies", "baby", "bays", "Babs", "babas"])),
+        ]
+    );
+    assert_eq!(
+        spelling_suggestions(
+            "\u{2018}wierd\u{2019} freinds\u{2014}Lullabys\u{2026} no.",
+            5
+        ),
+        vec![
+            ("wierd", strings(&["Weird"])),
+            ("freinds", strings(&["friends"])),
+            ("Lullabys", strings(&["Lullabies", "Lullaby"])),
+        ]
+    );
+    assert_eq!(
+        spelling_suggestions("\u{2026}tonite we went becuz\u{2014}no.", 2),
+        vec![
+            ("tonite", strings(&["Tonight", "Finite"])),
+            ("becuz", strings(&["because", "begun"])),
+        ]
+    );
+    assert_eq!(
+        spelling_suggestions("\u{2014}freind, she said.", 5),
+        vec![("freind", strings(&["Friend"]))]
+    );
+    assert_eq!(
+        spelling_suggestions(
+            "\u{201c}We\u{2019}re freinds,\u{201d} she said\u{2026} \u{201c}babys sleep.\u{201d}",
+            3
+        ),
+        vec![
+            ("freinds", strings(&["friends"])),
+            ("babys", strings(&["Babies", "Baby", "Bays"])),
+        ]
+    );
+    // Not after a word, a number, or a line separator inside the sentence; not for the
+    // sentence's last token.
+    for (text, word) in [
+        ("She was there.\u{2028}wierd and tonite.", "wierd"),
+        ("3 wierd cats.", "wierd"),
+        ("\u{2019}Tis wierd.", "wierd"),
+        (
+            "He said \u{2018}Freind\u{2019} and \u{201c}wierd\u{201d}\u{2014}then left\u{2026}",
+            "wierd",
+        ),
+    ] {
+        let found = spelling_suggestions(text, 5);
+        assert!(
+            found.contains(&(word, strings(&["weird"]))),
+            "{}: {:?}",
+            text,
+            found
+        );
+    }
+    assert_eq!(
+        spelling_suggestions("alot", 2),
+        vec![("alot", strings(&["a lot", "lot"]))]
     );
 }
 
