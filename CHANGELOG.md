@@ -15,6 +15,10 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   painful." got `EN_SPLIT_WORDS_HYPHEN/3` ("breakup") instead of subrule 0 ("break-up",
   "break - up", "breakup"), and "It it" got `IT_IT/5` instead of `IT_IT/3` ("If it"). Rules of
   different groups keep the old order ([#190](https://github.com/cmlarsen/writemorebetter/issues/190)).
+- **`SENTENCE_WHITESPACE` no longer flags the sentence after a U+2029.** A paragraph or line
+  separator (U+2028, U+2029, NEL) now counts as the space between sentences, following
+  LanguageTool's fix after 6.6 (commit `86c5f3a9`) in every profile
+  ([#193](https://github.com/cmlarsen/writemorebetter/issues/193)).
 
 # 0.12.0 (2026-10-22)
 
