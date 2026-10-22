@@ -15,8 +15,7 @@ thiserror = "1"
 zip = { version = "9", default-features = false, features = ["deflate"] }
 directories = "3"
 reqwest = { version = "0.11", default_features = false, features = ["blocking", "rustls-tls"] }
-nlprule = { path = "../nlprule", features = ["compile"], version = "0.12.0" } # BUILD_BINDINGS_COMMENT
-# nlprule = { package = "nlprule-core", path = "../nlprule", features = ["compile"] } # BUILD_BINDINGS_UNCOMMENT
+nlprule = { path = "../nlprule", features = ["compile"], version = "0.12.0" }
 fs-err = "2.5"
 
 [dev-dependencies]

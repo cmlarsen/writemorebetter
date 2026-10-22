@@ -1,858 +1,604 @@
-use flate2::read::GzDecoder;
-use nlprule::{
-    rule::{id::Selector, Example, Rule},
-    rules::{apply_suggestions, Rules},
-    spell::Spell,
-    tokenizer::tag::Tagger,
-    tokenizer::Tokenizer,
-    types::*,
-};
-use parking_lot::{
-    MappedRwLockReadGuard, MappedRwLockWriteGuard, RwLock, RwLockReadGuard, RwLockWriteGuard,
-};
-use pyo3::{exceptions::PyValueError, types::PyBytes};
-use pyo3::{
-    prelude::*,
-    types::{PyDict, PyFrozenSet},
-    wrap_pymodule,
-};
-use pyo3::{types::PyString, ToPyObject};
-use pythonize::depythonize;
-use std::{
-    collections::HashSet,
-    convert::TryFrom,
-    fs,
-    io::{Cursor, Read},
-    path::PathBuf,
-    sync::Arc,
-};
+//! Python bindings for writemorebetter (the `writemorebetter._native` extension module).
+//!
+//! The compiled rule and dictionary binaries are LGPL-2.1 resources and are deliberately *not*
+//! embedded in this module or the wheel: the caller passes the paths of `en_tokenizer.bin` and
+//! `en_rules.bin` to [`Checker::new`], which keeps them as separately loaded data.
+//!
+//! Every offset this module returns counts Unicode scalar values (code points), which is what a
+//! Python `str` index counts, so `text[start:end]` is the flagged span. Rich results (analysis,
+//! documents, style reports) cross the boundary as JSON strings that the pure-Python wrapper in
+//! `python/writemorebetter/` decodes; their spans are code-point ranges too.
+//!
+//! [`Checker`] is `Send + Sync`: the rule set sits behind a read/write lock, and the GIL is
+//! released while loading, checking and analyzing, so one checker can serve many threads.
 
-fn err(error: nlprule::Error) -> PyErr {
-    PyValueError::new_err(format!("{}", error))
-}
+use std::collections::BTreeMap;
+use std::io::Cursor;
+use std::path::PathBuf;
+use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
-fn get_resource(lang_code: &str, name: &str) -> PyResult<impl Read> {
-    let version = env!("CARGO_PKG_VERSION");
-    let mut cache_path: Option<PathBuf> = None;
+use nlprule::{Rules, Tokenizer};
+use pyo3::create_exception;
+use pyo3::exceptions::{PyException, PyValueError};
+use pyo3::prelude::*;
+use serde::Serialize;
+use writemorebetter_style::reports::{self, StyleResources};
 
-    // try to find a file at which to cache the data
-    if let Some(project_dirs) = directories::ProjectDirs::from("", "", "nlprule") {
-        let cache_dir = project_dirs.cache_dir();
+create_exception!(
+    writemorebetter,
+    WriteMoreBetterError,
+    PyException,
+    "A data file was read but could not be loaded (corrupt, or built for another version)."
+);
+create_exception!(
+    writemorebetter,
+    StyleError,
+    PyValueError,
+    "Invalid input to a style report. `kind` names the error (e.g. `invalidOptions`); `report` \
+     is the report's camelCase name or None; `message` is always set."
+);
 
-        cache_path = Some(
-            cache_dir.join(version).join(lang_code).join(
-                name.strip_suffix(".gz")
-                    .expect("resource name must have .gz ending."),
-            ),
-        );
-    }
-
-    // if the file can be read, the data is already cached
-    if let Some(path) = &cache_path {
-        if let Ok(bytes) = fs::read(path) {
-            return Ok(Cursor::new(bytes));
-        }
-    }
-
-    // ... otherwise, request the data from the URL ...
-    let bytes = reqwest::blocking::get(&format!(
-        "https://github.com/bminixhofer/nlprule/releases/download/{}/{}_{}",
-        env!("CARGO_PKG_VERSION"),
-        lang_code,
-        name
-    ))
-    .and_then(|x| x.error_for_status())
-    .and_then(|x| x.bytes())
-    .map_err(|x| PyValueError::new_err(format!("{}", x)))?;
-
-    let mut gz = GzDecoder::new(&bytes[..]);
-    let mut buffer = Vec::new();
-    gz.read_to_end(&mut buffer)?;
-
-    // ... and then cache the data at the provided file, if one was found
-    if let Some(path) = &cache_path {
-        fs::create_dir_all(path.parent().expect("filepath must have parent"))?;
-        fs::write(path, &buffer)?;
-    }
-
-    Ok(Cursor::new(buffer))
-}
-
-fn text_guard<F, O>(py: Python, text_or_texts: PyObject, f: F) -> PyResult<PyObject>
-where
-    F: Fn(String) -> PyResult<O>,
-    O: ToPyObject,
-{
-    let text_or_texts = text_or_texts.as_ref(py);
-    let is_iterable =
-        text_or_texts.hasattr("__iter__")? && !text_or_texts.is_instance::<PyString>()?;
-
-    let texts: Vec<String> = if is_iterable {
-        text_or_texts.extract()?
-    } else {
-        vec![text_or_texts.extract()?]
-    };
-
-    let mut output = Vec::new();
-
-    for text in texts {
-        output.push(f(text)?);
-    }
-
-    Ok(if is_iterable {
-        output.to_object(py)
-    } else {
-        output[0].to_object(py)
+/// A `StyleError` whose `kind`, `report` (`None` when the error names no report) and `message`
+/// attributes are always set, matching `_native.pyi`.
+fn new_style_error(kind: &str, report: Option<&str>, message: String) -> PyErr {
+    Python::attach(|py| {
+        let err = StyleError::new_err(message.clone());
+        let value = err.value(py);
+        let _ = value.setattr("kind", kind);
+        let _ = value.setattr("report", report);
+        let _ = value.setattr("message", message);
+        err
     })
 }
 
-/// A tagger dictionary.
-/// Associates many words with possible POS tags and lemmas.
-///
-/// Can not be created directly but accessed by the `.tagger` attribute on the tokenizer.
-#[pyclass(name = "Tagger", module = "nlprule")]
-#[derive(Default)]
-pub struct PyTagger {
-    tagger: Arc<Tagger>,
+fn style_error(error: writemorebetter_style::StyleError) -> PyErr {
+    let display = error.to_string();
+    let fields = match serde_json::to_value(&error) {
+        Ok(serde_json::Value::Object(fields)) => fields,
+        _ => Default::default(),
+    };
+    let field = |key: &str| fields.get(key).and_then(|value| value.as_str());
+    new_style_error(
+        field("kind").unwrap_or("styleError"),
+        field("report"),
+        field("message").map_or(display, str::to_owned),
+    )
 }
 
-impl From<Arc<Tagger>> for PyTagger {
-    fn from(tagger: Arc<Tagger>) -> Self {
-        PyTagger { tagger }
-    }
-}
-
-#[pymethods]
-impl PyTagger {
-    /// Get the data for a given word from the dictionary.
-    ///
-    /// Arguments:
-    ///     word (str): The input word.
-    ///     add_lower (Optional[bool]):
-    ///         Whether to add data for the lowercase variant of the word.
-    ///         If unset, will be set according to the language options.
-    ///     use_compound_split_heuristic (Optional[bool]):
-    ///         Whether to use a heuristic to split compound words.
-    ///         If unset, will be set according to the language options.
-    /// Returns:
-    ///     data (List[Tuple[str, str]]):
-    ///         A list of tuples of (lemma, POS).
-    ///         Not contextualized so it can be thought of as possible lemma / POS of the given word.
-    #[text_signature = "(word, add_lower=None, use_compound_split_heuristic=None)"]
-    fn get_data(
-        &self,
-        word: &str,
-        add_lower: Option<bool>,
-        use_compound_split_heuristic: Option<bool>,
-    ) -> Vec<(String, String)> {
-        self.tagger
-            .get_tags_with_options(word, add_lower, use_compound_split_heuristic)
-            .into_iter()
-            .map(|x| (x.lemma().as_str().to_string(), x.pos().as_str().to_string()))
-            .collect()
-    }
-}
-
-impl PyTagger {
-    pub fn tagger(&self) -> &Arc<Tagger> {
-        &self.tagger
-    }
-}
-
-/// An analyzed token with the attributes:
-/// * text (str): the text of this token
-/// * span (Tuple[int, int]): the character span of this token in the original string
-/// * data (List[Tuple[str, str]]): Lemmas and corresponding POS tags of this token
-/// * lemmas (List[str]): A list of lemmas of this token
-/// * tags (List[str]): A list of possible POS tags for this token. Including special SENT_START and SENT_END tags.
-/// * chunks (List[str]): Chunks of this token. Are not set for some languages (e. g. German).
-#[pyclass(name = "Token", module = "nlprule")]
-pub struct PyToken {
-    token: owned::Token,
-}
-
-impl From<owned::Token> for PyToken {
-    fn from(token: owned::Token) -> Self {
-        PyToken { token }
-    }
-}
-
-#[pymethods]
-impl PyToken {
-    #[getter]
-    fn text(&self) -> &str {
-        self.token.word.text.as_ref()
-    }
-
-    #[getter]
-    fn span(&self) -> (usize, usize) {
-        (self.token.span.char().start, self.token.span.char().end)
-    }
-
-    #[getter]
-    fn data(&self) -> Vec<(&str, &str)> {
-        self.token
-            .word
-            .tags
-            .iter()
-            .map(|x| (x.lemma.as_ref(), x.pos.as_ref()))
-            .collect()
-    }
-
-    #[getter]
-    fn lemmas(&self) -> Vec<&str> {
-        let mut lemmas: Vec<_> = self
-            .token
-            .word
-            .tags
-            .iter()
-            .filter_map(|x| {
-                if x.lemma.as_ref().is_empty() {
-                    None
-                } else {
-                    Some(x.lemma.as_ref())
-                }
-            })
-            .collect();
-        lemmas.sort_unstable();
-        lemmas.dedup();
-        lemmas
-    }
-
-    #[getter]
-    fn tags(&self) -> Vec<&str> {
-        let mut tags: Vec<_> = self
-            .token
-            .word
-            .tags
-            .iter()
-            .filter_map(|x| {
-                if x.pos.as_ref().is_empty() {
-                    None
-                } else {
-                    Some(x.pos.as_ref())
-                }
-            })
-            .collect();
-        tags.sort_unstable();
-        tags.dedup();
-        tags
-    }
-
-    #[getter]
-    fn chunks(&self) -> Vec<&str> {
-        self.token.chunks.iter().map(|x| x.as_str()).collect()
-    }
-}
-
-/// A replacement suggestion with the attributes:
-/// * start (int): The start character position of the suggestion in the original text.
-/// * end (int): The end character position of the suggestion in the original text.
-/// * text (List[str]): A list of suggested replacements.
-/// * source (str): The ID of the rule that triggered this suggestion.
-/// * message (str): A human-readable message for this suggestion.
-#[pyclass(name = "Suggestion", module = "nlprule")]
-struct PySuggestion {
-    suggestion: Suggestion,
-}
-
-#[pymethods]
-impl PySuggestion {
-    #[getter]
-    fn start(&self) -> usize {
-        self.suggestion.span().char().start
-    }
-
-    #[getter]
-    fn end(&self) -> usize {
-        self.suggestion.span().char().end
-    }
-
-    #[getter]
-    fn replacements(&self) -> Vec<&str> {
-        self.suggestion
-            .replacements()
-            .iter()
-            .map(|x| x.as_str())
-            .collect()
-    }
-
-    #[getter]
-    fn source(&self) -> &str {
-        self.suggestion.source()
-    }
-
-    #[getter]
-    fn message(&self) -> &str {
-        self.suggestion.message()
-    }
-}
-
-impl From<Suggestion> for PySuggestion {
-    fn from(suggestion: Suggestion) -> Self {
-        PySuggestion { suggestion }
-    }
-}
-
-/// The tokenizer.
-/// Does dictionary- and rule-based POS tagging, lemmatization and (depending on the language) chunking.
-/// Can be created from a tokenizer binary:
-/// ```python
-/// tokenizer = Tokenizer("/path/to/tokenizer.bin")
-/// ```
-/// or from a language code:
-/// ```python
-/// tokenizer = Tokenizer.load("en")
-/// ```
-/// When created from a language code, the binary is downloaded from the internet the first time.
-/// Then it is stored at your cache and loaded from there.
-#[pyclass(name = "Tokenizer", module = "nlprule")]
-#[text_signature = "(path)"]
-#[derive(Default)]
-pub struct PyTokenizer {
-    tokenizer: Arc<Tokenizer>,
-}
-
-impl PyTokenizer {
-    fn tokenizer(&self) -> &Arc<Tokenizer> {
-        &self.tokenizer
-    }
-}
-
-#[pymethods]
-impl PyTokenizer {
-    #[text_signature = "(code)"]
-    #[staticmethod]
-    fn load(lang_code: &str) -> PyResult<Self> {
-        let bytes = get_resource(lang_code, "tokenizer.bin.gz")?;
-
-        let tokenizer = Tokenizer::from_reader(bytes).map_err(err)?;
-        Ok(PyTokenizer {
-            tokenizer: Arc::new(tokenizer),
-        })
-    }
-
-    #[new]
-    fn new(path: Option<&str>) -> PyResult<Self> {
-        let tokenizer = if let Some(path) = path {
-            Tokenizer::new(path).map_err(err)?
+/// The style crate's camelCase report name for a snake_case one, e.g. `houseStyle`.
+fn camel_case(name: &str) -> String {
+    let mut out = String::with_capacity(name.len());
+    let mut upper = false;
+    for ch in name.chars() {
+        if ch == '_' {
+            upper = true;
+        } else if upper {
+            out.extend(ch.to_uppercase());
+            upper = false;
         } else {
-            Tokenizer::default()
-        };
-
-        Ok(PyTokenizer {
-            tokenizer: Arc::new(tokenizer),
-        })
-    }
-
-    /// Get the tagger dictionary of this tokenizer.
-    ///
-    /// Returns:
-    ///     tagger (Tagger): The tagger dictionary.
-    #[getter]
-    fn tagger(&self) -> PyTagger {
-        self.tokenizer.tagger().clone().into()
-    }
-
-    /// Applies the full tokenization pipeline to the given text.
-    /// This includes POS tagging, lemmatization, chunking and sentencization.
-    ///
-    /// Arguments:
-    ///     text_or_texts (Union[str, List[str]]): The text(s) to tokenize.
-    ///
-    /// Returns:
-    ///     tokens (Union[List[List[Token]], List[List[List[Token]]]]):
-    ///         The analyzed tokens. A list of lists of tokens. The outer list corresponds to a sentence. Batched if the input is batched.
-    #[text_signature = "(text_or_texts)"]
-    fn pipe(&self, py: Python, text_or_texts: PyObject) -> PyResult<PyObject> {
-        text_guard(py, text_or_texts, |text| {
-            let tokens = self
-                .tokenizer
-                .pipe(&text)
-                .map(|sentence| {
-                    sentence
-                        .into_iter()
-                        .map(|x| PyCell::new(py, PyToken::from(x.to_owned_token())))
-                        .collect::<PyResult<Vec<_>>>()
-                })
-                .collect::<PyResult<Vec<Vec<_>>>>()?;
-
-            Ok(tokens)
-        })
-    }
-
-    pub fn __setstate__(&mut self, py: Python, state: PyObject) -> PyResult<()> {
-        match state.extract::<&PyBytes>(py) {
-            Ok(s) => {
-                self.tokenizer =
-                    Arc::new(Tokenizer::from_reader(s.as_bytes()).map_err(|_| {
-                        PyValueError::new_err("deserializing tokenizer state failed")
-                    })?);
-                Ok(())
-            }
-            Err(e) => Err(e),
+            out.push(ch);
         }
     }
-
-    pub fn __getstate__(&self, py: Python) -> PyResult<PyObject> {
-        let mut bytes = Vec::new();
-        self.tokenizer
-            .to_writer(&mut bytes)
-            .map_err(|_| PyValueError::new_err("serializing tokenizer state failed"))?;
-        Ok(PyBytes::new(py, &bytes).to_object(py))
-    }
+    out
 }
 
-impl From<Arc<Tokenizer>> for PyTokenizer {
-    fn from(tokenizer: Arc<Tokenizer>) -> Self {
-        PyTokenizer { tokenizer }
-    }
+fn to_json<T: Serialize>(value: &T) -> String {
+    serde_json::to_string(value).expect("binding records serialize to JSON")
 }
 
-/// An example associated with a grammatical rule.
-///
-/// Attributes:
-/// * text (str): the text of this example
-/// * suggestion (Option[Suggestion]): The suggestion for this example.
-///     If this is None, it is an example of where the rule should not trigger.
-#[pyclass(name = "Example", module = "nlprule")]
-struct PyExample {
+/// A flagged span as `(start, end, source, message, replacements)`, in code points.
+type SuggestionTuple = (usize, usize, String, String, Vec<String>);
+
+#[derive(Serialize)]
+struct AnalysisSentence {
     text: String,
-    suggestion: Option<Py<PySuggestion>>,
+    start: usize,
+    end: usize,
+    tokens: Vec<AnalysisToken>,
 }
 
-impl PyExample {
-    fn from_example(py: Python, example: &Example) -> PyResult<Self> {
-        Ok(PyExample {
-            text: example.text().to_owned(),
-            suggestion: if let Some(suggestion) = example.suggestion() {
-                let suggestion = PySuggestion::from((*suggestion).clone());
-                Some(Py::new(py, suggestion)?)
-            } else {
-                None
-            },
-        })
-    }
+#[derive(Serialize)]
+struct AnalysisToken {
+    text: String,
+    start: usize,
+    end: usize,
+    readings: Vec<nlprule::analysis::AnalysisReading>,
+    chunks: Vec<String>,
+    is_whitespace: bool,
+    is_punctuation: bool,
 }
 
-#[pymethods]
-impl PyExample {
-    #[getter]
-    fn text(&self) -> &str {
-        &self.text
-    }
-
-    #[getter]
-    fn suggestion<'py>(&'py self, py: Python<'py>) -> Option<PyRef<'py, PySuggestion>> {
-        self.suggestion.as_ref().map(|x| x.borrow(py))
-    }
-}
-
-/// One grammatical rule.
-///
-/// Can not be created directly but accessed by the `.rules` attribute on the rules.
-/// Attributes:
-/// * id (str): The id of this rule.
-/// * url (Option[str]): A URL for more information.
-/// * short (Option[str]): A short description of this rule e. g. "Possible typo".
-/// * examples (List[Example]): Examples associated with this rule. Always at least one.
-/// * name (str): A human-readable name for this rule.
-/// * category_name (str): A human-readable name of the category this rule is in.
-/// * category_type (Option[str]): The type of the category this rule is in e. g. "style" or "grammar".
-/// * enabled (bool): Whether the rule is enabled.
-#[pyclass(name = "Rule", module = "nlprule")]
-struct PyRule {
-    rules: Arc<RwLock<Rules>>,
-    index: usize,
-}
-
-impl PyRule {
-    fn rule(&self) -> MappedRwLockReadGuard<'_, Rule> {
-        RwLockReadGuard::map(self.rules.read(), |x| &x.rules()[self.index])
-    }
-
-    fn rule_mut(&self) -> MappedRwLockWriteGuard<'_, Rule> {
-        RwLockWriteGuard::map(self.rules.write(), |x| &mut x.rules_mut()[self.index])
-    }
-
-    fn from_rules(index: usize, rules: Arc<RwLock<Rules>>) -> Self {
-        PyRule { rules, index }
-    }
-}
-
-#[pymethods]
-impl PyRule {
-    #[getter]
-    fn id(&self) -> String {
-        self.rule().id().to_string()
-    }
-
-    #[getter]
-    fn url(&self) -> Option<String> {
-        self.rule().url().map(ToOwned::to_owned)
-    }
-
-    #[getter]
-    fn short(&self) -> Option<String> {
-        self.rule().short().map(ToOwned::to_owned)
-    }
-
-    #[getter]
-    fn examples(&self, py: Python) -> PyResult<Vec<PyExample>> {
-        self.rule()
-            .examples()
-            .iter()
-            .map(|x| PyExample::from_example(py, x))
-            .collect()
-    }
-
-    #[getter]
-    fn name(&self) -> String {
-        self.rule().name().to_owned()
-    }
-
-    #[getter]
-    fn category_name(&self) -> String {
-        self.rule().category_name().to_owned()
-    }
-
-    #[getter]
-    fn category_type(&self) -> Option<String> {
-        self.rule().category_type().map(ToOwned::to_owned)
-    }
-
-    #[getter]
-    fn enabled(&self) -> bool {
-        self.rule().enabled()
-    }
-
-    /// Hints that this rule should be enabled.
-    fn enable(&self) {
-        self.rule_mut().enable();
-    }
-
-    /// Hints that this rule should be disabled.
-    fn disable(&self) {
-        self.rule_mut().disable();
-    }
-}
-
-#[pyclass(name = "SpellOptions", module = "nlprule.spell")]
-struct PySpellOptions {
-    rules: Arc<RwLock<Rules>>,
-}
-
-impl PySpellOptions {
-    fn spell(&self) -> MappedRwLockReadGuard<'_, Spell> {
-        RwLockReadGuard::map(self.rules.read(), |x| x.spell())
-    }
-
-    fn spell_mut(&self) -> MappedRwLockWriteGuard<'_, Spell> {
-        RwLockWriteGuard::map(self.rules.write(), |x| x.spell_mut())
-    }
-}
-
-#[pymethods]
-impl PySpellOptions {
-    #[getter]
-    fn get_variant(&self) -> Option<String> {
-        self.spell()
-            .options()
-            .variant
-            .as_ref()
-            .map(|x| x.as_str().to_owned())
-    }
-
-    #[setter]
-    fn set_variant(&self, variant: Option<&str>) -> PyResult<()> {
-        if let Some(variant) = variant {
-            let mut spell = self.spell_mut();
-            let variant = spell.variant(variant).map_err(err)?;
-
-            spell.options_mut().variant = Some(variant);
-        } else {
-            self.spell_mut().options_mut().variant = None;
-        }
-
-        Ok(())
-    }
-
-    #[getter]
-    fn get_max_distance(&self) -> usize {
-        self.spell().options().max_distance
-    }
-
-    #[setter]
-    fn set_max_distance(&self, max_distance: usize) {
-        self.spell_mut().options_mut().max_distance = max_distance
-    }
-
-    #[getter]
-    fn get_prefix_length(&self) -> usize {
-        self.spell().options().prefix_length
-    }
-
-    #[setter]
-    fn set_prefix_length(&self, prefix_length: usize) {
-        self.spell_mut().options_mut().prefix_length = prefix_length
-    }
-
-    #[getter]
-    fn get_top_n(&self) -> usize {
-        self.spell().options().top_n
-    }
-
-    #[setter]
-    fn set_top_n(&self, top_n: usize) {
-        self.spell_mut().options_mut().top_n = top_n
-    }
-
-    #[getter]
-    fn get_whitelist<'py>(&self, py: Python<'py>) -> PyResult<&'py PyFrozenSet> {
-        let spell = self.spell();
-        let whitelist: Vec<&str> = spell
-            .options()
-            .whitelist
-            .iter()
-            .map(|x| x.as_str())
-            .collect();
-
-        PyFrozenSet::new(py, &whitelist)
-    }
-
-    #[setter]
-    fn set_whitelist(&self, py: Python, whitelist: PyObject) -> PyResult<()> {
-        let whitelist: PyResult<HashSet<String>> = whitelist
-            .as_ref(py)
-            .iter()?
-            .map(|x| x.and_then(PyAny::extract::<String>))
-            .collect();
-        self.spell_mut().options_mut().whitelist = whitelist?;
-        Ok(())
-    }
-}
-
-#[pyclass(name = "Spell", module = "nlprule.spell")]
-struct PySpell {
-    rules: Arc<RwLock<Rules>>,
-}
-
-#[pymethods]
-impl PySpell {
-    #[getter]
-    fn variants(&self) -> Vec<String> {
-        self.rules
-            .read()
-            .spell()
-            .variants()
-            .iter()
-            .map(|x| x.as_str().to_owned())
-            .collect()
-    }
-
-    #[getter]
-    fn get_options(&self) -> PySpellOptions {
-        PySpellOptions {
-            rules: self.rules.clone(),
-        }
-    }
-
-    #[setter]
-    fn set_options(&self, py: Python, options: &PyDict) -> PyResult<()> {
-        let mut guard = self.rules.write();
-        *guard.spell_mut().options_mut() = depythonize(options.to_object(py).as_ref(py))?;
-        Ok(())
-    }
-}
-
-/// The grammatical rules.
-/// Can be created from a rules binary:
-/// ```python
-/// tokenizer = Tokenizer("/path/to/rules.bin")
-/// ```
-/// or from a language code and `Tokenizer`:
-/// ```python
-/// tokenizer = Tokenizer.load("en")
-/// rules = Rules.load("en", tokenizer)
-/// ```
-/// When created from a language code, the binary is downloaded from the internet the first time.
-/// Then it is stored at your cache and loaded from there.
-#[pyclass(name = "Rules", module = "nlprule")]
-#[text_signature = "(path, tokenizer)"]
-struct PyRules {
-    rules: Arc<RwLock<Rules>>,
-    tokenizer: Arc<Tokenizer>,
-}
-
-#[pymethods]
-impl PyRules {
-    #[text_signature = "(code, tokenizer)"]
-    #[staticmethod]
-    fn load(lang_code: &str, tokenizer: &PyTokenizer) -> PyResult<Self> {
-        let bytes = get_resource(lang_code, "rules.bin.gz")?;
-
-        let rules = Rules::from_reader(bytes).map_err(err)?;
-        Ok(PyRules {
-            rules: Arc::from(RwLock::from(rules)),
-            tokenizer: tokenizer.tokenizer().clone(),
-        })
-    }
-
-    #[new]
-    fn new(path: Option<&str>, tokenizer: Option<&PyTokenizer>) -> PyResult<Self> {
-        let tokenizer = if let Some(tokenizer) = tokenizer {
-            tokenizer.tokenizer().clone()
-        } else {
-            PyTokenizer::default().tokenizer().clone()
-        };
-
-        let rules = if let Some(path) = path {
-            Rules::new(path).map_err(err)?
-        } else {
-            Rules::default()
-        };
-
-        Ok(PyRules {
-            rules: Arc::from(RwLock::from(rules)),
-            tokenizer,
-        })
-    }
-
-    #[getter]
-    fn spell(&self) -> PySpell {
-        PySpell {
-            rules: self.rules.clone(),
-        }
-    }
-
-    #[getter]
-    fn rules(&self) -> Vec<PyRule> {
-        self.rules
-            .read()
-            .rules()
-            .iter()
-            .enumerate()
-            .map(|(i, _)| PyRule::from_rules(i, self.rules.clone()))
-            .collect()
-    }
-
-    /// Finds a rule by selector.
-    fn select(&self, id: &str) -> PyResult<Vec<PyRule>> {
-        let selector = Selector::try_from(id.to_owned())
-            .map_err(|err| PyValueError::new_err(format!("{}", err)))?;
-
-        Ok(self
-            .rules
-            .read()
-            .rules()
-            .iter()
-            .enumerate()
-            .filter(|(_, rule)| selector.is_match(rule.id()))
-            .map(|(i, _)| PyRule::from_rules(i, self.rules.clone()))
-            .collect())
-    }
-
-    /// Get suggestions for the given text.
-    ///
-    /// Arguments:
-    ///     text_or_texts (Union[str, List[str]]): The text(s) to get suggestions for.
-    ///
-    /// Returns:
-    ///     suggestions (Union[List[Suggestion], List[List[Suggestion]]]):
-    ///         The computed suggestions. Batched if the input is batched.
-    #[text_signature = "(text_or_texts)"]
-    fn suggest(&self, py: Python, text_or_texts: PyObject) -> PyResult<PyObject> {
-        text_guard(py, text_or_texts, |text| {
-            self.rules
-                .read()
-                .suggest(&text, &self.tokenizer)
+impl From<nlprule::analysis::AnalysisSentence> for AnalysisSentence {
+    fn from(sentence: nlprule::analysis::AnalysisSentence) -> Self {
+        Self {
+            text: sentence.text,
+            start: sentence.span.char.start,
+            end: sentence.span.char.end,
+            tokens: sentence
+                .tokens
                 .into_iter()
-                .map(|x| PyCell::new(py, PySuggestion::from(x)))
-                .collect::<PyResult<Vec<_>>>()
+                .map(|token| AnalysisToken {
+                    text: token.text,
+                    start: token.span.char.start,
+                    end: token.span.char.end,
+                    readings: token.readings,
+                    chunks: token.chunks,
+                    is_whitespace: token.is_whitespace,
+                    is_punctuation: token.is_punctuation,
+                })
+                .collect(),
+        }
+    }
+}
+
+#[derive(Serialize)]
+struct DocumentSpan {
+    start: usize,
+    end: usize,
+}
+
+#[derive(Serialize)]
+struct DocumentToken {
+    text: String,
+    start: usize,
+    end: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    readings: Option<Vec<nlprule::analysis::AnalysisReading>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    chunks: Option<Vec<String>>,
+    is_whitespace: bool,
+    is_punctuation: bool,
+    is_word: bool,
+    is_skipped: bool,
+}
+
+#[derive(Serialize)]
+struct DocumentSentence {
+    text: String,
+    start: usize,
+    end: usize,
+    tokens: Vec<DocumentToken>,
+}
+
+#[derive(Serialize)]
+struct DocumentParagraph {
+    text: String,
+    start: usize,
+    end: usize,
+    sentences: Vec<DocumentSentence>,
+}
+
+#[derive(Serialize)]
+struct TokenPosition {
+    paragraph: usize,
+    sentence: usize,
+    token: usize,
+}
+
+#[derive(Serialize)]
+struct Document {
+    paragraphs: Vec<DocumentParagraph>,
+    dialogue: Vec<DocumentSpan>,
+    lemma_index: BTreeMap<String, Vec<TokenPosition>>,
+    word_count: usize,
+}
+
+impl Document {
+    fn new(document: writemorebetter_style::Document, token_details: bool) -> Self {
+        Self {
+            paragraphs: document
+                .paragraphs
+                .into_iter()
+                .map(|paragraph| DocumentParagraph {
+                    text: paragraph.text,
+                    start: paragraph.span.char.start,
+                    end: paragraph.span.char.end,
+                    sentences: paragraph
+                        .sentences
+                        .into_iter()
+                        .map(|sentence| DocumentSentence {
+                            text: sentence.text,
+                            start: sentence.span.char.start,
+                            end: sentence.span.char.end,
+                            tokens: sentence
+                                .tokens
+                                .into_iter()
+                                .map(|token| DocumentToken {
+                                    text: token.text,
+                                    start: token.span.char.start,
+                                    end: token.span.char.end,
+                                    readings: token_details.then_some(token.readings),
+                                    chunks: token_details.then_some(token.chunks),
+                                    is_whitespace: token.is_whitespace,
+                                    is_punctuation: token.is_punctuation,
+                                    is_word: token.is_word,
+                                    is_skipped: token.is_skipped,
+                                })
+                                .collect(),
+                        })
+                        .collect(),
+                })
+                .collect(),
+            dialogue: document
+                .dialogue
+                .into_iter()
+                .map(|span| DocumentSpan {
+                    start: span.char.start,
+                    end: span.char.end,
+                })
+                .collect(),
+            lemma_index: document
+                .lemma_index
+                .into_iter()
+                .map(|(lemma, positions)| {
+                    (
+                        lemma,
+                        positions
+                            .into_iter()
+                            .map(|position| TokenPosition {
+                                paragraph: position.paragraph,
+                                sentence: position.sentence,
+                                token: position.token,
+                            })
+                            .collect(),
+                    )
+                })
+                .collect(),
+            word_count: document.word_count,
+        }
+    }
+}
+
+/// A grammar and spelling checker over a loaded tokenizer and rule set.
+#[pyclass(frozen, module = "writemorebetter._native")]
+struct Checker {
+    tokenizer: Arc<Tokenizer>,
+    rules: RwLock<Rules>,
+    style: Arc<StyleResources>,
+}
+
+impl Checker {
+    fn read_rules(&self) -> RwLockReadGuard<'_, Rules> {
+        self.rules
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    fn write_rules(&self) -> RwLockWriteGuard<'_, Rules> {
+        self.rules
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    fn load(
+        tokenizer_path: PathBuf,
+        rules_path: PathBuf,
+        spell_variant: Option<String>,
+        profile: String,
+    ) -> PyResult<Self> {
+        let tokenizer_bytes = std::fs::read(&tokenizer_path)?;
+        let rules_bytes = std::fs::read(&rules_path)?;
+        let tokenizer = Tokenizer::from_reader(Cursor::new(tokenizer_bytes)).map_err(|err| {
+            WriteMoreBetterError::new_err(format!(
+                "failed to load tokenizer {}: {err}",
+                tokenizer_path.display()
+            ))
+        })?;
+        let mut rules = Rules::from_reader(Cursor::new(rules_bytes)).map_err(|err| {
+            WriteMoreBetterError::new_err(format!(
+                "failed to load rules {}: {err}",
+                rules_path.display()
+            ))
+        })?;
+
+        if !profile.is_empty() {
+            let profile = nlprule::profile::Profile::by_name(&profile)
+                .ok_or_else(|| PyValueError::new_err(format!("unknown profile: {profile}")))?;
+            rules.apply_profile(&profile);
+        }
+
+        if let Some(variant) = spell_variant.filter(|v| !v.is_empty()) {
+            let variant = rules
+                .spell()
+                .variant(&variant)
+                .map_err(|err| PyValueError::new_err(format!("unknown spell variant: {err}")))?;
+            rules.spell_mut().options_mut().variant = Some(variant);
+        }
+
+        Ok(Checker {
+            tokenizer: Arc::new(tokenizer),
+            rules: RwLock::new(rules),
+            style: Arc::new(StyleResources::new()),
+        })
+    }
+}
+
+#[pymethods]
+impl Checker {
+    #[new]
+    /// `profile=None` (or `""`) applies no profile, like WASM's `undefined`.
+    #[pyo3(signature = (tokenizer_path, rules_path, spell_variant=None, profile=Some(String::from("fiction"))))]
+    fn new(
+        py: Python<'_>,
+        tokenizer_path: PathBuf,
+        rules_path: PathBuf,
+        spell_variant: Option<String>,
+        profile: Option<String>,
+    ) -> PyResult<Self> {
+        py.detach(|| {
+            Checker::load(
+                tokenizer_path,
+                rules_path,
+                spell_variant,
+                profile.unwrap_or_default(),
+            )
         })
     }
 
-    /// Correct the given text(s).
-    ///
-    /// Arguments:
-    ///     text_or_texts (Union[str, List[str]]): The text(s) to correct.
-    ///
-    /// Returns:
-    ///     text_or_texts (Union[str, List[str]]):
-    ///         The corrected texts. Batched if the input is batched.
-    #[text_signature = "(text_or_texts)"]
-    fn correct(&self, py: Python, text_or_texts: PyObject) -> PyResult<PyObject> {
-        text_guard(py, text_or_texts, |text| {
-            Ok(self.rules.read().correct(&text, &self.tokenizer))
+    /// Returns `(start, end, source, message, replacements)` tuples; offsets are code points.
+    fn check(&self, py: Python<'_>, text: String) -> Vec<SuggestionTuple> {
+        py.detach(|| {
+            self.read_rules()
+                .suggest(&text, &self.tokenizer)
+                .iter()
+                .map(|suggestion| {
+                    let span = suggestion.span().char();
+                    (
+                        span.start,
+                        span.end,
+                        suggestion.source().to_string(),
+                        suggestion.message().to_string(),
+                        suggestion.replacements().to_vec(),
+                    )
+                })
+                .collect()
         })
     }
 
-    /// Correct a text by applying suggestions to it.
-    /// - In case of multiple possible replacements, always chooses the first one.
-    /// - In case of a suggestion without any replacements, ignores the suggestion.
-    ///
-    /// Arguments:
-    ///     text (str): The input text.
-    ///     suggestions (List[Suggestion]): A list of suggestions to apply.
-    ///
-    /// Returns:
-    ///     text (str): The text with the suggestions applied to it.
-    #[text_signature = "(text, suggestions)"]
-    #[staticmethod]
-    fn apply_suggestions(py: Python, text: &str, suggestions: Vec<Py<PySuggestion>>) -> String {
-        let suggestions: Vec<Suggestion> = suggestions
-            .into_iter()
-            .map(|x| {
-                let x = x.borrow(py);
-
-                x.suggestion.clone()
-            })
-            .collect();
-
-        apply_suggestions(text, &suggestions)
+    /// Returns the sentences and tagged tokens as JSON, with code-point offsets.
+    fn analyze_json(&self, py: Python<'_>, text: String) -> String {
+        py.detach(|| {
+            let sentences: Vec<_> = self
+                .tokenizer
+                .analyze(&text)
+                .into_iter()
+                .map(AnalysisSentence::from)
+                .collect();
+            to_json(&sentences)
+        })
     }
 
-    pub fn __setstate__(&mut self, py: Python, state: PyObject) -> PyResult<()> {
-        match state.extract::<&PyBytes>(py) {
-            Ok(s) => {
-                let rules: Rules = Rules::from_reader(s.as_bytes())
-                    .map_err(|_| PyValueError::new_err("deserializing rules state failed"))?;
-                // a roundtrip through pickle can not preserve references so we need to create a new Arc<RwLock<..>>
-                self.rules = Arc::new(RwLock::new(rules));
+    #[pyo3(signature = (text, options_json=None))]
+    fn analyze_document_json(
+        &self,
+        py: Python<'_>,
+        text: String,
+        options_json: Option<String>,
+    ) -> PyResult<String> {
+        let options =
+            reports::parse_document_options(options_json.as_deref()).map_err(style_error)?;
+        Ok(py.detach(|| {
+            let document =
+                writemorebetter_style::analyze_document(&self.tokenizer, &text, &options);
+            to_json(&Document::new(document, options.include_token_details))
+        }))
+    }
+
+    #[pyo3(signature = (text, options_json=None))]
+    fn style_document(
+        &self,
+        py: Python<'_>,
+        text: String,
+        options_json: Option<String>,
+    ) -> PyResult<StyleDocument> {
+        let options =
+            reports::parse_document_options(options_json.as_deref()).map_err(style_error)?;
+        Ok(py.detach(|| StyleDocument {
+            inner: writemorebetter_style::StyleDocument::new(
+                self.tokenizer.clone(),
+                self.style.clone(),
+                &text,
+                &options,
+            ),
+        }))
+    }
+
+    // Every lock below is taken with the GIL released: a writer waits for in-flight checks
+    // (which hold the read lock for as long as they run), and other Python threads must keep
+    // running meanwhile.
+
+    fn add_words(&self, py: Python<'_>, words: Vec<String>) -> usize {
+        py.detach(|| self.write_rules().add_words(words))
+    }
+
+    fn remove_words(&self, py: Python<'_>, words: Vec<String>) -> usize {
+        py.detach(|| self.write_rules().remove_words(words))
+    }
+
+    fn set_words(&self, py: Python<'_>, words: Vec<String>) -> usize {
+        py.detach(|| self.write_rules().set_words(words))
+    }
+
+    fn clear_words(&self, py: Python<'_>) {
+        py.detach(|| self.write_rules().clear_words());
+    }
+
+    fn words(&self, py: Python<'_>) -> Vec<String> {
+        py.detach(|| self.read_rules().words())
+    }
+
+    #[pyo3(signature = (mother_tongue=None))]
+    fn set_mother_tongue(&self, py: Python<'_>, mother_tongue: Option<String>) {
+        py.detach(|| {
+            self.write_rules()
+                .set_mother_tongue(mother_tongue.as_deref().filter(|code| !code.is_empty()))
+        });
+    }
+
+    fn mother_tongues(&self, py: Python<'_>) -> Vec<String> {
+        py.detach(|| {
+            self.read_rules()
+                .mother_tongues()
+                .into_iter()
+                .map(str::to_string)
+                .collect()
+        })
+    }
+
+    fn enable_rules(&self, py: Python<'_>, selectors: Vec<String>) -> PyResult<usize> {
+        py.detach(|| self.write_rules().enable_rules(&selectors))
+            .map_err(|err| PyValueError::new_err(err.to_string()))
+    }
+
+    fn apply_preset(&self, py: Python<'_>, preset: String) -> PyResult<usize> {
+        let preset =
+            writemorebetter_style::preset::StylePreset::load(&preset).map_err(style_error)?;
+        py.detach(|| preset.apply_to_rules(&mut self.write_rules()))
+            .map_err(style_error)
+    }
+}
+
+/// One retained document analysis that every style report reads.
+#[pyclass(frozen, module = "writemorebetter._native")]
+struct StyleDocument {
+    inner: writemorebetter_style::StyleDocument,
+}
+
+#[pymethods]
+impl StyleDocument {
+    fn stats_json(&self) -> String {
+        reports::to_char_json(&self.inner.stats())
+    }
+
+    /// Runs one report by its snake_case name and returns it as JSON with code-point spans.
+    /// `extra` is the report's second input: a baseline selector or JSON for the baselined
+    /// reports, the concreteness table for `diction`, the rules for `house_style` and the preset
+    /// for `preset`; the other reports take none.
+    #[pyo3(signature = (name, options_json=None, extra=None))]
+    fn report_json(
+        &self,
+        py: Python<'_>,
+        name: String,
+        options_json: Option<String>,
+        extra: Option<String>,
+    ) -> PyResult<String> {
+        let doc = &self.inner;
+        let options = options_json.as_deref();
+        let extra = extra.as_deref();
+        // Binding-level input errors are StyleErrors too, so callers catch one type for any
+        // bad report input.
+        let no_extra = |name: &str| {
+            if extra.is_some() {
+                Err(new_style_error(
+                    "invalidOptions",
+                    Some(&camel_case(name)),
+                    format!("the {name} report takes no second input"),
+                ))
+            } else {
                 Ok(())
             }
-            Err(e) => Err(e),
+        };
+        macro_rules! run {
+            ($call:expr) => {
+                py.detach(|| $call.map(|report| reports::to_char_json(&report)))
+                    .map_err(style_error)
+            };
+        }
+        let name = name.as_str();
+        match name {
+            "echoes" => no_extra(name).and_then(|_| run!(doc.echoes(options))),
+            "repeated_phrases" => no_extra(name).and_then(|_| run!(doc.repeated_phrases(options))),
+            "cliches" => no_extra(name).and_then(|_| run!(doc.cliches(options))),
+            "dialogue_tags" => run!(doc.dialogue_tags(options, extra)),
+            "sentence_length" => run!(doc.sentence_length(options, extra)),
+            "sentence_starts" => run!(doc.sentence_starts(options, extra)),
+            "transitions" => no_extra(name).and_then(|_| run!(doc.transitions(options))),
+            "pronoun_starts" => no_extra(name).and_then(|_| run!(doc.pronoun_starts(options))),
+            "adverbs" => no_extra(name).and_then(|_| run!(doc.adverbs(options))),
+            "sensory_balance" => no_extra(name).and_then(|_| run!(doc.sensory_balance(options))),
+            "pacing" => no_extra(name).and_then(|_| run!(doc.pacing(options))),
+            "diction" => run!(doc.diction(options, extra)),
+            "overused_words" => run!(doc.overused_words(options, extra)),
+            "consistency" => no_extra(name).and_then(|_| run!(doc.consistency(options))),
+            "readability" => no_extra(name).and_then(|_| run!(doc.readability(options))),
+            "passive" => run!(doc.passive(options, extra)),
+            "clarity" => no_extra(name).and_then(|_| run!(doc.clarity(options))),
+            "house_style" => run!(doc.house_style(options, extra)),
+            "regional_spelling" => {
+                no_extra(name).and_then(|_| run!(doc.regional_spelling(options)))
+            }
+            "emotion_tells" => no_extra(name).and_then(|_| run!(doc.emotion_tells(options))),
+            "preset_checks" => no_extra(name).and_then(|_| run!(doc.preset_checks(options))),
+            "preset" => {
+                if options.is_some() {
+                    return Err(new_style_error(
+                        "invalidOptions",
+                        Some("preset"),
+                        "the preset report takes the preset only, not options".to_owned(),
+                    ));
+                }
+                run!(doc.preset(extra))
+            }
+            "alliteration" => no_extra(name).and_then(|_| run!(doc.alliteration(options))),
+            "vague_words" => no_extra(name).and_then(|_| run!(doc.vague_words(options))),
+            "hidden_verbs" => no_extra(name).and_then(|_| run!(doc.hidden_verbs(options))),
+            _ => Err(new_style_error(
+                "unknownReport",
+                None,
+                format!("unknown report: {name}"),
+            )),
         }
     }
+}
 
-    pub fn __getstate__(&self, py: Python) -> PyResult<PyObject> {
-        let mut bytes = Vec::new();
-        // rwlock serialization is transparent
-        self.rules
-            .read()
-            .to_writer(&mut bytes)
-            .map_err(|_| PyValueError::new_err("serializing rules state failed"))?;
-        Ok(PyBytes::new(py, &bytes).to_object(py))
-    }
+/// The built-in style presets' names; the first, `"chicago-fiction"`, is the default.
+#[pyfunction]
+fn style_preset_names() -> Vec<String> {
+    writemorebetter_style::preset::StylePreset::names()
+        .into_iter()
+        .map(str::to_owned)
+        .collect()
+}
+
+/// A built-in style preset by name, resolved to self-contained `StylePreset` JSON.
+#[pyfunction]
+fn load_style_preset_json(name: String) -> PyResult<String> {
+    writemorebetter_style::preset::StylePreset::builtin(&name)
+        .map(|preset| preset.to_json())
+        .map_err(style_error)
+}
+
+/// Validates a preset file (JSON), resolves its `extends`, and returns `StylePreset` JSON.
+#[pyfunction]
+fn parse_style_preset_json(text: String) -> PyResult<String> {
+    writemorebetter_style::preset::StylePreset::parse(&text)
+        .map(|preset| preset.to_json())
+        .map_err(style_error)
+}
+
+/// Checks headings against a title-case style; spans are code-point offsets into each heading.
+#[pyfunction]
+#[pyo3(signature = (headings, options_json=None))]
+fn title_case_json(headings: Vec<String>, options_json: Option<String>) -> PyResult<String> {
+    use writemorebetter_style::reports::title_case;
+    let options = title_case::parse_options(options_json.as_deref()).map_err(style_error)?;
+    title_case::report(&headings, &options)
+        .map(|report| reports::to_char_json(&report))
+        .map_err(style_error)
 }
 
 #[pymodule]
-fn spell(_py: Python, m: &PyModule) -> PyResult<()> {
-    m.add_class::<PySpell>()?;
-    m.add_class::<PySpellOptions>()?;
-    Ok(())
-}
-
-#[pymodule]
-fn nlprule(_py: Python, m: &PyModule) -> PyResult<()> {
-    m.add("__version__", env!("CARGO_PKG_VERSION"))?;
-
-    m.add_class::<PyTokenizer>()?;
-    m.add_class::<PyRules>()?;
-    m.add_class::<PySuggestion>()?;
-    m.add_class::<PyToken>()?;
-
-    m.add_wrapped(wrap_pymodule!(spell))?;
-
+fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_class::<Checker>()?;
+    m.add_class::<StyleDocument>()?;
+    m.add(
+        "WriteMoreBetterError",
+        m.py().get_type::<WriteMoreBetterError>(),
+    )?;
+    m.add("StyleError", m.py().get_type::<StyleError>())?;
+    m.add_function(wrap_pyfunction!(style_preset_names, m)?)?;
+    m.add_function(wrap_pyfunction!(load_style_preset_json, m)?)?;
+    m.add_function(wrap_pyfunction!(parse_style_preset_json, m)?)?;
+    m.add_function(wrap_pyfunction!(title_case_json, m)?)?;
     Ok(())
 }

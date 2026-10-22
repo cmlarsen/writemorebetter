@@ -229,8 +229,19 @@ pub fn parse_document_options(json: Option<&str>) -> Result<DocumentOptions, Sty
         .map_err(StyleError::options)
 }
 
-pub fn to_utf16_json<T: Serialize>(value: &T) -> String {
-    crate::document::with_utf16_spans(|| {
+fn to_json_with<T: Serialize>(units: crate::document::SpanUnits, value: &T) -> String {
+    crate::document::with_span_units(units, || {
         serde_json::to_string(value).expect("style records serialize to JSON")
     })
+}
+
+/// Serializes a report with every span as its UTF-16 range, for JavaScript and Swift.
+pub fn to_utf16_json<T: Serialize>(value: &T) -> String {
+    to_json_with(crate::document::SpanUnits::Utf16, value)
+}
+
+/// Serializes a report with every span as its Unicode scalar (code point) range, for Python
+/// string indices.
+pub fn to_char_json<T: Serialize>(value: &T) -> String {
+    to_json_with(crate::document::SpanUnits::Char, value)
 }

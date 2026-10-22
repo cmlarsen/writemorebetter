@@ -1,0 +1,155 @@
+name: Python
+
+# Builds the `writemorebetter` Python wheels (abi3, CPython 3.9+) for Linux, macOS and Windows
+# and smoke-tests each one against the LGPL data, which stays out of the wheel. Nothing here
+# publishes to PyPI; that step waits on the owner's approval (#93).
+on:
+  push:
+    branches:
+      - main
+  # A PR pays for a data build here (~11 min), so only run when the binding or what it builds
+  # from changes. Every push to main still runs.
+  pull_request:
+    paths:
+      - 'python/**'
+      - 'style/**'
+      - 'nlprule/**'
+      - 'srx/**'
+      - 'build/**'
+      - 'Cargo.toml'
+      - 'scripts/build-data.sh'
+      - 'LICENSE-MIT'
+      - 'LICENSE-APACHE'
+      - 'NOTICE'
+      - '.github/workflows/python.yml'
+
+jobs:
+  data:
+    name: Data (LanguageTool 6.6)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: actions/setup-python@v5
+        with:
+          # build/requirements.txt pins old packages (lxml 4.6.3); 3.9 is the newest
+          # interpreter with wheels for them.
+          python-version: '3.9'
+
+      # maturin cannot package files outside python/, so the wheel's license files are copies.
+      - name: Wheel license files match the repository's
+        run: |
+          for file in LICENSE-MIT LICENSE-APACHE NOTICE; do
+            diff -u "$file" "python/$file"
+          done
+          diff -ru style/data/licenses python/licenses
+
+      - name: Lint the binding with clippy
+        run: cargo clippy -p writemorebetter-python
+
+      # The same pinned script as CI and the release workflow; only the downloads, the
+      # portable JRE and the build venv are cached.
+      - name: Cache LanguageTool download, portable JRE and build venv
+        uses: actions/cache@v4
+        with:
+          path: data/cache
+          key: lt-data-${{ runner.os }}-${{ hashFiles('build/requirements.txt') }}
+
+      - name: Build data (pinned LanguageTool 6.6)
+        run: scripts/build-data.sh
+
+      # The release data zip's layout: the two binaries at the top level.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: python-test-data
+          path: |
+            dist/data/en_tokenizer.bin
+            dist/data/en_rules.bin
+          if-no-files-found: error
+          retention-days: 3
+
+  wheels:
+    name: Wheel (${{ matrix.os }})
+    needs: data
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-15, windows-latest]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # On Linux this builds inside a manylinux container so the wheel runs on any glibc
+      # distribution from manylinux2014 on.
+      - name: Build the wheel
+        uses: PyO3/maturin-action@v1
+        with:
+          working-directory: python
+          args: --release --out dist
+          manylinux: auto
+          rust-toolchain: stable
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: python-test-data
+          path: wmb-data
+
+      - name: Install the wheel and smoke-test it
+        env:
+          WMB_DATA_DIR: ${{ github.workspace }}/wmb-data
+          # Windows consoles default to a legacy code page; the smoke test prints curly quotes.
+          PYTHONUTF8: '1'
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --no-index --find-links python/dist writemorebetter
+          python -m pip install pytest
+          # Run from outside the checkout so the installed wheel, not python/python, is tested.
+          cd "$RUNNER_TEMP"
+          python - <<'EOF'
+          import os
+          from writemorebetter import Checker
+
+          checker = Checker.from_dir(os.environ["WMB_DATA_DIR"], spell_variant="en_US")
+          text = "🙂 “I’ll recieve it,” she said. She was went home."
+          found = [(text[s.start:s.end], s.source) for s in checker.check(text)]
+          print(found)
+          assert ("recieve", "SPELLCHECK/SINGLE") in found, found
+          assert any(span == "went" for span, _ in found), found
+          EOF
+          python -m pytest -q "$GITHUB_WORKSPACE/python/tests"
+
+      # The wheel is abi3 and claims CPython 3.9+; test the oldest supported interpreter once.
+      - uses: actions/setup-python@v5
+        if: runner.os == 'Linux'
+        with:
+          python-version: '3.9'
+
+      - name: Install and test the wheel on Python 3.9
+        if: runner.os == 'Linux'
+        env:
+          WMB_DATA_DIR: ${{ github.workspace }}/wmb-data
+        run: |
+          python --version
+          python -m pip install --no-index --find-links python/dist writemorebetter
+          python -m pip install pytest
+          cd "$RUNNER_TEMP"
+          python -m pytest -q "$GITHUB_WORKSPACE/python/tests"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: python-wheels-${{ matrix.os }}
+          path: python/dist/*.whl
+          if-no-files-found: error

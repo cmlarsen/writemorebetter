@@ -16,6 +16,17 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   word-frequency rules flag a word; the default stays 5. Rust callers can set one rule through
   `TooOftenUsed::set_min_percent`. `Error` gains `OptionOutOfRange` and Swift's `CheckError` gains
   `InvalidOption`, so exhaustive matches on either need a new arm ([#235](https://github.com/cmlarsen/writemorebetter/issues/235)).
+- **Python bindings.** The `python/` crate is rewritten as the `writemorebetter` package (PyO3,
+  maturin, abi3 for CPython 3.9+), replacing upstream nlprule's unmaintained binding. It mirrors
+  the WASM and Swift API: `Checker(tokenizer_path, rules_path, spell_variant=, profile=)` and
+  `Checker.from_dir`, `check`, the user dictionary (`add_words`, `remove_words`, `set_words`,
+  `clear_words`, `words`), `enable_rules`, `set_mother_tongue`, `apply_preset`, `analyze`,
+  `analyze_document` and every style report through `style_document`. Offsets are Python string
+  indices (code points). The wheel holds engine code only; the LGPL data still ships separately
+  in the release data zip. A new Python workflow builds and smoke-tests wheels on Linux, macOS
+  and Windows. Not on PyPI yet ([#93](https://github.com/cmlarsen/writemorebetter/issues/93)).
+- **`reports::to_char_json`** in the style crate serializes a report with code-point spans, beside
+  `to_utf16_json`.
 
 ### Changed
 
@@ -27,6 +38,8 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   reports: before, they always ran without a speller and kept suggestions LanguageTool and
   `Rules::suggest` drop, such as `Yojong` for `Kim Yo jong`
   ([#233](https://github.com/cmlarsen/writemorebetter/issues/233)).
+- **The Release workflow checks `python/Cargo.toml`'s version** with the other crates, so a
+  wheel's version always names the data release it pairs with.
 
 ### Fixed
 
@@ -76,6 +89,13 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   tags `_apostrophe_contraction_`, `POS` or `NNP` now counts as an apostrophe. Plural possessives
   inside single quotes are unchanged and still match 6.6
   (part of [#187](https://github.com/cmlarsen/writemorebetter/issues/187)).
+
+### Removed
+
+- **Upstream's `scripts/maturin.sh`** and the `BUILD_BINDINGS_*` markers it rewrote in
+  `Cargo.toml`, `nlprule/Cargo.toml` and `build/Cargo.toml`. It renamed `nlprule` to
+  `nlprule-core` and would break the new binding's path dependency; build wheels with
+  `maturin build` in `python/` instead.
 
 # 0.12.0 (2026-10-22)
 
