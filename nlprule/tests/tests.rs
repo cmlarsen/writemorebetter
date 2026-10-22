@@ -5240,6 +5240,33 @@ fn builtin_sentence_whitespace_looks_across_paragraphs() {
     );
 }
 
+/// A U+2029 or U+2028 after a sentence is a break, not a missing space (#193). LanguageTool 6.6
+/// flags the sentence after a U+2029; LanguageTool fixed that after 6.6.
+#[test]
+fn builtin_sentence_whitespace_treats_unicode_line_breaks_as_whitespace() {
+    for text in [
+        "He left.\u{2029}Then.",
+        "He left.\u{2029}\u{201c}No\u{2014}don\u{2019}t,\u{201d} she said.",
+        "\u{201c}Wait\u{2026}\u{201d}\u{2029}He didn\u{2019}t.",
+        "Fine\u{2014}fine.\u{2029}\u{2029}Next.",
+        "One.\u{2028}Two.\u{2029}Three\u{2026}\u{2028}Four.",
+        "He left.\u{2029}  Then\u{2014}nothing.",
+    ] {
+        assert_eq!(
+            builtin_flags("SENTENCE_WHITESPACE", text),
+            vec![],
+            "{text:?}"
+        );
+    }
+    assert_eq!(
+        builtin_flags(
+            "SENTENCE_WHITESPACE",
+            "He left.\u{2029}\u{201c}No.\u{201d}Then\u{2014}he\u{2019}d gone.\u{2028}Fine."
+        ),
+        vec![flag("Then", &[" Then"])]
+    );
+}
+
 #[test]
 fn builtin_empty_line_ignores_the_end_of_the_text() {
     assert_eq!(builtin_flags("EMPTY_LINE", "Para one.\n\n\n\n"), vec![]);

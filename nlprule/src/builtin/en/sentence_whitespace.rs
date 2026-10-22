@@ -3,6 +3,12 @@
 //! The behaviour follows the LanguageTool `SENTENCE_WHITESPACE` rule: when the
 //! sentence splitter ends a sentence that is not followed by whitespace, as in
 //! `"He came.Then he left."`, the first token of the next sentence is reported.
+//!
+//! A line or paragraph break between the sentences counts as whitespace,
+//! U+2028 and U+2029 included. LanguageTool 6.6 tests the previous sentence
+//! with Java's `String.trim`, which keeps those two, so it flags the sentence
+//! after a U+2029; LanguageTool fixed that after 6.6 (commit `86c5f3a9`), and
+//! this port follows the fix.
 
 use crate::types::{Sentence, Span, Suggestion};
 use serde::{Deserialize, Serialize};
@@ -41,7 +47,11 @@ impl SentenceWhitespace {
 
         for sentence in sentences {
             if previous_ends_with_whitespace == Some(false) {
-                if let Some(first) = pieces(sentence).into_iter().next() {
+                if let Some(first) = pieces(sentence)
+                    .into_iter()
+                    .next()
+                    .filter(|first| !is_line_break(first.text))
+                {
                     suggestions.push(Suggestion::new(
                         format!("BUILTIN/{}", ID),
                         MESSAGE.to_owned(),
@@ -59,10 +69,19 @@ impl SentenceWhitespace {
 
 /// Whether the last token of `sentence` is a single whitespace character in the
 /// sense of Java's `String.trim`, which strips control characters and the
-/// space, or a no-break space.
+/// space, a no-break space, or one of the line breaks U+2028 and U+2029.
 fn ends_with_whitespace(sentence: &Sentence) -> bool {
     matches!(
         sentence.text().chars().next_back(),
-        Some(c) if c <= ' ' || c == '\u{a0}'
+        Some(c) if c <= ' ' || matches!(c, '\u{a0}' | '\u{2028}' | '\u{2029}')
+    )
+}
+
+/// Whether `piece` is a line break as LanguageTool's `StringTools.containsLineBreak`
+/// counts them; a sentence that opens with one is not flagged.
+fn is_line_break(piece: &str) -> bool {
+    matches!(
+        piece,
+        "\n" | "\r" | "\u{b}" | "\u{c}" | "\u{2028}" | "\u{2029}"
     )
 }
