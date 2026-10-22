@@ -2942,7 +2942,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_writemorebetter_swift_checksum_method_checker_set_mother_tongue() != 22149) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_writemorebetter_swift_checksum_method_checker_set_too_often_used_percent() != 44337) {
+    if (uniffi_writemorebetter_swift_checksum_method_checker_set_too_often_used_percent() != 42588) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_method_checker_set_words() != 45047) {
