@@ -505,7 +505,12 @@ impl SearchCache {
     const CAPACITY: usize = 4096;
 
     fn get_or_insert_with(&self, word: &str, search: impl FnOnce() -> Vec<String>) -> Vec<String> {
-        if let Some(found) = self.0.lock().ok().and_then(|cache| cache.get(word).cloned()) {
+        if let Some(found) = self
+            .0
+            .lock()
+            .ok()
+            .and_then(|cache| cache.get(word).cloned())
+        {
             return found;
         }
         let found = search();
@@ -793,7 +798,15 @@ impl VariantChecker {
             let state = s.expect("matching levenshtein state is always `Some`.");
 
             let key = String::from_utf8(k.to_vec()).expect("fst keys must be valid utf-8.");
-            self.push(out, key, recase, state.dist(), state.reach(), id.freq(), true);
+            self.push(
+                out,
+                key,
+                recase,
+                state.dist(),
+                state.reach(),
+                id.freq(),
+                true,
+            );
         }
     }
 

@@ -930,13 +930,28 @@ fn speller_folds_the_case_of_accented_letters() {
     // forms follow at the same distance, as in LanguageTool 6.6.
     assert_eq!(
         speller.suggest("\u{c9}CLAIRR", 5),
-        vec!["\u{c9}CLAIR", "\u{c9}CLAIRS", "ECLAIR", "ECLAIRS", "\u{c9}CLAIR R"]
+        vec![
+            "\u{c9}CLAIR",
+            "\u{c9}CLAIRS",
+            "ECLAIR",
+            "ECLAIRS",
+            "\u{c9}CLAIR R"
+        ]
     );
     assert_eq!(
         speller.suggest("\u{c9}clairr", 5),
-        vec!["Declarer", "\u{c9}clair", "\u{c9}clairs", "Eclair", "Eclairs"]
+        vec![
+            "Declarer",
+            "\u{c9}clair",
+            "\u{c9}clairs",
+            "Eclair",
+            "Eclairs"
+        ]
     );
-    assert_eq!(speller.suggest("NA\u{cf}VEE", 2), vec!["NAIVE", "NA\u{cf}VE"]);
+    assert_eq!(
+        speller.suggest("NA\u{cf}VEE", 2),
+        vec!["NAIVE", "NA\u{cf}VE"]
+    );
     assert_eq!(speller.suggest("S\u{d8}RENN", 5), vec!["S\u{d8}REN"]);
     assert_eq!(
         speller.suggest("WH\u{152}L", 5),
@@ -976,13 +991,25 @@ fn speller_ignores_diacritics() {
     // decomposition, so it does not match `o`.
     let speller = RULES.spell().speller().unwrap();
     for (word, expected) in [
-        ("Zoee", &["Zone", "Zoe", "ZEE", "Zoey", "Zo\u{e9}", "Zo\u{eb}"][..]),
-        ("Zo\u{eb}e", &["Zone", "Zoe", "ZEE", "Zoey", "Zo\u{e9}", "Zo\u{eb}"][..]),
+        (
+            "Zoee",
+            &["Zone", "Zoe", "ZEE", "Zoey", "Zo\u{e9}", "Zo\u{eb}"][..],
+        ),
+        (
+            "Zo\u{eb}e",
+            &["Zone", "Zoe", "ZEE", "Zoey", "Zo\u{e9}", "Zo\u{eb}"][..],
+        ),
         ("REN\u{c9}EE", &["RENEE", "REN\u{c9}E", "RENEGE"][..]),
         // Ties keep dictionary order, except that the word's own case forms come first.
         ("Ren\u{e9}ee", &["Renee", "Ren\u{e9}e", "Renege"][..]),
-        ("ren\u{e9}e", &["Ren\u{e9}e", "Renee", "renew", "Ren\u{e9}", "Rene"][..]),
-        ("zo\u{eb}", &["Zoe", "Zo\u{eb}", "Zo\u{e9}", "zone", "Joe"][..]),
+        (
+            "ren\u{e9}e",
+            &["Ren\u{e9}e", "Renee", "renew", "Ren\u{e9}", "Rene"][..],
+        ),
+        (
+            "zo\u{eb}",
+            &["Zoe", "Zo\u{eb}", "Zo\u{e9}", "zone", "Joe"][..],
+        ),
         ("Nescafee", &["Nescaf\u{e9}"][..]),
         ("Citroen", &["Citro\u{eb}n", "Citron", "Citro\u{eb}ns"][..]),
         ("Soreen", &["Screen", "Doreen", "Noreen", "Moreen"][..]),
@@ -1247,12 +1274,18 @@ fn speller_applies_the_dictionarys_replacement_pairs() {
         ("Feyre", &["Fare", "Care", "Face", "Far", "Farm"][..]),
         ("Weyre", &["Ware", "Were", "Care", "War", "Rare"][..]),
         ("fone", &["phone", "one", "fine", "done", "gone"][..]),
-        ("fotograph", &["photograph", "photographs", "photography", "phonograph"][..]),
+        (
+            "fotograph",
+            &["photograph", "photographs", "photography", "phonograph"][..],
+        ),
         ("kwestion", &["question", "questions"][..]),
         ("enuff", &["enough", "snuff", "enoughs"][..]),
         ("neice", &["name", "nice", "race", "face", "niece"][..]),
         // Two pairs in one word (`ei` for `a`, then `gh` for `f`).
-        ("heighth", &["height", "eighth", "heights", "haft", "hafts"][..]),
+        (
+            "heighth",
+            &["height", "eighth", "heights", "haft", "hafts"][..],
+        ),
         // A pair applies only where it lines up with the candidate, so `Squier` does not get
         // `Sewer` (`ui` for `ew` after deleting `q`).
         ("Squier", &["Squire", "Squeak", "Squeal"][..]),
@@ -1341,11 +1374,23 @@ fn speller_suggests_splits_of_run_together_words() {
     let speller = RULES.spell().speller().unwrap();
     for (word, expected) in [
         ("Aduke", &["Duke", "A duke"][..]),
-        ("Shakespear", &["Shakespeare", "Shake spear", "Shakes pear"][..]),
+        (
+            "Shakespear",
+            &["Shakespeare", "Shake spear", "Shakes pear"][..],
+        ),
         ("Rhysand", &["Rhys and"][..]),
         ("Magwitch", &["Mag witch"][..]),
         ("crosslights", &["cross lights"][..]),
-        ("\u{c9}CLAIRR", &["\u{c9}CLAIR", "\u{c9}CLAIRS", "ECLAIR", "ECLAIRS", "\u{c9}CLAIR R"][..]),
+        (
+            "\u{c9}CLAIRR",
+            &[
+                "\u{c9}CLAIR",
+                "\u{c9}CLAIRS",
+                "ECLAIR",
+                "ECLAIRS",
+                "\u{c9}CLAIR R",
+            ][..],
+        ),
     ] {
         assert_eq!(speller.suggest(word, 10), expected, "{}", word);
     }
@@ -1379,13 +1424,19 @@ fn speller_retries_at_distance_three_when_nothing_is_closer() {
     // or more letters when distances 1 and 2 find nothing.
     let speller = RULES.spell().speller().unwrap();
     for (word, expected) in [
-        ("Queequeg", &["Queue", "Queues", "Queued", "Queening", "Queened"][..]),
+        (
+            "Queequeg",
+            &["Queue", "Queues", "Queued", "Queening", "Queened"][..],
+        ),
         ("Thornfeild", &["Shortfall", "Cornfield"][..]),
         (
             "Yossarain",
             &["Constrain", "Ossuaries", "Pessaries", "Hossain", "Rosmarie"][..],
         ),
-        ("Gondibert", &["Goldberg", "Condiment", "Godber", "Noninert"][..]),
+        (
+            "Gondibert",
+            &["Goldberg", "Condiment", "Godber", "Noninert"][..],
+        ),
     ] {
         assert_eq!(speller.suggest(word, expected.len()), expected, "{}", word);
     }

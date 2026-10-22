@@ -41,7 +41,7 @@ impl SplitFilter {
             _ => return true,
         };
         let first_lower = first.to_lowercase();
-        !(self.first_ignore_case.iter().any(|x| *x == first_lower)
+        !(self.first_ignore_case.contains(&first_lower)
             || self.first.iter().any(|x| x == first)
             || self.last.iter().any(|x| x == last))
     }
@@ -75,9 +75,15 @@ mod tests {
 
     fn filter() -> SplitFilter {
         SplitFilter::new(
-            ["first-ignore-case re", "first i", "last s", "last ING", "bogus"]
-                .iter()
-                .map(|x| x.to_string()),
+            [
+                "first-ignore-case re",
+                "first i",
+                "last s",
+                "last ING",
+                "bogus",
+            ]
+            .iter()
+            .map(|x| x.to_string()),
         )
     }
 
@@ -98,7 +104,17 @@ mod tests {
 
     #[test]
     fn run_ons_split_where_both_parts_are_words() {
-        let words = ["a", "lot", "A", "duke", "Rhys", "and", "Zo\u{eb}", "caf\u{e9}", "great"];
+        let words = [
+            "a",
+            "lot",
+            "A",
+            "duke",
+            "Rhys",
+            "and",
+            "Zo\u{eb}",
+            "caf\u{e9}",
+            "great",
+        ];
         let is_word = |x: &str| words.contains(&x);
         assert_eq!(run_ons("alot", is_word), vec!["a lot"]);
         assert_eq!(run_ons("Aduke", is_word), vec!["A duke"]);
@@ -107,7 +123,10 @@ mod tests {
         assert_eq!(run_ons("GreatLot", is_word), vec!["Great Lot"]);
         assert_eq!(run_ons("GreatLOT", is_word), Vec::<String>::new());
         // Splits fall on character boundaries.
-        assert_eq!(run_ons("Zo\u{eb}caf\u{e9}", is_word), vec!["Zo\u{eb} caf\u{e9}"]);
+        assert_eq!(
+            run_ons("Zo\u{eb}caf\u{e9}", is_word),
+            vec!["Zo\u{eb} caf\u{e9}"]
+        );
         assert_eq!(
             run_ons("\u{201c}\u{2014}\u{2026}\u{2028}", is_word),
             Vec::<String>::new()

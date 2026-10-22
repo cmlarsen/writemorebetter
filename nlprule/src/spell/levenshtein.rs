@@ -199,7 +199,11 @@ impl Automaton for Levenshtein {
             let raw = c;
             let c = self.normalize(c);
 
-            let c_base = if self.query_base.is_empty() { c } else { base(c) };
+            let c_base = if self.query_base.is_empty() {
+                c
+            } else {
+                base(c)
+            };
             let row = &state.row;
             let mut next_row = state.row.to_vec();
 
@@ -221,7 +225,9 @@ impl Automaton for Levenshtein {
                             .and_then(|start| self.edits.get(start))
                             .map_or(&[][..], Vec::as_slice)
                     };
-                    let one = anchored(0).iter().filter(|e| e.to_len == 1 && e.to[0] == raw);
+                    let one = anchored(0)
+                        .iter()
+                        .filter(|e| e.to_len == 1 && e.to[0] == raw);
                     let two = state.prev_row.iter().flat_map(|_| {
                         anchored(1)
                             .iter()
@@ -231,7 +237,10 @@ impl Automaton for Levenshtein {
                         let source = if edit.to_len == 1 {
                             row[edit.start]
                         } else {
-                            state.prev_row.as_ref().map_or(usize::MAX, |r| r[edit.start])
+                            state
+                                .prev_row
+                                .as_ref()
+                                .map_or(usize::MAX, |r| r[edit.start])
                         };
                         if n_step_edits < MAX_STEP_EDITS {
                             step_edits[n_step_edits] = (edit.end, source);

@@ -41,7 +41,8 @@ impl ReplacementPairs {
                 continue;
             }
             if to.chars().count() <= 2 {
-                out.edits.push((from.chars().collect(), to.chars().collect()));
+                out.edits
+                    .push((from.chars().collect(), to.chars().collect()));
             } else if let Some((_, tos)) = out.rewrites.iter_mut().find(|(key, _)| *key == from) {
                 tos.push(to);
             } else {
@@ -100,7 +101,7 @@ impl ReplacementPairs {
         for (key, tos) in &self.rewrites {
             if let Some(index) = word.get(from..).and_then(|rest| rest.find(key.as_str())) {
                 let index = from + index;
-                let better = first.map_or(true, |(best, best_key, _)| {
+                let better = first.is_none_or(|(best, best_key, _)| {
                     index < best || (index == best && key.len() >= best_key.len())
                 });
                 if better {
@@ -204,7 +205,10 @@ mod tests {
             ]
         );
         assert_eq!(pairs.rewrites("zzz"), vec!["zzz"]);
-        assert_eq!(pairs.rewrites("Zo\u{eb}\u{2014}\u{2026}"), vec!["Zo\u{eb}\u{2014}\u{2026}"]);
+        assert_eq!(
+            pairs.rewrites("Zo\u{eb}\u{2014}\u{2026}"),
+            vec!["Zo\u{eb}\u{2014}\u{2026}"]
+        );
     }
 
     #[test]

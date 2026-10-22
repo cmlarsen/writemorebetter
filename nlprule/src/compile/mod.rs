@@ -270,7 +270,8 @@ pub fn compile(
         if paths.spell_multitoken_path.exists() {
             spell.multitoken = MultitokenSpeller::from_file(&paths.spell_multitoken_path)?;
         }
-        spell.split_filter = SplitFilter::new(builtin::read_list(build_dir, "speller_split_filter"));
+        spell.split_filter =
+            SplitFilter::new(builtin::read_list(build_dir, "speller_split_filter"));
         spell
     } else {
         info!(
