@@ -28,7 +28,7 @@ pub use grammar::{Example, ExampleKind};
 
 use self::{
     disambiguation::PosFilter,
-    engine::{composition::GraphId, EngineMatches},
+    engine::{composition::GraphId, Antipatterns, EngineMatches},
     id::Index,
 };
 
@@ -148,10 +148,13 @@ impl DisambiguationRule {
 
         let mut all_spans = Vec::new();
 
-        for graph in self
-            .engine
-            .get_matches(pool, sentence, self.start, self.end, false)
-        {
+        for graph in self.engine.get_matches(
+            pool,
+            sentence,
+            self.start,
+            self.end,
+            Antipatterns::Block(None),
+        ) {
             if let Some(unification) = &self.unification {
                 if !unification.keep(&graph, sentence) {
                     continue;
@@ -332,7 +335,11 @@ impl DisambiguationRule {
 /// An iterator over [Suggestion][crate::types::Suggestion]s.
 pub struct Suggestions<'a, 't> {
     rule: &'a Rule,
+    pool: &'a PartPool,
     matches: EngineMatches<'a, 't>,
+    /// Whether `matches` has produced a match, and so is the run whose matches are reported. See
+    /// [`TokenEngine::immunity`][engine::TokenEngine] for why a rule with antipatterns runs twice.
+    gate_open: bool,
     sentence: &'t MatchSentence<'t>,
     /// The article word lists for `+DT`/`+INDT` synthesis, shared by every rule in the set.
     /// `None` when the rule set has no determiner synthesis.
@@ -354,6 +361,8 @@ impl<'a, 't> Iterator for Suggestions<'a, 't> {
         let articles = self.articles;
         let keep_case = self.keep_case;
 
+        // `None` when the graph yields no match, as LanguageTool's `createRuleMatch` returns no
+        // `RuleMatch`; `Some(None)` for a match that is reported without a suggestion here.
         let evaluate = |graph: &MatchGraph<'t>, vetoed: &mut bool| {
             if let Some(unification) = &rule.unification {
                 if !unification.keep(graph, sentence) {
@@ -458,7 +467,7 @@ impl<'a, 't> Iterator for Suggestions<'a, 't> {
                 .filter(|suggestion| suggestion.as_str() != text_before)
                 .collect();
 
-            if !replacements.is_empty() {
+            Some(if !replacements.is_empty() {
                 Some(Suggestion::new(
                     rule.id.to_string(),
                     match_.message,
@@ -477,16 +486,34 @@ impl<'a, 't> Iterator for Suggestions<'a, 't> {
                 ))
             } else {
                 None
-            }
+            })
         };
 
         while let Some(graph) = self.matches.next() {
             let mut vetoed = false;
-            if let Some(suggestion) = evaluate(&graph, &mut vetoed) {
-                return Some(suggestion);
-            }
-            if vetoed {
-                self.matches.release(&graph);
+            match evaluate(&graph, &mut vetoed) {
+                Some(suggestion) => {
+                    if !self.gate_open {
+                        // The first match of the run without antipatterns: report the matches of
+                        // a run with the antipattern tokens immunized instead, from the start.
+                        self.gate_open = true;
+                        if let Some(immune) = rule.engine.immunity(self.pool, sentence) {
+                            self.matches = rule.engine.get_matches(
+                                self.pool,
+                                sentence,
+                                start,
+                                end,
+                                Antipatterns::Immunize(immune),
+                            );
+                            continue;
+                        }
+                    }
+                    if suggestion.is_some() {
+                        return suggestion;
+                    }
+                }
+                None if vetoed => self.matches.release(&graph),
+                None => {}
             }
         }
         None
@@ -830,9 +857,15 @@ impl Rule {
         filter_context: filter::FilterContext<'a>,
     ) -> Suggestions<'a, 't> {
         Suggestions {
-            matches: self
-                .engine
-                .get_matches(pool, sentence, self.start, self.end, true),
+            matches: self.engine.get_matches(
+                pool,
+                sentence,
+                self.start,
+                self.end,
+                Antipatterns::Ignore,
+            ),
+            pool,
+            gate_open: false,
             rule: self,
             sentence,
             articles,

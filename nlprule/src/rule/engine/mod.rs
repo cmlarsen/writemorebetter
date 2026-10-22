@@ -15,34 +15,33 @@ pub struct TokenEngine {
     pub(crate) antipatterns: Vec<AntipatternId>,
 }
 
-struct Blockers {
+/// How a rule's antipatterns act on its matches.
+pub(crate) enum Antipatterns {
+    /// Not at all. A grammar rule's first run over a sentence (see [`TokenEngine::immunity`]).
+    Ignore,
+    /// A match overlapping an antipattern match is dropped, as LanguageTool's disambiguator does.
+    /// The blocking spans are computed on the first match.
+    Block(Option<Blockers>),
+    /// The visible tokens of the pattern cannot match these token positions, as LanguageTool's
+    /// grammar rules do after a run of the rule found a match.
+    Immunize(Box<[bool]>),
+}
+
+pub(crate) struct Blockers {
     starts: Vec<usize>,
     max_ends: Vec<usize>,
-    immune: Vec<bool>,
 }
 
 impl Blockers {
-    fn new(
-        engine: &TokenEngine,
-        pool: &PartPool,
-        sentence: &MatchSentence,
-        immunize: bool,
-    ) -> Self {
-        let mut spans = Vec::new();
-        let mut immune = vec![false; if immunize { sentence.len() } else { 0 }];
-        for antipattern in &engine.antipatterns {
-            for m in sentence.antipattern_matches(pool, *antipattern) {
-                if immunize {
-                    immune[m.tokens.clone()].fill(true);
-                } else {
-                    spans.push((m.chars.start, m.chars.end));
-                }
-            }
-        }
-        Blockers {
-            immune,
-            ..Self::from_spans(spans)
-        }
+    fn new(engine: &TokenEngine, pool: &PartPool, sentence: &MatchSentence) -> Self {
+        let spans = engine
+            .antipatterns
+            .iter()
+            .flat_map(|antipattern| sentence.antipattern_matches(pool, *antipattern))
+            .filter_map(|m| m.blocks.clone())
+            .map(|chars| (chars.start, chars.end))
+            .collect();
+        Self::from_spans(spans)
     }
 
     fn from_spans(mut spans: Vec<(usize, usize)>) -> Self {
@@ -60,7 +59,6 @@ impl Blockers {
         Blockers {
             starts: spans.into_iter().map(|(start, _)| start).collect(),
             max_ends,
-            immune: Vec::new(),
         }
     }
 
@@ -71,37 +69,49 @@ impl Blockers {
 }
 
 impl TokenEngine {
+    /// The token positions this rule's antipatterns immunize in `sentence`, or `None` when they
+    /// immunize nothing.
+    ///
+    /// LanguageTool 6.6 applies a grammar rule's antipatterns per sentence
+    /// (`PatternRule.checkForAntiPatterns`): it runs the rule on the sentence as is and, only if
+    /// that run reports a match, runs it again on the whole sentence with the antipattern tokens
+    /// immunized, and reports the second run's matches instead.
+    fn immunity(&self, pool: &PartPool, sentence: &MatchSentence) -> Option<Box<[bool]>> {
+        let mut immune = vec![false; sentence.len()].into_boxed_slice();
+        let mut any = false;
+        for antipattern in &self.antipatterns {
+            for m in sentence.antipattern_matches(pool, *antipattern) {
+                immune[m.tokens.clone()].fill(true);
+                any |= !m.tokens.is_empty();
+            }
+        }
+        any.then_some(immune)
+    }
+
     fn get_match<'t>(
         &'t self,
         pool: &'t PartPool,
         sentence: &'t MatchSentence,
         i: usize,
-        blockers: &mut Option<Blockers>,
-        immunize: bool,
+        antipatterns: &mut Antipatterns,
     ) -> Option<MatchGraph<'t>> {
-        if self.antipatterns.is_empty() {
-            return self.composition.apply(pool, sentence, i);
-        }
-
-        if !self.composition.can_start(pool, sentence, i) {
-            return None;
-        }
-
-        if immunize {
-            if !self.composition.may_match_immunized(pool, sentence, i) {
-                return None;
+        let blockers = match antipatterns {
+            Antipatterns::Block(blockers) if !self.antipatterns.is_empty() => blockers,
+            Antipatterns::Immunize(immune) => {
+                if !self.composition.can_start(pool, sentence, i) {
+                    return None;
+                }
+                return self
+                    .composition
+                    .apply_from(pool, sentence, i, Some(immune))
+                    .map(|(graph, _)| graph);
             }
-            let blockers =
-                blockers.get_or_insert_with(|| Blockers::new(self, pool, sentence, true));
-            return self
-                .composition
-                .apply_from(pool, sentence, i, Some(&blockers.immune))
-                .map(|(graph, _)| graph);
-        }
+            _ => return self.composition.apply(pool, sentence, i),
+        };
 
-        let (graph, _) = self.composition.apply_from(pool, sentence, i, None)?;
+        let graph = self.composition.apply(pool, sentence, i)?;
 
-        let blockers = blockers.get_or_insert_with(|| Blockers::new(self, pool, sentence, false));
+        let blockers = blockers.get_or_insert_with(|| Blockers::new(self, pool, sentence));
         let (start, end) = self
             .composition
             .parts
@@ -145,8 +155,7 @@ struct TokenMatches<'a, 't> {
     /// literal (see [`Composition::start_keys`]).
     starts: Starts<'t>,
     cursor: usize,
-    blockers: Option<Blockers>,
-    immunize: bool,
+    antipatterns: Antipatterns,
 }
 
 /// Which token positions a rule can start a match at.
@@ -215,15 +224,9 @@ impl<'a, 't> Iterator for EngineMatches<'a, 't> {
                     inner.index += 1;
                 }
 
-                let graph = match inner.engine.get_match(
-                    inner.pool,
-                    sentence,
-                    i,
-                    &mut inner.blockers,
-                    inner.immunize,
-                ) {
-                    Some(graph) => graph,
-                    None => continue,
+                let (engine, antipatterns) = (inner.engine, &mut inner.antipatterns);
+                let Some(graph) = engine.get_match(inner.pool, sentence, i, antipatterns) else {
+                    continue;
                 };
 
                 let start_group = graph.by_id(start_id);
@@ -286,13 +289,27 @@ impl<'t> EngineMatches<'_, 't> {
 }
 
 impl Engine {
-    pub fn get_matches<'a, 't>(
+    /// See [`TokenEngine::immunity`]. A text engine has no antipatterns.
+    pub(crate) fn immunity(
+        &self,
+        pool: &PartPool,
+        sentence: &MatchSentence,
+    ) -> Option<Box<[bool]>> {
+        match self {
+            Engine::Token(engine) if !engine.antipatterns.is_empty() => {
+                engine.immunity(pool, sentence)
+            }
+            _ => None,
+        }
+    }
+
+    pub(crate) fn get_matches<'a, 't>(
         &'a self,
         pool: &'a PartPool,
         sentence: &'t MatchSentence,
         start: GraphId,
         end: GraphId,
-        immunize: bool,
+        antipatterns: Antipatterns,
     ) -> EngineMatches<'a, 't> {
         let inner = match &self {
             Engine::Token(engine) => {
@@ -326,8 +343,7 @@ impl Engine {
                     mask: Vec::new(),
                     starts,
                     cursor: 0,
-                    blockers: None,
-                    immunize,
+                    antipatterns,
                 })
             }
 

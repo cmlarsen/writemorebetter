@@ -484,8 +484,16 @@ type AntipatternMatches = OnceLock<Box<[AntipatternMatch]>>;
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct AntipatternMatch {
+    /// The token positions a grammar rule's match cannot use: the marked tokens when the
+    /// antipattern has a `<marker>` and they matched, else all of them, as in LanguageTool 6.6's
+    /// `PatternRuleMatcher` immunization.
     pub(crate) tokens: Range<usize>,
-    pub(crate) chars: Range<usize>,
+    /// The characters a disambiguation rule's match must not overlap: the span of the marked
+    /// tokens when the antipattern has a `<marker>` and they matched, else the whole match, as in
+    /// LanguageTool 6.6's `keepByDisambig`. `None` when the span is empty, since
+    /// LanguageTool 6.6 reports no match for an empty span (`PatternRuleMatcher.createRuleMatch`)
+    /// and so has nothing to block with.
+    pub(crate) blocks: Option<Range<usize>>,
 }
 
 /// Token positions in a sentence, keyed by token text (and its lowercase form), used to jump
@@ -589,9 +597,9 @@ impl<'t> MatchSentence<'t> {
                 .filter(|&i| antipattern.can_start(pool, self, i))
                 .filter_map(|i| {
                     let (graph, end) = antipattern.apply_from(pool, self, i, None)?;
-                    let start = graph.by_index(0).span.char().start;
-                    let end_char = graph.by_index(graph.groups().len() - 1).span.char().end;
-                    let tokens = match pool.antipattern_marker(id) {
+                    let whole = graph.by_index(0).span.char().start
+                        ..graph.by_index(graph.groups().len() - 1).span.char().end;
+                    let (tokens, chars) = match pool.antipattern_marker(id) {
                         Some((marker_start, marker_end)) => {
                             let from = graph.by_id(marker_start).span.char().start;
                             let to = graph.by_id(marker_end).span.char().end;
@@ -600,15 +608,24 @@ impl<'t> MatchSentence<'t> {
                                 !span.is_empty() && span.start >= from && span.end <= to
                             };
                             match (i..end).find(inside) {
-                                Some(first) => first..(i..end).rfind(inside).unwrap() + 1,
-                                None => i..i,
+                                Some(first) => {
+                                    let last = (i..end).rfind(inside).unwrap();
+                                    let chars = self.index(first).span().char().start
+                                        ..self.index(last).span().char().end;
+                                    (first..last + 1, chars)
+                                }
+                                // LanguageTool uses the whole match when no marked token
+                                // matched: `AbstractPatternRulePerformer.matchFrom` leaves the
+                                // marker positions at -1, so both immunization and blocking
+                                // cover every token of the antipattern.
+                                None => (i..end, whole),
                             }
                         }
-                        None => i..end,
+                        None => (i..end, whole),
                     };
                     Some(AntipatternMatch {
                         tokens,
-                        chars: start..end_char,
+                        blocks: (chars.start < chars.end).then_some(chars),
                     })
                 })
                 .collect()
@@ -776,11 +793,6 @@ pub struct Part {
 pub struct NextExceptions {
     pub all: Atom,
     pub first: Atom,
-}
-
-struct Immunity<'a> {
-    immune: Option<&'a [bool]>,
-    stopped: bool,
 }
 
 impl Part {
@@ -1073,7 +1085,7 @@ impl Composition {
         sentence: &'t MatchSentence,
         start: usize,
         mut graph: MatchGraph<'t>,
-        immunity: &mut Immunity,
+        immune: Option<&[bool]>,
     ) -> Option<(MatchGraph<'t>, usize)> {
         let len = sentence.len() as i64;
         let pattern_size = (self.id_to_idx.len() - 1) as i64;
@@ -1108,7 +1120,7 @@ impl Composition {
                     position,
                     prev_element,
                     prev_skip,
-                    immunity.immune,
+                    immune,
                     &mut excepted,
                 );
                 if part.quantifier.min == 0
@@ -1118,15 +1130,13 @@ impl Composition {
                         index,
                         position,
                         prev_skip,
-                        immunity.immune,
+                        immune,
                         &mut excepted,
                     )
                 {
-                    immunity.stopped = true;
                     break;
                 }
                 if matched {
-                    immunity.stopped |= part.quantifier.min == 0 || m < max_tok;
                     found = Some(position);
                     break;
                 }
@@ -1153,7 +1163,7 @@ impl Composition {
                         last + 1,
                         prev_element,
                         prev_skip,
-                        immunity.immune,
+                        immune,
                         &mut excepted,
                     )
                 {
@@ -1163,7 +1173,6 @@ impl Composition {
                 if count < part.quantifier.min {
                     return None;
                 }
-                immunity.stopped |= count > 1;
 
                 if first as i64 > next_pos {
                     if let Some(skip) = prev_present_skip {
@@ -1243,30 +1252,7 @@ impl Composition {
             id_to_idx: GraphIndex::Slice(&self.id_to_idx),
         };
 
-        let mut immunity = Immunity {
-            immune,
-            stopped: false,
-        };
-        self.match_elements(pool, sentence, position, graph, &mut immunity)
-    }
-
-    pub(crate) fn may_match_immunized(
-        &self,
-        pool: &PartPool,
-        sentence: &MatchSentence,
-        start: usize,
-    ) -> bool {
-        let graph = MatchGraph {
-            groups: smallvec![Group::default(); self.parts.len() + 1],
-            id_to_idx: GraphIndex::Slice(&self.id_to_idx),
-        };
-        let mut immunity = Immunity {
-            immune: None,
-            stopped: false,
-        };
-        self.match_elements(pool, sentence, start, graph, &mut immunity)
-            .is_some()
-            || immunity.stopped
+        self.match_elements(pool, sentence, position, graph, immune)
     }
 }
 

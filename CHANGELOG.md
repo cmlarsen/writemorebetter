@@ -131,6 +131,18 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   differently fail to compile with `Unimplemented` instead of silently filtering. No English
   rule uses these shapes, so the English binaries are unchanged
   ([#230](https://github.com/cmlarsen/writemorebetter/issues/230)).
+- **Antipatterns apply per sentence, as in LanguageTool 6.6.** A rule's antipatterns now immunize
+  tokens only once the rule matches somewhere in the sentence, and then for a rerun over the whole
+  sentence. Before, the decision was made at each start position, so "It soon then was eaten and
+  it was gone." lost a match at "It soon then was" that LanguageTool reports
+  ([#223](https://github.com/cmlarsen/writemorebetter/issues/223)). An antipattern whose
+  `<marker>` covers only an absent optional token now immunizes its whole match.
+- **A disambiguation antipattern with a `<marker>` blocks only with its marked tokens**, or with
+  its whole match when they are absent, as in LanguageTool 6.6
+  ([#217](https://github.com/cmlarsen/writemorebetter/issues/217), first half).
+- **`<token min="N">` with N > 1 and a `max` other than 1 is rejected at compile time** instead of
+  matching N..M tokens where LanguageTool can match up to N·M. No English rule uses it
+  ([#224](https://github.com/cmlarsen/writemorebetter/issues/224)).
 
 ### Removed
 

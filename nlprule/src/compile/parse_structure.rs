@@ -525,6 +525,14 @@ fn parse_token(
         .unwrap_or(1usize);
     if min > 1 && max == 1 {
         max = min;
+    } else if min > 1 {
+        // LanguageTool 6.6 expands `min="N"` into N copies of the token, each keeping `max`, so it
+        // can match up to N·max tokens and shifts the element numbers later references use. No
+        // English rule uses `max` with `min > 1`, so that expansion is not modelled.
+        return Err(Error::Unimplemented(format!(
+            "<token min=\"{}\"> with max other than 1 is not implemented.",
+            min
+        )));
     }
 
     let quantifier = Quantifier::new(min, max);
@@ -2038,6 +2046,32 @@ mod tests {
                 "<pattern><and><token skip=\"2\"><text text=\"it’s\"/></token><token><text text=\"it’s\"/></token></and><token><text text=\"\u{2028}\"/></token></pattern>"
             ),
             vec![1, 0, 1]
+        );
+    }
+
+    #[test]
+    fn repeated_token_with_a_max_is_rejected() {
+        for max in ["2", "3", "-1"] {
+            assert!(
+                is_unimplemented(try_compiled_mins(&format!(
+                    "<pattern><token><text text=\"“It’s\"/></token><token min=\"2\" max=\"{}\"><text text=\"—…\"/></token><token><text text=\"\u{2028}\"/></token></pattern>",
+                    max
+                ))),
+                "{}",
+                max
+            );
+        }
+        assert_eq!(
+            compiled_mins(
+                r#"<pattern><token><text text="“It’s"/></token><token min="2"><text text="—…"/></token></pattern>"#
+            ),
+            vec![1, 2]
+        );
+        assert_eq!(
+            compiled_mins(
+                r#"<pattern><token min="2" max="1"><text text="‘so’"/></token></pattern>"#
+            ),
+            vec![2]
         );
     }
 
