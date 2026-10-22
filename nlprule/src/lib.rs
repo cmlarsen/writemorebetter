@@ -78,6 +78,7 @@ pub mod analysis;
 pub mod builtin;
 #[cfg(feature = "compile")]
 pub mod compile;
+pub mod document;
 mod filter;
 #[cfg(feature = "memory-probe")]
 #[allow(missing_docs)]
@@ -91,6 +92,7 @@ pub mod tokenizer;
 pub mod types;
 pub(crate) mod utils;
 
+pub use document::{DocumentMatch, DocumentMatches, ParagraphDigest};
 pub use rules::Rules;
 pub use tokenizer::Tokenizer;
 
@@ -220,7 +222,8 @@ pub const TOKENIZER_FORMAT_VERSION: u32 = 18;
 /// Version 31: the `RepeatedWords` and `TooOftenUsed` builtins were added.
 /// Version 32: the `HarperConfusion` builtin was added.
 /// Version 33: `SpellLangOptions::latin_script` was added.
-pub const RULES_FORMAT_VERSION: u32 = 33;
+/// Version 34: the `ConsistentApostrophes` builtin was added.
+pub const RULES_FORMAT_VERSION: u32 = 34;
 
 /// The longest engine version string accepted in a binary header.
 const MAX_ENGINE_VERSION_LEN: usize = 256;

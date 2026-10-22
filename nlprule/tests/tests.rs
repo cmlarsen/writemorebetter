@@ -551,6 +551,7 @@ fn apply_profile_reports_unmatched_selectors() {
         "EN_REDUNDANCY_REPLACE",
         "PROFANITY",
         "EN_REPEATEDWORDS",
+        "EN_CONSISTENT_APOS",
     ];
     assert!(rules.builtins().iter().all(|rule| rule.enabled()
         || off_by_default.contains(&rule.id())

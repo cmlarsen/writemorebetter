@@ -76,6 +76,9 @@ pub enum Builtin {
     Compounds(en::Compounds),
     /// A narrow English word confusion adapted from Harper.
     HarperConfusion(en::HarperConfusion),
+    /// Flags every apostrophe token in a text that mixes `'` and `’`. A whole-text rule: see
+    /// [`crate::document`].
+    ConsistentApostrophes(en::ConsistentApostrophes),
 }
 
 impl Builtin {
@@ -105,6 +108,7 @@ impl Builtin {
             Builtin::Dash(rule) => rule.id(),
             Builtin::Compounds(rule) => rule.id(),
             Builtin::HarperConfusion(rule) => rule.id(),
+            Builtin::ConsistentApostrophes(rule) => rule.id(),
         }
     }
 
@@ -195,6 +199,8 @@ impl Builtin {
             Builtin::HarperConfusion(rule) => {
                 sentences.iter().flat_map(|x| rule.check(x)).collect()
             }
+            // Runs in `Rules::resolve_document` instead.
+            Builtin::ConsistentApostrophes(_) => Vec::new(),
         }
     }
 

@@ -131,6 +131,7 @@ pub(crate) fn for_language(
             BuiltinRule::new_disabled(Builtin::TooOftenUsed(TooOftenUsed::new(
                 WordClass::Adjective,
             ))),
+            BuiltinRule::new_disabled(Builtin::ConsistentApostrophes(ConsistentApostrophes::new())),
         ]),
         _ => Ok(Vec::new()),
     }

@@ -4,6 +4,7 @@ use crate::types::*;
 use crate::utils::parallelism::MaybeParallelRefIterator;
 use crate::{
     builtin::{Builtin, BuiltinRule, TextState},
+    document::{Overlaps, ParagraphDigest},
     rule::id::{Group, Selector},
     rule::MatchSentence,
     rule::Rule,
@@ -260,7 +261,8 @@ impl Rules {
     }
 
     /// Compute the suggestions for the given sentence by checking all rules.
-    /// Builtin rules that look across sentences only see this sentence; use [Rules::suggest] for full context.
+    /// Builtin rules that look across sentences only see this sentence, and those that need the
+    /// whole text (`EN_CONSISTENT_APOS`) don't run; use [Rules::suggest] for full context.
     /// A rule with LanguageTool's `raw_pos` matches [Sentence::raw]; on a sentence that did not keep
     /// it (one not from [Tokenizer::pipe]) such a rule matches the disambiguated tokens instead.
     /// Rules with LanguageTool's `min_prev_matches` only count earlier matches in this sentence.
@@ -436,7 +438,28 @@ impl Rules {
     /// words used up to 150 words earlier in `text`, and the `TOO_OFTEN_USED_*` rules compute each
     /// word's share of `text` and report only after reading all of it. Their matches give way to
     /// any other suggestion they overlap.
+    ///
+    /// The builtins that need the whole text (`EN_CONSISTENT_APOS`) run on `text` as the whole
+    /// document, through the digests of [`crate::document`]. Their suggestions are kept when they
+    /// overlap one of another rule, as in LanguageTool. Without one enabled, no digest is built.
     pub fn suggest(&self, text: &str, tokenizer: &Tokenizer) -> Vec<Suggestion> {
+        if !self.document_rules_enabled() {
+            return self.suggest_paragraphs(text, tokenizer, None);
+        }
+        let mut digests = Vec::new();
+        let suggestions = self.suggest_paragraphs(text, tokenizer, Some((&mut digests, false)));
+        self.add_document_suggestions(text, suggestions, digests)
+    }
+
+    /// [Rules::suggest] without the whole-text builtins. With `digests`, also pushes the start
+    /// and digest of each engine paragraph; its flag tells whether the digests cover every
+    /// whole-text builtin or only the enabled ones.
+    pub(crate) fn suggest_paragraphs(
+        &self,
+        text: &str,
+        tokenizer: &Tokenizer,
+        mut digests: Option<(&mut Vec<(Position, ParagraphDigest)>, bool)>,
+    ) -> Vec<Suggestion> {
         if text.is_empty() {
             return Vec::new();
         }
@@ -465,16 +488,42 @@ impl Rules {
 
             if ends_paragraph {
                 let ends_text = sentences.peek().is_none();
+                self.push_digest(text, &paragraph, &mut digests);
                 self.extend_paragraph(&mut paragraph, &mut previous, ends_text, &mut batch);
                 if batch.len() >= self.batch_size.unwrap_or(PARALLEL_BATCH) {
                     self.flush_batch(&mut batch, &mut repetitions, &mut suggestions, ends_text);
                 }
             }
         }
+        self.push_digest(text, &paragraph, &mut digests);
         self.extend_paragraph(&mut paragraph, &mut previous, true, &mut batch);
         self.flush_batch(&mut batch, &mut repetitions, &mut suggestions, true);
 
         self.finish(suggestions, &repetitions)
+    }
+
+    /// Pushes the digest of an engine paragraph, which starts where the last one ended.
+    fn push_digest(
+        &self,
+        text: &str,
+        paragraph: &[Sentence],
+        digests: &mut Option<(&mut Vec<(Position, ParagraphDigest)>, bool)>,
+    ) {
+        if let (Some((digests, all)), Some(last)) = (digests, paragraph.last()) {
+            let start = digests
+                .last()
+                .map_or(Position::default(), |(start, digest)| {
+                    *start + digest.text_len()
+                });
+            let end = last.span().end();
+            let digest = self.digest(
+                text.get(start.byte..end.byte).unwrap_or_default(),
+                paragraph,
+                start,
+                *all,
+            );
+            digests.push((start, digest));
+        }
     }
 
     /// Adds the suggestions of the builtins that report only after reading the whole text,
@@ -484,18 +533,12 @@ impl Rules {
         mut suggestions: Vec<Suggestion>,
         repetitions: &Repetitions,
     ) -> Vec<Suggestion> {
+        let overlaps = Overlaps::new(&suggestions);
         let finished: Vec<Suggestion> = repetitions
             .builtins
             .finish(&self.builtins)
             .into_iter()
-            .filter(|suggestion| {
-                let span = suggestion.span().char();
-                let next =
-                    suggestions.partition_point(|other| other.span().char().end <= span.start);
-                suggestions
-                    .get(next)
-                    .is_none_or(|other| other.span().char().start >= span.end)
-            })
+            .filter(|suggestion| !overlaps.any(suggestion.span().char()))
             .collect();
 
         if !finished.is_empty() {
