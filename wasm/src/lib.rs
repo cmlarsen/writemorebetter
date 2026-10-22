@@ -338,6 +338,7 @@ impl Checker {
             .transpose()
             .map_err(|err| JsValue::from_str(&format!("invalid document options: {err}")))?
             .unwrap_or_default();
+        let options = utf16_marked_spans(options);
         let mut document = Document::from(writemorebetter_style::analyze_document(
             &self.tokenizer,
             text,
@@ -365,8 +366,9 @@ impl Checker {
         text: &str,
         options_json: Option<String>,
     ) -> Result<StyleDocument, JsValue> {
-        let options =
-            reports::parse_document_options(options_json.as_deref()).map_err(style_error)?;
+        let options = utf16_marked_spans(
+            reports::parse_document_options(options_json.as_deref()).map_err(style_error)?,
+        );
         Ok(StyleDocument {
             inner: writemorebetter_style::StyleDocument::new(
                 self.tokenizer.clone(),
@@ -794,4 +796,23 @@ impl StyleDocument {
             .map(|report| reports::to_utf16_json(&report))
             .map_err(style_error)
     }
+
+    /// Returns the voices report (#353): the resolved non-narration spans (speech, thought,
+    /// quoted terms and caller-marked spans) and their counts. Works on compact documents.
+    pub fn voices(&self, options_json: Option<String>) -> Result<String, JsValue> {
+        self.inner
+            .voices(options_json.as_deref())
+            .map(|report| reports::to_utf16_json(&report))
+            .map_err(style_error)
+    }
+}
+
+/// JavaScript offsets are UTF-16 code units, so caller spans default to them.
+fn utf16_marked_spans(
+    mut options: writemorebetter_style::DocumentOptions,
+) -> writemorebetter_style::DocumentOptions {
+    if options.marked_span_units.is_none() {
+        options.marked_span_units = Some(writemorebetter_style::OffsetUnits::Utf16);
+    }
+    options
 }

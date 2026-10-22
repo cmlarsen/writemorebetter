@@ -132,6 +132,15 @@ pub struct DocumentOptions {
     pub include_token_details: bool,
     #[uniffi(default)]
     pub hard_wrapped: bool,
+    /// Caller-marked voices (#353), always in UTF-16 code units (`NSRange` offsets).
+    #[uniffi(default)]
+    pub marked_spans: Vec<MarkedSpan>,
+    /// Detects tagged unquoted direct thought (*I’m late, she thought.*).
+    #[uniffi(default = true)]
+    pub detect_thought: bool,
+    /// Detects tagged unquoted speech (*Get out, he said.*).
+    #[uniffi(default = true)]
+    pub detect_unquoted_speech: bool,
 }
 
 impl Default for DocumentOptions {
@@ -140,7 +149,61 @@ impl Default for DocumentOptions {
             skip_names: Vec::new(),
             include_token_details: true,
             hard_wrapped: false,
+            marked_spans: Vec::new(),
+            detect_thought: true,
+            detect_unquoted_speech: true,
         }
+    }
+}
+
+/// The voices a caller may mark; detection alone produces quoted terms.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum MarkedVoice {
+    Narration,
+    Speech,
+    Thought,
+    Embedded,
+    Quotation,
+    Excluded,
+}
+
+/// A caller-marked range in UTF-16 code units. An invalid range (empty, past the end, or splitting
+/// a surrogate pair) is skipped and listed in the voices report's `ignoredMarkedSpans`.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct MarkedSpan {
+    pub start: u32,
+    pub end: u32,
+    pub voice: MarkedVoice,
+}
+
+impl DocumentOptions {
+    fn style_options(self) -> writemorebetter_style::DocumentOptions {
+        use writemorebetter_style::MarkedVoice as Voice;
+        let spans = self
+            .marked_spans
+            .into_iter()
+            .map(|span| {
+                let voice = match span.voice {
+                    MarkedVoice::Narration => Voice::Narration,
+                    MarkedVoice::Speech => Voice::Speech,
+                    MarkedVoice::Thought => Voice::Thought,
+                    MarkedVoice::Embedded => Voice::Embedded,
+                    MarkedVoice::Quotation => Voice::Quotation,
+                    MarkedVoice::Excluded => Voice::Excluded,
+                };
+                writemorebetter_style::MarkedSpan::new(
+                    span.start as usize..span.end as usize,
+                    voice,
+                )
+            })
+            .collect();
+        writemorebetter_style::DocumentOptions::new()
+            .with_skip_names(self.skip_names)
+            .with_token_details(self.include_token_details)
+            .with_hard_wrapped(self.hard_wrapped)
+            .with_marked_spans(writemorebetter_style::OffsetUnits::Utf16, spans)
+            .with_detect_thought(self.detect_thought)
+            .with_detect_unquoted_speech(self.detect_unquoted_speech)
     }
 }
 
@@ -394,11 +457,7 @@ impl Checker {
     }
 
     pub fn analyze_document(&self, text: String, options: Option<DocumentOptions>) -> Document {
-        let options = options.unwrap_or_default();
-        let options = writemorebetter_style::DocumentOptions::new()
-            .with_skip_names(options.skip_names)
-            .with_token_details(options.include_token_details)
-            .with_hard_wrapped(options.hard_wrapped);
+        let options = options.unwrap_or_default().style_options();
         writemorebetter_style::analyze_document(&self.tokenizer, &text, &options).into()
     }
 
@@ -409,11 +468,7 @@ impl Checker {
         text: String,
         options: Option<DocumentOptions>,
     ) -> Arc<StyleDocument> {
-        let input = options.unwrap_or_default();
-        let options = writemorebetter_style::DocumentOptions::new()
-            .with_skip_names(input.skip_names)
-            .with_token_details(input.include_token_details)
-            .with_hard_wrapped(input.hard_wrapped);
+        let options = options.unwrap_or_default().style_options();
         Arc::new(StyleDocument {
             inner: writemorebetter_style::StyleDocument::new(
                 self.tokenizer.clone(),
@@ -1106,6 +1161,18 @@ impl StyleDocument {
     pub fn hidden_verbs_json(&self, options_json: Option<String>) -> Result<String, CheckError> {
         self.inner
             .hidden_verbs(options_json.as_deref())
+            .map(|report| writemorebetter_style::reports::to_utf16_json(&report))
+            .map_err(|error| CheckError::ReportInput {
+                message: error.to_string(),
+            })
+    }
+
+    /// Returns the voices report (#353): resolved speech, thought, quoted-term and caller-marked
+    /// spans with their counts. Works on compact documents.
+    #[uniffi::method(default(options_json = None))]
+    pub fn voices_json(&self, options_json: Option<String>) -> Result<String, CheckError> {
+        self.inner
+            .voices(options_json.as_deref())
             .map(|report| writemorebetter_style::reports::to_utf16_json(&report))
             .map_err(|error| CheckError::ReportInput {
                 message: error.to_string(),

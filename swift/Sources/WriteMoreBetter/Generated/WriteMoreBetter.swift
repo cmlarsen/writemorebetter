@@ -1136,6 +1136,12 @@ public protocol StyleDocumentProtocol: AnyObject, Sendable {
      */
     func vagueWordsJson(optionsJson: String?) throws  -> String
     
+    /**
+     * Returns the voices report (#353): resolved speech, thought, quoted-term and caller-marked
+     * spans with their counts. Works on compact documents.
+     */
+    func voicesJson(optionsJson: String?) throws  -> String
+    
 }
 open class StyleDocument: StyleDocumentProtocol, @unchecked Sendable {
     fileprivate let handle: UInt64
@@ -1545,6 +1551,20 @@ open func vagueWordsJson(optionsJson: String? = nil)throws  -> String  {
 })
 }
     
+    /**
+     * Returns the voices report (#353): resolved speech, thought, quoted-term and caller-marked
+     * spans with their counts. Works on compact documents.
+     */
+open func voicesJson(optionsJson: String? = nil)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_method_styledocument_voices_json(
+            self.uniffiCloneHandle(),
+        FfiConverterOptionString.lower(optionsJson),uniffiCallStatus
+    )
+})
+}
+    
 
     
 }
@@ -1858,13 +1878,37 @@ public struct DocumentOptions: Equatable, Hashable {
     public var skipNames: [String]
     public var includeTokenDetails: Bool
     public var hardWrapped: Bool
+    /**
+     * Caller-marked voices (#353), always in UTF-16 code units (`NSRange` offsets).
+     */
+    public var markedSpans: [MarkedSpan]
+    /**
+     * Detects tagged unquoted direct thought (*I’m late, she thought.*).
+     */
+    public var detectThought: Bool
+    /**
+     * Detects tagged unquoted speech (*Get out, he said.*).
+     */
+    public var detectUnquotedSpeech: Bool
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(skipNames: [String] = [], includeTokenDetails: Bool = true, hardWrapped: Bool = false) {
+    public init(skipNames: [String] = [], includeTokenDetails: Bool = true, hardWrapped: Bool = false, 
+        /**
+         * Caller-marked voices (#353), always in UTF-16 code units (`NSRange` offsets).
+         */markedSpans: [MarkedSpan] = [], 
+        /**
+         * Detects tagged unquoted direct thought (*I’m late, she thought.*).
+         */detectThought: Bool = true, 
+        /**
+         * Detects tagged unquoted speech (*Get out, he said.*).
+         */detectUnquotedSpeech: Bool = true) {
         self.skipNames = skipNames
         self.includeTokenDetails = includeTokenDetails
         self.hardWrapped = hardWrapped
+        self.markedSpans = markedSpans
+        self.detectThought = detectThought
+        self.detectUnquotedSpeech = detectUnquotedSpeech
     }
 
     
@@ -1885,7 +1929,10 @@ public struct FfiConverterTypeDocumentOptions: FfiConverterRustBuffer {
             try DocumentOptions(
                 skipNames: FfiConverterSequenceString.read(from: &buf), 
                 includeTokenDetails: FfiConverterBool.read(from: &buf), 
-                hardWrapped: FfiConverterBool.read(from: &buf)
+                hardWrapped: FfiConverterBool.read(from: &buf), 
+                markedSpans: FfiConverterSequenceTypeMarkedSpan.read(from: &buf), 
+                detectThought: FfiConverterBool.read(from: &buf), 
+                detectUnquotedSpeech: FfiConverterBool.read(from: &buf)
         )
     }
 
@@ -1893,6 +1940,9 @@ public struct FfiConverterTypeDocumentOptions: FfiConverterRustBuffer {
         FfiConverterSequenceString.write(value.skipNames, into: &buf)
         FfiConverterBool.write(value.includeTokenDetails, into: &buf)
         FfiConverterBool.write(value.hardWrapped, into: &buf)
+        FfiConverterSequenceTypeMarkedSpan.write(value.markedSpans, into: &buf)
+        FfiConverterBool.write(value.detectThought, into: &buf)
+        FfiConverterBool.write(value.detectUnquotedSpeech, into: &buf)
     }
 }
 
@@ -2169,6 +2219,68 @@ public func FfiConverterTypeDocumentToken_lift(_ buf: RustBuffer) throws -> Docu
 #endif
 public func FfiConverterTypeDocumentToken_lower(_ value: DocumentToken) -> RustBuffer {
     return FfiConverterTypeDocumentToken.lower(value)
+}
+
+
+/**
+ * A caller-marked range in UTF-16 code units. An invalid range (empty, past the end, or splitting
+ * a surrogate pair) is skipped and listed in the voices report's `ignoredMarkedSpans`.
+ */
+public struct MarkedSpan: Equatable, Hashable {
+    public var start: UInt32
+    public var end: UInt32
+    public var voice: MarkedVoice
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(start: UInt32, end: UInt32, voice: MarkedVoice) {
+        self.start = start
+        self.end = end
+        self.voice = voice
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension MarkedSpan: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeMarkedSpan: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> MarkedSpan {
+        return
+            try MarkedSpan(
+                start: FfiConverterUInt32.read(from: &buf), 
+                end: FfiConverterUInt32.read(from: &buf), 
+                voice: FfiConverterTypeMarkedVoice.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: MarkedSpan, into buf: inout [UInt8]) {
+        FfiConverterUInt32.write(value.start, into: &buf)
+        FfiConverterUInt32.write(value.end, into: &buf)
+        FfiConverterTypeMarkedVoice.write(value.voice, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeMarkedSpan_lift(_ buf: RustBuffer) throws -> MarkedSpan {
+    return try FfiConverterTypeMarkedSpan.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeMarkedSpan_lower(_ value: MarkedSpan) -> RustBuffer {
+    return FfiConverterTypeMarkedSpan.lower(value)
 }
 
 
@@ -2515,6 +2627,103 @@ public func FfiConverterTypeCheckError_lower(_ value: CheckError) -> RustBuffer 
     return FfiConverterTypeCheckError.lower(value)
 }
 
+
+/**
+ * The voices a caller may mark; detection alone produces quoted terms.
+ */
+
+public enum MarkedVoice: Equatable, Hashable {
+    
+    case narration
+    case speech
+    case thought
+    case embedded
+    case quotation
+    case excluded
+
+
+
+
+
+}
+
+#if compiler(>=6)
+extension MarkedVoice: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeMarkedVoice: FfiConverterRustBuffer {
+    typealias SwiftType = MarkedVoice
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> MarkedVoice {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .narration
+        
+        case 2: return .speech
+        
+        case 3: return .thought
+        
+        case 4: return .embedded
+        
+        case 5: return .quotation
+        
+        case 6: return .excluded
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: MarkedVoice, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .narration:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .speech:
+            writeInt(&buf, Int32(2))
+        
+        
+        case .thought:
+            writeInt(&buf, Int32(3))
+        
+        
+        case .embedded:
+            writeInt(&buf, Int32(4))
+        
+        
+        case .quotation:
+            writeInt(&buf, Int32(5))
+        
+        
+        case .excluded:
+            writeInt(&buf, Int32(6))
+        
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeMarkedVoice_lift(_ buf: RustBuffer) throws -> MarkedVoice {
+    return try FfiConverterTypeMarkedVoice.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeMarkedVoice_lower(_ value: MarkedVoice) -> RustBuffer {
+    return FfiConverterTypeMarkedVoice.lower(value)
+}
+
+
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
@@ -2758,6 +2967,31 @@ fileprivate struct FfiConverterSequenceTypeDocumentToken: FfiConverterRustBuffer
         seq.reserveCapacity(Int(len))
         for _ in 0 ..< len {
             seq.append(try FfiConverterTypeDocumentToken.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeMarkedSpan: FfiConverterRustBuffer {
+    typealias SwiftType = [MarkedSpan]
+
+    public static func write(_ value: [MarkedSpan], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeMarkedSpan.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [MarkedSpan] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [MarkedSpan]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeMarkedSpan.read(from: &buf))
         }
         return seq
     }
@@ -3030,6 +3264,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_method_styledocument_vague_words_json() != 15335) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_writemorebetter_swift_checksum_method_styledocument_voices_json() != 6812) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_constructor_checker_new() != 1239) {

@@ -684,4 +684,32 @@ final class CheckerTests: XCTestCase {
         XCTAssertThrowsError(try document.vagueWords(optionsJson: "{\"typo\":true}"))
         XCTAssertThrowsError(try document.hiddenVerbs(optionsJson: "{\"typo\":true}"))
     }
+
+    func testVoicesWithMarkedSpans() throws {
+        let text = "😀 She read the note. Dear Sam, I am gone. I’m done with this, she thought."
+        let ns = text as NSString
+        let letter = ns.range(of: "Dear Sam, I am gone.")
+        // Swift offsets are always UTF-16 code units; 1..<3 splits the emoji's surrogate pair.
+        let options = DocumentOptions(markedSpans: [
+            MarkedSpan(start: UInt32(letter.location), end: UInt32(letter.location + letter.length), voice: .embedded),
+            MarkedSpan(start: 1, end: 3, voice: .excluded),
+        ])
+        let document = try checker().styleDocument(text: text, options: options)
+        let report = try document.voices()
+        XCTAssertEqual(report.spans.map { ns.substring(with: $0.span.nsRange) }, ["Dear Sam, I am gone.", "I’m done with this"])
+        XCTAssertEqual(report.spans.map(\.voice), [.embedded, .thought])
+        XCTAssertEqual(report.spans.map(\.source), [.caller, .tag])
+        XCTAssertEqual(report.spans[1].tag.map { ns.substring(with: $0.nsRange) }, "she thought")
+        XCTAssertEqual(report.spans[1].shift, .both)
+        XCTAssertEqual(report.spans[0].marked, 0)
+        XCTAssertEqual(report.ignoredMarkedSpans, [1])
+        XCTAssertEqual([report.counts.thought.spans, report.counts.thought.words], [1, 5])
+        let roundTrip = try JSONDecoder().decode(VoicesReport.self, from: Data(document.voicesJson().utf8))
+        XCTAssertEqual(roundTrip, report)
+        let quiet = try checker().styleDocument(text: text, options: DocumentOptions(detectThought: false, detectUnquotedSpeech: false))
+        XCTAssertEqual(try quiet.voices().spans, [])
+        let compact = try checker().styleDocument(text: text, options: DocumentOptions(includeTokenDetails: false, markedSpans: options.markedSpans))
+        XCTAssertEqual(try compact.voices().spans, report.spans)
+        XCTAssertThrowsError(try document.voices(optionsJson: "{\"typo\":true}"))
+    }
 }

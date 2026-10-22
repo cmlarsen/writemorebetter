@@ -393,7 +393,7 @@ check(typeof lengthReport.groups.all.meanDifference === "number", "bundled basel
 eq(JSON.parse(retained.sentenceLength(options, "none")).groups.all.meanDifference, null, "baseline disabled per call");
 const custom = JSON.parse(retained.sentenceLength(options, '{"mean":1}'));
 eq(custom.groups.all.meanDifference, custom.groups.all.mean - 1, "custom baseline per call");
-const calls = ["echoes", "repeatedPhrases", "cliches", "dialogueTags", "adverbs", "sentenceLength", "sentenceStarts", "sensoryBalance", "pacing", "overusedWords", "transitions", "pronounStarts", "emotionTells", "stats"];
+const calls = ["echoes", "repeatedPhrases", "cliches", "dialogueTags", "adverbs", "sentenceLength", "sentenceStarts", "sensoryBalance", "pacing", "overusedWords", "transitions", "pronounStarts", "emotionTells", "voices", "stats"];
 for (const method of calls) {
   const fresh = checker.styleDocument(reportText);
   eq(JSON.parse(retained[method]()), JSON.parse(fresh[method]()), `shared analysis matches fresh ${method}`);
@@ -453,6 +453,33 @@ eq(emotions.tells.map(t => t.mode), ["narration", "dialogue"], "emotion tell mod
 eq(JSON.parse(emotionDocument.emotionTells()).tells.length, 1, "emotion tells skip dialogue by default");
 eq(styleError(() => emotionDocument.emotionTells('{"includeDialog":true}')).kind, "invalidOptions", "emotion tells reject unknown options");
 emotionDocument.free();
+const voiceText = "😀 She read the note. Dear Sam, I am gone. I’m done with this, she thought.";
+const letterStart = voiceText.indexOf("Dear");
+const letterEnd = voiceText.indexOf(" I’m");
+// No markedSpanUnits: WASM offsets are UTF-16 code units. {1,3} splits the emoji's surrogate pair.
+const voiceOptions = JSON.stringify({markedSpans: [{start: letterStart, end: letterEnd, voice: "embedded"}, {start: 1, end: 3, voice: "excluded"}]});
+const voiceDocument = checker.styleDocument(voiceText, voiceOptions);
+const voices = JSON.parse(voiceDocument.voices());
+eq(voices.spans.map(v => [voiceText.slice(v.span.start, v.span.end), v.voice, v.source]), [["Dear Sam, I am gone.", "embedded", "caller"], ["I’m done with this", "thought", "tag"]], "UTF-16 voice spans after emoji");
+eq(voiceText.slice(voices.spans[1].tag.start, voices.spans[1].tag.end), "she thought", "voice tag span");
+eq(voices.spans[1].shift, "both", "voice shift");
+eq(voices.spans[0].marked, 0, "caller span index");
+eq(voices.ignoredMarkedSpans, [1], "surrogate-splitting caller span ignored");
+eq(voices.counts.thought, {spans: 1, words: 5}, "thought counts");
+eq(voices.narrationWords + Object.values(voices.counts).reduce((sum, count) => sum + count.words, 0), JSON.parse(voiceDocument.stats()).words.all, "voice words add up");
+eq(styleError(() => voiceDocument.voices('{"typo":1}')).kind, "invalidOptions", "voices reject unknown options");
+voiceDocument.free();
+const quiet = checker.styleDocument(voiceText, '{"detectThought":false,"detectUnquotedSpeech":false}');
+eq(JSON.parse(quiet.voices()).spans, [], "detection off");
+quiet.free();
+const byteUnits = checker.styleDocument(voiceText, JSON.stringify({markedSpanUnits: "char", markedSpans: [{start: [...voiceText.slice(0, letterStart)].length, end: [...voiceText.slice(0, letterEnd)].length, voice: "embedded"}]}));
+eq(JSON.parse(byteUnits.voices()).spans[0].span, {start: letterStart, end: letterEnd}, "char units map to the same span");
+byteUnits.free();
+eq(styleError(() => checker.styleDocument(voiceText, '{"markedSpans":[{"start":0,"end":1,"voice":"quoted"}]}')).kind, "invalidOptions", "quoted is not a caller voice");
+check(JSON.parse(checker.analyzeDocument(voiceText, voiceOptions)).paragraphs.length === 1, "analyzeDocument accepts voice options");
+const compactVoices = checker.styleDocument(voiceText, JSON.stringify({includeTokenDetails: false, markedSpans: [{start: letterStart, end: letterEnd, voice: "embedded"}]}));
+eq(JSON.parse(compactVoices.voices()).spans.length, 2, "voices on compact documents");
+compactVoices.free();
 const vagueText = "😀.\u2028It was sort of cold—then a little warmer… “Well, it’s kind of nice,” she said. She made a decision.";
 const vagueDocument = checker.styleDocument(vagueText);
 const vague = JSON.parse(vagueDocument.vagueWords());

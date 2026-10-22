@@ -1032,3 +1032,53 @@ public extension StyleDocument {
         try decodeStyle(hiddenVerbsJson(optionsJson: optionsJson))
     }
 }
+
+/// Who is speaking at a position (#353). `Mode` is unchanged by voices.
+public enum Voice: String, Codable, Sendable { case narration, speech, thought, quoted, embedded, quotation, excluded }
+
+public enum VoiceSource: String, Codable, Sendable { case quote, tag, caller }
+
+public enum VoiceShift: String, Codable, Sendable { case person, tense, both }
+
+public struct VoiceSpan: Codable, Equatable, Sendable {
+    public let span: Span
+    public let voice: Voice
+    public let source: VoiceSource
+    /// Tag source only: the tag (*she thought*), which stays narration.
+    public let tag: Span?
+    public let shift: VoiceShift?
+    /// Caller source only: the index into `DocumentOptions.markedSpans`.
+    public let marked: Int?
+}
+
+public struct VoiceCount: Codable, Equatable, Sendable {
+    public let spans: Int
+    public let words: Int
+}
+
+/// Every non-narration voice, zero when absent.
+public struct VoiceCounts: Codable, Equatable, Sendable {
+    public let speech: VoiceCount
+    public let thought: VoiceCount
+    public let quoted: VoiceCount
+    public let embedded: VoiceCount
+    public let quotation: VoiceCount
+    public let excluded: VoiceCount
+}
+
+public struct VoicesReport: Codable, Equatable, Sendable {
+    public let spans: [VoiceSpan]
+    public let counts: VoiceCounts
+    public let narrationWords: Int
+    public let narrationSentences: Int
+    public let sentences: Int
+    /// Indexes of `DocumentOptions.markedSpans` that were skipped as invalid.
+    public let ignoredMarkedSpans: [Int]
+}
+
+public extension StyleDocument {
+    /// Speech, thought, quoted-term and caller-marked spans; works on compact documents.
+    func voices(optionsJson: String? = nil) throws -> VoicesReport {
+        try decodeStyle(voicesJson(optionsJson: optionsJson))
+    }
+}

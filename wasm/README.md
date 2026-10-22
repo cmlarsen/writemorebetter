@@ -198,8 +198,29 @@ const house = JSON.parse(document.houseStyle('{"skipDialogue":true}', valeRulesY
 const emotions = JSON.parse(document.emotionTells()); // '{"includeDialogue":true}' scans dialogue too
 const vague = JSON.parse(document.vagueWords()); // '{"fillers":false}' skips the bundled filler list
 const hidden = JSON.parse(document.hiddenVerbs()); // '{"ofPhrases":false}' keeps light verbs only
+const voices = JSON.parse(document.voices()); // speech, thought, quoted and caller-marked spans
 document.free();
 ```
+
+### Voices
+
+`voices()` lists who is speaking where (#353): quoted speech, quoted and tagged unquoted thought
+(*I’m done, she thought.*), tagged unquoted speech (*Get out, he said.*), quoted terms, and spans
+the caller marks. Mark letters, epigraphs or excluded text with `markedSpans` in the document
+options; WASM offsets default to **UTF-16** code units (JavaScript string indices), and
+`markedSpanUnits` (`"utf16"`, `"char"` or `"byte"`) overrides that. Invalid spans are skipped and
+listed in `ignoredMarkedSpans`. `detectThought` and `detectUnquotedSpeech` (both on) turn the
+detectors off. Voices never change `mode`, the stats or any other report.
+
+```javascript
+const text = "Dear Sam, I am gone. I’m done with this, she thought.";
+const options = {markedSpanUnits: "utf16", markedSpans: [{start: 0, end: 20, voice: "embedded"}]};
+const document = checker.styleDocument(text, JSON.stringify(options));
+const {spans, counts} = JSON.parse(document.voices());
+// spans: embedded 0–20 (caller), thought 21–39 with tag 41–52 and shift "both"
+```
+
+See [`docs/STYLE-VOICES.md`](../docs/STYLE-VOICES.md).
 
 `houseStyle` takes caller-supplied Vale-format rules (YAML or JSON text) as its second argument
 and throws an `invalidRules` StyleError without them or when a rule is invalid; see

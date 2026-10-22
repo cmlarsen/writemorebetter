@@ -846,3 +846,52 @@ export interface HiddenVerbsReport {
   terms: Array<HiddenVerbTerm>;
   groups: Split<HiddenVerbsGroup>;
 }
+
+/** Who is speaking at a position (#353). `Mode` is unchanged by voices. */
+export type Voice = "narration" | "speech" | "thought" | "quoted" | "embedded" | "quotation" | "excluded";
+/** The voices a caller may mark in `markedSpans`; `quoted` comes only from detection. */
+export type MarkedVoice = "narration" | "speech" | "thought" | "embedded" | "quotation" | "excluded";
+export type VoiceSource = "quote" | "tag" | "caller";
+export type VoiceShift = "person" | "tense" | "both";
+/** The unit of `markedSpans` offsets; WASM defaults to `utf16`. */
+export type OffsetUnits = "byte" | "char" | "utf16";
+
+/** A caller-marked range for `styleDocument` / `analyzeDocument` options `markedSpans`. */
+export interface MarkedSpan {
+  start: number;
+  end: number;
+  voice: MarkedVoice;
+}
+
+export interface VoiceSpan {
+  span: Span;
+  voice: Voice;
+  source: VoiceSource;
+  tag: Span | null;
+  shift: VoiceShift | null;
+  marked: number | null;
+}
+
+export interface VoiceCount {
+  spans: number;
+  words: number;
+}
+
+/** Every non-narration voice, zero when absent. */
+export interface VoiceCounts {
+  speech: VoiceCount;
+  thought: VoiceCount;
+  quoted: VoiceCount;
+  embedded: VoiceCount;
+  quotation: VoiceCount;
+  excluded: VoiceCount;
+}
+
+export interface VoicesReport {
+  spans: Array<VoiceSpan>;
+  counts: VoiceCounts;
+  narrationWords: number;
+  narrationSentences: number;
+  sentences: number;
+  ignoredMarkedSpans: Array<number>;
+}

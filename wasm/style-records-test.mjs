@@ -88,6 +88,12 @@ export function checkStyleRecords(checker) {
   const emotionDocument = checker.styleDocument("She was afraid. “I was so angry,” he said.");
   results.push(["EmotionTellsReport", emotionDocument.emotionTells('{"includeDialogue":true}')]);
   emotionDocument.free();
+  const marked = { start: 0, end: 2, voice: "excluded" };
+  validate(marked, "MarkedSpan", "MarkedSpan"); // an input record: the options below send it
+  const voiceDocument = checker.styleDocument("“Fine,” he thought. I’m done, she thought. She pressed “Send.” Keep moving, he said.",
+    JSON.stringify({ markedSpans: [marked] }));
+  results.push(["VoicesReport", voiceDocument.voices()]);
+  voiceDocument.free();
   const vagueDocument = checker.styleDocument("It was sort of cold. “Well, it’s a nice thing,” she said. She made a decision after the arrival of the train.");
   results.push(["VagueWordsReport", vagueDocument.vagueWords()]);
   results.push(["HiddenVerbsReport", vagueDocument.hiddenVerbs()]);
