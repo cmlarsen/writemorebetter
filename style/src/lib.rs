@@ -8,3 +8,5 @@ pub use error::StyleError;
 pub mod preset;
 mod style_document;
 pub use style_document::StyleDocument;
+pub mod narrative;
+mod voices;

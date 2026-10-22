@@ -24,6 +24,7 @@ pub mod sentence_starts;
 pub mod title_case;
 pub mod transitions;
 pub mod vague_words;
+pub mod voices;
 
 use std::ops::Range;
 use std::sync::OnceLock;

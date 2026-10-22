@@ -1,0 +1,19 @@
+# Verbs that tag unquoted direct thought ("I'm late, she thought."). Project-authored for
+# writemorebetter (#353), MIT OR Apache-2.0. WordNet was consulted for candidates only; no WordNet
+# data is copied. knew, felt, believed, remembered, hoped and similar verbs are left out on purpose:
+# they mostly introduce indirect thought. One lemma per line.
+think
+wonder
+muse
+reason
+realize
+realise
+decide
+figure
+suppose
+reflect
+pray
+ponder
+calculate
+conclude
+reckon

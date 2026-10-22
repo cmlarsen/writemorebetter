@@ -73,6 +73,124 @@ pub enum Mode {
     Dialogue,
 }
 
+/// Who is speaking at a position (#353). `Mode` stays the two-way split every existing report
+/// uses; `Voice` refines it for lenses that must leave out everything but narration.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub enum Voice {
+    Narration,
+    /// Quoted speech, or unquoted speech with a speech-verb tag (*Get out, he said.*).
+    Speech,
+    /// Quoted or unquoted direct thought (*I’m late, she thought.*).
+    Thought,
+    /// A quoted span that is not speech: a term, a title, a sign read aloud (*pressed “Send”*).
+    /// Only detection produces it.
+    Quoted,
+    /// Caller-marked embedded text: a letter, a note, a sign.
+    Embedded,
+    /// Caller-marked quotation: a block quote or an epigraph.
+    Quotation,
+    /// Caller-marked text no lens should read.
+    Excluded,
+}
+
+/// The voices a caller may mark. There is no `Quoted`: that voice comes only from detection.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub enum MarkedVoice {
+    Narration,
+    Speech,
+    Thought,
+    Embedded,
+    Quotation,
+    Excluded,
+}
+
+impl From<MarkedVoice> for Voice {
+    fn from(voice: MarkedVoice) -> Self {
+        match voice {
+            MarkedVoice::Narration => Voice::Narration,
+            MarkedVoice::Speech => Voice::Speech,
+            MarkedVoice::Thought => Voice::Thought,
+            MarkedVoice::Embedded => Voice::Embedded,
+            MarkedVoice::Quotation => Voice::Quotation,
+            MarkedVoice::Excluded => Voice::Excluded,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub enum VoiceSource {
+    /// A quoted span from dialogue detection.
+    Quote,
+    /// An unquoted clause attached to a thought or speech tag.
+    Tag,
+    /// A span from `DocumentOptions::marked_spans`.
+    Caller,
+}
+
+/// Why a tag-source span fired: its clause disagrees with the tag in person, tense or both.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub enum VoiceShift {
+    Person,
+    Tense,
+    Both,
+}
+
+/// The unit of caller offsets: UTF-8 bytes, Unicode scalars, or UTF-16 code units.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub enum OffsetUnits {
+    Byte,
+    Char,
+    Utf16,
+}
+
+/// A caller-marked range, in `DocumentOptions::marked_span_units`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct MarkedSpan {
+    pub start: usize,
+    pub end: usize,
+    pub voice: MarkedVoice,
+}
+
+impl MarkedSpan {
+    pub fn new(range: Range<usize>, voice: MarkedVoice) -> Self {
+        Self {
+            start: range.start,
+            end: range.end,
+            voice,
+        }
+    }
+}
+
+/// One resolved non-narration span. `Document::voices` holds them sorted and non-overlapping.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct VoiceSpan {
+    /// The non-narration text. For a tag source, the clause without its tag.
+    pub span: Span,
+    /// Never `Narration`.
+    pub voice: Voice,
+    pub source: VoiceSource,
+    /// Tag source only: *she thought*, *he said*. The tag itself stays narration.
+    pub tag: Option<Span>,
+    /// Tag source only.
+    pub shift: Option<VoiceShift>,
+    /// Caller source only: the index into `DocumentOptions::marked_spans`.
+    pub marked: Option<usize>,
+}
+
 impl From<AnalysisSpan> for Span {
     fn from(span: AnalysisSpan) -> Self {
         Self {
@@ -93,6 +211,19 @@ pub struct DocumentOptions {
     pub include_token_details: bool,
     #[serde(alias = "hardWrapped")]
     pub hard_wrapped: bool,
+    /// Caller-marked voices (#353), in `marked_span_units`.
+    #[serde(alias = "markedSpans")]
+    pub marked_spans: Vec<MarkedSpan>,
+    /// The unit of `marked_spans`. `None` means bytes in Rust; each binding fills its own unit
+    /// (WASM and Swift UTF-16, Python Unicode scalars) when the caller leaves it out.
+    #[serde(alias = "markedSpanUnits")]
+    pub marked_span_units: Option<OffsetUnits>,
+    /// Detects tagged unquoted direct thought (*I’m late, she thought.*). On by default.
+    #[serde(alias = "detectThought")]
+    pub detect_thought: bool,
+    /// Detects tagged unquoted speech (*Get out, he said.*). On by default.
+    #[serde(alias = "detectUnquotedSpeech")]
+    pub detect_unquoted_speech: bool,
 }
 
 impl Default for DocumentOptions {
@@ -101,6 +232,10 @@ impl Default for DocumentOptions {
             skip_names: Vec::new(),
             include_token_details: true,
             hard_wrapped: false,
+            marked_spans: Vec::new(),
+            marked_span_units: None,
+            detect_thought: true,
+            detect_unquoted_speech: true,
         }
     }
 }
@@ -119,6 +254,19 @@ impl DocumentOptions {
     }
     pub fn with_hard_wrapped(mut self, hard_wrapped: bool) -> Self {
         self.hard_wrapped = hard_wrapped;
+        self
+    }
+    pub fn with_marked_spans(mut self, units: OffsetUnits, spans: Vec<MarkedSpan>) -> Self {
+        self.marked_span_units = Some(units);
+        self.marked_spans = spans;
+        self
+    }
+    pub fn with_detect_thought(mut self, detect: bool) -> Self {
+        self.detect_thought = detect;
+        self
+    }
+    pub fn with_detect_unquoted_speech(mut self, detect: bool) -> Self {
+        self.detect_unquoted_speech = detect;
         self
     }
 }
@@ -193,6 +341,13 @@ pub struct Document {
     pub skip_names_supplied: bool,
     #[serde(default)]
     pub compound_heads: BTreeMap<String, Vec<(String, String)>>,
+    /// Resolved non-narration spans, sorted by start and non-overlapping (#353).
+    #[serde(default)]
+    pub voices: Vec<VoiceSpan>,
+    /// Indexes of caller spans that were dropped: out of range, empty or reversed, or not on a
+    /// character boundary in their unit.
+    #[serde(default)]
+    pub ignored_marked_spans: Vec<usize>,
 }
 
 fn token_details_default() -> bool {
@@ -267,6 +422,89 @@ impl Document {
             .skip(first)
             .take_while(|(_, span)| span.byte.start < sentence.span.byte.end)
             .any(|(i, _)| self.is_speech(i))
+    }
+
+    /// The voice at a byte offset. `mode_at` is unchanged by voices.
+    pub fn voice_at(&self, byte: usize) -> Voice {
+        self.voice_span_at(byte)
+            .map_or(Voice::Narration, |span| span.voice)
+    }
+
+    pub fn voice_span_at(&self, byte: usize) -> Option<&VoiceSpan> {
+        let index = self
+            .voices
+            .partition_point(|span| span.span.byte.end <= byte);
+        self.voices
+            .get(index)
+            .filter(|span| span.span.byte.start <= byte)
+    }
+
+    /// True outside every voice span. Every quoted span is excluded, speech or not.
+    pub fn is_narration_at(&self, byte: usize) -> bool {
+        self.voice_at(byte) == Voice::Narration
+    }
+
+    /// True inside the tag of a tag-source span (*she thought*). The tag is narration, but lenses
+    /// that compare a clause with its frame skip it.
+    pub fn in_voice_tag(&self, byte: usize) -> bool {
+        let index = self
+            .voices
+            .partition_point(|span| span.span.byte.end <= byte);
+        // A tag sits next to its span: just before (leading), just after (trailing) or between
+        // the two parts of a split thought.
+        self.voices[index.saturating_sub(2)..(index + 2).min(self.voices.len())]
+            .iter()
+            .filter_map(|span| span.tag.as_ref())
+            .any(|tag| tag.byte.start <= byte && byte < tag.byte.end)
+    }
+
+    /// The sentence's words that are narration.
+    pub fn sentence_narration_words<'a>(
+        &'a self,
+        sentence: &'a Sentence,
+    ) -> impl Iterator<Item = &'a Token> + 'a {
+        sentence
+            .words()
+            .filter(|token| self.is_narration_at(token.span.byte.start))
+    }
+
+    /// Maximal runs of indexes into `sentence.tokens` whose words are narration. A run starts at
+    /// a word; punctuation and whitespace between narration words stay in it, and trailing
+    /// whitespace is trimmed.
+    pub fn narration_runs(&self, sentence: &Sentence) -> Vec<Range<usize>> {
+        let mut runs = Vec::new();
+        let mut current: Option<Range<usize>> = None;
+        let mut close = |current: &mut Option<Range<usize>>| {
+            if let Some(mut run) = current.take() {
+                while run.end > run.start && sentence.tokens[run.end - 1].is_whitespace {
+                    run.end -= 1;
+                }
+                runs.push(run);
+            }
+        };
+        for (index, token) in sentence.tokens.iter().enumerate() {
+            let narration = self.is_narration_at(token.span.byte.start);
+            if !narration {
+                close(&mut current);
+                continue;
+            }
+            match current.as_mut() {
+                Some(run) => run.end = index + 1,
+                None if token.is_word => current = Some(index..index + 1),
+                None => {}
+            }
+        }
+        close(&mut current);
+        runs
+    }
+
+    /// Whether the sentence's first word is narration, the voice counterpart of `sentence_mode`.
+    pub fn sentence_is_narration(&self, sentence: &Sentence) -> bool {
+        sentence
+            .tokens
+            .iter()
+            .find(|token| token.is_word)
+            .is_some_and(|first| self.is_narration_at(first.span.byte.start))
     }
 }
 
@@ -644,7 +882,10 @@ pub fn analyze_document(tokenizer: &Tokenizer, text: &str, options: &DocumentOpt
         skip_names_supplied: !options.skip_names.is_empty(),
         hard_wrapped: options.hard_wrapped,
         compound_heads: BTreeMap::new(),
+        voices: Vec::new(),
+        ignored_marked_spans: Vec::new(),
     };
+    let mut voices = crate::voices::Detector::new(text, options);
     let mut previous_end = 0;
     let mut chapter_start = false;
     let mut skipped_heading = false;
@@ -762,6 +1003,8 @@ pub fn analyze_document(tokenizer: &Tokenizer, text: &str, options: &DocumentOpt
         };
         chapter_start = false;
         speech_evidence(&paragraph, &document.dialogue, &mut evidence);
+        // Voices need readings, so they run before compact mode drops them.
+        voices.paragraph(&paragraph, &document.dialogue);
         if !options.include_token_details {
             for token in paragraph
                 .sentences
@@ -783,6 +1026,7 @@ pub fn analyze_document(tokenizer: &Tokenizer, text: &str, options: &DocumentOpt
                     || (!found.embedded && !(found.copula_subject && !found.after_lead_in)))
         })
         .collect();
+    voices.finish(&mut document);
     document
 }
 

@@ -560,3 +560,45 @@ fn retained_documents_match_separate_analyses_and_validate_calls() {
         Err(StyleError::NeedsTokenDetails { .. })
     ));
 }
+
+/// Voices (#353) never move a Mode-based count: every report is identical with thought and
+/// unquoted-speech detection on or off and with caller spans present, and voice words add up to
+/// the document's words.
+#[test]
+fn voices_leave_mode_based_reports_unchanged() {
+    use writemorebetter_style::reports::voices::{self, VoicesOptions};
+    use writemorebetter_style::{MarkedSpan, MarkedVoice, OffsetUnits};
+    for (name, text, _) in PASSAGES {
+        let baseline = DocumentOptions::new();
+        let quiet = DocumentOptions::new()
+            .with_detect_thought(false)
+            .with_detect_unquoted_speech(false);
+        let half = text.char_indices().nth(text.chars().count() / 2).unwrap().0;
+        let marked = DocumentOptions::new().with_marked_spans(
+            OffsetUnits::Byte,
+            vec![
+                MarkedSpan::new(0..half, MarkedVoice::Embedded),
+                MarkedSpan::new(half..text.len(), MarkedVoice::Thought),
+            ],
+        );
+        let document = analyze_document(tokenizer(), text, &baseline);
+        let expected = serde_json::to_value(collect_reports(&document)).unwrap();
+        for options in [&quiet, &marked] {
+            let other = analyze_document(tokenizer(), text, options);
+            assert_eq!(
+                serde_json::to_value(collect_reports(&other)).unwrap(),
+                expected,
+                "{name}"
+            );
+        }
+        for document in [&document, &analyze_document(tokenizer(), text, &marked)] {
+            let report = voices::report(document, &VoicesOptions::new()).unwrap();
+            let voice_words: usize = report.counts.values().map(|count| count.words).sum();
+            assert_eq!(
+                report.narration_words + voice_words,
+                DocumentStats::new(document).words.all,
+                "{name}"
+            );
+        }
+    }
+}

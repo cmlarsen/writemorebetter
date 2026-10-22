@@ -336,4 +336,12 @@ impl StyleDocument {
     ) -> Result<crate::reports::hidden_verbs::HiddenVerbsReport, StyleError> {
         crate::reports::hidden_verbs::report(&self.document, &options(json)?)
     }
+
+    /// Lists the resolved voice spans (#353). Works on compact documents.
+    pub fn voices(
+        &self,
+        json: Option<&str>,
+    ) -> Result<crate::reports::voices::VoicesReport, StyleError> {
+        crate::reports::voices::report(&self.document, &options(json)?)
+    }
 }

@@ -437,3 +437,43 @@ fn speech_flags_and_modes_are_shared_by_every_report() {
     assert!(compact.hard_wrapped);
     assert_eq!(compact.speech, document.speech);
 }
+
+#[test]
+fn voice_options_serde() {
+    use writemorebetter_style::{MarkedSpan, MarkedVoice, OffsetUnits, Voice};
+    let parse = |json: &str| serde_json::from_str::<DocumentOptions>(json);
+    let options = parse(
+        r#"{"skipNames":[],"hardWrapped":false,"detectThought":true,"detectUnquotedSpeech":true,"markedSpanUnits":"utf16","markedSpans":[{"start":120,"end":188,"voice":"embedded"},{"start":300,"end":322,"voice":"thought"}]}"#,
+    )
+    .unwrap();
+    assert_eq!(options.marked_span_units, Some(OffsetUnits::Utf16));
+    assert_eq!(
+        options.marked_spans,
+        [
+            MarkedSpan::new(120..188, MarkedVoice::Embedded),
+            MarkedSpan::new(300..322, MarkedVoice::Thought),
+        ]
+    );
+    let snake = parse(
+        r#"{"detect_thought":false,"detect_unquoted_speech":false,"marked_span_units":"char","marked_spans":[{"start":0,"end":1,"voice":"excluded"}]}"#,
+    )
+    .unwrap();
+    assert!(!snake.detect_thought && !snake.detect_unquoted_speech);
+    assert_eq!(snake.marked_span_units, Some(OffsetUnits::Char));
+    // Defaults: detection on, no units (bytes in Rust).
+    let defaults = parse("{}").unwrap();
+    assert!(defaults.detect_thought && defaults.detect_unquoted_speech);
+    assert_eq!(defaults.marked_span_units, None);
+    assert!(defaults.marked_spans.is_empty());
+    for bad in [
+        r#"{"markedSpans":[{"start":0,"end":1,"voice":"quoted"}]}"#,
+        r#"{"markedSpans":[{"start":0,"end":1}]}"#,
+        r#"{"markedSpans":[{"start":0,"end":1,"voice":"thought","extra":1}]}"#,
+        r#"{"markedSpanUnits":"bytes"}"#,
+        r#"{"detectThoughts":true}"#,
+    ] {
+        assert!(parse(bad).is_err(), "{bad}");
+    }
+    assert_eq!(Voice::from(MarkedVoice::Quotation), Voice::Quotation);
+    assert_eq!(serde_json::to_string(&Voice::Quoted).unwrap(), "\"quoted\"");
+}

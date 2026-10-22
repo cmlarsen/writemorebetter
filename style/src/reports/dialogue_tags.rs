@@ -266,11 +266,11 @@ struct Paragraph<'a> {
     pieces: Vec<Piece>,
 }
 
-fn lower(token: &Token) -> String {
+pub(crate) fn lower(token: &Token) -> String {
     token.text.to_lowercase()
 }
 
-fn has_pos(token: &Token, prefix: &str) -> bool {
+pub(crate) fn has_pos(token: &Token, prefix: &str) -> bool {
     token
         .readings
         .iter()
@@ -281,7 +281,7 @@ fn is_verb(token: &Token) -> bool {
     token.is_word && !token.is_skipped && has_pos(token, "VB")
 }
 
-fn is_finite(token: &Token) -> bool {
+pub(crate) fn is_finite(token: &Token) -> bool {
     token.is_word
         && !token.is_skipped
         && token
@@ -290,15 +290,15 @@ fn is_finite(token: &Token) -> bool {
             .any(|reading| matches!(reading.pos.as_str(), "VBD" | "VBZ" | "VBP" | "MD"))
 }
 
-fn is_pronoun(token: &Token) -> bool {
+pub(crate) fn is_pronoun(token: &Token) -> bool {
     SUBJECT_PRONOUNS.contains(&lower(token).as_str())
 }
 
-fn is_determiner(token: &Token) -> bool {
+pub(crate) fn is_determiner(token: &Token) -> bool {
     DETERMINERS.contains(&lower(token).as_str())
 }
 
-fn is_name(token: &Token) -> bool {
+pub(crate) fn is_name(token: &Token) -> bool {
     token.is_skipped
         || (token.is_word && token.text.chars().next().is_some_and(char::is_uppercase))
         || has_pos(token, "NNP")
@@ -322,14 +322,14 @@ fn is_modifier(token: &Token) -> bool {
     is_adverb(token) || (token.is_word && has_pos(token, "RB"))
 }
 
-fn is_auxiliary(token: &Token) -> bool {
+pub(crate) fn is_auxiliary(token: &Token) -> bool {
     has_pos(token, "MD")
         || token.readings.iter().any(|reading| {
             reading.pos.starts_with("VB") && AUXILIARIES.contains(&reading.lemma.as_str())
         })
 }
 
-fn is_clitic(token: &Token) -> bool {
+pub(crate) fn is_clitic(token: &Token) -> bool {
     matches!(
         token.text.replace('’', "'").as_str(),
         "'d" | "'s" | "'ll" | "'ve" | "'re" | "'m"
@@ -340,7 +340,7 @@ fn is_possessive(token: &Token) -> bool {
     token.text.replace('’', "'").to_lowercase() == "'s"
 }
 
-fn is_person(token: &Token) -> bool {
+pub(crate) fn is_person(token: &Token) -> bool {
     is_pronoun(token)
         || token.is_skipped
         || (is_name(token) && !is_determiner(token) && !has_pos(token, "RB"))

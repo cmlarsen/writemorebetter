@@ -1,0 +1,15 @@
+# Verbs that tag unquoted direct thought only with a reflexive object ("she told herself",
+# "he muttered to himself"). Project-authored for writemorebetter (#353), MIT OR Apache-2.0.
+# Without the reflexive these are speech verbs. One lemma per line.
+ask
+tell
+remind
+promise
+say
+whisper
+mutter
+murmur
+repeat
+warn
+assure
+scold
