@@ -29,15 +29,20 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   `to_utf16_json`.
 - **Whole-text rules through paragraph digests.** Checking a paragraph can now also return a
   `ParagraphDigest`, a small serializable record of offsets and flags (no text) that the rules
-  needing the whole text use. `Rules::check_paragraph` returns a paragraph's suggestions and its
-  digest, `Rules::resolve_document` runs the whole-text rules over the digests of all paragraphs
-  and returns `DocumentMatch`es tagged with their paragraph, and `merge_document_suggestions`
-  combines them with a paragraph's suggestions. `Rules::suggest` uses the same digests and
+  needing the whole text use. `Rules::check_paragraph(text, ends_paragraph, tokenizer)` returns a
+  paragraph's suggestions and its digest (`ends_paragraph` is for editors that store paragraphs
+  without their separators), `Rules::resolve_document` runs the whole-text rules over the digests
+  of all paragraphs and returns `DocumentMatch`es tagged with their paragraph,
+  `DocumentMatch::to_suggestion` turns one into a suggestion (or `None` when the paragraph text
+  no longer fits the digest), and `merge_document_suggestions` combines them with a paragraph's
+  suggestions. Digests carry a version (`DIGEST_VERSION`); `ParagraphDigest::to_bytes` /
+  `from_bytes` store them and reject other versions. `Rules::suggest` uses the same digests and
   resolver internally and builds none while no whole-text rule is enabled
   ([#329](https://github.com/cmlarsen/writemorebetter/issues/329)).
 - **`EN_CONSISTENT_APOS`**, LanguageTool's check for a text that mixes typewriter (`'`) and
   typographic (`’`) apostrophes, is ported as the first whole-text builtin. Once a text has both,
-  every apostrophe token is flagged with the other style as the suggestion. It is off by default,
+  every apostrophe token is flagged with the other style as the suggestion, also where another
+  rule flags the same word, as in LanguageTool. It is off by default,
   as in LanguageTool 6.6; enable it with `BUILTIN/EN_CONSISTENT_APOS`
   ([#228](https://github.com/cmlarsen/writemorebetter/issues/228)).
 

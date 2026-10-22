@@ -75,7 +75,10 @@ impl ConsistentApostrophes {
                         format!("BUILTIN/{}", ID),
                         message.to_owned(),
                         apostrophe.span(),
-                        DocumentFix::SwapApostrophes { to_typographic },
+                        DocumentFix::SwapApostrophes {
+                            to_typographic,
+                            first: apostrophe.first,
+                        },
                     )
                 })
             })

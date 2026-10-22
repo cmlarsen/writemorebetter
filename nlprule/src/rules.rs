@@ -4,7 +4,7 @@ use crate::types::*;
 use crate::utils::parallelism::MaybeParallelRefIterator;
 use crate::{
     builtin::{Builtin, BuiltinRule, TextState},
-    document::ParagraphDigest,
+    document::{Overlaps, ParagraphDigest},
     rule::id::{Group, Selector},
     rule::MatchSentence,
     rule::Rule,
@@ -440,8 +440,8 @@ impl Rules {
     /// any other suggestion they overlap.
     ///
     /// The builtins that need the whole text (`EN_CONSISTENT_APOS`) run on `text` as the whole
-    /// document, through the digests of [`crate::document`], and also give way to any other
-    /// suggestion they overlap. Without one enabled, no digest is built.
+    /// document, through the digests of [`crate::document`]. Their suggestions are kept when they
+    /// overlap one of another rule, as in LanguageTool. Without one enabled, no digest is built.
     pub fn suggest(&self, text: &str, tokenizer: &Tokenizer) -> Vec<Suggestion> {
         if !self.document_rules_enabled() {
             return self.suggest_paragraphs(text, tokenizer, None);
@@ -488,14 +488,14 @@ impl Rules {
 
             if ends_paragraph {
                 let ends_text = sentences.peek().is_none();
-                self.push_digest(&paragraph, &mut digests);
+                self.push_digest(text, &paragraph, &mut digests);
                 self.extend_paragraph(&mut paragraph, &mut previous, ends_text, &mut batch);
                 if batch.len() >= self.batch_size.unwrap_or(PARALLEL_BATCH) {
                     self.flush_batch(&mut batch, &mut repetitions, &mut suggestions, ends_text);
                 }
             }
         }
-        self.push_digest(&paragraph, &mut digests);
+        self.push_digest(text, &paragraph, &mut digests);
         self.extend_paragraph(&mut paragraph, &mut previous, true, &mut batch);
         self.flush_batch(&mut batch, &mut repetitions, &mut suggestions, true);
 
@@ -505,6 +505,7 @@ impl Rules {
     /// Pushes the digest of an engine paragraph, which starts where the last one ended.
     fn push_digest(
         &self,
+        text: &str,
         paragraph: &[Sentence],
         digests: &mut Option<(&mut Vec<(Position, ParagraphDigest)>, bool)>,
     ) {
@@ -514,7 +515,13 @@ impl Rules {
                 .map_or(Position::default(), |(start, digest)| {
                     *start + digest.text_len()
                 });
-            let digest = self.digest(paragraph, start, last.span().end(), *all);
+            let end = last.span().end();
+            let digest = self.digest(
+                text.get(start.byte..end.byte).unwrap_or_default(),
+                paragraph,
+                start,
+                *all,
+            );
             digests.push((start, digest));
         }
     }
@@ -526,18 +533,12 @@ impl Rules {
         mut suggestions: Vec<Suggestion>,
         repetitions: &Repetitions,
     ) -> Vec<Suggestion> {
+        let overlaps = Overlaps::new(&suggestions);
         let finished: Vec<Suggestion> = repetitions
             .builtins
             .finish(&self.builtins)
             .into_iter()
-            .filter(|suggestion| {
-                let span = suggestion.span().char();
-                let next =
-                    suggestions.partition_point(|other| other.span().char().end <= span.start);
-                suggestions
-                    .get(next)
-                    .is_none_or(|other| other.span().char().start >= span.end)
-            })
+            .filter(|suggestion| !overlaps.any(suggestion.span().char()))
             .collect();
 
         if !finished.is_empty() {

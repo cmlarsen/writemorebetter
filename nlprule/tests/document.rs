@@ -2,9 +2,9 @@
 
 use lazy_static::lazy_static;
 use nlprule::{
-    document::merge_document_suggestions,
+    document::{merge_document_suggestions, DIGEST_VERSION},
     types::{Position, Suggestion},
-    ParagraphDigest, Rules, Tokenizer,
+    Error, ParagraphDigest, Rules, Tokenizer,
 };
 
 const TOKENIZER_PATH: &str = "../storage/en_tokenizer.bin";
@@ -178,22 +178,31 @@ fn matches_languagetool_on_fiction_probes() {
     );
 }
 
-/// Splits `text` after each line break, as an app would split it into paragraphs.
+/// Splits `text` after each line break, keeping the line breaks.
 fn paragraphs(text: &str) -> Vec<&str> {
     text.split_inclusive('\n').collect()
 }
 
-/// Checks `text` paragraph by paragraph with `check_paragraph`, resolves the digests and merges
-/// the document matches into each paragraph's suggestions, shifted to `text`'s coordinates.
-fn incremental(rules: &Rules, text: &str) -> (Vec<Suggestion>, Vec<ParagraphDigest>) {
-    let parts = paragraphs(text);
+/// Checks `parts` one by one with `check_paragraph`, resolves the digests and merges the document
+/// matches into each part's suggestions, shifted to the coordinates of the text made of the parts
+/// joined with `gap`.
+fn incremental(
+    rules: &Rules,
+    parts: &[&str],
+    gap: &str,
+    ends_paragraph: bool,
+) -> (Vec<Suggestion>, Vec<ParagraphDigest>) {
     let checked: Vec<_> = parts
         .iter()
-        .map(|part| rules.check_paragraph(part, &TOKENIZER))
+        .map(|part| rules.check_paragraph(part, ends_paragraph, &TOKENIZER))
         .collect();
     let digests: Vec<ParagraphDigest> = checked.iter().map(|(_, d)| d.clone()).collect();
     let matches = rules.resolve_document(&digests);
 
+    let gap = Position {
+        byte: gap.len(),
+        char: gap.chars().count(),
+    };
     let mut out = Vec::new();
     let mut start = Position::default();
     for (i, (part, (suggestions, digest))) in parts.iter().zip(checked).enumerate() {
@@ -202,7 +211,7 @@ fn incremental(rules: &Rules, text: &str) -> (Vec<Suggestion>, Vec<ParagraphDige
         let document: Vec<Suggestion> = matches
             .iter()
             .filter(|m| m.paragraph() == i)
-            .map(|m| m.to_suggestion(part))
+            .map(|m| m.to_suggestion(part).unwrap())
             .collect();
         out.extend(
             merge_document_suggestions(suggestions, document)
@@ -210,24 +219,33 @@ fn incremental(rules: &Rules, text: &str) -> (Vec<Suggestion>, Vec<ParagraphDige
                 .map(|s| s.rshift(start)),
         );
         start += digest.text_len();
+        start += gap;
     }
     (out, digests)
 }
 
-fn key(
-    s: &Suggestion,
-) -> (
+type Key = (
     String,
     std::ops::Range<usize>,
     std::ops::Range<usize>,
     Vec<String>,
-) {
+);
+
+fn key(s: &Suggestion) -> Key {
     (
         s.source().to_owned(),
         s.span().char().clone(),
         s.span().byte().clone(),
         s.replacements().to_vec(),
     )
+}
+
+fn apos_keys(suggestions: &[Suggestion]) -> Vec<Key> {
+    suggestions
+        .iter()
+        .filter(|s| s.source() == SOURCE)
+        .map(key)
+        .collect()
 }
 
 const MANUSCRIPT: &str = "\u{201c}Don't go,\u{201d} she said\u{2014}softly.\n\
@@ -238,33 +256,126 @@ const MANUSCRIPT: &str = "\u{201c}Don't go,\u{201d} she said\u{2014}softly.\n\
                           \u{2018}Fine,\u{2019} she said. 'tis true.";
 
 /// `suggest` on the whole text gives the same whole-text matches as checking it paragraph by
-/// paragraph and resolving the digests.
+/// paragraph and resolving the digests. (Only those: the other rules see one paragraph at a
+/// time in `check_paragraph`.)
 #[test]
 fn suggest_equals_paragraph_digests_and_resolver() {
-    let whole: Vec<_> = APOS
-        .suggest(MANUSCRIPT, &TOKENIZER)
-        .iter()
-        .filter(|s| s.source() == SOURCE)
-        .map(key)
-        .collect();
-    let (incremental, digests) = incremental(&APOS, MANUSCRIPT);
-    let incremental: Vec<_> = incremental
-        .iter()
-        .filter(|s| s.source() == SOURCE)
-        .map(key)
-        .collect();
+    let whole = apos_keys(&APOS.suggest(MANUSCRIPT, &TOKENIZER));
+    let (split, digests) = incremental(&APOS, &paragraphs(MANUSCRIPT), "", false);
     assert!(whole.len() > 5, "{:?}", whole);
-    assert_eq!(whole, incremental);
+    assert_eq!(whole, apos_keys(&split));
     assert_eq!(digests.len(), paragraphs(MANUSCRIPT).len());
 
-    // One paragraph checked as a whole gives the same digest as the concatenation of its engine
-    // paragraphs' digests.
-    let (_, one) = APOS.check_paragraph(MANUSCRIPT, &TOKENIZER);
-    assert_eq!(APOS.resolve_document(&[one]).len(), whole.len());
+    // The whole text checked as one paragraph has the same matches.
+    let (one, _) = incremental(&APOS, &[MANUSCRIPT], "", true);
+    assert_eq!(whole, apos_keys(&one));
 }
 
-/// The other rules' suggestions are unchanged by enabling the whole-text rule, and when nothing
-/// overlaps, enabling it only adds its own suggestions.
+/// The equivalence holds however an app splits the text: with the separators kept in the
+/// pieces, or stripped (an editor that stores paragraphs without them), at line breaks, at
+/// paragraph or line separators, or mid-paragraph.
+#[test]
+fn equivalence_does_not_depend_on_the_split() {
+    let texts = [
+        MANUSCRIPT,
+        "It's here.\nIt\u{2019}s there.\nWe'll go.",
+        "It's here.\n\nIt\u{2019}s there.\n\nWe'll go.\n",
+        "It's here.\r\nIt\u{2019}s there.\r\n\r\nWe'll go.",
+        "  It's here.\n\n  It\u{2019}s there.  \n\n   \n\nWe'll go.  ",
+        "\n\nIt's here.\n\n\n\nIt\u{2019}s there.",
+        "\u{1F600} It's here.\n\u{1F600}\u{1F600} It\u{2019}s there.\n\u{1D11E} We'll see.",
+        "It's here.\u{2029}It\u{2019}s there.\u{2029}We'll go.",
+        "It's here.\u{2028}It\u{2019}s there.\u{2028}We'll go.",
+        "The dogs'\n'Tis true. It\u{2019}s.",
+        "The dogs'\n\n'Tis true. It\u{2019}s.",
+        "Ross's car O\u{2019}Brien's.\nO\u{2019}Brien\u{2019}s.",
+        "He wagged it's tail. The cat\u{2019}s fine.\nIts a dog's life.",
+        "'Come here,' she said.\n'I\u{2019}m waiting.'",
+    ];
+    for text in texts {
+        let whole = apos_keys(&APOS.suggest(text, &TOKENIZER));
+        for separator in ["\n", "\u{2029}", "\u{2028}", ". "] {
+            let parts: Vec<&str> = text.split_inclusive(separator).collect();
+            for ends_paragraph in [false, true] {
+                let (incremental, _) = incremental(&APOS, &parts, "", ends_paragraph);
+                assert_eq!(
+                    whole,
+                    apos_keys(&incremental),
+                    "{:?} split after {:?}",
+                    text,
+                    separator
+                );
+            }
+            let parts: Vec<&str> = text.split(separator).collect();
+            let (incremental, _) = incremental(&APOS, &parts, separator, true);
+            assert_eq!(
+                whole,
+                apos_keys(&incremental),
+                "{:?} split at {:?}",
+                text,
+                separator
+            );
+        }
+    }
+}
+
+/// Paragraph ends come from blank lines between tokens, also after trailing spaces, whichever
+/// sentence the whitespace ends up in; a line holding only spaces is not blank, as in LT 6.6.
+#[test]
+fn digests_find_blank_lines() {
+    let starts = |text: &str| {
+        APOS.check_paragraph(text, false, &TOKENIZER)
+            .1
+            .paragraph_starts()
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(starts("The dog ran home.\n\nThe dog sat down."), [19]);
+    assert_eq!(starts("The dog ran home.  \n\nThe dog sat down."), [21]);
+    assert_eq!(starts("The dog ran home.\r\n\r\nThe dog sat down."), [21]);
+    // The offset can come before the spaces that start the next paragraph.
+    assert_eq!(starts("The dog ran home.\n\n  The dog sat down."), [19]);
+    assert_eq!(starts("\u{201c}Go.\u{201d}  \n\n\u{201c}No.\u{201d}"), [9]);
+    assert_eq!(starts("The dog ran home\n\nThe dog sat down."), [18]);
+    assert!(starts("The dog ran home.\nThe dog sat down.").is_empty());
+    assert!(starts("The dog ran home.\n \nThe dog sat down.").is_empty());
+    assert!(starts("The dog ran home.\u{2029}The dog sat down.").is_empty());
+    assert!(starts("The dog ran home.\u{2028}\u{2028}The dog sat down.").is_empty());
+
+    let (_, digest) = APOS.check_paragraph("No blank line at the end.", false, &TOKENIZER);
+    assert!(!digest.ends_paragraph());
+    let (_, digest) = APOS.check_paragraph("No blank line at the end.", true, &TOKENIZER);
+    assert!(digest.ends_paragraph());
+    let (_, digest) = APOS.check_paragraph("A blank line.  \n\n", false, &TOKENIZER);
+    assert!(digest.ends_paragraph());
+}
+
+/// A whole-text match is kept when it overlaps a match of another rule, as LanguageTool 6.6
+/// reports both (`IT_IS_2` on "it's", `EN_UNPAIRED_QUOTES` on a quote).
+#[test]
+fn whole_text_matches_overlapping_other_rules_are_kept() {
+    let text = "The dog wagged it's tail. The cat\u{2019}s fine.";
+    assert_eq!(
+        flags(text),
+        vec![typewriter("'s"), typographic("\u{2019}s")]
+    );
+    let suggestions = APOS.suggest(text, &TOKENIZER);
+    assert!(suggestions
+        .iter()
+        .any(|s| s.source() != SOURCE && s.span().char().start <= 17 && s.span().char().end >= 19));
+
+    assert_eq!(
+        flags("'Come here,' she said. 'I\u{2019}m waiting.'"),
+        vec![
+            typewriter("'"),
+            typewriter("'"),
+            typewriter("'"),
+            typographic("\u{2019}m"),
+            typewriter("'")
+        ]
+    );
+}
+
+/// The other rules' suggestions are unchanged by enabling the whole-text rule.
 #[test]
 fn whole_text_rule_only_adds_its_own_suggestions() {
     let without: Vec<_> = RULES
@@ -285,17 +396,17 @@ fn whole_text_rule_only_adds_its_own_suggestions() {
 /// paragraphs are reused and the resolver's output replaces the old set.
 #[test]
 fn an_edit_changes_matches_in_other_paragraphs() {
-    let first = "It's late. We'll go.\n";
-    let (_, a) = APOS.check_paragraph(first, &TOKENIZER);
-    let (_, b) = APOS.check_paragraph("He said no.\n", &TOKENIZER);
+    let first = "It's late. We'll go.";
+    let (_, a) = APOS.check_paragraph(first, true, &TOKENIZER);
+    let (_, b) = APOS.check_paragraph("He said no.", true, &TOKENIZER);
     assert!(APOS.resolve_document(&[a.clone(), b]).is_empty());
 
-    let (_, b) = APOS.check_paragraph("He didn\u{2019}t say no.\n", &TOKENIZER);
+    let (_, b) = APOS.check_paragraph("He didn\u{2019}t say no.", true, &TOKENIZER);
     let matches = APOS.resolve_document(&[a.clone(), b]);
     let in_first: Vec<_> = matches.iter().filter(|m| m.paragraph() == 0).collect();
     assert_eq!(in_first.len(), 2);
     assert_eq!(
-        in_first[0].to_suggestion(first).replacements(),
+        in_first[0].to_suggestion(first).unwrap().replacements(),
         ["\u{2019}s"]
     );
     assert_eq!(*in_first[1].span().char(), 13..16);
@@ -307,8 +418,8 @@ fn an_edit_changes_matches_in_other_paragraphs() {
 #[test]
 fn digests_do_not_depend_on_enabled_rules() {
     let text = "It's here. It\u{2019}s there.";
-    let (_, off) = RULES.check_paragraph(text, &TOKENIZER);
-    let (_, on) = APOS.check_paragraph(text, &TOKENIZER);
+    let (_, off) = RULES.check_paragraph(text, true, &TOKENIZER);
+    let (_, on) = APOS.check_paragraph(text, true, &TOKENIZER);
     assert_eq!(off, on);
     assert!(RULES
         .resolve_document(std::slice::from_ref(&off))
@@ -317,27 +428,52 @@ fn digests_do_not_depend_on_enabled_rules() {
 }
 
 #[test]
-fn digests_round_trip_through_serde() {
-    let (_, digest) = APOS.check_paragraph(MANUSCRIPT, &TOKENIZER);
-    let bytes = bincode::serialize(&digest).unwrap();
-    let back: ParagraphDigest = bincode::deserialize(&bytes).unwrap();
+fn digests_round_trip_with_their_version() {
+    let (_, digest) = APOS.check_paragraph(MANUSCRIPT, true, &TOKENIZER);
+    assert!(digest.is_current());
+    assert_eq!(digest.version(), DIGEST_VERSION);
+    let back = ParagraphDigest::from_bytes(&digest.to_bytes()).unwrap();
     assert_eq!(back, digest);
     assert_eq!(
         APOS.resolve_document(&[back]),
-        APOS.resolve_document(&[digest])
+        APOS.resolve_document(std::slice::from_ref(&digest))
     );
+
+    // A digest from another version is rejected with a format error, not misread.
+    let mut bytes = digest.to_bytes();
+    bytes[..4].copy_from_slice(&(DIGEST_VERSION + 1).to_le_bytes());
+    match ParagraphDigest::from_bytes(&bytes) {
+        Err(Error::Format(message)) => assert!(message.contains("check the paragraph again")),
+        other => panic!("unexpected {:?}", other),
+    }
 }
 
-/// A stale digest (one built from different text) never panics: matches whose span does not fit
-/// get no replacement.
+/// A digest applied to an edited paragraph never panics and gives no suggestion where the text
+/// visibly changed.
 #[test]
-fn stale_digests_are_utf8_safe() {
-    let (_, digest) = APOS.check_paragraph("It's here. It\u{2019}s there.", &TOKENIZER);
-    for m in APOS.resolve_document(&[digest]) {
-        for text in ["", "\u{2014}\u{2026}\u{2028}\u{201c}", "short"] {
-            let _ = m.to_suggestion(text);
+fn stale_digests_give_no_wrong_suggestions() {
+    let (_, digest) = APOS.check_paragraph("I'm fine. It\u{2019}s ok.", true, &TOKENIZER);
+    let matches = APOS.resolve_document(&[digest]);
+    assert_eq!(matches.len(), 2);
+    // `’s` became `'s`: its match no longer applies, the one on `'m` still does.
+    let edited = "I'm fine. It's ok.";
+    assert!(matches[0].to_suggestion(edited).is_some());
+    assert!(matches[1].to_suggestion(edited).is_none());
+    for edited in [
+        "I am fine. It\u{2019}s ok.",
+        "\u{1F600}'m fine. It\u{2019}s ok.",
+        "x",
+        "",
+        "\u{2014}\u{2026}\u{2028}\u{201c}",
+    ] {
+        for m in &matches {
+            assert!(m.to_suggestion(edited).is_none(), "{:?} {:?}", edited, m);
         }
     }
+    // Text after the matches may change.
+    assert!(matches
+        .iter()
+        .all(|m| m.to_suggestion("I'm fine. It\u{2019}s ok. More.").is_some()));
 }
 
 /// Prints the size of the digests of `bench/public/moby150k.txt`, checked paragraph by paragraph
@@ -353,17 +489,17 @@ fn digest_size_per_thousand_words() {
         "\n\n"
     };
     let digests: Vec<ParagraphDigest> = text
-        .split_inclusive(blank_line)
-        .map(|part| RULES.check_paragraph(part, &TOKENIZER).1)
+        .split(blank_line)
+        .map(|part| RULES.check_paragraph(part, true, &TOKENIZER).1)
         .collect();
-    let bincode = bincode::serialize(&digests).unwrap().len();
+    let bytes: usize = digests.iter().map(|x| x.to_bytes().len()).sum();
     let apostrophes = APOS.resolve_document(&digests).len();
     println!(
-        "{} words, {} paragraphs, {} apostrophe matches: {} bytes bincode ({:.0} per 1,000 words)",
+        "{} words, {} paragraphs, {} apostrophe matches: {} bytes ({:.0} per 1,000 words)",
         words,
         digests.len(),
         apostrophes,
-        bincode,
-        bincode as f64 * 1000.0 / words as f64
+        bytes,
+        bytes as f64 * 1000.0 / words as f64
     );
 }
