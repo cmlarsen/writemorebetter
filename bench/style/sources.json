@@ -166,5 +166,45 @@
     "license": "WordNet 3.0 license (commercial use permitted with notice)",
     "sha256": "658b1ba191f5f98c2e9bae3e25c186013158f30ef779f191d2a44e5d25046dc8",
     "license_url": "https://wordnet.princeton.edu/license-and-commercial-use"
+  },
+  "to_the_lighthouse": {
+    "filename": "to_the_lighthouse.tar.gz",
+    "url": "https://codeload.github.com/standardebooks/virginia-woolf_to-the-lighthouse/tar.gz/2ba2ffe0d5e8789902cfe86c5cde4753b7b68843",
+    "version": "2ba2ffe0d5e8789902cfe86c5cde4753b7b68843",
+    "license": "CC0 1.0",
+    "sha256": "0ac394588415d53e58c2498f0612684621cddc4e46f5e5076b9871389e8bdd3b",
+    "license_url": "https://standardebooks.org/about/standard-ebooks-and-the-public-domain"
+  },
+  "ulysses": {
+    "filename": "ulysses.tar.gz",
+    "url": "https://codeload.github.com/standardebooks/james-joyce_ulysses/tar.gz/9cabea540956b68932a90a89aa936bde6fe6baf0",
+    "version": "9cabea540956b68932a90a89aa936bde6fe6baf0",
+    "license": "CC0 1.0",
+    "sha256": "d1dcee69d82d4c0767edc5f96122ba9af58bbd7c2d154f1ac2c8ac6df523e510",
+    "license_url": "https://standardebooks.org/about/standard-ebooks-and-the-public-domain"
+  },
+  "portrait": {
+    "filename": "portrait.tar.gz",
+    "url": "https://codeload.github.com/standardebooks/james-joyce_a-portrait-of-the-artist-as-a-young-man/tar.gz/e0e2424279c6465074eff58b4a5238d210a99de4",
+    "version": "e0e2424279c6465074eff58b4a5238d210a99de4",
+    "license": "CC0 1.0",
+    "sha256": "f29582df298925501e5f4ab3d82499b4835382b83edbc93f5217910e5114e4ab",
+    "license_url": "https://standardebooks.org/about/standard-ebooks-and-the-public-domain"
+  },
+  "sons_and_lovers": {
+    "filename": "sons_and_lovers.tar.gz",
+    "url": "https://codeload.github.com/standardebooks/d-h-lawrence_sons-and-lovers/tar.gz/93966d3b2a037dc91d689a4388e46191069a49cc",
+    "version": "93966d3b2a037dc91d689a4388e46191069a49cc",
+    "license": "CC0 1.0",
+    "sha256": "3b3394ba032fedf6d4bf83cf2c6f97e481cea6d693ca1e17c582f6723ea0bd02",
+    "license_url": "https://standardebooks.org/about/standard-ebooks-and-the-public-domain"
+  },
+  "jacobs_room": {
+    "filename": "jacobs_room.tar.gz",
+    "url": "https://codeload.github.com/standardebooks/virginia-woolf_jacobs-room/tar.gz/30b2f7d329cd6ba6ec11887040d95a22859f1e28",
+    "version": "30b2f7d329cd6ba6ec11887040d95a22859f1e28",
+    "license": "CC0 1.0",
+    "sha256": "fc5bf783d621007069388d4c305ca90ef10641e6d9b829c28b8dc439280a0885",
+    "license_url": "https://standardebooks.org/about/standard-ebooks-and-the-public-domain"
   }
 }

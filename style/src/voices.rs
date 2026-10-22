@@ -69,7 +69,10 @@ fn unquoted_speech_verbs() -> &'static HashSet<&'static str> {
     static LIST: OnceLock<HashSet<&'static str>> = OnceLock::new();
     LIST.get_or_init(|| {
         crate::reports::dialogue_tags::speech_verbs()
-            .filter(|verb| !verb.contains(' ') && !thought_verbs().contains(verb))
+            // *call* names more often than it speaks: *the sailor, called the mincer*.
+            .filter(|verb| {
+                !verb.contains(' ') && !thought_verbs().contains(verb) && *verb != "call"
+            })
             .collect()
     })
 }
@@ -92,6 +95,8 @@ enum Position {
 enum Gender {
     Masculine,
     Feminine,
+    /// *they*: a present *they say* / *they think* is a hedge and never anchors.
+    Plural,
     Unknown,
 }
 
@@ -364,7 +369,7 @@ impl<'a> Parser<'a, '_> {
             "you" => return vec![(at + 1, NarrativePerson::Second, Gender::Unknown)],
             "he" => return vec![(at + 1, NarrativePerson::Third, Gender::Masculine)],
             "she" => return vec![(at + 1, NarrativePerson::Third, Gender::Feminine)],
-            "they" => return vec![(at + 1, NarrativePerson::Third, Gender::Unknown)],
+            "they" => return vec![(at + 1, NarrativePerson::Third, Gender::Plural)],
             "it" | "one" => return Vec::new(),
             _ => {}
         }
@@ -581,19 +586,33 @@ impl<'a> Parser<'a, '_> {
 
     /// Step 5: the clause disagrees with its tag in person or tense.
     fn shift(&self, clause: &Range<usize>, tag: &Tag) -> Option<VoiceShift> {
-        if tag.person == NarrativePerson::Second
-            || (tag.person == NarrativePerson::First && tag.tense == Tense::Present)
-        {
+        // *I think*, *I suppose*, *they say*: present hedges, not tags.
+        let hedge = tag.tense == Tense::Present
+            && (tag.person == NarrativePerson::First || tag.gender == Gender::Plural);
+        if tag.person == NarrativePerson::Second || hedge {
             return None;
         }
         let tokens = self.tokens(clause);
+        let found = chains(&tokens);
+        // A clause that opens in the frame (*He grunted, or, rather, I might say*) is narration
+        // with a narrator's aside, not the tagged character's words.
+        if tag.person == NarrativePerson::Third
+            && found.first().is_some_and(|chain| {
+                matches!(chain.class, ChainClass::Past | ChainClass::PastPerfect)
+                    && chain
+                        .subject
+                        .is_some_and(|subject| self.frame_pronoun(tokens[subject], tag))
+            })
+        {
+            return None;
+        }
         let person = tag.person == NarrativePerson::Third
             && (0..tokens.len()).any(|index| {
                 pronoun_person(&tokens, index).map(|(person, _)| person)
                     == Some(NarrativePerson::First)
             });
         let tense = tag.tense == Tense::Past
-            && (chains(&tokens).first().is_some_and(|chain| {
+            && (found.first().is_some_and(|chain| {
                 matches!(
                     chain.class,
                     ChainClass::Present | ChainClass::Modal { present: true }
@@ -604,6 +623,17 @@ impl<'a> Parser<'a, '_> {
             (true, false) => Some(VoiceShift::Person),
             (false, true) => Some(VoiceShift::Tense),
             (false, false) => None,
+        }
+    }
+
+    /// A third-person subject pronoun that can refer to the tag's subject.
+    fn frame_pronoun(&self, token: &Token, tag: &Tag) -> bool {
+        let word = lower(token);
+        match tag.gender {
+            Gender::Masculine => word == "he",
+            Gender::Feminine => word == "she",
+            Gender::Plural => word == "they",
+            Gender::Unknown => matches!(word.as_str(), "he" | "she"),
         }
     }
 
@@ -627,16 +657,7 @@ impl<'a> Parser<'a, '_> {
         {
             return false;
         }
-        if person
-            && tokens.iter().any(|token| {
-                let word = lower(token);
-                match tag.gender {
-                    Gender::Masculine => word == "he",
-                    Gender::Feminine => word == "she",
-                    Gender::Unknown => word == "he" || word == "she",
-                }
-            })
-        {
+        if person && tokens.iter().any(|token| self.frame_pronoun(token, tag)) {
             return false;
         }
         // The same kind of shift, so a person-only thought does not absorb a tense-only clause.
@@ -665,7 +686,15 @@ impl<'a> Parser<'a, '_> {
             .rev()
             .find(|&index| {
                 let item = &self.items[index];
-                item.blocked || matches!(item.token.text.as_str(), ";" | ":")
+                // Stop at a quote or caller span, at ; : — –, and at a sentence
+                // end the splitter missed (*…thought I. But it is…*), but not after *Mrs.*
+                let honorific =
+                    index > 0 && crate::document::honorific(&self.items[index - 1].token.text);
+                item.blocked
+                    || matches!(item.token.text.as_str(), ";" | ":" | "—" | "–")
+                    || (matches!(item.token.text.as_str(), "." | "!" | "?")
+                        && index + 1 < separator
+                        && !honorific)
             })
             .map_or(sentence.start, |index| index + 1)
     }
@@ -800,10 +829,29 @@ impl<'a> Parser<'a, '_> {
             {
                 let start = tag.range.end + 1;
                 let end = (start..bounds.end)
-                    .find(|&index| items[index].blocked)
+                    .find(|&index| items[index].blocked || items[index].token.text == ";")
                     .unwrap_or(bounds.end);
                 let clause = start..end;
-                if let Some(shift) = self.shift(&clause, &tag) {
+                // *He promises fairly, and I hope…*, *The miner grunted, put his bag down*, *She
+                // prays now, she says, that…*: a coordinator, a second predicate or a second tag
+                // continues the narration instead of opening the tag's content.
+                let opening = items[clause.clone()].iter().position(|item| is_word(item));
+                let continued = opening.is_some_and(|offset| {
+                    let first = &items[start + offset];
+                    COORDINATORS.contains(&word(first).as_str())
+                        || ["VBD", "VBN", "VBG"].iter().any(|pos| {
+                            first
+                                .token
+                                .readings
+                                .iter()
+                                .any(|reading| reading.pos == *pos)
+                        })
+                        || [Lexicon::Thought, Lexicon::Speech].iter().any(|&lexicon| {
+                            self.tag(start + offset, lexicon, Position::Trailing)
+                                .is_some()
+                        })
+                });
+                if let Some(shift) = self.shift(&clause, &tag).filter(|_| !continued) {
                     let mut end = end;
                     if thought && end == bounds.end {
                         let edge = self.expand(sentence, &tag, shift, false);
@@ -817,6 +865,15 @@ impl<'a> Parser<'a, '_> {
             }
             // A and D: a clause, a separator, then a tag (*I’m done, she thought.*), optionally
             // followed by a second clause (*I have to go—she thought—before he wakes.*).
+            // An earlier tag or span in the sentence bounds the next clause.
+            let mut floor = found
+                .iter()
+                .flat_map(|found| [found.span.byte.end, found.tag.byte.end])
+                .filter(|&end| end <= items[bounds.end - 1].token.span.byte.end)
+                .map(|end| items.partition_point(|item| item.token.span.byte.start < end))
+                .filter(|&index| index > bounds.start && index <= bounds.end)
+                .max()
+                .unwrap_or(bounds.start);
             for separator in bounds.start + 1..bounds.end {
                 let item = &items[separator];
                 let separates = match item.token.text.as_str() {
@@ -827,13 +884,17 @@ impl<'a> Parser<'a, '_> {
                 if !separates || item.blocked {
                     continue;
                 }
+                if separator < floor {
+                    continue;
+                }
                 let Some(tag) = self
                     .tag(separator + 1, lexicon, Position::Trailing)
                     .filter(|tag| self.tag_ends(tag, Position::Trailing))
                 else {
                     continue;
                 };
-                let start = self.clause_before(&bounds, separator);
+                let start = self.clause_before(&bounds, separator).max(floor);
+                floor = tag.range.end;
                 let keep = !matches!(item.token.text.as_str(), "," | "—" | "–");
                 let clause = start..separator + usize::from(keep);
                 let Some(shift) = self.shift(&clause, &tag) else {
@@ -852,8 +913,15 @@ impl<'a> Parser<'a, '_> {
                 if after < bounds.end && matches!(items[after].token.text.as_str(), "," | "—" | "–")
                 {
                     let second_start = after + 1;
+                    // The second clause ends at a quote or caller span, or before the next tag.
                     let second_end = (second_start..bounds.end)
-                        .find(|&index| items[index].blocked)
+                        .find(|&index| {
+                            items[index].blocked
+                                || (matches!(items[index].token.text.as_str(), "," | "—" | "–")
+                                    && [Lexicon::Thought, Lexicon::Speech].iter().any(|&lexicon| {
+                                        self.tag(index + 1, lexicon, Position::Trailing).is_some()
+                                    }))
+                        })
                         .unwrap_or(bounds.end);
                     let second = second_start..second_end;
                     let opens = items[second.clone()]
@@ -863,10 +931,10 @@ impl<'a> Parser<'a, '_> {
                             !capitalized(item) && !COORDINATORS.contains(&word(item).as_str())
                         });
                     if opens && self.continues(&second, &tag, shift) {
+                        floor = second.end;
                         self.push(found, second, &tag, shift, lexicon);
                     }
                 }
-                break;
             }
         }
     }

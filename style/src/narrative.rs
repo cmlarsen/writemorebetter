@@ -108,6 +108,13 @@ fn chunk(token: &Token, label: &str) -> bool {
     token.chunks.iter().any(|chunk| chunk == label)
 }
 
+/// A common-noun reading; a capitalized word's NNP reading does not count (*Is it here?*).
+fn common_noun(token: &Token) -> bool {
+    token.readings.iter().any(|reading| {
+        reading.pos == "NN" || reading.pos == "NNS" || reading.pos.starts_with("NN:")
+    })
+}
+
 /// No chunk, or only the outside label `O`: the chunker made no phrase claim.
 fn unchunked(token: &Token) -> bool {
     token.chunks.iter().all(|chunk| chunk == "O")
@@ -183,8 +190,13 @@ fn third_singular(token: &Token) -> bool {
         })
 }
 
-const PRESENT_MODALS: [&str; 10] = [
-    "will", "shall", "can", "ca", "may", "must", "'ll", "wo", "won't", "can't",
+/// Modals that are never nouns or names (*will*, *can*, *may* and *might* can be).
+const STRICT_MODALS: [&str; 10] = [
+    "would", "could", "should", "must", "shall", "'d", "'ll", "ca", "wo", "ought",
+];
+
+const PRESENT_MODALS: [&str; 9] = [
+    "will", "shall", "can", "ca", "may", "'ll", "wo", "won't", "can't",
 ];
 
 fn class(tokens: &[&Token], head: usize, end: usize, subject: Option<usize>) -> ChainClass {
@@ -205,8 +217,17 @@ fn class(tokens: &[&Token], head: usize, end: usize, subject: Option<usize>) -> 
         return ChainClass::PastPerfect;
     }
     if readings(token, "MD").next().is_some() {
+        // *must* has no past form, so past narration uses it too (*He must hurry.*).
+        if word == "must" {
+            return ChainClass::Ambiguous;
+        }
+        // A perfect modal (*will have gone*, *can’t have known*) refers to the past.
+        let perfect = tokens[head + 1..end].windows(2).any(|pair| {
+            readings(pair[0], "VB").any(|lemma| lemma == "have")
+                && readings(pair[1], "VBN").next().is_some()
+        });
         return ChainClass::Modal {
-            present: PRESENT_MODALS.contains(&word.as_str()) || word == "cannot",
+            present: !perfect && (PRESENT_MODALS.contains(&word.as_str()) || word == "cannot"),
         };
     }
     match (past.is_empty(), present.is_empty()) {
@@ -258,14 +279,36 @@ pub fn chains(tokens: &[&Token]) -> Vec<Chain> {
     let mut index = 0;
     while index < tokens.len() {
         let token = tokens[index];
-        // A particle the chunker opened a verb phrase on (*set it down*) is not a verb.
+        // A particle the chunker opened a verb phrase on (*set it down*) is not a verb. An
+        // unchunked word needs a verb-only reading (*Yes*, *Mine*, *Sick* also read as verbs). A
+        // modal opens a chain even when the chunker put it in a noun phrase (*what chance would
+        // there have been*), and the bare verb after an inverted modal belongs to it.
+        let modal = readings(token, "MD").next().is_some()
+            && STRICT_MODALS.contains(&normalized(token).as_str());
+        let after_modal = readings(token, "VB").next().is_some()
+            && readings(token, "VBD").next().is_none()
+            && (index.saturating_sub(3)..index).any(|previous| {
+                readings(tokens[previous], "MD").next().is_some()
+                    && tokens[previous + 1..index].iter().all(|between| {
+                        between.is_word
+                            && (has_pos(between, "PRP")
+                                || has_pos(between, "EX")
+                                || adverb_only(between))
+                    })
+            });
         let starts_chain = token.is_word
             && !token.is_skipped
             && !has_pos(token, "RP")
+            && !after_modal
             && (elided(token).is_some()
+                || modal
                 || (finite(token)
                     && (chunk(token, "B-VP")
                         || (unchunked(token)
+                            && !common_noun(token)
+                            && !["JJ", "PRP$", "UH", "RB"]
+                                .iter()
+                                .any(|pos| has_pos(token, pos))
                             && !index.checked_sub(1).is_some_and(|p| verbal(tokens[p]))))));
         if !starts_chain {
             index += 1;

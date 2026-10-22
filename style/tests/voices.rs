@@ -718,3 +718,49 @@ fn report_counts_add_up() {
     assert_eq!(value["narrationSentences"], 0);
     assert_eq!(value["ignoredMarkedSpans"], serde_json::json!([]));
 }
+
+#[test]
+fn guards_from_published_prose_shapes() {
+    for text in [
+        // A narrator's aside inside a frame clause.
+        "He grunted, or, rather, I might say, he barked.",
+        // A second predicate or clause after a leading tag.
+        "The miner grunted, put his bag down and sat.",
+        "He promises fairly, and I hope he means it.",
+        // A perfect modal and *must* carry no present tense.
+        "They must have been together, he thought, for an hour.",
+        "He must go soon, she thought.",
+        // Hedges and naming.
+        "It is late, they say.",
+        "Look at the sailor, called the mincer.",
+        // Joyce-style dash dialogue with no person or tense to shift.
+        "―Yes, Stephen said.",
+    ] {
+        assert_eq!(found(text), [], "{text}");
+    }
+    assert_eq!(
+        found("That is what Mrs. Ramsay told me, she thought."),
+        [thought(
+            "That is what Mrs. Ramsay told me",
+            "she thought",
+            VoiceShift::Both
+        )]
+    );
+    assert_eq!(
+        found("―I don’t know, Stephen said."),
+        [tagged(
+            "―I don’t know",
+            Voice::Speech,
+            "Stephen said",
+            VoiceShift::Both
+        )]
+    );
+    // A second tag in the sentence bounds the next clause.
+    assert_eq!(
+        found("So it ends then, thought Ann, so it ends, she thought.")
+            .iter()
+            .map(|f| f.text.as_str())
+            .collect::<Vec<_>>(),
+        ["So it ends then", "so it ends"]
+    );
+}
