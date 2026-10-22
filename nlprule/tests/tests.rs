@@ -1111,6 +1111,7 @@ fn spellchecker_ignores_words_with_no_latin_letter() {
         "\u{201c}\u{41f}\u{440}\u{438}\u{432}\u{435}\u{442},\u{201d} he said\u{2014}\u{417}\u{434}\u{440}\u{430}\u{432}\u{441}\u{442}\u{432}\u{443}\u{439}\u{442}\u{435}\u{2026}",
         "The sign read \u{2018}\u{39f}\u{394}\u{39f}\u{3a3}\u{2019}.\u{2028}She wrote \u{6771}\u{4eac}.",
         "\u{6771}\u{4eac}\u{2019}s lights\u{2014}\u{3b1}\u{3b2}\u{3b3}\u{2026} gone.",
+        "He wrote \u{41f}\u{440}\u{438}\u{432}\u{435}\u{442}-\u{444}\u{440}\u{44d}\u{43d}\u{434}.\u{2029}\u{39f}\u{394}\u{39f}\u{3a3}\u{a0}again.",
     ] {
         assert_eq!(spelling_errors(text), Vec::<&str>::new(), "{}", text);
     }
@@ -1120,12 +1121,21 @@ fn spellchecker_ignores_words_with_no_latin_letter() {
         spelling_errors("\u{201c}\u{3a4}he end\u{2014}\u{41f}\u{440}\u{438}\u{432}\u{435}\u{442}\u{2026}\u{201d}"),
         vec!["\u{3a4}he"]
     );
+    // The test looks at the whole token, not at its hyphen-separated parts: LanguageTool 6.6
+    // flags `Привет-friend` although `friend` is known.
+    assert_eq!(
+        spelling_errors(
+            "\u{201c}\u{41f}\u{440}\u{438}\u{432}\u{435}\u{442}-friend,\u{201d} he said."
+        ),
+        vec!["\u{41f}\u{440}\u{438}\u{432}\u{435}\u{442}-friend"]
+    );
 
     let speller = RULES.spell().speller().unwrap();
     assert!(speller.is_correct("\u{41f}\u{440}\u{438}\u{432}\u{435}\u{442}"));
     assert!(speller.is_correct("\u{39f}\u{394}\u{39f}\u{3a3}"));
     assert!(speller.is_correct("\u{6771}\u{4eac}"));
     assert!(!speller.is_correct("\u{3a4}he"));
+    assert!(!speller.is_correct("\u{41f}\u{440}\u{438}\u{432}\u{435}\u{442}-friend"));
     assert_eq!(speller.suggest("\u{3a4}he", 3), vec!["The", "He", "She"]);
 }
 

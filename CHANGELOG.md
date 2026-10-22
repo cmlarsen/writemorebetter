@@ -8,6 +8,11 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
 # Unreleased
 
+### Changed
+
+- **`RULES_FORMAT_VERSION` is 33.** `SpellLangOptions` gained `latin_script`, so 0.12.0's
+  `en_rules.bin` no longer loads; use the next release's data zip. The tokenizer format stays 18.
+
 ### Fixed
 
 - **The earliest subrule of a rule group wins a span, as in LanguageTool 6.6.** When two subrules
@@ -19,6 +24,15 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   separator (U+2028, U+2029, NEL) now counts as the space between sentences, following
   LanguageTool's fix after 6.6 (commit `86c5f3a9`) in every profile
   ([#193](https://github.com/cmlarsen/writemorebetter/issues/193)).
+- **Words with no Latin letter are no longer misspelled.** A Greek, Cyrillic or CJK word quoted in
+  English prose ("Привет", "ΟΔΟΣ", "東京") was flagged by the speller. As in LanguageTool, a
+  Latin-script language (the new per-language `latin_script` option, on for en, de and es) now
+  accepts a token with no `Script=Latin` character. The test applies to the whole token, so a
+  mixed-script token ("Τhe" with a Greek tau, "Привет-friend") is still flagged (#226).
+- **Mixed-case words get capitalized, deduplicated suggestions.** A query starting with a capital
+  that is neither all caps nor title case ("LeBRON", "XerXes") got lowercase candidates and the
+  same word twice ("xeroxes", "Xeroxes"). Candidates are now capitalized as in LanguageTool 6.6:
+  "LeBRON" gets LeBron, Hebron, Lebrun, Learn, Lesson (#196).
 
 # 0.12.0 (2026-10-22)
 

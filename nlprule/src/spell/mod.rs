@@ -454,7 +454,6 @@ impl VariantChecker {
         word.is_empty()
             || self.is_known(fst, word)
             || self.user.accepts(word)
-            || (self.lang_options.latin_script && !has_latin_script(word))
             || word.chars().all(|x| {
                 x.is_symbol() || x.is_punctuation() || x.is_numeric() || x.is_mark() || x.is_other()
             })
@@ -499,9 +498,12 @@ impl VariantChecker {
     }
 
     /// Checks one word like [`VariantChecker::check_word`], also accepting a word whose
-    /// hyphen- or dash-separated parts are all correct.
+    /// hyphen- or dash-separated parts are all correct, or, in a Latin-script language, a word
+    /// with no Latin-script character. That last test looks at the whole word only, as
+    /// LanguageTool does: in `Привет-friend` the Cyrillic part alone does not pass.
     fn check_separated(&self, fst: &Map<&[u8]>, word: &str) -> bool {
-        let mut word_is_correct = self.check_word(fst, word, true);
+        let mut word_is_correct = self.check_word(fst, word, true)
+            || (self.lang_options.latin_script && !has_latin_script(word));
 
         if !word_is_correct {
             // there exist multiple valid hyphens, see https://jkorpela.fi/dashes.html
