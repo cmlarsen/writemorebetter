@@ -10,7 +10,14 @@ affiliated with LanguageTool or LanguageTooler GmbH.**
 
 ## Install
 
-The package is not on PyPI yet. Build a wheel from the checkout (needs a Rust toolchain):
+```sh
+pip install writemorebetter
+```
+
+Wheels are published for Linux (x86_64), macOS (arm64) and Windows (x64), abi3 for CPython 3.9+;
+elsewhere pip builds from the sdist, which needs a Rust toolchain. Releases go to PyPI from the
+Release workflow (see [`docs/RELEASING.md`](https://github.com/cmlarsen/writemorebetter/blob/main/docs/RELEASING.md)). To build a wheel from the
+checkout instead:
 
 ```sh
 pip install maturin
