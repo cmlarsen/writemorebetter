@@ -47,6 +47,8 @@ THOUGHT_LEMMAS = ('think', 'wonder', 'muse', 'reason', 'realize', 'realise', 'de
                   'suppose', 'reflect', 'pray', 'ponder', 'calculate', 'conclude', 'reckon')
 THOUGHT_FORMS = re.compile(r'\b(thought|wondered|mused|reasoned|reali[sz]ed|decided|figured|supposed|'
                            r'reflected|prayed|pondered|calculated|concluded|reckoned|thinks|wonders)\b')
+# A rough sentence for the miss sample: up to . ! ? that do not follow an honorific.
+SENTENCE = re.compile(r'(?:[^.!?\n]|(?<=\bMr)\.|(?<=\bMrs)\.|(?<=\bDr)\.|(?<=\bMs)\.|(?<=\bSt)\.)*[.!?]')
 LEMMA_OF = {'thought': 'think', 'thinks': 'think', 'wondered': 'wonder', 'wonders': 'wonder',
             'mused': 'muse', 'reasoned': 'reason', 'realized': 'realize', 'realised': 'realise',
             'decided': 'decide', 'figured': 'figure', 'supposed': 'suppose', 'reflected': 'reflect',
@@ -99,11 +101,9 @@ def marked(text, span, tag):
 
 def anchor_of(span, spans):
     s, t = char_range(span['span']), char_range(span['tag'])
-    if t[1] <= s[0]:
-        return 'leading'
     if sum(1 for other in spans if other.get('tag') == span['tag']) > 1:
         return 'mid'
-    return 'trailing'
+    return 'leading' if t[1] <= s[0] else 'trailing'
 
 
 _RUN = {}
@@ -138,14 +138,18 @@ def key(row):
     return row['source'], row['document'], row['start'], row['end']
 
 
-def stratified(rows, size, rng):
+def stratified(rows, size, rng, half=False):
+    """Round-robin over (voice, anchor) strata so rare anchors and the thought voice are not
+    crowded out. With `half`, a stratum gives at most half its rows (rounded up), leaving the rest
+    for the held-out draw."""
     strata = defaultdict(list)
     for row in rows:
         strata[(row['voice'], row['anchor'])].append(row)
-    for members in strata.values():
+    for name, members in strata.items():
         rng.shuffle(members)
+        if half:
+            strata[name] = members[:math.ceil(len(members) / 2)]
     chosen = []
-    # Round-robin over strata so rare anchors and the thought voice are not crowded out.
     while len(chosen) < size and any(strata.values()):
         for stratum in sorted(strata):
             if strata[stratum] and len(chosen) < size:
@@ -153,11 +157,11 @@ def stratified(rows, size, rng):
     return chosen
 
 
-def sample(size, path, seed, exclude=()):
+def sample(size, path, seed, exclude=(), half=False):
     rows = flags()
     excluded = {key(row) for row in exclude if row.get('type') != 'meta'}
     rows = [row for row in rows if key(row) not in excluded]
-    chosen = stratified(rows, size, random.Random(seed))
+    chosen = stratified(rows, size, random.Random(seed), half)
     chosen.sort(key=key)
     write_jsonl(path, [{**row, 'id': f'{path.stem}-{i:03d}', 'label': None, 'note': ''}
                        for i, row in enumerate(chosen, 1)])
@@ -172,7 +176,7 @@ def misses(size):
     for (source, name, text), result in zip(docs, results):
         covered = [char_range(s['span']) + char_range(s['tag']) if s.get('tag') else char_range(s['span'])
                    for s in result['voices']['spans']]
-        for match in re.finditer(r'[^.!?\n]*[.!?]', text):
+        for match in SENTENCE.finditer(text):
             sentence = match.group(0).strip()
             start = match.start() + match.group(0).index(sentence[:1]) if sentence else match.start()
             end = start + len(sentence)
@@ -181,9 +185,13 @@ def misses(size):
             if any(c[0] < end and start < c[1] for c in covered) or \
                     any(len(c) == 4 and c[2] < end and start < c[3] for c in covered):
                 continue
-            context, _ = window(text, start, end)
+            context, left = window(text, start, end)
+            prefix = '…' if context.startswith('…') and left > 0 else ''
+            body = context[len(prefix):]
+            body = body[:end - left] + '⟧' + body[end - left:]
+            body = body[:start - left] + '⟦' + body[start - left:]
             rows.append({'source': source, 'document': name, 'start': start, 'end': end,
-                         'sentence': sentence, 'context': context})
+                         'sentence': sentence, 'context': prefix + body})
     chosen = random.Random(SEED + 2).sample(rows, min(size, len(rows)))
     chosen.sort(key=key)
     write_jsonl(MISSES, [{**row, 'id': f'miss-{i:03d}', 'label': None, 'note': ''}
@@ -257,7 +265,9 @@ def precision(path, current):
     groups = defaultdict(Counter)
     for row in rows:
         state = 'kept' if key(row) in current else 'dropped'
-        for group in ('all', row['voice'], f"{row['voice']}/{row['anchor']}",
+        # The anchor as the current rules classify it (the sample may predate a reclassification).
+        anchor = current[key(row)]['anchor'] if key(row) in current else row['anchor']
+        for group in ('all', row['voice'], f"{row['voice']}/{anchor}",
                       *(['lemma/' + row['lemma']] if row.get('lemma') else [])):
             groups[group][(state, row['label'])] += 1
     result = {}
@@ -565,7 +575,7 @@ def main():
         if failures_list := gate_synthetic(result):
             print('gate: ' + '; '.join(failures_list), file=sys.stderr)
     elif args.command == 'sample':
-        sample(args.size, LABELS, SEED)
+        sample(args.size, LABELS, SEED, half=True)
     elif args.command == 'heldout':
         sample(args.size, HELDOUT, HELDOUT_SEED, jsonl(LABELS))
     elif args.command == 'misses':

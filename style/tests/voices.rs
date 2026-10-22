@@ -755,6 +755,12 @@ fn guards_from_published_prose_shapes() {
             VoiceShift::Both
         )]
     );
+    // *cannot* is a present modal even when chunked into a noun phrase, and a clause stops at an
+    // unclosed parenthesis.
+    assert_eq!(
+        found("Just now (but this cannot last, she thought, turning away) she was safe."),
+        [thought("but this cannot last", "she thought", VoiceShift::Tense)]
+    );
     // A second tag in the sentence bounds the next clause.
     assert_eq!(
         found("So it ends then, thought Ann, so it ends, she thought.")

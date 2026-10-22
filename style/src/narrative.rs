@@ -191,8 +191,8 @@ fn third_singular(token: &Token) -> bool {
 }
 
 /// Modals that are never nouns or names (*will*, *can*, *may* and *might* can be).
-const STRICT_MODALS: [&str; 10] = [
-    "would", "could", "should", "must", "shall", "'d", "'ll", "ca", "wo", "ought",
+const STRICT_MODALS: [&str; 11] = [
+    "would", "could", "should", "must", "shall", "'d", "'ll", "ca", "wo", "ought", "cannot",
 ];
 
 const PRESENT_MODALS: [&str; 9] = [

@@ -36,7 +36,7 @@ pub struct VoiceCount {
 #[non_exhaustive]
 pub struct VoicesReport {
     pub spans: Vec<VoiceSpan>,
-    /// Spans and words per non-narration voice; a voice with no span is absent.
+    /// Spans and words for every non-narration voice, zero when the voice is absent.
     pub counts: BTreeMap<Voice, VoiceCount>,
     /// Words outside every voice span.
     pub narration_words: usize,
@@ -48,7 +48,17 @@ pub struct VoicesReport {
 
 /// Works on compact documents too: voices are resolved before readings are dropped.
 pub fn report(document: &Document, _options: &VoicesOptions) -> Result<VoicesReport, StyleError> {
-    let mut counts: BTreeMap<Voice, VoiceCount> = BTreeMap::new();
+    let mut counts: BTreeMap<Voice, VoiceCount> = [
+        Voice::Speech,
+        Voice::Thought,
+        Voice::Quoted,
+        Voice::Embedded,
+        Voice::Quotation,
+        Voice::Excluded,
+    ]
+    .into_iter()
+    .map(|voice| (voice, VoiceCount::default()))
+    .collect();
     for span in &document.voices {
         counts.entry(span.voice).or_default().spans += 1;
     }

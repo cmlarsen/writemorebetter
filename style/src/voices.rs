@@ -730,21 +730,28 @@ impl<'a> Parser<'a, '_> {
     /// The clause before a trailing tag at `separator`: back to the sentence start, or to the
     /// last quote, caller span, ; or :.
     fn clause_before(&self, sentence: &Range<usize>, separator: usize) -> usize {
-        (sentence.start..separator)
-            .rev()
-            .find(|&index| {
-                let item = &self.items[index];
-                // Stop at a quote or caller span, at ; : — –, and at a sentence
-                // end the splitter missed (*…thought I. But it is…*), but not after *Mrs.*
-                let honorific =
-                    index > 0 && crate::document::honorific(&self.items[index - 1].token.text);
-                item.blocked
-                    || matches!(item.token.text.as_str(), ";" | ":" | "—" | "–")
-                    || (matches!(item.token.text.as_str(), "." | "!" | "?")
-                        && index + 1 < separator
-                        && !honorific)
-            })
-            .map_or(sentence.start, |index| index + 1)
+        // Stop at a quote or caller span, at ; : — –, after an unclosed parenthesis, and at a
+        // sentence end the splitter missed (*…thought I. But it is…*), but not after *Mrs.*
+        let mut depth = 0usize;
+        for index in (sentence.start..separator).rev() {
+            let item = &self.items[index];
+            let text = item.token.text.as_str();
+            let honorific =
+                index > 0 && crate::document::honorific(&self.items[index - 1].token.text);
+            let stop = item.blocked
+                || matches!(text, ";" | ":" | "—" | "–")
+                || (text == "(" && depth == 0)
+                || (matches!(text, "." | "!" | "?") && index + 1 < separator && !honorific);
+            if stop {
+                return index + 1;
+            }
+            match text {
+                ")" => depth += 1,
+                "(" => depth -= 1,
+                _ => {}
+            }
+        }
+        sentence.start
     }
 
     fn trimmed(&self, range: Range<usize>) -> Option<Range<usize>> {
