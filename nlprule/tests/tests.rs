@@ -26,7 +26,7 @@ fn can_tokenize_empty_text() {
 
 #[test]
 fn handles_whitespace_correctly() {
-    // preceding whitespace has to be included, trailing whitespace behavior is unspecified
+    // preceding whitespace goes to the first sentence, trailing whitespace to the last
     let text = "  hello.\ttest.\t\t";
 
     let mut sentences = TOKENIZER.pipe(text);
@@ -36,7 +36,7 @@ fn handles_whitespace_correctly() {
     );
     assert_eq!(
         &text[sentences.next().unwrap().span().byte().clone()],
-        "test.\t"
+        "test.\t\t"
     );
     assert_eq!(sentences.next(), None);
 }
@@ -313,6 +313,39 @@ fn sentencizer_splits_like_languagetool() {
 }
 
 #[test]
+fn sentencizer_keeps_trailing_whitespace_with_the_earlier_sentence() {
+    // LanguageTool splits "A.  \n\nB." into "A. ", " \n\n" and "B.": the whitespace-only
+    // sentence ends the paragraph, so its line breaks never start the next sentence.
+    let segments = |text: &'static str| -> Vec<&'static str> {
+        TOKENIZER
+            .pipe(text)
+            .map(|sentence| &text[sentence.span().byte().clone()])
+            .collect()
+    };
+    assert_eq!(
+        segments("Short para.  \n\nNext\u{2026} "),
+        vec!["Short para.  \n\n", "Next\u{2026} "]
+    );
+    assert_eq!(
+        segments("He sat.  \n\n  He left."),
+        vec!["He sat.  \n\n", "  He left."]
+    );
+    assert_eq!(
+        segments("\u{201c}Go.\u{201d}   \r\n\r\nShe\u{2019}d gone\u{2014}quietly.\u{2028}  \n\n\u{2026}and then?   "),
+        vec![
+            "\u{201c}Go.\u{201d}   \r\n\r\n",
+            "She\u{2019}d gone\u{2014}quietly.\u{2028}  \n\n",
+            "\u{2026}and then?   "
+        ]
+    );
+    // a blank line at the start still goes to the first sentence
+    assert_eq!(
+        segments("\n\n\u{201c}Hi.\u{201d}  \n\nBye."),
+        vec!["\n\n\u{201c}Hi.\u{201d}  \n\n", "Bye."]
+    );
+}
+
+#[test]
 fn sentencizer_keeps_honorifics_like_languagetool() {
     let segments = |text: &'static str| -> Vec<&'static str> {
         TOKENIZER
@@ -450,6 +483,46 @@ fn no_gaps_between_sentences(text: String) {
     }
 
     assert_eq!(contains_sentence, !text.trim().is_empty());
+}
+
+lazy_static! {
+    static ref ALL_BUILTINS: Rules = {
+        let mut rules = Rules::new(RULES_PATH).unwrap();
+        for rule in rules.builtins_mut() {
+            rule.enable();
+        }
+        rules
+    };
+}
+
+/// Whitespace-only sentences (blank lines after `"End.  "`, or at the start or end of the
+/// text) reach every builtin in `Rules::suggest`; none may fail on them.
+#[quickcheck]
+fn suggest_handles_whitespace_only_sentences(picks: Vec<u8>) -> bool {
+    const PIECES: [&str; 13] = [
+        "He sat.",
+        "  ",
+        " ",
+        "\n",
+        "\n\n",
+        "\r\n",
+        "\t",
+        "\u{2028}",
+        "\u{2029}",
+        "\u{201c}No.\u{201d}",
+        "it\u{2019}s\u{2026}",
+        "\u{2014}",
+        "\u{a0}",
+    ];
+    let text: String = picks
+        .iter()
+        .map(|x| PIECES[*x as usize % PIECES.len()])
+        .collect();
+    let suggestions = ALL_BUILTINS.suggest(&text, &*TOKENIZER);
+    let chars = text.chars().count();
+    suggestions
+        .iter()
+        .all(|x| x.span().char().end <= chars && x.span().byte().end <= text.len())
 }
 
 #[test]
@@ -2167,7 +2240,9 @@ fn builtin_a_vs_an_checks_across_u2028() {
 /// Runs the English comma/parenthesis-whitespace builtin over a paragraph and
 /// returns the flagged text and all replacements of every suggestion.
 fn comma_flags(text: &str) -> Vec<(String, Vec<String>)> {
-    let sentences: Vec<_> = TOKENIZER.pipe(text).collect();
+    let sentences: Vec<_> = TOKENIZER
+        .pipe_with_whitespace_sentences(text, true)
+        .collect();
     let chars: Vec<char> = text.chars().collect();
 
     RULES
@@ -2624,7 +2699,9 @@ fn builtin_word_coherency_is_wired_into_suggest() {
 /// Runs the English unpaired-bracket and unpaired-quote builtins on one
 /// paragraph and returns the rule id and flagged character of every suggestion.
 fn builtin_unpaired_flags(text: &str) -> Vec<(String, String)> {
-    let sentences: Vec<_> = TOKENIZER.pipe(text).collect();
+    let sentences: Vec<_> = TOKENIZER
+        .pipe_with_whitespace_sentences(text, true)
+        .collect();
     let chars: Vec<char> = text.chars().collect();
 
     RULES
@@ -5899,7 +5976,9 @@ fn builtin_flags(id: &str, text: &str) -> Vec<(String, Vec<String>)> {
         .unwrap();
     let chars: Vec<char> = text.chars().collect();
 
-    let sentences: Vec<_> = TOKENIZER.pipe(text).collect();
+    let sentences: Vec<_> = TOKENIZER
+        .pipe_with_whitespace_sentences(text, true)
+        .collect();
     let speller = RULES.spell().speller();
     let mut suggestions = Vec::new();
     let mut start = 0;
@@ -6158,6 +6237,26 @@ fn builtin_multiple_whitespace_skips_indentation_after_a_line_break() {
 }
 
 #[test]
+fn builtin_multiple_whitespace_keeps_the_sentence_boundary_before_a_blank_line() {
+    // "He sat.  \n\n" splits into "He sat. " and " \n\n", so the two spaces are not a run.
+    for text in [
+        "He sat.  \n\nHe left.",
+        "\u{201c}Go.\u{201d}  \n\n\u{2018}No\u{2014}wait\u{2026}\u{2019}  \r\n\r\nShe\u{2019}d left.",
+        "He sat.\u{2028}It rained.  \n\nHe left.",
+    ] {
+        assert_eq!(builtin_flags("WHITESPACE_RULE", text), vec![], "{text:?}");
+    }
+    assert_eq!(
+        builtin_flags("WHITESPACE_RULE", "He sat.   \n\nHe left."),
+        vec![flag("  ", &[" "])]
+    );
+    assert_eq!(
+        builtin_flags("WHITESPACE_RULE", "She\u{2019}d left\u{2026}   "),
+        vec![flag("  ", &[" "])]
+    );
+}
+
+#[test]
 fn builtin_sentence_whitespace_looks_across_paragraphs() {
     assert_eq!(
         builtin_flags("SENTENCE_WHITESPACE", "Line one\nLine two.Next one."),
@@ -6199,20 +6298,21 @@ fn builtin_sentence_whitespace_treats_unicode_line_breaks_as_whitespace() {
 #[test]
 fn builtin_sentence_whitespace_skips_a_sentence_opening_with_a_line_break() {
     use nlprule::builtin::en::SentenceWhitespace;
-    // The splitter keeps a line break at the end of the previous sentence, so
-    // pair a previous sentence that has no trailing whitespace with one that
-    // opens with the break, as LanguageTool's `isLineBreakToken` check covers.
+    // The splitter attaches a line break to the end of the previous sentence, and
+    // only the text's first sentence can open with one. So pair a previous sentence
+    // that has no trailing whitespace with a text that opens with the break, as
+    // LanguageTool's `isLineBreakToken` check covers.
     let previous: Vec<_> = TOKENIZER.pipe("\u{201c}He left\u{2026}\u{201d}").collect();
     assert_eq!(previous.len(), 1);
     for (text, opener) in [
-        ("Then.\u{2029}\u{2029}Now\u{2014}gone.", "\u{2029}"),
-        ("Then.\r\rShe didn\u{2019}t.", "\r"),
+        ("\u{2029}Now\u{2014}gone.", "\u{2029}"),
+        ("\rShe didn\u{2019}t.", "\r"),
     ] {
         let sentences: Vec<_> = TOKENIZER.pipe(text).collect();
-        let next = &sentences[1];
+        let next = &sentences[0];
         assert!(next.text().starts_with(opener), "{:?}", next.text());
         assert_eq!(
-            SentenceWhitespace.check_with_previous(&sentences[1..], previous.last()),
+            SentenceWhitespace.check_with_previous(&sentences, previous.last()),
             vec![],
             "{text:?}"
         );
@@ -6225,6 +6325,59 @@ fn builtin_sentence_whitespace_skips_a_sentence_opening_with_a_line_break() {
             .len(),
         1
     );
+}
+
+#[test]
+fn sentence_whitespace_skips_a_match_touching_the_last_one() {
+    // Each U+2029 is a sentence of its own. LanguageTool 6.6 reports the second one and drops a
+    // match that touches the one before (SameRuleGroupFilter, kept in the rule). Since #193 the
+    // rule follows LanguageTool's post-6.6 fix (86c5f3a9): a line break before or at the start of
+    // a sentence counts as whitespace, so none of these sentences is flagged.
+    let spans = |text: &str| -> Vec<std::ops::Range<usize>> {
+        RULES
+            .suggest(text, &*TOKENIZER)
+            .into_iter()
+            .filter(|x| x.source() == "BUILTIN/SENTENCE_WHITESPACE")
+            .map(|x| x.span().char().clone())
+            .collect()
+    };
+    for text in [
+        "\u{2029}\u{2029}He left.",
+        "\u{2029}He left.",
+        "He sat.  \u{2029}\u{2029}He left.",
+        "He sat.\u{2029}\u{2029}\u{2029}He left.",
+        "He sat.\u{2029}\u{2029}He left. He ran.  \u{2029}He sat.",
+        "\u{201c}Wait\u{2026}\u{201d}\u{2029}\u{2029}She\u{2019}d gone\u{2014}then left.\u{2028}",
+    ] {
+        assert!(spans(text).is_empty(), "{text:?}");
+    }
+    // A real missing space is still flagged.
+    assert_eq!(
+        spans("He sat.\u{2029}\u{2029}No.Then he left."),
+        vec![12..16]
+    );
+}
+
+#[test]
+fn builtin_empty_line_flags_a_whitespace_only_sentence() {
+    // LanguageTool keeps "  \n\n\n\n" after "Para one. " (and a leading blank line) as a
+    // sentence of its own and reports its last line break.
+    assert_eq!(
+        builtin_flags("EMPTY_LINE", "Para one.  \n\n\n\nPara two."),
+        vec![flag("\n", &[])]
+    );
+    assert_eq!(
+        builtin_flags("EMPTY_LINE", "\n\n\n\nPara two."),
+        vec![flag("\n", &[])]
+    );
+    assert_eq!(
+        builtin_flags(
+            "EMPTY_LINE",
+            "\u{201c}Para one\u{2026}\u{201d}  \n\n\n\n\u{2014}Para two\u{2019}s end."
+        ),
+        vec![flag("\n", &[])]
+    );
+    assert_eq!(builtin_flags("EMPTY_LINE", "Para one.  \n\n\n\n"), vec![]);
 }
 
 #[test]
@@ -6356,6 +6509,70 @@ fn word_repeat_beginning_looks_across_paragraphs() {
     );
     for paragraph in ["He ran home.", "He sat down.", "He left the room."] {
         assert!(suggest_flags(&RULES, "ENGLISH_WORD_REPEAT_BEGINNING_RULE", paragraph).is_empty());
+    }
+}
+
+#[test]
+fn word_repeat_beginning_resets_after_trailing_spaces_and_a_blank_line() {
+    // The blank line in "He sat.  \n\n" is a sentence of its own, as in LanguageTool, so the
+    // third "He" does not follow two sentences that begin with it.
+    let flags = |text| suggest_flags(&RULES, "ENGLISH_WORD_REPEAT_BEGINNING_RULE", text);
+    for text in [
+        "He ran. He sat.  \n\n  He left the room.",
+        "He ran. He sat.  \n\nHe left the room.",
+        "He ran. He sat.\t \r\n\r\nHe left the room.",
+        "He\u{2019}s here. He\u{2019}s there\u{2014}now.  \n\nHe\u{2019}s gone\u{2026} for good.",
+        "Moreover, it rained.  \n\nMoreover, it snowed all day long.",
+    ] {
+        assert_eq!(flags(text), vec![], "{text:?}");
+    }
+    assert_eq!(
+        flags("He ran. He sat. \n\nHe left the room."),
+        vec![pronoun_flag("He", "he")]
+    );
+}
+
+#[test]
+fn uppercase_sentence_start_after_trailing_spaces_and_a_blank_line() {
+    let flags = |text| suggest_flags(&RULES, "UPPERCASE_SENTENCE_START", text);
+    assert_eq!(
+        flags("It was late.  \n\nthe door opened.  \r\n\r\nand closed."),
+        vec![
+            ("the".to_owned(), vec!["The".to_owned()]),
+            ("and".to_owned(), vec!["And".to_owned()])
+        ]
+    );
+    assert_eq!(
+        flags("He said: \u{201c}yes.  \n\nno.\u{201d}"),
+        vec![("no".to_owned(), vec!["No".to_owned()])]
+    );
+    // The fiction exception after an ellipsis (LanguageTool flags these) holds with or
+    // without trailing spaces.
+    for text in [
+        "She\u{2019}d gone\u{2026}  \n\nthen she came back.",
+        "She\u{2019}d gone\u{2026} \n\nthen she came back.",
+        "\u{201c}Wait\u{2014}\u{201d}\u{2028}She\u{2019}d gone\u{2026}  \n\nthen she came back.",
+    ] {
+        assert_eq!(flags(text), vec![], "{text:?}");
+    }
+}
+
+#[test]
+fn uppercase_sentence_start_after_a_list_marker_with_trailing_spaces() {
+    // The blank line after "1.  " is a sentence of its own, so the next paragraph no longer
+    // follows the list marker directly and is checked, as in LanguageTool.
+    let flags = |text| suggest_flags(&RULES, "UPPERCASE_SENTENCE_START", text);
+    for text in [
+        "1.  \n\nthe item.",
+        "1. \n\nthe item.",
+        "a)  \n\nthe item.",
+        "She\u{2019}d gone\u{2026}  \n\n2.  \n\nthe \u{201c}item\u{201d}.",
+    ] {
+        assert_eq!(
+            flags(text),
+            vec![("the".to_owned(), vec!["The".to_owned()])],
+            "{text:?}"
+        );
     }
 }
 
@@ -6573,6 +6790,27 @@ fn long_paragraph_flags_more_than_225_words() {
         flags(&format!("{}\u{2028}{}", paragraph_of(230), paragraph_of(5))),
         flagged
     );
+}
+
+#[test]
+fn long_paragraph_starts_after_trailing_spaces_and_a_blank_line() {
+    // "Short para.  \n\n" splits into "Short para. " and " \n\n": the blank line ends the
+    // short paragraph, not the long one.
+    let flags = |text: &str| suggest_flags(&PICKY_RULES, "TOO_LONG_PARAGRAPH", text);
+    let flagged = vec![("w218 w219".to_owned(), vec![])];
+    for before in [
+        "Short para.  \n\n",
+        "Short para.   \r\n\r\n",
+        "\u{201c}Short\u{2014}para.\u{201d}  \n\n",
+        "She\u{2019}d gone\u{2026}  \n\n",
+        "Short\u{2028}para.  \n\n",
+    ] {
+        assert_eq!(
+            flags(&format!("{before}{}", paragraph_of(230))),
+            flagged,
+            "{before:?}"
+        );
+    }
 }
 
 #[test]
@@ -7191,6 +7429,72 @@ fn repetition_rule_counts_sentence_start_when_whitespace_leads() {
         )),
         vec![281..294]
     );
+}
+
+#[test]
+fn repetition_rule_starts_after_a_leading_blank_line() {
+    // LanguageTool keeps a leading blank line as a sentence of its own, so the first match is
+    // its sentence's first token and the distance limit falls between 51 and 52 fillers.
+    let flags = |text: &str| repetition_flags(&RULES, "REP_THANK_YOU_FOR", text);
+    let text = |start: &str, dogs: usize| {
+        format!(
+            "{start}Thank you for the tea. {}Dogs. Thank you for the cake.",
+            "Dogs ".repeat(dogs)
+        )
+    };
+    for start in ["\n\n", " \n\n", "\r\n\r\n", "\n\n\n"] {
+        let offset = start.chars().count();
+        assert_eq!(
+            flags(&text(start, 51)),
+            vec![offset + 284..offset + 297],
+            "{start:?}"
+        );
+        assert_eq!(
+            flags(&text(start, 52)),
+            Vec::<std::ops::Range<usize>>::new(),
+            "{start:?}"
+        );
+    }
+
+    let text = |dogs: usize| {
+        format!(
+            "\n\nThank you for the tea\u{2026} It\u{2019}s late\u{2014}{}dogs. Thank you for the cake.",
+            "dogs ".repeat(dogs)
+        )
+    };
+    assert_eq!(flags(&text(47)), vec![276..289]);
+    assert_eq!(flags(&text(48)), Vec::<std::ops::Range<usize>>::new());
+}
+
+#[test]
+fn repetition_rule_counts_a_whitespace_sentence_between_matches() {
+    // "tea.  \n\n" splits after the first space, and LanguageTool counts the blank line left
+    // over as a sentence, so the distance limit is one filler lower than after "tea. \n\n".
+    let flags = |text: &str| repetition_flags(&RULES, "REP_THANK_YOU_FOR", text);
+    let text = |end: &str, dogs: usize| {
+        format!(
+            "Thank you for the tea.{end}{}Dogs. Thank you for the cake.",
+            "Dogs ".repeat(dogs)
+        )
+    };
+    for (end, limit) in [(" \n\n", 51), ("  \n\n", 50), ("  \r\n\r\n", 50)] {
+        let start = 22 + end.chars().count() + 5 * limit + 6;
+        assert_eq!(flags(&text(end, limit)), vec![start..start + 13], "{end:?}");
+        assert_eq!(
+            flags(&text(end, limit + 1)),
+            Vec::<std::ops::Range<usize>>::new(),
+            "{end:?}"
+        );
+    }
+
+    let text = |dogs: usize| {
+        format!(
+            "Thank you for the \u{2018}tea\u{2019}\u{2026} It\u{2019}s late\u{2014}really.  \n\n{}dogs. Thank you for the cake.",
+            "dogs ".repeat(dogs)
+        )
+    };
+    assert_eq!(flags(&text(42)), vec![262..275]);
+    assert_eq!(flags(&text(43)), Vec::<std::ops::Range<usize>>::new());
 }
 
 #[test]

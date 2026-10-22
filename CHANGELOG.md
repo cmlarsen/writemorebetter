@@ -77,6 +77,11 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   sentences to `Rules::apply` with `raw_pos` rules matching as `Rules::suggest` matches them, use
   the now public `Tokenizer::pipe_with_raw(text, rules.needs_raw())`; `Rules::needs_raw` is new
   ([#169](https://github.com/cmlarsen/writemorebetter/issues/169)).
+- **Sentence spans keep whitespace with the sentence before it.** `pipe()`, `sentencize()` and so
+  `analyze()` and the Swift, WASM and Python sentence spans now give `"A.  \n\n" | "B."` where
+  they gave `"A. " | " \n\nB."`, and trailing whitespace at the end of the text belongs to the
+  last sentence instead of being dropped
+  ([#211](https://github.com/cmlarsen/writemorebetter/issues/211)).
 
 ### Fixed
 
@@ -204,6 +209,15 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   are searched in parallel. On LanguageTool’s rule examples glued into one 108,000-token
   sentence, parallel disambiguation uses 9.9 s of CPU instead of 30.4 s, about the same as
   serial. The output is unchanged ([#149](https://github.com/cmlarsen/writemorebetter/issues/149)).
+- **Whitespace-only sentence splits are checked as LanguageTool checks them.** The blank line
+  after a sentence ending in two or more spaces, and whitespace at the start or end of the text,
+  are now sentences of their own for `Rules::suggest`, as in LanguageTool 6.6's splitter. So
+  `TOO_LONG_PARAGRAPH` and `ENGLISH_WORD_REPEAT_BEGINNING_RULE` see the right paragraphs
+  ([#211](https://github.com/cmlarsen/writemorebetter/issues/211)), `WHITESPACE_RULE` flags
+  trailing spaces and `EMPTY_LINE` leading blank lines
+  ([#184](https://github.com/cmlarsen/writemorebetter/issues/184)), and repetition distances
+  are no longer off by one after a blank line
+  ([#210](https://github.com/cmlarsen/writemorebetter/issues/210)).
 
 ### Removed
 

@@ -44,6 +44,10 @@ impl SentenceWhitespace {
     ) -> Vec<Suggestion> {
         let mut suggestions = Vec::new();
         let mut previous_ends_with_whitespace = previous.map(ends_with_whitespace);
+        // LanguageTool's SameRuleGroupFilter drops a match that touches the last one kept, so
+        // of the paragraph separators in `"He sat.\u{2029}\u{2029}He left."` only the second
+        // one is reported, not `He` right after it.
+        let mut last_end = None;
 
         for sentence in sentences {
             if previous_ends_with_whitespace == Some(false) {
@@ -51,7 +55,9 @@ impl SentenceWhitespace {
                     .into_iter()
                     .next()
                     .filter(|first| !is_line_break(first.text))
+                    .filter(|first| last_end.map_or(true, |end| first.start.char > end))
                 {
+                    last_end = Some(first.end.char);
                     suggestions.push(Suggestion::new(
                         format!("BUILTIN/{}", ID),
                         MESSAGE.to_owned(),

@@ -166,9 +166,16 @@ impl Builtin {
             Builtin::WordRepeat(rule) => sentences.iter().flat_map(|x| rule.check(x)).collect(),
             Builtin::SimpleReplace(rule) => sentences.iter().flat_map(|x| rule.check(x)).collect(),
             Builtin::WrongWordInContext(rule) => rule.check_sentences(sentences),
-            Builtin::UppercaseSentenceStart(rule) => {
-                rule.check_with_previous(sentences, previous.last())
-            }
+            // The blank line after `"Gone…  \n\n"` is a sentence of its own; the context is the
+            // sentence before it and that blank line, so a paragraph after an ellipsis is still
+            // not flagged.
+            Builtin::UppercaseSentenceStart(rule) => rule.check_with_previous(
+                sentences,
+                previous
+                    .iter()
+                    .rposition(|x| !x.tokens().is_empty())
+                    .map_or(&[][..], |i| &previous[i..]),
+            ),
             Builtin::UnpairedBrackets(rule) => rule.check(sentences),
             Builtin::UnpairedQuotes(rule) => rule.check(sentences),
             Builtin::WordCoherency(rule) => rule.check_text(sentences),
