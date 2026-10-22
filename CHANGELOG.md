@@ -63,6 +63,13 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   dropping it where it overlapped a `WHITESPACE_RULE` flag. LanguageTool 6.6 includes the
   whitespace, so the offsets differ from it for such sentences only
   ([#232](https://github.com/cmlarsen/writemorebetter/issues/232)).
+- **Quoted names ending in "in" are no longer read as dropped-g verbs.** `His name was 'Corin'.`
+  tagged `Corin'` as *coring* and `'Rin'` as *ring*, so the name never reached the speller. The
+  g-dropped fallback now needs a vowel before the `in`, and a straight quote before a g-dropped
+  word is paired with a later closer when there is one, as LanguageTool 6.6 tokenizes it. As a
+  result `She said 'goin'.` now splits like LanguageTool (`'` `goin` `'`). Curly-quoted names
+  and multi-word quotations ending in a name still behave like LanguageTool 6.6
+  (part of [#203](https://github.com/cmlarsen/writemorebetter/issues/203)).
 
 # 0.12.0 (2026-10-22)
 
