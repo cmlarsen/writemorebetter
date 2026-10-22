@@ -48,9 +48,10 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
 ### Changed
 
-- **`RULES_FORMAT_VERSION` is 34.** Version 33 added `SpellLangOptions::latin_script` and 34 the
-  `ConsistentApostrophes` builtin, so 0.12.0's `en_rules.bin` no longer loads; use the next
-  release's data zip. The tokenizer format stays 18.
+- **`RULES_FORMAT_VERSION` is 35.** Version 33 added `SpellLangOptions::latin_script`, 34 the
+  `ConsistentApostrophes` builtin, and 35 stores the multitoken phrase list once instead of twice
+  ([#212](https://github.com/cmlarsen/writemorebetter/issues/212)), so 0.12.0's `en_rules.bin` no
+  longer loads; use the next release's data zip. The tokenizer format stays 18.
 - **`Builtin::check` and `Builtin::check_text` take the speller.** Both take an
   `Option<&Speller>` as a new last argument, as `Builtin::check_paragraph` does. Pass
   `rules.spell().speller().as_ref()` to get the `EN_COMPOUNDS` suggestions `Rules::suggest`
@@ -63,9 +64,20 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   bucket index built at load, recovering the cost of OpenNLP beam parity: about 44% fewer
   instructions per chunker pass and 2.5% per whole check on moby150k, with byte-identical output
   and data binaries ([#174](https://github.com/cmlarsen/writemorebetter/issues/174)).
+- **About 12 MiB less memory once the English binaries are loaded.** The multitoken phrase list
+  keeps each spelling and key once (5.6 MiB to 1.7 MiB live heap), and the rules, part pool,
+  speller, tagger FSTs and multiword phrase list drop the spare capacity they carried after
+  deserialization. Loaded live heap goes from 62.9 MiB to 51.0 MiB, and loaded RSS drops by
+  about 4 to 5 MiB ([#212](https://github.com/cmlarsen/writemorebetter/issues/212),
+  [#225](https://github.com/cmlarsen/writemorebetter/issues/225)).
 
 ### Fixed
 
+- **The multitoken run-on check uses the en_US speller in every variant, as in LanguageTool
+  6.6.** It used the selected variant's speller, so with en_GB "Lincol nCenter" was flagged as a
+  misspelled phrase and "Roger sCentre" (→ "Rogers Centre") was not. Both now match
+  LanguageTool 6.6 for en-GB, en-US, en-AU and en-CA
+  ([#215](https://github.com/cmlarsen/writemorebetter/issues/215)).
 - **The earliest subrule of a rule group wins a span, as in LanguageTool 6.6.** When two subrules
   of one group matched at the same start, the later one was reported: "The break- up was
   painful." got `EN_SPLIT_WORDS_HYPHEN/3` ("breakup") instead of subrule 0 ("break-up",

@@ -336,11 +336,14 @@ mod tests {
     #[test]
     fn loaded_buffers_have_no_spare_capacity() {
         let speller = MultitokenSpeller::from_lines(
-            (0..60_000).map(|i| format!("\u{201c}Zo\u{eb} {}\u{2026} Quill\u{2014}Hall", i)),
+            (0..300_000).map(|i| format!("\u{201c}Zo\u{eb} {}\u{2026} Quill\u{2014}Hall", i)),
         );
         let mut loaded: MultitokenSpeller =
             bincode::deserialize(&bincode::serialize(&speller).unwrap()).unwrap();
-        assert!(loaded.spellings.text.len() > 1 << 20);
+        // Serde preallocates a sequence up to 1 MiB and grows it by doubling past that, so
+        // these Vecs of u32 (over 1 MiB each) arrive with spare capacity.
+        assert!(loaded.spellings.ends.len() * 4 > 1 << 20);
+        assert!(loaded.spellings.ends.capacity() > loaded.spellings.ends.len());
         loaded.shrink_to_fit();
         assert_eq!(
             loaded.spellings.text.capacity(),
@@ -351,13 +354,19 @@ mod tests {
             loaded.spellings.ends.len()
         );
         assert_eq!(loaded.keys.text.capacity(), loaded.keys.text.len());
+        assert_eq!(loaded.keys.ends.capacity(), loaded.keys.ends.len());
+        assert_eq!(loaded.phrase_ends.capacity(), loaded.phrase_ends.len());
+        assert_eq!(
+            loaded.without_spaces_ids.capacity(),
+            loaded.without_spaces_ids.len()
+        );
         assert_eq!(
             loaded.without_spaces.capacity(),
             loaded.without_spaces.len()
         );
         assert_eq!(
-            without_spaces(&loaded, "\u{201c}zoe59999\u{2026}quill\u{2014}hall"),
-            Some(vec!["\u{201c}Zo\u{eb} 59999\u{2026} Quill\u{2014}Hall"])
+            without_spaces(&loaded, "\u{201c}zoe299999\u{2026}quill\u{2014}hall"),
+            Some(vec!["\u{201c}Zo\u{eb} 299999\u{2026} Quill\u{2014}Hall"])
         );
     }
 
