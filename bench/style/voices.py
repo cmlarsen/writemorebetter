@@ -32,15 +32,20 @@ from pacing_labels import BOOKS, PUBLIC, source_documents
 
 LABELS = HERE / 'labels' / 'thought-spans.jsonl'
 HELDOUT = HERE / 'labels' / 'thought-spans-heldout.jsonl'
+HELDOUT2 = HERE / 'labels' / 'thought-spans-heldout-2.jsonl'
 MISSES = HERE / 'labels' / 'thought-misses.jsonl'
 GUIDELINES = HERE / 'labels' / 'THOUGHT-GUIDELINES.md'
 BASELINE = HERE / 'voices-baseline.json'
 TEMPLATES = HERE / 'thought-templates.json'
 # Modernist novels (CC0 at Standard Ebooks) hold most of the unquoted thought in the public set.
 MODERN = ('to_the_lighthouse', 'jacobs_room', 'portrait', 'ulysses', 'sons_and_lovers')
-SOURCES = tuple(PUBLIC) + BOOKS + MODERN
+# Added after the rules were frozen at 33b7f15, for the second held-out sample only.
+FRESH = ('voyage_out', 'night_and_day', 'women_in_love', 'howards_end', 'this_side_of_paradise',
+         'main_street', 'orlando', 'sound_and_the_fury', 'as_i_lay_dying', 'a_farewell_to_arms')
+SOURCES = tuple(PUBLIC) + BOOKS + MODERN + FRESH
 SEED = 353
 HELDOUT_SEED = 3531
+HELDOUT2_SEED = 3532
 CONTEXT = 110
 TOOL = ROOT / 'bench/tools/wmb-document'
 THOUGHT_LEMMAS = ('think', 'wonder', 'muse', 'reason', 'realize', 'realise', 'decide', 'figure',
@@ -157,8 +162,8 @@ def stratified(rows, size, rng, half=False):
     return chosen
 
 
-def sample(size, path, seed, exclude=(), half=False):
-    rows = flags()
+def sample(size, path, seed, exclude=(), half=False, sources=None):
+    rows = [row for row in flags() if sources is None or row['source'] in sources]
     excluded = {key(row) for row in exclude if row.get('type') != 'meta'}
     rows = [row for row in rows if key(row) not in excluded]
     chosen = stratified(rows, size, random.Random(seed), half)
@@ -554,6 +559,7 @@ def main():
     sub.add_parser('synthetic').add_argument('--write', action='store_true')
     sub.add_parser('sample').add_argument('--size', type=int, default=150)
     sub.add_parser('heldout').add_argument('--size', type=int, default=100)
+    sub.add_parser('heldout2').add_argument('--size', type=int, default=100)
     sub.add_parser('misses').add_argument('--size', type=int, default=100)
     packing = sub.add_parser('packet')
     packing.add_argument('labels')
@@ -578,6 +584,8 @@ def main():
         sample(args.size, LABELS, SEED, half=True)
     elif args.command == 'heldout':
         sample(args.size, HELDOUT, HELDOUT_SEED, jsonl(LABELS))
+    elif args.command == 'heldout2':
+        sample(args.size, HELDOUT2, HELDOUT2_SEED, sources=FRESH)
     elif args.command == 'misses':
         misses(args.size)
     elif args.command == 'packet':

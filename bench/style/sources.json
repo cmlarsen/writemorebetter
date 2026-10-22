@@ -206,5 +206,85 @@
     "license": "CC0 1.0",
     "sha256": "fc5bf783d621007069388d4c305ca90ef10641e6d9b829c28b8dc439280a0885",
     "license_url": "https://standardebooks.org/about/standard-ebooks-and-the-public-domain"
+  },
+  "voyage_out": {
+    "filename": "voyage_out.tar.gz",
+    "url": "https://codeload.github.com/standardebooks/virginia-woolf_the-voyage-out/tar.gz/434f8e606135feacf94b7159633576a7ddb217b5",
+    "version": "434f8e606135feacf94b7159633576a7ddb217b5",
+    "license": "CC0 1.0",
+    "sha256": "f8cd1213a0c69380e4583e6392a9ba1a23ca5fb6c67305631214ee964d02ad14",
+    "license_url": "https://standardebooks.org/about/standard-ebooks-and-the-public-domain"
+  },
+  "night_and_day": {
+    "filename": "night_and_day.tar.gz",
+    "url": "https://codeload.github.com/standardebooks/virginia-woolf_night-and-day/tar.gz/2b2e760d0debe2afebe4ab998fdffe879fe0a93c",
+    "version": "2b2e760d0debe2afebe4ab998fdffe879fe0a93c",
+    "license": "CC0 1.0",
+    "sha256": "888d61e2a488aee35b5ca40308973d4f62666e533116d70d1fed75170a01519e",
+    "license_url": "https://standardebooks.org/about/standard-ebooks-and-the-public-domain"
+  },
+  "women_in_love": {
+    "filename": "women_in_love.tar.gz",
+    "url": "https://codeload.github.com/standardebooks/d-h-lawrence_women-in-love/tar.gz/85fa480d2108788e053754aa88d46d77e435bc42",
+    "version": "85fa480d2108788e053754aa88d46d77e435bc42",
+    "license": "CC0 1.0",
+    "sha256": "087e840d5d4bfe73f0744f62dbfce323139ff1f161f59c22535e5825abdb8bb5",
+    "license_url": "https://standardebooks.org/about/standard-ebooks-and-the-public-domain"
+  },
+  "howards_end": {
+    "filename": "howards_end.tar.gz",
+    "url": "https://codeload.github.com/standardebooks/e-m-forster_howards-end/tar.gz/67270df055be3238dc8c3e55ccd47ac642cde021",
+    "version": "67270df055be3238dc8c3e55ccd47ac642cde021",
+    "license": "CC0 1.0",
+    "sha256": "9e5c547dc531976beb6fcdddb71140586b681a0d9699615587fcc9f889d9b9ef",
+    "license_url": "https://standardebooks.org/about/standard-ebooks-and-the-public-domain"
+  },
+  "this_side_of_paradise": {
+    "filename": "this_side_of_paradise.tar.gz",
+    "url": "https://codeload.github.com/standardebooks/f-scott-fitzgerald_this-side-of-paradise/tar.gz/36edb41369fa8db41cef14ae00e53280b0f8963a",
+    "version": "36edb41369fa8db41cef14ae00e53280b0f8963a",
+    "license": "CC0 1.0",
+    "sha256": "35420f699f52f5d7d02c447a83a50bface19bd4c6a1e5ae011bd2e206f91d293",
+    "license_url": "https://standardebooks.org/about/standard-ebooks-and-the-public-domain"
+  },
+  "main_street": {
+    "filename": "main_street.tar.gz",
+    "url": "https://codeload.github.com/standardebooks/sinclair-lewis_main-street/tar.gz/4ec0f4ff110cc1a24f1f1c94ebc71b424888d831",
+    "version": "4ec0f4ff110cc1a24f1f1c94ebc71b424888d831",
+    "license": "CC0 1.0",
+    "sha256": "a1cb594e77b24fbd92f1f1d6c7dad475b2b80e9ce47e1fabf265ec9bf3209158",
+    "license_url": "https://standardebooks.org/about/standard-ebooks-and-the-public-domain"
+  },
+  "orlando": {
+    "filename": "orlando.tar.gz",
+    "url": "https://codeload.github.com/standardebooks/virginia-woolf_orlando/tar.gz/91a80617f7f0d505c182308f7c82bce9f37f563d",
+    "version": "91a80617f7f0d505c182308f7c82bce9f37f563d",
+    "license": "CC0 1.0",
+    "sha256": "fcebd8a3a331a9f2ad503e28d5a7504f6ef26cbcb04669259bdba6e288541f94",
+    "license_url": "https://standardebooks.org/about/standard-ebooks-and-the-public-domain"
+  },
+  "sound_and_the_fury": {
+    "filename": "sound_and_the_fury.tar.gz",
+    "url": "https://codeload.github.com/standardebooks/william-faulkner_the-sound-and-the-fury/tar.gz/1d829cfd6b594e4ec8a5843892b89e985b801817",
+    "version": "1d829cfd6b594e4ec8a5843892b89e985b801817",
+    "license": "CC0 1.0",
+    "sha256": "0b669bc9822636de9c99ee5ac824331e1f86d6ca99ad158274d36a35ef8195f0",
+    "license_url": "https://standardebooks.org/about/standard-ebooks-and-the-public-domain"
+  },
+  "as_i_lay_dying": {
+    "filename": "as_i_lay_dying.tar.gz",
+    "url": "https://codeload.github.com/standardebooks/william-faulkner_as-i-lay-dying/tar.gz/d1db97c70f34ba896f883e11f110f69ce8613a3f",
+    "version": "d1db97c70f34ba896f883e11f110f69ce8613a3f",
+    "license": "CC0 1.0",
+    "sha256": "91434fdb2ae7104cbc27b57a925cf4c07cc5a8b86f137ec5f4ea45c12af33015",
+    "license_url": "https://standardebooks.org/about/standard-ebooks-and-the-public-domain"
+  },
+  "a_farewell_to_arms": {
+    "filename": "a_farewell_to_arms.tar.gz",
+    "url": "https://codeload.github.com/standardebooks/ernest-hemingway_a-farewell-to-arms/tar.gz/1d2df0838ecb630d5ff4db70f37b453fb70895d0",
+    "version": "1d2df0838ecb630d5ff4db70f37b453fb70895d0",
+    "license": "CC0 1.0",
+    "sha256": "12ec6e2c640e5f5aab8bf4f49b9feb66ff148d657648112fe65de65a2b334355",
+    "license_url": "https://standardebooks.org/about/standard-ebooks-and-the-public-domain"
   }
 }
