@@ -4598,6 +4598,16 @@ fn inflected_tokens_do_not_match_the_surface_form() {
 
     rules.set_mother_tongue(Some("pt"));
     assert_eq!(false_friends(&rules, text), vec![]);
+    // sentence-final tokens, with no closing punctuation: the SENT_END reading must not carry
+    // the surface text as its lemma either
+    for text in [
+        "He wore his spectacles",
+        "She has retired\u{2028}",
+        "\u{201c}The vegetables\u{2026}\u{201d}",
+        "She\u{2019}d retired \u{2014} the grapes",
+    ] {
+        assert_eq!(false_friends(&rules, text), vec![], "{text}");
+    }
 
     rules.set_mother_tongue(Some("fr"));
     let sources: Vec<String> = false_friends(&rules, text)

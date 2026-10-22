@@ -490,12 +490,17 @@ impl<'t> IncompleteToken<'t> {
     pub fn into_token(self) -> Token<'t> {
         let mut word = self.word;
         let special = |pos| WordData::new(word.text.clone(), PosId::special(pos));
-        let (none, unknown, sent_end) = (
-            special(SpecialPos::None),
-            special(SpecialPos::Unknown),
-            special(SpecialPos::SentEnd),
-        );
+        let (none, unknown) = (special(SpecialPos::None), special(SpecialPos::Unknown));
         let untagged = word.tags.iter().all(|x| x.pos.as_str().is_empty());
+        // LanguageTool's SENT_END reading takes the lemma of the token's first reading (none for
+        // an unknown word, which falls back to the token text). Using the surface text here would
+        // let `inflected="yes"` match surface forms at the end of a sentence.
+        let sent_end_lemma = word
+            .tags
+            .iter()
+            .find(|x| !x.pos.as_str().is_empty())
+            .map_or_else(|| word.text.clone(), |x| x.lemma.clone());
+        let sent_end = WordData::new(sent_end_lemma, PosId::special(SpecialPos::SentEnd));
         let n = word.tags.len();
 
         word.tags.push(none);
