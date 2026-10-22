@@ -10,6 +10,8 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
 ### Added
 
+- **PyPI publishing.** A real release now also uploads the `writemorebetter` wheels and sdist to
+  PyPI through Trusted Publishing; the Python workflow builds and tests the sdist too.
 - **The `TOO_OFTEN_USED_*` minimum percentage can be set.** `Rules::set_too_often_used_percent`
   (Rust), `Checker.setTooOftenUsedPercent(percent:)` (Swift) and `checker.setTooOftenUsedPercent`
   (WASM) set the share, 1 to 100 as in LanguageTool's rule option, from which the three
@@ -24,7 +26,7 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   `analyze_document` and every style report through `style_document`. Offsets are Python string
   indices (code points). The wheel holds engine code only; the LGPL data still ships separately
   in the release data zip. A new Python workflow builds and smoke-tests wheels on Linux, macOS
-  and Windows. Not on PyPI yet ([#93](https://github.com/cmlarsen/writemorebetter/issues/93)).
+  and Windows ([#93](https://github.com/cmlarsen/writemorebetter/issues/93)).
 - **`reports::to_char_json`** in the style crate serializes a report with code-point spans, beside
   `to_utf16_json`.
 - **Whole-text rules through paragraph digests.** Checking a paragraph can now also return a

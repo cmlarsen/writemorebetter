@@ -1,9 +1,11 @@
 name: Python
 
 # Builds the `writemorebetter` Python wheels (abi3, CPython 3.9+) for Linux, macOS and Windows
-# and smoke-tests each one against the LGPL data, which stays out of the wheel. Nothing here
-# publishes to PyPI; that step waits on the owner's approval (#93).
+# and the sdist, and smoke-tests each one against the LGPL data, which stays out of both.
+# Nothing here publishes: the Release workflow calls this one (workflow_call) and uploads the
+# same artifacts to PyPI from its publish-pypi job. See docs/RELEASING.md.
 on:
+  workflow_call:
   push:
     branches:
       - main
@@ -152,4 +154,48 @@ jobs:
         with:
           name: python-wheels-${{ matrix.os }}
           path: python/dist/*.whl
+          if-no-files-found: error
+
+  # The sdist carries the workspace crates the binding builds from (maturin copies path
+  # dependencies in), but no LGPL data. Build a wheel from it so a broken sdist fails here
+  # rather than on a user's machine.
+  sdist:
+    name: Sdist
+    needs: data
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Build the sdist
+        uses: PyO3/maturin-action@v1
+        with:
+          working-directory: python
+          command: sdist
+          args: --out dist
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: python-test-data
+          path: wmb-data
+
+      - name: Install from the sdist and test it
+        env:
+          WMB_DATA_DIR: ${{ github.workspace }}/wmb-data
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install python/dist/writemorebetter-*.tar.gz
+          python -m pip install pytest
+          cd "$RUNNER_TEMP"
+          python -m pytest -q "$GITHUB_WORKSPACE/python/tests"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: python-sdist
+          path: python/dist/*.tar.gz
           if-no-files-found: error
