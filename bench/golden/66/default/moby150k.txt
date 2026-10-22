@@ -45,10 +45,8 @@
 327 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: repeated spaces
 327 | SPELLCHECK/SINGLE | "Walw-ian" -> ["Walk-in"] | Possibly misspelled word.
 330 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: repeated spaces
-330 | SPELLCHECK/SINGLE | "חו" -> [] | Possibly misspelled word.
 330 | BUILTIN/WHITESPACE_RULE | "                " -> [" "] | Possible typo: repeated spaces
 331 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: repeated spaces
-331 | SPELLCHECK/SINGLE | "ϰητος" -> [] | Possibly misspelled word.
 331 | BUILTIN/WHITESPACE_RULE | "             " -> [" "] | Possible typo: repeated spaces
 332 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: repeated spaces
 332 | BUILTIN/WHITESPACE_RULE | "             " -> [" "] | Possible typo: repeated spaces

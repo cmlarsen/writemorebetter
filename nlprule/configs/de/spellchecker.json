@@ -4,5 +4,6 @@
         "de_DE",
         "de_CH"
     ],
-    "split_hyphens": true
+    "split_hyphens": true,
+    "latin_script": true
 }

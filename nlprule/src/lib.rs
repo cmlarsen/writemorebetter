@@ -210,7 +210,8 @@ pub const TOKENIZER_FORMAT_VERSION: u32 = 18;
 /// filter were added.
 /// Version 31: the `RepeatedWords` and `TooOftenUsed` builtins were added.
 /// Version 32: the `HarperConfusion` builtin was added.
-pub const RULES_FORMAT_VERSION: u32 = 32;
+/// Version 33: `SpellLangOptions::latin_script` was added.
+pub const RULES_FORMAT_VERSION: u32 = 33;
 
 /// The longest engine version string accepted in a binary header.
 const MAX_ENGINE_VERSION_LEN: usize = 256;

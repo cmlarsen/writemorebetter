@@ -1,4 +1,5 @@
 {
     "variants": [],
-    "split_hyphens": true
+    "split_hyphens": true,
+    "latin_script": true
 }

@@ -1106,6 +1106,81 @@ fn speller_suggestions_restore_the_case_of_capitalized_words() {
 }
 
 #[test]
+fn spellchecker_ignores_words_with_no_latin_letter() {
+    for text in &[
+        "\u{201c}\u{41f}\u{440}\u{438}\u{432}\u{435}\u{442},\u{201d} he said\u{2014}\u{417}\u{434}\u{440}\u{430}\u{432}\u{441}\u{442}\u{432}\u{443}\u{439}\u{442}\u{435}\u{2026}",
+        "The sign read \u{2018}\u{39f}\u{394}\u{39f}\u{3a3}\u{2019}.\u{2028}She wrote \u{6771}\u{4eac}.",
+        "\u{6771}\u{4eac}\u{2019}s lights\u{2014}\u{3b1}\u{3b2}\u{3b3}\u{2026} gone.",
+    ] {
+        assert_eq!(spelling_errors(text), Vec::<&str>::new(), "{}", text);
+    }
+
+    // A token mixing scripts is still checked: Greek capital tau + "he".
+    assert_eq!(
+        spelling_errors("\u{201c}\u{3a4}he end\u{2014}\u{41f}\u{440}\u{438}\u{432}\u{435}\u{442}\u{2026}\u{201d}"),
+        vec!["\u{3a4}he"]
+    );
+
+    let speller = RULES.spell().speller().unwrap();
+    assert!(speller.is_correct("\u{41f}\u{440}\u{438}\u{432}\u{435}\u{442}"));
+    assert!(speller.is_correct("\u{39f}\u{394}\u{39f}\u{3a3}"));
+    assert!(speller.is_correct("\u{6771}\u{4eac}"));
+    assert!(!speller.is_correct("\u{3a4}he"));
+    assert_eq!(speller.suggest("\u{3a4}he", 3), vec!["The", "He", "She"]);
+}
+
+#[test]
+fn speller_capitalizes_candidates_for_mixed_case_words() {
+    let speller = RULES.spell().speller().unwrap();
+    assert_eq!(
+        speller.suggest("LeBRON", 5),
+        vec!["LeBron", "Hebron", "Lebrun", "Learn", "Lesson"]
+    );
+    for (word, expected) in [
+        ("PayPAL", &["PayPal", "Papal"][..]),
+        ("XerXes", &["Xerxes", "Xeroxes", "Xeres"][..]),
+        ("DeVITO", &["DeVito", "Device"][..]),
+    ] {
+        let suggestions = speller.suggest(word, 10);
+        assert_eq!(&suggestions[..expected.len()], expected, "{}", word);
+        assert!(
+            suggestions
+                .iter()
+                .all(|x| x.starts_with(char::is_uppercase)),
+            "{:?}",
+            suggestions
+        );
+        assert_eq!(
+            suggestions.iter().collect::<HashSet<_>>().len(),
+            suggestions.len(),
+            "{:?}",
+            suggestions
+        );
+    }
+    // A word starting lowercase keeps the candidates' case.
+    assert_eq!(speller.suggest("iPHONE", 2), vec!["iPhone", "phone"]);
+
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    rules.spell_mut().options_mut().variant = Some(rules.spell().variant("en_US").unwrap());
+    let text =
+        "\u{201c}LeBRON\u{2019}s back\u{2014}PayPAL\u{2026}\u{201d}\u{2028}\u{2018}XerXes!\u{2019}";
+    let first_replacements: Vec<(&str, String)> = rules
+        .suggest(text, &*TOKENIZER)
+        .into_iter()
+        .filter(|x| x.source().starts_with("SPELLCHECK"))
+        .map(|x| (&text[x.span().byte().clone()], x.replacements()[0].clone()))
+        .collect();
+    assert_eq!(
+        first_replacements,
+        vec![
+            ("LeBRON", "LeBron".to_string()),
+            ("PayPAL", "PayPal".to_string()),
+            ("XerXes", "Xerxes".to_string()),
+        ]
+    );
+}
+
+#[test]
 fn spelling_suggestions_keep_the_case_of_shouted_dialogue() {
     let mut rules = Rules::new(RULES_PATH).unwrap();
     rules.spell_mut().options_mut().variant = Some(rules.spell().variant("en_US").unwrap());
