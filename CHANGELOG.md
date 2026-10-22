@@ -42,6 +42,14 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   that is neither all caps nor title case ("LeBRON", "XerXes") got lowercase candidates and the
   same word twice ("xeroxes", "Xeroxes"). Candidates are now capitalized as in LanguageTool 6.6:
   "LeBRON" gets LeBron, Hebron, Lebrun, Learn, Lesson (#196).
+- **Suggestions are capitalized like LanguageTool.** A suggestion's first letter is uppercased only
+  when the matched text starts uppercase, not merely because the match is at sentence start
+  (`a compete` → `a competed`), and a rule whose suggestions convert case keeps the converted case.
+  The first letter or digit is uppercased, past leading punctuation: `(The) latest`. Rule examples
+  in `en_rules.bin` now keep their `correction` exactly as written, so the conformance harness
+  needs this release's rebuilt data; this change alone does not alter the binary format
+  ([#158](https://github.com/cmlarsen/writemorebetter/issues/158),
+  [#191](https://github.com/cmlarsen/writemorebetter/issues/191)).
 
 # 0.12.0 (2026-10-22)
 

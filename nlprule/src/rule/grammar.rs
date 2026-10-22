@@ -601,8 +601,8 @@ impl Synthesizer {
         // is not enough: `a compete` keeps `a competed`. `keep_case` turns this off,
         // except when the match starts at `SENT_START` (a zero-width group before the
         // sentence's first token): LanguageTool then takes the case of the next token
-        // without that check. A regex rule (`RegexPatternRule`) uppercases only a match
-        // at the start of the sentence.
+        // without that check. A regex rule (`RegexPatternRule`) uppercases a match at the
+        // start of the sentence and never applies the `keep_case` check.
         let first_group = graph.get_index(start);
         let make_uppercase = graph.groups()[first_group..]
             .iter()
@@ -624,7 +624,7 @@ impl Synthesizer {
                     && if self.use_titlecase_adjust {
                         !keep_case || from_sent_start
                     } else {
-                        !keep_case && at_sentence_start
+                        at_sentence_start
                     }
             });
 

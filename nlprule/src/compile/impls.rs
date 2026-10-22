@@ -2331,6 +2331,10 @@ mod tests {
     <regexp>zork blot</regexp>
     <message>m <suggestion>quux frob</suggestion>.</message>
   </rule>
+  <rule id="REGEX_CONV" name="m">
+    <regexp>(Zeek) (blot)</regexp>
+    <message>m <suggestion>\2 \1</suggestion> <suggestion><match no="1" case_conversion="alllower"/></suggestion>.</message>
+  </rule>
 </category>
 </rules>
 "#;
@@ -2420,6 +2424,12 @@ mod tests {
                 "\u{201c}Zork blot,\u{201d} she said.",
                 "REGEX",
                 quux("quux"),
+            ),
+            // `RegexPatternRule` never applies the case conversion check.
+            (
+                "Zeek blot is here.",
+                "REGEX_CONV",
+                vec!["Blot Zeek".to_string(), "Zeek".to_string()],
             ),
         ] {
             let mut flagged = Vec::new();

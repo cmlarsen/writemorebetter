@@ -339,6 +339,8 @@ pub struct Suggestions<'a, 't> {
     articles: Option<&'a ArticleData>,
     /// What the rule filter may consult besides the match.
     filter_context: filter::FilterContext<'a>,
+    /// The rule's [`grammar::suggestions_keep_case`], fixed per rule.
+    keep_case: bool,
 }
 
 impl<'a, 't> Iterator for Suggestions<'a, 't> {
@@ -350,7 +352,7 @@ impl<'a, 't> Iterator for Suggestions<'a, 't> {
         let (start, end) = (self.rule.start, self.rule.end);
         let filter_context = &self.filter_context;
         let articles = self.articles;
-        let keep_case = grammar::suggestions_keep_case(&rule.suggesters);
+        let keep_case = self.keep_case;
 
         let evaluate = |graph: &MatchGraph<'t>, vetoed: &mut bool| {
             if let Some(unification) = &rule.unification {
@@ -835,6 +837,7 @@ impl Rule {
             sentence,
             articles,
             filter_context,
+            keep_case: grammar::suggestions_keep_case(&self.suggesters),
         }
     }
 
