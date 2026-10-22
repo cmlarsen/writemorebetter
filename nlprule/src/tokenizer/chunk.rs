@@ -1,13 +1,13 @@
 //! A Chunker ported from [OpenNLP](https://opennlp.apache.org/).
 
 use serde::{Deserialize, Serialize};
-use std::hash::{Hash, Hasher};
 use std::ops::Range;
+use std::sync::OnceLock;
 use std::{cmp::Ordering, collections::BinaryHeap};
 
-use crate::types::{DefaultHashMap, DefaultHasher, IncompleteSentence};
+use crate::types::{DefaultHashMap, IncompleteSentence};
 
-fn softmax(vec: &mut Vec<f32>) {
+fn softmax(vec: &mut [f32]) {
     for x in vec.iter_mut() {
         *x = x.exp();
     }
@@ -28,6 +28,7 @@ struct Node {
     parent: Option<usize>,
 }
 
+#[derive(Clone, Copy)]
 struct Beam {
     log_prob: f32,
     parent: Option<usize>,
@@ -61,6 +62,55 @@ impl<'a> Sequence<'a> {
     }
 }
 
+/// Writes the best `size` of `candidates` to `best`, best first, in the order that pushing
+/// `candidates` one by one into a [`BinaryHeap`] and truncating its `into_sorted_vec` gives.
+/// That order is ambiguous only among candidates with equal log probabilities, so the best are
+/// selected and sorted directly, and the heap is replayed only if two of them, or the last kept
+/// one and the best dropped one, are tied.
+fn select_best(candidates: &[Beam], size: usize, best: &mut Vec<Beam>) {
+    best.clear();
+    best.extend_from_slice(candidates);
+    let mut tied = false;
+    if best.len() > size {
+        best.select_nth_unstable(size);
+        let dropped = best[size];
+        best.truncate(size);
+        best.sort_unstable();
+        tied = best.last() == Some(&dropped);
+    } else {
+        best.sort_unstable();
+    }
+    tied = tied || best.windows(2).any(|pair| pair[0] == pair[1]);
+
+    if tied {
+        let mut heap = BinaryHeap::with_capacity(candidates.len());
+        for &candidate in candidates {
+            heap.push(candidate);
+        }
+        *best = heap.into_sorted_vec();
+        best.truncate(size);
+    }
+}
+
+/// The first of the best of `candidates` in the order that pushing them one by one into a
+/// [`BinaryHeap`] stores them, which is what a stable sort of the heap's contents puts first.
+fn first_best(candidates: &[Beam]) -> Option<Beam> {
+    let best = candidates.iter().min()?;
+    if candidates
+        .iter()
+        .filter(|candidate| *candidate == best)
+        .count()
+        == 1
+    {
+        return Some(*best);
+    }
+    let mut heap = BinaryHeap::with_capacity(candidates.len());
+    for &candidate in candidates {
+        heap.push(candidate);
+    }
+    heap.into_vec().into_iter().min()
+}
+
 pub(crate) mod hash {
     use std::{
         collections::hash_map::DefaultHasher,
@@ -89,6 +139,27 @@ pub(crate) mod hash {
     /// `hash_str(s) == hash_parts(&[s])` and `hash_slice(parts) == hash_parts(parts)`.
     pub fn hash_parts(parts: &[&str]) -> u64 {
         let mut hasher = DefaultHasher::new();
+        for part in parts.iter() {
+            hasher.write(part.as_bytes());
+        }
+        hasher.write_u8(0xff);
+        hasher.finish()
+    }
+
+    /// A hasher that has consumed the byte concatenation of `parts`, to finish several hashes
+    /// that share it as a prefix with [`hash_parts_after`].
+    pub fn prefix_hasher(parts: &[&str]) -> DefaultHasher {
+        let mut hasher = DefaultHasher::new();
+        for part in parts.iter() {
+            hasher.write(part.as_bytes());
+        }
+        hasher
+    }
+
+    /// Like [`hash_parts`] of the prefix parts of `prefix` followed by `parts`:
+    /// `hash_parts_after(&prefix_hasher(a), b) == hash_parts(&[a, b].concat())`.
+    pub fn hash_parts_after(prefix: &DefaultHasher, parts: &[&str]) -> u64 {
+        let mut hasher = prefix.clone();
         for part in parts.iter() {
             hasher.write(part.as_bytes());
         }
@@ -132,6 +203,20 @@ pub(crate) mod hash {
         }
 
         #[test]
+        fn prefixed_hash_matches_parts_hash() {
+            let prefix = prefix_hasher(&["p_1=", "B-NP"]);
+            assert_eq!(
+                hash_parts_after(&prefix, &["t0=", "NN"]),
+                hash_parts(&["p_1=", "B-NP", "t0=", "NN"])
+            );
+            assert_eq!(hash_parts_after(&prefix, &[]), hash_str("p_1=B-NP"));
+            assert_eq!(
+                hash_parts_after(&prefix_hasher(&[]), &["w0=", "“Ahab’s—…\u{2028}"]),
+                hash_str("w0=“Ahab’s—…\u{2028}")
+            );
+        }
+
+        #[test]
         fn chars_hash_matches_collected_string_hash() {
             let chars: Vec<char> = "héllo—!".chars().collect();
             for i in 0..=chars.len() {
@@ -167,16 +252,71 @@ struct PmapEntry {
     length: u8,
 }
 
-/// A context map stored as a `Vec` sorted by key with binary-search lookup instead of a
-/// `HashMap`. The serialized (on-disk) form is a `Vec<(u64, u8)>` sorted by offset; only this
-/// in-memory form, built at load, is different.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+/// A context map stored as a `Vec` sorted by key instead of a `HashMap`. The serialized (on-disk)
+/// form is a `Vec<(u64, u8)>` sorted by offset; only this in-memory form, built at load, is
+/// different.
+///
+/// The keys are SipHash outputs, so their top bits are uniformly distributed. `buckets` splits the
+/// sorted entries by their top key bits, so a lookup scans the few entries of one bucket (usually
+/// one cache line) instead of binary-searching the whole table.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(from = "PmapEntries")]
 pub(crate) struct Pmap {
     /// Sorted by `key`; keys are unique.
     entries: Vec<PmapEntry>,
+    /// `buckets[b]` is the index of the first entry whose top key bits (`key >> shift`) are
+    /// `>= b`; the last element is `entries.len()`. Derived from `entries`, so not serialized.
+    #[serde(skip)]
+    buckets: Vec<u32>,
+    #[serde(skip)]
+    shift: u32,
+}
+
+/// The serialized fields of a [`Pmap`], from which the bucket index is rebuilt.
+#[derive(Deserialize)]
+struct PmapEntries {
+    entries: Vec<PmapEntry>,
+}
+
+impl From<PmapEntries> for Pmap {
+    fn from(data: PmapEntries) -> Self {
+        Pmap::new(data.entries)
+    }
+}
+
+impl Default for Pmap {
+    fn default() -> Self {
+        Pmap::new(Vec::new())
+    }
 }
 
 impl Pmap {
+    /// The average number of entries per bucket that the bucket count aims for.
+    const ENTRIES_PER_BUCKET: usize = 4;
+
+    /// Builds the bucket index over `entries`, which must be sorted by key.
+    fn new(entries: Vec<PmapEntry>) -> Self {
+        assert!(entries.len() < u32::MAX as usize);
+        let bits = (entries.len() / Self::ENTRIES_PER_BUCKET)
+            .next_power_of_two()
+            .trailing_zeros()
+            .max(1);
+        let shift = 64 - bits;
+        let mut buckets = Vec::with_capacity((1 << bits) + 1);
+        for (idx, entry) in entries.iter().enumerate() {
+            let bucket = (entry.key >> shift) as usize;
+            while buckets.len() <= bucket {
+                buckets.push(idx as u32);
+            }
+        }
+        buckets.resize((1 << bits) + 1, entries.len() as u32);
+        Pmap {
+            entries,
+            buckets,
+            shift,
+        }
+    }
+
     /// Builds a `Pmap` from `(key, (offset, length))` pairs, asserting the bounds the on-disk
     /// format already relies on. Used by the compiler, where offsets are assigned as the flat
     /// arrays are extended.
@@ -194,7 +334,7 @@ impl Pmap {
             })
             .collect();
         entries.sort_unstable_by_key(|entry| entry.key);
-        Pmap { entries }
+        Pmap::new(entries)
     }
 
     /// Builds a `Pmap` from the on-disk `(key, length)` list (in ascending-offset order),
@@ -229,19 +369,19 @@ impl Pmap {
                 deduped.push(entry);
             }
         }
-        Pmap { entries: deduped }
+        Pmap::new(deduped)
     }
 
-    /// Looks up `key` in O(log n).
+    /// Looks up `key` by scanning its bucket.
     #[inline]
     fn get(&self, key: u64) -> Option<(u32, u8)> {
-        self.entries
-            .binary_search_by_key(&key, |entry| entry.key)
-            .ok()
-            .map(|idx| {
-                let entry = self.entries[idx];
-                (entry.offset, entry.length)
-            })
+        let bucket = (key >> self.shift) as usize;
+        let start = self.buckets[bucket] as usize;
+        let end = self.buckets[bucket + 1] as usize;
+        self.entries[start..end]
+            .iter()
+            .find(|entry| entry.key == key)
+            .map(|entry| (entry.offset, entry.length))
     }
 
     pub(crate) fn len(&self) -> usize {
@@ -330,7 +470,9 @@ impl Model {
     }
 
     fn eval(&self, context: &[u64]) -> Vec<f32> {
-        self.eval_with_prior(self.prior(&[]), context)
+        let mut prior = self.prior(&[]);
+        self.eval_with_prior(&mut prior, context);
+        prior
     }
 
     fn prior(&self, keys: &[u64]) -> Vec<f32> {
@@ -345,14 +487,14 @@ impl Model {
     }
 
     /// Like [`Model::eval`], but starts from `prior`, the [`Model::prior`] of features that were
-    /// looked up and summed earlier. The keys in `context` are still looked up.
-    fn eval_with_prior(&self, mut prior: Vec<f32>, context: &[u64]) -> Vec<f32> {
+    /// looked up and summed earlier, and leaves the probabilities in it. The keys in `context`
+    /// are still looked up.
+    fn eval_with_prior(&self, prior: &mut [f32], context: &[u64]) {
         for (offset, length) in context.iter().filter_map(|x| self.pmap.get(*x)) {
-            self.add_entry(&mut prior, offset, length);
+            self.add_entry(prior, offset, length);
         }
 
-        softmax(&mut prior);
-        prior
+        softmax(prior);
     }
 
     fn get_top_n(&self, probs: &[f32], n: usize, threshold: f32) -> Vec<(usize, f32, &str)> {
@@ -370,77 +512,128 @@ impl Model {
             .collect::<Vec<_>>()
     }
 
+    /// Returns the best sequence of OpenNLP's `BeamSearch` over `tokens`.
+    ///
+    /// `eval_fn(outcomes, window, i, scores)` writes the outcome probabilities at position `i`
+    /// into `scores` (which it receives empty), given the last (up to two) predicted outcomes as
+    /// labels (`outcomes`) and as indices into `outcome_labels` (`window`). Sequences that share
+    /// those outcomes at a position share one evaluation. `valid_fn(window, i, j)` says whether
+    /// outcome `j` may follow `window` at position `i`.
     fn beam_search<
         'm,
         S,
-        H: Fn(&[&str], usize) -> u64,
-        V: Fn(&[S], &[&str], usize, &str) -> bool,
-        E: FnMut(&[&'m str], usize) -> Vec<f32>,
+        V: Fn(&[usize], usize, usize) -> bool,
+        E: FnMut(&[&'m str], &[usize], usize, &mut Vec<f32>),
     >(
         &'m self,
         tokens: &[S],
-        hash_fn: H,
         valid_fn: V,
         size: usize,
         mut eval_fn: E,
-    ) -> Vec<Sequence<'m>> {
+    ) -> Sequence<'m> {
+        /// One evaluated context of the current position: its outcome window, the scores and the
+        /// outcomes to extend with (index and log probability), best first. Kept across positions
+        /// so the buffers are reused.
+        struct Evaluated {
+            window: [usize; 2],
+            scores: Vec<f32>,
+            top_n: Vec<(usize, f32)>,
+        }
+
         if tokens.is_empty() {
-            return vec![Sequence {
+            return Sequence {
                 outcomes: Vec::new(),
-            }];
+            };
         }
 
         let mut nodes: Vec<Node> = Vec::new();
         let mut current: Vec<(f32, Option<usize>)> = vec![(0., None)];
-        let mut prev: BinaryHeap<Beam> = BinaryHeap::new();
-        let mut next: BinaryHeap<Beam> = BinaryHeap::new();
+        // The sequences proposed for the next position, in the order they were proposed.
+        let mut next: Vec<Beam> = Vec::new();
+        let mut best: Vec<Beam> = Vec::new();
 
-        let mut cache: DefaultHashMap<u64, (Vec<f32>, Vec<usize>)> = DefaultHashMap::default();
+        // The contexts evaluated at the current position are `cache[..cached]`. The window has the
+        // same length for every sequence at a position, so the window alone identifies a context.
+        let mut cache: Vec<Evaluated> = Vec::new();
 
         for i in 0..tokens.len() {
+            let mut cached = 0;
             if i > 0 {
-                let mut best = std::mem::take(&mut prev).into_sorted_vec();
-                best.truncate(size);
+                select_best(&next, size, &mut best);
+                next.clear();
                 current.clear();
-                for beam in best.drain(..) {
+                for beam in best.iter() {
                     nodes.push(Node {
                         outcome: beam.outcome,
                         parent: beam.parent,
                     });
                     current.push((beam.log_prob, Some(nodes.len() - 1)));
                 }
-                prev = BinaryHeap::from(best);
             }
 
             for &(log_prob, seq_node) in current.iter() {
-                let mut window: [&'m str; 2] = [""; 2];
+                let mut labels: [&'m str; 2] = [""; 2];
+                let mut window = [usize::MAX; 2];
                 let mut len = 0;
                 let mut node = seq_node;
                 while let (true, Some(idx)) = (len < window.len(), node) {
-                    window[window.len() - 1 - len] =
-                        self.outcome_labels[nodes[idx].outcome].as_str();
+                    let outcome = nodes[idx].outcome;
+                    window[window.len() - 1 - len] = outcome;
+                    labels[labels.len() - 1 - len] = self.outcome_labels[outcome].as_str();
                     node = nodes[idx].parent;
                     len += 1;
                 }
-                let outcomes = &window[window.len() - len..];
+                let outcomes = &labels[labels.len() - len..];
 
-                let (scores, top_n) = &*cache.entry(hash_fn(outcomes, i)).or_insert_with(|| {
-                    let scores = eval_fn(outcomes, i);
-                    let mut top_n: Vec<usize> =
-                        (0..scores.len()).filter(|&j| scores[j] >= 0.).collect();
-                    top_n.sort_by(|&a, &b| scores[b].partial_cmp(&scores[a]).unwrap());
-                    if let Some(&last) = top_n.get(size - 1) {
-                        let min = scores[last];
-                        top_n.truncate(top_n.iter().take_while(|&&j| scores[j] >= min).count());
+                let k = match cache[..cached].iter().position(|e| e.window == window) {
+                    Some(k) => k,
+                    None => {
+                        if cached == cache.len() {
+                            cache.push(Evaluated {
+                                window,
+                                scores: Vec::new(),
+                                top_n: Vec::new(),
+                            });
+                        }
+                        let Evaluated {
+                            window: cached_window,
+                            scores,
+                            top_n,
+                        } = &mut cache[cached];
+                        *cached_window = window;
+                        scores.clear();
+                        eval_fn(outcomes, &window[window.len() - len..], i, scores);
+                        top_n.clear();
+                        top_n.extend(
+                            (0..scores.len())
+                                .filter(|&j| scores[j] >= 0.)
+                                .map(|j| (j, scores[j])),
+                        );
+                        // Best first, ties in index order, cut after the `size`-th best but
+                        // keeping the outcomes tied with it: what a stable sort of the outcomes
+                        // by score followed by the cut gives, without sorting all of them.
+                        let order = |a: &(usize, f32), b: &(usize, f32)| {
+                            b.1.partial_cmp(&a.1).unwrap().then(a.0.cmp(&b.0))
+                        };
+                        if top_n.len() > size {
+                            let min = top_n.select_nth_unstable_by(size - 1, order).1 .1;
+                            top_n.retain(|(_, p)| *p >= min);
+                        }
+                        top_n.sort_unstable_by(order);
+                        for (_, p) in top_n.iter_mut() {
+                            *p = p.ln();
+                        }
+                        cached += 1;
+                        cached - 1
                     }
-                    (scores, top_n)
-                });
+                };
+                let Evaluated { scores, top_n, .. } = &cache[k];
+                let window = &window[window.len() - len..];
 
-                for &j in top_n {
-                    let pred = self.outcome_labels[j].as_str();
-                    if valid_fn(tokens, outcomes, i, pred) {
+                for &(j, log_p) in top_n {
+                    if valid_fn(window, i, j) {
                         next.push(Beam {
-                            log_prob: log_prob + scores[j].ln(),
+                            log_prob: log_prob + log_p,
                             parent: seq_node,
                             outcome: j,
                         });
@@ -450,8 +643,7 @@ impl Model {
                 // if no advanced sequences, advance all valid to match OpenNLP behaviour
                 if next.is_empty() {
                     for (j, p) in scores.iter().enumerate() {
-                        let pred = self.outcome_labels[j].as_str();
-                        if valid_fn(tokens, outcomes, i, pred) {
+                        if valid_fn(window, i, j) {
                             next.push(Beam {
                                 log_prob: log_prob + p.ln(),
                                 parent: seq_node,
@@ -461,25 +653,18 @@ impl Model {
                     }
                 }
             }
-
-            std::mem::swap(&mut prev, &mut next);
-            next.clear();
         }
 
-        let mut out: Vec<_> = prev.drain().collect();
-        out.sort();
-        out.into_iter()
-            .map(|beam| {
-                let mut outcomes = vec![self.outcome_labels[beam.outcome].as_str()];
-                let mut node = beam.parent;
-                while let Some(idx) = node {
-                    outcomes.push(self.outcome_labels[nodes[idx].outcome].as_str());
-                    node = nodes[idx].parent;
-                }
-                outcomes.reverse();
-                Sequence { outcomes }
-            })
-            .collect()
+        let best = first_best(&next).unwrap();
+        let mut outcomes = Vec::with_capacity(tokens.len());
+        outcomes.push(self.outcome_labels[best.outcome].as_str());
+        let mut node = best.parent;
+        while let Some(idx) = node {
+            outcomes.push(self.outcome_labels[nodes[idx].outcome].as_str());
+            node = nodes[idx].parent;
+        }
+        outcomes.reverse();
+        Sequence { outcomes }
     }
 }
 
@@ -735,6 +920,10 @@ impl Serialize for TagDict {
 pub(crate) struct MaxentPosTagger {
     pub(crate) model: Model,
     pub(crate) tagdict: TagDict,
+    /// The [`TagDict`] id of each outcome label (`None` if no word allows it), built on first use.
+    /// Replacing `model` or `tagdict` after the first tag would leave it stale.
+    #[serde(skip)]
+    outcome_tag_ids: OnceLock<Box<[Option<u16>]>>,
 }
 
 impl MaxentPosTagger {
@@ -755,18 +944,6 @@ impl MaxentPosTagger {
         }
 
         output
-    }
-
-    fn hash(tags: &[&str], i: usize) -> u64 {
-        let mut s = DefaultHasher::default();
-        if i >= 1 {
-            tags[tags.len() - 1].hash(&mut s);
-        }
-        if i >= 2 {
-            tags[tags.len() - 2].hash(&mut s);
-        }
-        i.hash(&mut s);
-        s.finish()
     }
 
     fn static_context(tokens: &[&str], i: usize) -> Vec<u64> {
@@ -828,9 +1005,19 @@ impl MaxentPosTagger {
         context
     }
 
-    fn valid(&self, allowed: Option<&[u16]>, outcome: &str) -> bool {
+    pub(crate) fn new(model: Model, tagdict: TagDict) -> Self {
+        MaxentPosTagger {
+            model,
+            tagdict,
+            outcome_tag_ids: OnceLock::new(),
+        }
+    }
+
+    /// Whether a word whose tag dictionary entry is `allowed` may have the outcome whose tag id
+    /// is `outcome_tag_id`.
+    fn valid(allowed: Option<&[u16]>, outcome_tag_id: Option<u16>) -> bool {
         if let Some(allowed) = allowed {
-            match self.tagdict.tag_id(outcome) {
+            match outcome_tag_id {
                 Some(id) => allowed.contains(&id),
                 None => false,
             }
@@ -844,53 +1031,126 @@ impl MaxentPosTagger {
         let priors: Vec<Vec<f32>> = (0..tokens.len())
             .map(|i| self.model.prior(&Self::static_context(tokens, i)))
             .collect();
-        self.model
-            .beam_search(
-                tokens,
-                Self::hash,
-                |_, _, i, outcome| self.valid(allowed[i], outcome),
-                3,
-                |tags, i| {
-                    self.model
-                        .eval_with_prior(priors[i].clone(), &Self::tag_context(tags, i))
-                },
-            )
-            .remove(0)
+        let tag_ids = self.outcome_tag_ids.get_or_init(|| {
+            self.model
+                .outcome_labels
+                .iter()
+                .map(|label| self.tagdict.tag_id(label))
+                .collect()
+        });
+        self.model.beam_search(
+            tokens,
+            |_, i, j| Self::valid(allowed[i], tag_ids[j]),
+            3,
+            |tags, _, i, scores| {
+                scores.extend_from_slice(&priors[i]);
+                self.model
+                    .eval_with_prior(scores, &Self::tag_context(tags, i));
+            },
+        )
     }
 }
 
 type Pred1Entries = [Option<(u32, u8)>; 20];
 
+/// What the chunk model needs per previous outcome, which does not depend on the position, so it
+/// is computed once per model instead of once per beam entry: the pmap entries of the 2 features
+/// that involve the outcome two tokens back (`p_2`, `p_2` + `p_1`) and which outcomes may follow
+/// which. The index of an outcome is its index in `outcome_labels`, and `outcome_labels.len()`
+/// stands for `bos`.
+#[derive(Clone)]
+struct ChunkTables {
+    stride: usize,
+    /// `p_2` by the index of the outcome two tokens back.
+    pm2: Vec<Option<(u32, u8)>>,
+    /// `p_2` + `p_1` by `pm2 * stride + pm1`.
+    pm2pm1: Vec<Option<(u32, u8)>>,
+    /// [`MaxentChunker::valid`] by `pm1 * stride + outcome`.
+    valid: Vec<bool>,
+}
+
+impl ChunkTables {
+    // Measured with rustc 1.99: `is_some_and` in place of `map_or` here changed codegen elsewhere
+    // and cost the chunker about 3% more instructions.
+    #[allow(clippy::unnecessary_map_or)]
+    fn new(model: &Model) -> Self {
+        let labels = &model.outcome_labels;
+        let stride = labels.len() + 1;
+        // `p_2` has no `=` before a real prediction, but does before `bos` (LanguageTool quirk).
+        let pm2_value = |j: usize| labels.get(j).map_or("=bos", String::as_str);
+        let pm1_value = |j: usize| labels.get(j).map_or("bos", String::as_str);
+        let (pm2p, pm1p) = ("p_2", "p_1=");
+
+        let pm2 = (0..stride)
+            .map(|j2| model.pmap.get(hash::hash_parts(&[pm2p, pm2_value(j2)])))
+            .collect();
+        let pm2pm1 = (0..stride * stride)
+            .map(|j| {
+                let (pm2v, pm1v) = (pm2_value(j / stride), pm1_value(j % stride));
+                model.pmap.get(hash::hash_parts(&[pm2p, pm2v, pm1p, pm1v]))
+            })
+            .collect();
+        let valid = (0..stride * stride)
+            .map(|j| {
+                let (pm1, outcome) = (labels.get(j / stride), labels.get(j % stride));
+                outcome.map_or(false, |outcome| {
+                    MaxentChunker::valid(pm1.map(String::as_str), outcome)
+                })
+            })
+            .collect();
+        ChunkTables {
+            stride,
+            pm2,
+            pm2pm1,
+            valid,
+        }
+    }
+
+    /// The entries of `p_2` and `p_2` + `p_1` given the indices of the outcomes two tokens back
+    /// and one token back (`None` before the start of the sentence).
+    #[inline]
+    fn get(&self, pm2: Option<usize>, pm1: Option<usize>) -> [Option<(u32, u8)>; 2] {
+        let bos = self.stride - 1;
+        let (pm2, pm1) = (pm2.unwrap_or(bos), pm1.unwrap_or(bos));
+        [self.pm2[pm2], self.pm2pm1[pm2 * self.stride + pm1]]
+    }
+
+    /// Whether `outcome` may follow `pm1` (`None` before the start of the sentence).
+    #[inline]
+    fn valid(&self, pm1: Option<usize>, outcome: usize) -> bool {
+        self.valid[pm1.unwrap_or(self.stride - 1) * self.stride + outcome]
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone)]
 pub(crate) struct MaxentChunker {
     pub(crate) model: Model,
+    /// Built from `model` on first use; replacing `model` afterwards would leave it stale.
+    #[serde(skip)]
+    tables: OnceLock<ChunkTables>,
 }
 
 impl MaxentChunker {
+    pub(crate) fn new(model: Model) -> Self {
+        MaxentChunker {
+            model,
+            tables: OnceLock::new(),
+        }
+    }
+
     #[allow(clippy::manual_strip)]
-    fn valid(&self, _input: &[(&str, &str)], outcomes: &[&str], _i: usize, outcome: &str) -> bool {
+    /// Whether `outcome` may follow `prev_outcome` (`None` at the start of the sentence).
+    fn valid(prev_outcome: Option<&str>, outcome: &str) -> bool {
         if outcome.starts_with("I-") {
-            if let Some(prev_outcome) = outcomes.iter().next_back() {
+            if let Some(prev_outcome) = prev_outcome {
                 // can byte index here because "I, B, E, -" are all 1 byte
-                *prev_outcome != "O" && prev_outcome[2..] == outcome[2..]
+                prev_outcome != "O" && prev_outcome[2..] == outcome[2..]
             } else {
                 false
             }
         } else {
             true
         }
-    }
-
-    fn hash(preds: &[&str], i: usize) -> u64 {
-        let mut s = DefaultHasher::default();
-        if i >= 1 {
-            preds[preds.len() - 1].hash(&mut s);
-        }
-        if i >= 2 {
-            preds[preds.len() - 2].hash(&mut s);
-        }
-        i.hash(&mut s);
-        s.finish()
     }
 
     /// The 19 word and tag features (5 word unigrams + 2 word bigrams + 5 tag unigrams + 4 tag
@@ -942,26 +1202,8 @@ impl MaxentChunker {
         ]
     }
 
-    /// The 2 features that involve the outcome two tokens back (`p_2`, `p_2` + `p_1`).
-    fn pred2_context(preds: &[&str], i: usize) -> [u64; 2] {
-        // `p_2` has no `=` before a real prediction, but does before `bos` (LanguageTool quirk).
-        let (pm2p, pm2v) = (
-            "p_2",
-            if i < 2 {
-                "=bos"
-            } else {
-                preds[preds.len() - 2]
-            },
-        );
-        let (pm1p, pm1v) = ("p_1=", if i < 1 { "bos" } else { preds[preds.len() - 1] });
-
-        let h = |parts: &[&str]| hash::hash_parts(parts);
-
-        [h(&[pm2p, pm2v]), h(&[pm2p, pm2v, pm1p, pm1v])]
-    }
-
     /// The 20 features that involve only the previous outcome `pm1v` (1 pred, 12 pred+tag,
-    /// 7 pred+word). With [`pred2_context`](Self::pred2_context) they are the 22 features that
+    /// 7 pred+word). With the 2 features in [`ChunkTables`] they are the 22 features that
     /// involve a predicted outcome; the 19 word/tag features are
     /// [`static_context`](Self::static_context).
     fn pred1_context(input: &[(&str, &str)], pm1v: &str, i: usize) -> [u64; 20] {
@@ -981,34 +1223,34 @@ impl MaxentChunker {
         let (tp1p, tp1v) = ("t1=", if i + 1 >= n { "eos" } else { tag(i + 1) });
         let (tp2p, tp2v) = ("t2=", if i + 2 >= n { "eos" } else { tag(i + 2) });
 
-        let pm1p = "p_1=";
-
-        let h = |parts: &[&str]| hash::hash_parts(parts);
+        // Every feature starts with the previous outcome, so its bytes are hashed once.
+        let prefix = hash::prefix_hasher(&["p_1=", pm1v]);
+        let h = |parts: &[&str]| hash::hash_parts_after(&prefix, parts);
 
         [
             // pred tags
-            h(&[pm1p, pm1v]),
+            h(&[]),
             // pred and tag
-            h(&[pm1p, pm1v, tm2p, tm2v]),
-            h(&[pm1p, pm1v, tm1p, tm1v]),
-            h(&[pm1p, pm1v, t0p, t0v]),
-            h(&[pm1p, pm1v, tp1p, tp1v]),
-            h(&[pm1p, pm1v, tp2p, tp2v]),
-            h(&[pm1p, pm1v, tm2p, tm2v, tm1p, tm1v]),
-            h(&[pm1p, pm1v, tm1p, tm1v, t0p, t0v]),
-            h(&[pm1p, pm1v, t0p, t0v, tp1p, tp1v]),
-            h(&[pm1p, pm1v, tp1p, tp1v, tp2p, tp2v]),
-            h(&[pm1p, pm1v, tm2p, tm2v, tm1p, tm1v, t0p, t0v]),
-            h(&[pm1p, pm1v, tm1p, tm1v, t0p, t0v, tp1p, tp1v]),
-            h(&[pm1p, pm1v, t0p, t0v, tp1p, tp1v, tp2p, tp2v]),
+            h(&[tm2p, tm2v]),
+            h(&[tm1p, tm1v]),
+            h(&[t0p, t0v]),
+            h(&[tp1p, tp1v]),
+            h(&[tp2p, tp2v]),
+            h(&[tm2p, tm2v, tm1p, tm1v]),
+            h(&[tm1p, tm1v, t0p, t0v]),
+            h(&[t0p, t0v, tp1p, tp1v]),
+            h(&[tp1p, tp1v, tp2p, tp2v]),
+            h(&[tm2p, tm2v, tm1p, tm1v, t0p, t0v]),
+            h(&[tm1p, tm1v, t0p, t0v, tp1p, tp1v]),
+            h(&[t0p, t0v, tp1p, tp1v, tp2p, tp2v]),
             // pred and word
-            h(&[pm1p, pm1v, wm2p, wm2v]),
-            h(&[pm1p, pm1v, wm1p, wm1v]),
-            h(&[pm1p, pm1v, w0p, w0v]),
-            h(&[pm1p, pm1v, wp1p, wp1v]),
-            h(&[pm1p, pm1v, wp2p, wp2v]),
-            h(&[pm1p, pm1v, wm1p, wm1v, w0p, w0v]),
-            h(&[pm1p, pm1v, w0p, w0v, wp1p, wp1v]),
+            h(&[wm2p, wm2v]),
+            h(&[wm1p, wm1v]),
+            h(&[w0p, w0v]),
+            h(&[wp1p, wp1v]),
+            h(&[wp2p, wp2v]),
+            h(&[wm1p, wm1v, w0p, w0v]),
+            h(&[w0p, w0v, wp1p, wp1v]),
         ]
     }
 
@@ -1019,42 +1261,40 @@ impl MaxentChunker {
         let priors: Vec<Vec<f32>> = (0..input.len())
             .map(|i| self.model.prior(&Self::static_context(input, i)))
             .collect();
-        let mut pred1: Vec<Vec<(&str, Pred1Entries)>> = vec![Vec::new(); input.len()];
+        let mut pred1: Vec<Vec<(Option<usize>, Pred1Entries)>> = vec![Vec::new(); input.len()];
         let model = &self.model;
-        model
-            .beam_search(
-                input,
-                Self::hash,
-                |a, b, c, d| self.valid(a, b, c, d),
-                10,
-                |preds, i| {
-                    let pm1v = if i < 1 { "bos" } else { preds[preds.len() - 1] };
-                    let cached = &mut pred1[i];
-                    let entries = match cached.iter().position(|(p, _)| std::ptr::eq(*p, pm1v)) {
-                        Some(k) => &cached[k].1,
-                        None => {
-                            let keys = Self::pred1_context(input, pm1v, i);
-                            cached.push((pm1v, keys.map(|key| model.pmap.get(key))));
-                            &cached[cached.len() - 1].1
-                        }
-                    };
-                    let [pm2, pm2pm1] =
-                        Self::pred2_context(preds, i).map(|key| model.pmap.get(key));
-
-                    let mut prior = priors[i].clone();
-                    for (offset, length) in std::iter::once(pm2)
-                        .chain(std::iter::once(entries[0]))
-                        .chain(std::iter::once(pm2pm1))
-                        .chain(entries[1..].iter().copied())
-                        .flatten()
-                    {
-                        model.add_entry(&mut prior, offset, length);
+        let tables = self.tables.get_or_init(|| ChunkTables::new(model));
+        model.beam_search(
+            input,
+            |window, _, j| tables.valid(window.last().copied(), j),
+            10,
+            |preds, window, i, prior| {
+                let pm1 = window.last().copied();
+                let pm2 = window.len().checked_sub(2).map(|k| window[k]);
+                let cached = &mut pred1[i];
+                let entries = match cached.iter().position(|(p, _)| *p == pm1) {
+                    Some(k) => &cached[k].1,
+                    None => {
+                        let pm1v = if i < 1 { "bos" } else { preds[preds.len() - 1] };
+                        let keys = Self::pred1_context(input, pm1v, i);
+                        cached.push((pm1, keys.map(|key| model.pmap.get(key))));
+                        &cached[cached.len() - 1].1
                     }
-                    softmax(&mut prior);
-                    prior
-                },
-            )
-            .remove(0)
+                };
+                let [pm2, pm2pm1] = tables.get(pm2, pm1);
+
+                prior.extend_from_slice(&priors[i]);
+                for (offset, length) in std::iter::once(pm2)
+                    .chain(std::iter::once(entries[0]))
+                    .chain(std::iter::once(pm2pm1))
+                    .chain(entries[1..].iter().copied())
+                    .flatten()
+                {
+                    model.add_entry(prior, offset, length);
+                }
+                softmax(prior);
+            },
+        )
     }
 }
 
@@ -1129,12 +1369,18 @@ impl Chunker {
     pub fn apply(&self, sentence: &mut IncompleteSentence, number_from_last_token: bool) {
         let text = sentence.text().replace('’', "\'");
 
-        let mut bi_to_ci: DefaultHashMap<usize, usize> = text
+        // The byte index of every char, then the text's end: the char index of a byte index is
+        // its position here.
+        let char_starts: Vec<usize> = text
             .char_indices()
-            .enumerate()
-            .map(|(ci, (bi, _))| (bi, ci))
+            .map(|(bi, _)| bi)
+            .chain(std::iter::once(text.len()))
             .collect();
-        bi_to_ci.insert(text.len(), text.chars().count());
+        let char_index = |byte: usize| {
+            char_starts
+                .binary_search(&byte)
+                .expect("byte index is at char boundary")
+        };
 
         // the chunker expects tokens tokenized with a maximum entropy tokenizer
         let internal_tokens = self.token_model.tokenize(&text);
@@ -1155,12 +1401,8 @@ impl Chunker {
             .zip(internal_tokens)
             .map(|(chunk, token)| {
                 let byte_start = token.as_ptr() as usize - text.as_ptr() as usize;
-                let char_start = *bi_to_ci
-                    .get(&byte_start)
-                    .expect("byte index is at char boundary");
-                let char_end = *bi_to_ci
-                    .get(&(byte_start + token.len()))
-                    .expect("byte index is at char boundary");
+                let char_start = char_index(byte_start);
+                let char_end = char_index(byte_start + token.len());
 
                 (*chunk, char_start..char_end)
             })
@@ -1294,7 +1536,7 @@ mod tests {
 
     #[test]
     fn beam_search_keeps_tags_tied_with_the_last_kept_one() {
-        use super::{MaxentChunker, Model, Pmap};
+        use super::{Model, Pmap};
 
         let model = Model {
             outcome_labels: vec!["A".into(), "B".into(), "C".into()],
@@ -1302,21 +1544,86 @@ mod tests {
             parameters: Vec::new(),
             pmap: Pmap::from_pairs(std::iter::empty()),
         };
-        let best = model
-            .beam_search(
-                &["x", "y"],
-                MaxentChunker::hash,
-                |_, _, _, _| true,
-                1,
-                |preds, _| match preds {
-                    [] => vec![0.5, 0.5, 0.],
-                    ["B"] => vec![0.98, 0.01, 0.01],
-                    _ => vec![0.4, 0.3, 0.3],
-                },
-            )
-            .remove(0);
+        let best = model.beam_search(
+            &["x", "y"],
+            |_, _, _| true,
+            1,
+            |preds, _, _, scores| {
+                scores.extend_from_slice(match preds {
+                    [] => &[0.5, 0.5, 0.],
+                    ["B"] => &[0.98, 0.01, 0.01],
+                    _ => &[0.4, 0.3, 0.3],
+                })
+            },
+        );
 
         assert_eq!(best.outcomes(), ["B", "A"]);
+    }
+
+    #[test]
+    fn best_beams_are_in_heap_order_despite_ties() {
+        use super::{first_best, select_best, Beam};
+        use std::collections::BinaryHeap;
+
+        let key = |beam: &Beam| (beam.log_prob.to_bits(), beam.parent, beam.outcome);
+        let mut state = 0x2545_f491_4f6c_dd1du64;
+        let mut next = move || {
+            state = state
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1);
+            (state >> 33) as usize
+        };
+        let mut best = Vec::new();
+        for round in 0..2_000 {
+            // Few distinct log probabilities in some rounds, so ties are common there.
+            let distinct = if round % 2 == 0 { 3 } else { 1_000 };
+            let candidates: Vec<Beam> = (0..next() % 40)
+                .map(|k| Beam {
+                    log_prob: -((next() % distinct) as f32) / 7.,
+                    parent: Some(k),
+                    outcome: next() % 5,
+                })
+                .collect();
+            let size = 1 + next() % 12;
+
+            let mut heap = BinaryHeap::new();
+            for &candidate in &candidates {
+                heap.push(candidate);
+            }
+            let mut drained: Vec<Beam> = heap.clone().into_vec();
+            drained.sort();
+            let mut expected = heap.into_sorted_vec();
+            expected.truncate(size);
+
+            select_best(&candidates, size, &mut best);
+            assert_eq!(
+                best.iter().map(key).collect::<Vec<_>>(),
+                expected.iter().map(key).collect::<Vec<_>>()
+            );
+            assert_eq!(
+                first_best(&candidates).as_ref().map(key),
+                drained.first().map(key)
+            );
+        }
+    }
+
+    #[test]
+    fn pmap_finds_every_key_after_loading() {
+        use super::Pmap;
+
+        let keys: Vec<u64> = (0..5_000u64)
+            .map(|i| i.wrapping_mul(0x9e37_79b9_7f4a_7c15))
+            .collect();
+        let pmap = Pmap::from_pairs(keys.iter().enumerate().map(|(i, &key)| (key, (i, 1))));
+        let loaded: Pmap = bincode::deserialize(&bincode::serialize(&pmap).unwrap()).unwrap();
+
+        for (i, &key) in keys.iter().enumerate() {
+            assert_eq!(pmap.get(key), Some((i as u32, 1)));
+            assert_eq!(loaded.get(key), Some((i as u32, 1)));
+            assert_eq!(loaded.get(key ^ 1), None);
+        }
+        assert_eq!(Pmap::default().get(0), None);
+        assert_eq!(Pmap::default().get(u64::MAX), None);
     }
 
     #[test]
