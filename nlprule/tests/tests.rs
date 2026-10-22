@@ -4587,6 +4587,26 @@ fn mother_tongue_selects_its_false_friends() {
     assert!(false_friends(&rules, FALSE_FRIEND_TEXT).is_empty());
 }
 
+/// `inflected="yes"` tokens compare against lemmas only, as in LanguageTool 6.6: patterns written
+/// as plural or participle forms ("grapes", "retired") never match, while a pattern written as a
+/// lemma ("retire") still matches its inflected forms.
+#[test]
+fn inflected_tokens_do_not_match_the_surface_form() {
+    let text = "\u{201c}The grapes were sour\u{2014}again\u{2026}\u{201d}\u{2028}\
+                She\u{2019}d retired; the vegetables were fresh. He wore his spectacles.";
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+
+    rules.set_mother_tongue(Some("pt"));
+    assert_eq!(false_friends(&rules, text), vec![]);
+
+    rules.set_mother_tongue(Some("fr"));
+    let sources: Vec<String> = false_friends(&rules, text)
+        .into_iter()
+        .map(|(source, span, _)| format!("{source} {span:?}"))
+        .collect();
+    assert_eq!(sources, ["FALSE_FRIENDS/RETIRE/0 36..43"]);
+}
+
 #[test]
 fn capitalized_suggestions_uppercase_their_first_letter() {
     // LanguageTool's `StringTools.uppercaseFirstChar` skips leading punctuation, so

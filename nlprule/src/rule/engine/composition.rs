@@ -230,12 +230,15 @@ impl WordDataMatcher {
                 return false;
             }
 
-            let inflect_matches = self
-                .inflect_matcher
-                .as_ref()
-                .map_or(true, |m| m.is_match(x.lemma(), context, case_sensitive));
-
-            inflect_matches
+            self.inflect_matcher.as_ref().map_or(true, |m| {
+                // every token carries a reading with the surface text as lemma and an empty POS
+                // (see `IncompleteToken::into_token`); LanguageTool has no such reading, so
+                // `inflected="yes"` would otherwise match surface forms like "grapes" or "is".
+                // A word the tagger doesn't know still matches by its surface text, through the
+                // UNKNOWN reading, as it does in LanguageTool.
+                x.pos().id().value() != SpecialPos::None as u16
+                    && m.is_match(x.lemma(), context, case_sensitive)
+            })
         })
     }
 }
