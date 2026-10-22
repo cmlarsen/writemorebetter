@@ -197,7 +197,7 @@ fn incremental(
         .map(|part| rules.check_paragraph(part, ends_paragraph, &TOKENIZER))
         .collect();
     let digests: Vec<ParagraphDigest> = checked.iter().map(|(_, d)| d.clone()).collect();
-    let matches = rules.resolve_document(&digests);
+    let matches = rules.resolve_document(&digests).matches;
 
     let gap = Position {
         byte: gap.len(),
@@ -399,10 +399,10 @@ fn an_edit_changes_matches_in_other_paragraphs() {
     let first = "It's late. We'll go.";
     let (_, a) = APOS.check_paragraph(first, true, &TOKENIZER);
     let (_, b) = APOS.check_paragraph("He said no.", true, &TOKENIZER);
-    assert!(APOS.resolve_document(&[a.clone(), b]).is_empty());
+    assert!(APOS.resolve_document(&[a.clone(), b]).matches.is_empty());
 
     let (_, b) = APOS.check_paragraph("He didn\u{2019}t say no.", true, &TOKENIZER);
-    let matches = APOS.resolve_document(&[a.clone(), b]);
+    let matches = APOS.resolve_document(&[a.clone(), b]).matches;
     let in_first: Vec<_> = matches.iter().filter(|m| m.paragraph() == 0).collect();
     assert_eq!(in_first.len(), 2);
     assert_eq!(
@@ -423,8 +423,9 @@ fn digests_do_not_depend_on_enabled_rules() {
     assert_eq!(off, on);
     assert!(RULES
         .resolve_document(std::slice::from_ref(&off))
+        .matches
         .is_empty());
-    assert_eq!(APOS.resolve_document(&[off]).len(), 2);
+    assert_eq!(APOS.resolve_document(&[off]).matches.len(), 2);
 }
 
 #[test]
@@ -438,6 +439,21 @@ fn digests_round_trip_with_their_version() {
         APOS.resolve_document(&[back]),
         APOS.resolve_document(std::slice::from_ref(&digest))
     );
+
+    // A stale digest is reported, since it can hide matches in every paragraph.
+    let (_, fresh) = APOS.check_paragraph("It\u{2019}s there.", true, &TOKENIZER);
+    let mut old = ParagraphDigest::from_bytes(&digest.to_bytes()).unwrap();
+    let (_, other) = APOS.check_paragraph("We'll go.", true, &TOKENIZER);
+    assert_eq!(
+        APOS.resolve_document(&[fresh.clone(), other]).matches.len(),
+        2
+    );
+    let mut bytes = old.to_bytes();
+    bytes[..4].copy_from_slice(&(DIGEST_VERSION + 1).to_le_bytes());
+    old = bincode::deserialize(&bytes).unwrap();
+    let resolved = APOS.resolve_document(&[fresh, old]);
+    assert!(resolved.matches.is_empty());
+    assert_eq!(resolved.stale, [1]);
 
     // A digest from another version is rejected with a format error, not misread.
     let mut bytes = digest.to_bytes();
@@ -453,7 +469,7 @@ fn digests_round_trip_with_their_version() {
 #[test]
 fn stale_digests_give_no_wrong_suggestions() {
     let (_, digest) = APOS.check_paragraph("I'm fine. It\u{2019}s ok.", true, &TOKENIZER);
-    let matches = APOS.resolve_document(&[digest]);
+    let matches = APOS.resolve_document(&[digest]).matches;
     assert_eq!(matches.len(), 2);
     // `’s` became `'s`: its match no longer applies, the one on `'m` still does.
     let edited = "I'm fine. It's ok.";
@@ -493,7 +509,7 @@ fn digest_size_per_thousand_words() {
         .map(|part| RULES.check_paragraph(part, true, &TOKENIZER).1)
         .collect();
     let bytes: usize = digests.iter().map(|x| x.to_bytes().len()).sum();
-    let apostrophes = APOS.resolve_document(&digests).len();
+    let apostrophes = APOS.resolve_document(&digests).matches.len();
     println!(
         "{} words, {} paragraphs, {} apostrophe matches: {} bytes ({:.0} per 1,000 words)",
         words,

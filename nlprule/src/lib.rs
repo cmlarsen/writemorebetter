@@ -92,7 +92,7 @@ pub mod tokenizer;
 pub mod types;
 pub(crate) mod utils;
 
-pub use document::{DocumentMatch, ParagraphDigest};
+pub use document::{DocumentMatch, DocumentMatches, ParagraphDigest};
 pub use rules::Rules;
 pub use tokenizer::Tokenizer;
 

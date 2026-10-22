@@ -38,8 +38,13 @@
 //! [`ParagraphDigest::from_bytes`] store a digest with its version and reject one from another
 //! version with [`Error::Format`]. A digest of another version that reaches
 //! [`Rules::resolve_document`] some other way (e.g. through serde with a self-describing format)
-//! contributes nothing to it; [`ParagraphDigest::is_current`] tells the app to check that
+//! contributes nothing to it, and [`DocumentMatches::stale`] lists it so the app checks that
 //! paragraph again.
+//!
+//! [`DIGEST_VERSION`] covers the layout only. What a digest records also depends on the
+//! tokenizer and rules data (how a text is split into tokens, which tokens hold apostrophes), so
+//! rebuild all digests after updating the engine or its data binaries, even when the version is
+//! unchanged.
 
 use crate::{
     builtin::{en, Builtin},
@@ -189,8 +194,8 @@ impl ParagraphDigest {
     /// Deserializes a digest written by [`ParagraphDigest::to_bytes`].
     ///
     /// # Errors
-    /// [`Error::Format`] if the digest has another [`DIGEST_VERSION`] (check the paragraph again),
-    /// [`Error::Serialization`] if the bytes are not a digest.
+    /// [`Error::Format`] if the digest has another [`DIGEST_VERSION`] (check the paragraph again)
+    /// or is followed by trailing bytes, [`Error::Serialization`] if the bytes are not a digest.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, Error> {
         let version = bytes
             .get(..4)
@@ -203,7 +208,13 @@ impl ParagraphDigest {
                 version, DIGEST_VERSION
             )));
         }
-        Ok(bincode::deserialize(bytes)?)
+        let digest: ParagraphDigest = bincode::deserialize(bytes)?;
+        if bincode::serialized_size(&digest)? != bytes.len() as u64 {
+            return Err(Error::Format(
+                "paragraph digest has trailing bytes".to_owned(),
+            ));
+        }
+        Ok(digest)
     }
 
     /// The apostrophe tokens, or none for a digest of another version.
@@ -329,6 +340,18 @@ pub(crate) enum DocumentFix {
     /// Replace every `'` with `’` (`to_typographic`) or every `’` with `'`. `first` is the char
     /// index of the first apostrophe in the token.
     SwapApostrophes { to_typographic: bool, first: u8 },
+}
+
+/// The result of [`Rules::resolve_document`].
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
+pub struct DocumentMatches {
+    /// The matches, sorted by paragraph and then by position.
+    pub matches: Vec<DocumentMatch>,
+    /// The indices of the digests that are not [current](ParagraphDigest::is_current) and so
+    /// contributed nothing: check those paragraphs again and resolve again. While any are listed,
+    /// `matches` can miss matches in every paragraph, not only in those.
+    pub stale: Vec<usize>,
 }
 
 /// A match of a whole-text rule, from [`Rules::resolve_document`].
@@ -498,12 +521,12 @@ impl Rules {
     /// text order. Matches are sorted by paragraph and then by position, and are relative to their
     /// paragraph. The result replaces any earlier one for the document: one changed paragraph can
     /// add or remove matches in others. Digests that are not [current](ParagraphDigest::is_current)
-    /// contribute nothing.
+    /// contribute nothing and are listed in [`DocumentMatches::stale`].
     ///
     /// Turn each match into a suggestion with [`DocumentMatch::to_suggestion`] and merge those
     /// into the paragraph's suggestions with [`merge_document_suggestions`], which also drops a
     /// match that touches another of the same rule, as LanguageTool does.
-    pub fn resolve_document(&self, digests: &[ParagraphDigest]) -> Vec<DocumentMatch> {
+    pub fn resolve_document(&self, digests: &[ParagraphDigest]) -> DocumentMatches {
         let mut matches: Vec<DocumentMatch> = self
             .builtins
             .iter()
@@ -511,7 +534,13 @@ impl Rules {
             .flat_map(|rule| rule.builtin().resolve_document(digests))
             .collect();
         matches.sort_by_key(|x| (x.paragraph, x.span.char().start));
-        matches
+        let stale = digests
+            .iter()
+            .enumerate()
+            .filter(|(_, digest)| !digest.is_current())
+            .map(|(i, _)| i)
+            .collect();
+        DocumentMatches { matches, stale }
     }
 
     /// Checks one paragraph of a larger document on its own and returns its suggestions, without
@@ -584,6 +613,7 @@ impl Rules {
 
         let document: Vec<Suggestion> = self
             .resolve_document(&digests)
+            .matches
             .into_iter()
             .filter_map(|x| {
                 let start: Position = starts[x.paragraph];
@@ -733,6 +763,12 @@ mod tests {
             Err(Error::Format(_))
         ));
         assert!(ParagraphDigest::from_bytes(&bytes[..6]).is_err());
+        let mut trailing = bytes.clone();
+        trailing.push(0);
+        assert!(matches!(
+            ParagraphDigest::from_bytes(&trailing),
+            Err(Error::Format(_))
+        ));
 
         let stale = ParagraphDigest {
             version: 0,
