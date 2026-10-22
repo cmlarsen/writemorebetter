@@ -1421,11 +1421,15 @@ fn parse_tag_form(form: &str, info: &mut BuildInfo) -> Result<owned::Word, Error
 }
 
 impl owned::WordData {
+    /// A `<wd>` without a lemma takes its text as the lemma, as LT's `add` and `replace`
+    /// do; with neither, the lemma is empty and the token text is used at runtime.
     fn from_structure(data: structure::WordData, info: &mut BuildInfo) -> Self {
+        let lemma = data
+            .lemma
+            .or(data.text.map(String::from).filter(|text| !text.is_empty()))
+            .unwrap_or_default();
         owned::WordData::new(
-            info.tagger
-                .id_word(data.lemma.unwrap_or_else(String::new).into())
-                .to_owned_id(),
+            info.tagger.id_word(lemma.into()).to_owned_id(),
             info.tagger
                 .id_tag(data.pos.as_ref().map_or("", |x| x.as_str().trim()))
                 .to_owned_id(),
@@ -1492,10 +1496,13 @@ impl DisambiguationRule {
                 .collect(),
         });
 
+        // `owned::WordData` has no token text, so remember whether any `<wd>` had one.
+        let mut wd_has_text = false;
         let word_datas: Vec<_> = if let Some(wds) = data.disambig.word_datas {
             wds.into_iter()
                 .map(|part| match part {
                     structure::DisambiguationPart::WordData(x) => {
+                        wd_has_text |= x.text.as_ref().is_some_and(|text| !text.is_empty());
                         either::Left(owned::WordData::from_structure(x, info))
                     }
                     structure::DisambiguationPart::Match(x) => either::Right(parse_pos_filter(
@@ -1510,8 +1517,19 @@ impl DisambiguationRule {
         };
 
         let disambiguations = match data.disambig.action.as_deref() {
+            // LT's `AnalyzedToken.matches` also compares a `<wd>`'s text to the token text,
+            // which `owned::WordData` cannot express.
+            Some("remove") if wd_has_text => Err(Error::Unimplemented(
+                "`<wd>` with text in `<disambig action=\"remove\">`".into(),
+            )),
             Some("remove") => {
-                if let Some(postag) = data.disambig.postag.as_ref() {
+                // As in LT, `<wd>` readings take precedence over `postag`.
+                if let Some(postag) = data
+                    .disambig
+                    .postag
+                    .as_ref()
+                    .filter(|_| !word_datas.iter().any(either::Either::is_left))
+                {
                     Ok(Disambiguation::Remove(vec![either::Right(
                         parse_pos_filter(postag, Some("yes"), info),
                     )]))
@@ -1621,6 +1639,12 @@ impl DisambiguationRule {
                         )))],
                         info.tagger().lang_options().retain_last,
                     ))
+                } else if word_datas.iter().any(either::Either::is_left) {
+                    // LT 6.6 never hands `<wd>` readings to a `filter` action; it filters
+                    // by the absent `postag` and throws, so there is nothing to match.
+                    Err(Error::Unimplemented(
+                        "`<wd>` without `postag` in `<disambig action=\"filter\">`".into(),
+                    ))
                 } else {
                     Ok(Disambiguation::Filter(
                         word_datas.into_iter().map(Some).collect(),
@@ -1680,6 +1704,22 @@ impl DisambiguationRule {
                 };
 
                 Ok(Disambiguation::Unify(unify_filters.clone(), disambig, mask))
+            }
+            // The default action is LT's `replace`: `<wd>` readings replace the token's
+            // readings and take precedence over `postag`.
+            None if word_datas.iter().any(either::Either::is_left) => {
+                if word_datas.iter().all(either::Either::is_left) {
+                    Ok(Disambiguation::Replace(
+                        word_datas
+                            .into_iter()
+                            .filter_map(either::Either::left)
+                            .collect(),
+                    ))
+                } else {
+                    Err(Error::Unimplemented(
+                        "`<wd>` mixed with `<match>` in `<disambig>`".into(),
+                    ))
+                }
             }
             None => {
                 if let Some(postag) = data.disambig.postag.as_ref() {

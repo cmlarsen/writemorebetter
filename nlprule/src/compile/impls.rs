@@ -2618,4 +2618,125 @@ mod tests {
             bincode::serialize(&b).unwrap()
         );
     }
+
+    const DISAMBIGUATION_WD_SHAPES: &str = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>
+<rules lang=\"en\">
+  <rule id=\"DEFAULT_WD\" name=\"d\">
+    <pattern><marker><token>“dog’s</token></marker><token>—</token></pattern>
+    <disambig><wd lemma=\"dog\" pos=\"NN\"/></disambig>
+  </rule>
+  <rule id=\"DEFAULT_WD_OVER_POSTAG\" name=\"d\">
+    <pattern><token>dog’s</token></pattern>
+    <disambig postag=\"VB\"><wd pos=\"NN\"/></disambig>
+  </rule>
+  <rule id=\"DEFAULT_WD_TEXT\" name=\"d\">
+    <pattern><token>it’s…</token></pattern>
+    <disambig><wd pos=\"NN\">it’s\u{2028}—</wd></disambig>
+  </rule>
+  <rule id=\"DEFAULT_POSTAG\" name=\"d\">
+    <pattern><token>“dog</token></pattern>
+    <disambig postag=\"NN\"/>
+  </rule>
+  <rule id=\"FILTER_WD\" name=\"d\">
+    <pattern><token>dog…</token></pattern>
+    <disambig action=\"filter\"><wd pos=\"NN\"/></disambig>
+  </rule>
+  <rule id=\"FILTER_WD_POSTAG\" name=\"d\">
+    <pattern><token>dog…</token></pattern>
+    <disambig action=\"filter\" postag=\"NN\"><wd pos=\"VB\"/></disambig>
+  </rule>
+  <rule id=\"REMOVE_WD_TEXT\" name=\"d\">
+    <pattern><token>dog’s</token></pattern>
+    <disambig action=\"remove\"><wd pos=\"NN\">dog’s</wd></disambig>
+  </rule>
+  <rule id=\"REMOVE_WD_LEMMA\" name=\"d\">
+    <pattern><token>dog’s</token></pattern>
+    <disambig action=\"remove\"><wd lemma=\"dog\"/></disambig>
+  </rule>
+  <rule id=\"REMOVE_WD_OVER_POSTAG\" name=\"d\">
+    <pattern><token>dog’s</token></pattern>
+    <disambig action=\"remove\" postag=\"VB\"><wd pos=\"NN\"/></disambig>
+  </rule>
+</rules>
+";
+
+    /// `<disambig>` with `<wd>` children compiles as LT 6.6 applies it, or is rejected
+    /// where our actions cannot express it.
+    #[test]
+    fn disambiguation_wd_shapes_compile_like_languagetool() {
+        use crate::rule::disambiguation::Disambiguation;
+
+        let tokenizer = Tokenizer::new("../storage/en_tokenizer.bin").unwrap();
+        let path =
+            std::env::temp_dir().join(format!("wmb-disambiguation-wd-{}.xml", std::process::id()));
+        std::fs::write(&path, DISAMBIGUATION_WD_SHAPES).unwrap();
+        let mut info = BuildInfo::new(
+            tokenizer.tagger().clone(),
+            RegexCache::new(0),
+            PathBuf::new(),
+        );
+        let mut pool = PartInterner::default();
+        let compiled: HashMap<String, Result<Disambiguation, Error>> =
+            crate::compile::parse_structure::read_disambiguation_rules(&path)
+                .into_iter()
+                .map(|result| {
+                    let (rule, _, _) = result.unwrap();
+                    let id = rule.id.clone().unwrap();
+                    let compiled =
+                        DisambiguationRule::from_rule_structure(rule, &mut info, &mut pool)
+                            .map(|rule| rule.disambiguations);
+                    (id, compiled)
+                })
+                .collect();
+        std::fs::remove_file(&path).unwrap();
+        assert_eq!(compiled.len(), 9);
+
+        let readings = |id: &str| -> Vec<(String, String)> {
+            match &compiled[id] {
+                Ok(Disambiguation::Replace(datas)) => datas
+                    .iter()
+                    .map(|x| (x.lemma.as_ref().to_string(), x.pos.as_ref().to_string()))
+                    .collect(),
+                Ok(Disambiguation::Remove(datas)) => datas
+                    .iter()
+                    .map(|x| {
+                        let x = x.as_ref().left().expect("a <wd> reading");
+                        (x.lemma.as_ref().to_string(), x.pos.as_ref().to_string())
+                    })
+                    .collect(),
+                other => panic!("{}: {:?}", id, other),
+            }
+        };
+        let pair = |lemma: &str, pos: &str| vec![(lemma.to_string(), pos.to_string())];
+
+        // The default action is LT's `replace`; `<wd>` takes precedence over `postag`, and a
+        // `<wd>` without a lemma takes its text, or else the token text at runtime.
+        assert_eq!(readings("DEFAULT_WD"), pair("dog", "NN"));
+        assert_eq!(readings("DEFAULT_WD_OVER_POSTAG"), pair("", "NN"));
+        assert_eq!(readings("DEFAULT_WD_TEXT"), pair("it’s\u{2028}—", "NN"));
+        assert!(matches!(
+            compiled["DEFAULT_POSTAG"],
+            Ok(Disambiguation::Filter(ref filters, _))
+                if matches!(filters[..], [Some(either::Left(_))])
+        ));
+
+        // LT 6.6 drops `<wd>` from a `filter` action and filters by `postag` alone.
+        assert!(matches!(
+            compiled["FILTER_WD"],
+            Err(Error::Unimplemented(_))
+        ));
+        assert!(matches!(
+            compiled["FILTER_WD_POSTAG"],
+            Ok(Disambiguation::Filter(ref filters, _))
+                if matches!(filters[..], [Some(either::Right(_))])
+        ));
+
+        // LT's `remove` also compares a `<wd>`'s text to the token text.
+        assert!(matches!(
+            compiled["REMOVE_WD_TEXT"],
+            Err(Error::Unimplemented(_))
+        ));
+        assert_eq!(readings("REMOVE_WD_LEMMA"), pair("dog", ""));
+        assert_eq!(readings("REMOVE_WD_OVER_POSTAG"), pair("", "NN"));
+    }
 }

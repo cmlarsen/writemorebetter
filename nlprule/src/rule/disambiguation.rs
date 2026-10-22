@@ -80,7 +80,8 @@ impl Disambiguation {
                         match data_or_filter {
                             either::Left(limit) => {
                                 for token in group.into_iter() {
-                                    let last = token.word().tags().get(0).map_or_else(
+                                    // LT's lemma when no reading has the tag.
+                                    let first_lemma = token.word().tags().get(0).map_or_else(
                                         || token.word().text().clone(),
                                         |x| x.lemma().clone(),
                                     );
@@ -101,9 +102,10 @@ impl Disambiguation {
                                         token.word_mut().clear();
 
                                         if *retain_last {
-                                            token
-                                                .word_mut()
-                                                .push(WordData::new(last, limit.pos.as_ref_id()));
+                                            token.word_mut().push(WordData::new(
+                                                first_lemma,
+                                                limit.pos.as_ref_id(),
+                                            ));
                                         } else {
                                             let lemma = token.word().text().clone();
 
@@ -311,6 +313,141 @@ mod tests {
             .expect("a JJS reading must have been added");
 
         assert_eq!(added.lemma().as_str(), "second-largest");
+    }
+
+    fn pos(tag: &str, id: u16) -> PosId<'_> {
+        PosId::regular(tag, PosIdInt::from_value_unchecked(id))
+    }
+
+    fn token<'t>(text: &'t str, readings: &[(&'t str, PosId<'t>)]) -> IncompleteToken<'t> {
+        let chars = text.chars().count();
+        IncompleteToken::new(
+            Word::new(
+                WordId(text.into(), None),
+                readings
+                    .iter()
+                    .map(|(lemma, pos)| WordData::new(WordId((*lemma).into(), None), pos.clone()))
+                    .collect(),
+            ),
+            Span::new(0..text.len(), 0..chars),
+            false,
+            false,
+            Vec::new(),
+        )
+    }
+
+    fn readings(token: &IncompleteToken) -> Vec<(String, String)> {
+        token
+            .word()
+            .tags()
+            .iter()
+            .map(|x| (x.lemma().as_str().to_string(), x.pos().as_str().to_string()))
+            .collect()
+    }
+
+    fn owned_data(lemma: &str, tag: &str, id: u16) -> owned::WordData {
+        owned::WordData::new(
+            owned::WordId(lemma.into(), None),
+            owned::PosId(tag.into(), PosIdInt::from_value_unchecked(id)),
+        )
+    }
+
+    /// A default-action `<disambig>` with `<wd>` children compiles to
+    /// [`Disambiguation::Replace`]: like LT, every reading is replaced by the `<wd>`
+    /// reading, whose lemma is the token text when the `<wd>` has none.
+    #[test]
+    fn replace_sets_the_wd_reading() {
+        let replace_with_lemma = Disambiguation::Replace(vec![owned_data("hound", "UH", 2)]);
+        let replace_without_lemma = Disambiguation::Replace(vec![owned_data("", "UH", 2)]);
+
+        for text in ["“dog’s", "it’s—", "dog…", "dog\u{2028}"] {
+            let readings_before = [("dog", pos("NN", 0)), ("dog", pos("VB", 1))];
+
+            let mut with_lemma = token(text, &readings_before);
+            replace_with_lemma.apply(vec![vec![&mut with_lemma]]);
+            assert_eq!(
+                readings(&with_lemma),
+                vec![("hound".to_string(), "UH".to_string())]
+            );
+
+            let mut without_lemma = token(text, &readings_before);
+            replace_without_lemma.apply(vec![vec![&mut without_lemma]]);
+            assert_eq!(
+                readings(&without_lemma),
+                vec![(text.to_string(), "UH".to_string())]
+            );
+        }
+    }
+
+    /// `<disambig postag="…">` keeps the last reading with that tag, or else makes one
+    /// whose lemma is the first reading's (with `retain_last`) or the token text.
+    #[test]
+    fn filter_by_word_data_pos_keeps_or_makes_one_reading() {
+        let filter = |retain_last| {
+            Disambiguation::Filter(
+                vec![Some(either::Left(owned_data("", "NN", 0)))],
+                retain_last,
+            )
+        };
+        let (retaining, not_retaining) = (filter(true), filter(false));
+
+        for text in ["“Walks", "walks’", "walks—", "walks…", "walks\u{2028}"] {
+            let mut kept = token(
+                text,
+                &[
+                    ("walk", pos("NN", 0)),
+                    ("walk", pos("VB", 1)),
+                    ("walks", pos("NN", 0)),
+                ],
+            );
+            retaining.apply(vec![vec![&mut kept]]);
+            assert_eq!(
+                readings(&kept),
+                vec![("walks".to_string(), "NN".to_string())]
+            );
+
+            for (filter, lemma) in [(&retaining, "walk"), (&not_retaining, text)] {
+                let mut made = token(text, &[("walk", pos("VB", 1)), ("walker", pos("UH", 2))]);
+                filter.apply(vec![vec![&mut made]]);
+                assert_eq!(readings(&made), vec![(lemma.to_string(), "NN".to_string())]);
+            }
+        }
+    }
+
+    /// `<disambig action="remove"><wd …/>` removes the readings matching every given field;
+    /// an empty `<wd/>` removes nothing, like LT's `AnalyzedToken.matches`.
+    #[test]
+    fn remove_by_word_data_matches_given_fields() {
+        let before = [
+            ("dog", pos("NN", 0)),
+            ("dog", pos("VB", 1)),
+            ("hound", pos("NN", 0)),
+        ];
+        let cases = [
+            (owned_data("dog", "", 3), vec![("hound", "NN")]),
+            (owned_data("", "NN", 0), vec![("dog", "VB")]),
+            (
+                owned_data("dog", "NN", 0),
+                vec![("dog", "VB"), ("hound", "NN")],
+            ),
+            (
+                owned_data("", "", 3),
+                vec![("dog", "NN"), ("dog", "VB"), ("hound", "NN")],
+            ),
+        ]
+        .map(|(data, expected)| (Disambiguation::Remove(vec![either::Left(data)]), expected));
+
+        for (remove, expected) in &cases {
+            for text in ["“dog’s", "dog—", "dog…", "dog\u{2028}"] {
+                let mut token = token(text, &before);
+                remove.apply(vec![vec![&mut token]]);
+                let expected: Vec<_> = expected
+                    .iter()
+                    .map(|(lemma, pos)| (lemma.to_string(), pos.to_string()))
+                    .collect();
+                assert_eq!(readings(&token), expected, "{:?}", remove);
+            }
+        }
     }
 
     /// An explicit lemma is kept as-is.
