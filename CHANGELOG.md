@@ -21,6 +21,12 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
 - **`RULES_FORMAT_VERSION` is 33.** `SpellLangOptions` gained `latin_script`, so 0.12.0's
   `en_rules.bin` no longer loads; use the next release's data zip. The tokenizer format stays 18.
+- **`Builtin::check` and `Builtin::check_text` take the speller.** Both take an
+  `Option<&Speller>` as a new last argument, as `Builtin::check_paragraph` does. Pass
+  `rules.spell().speller().as_ref()` to get the `EN_COMPOUNDS` suggestions `Rules::suggest`
+  reports: before, they always ran without a speller and kept suggestions LanguageTool and
+  `Rules::suggest` drop, such as `Yojong` for `Kim Yo jong`
+  ([#233](https://github.com/cmlarsen/writemorebetter/issues/233)).
 
 ### Fixed
 
@@ -50,6 +56,13 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   needs this release's rebuilt data; this change alone does not alter the binary format
   ([#158](https://github.com/cmlarsen/writemorebetter/issues/158),
   [#191](https://github.com/cmlarsen/writemorebetter/issues/191)).
+- **Accepting an `EN_COMPOUNDS` fix keeps paragraph indentation.** A compound at the start of
+  a sentence that begins with whitespace (`He left.\n  Part time work.`) was flagged from the
+  whitespace on, while the suggestion (`Part-time`) has none, so accepting it deleted the
+  indentation. The match now starts at the first word, so `Rules::suggest` also stops
+  dropping it where it overlapped a `WHITESPACE_RULE` flag. LanguageTool 6.6 includes the
+  whitespace, so the offsets differ from it for such sentences only
+  ([#232](https://github.com/cmlarsen/writemorebetter/issues/232)).
 
 # 0.12.0 (2026-10-22)
 

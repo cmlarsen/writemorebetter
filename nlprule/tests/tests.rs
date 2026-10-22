@@ -6,6 +6,7 @@ use std::{
 use lazy_static::lazy_static;
 use nlprule::{
     builtin::Builtin, profile::Profile, rule::id::Category, rule::id::Selector, types::Position,
+    types::Suggestion,
     Error, Rules, Tokenizer,
 };
 use quickcheck_macros::quickcheck;
@@ -1539,7 +1540,10 @@ fn builtin_word_repeat_flags(text: &str) -> Vec<(String, String)> {
     RULES
         .builtins()
         .iter()
-        .flat_map(|rule| rule.builtin().check(&sentence))
+        .flat_map(|rule| {
+            rule.builtin()
+                .check(&sentence, RULES.spell().speller().as_ref())
+        })
         .filter(|suggestion| suggestion.source() == "BUILTIN/ENGLISH_WORD_REPEAT_RULE")
         .map(|suggestion| {
             (
@@ -1836,7 +1840,10 @@ fn comma_flags(text: &str) -> Vec<(String, Vec<String>)> {
     RULES
         .builtins()
         .iter()
-        .flat_map(|rule| rule.builtin().check_text(&sentences))
+        .flat_map(|rule| {
+            rule.builtin()
+                .check_text(&sentences, RULES.spell().speller().as_ref())
+        })
         .filter(|suggestion| suggestion.source() == "BUILTIN/COMMA_PARENTHESIS_WHITESPACE")
         .map(|suggestion| {
             (
@@ -2290,7 +2297,10 @@ fn builtin_unpaired_flags(text: &str) -> Vec<(String, String)> {
     RULES
         .builtins()
         .iter()
-        .flat_map(|rule| rule.builtin().check_text(&sentences))
+        .flat_map(|rule| {
+            rule.builtin()
+                .check_text(&sentences, RULES.spell().speller().as_ref())
+        })
         .filter(|suggestion| {
             suggestion.source() == "BUILTIN/EN_UNPAIRED_BRACKETS"
                 || suggestion.source() == "BUILTIN/EN_UNPAIRED_QUOTES"
@@ -2520,7 +2530,10 @@ fn uppercase_sentence_start_flags(
     RULES
         .builtins()
         .iter()
-        .flat_map(|rule| rule.builtin().check_text(paragraph))
+        .flat_map(|rule| {
+            rule.builtin()
+                .check_text(paragraph, RULES.spell().speller().as_ref())
+        })
         .filter(|suggestion| suggestion.source() == "BUILTIN/UPPERCASE_SENTENCE_START")
         .map(|suggestion| {
             (
@@ -3460,7 +3473,10 @@ fn builtin_simple_replace_flags(text: &str, id: &str) -> Vec<(String, Vec<String
     RULES
         .builtins()
         .iter()
-        .flat_map(|rule| rule.builtin().check_text(&sentences))
+        .flat_map(|rule| {
+            rule.builtin()
+                .check_text(&sentences, RULES.spell().speller().as_ref())
+        })
         .filter(|suggestion| suggestion.source() == source)
         .map(|suggestion| {
             (
@@ -3480,7 +3496,10 @@ fn all_simple_replace_flags(text: &str) -> Vec<(String, String)> {
     RULES
         .builtins()
         .iter()
-        .flat_map(|rule| rule.builtin().check_text(&sentences))
+        .flat_map(|rule| {
+            rule.builtin()
+                .check_text(&sentences, RULES.spell().speller().as_ref())
+        })
         .filter(|suggestion| {
             matches!(
                 suggestion.source(),
@@ -3604,7 +3623,10 @@ fn plain_english_fixes(text: &str) -> Vec<(String, Vec<String>)> {
     RULES
         .builtins()
         .iter()
-        .flat_map(|rule| rule.builtin().check_text(&sentences))
+        .flat_map(|rule| {
+            rule.builtin()
+                .check_text(&sentences, RULES.spell().speller().as_ref())
+        })
         .filter(|suggestion| suggestion.source() == "BUILTIN/EN_PLAIN_ENGLISH_REPLACE")
         .map(|suggestion| {
             let span = suggestion.span().byte().clone();
@@ -3743,7 +3765,10 @@ fn builtin_plain_english_never_suggests_the_omit_marker() {
     let suggestions: Vec<_> = RULES
         .builtins()
         .iter()
-        .flat_map(|rule| rule.builtin().check_text(&sentences))
+        .flat_map(|rule| {
+            rule.builtin()
+                .check_text(&sentences, RULES.spell().speller().as_ref())
+        })
         .filter(|suggestion| suggestion.source() == "BUILTIN/EN_PLAIN_ENGLISH_REPLACE")
         .collect();
     assert!(suggestions.len() >= 4);
@@ -5956,6 +5981,90 @@ fn builtin_compounds_reports_sub_rule_ids_and_messages() {
     );
 }
 
+/// A sentence-initial compound starts at its first word, not at the whitespace before it
+/// (LanguageTool 6.6 covers the whitespace), so accepting the suggestion keeps indentation.
+#[test]
+fn builtin_compounds_span_starts_at_the_first_word() {
+    assert_eq!(
+        builtin_flags("EN_COMPOUNDS", "He left.\n  Part time work."),
+        vec![flag("Part time", &["Part-time"])]
+    );
+    assert_eq!(
+        builtin_flags("EN_COMPOUNDS", "He left.  Part time work."),
+        vec![flag("Part time", &["Part-time"])]
+    );
+    assert_eq!(
+        builtin_flags("EN_COMPOUNDS", "He left.\n  e mail me now."),
+        vec![flag("e mail", &["e-mail"])]
+    );
+    assert_eq!(
+        builtin_flags(
+            "EN_COMPOUNDS",
+            "\u{201c}He left.\u{201d}\n\t  E mail her\u{2026} it\u{2019}s a back fire\u{2014}really.\u{2028}"
+        ),
+        vec![flag("E mail", &["E-mail"]), flag("back fire", &["backfire"])]
+    );
+
+    let text = "\u{201c}Go.\u{201d}\n  E mail me\u{2014}now\u{2026}";
+    let compound = RULES
+        .suggest(text, &TOKENIZER)
+        .into_iter()
+        .find(|suggestion| suggestion.source().starts_with("BUILTIN/EN_COMPOUNDS"))
+        .expect("the compound is flagged");
+    let span = compound.span().byte().clone();
+    let fixed = format!(
+        "{}{}{}",
+        &text[..span.start],
+        compound.replacements()[0],
+        &text[span.end..]
+    );
+    assert_eq!(fixed, "\u{201c}Go.\u{201d}\n  E-mail me\u{2014}now\u{2026}");
+}
+
+/// `Builtin::check` and `Builtin::check_text` filter suggestions through the speller they are
+/// given, as `Rules::suggest` does: LanguageTool 6.6 suggests only `Yo-jong` here.
+#[test]
+fn builtin_check_filters_compounds_with_the_speller() {
+    let text = "\u{201c}Kim Yo jong spoke\u{2026}\u{201d}";
+    let builtin = RULES
+        .builtins()
+        .iter()
+        .find(|rule| rule.id() == "EN_COMPOUNDS")
+        .unwrap()
+        .builtin();
+    let sentences: Vec<_> = TOKENIZER.pipe(text).collect();
+    let replacements = |suggestions: Vec<Suggestion>| -> Vec<Vec<String>> {
+        suggestions
+            .iter()
+            .map(|suggestion| suggestion.replacements().to_vec())
+            .collect()
+    };
+    let speller = RULES.spell().speller();
+
+    assert_eq!(
+        replacements(builtin.check(&sentences[0], speller.as_ref())),
+        vec![vec!["Yo-jong".to_string()]]
+    );
+    assert_eq!(
+        replacements(builtin.check_text(&sentences, speller.as_ref())),
+        vec![vec!["Yo-jong".to_string()]]
+    );
+    assert_eq!(
+        replacements(
+            RULES
+                .suggest(text, &TOKENIZER)
+                .into_iter()
+                .filter(|suggestion| suggestion.source().starts_with("BUILTIN/EN_COMPOUNDS"))
+                .collect()
+        ),
+        vec![vec!["Yo-jong".to_string()]]
+    );
+    assert_eq!(
+        replacements(builtin.check_text(&sentences, None)),
+        vec![vec!["Yo-jong".to_string(), "Yojong".to_string()]]
+    );
+}
+
 #[test]
 fn builtin_compounds_skips_antipatterns() {
     assert_eq!(
@@ -6901,7 +7010,7 @@ fn word_statistics_builtins_check_text_as_a_whole() {
     let starts = |id: &str, text: &str| -> Vec<usize> {
         let sentences: Vec<_> = TOKENIZER.pipe(text).collect();
         builtin(id)
-            .check_text(&sentences)
+            .check_text(&sentences, RULES.spell().speller().as_ref())
             .iter()
             .map(|suggestion| suggestion.span().char().start)
             .collect()
