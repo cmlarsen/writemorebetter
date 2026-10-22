@@ -25,6 +25,11 @@ for suggestion in checker.check(text: editor.text) {
 }
 ```
 
+`try checker.enableRules(selectors: ["PLAIN_ENGLISH", "STYLE/PASSIVE_VOICE"])` turns on rules that are off by
+default (style advice such as plain English, redundancy, passive voice), on top of the profile. It returns how
+many rules it enabled and throws `CheckError.UnknownSelectors` without enabling anything if a selector matches
+no rule. See "Enabling rules" in `docs/PROFILE.md`.
+
 Loading deserializes both binaries (about 100 ms and 90 MB of resident memory); `Checker` is `Send + Sync`, so
 load one instance at startup off the main thread and share it. `check` and every other call are safe from any
 thread, but are not free (~110 ms per 1000 words on an M-series Mac), so run them off the main thread too.
@@ -192,6 +197,11 @@ let diction: DictionReport = try document.diction() // or diction(table:) with y
 let overused = try document.overusedWords()
 let transitions: TransitionsReport = try document.transitions()
 let pronouns: PronounStartsReport = try document.pronounStarts()
+let consistency: ConsistencyReport = try document.consistency()
+let adverbs: AdverbsReport = try document.adverbs()
+let emotions: EmotionTellsReport = try document.emotionTells()
+let vague: VagueWordsReport = try document.vagueWords()
+let hidden: HiddenVerbsReport = try document.hiddenVerbs()
 ```
 
 Every result is `Codable`, `Equatable` and `Sendable`. Each method takes optional `optionsJson`;
@@ -204,7 +214,7 @@ baseline JSON and return the JSON string directly. Spans carry UTF-16
 (JSON object or TSV text), which replaces it; `dictionJson(optionsJson:table:)` with a nil table
 uses the bundled one.
 
-Construction respects compact-document options. Echoes, phrases, overused words, pronoun starts, dialogue tags,
+Construction respects compact-document options. Echoes, phrases, overused words, pronoun starts, dialogue tags, adverbs,
 starts, sensory balance and diction require token details and throw on compact documents. Reports run on the retained analysis; construct a new
 object for changed text/options. See [the per-report API](../docs/STYLE-REPORTS.md#independent-reports-shared-analysis)
 for options, result JSON examples, baselines and Subplot’s recommended default set and opt-in lenses.
@@ -218,3 +228,17 @@ Transitions and pronoun starts are opt-in descriptive lenses. See [definitions, 
 measurements](../docs/STYLE-TRANSITIONS.md); neither has a baseline argument yet.
 
 The transitions lens also supports compact documents because it uses token text and position.
+
+Consistency is an opt-in lens that counts mixed quotes, apostrophes, ellipses, dashes,
+capitalization and hyphenation; it also runs on compact documents. See
+[definitions and public measurements](../docs/STYLE-CONSISTENCY.md).
+
+Passive voice (`passive`) reports passives per 100 sentences per mode, with spans, and takes a baseline
+argument like the other banded reports. It has no default band yet (no comparison); `"publicStandIn"`
+opts in to a provisional band from public text. See [STYLE-PASSIVE.md](../docs/STYLE-PASSIVE.md).
+
+Readability counts syllables with a table derived from the CMU Pronouncing Dictionary, compiled
+into this module. CMUdict's license (BSD-2-Clause-style) requires that binary redistributions
+reproduce Carnegie Mellon University's copyright notice, conditions and disclaimer in their
+documentation; ship the CMUdict section of [`NOTICE`](../NOTICE) with apps that embed the style
+reports. See [readability](../docs/STYLE-READABILITY.md#dictionary-phase-2).

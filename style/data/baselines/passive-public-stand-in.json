@@ -1,0 +1,134 @@
+{
+ "source": {
+  "dataset": "PUBLIC STAND-IN, not published fiction: bench/public story1-5 (one invented author, CC0), bench/public/moby150k.txt (Melville) and the pinned Standard Ebooks Pride and Prejudice (Austen), laid out by bench/style/public_export.py; 7 units, 3 authors",
+  "tool": "writemorebetter #303 tier3 --flag-rates --skip-diction (on 50abb7c)",
+  "run_date": "2026-10-20",
+  "scope": "chapter windows (scene-break split, target 2,000-6,000 words: closed after reaching 6,000 or at a scene break past 3,000; short tails merged), author-weighted (each author counts equally)",
+  "window_rule": {
+   "scene_break_words": 3000,
+   "maximum_words": 6000,
+   "minimum_words": 2000
+  },
+  "samples": 38,
+  "units": 7,
+  "authors": 3,
+  "words": 157961,
+  "method": "p5/p95 are weighted percentiles (linear interpolation between cumulative-weight midpoints) of per-window passives per 100 sentences over windows meeting the report floor in that mode, each window weighted 1 / (its author's eligible windows)",
+  "floors": {
+   "passiveMinimumSentences": 50
+  },
+  "status": "Provisional public stand-in, opt-in only (baseline selector \"publicStandIn\"); the report has no default band. The owner-only published-fiction export was not available to this run. The real default comes from rerunning tier3 --flag-rates on that export and published_bands.py --passive into passive.json (docs/STYLE-PASSIVE.md)."
+ },
+ "units": "passive clauses per 100 sentences of that mode",
+ "baseline": {
+  "bands": {
+   "all": {
+    "p5": 2.502485458214625,
+    "p95": 27.701919476417554
+   },
+   "narration": {
+    "p5": 2.83868462825518,
+    "p95": 40.94476744186052
+   },
+   "dialogue": {
+    "p5": 4.776360678108435,
+    "p95": 20.472573839662434
+   }
+  }
+ },
+ "eligibleShare": {
+  "all": 1.0,
+  "narration": 0.9876543209876543,
+  "dialogue": 0.48765432098765427
+ },
+ "calibration": {
+  "chapter": {
+   "all": {
+    "samples": 38,
+    "authors": 3,
+    "mean": 12.694799729180971,
+    "percentiles": {
+     "5": 2.502485458214625,
+     "10": 3.1691978673605963,
+     "25": 4.429464746034122,
+     "50": 12.5,
+     "75": 18.386096859452735,
+     "90": 24.54985289310224,
+     "95": 27.701919476417554
+    }
+   },
+   "narration": {
+    "samples": 37,
+    "authors": 3,
+    "mean": 16.803837466738962,
+    "percentiles": {
+     "5": 2.83868462825518,
+     "10": 3.3313968600868638,
+     "25": 5.71778062476149,
+     "50": 12.677302792748653,
+     "75": 28.147035256410255,
+     "90": 38.13380281690142,
+     "95": 40.94476744186052
+    }
+   },
+   "dialogue": {
+    "samples": 29,
+    "authors": 2,
+    "mean": 13.236216078401837,
+    "percentiles": {
+     "5": 4.776360678108435,
+     "10": 5.322416417362096,
+     "25": 8.218287314925973,
+     "50": 11.672549223156517,
+     "75": 18.387879736924504,
+     "90": 20.14316892186818,
+     "95": 20.472573839662434
+    }
+   }
+  },
+  "manuscript": {
+   "all": {
+    "samples": 3,
+    "authors": 3,
+    "mean": 12.588821928571328,
+    "percentiles": {
+     "5": 4.412376732731829,
+     "10": 5.287775973502242,
+     "25": 7.913973695813483,
+     "50": 12.290969899665551,
+     "75": 17.114744146876284,
+     "90": 20.009008695202724,
+     "95": 20.973763544644868
+    }
+   },
+   "narration": {
+    "samples": 3,
+    "authors": 3,
+    "mean": 16.693186669095255,
+    "percentiles": {
+     "5": 5.27239814516329,
+     "10": 6.009648898036331,
+     "25": 8.221401156655453,
+     "50": 11.907654921020656,
+     "75": 22.772206307497754,
+     "90": 29.290937139384013,
+     "95": 31.463847416679435
+    }
+   },
+   "dialogue": {
+    "samples": 3,
+    "authors": 3,
+    "mean": 9.59272664354327,
+    "percentiles": {
+     "5": 2.308148060373558,
+     "10": 3.511323745056508,
+     "25": 7.120850799105358,
+     "50": 13.136729222520108,
+     "75": 13.836603777469598,
+     "90": 14.256528510439294,
+     "95": 14.396503421429191
+    }
+   }
+  }
+ }
+}

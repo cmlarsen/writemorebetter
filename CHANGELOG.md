@@ -8,8 +8,105 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
 # Unreleased
 
+### Fixed
+
+- **"One way or other" and "something or other" are no longer flagged.** `OTHER_OTHERS`
+  suggested "others" when the idiom "X or other" came before a verb ("one way or other
+  served"). The English `grammar.xml` is now a fork of LanguageTool 6.6's, committed at
+  `build/lt-rules/en/grammar.xml` with its local edits listed in the README next to it;
+  `scripts/build-data.sh` builds from it, so the data binaries need rebuilding.
+- **Spaced ellipses (". . .") are no longer flagged.** Each run produced a "space before the full
+  stop" flag from `COMMA_PARENTHESIS_WHITESPACE`, and the sentence split after it flagged the next
+  lowercase word under `UPPERCASE_SENTENCE_START` (about 15,000 flags on 7.5M words of published
+  fiction). `segment.srx` is now a fork of LanguageTool 6.6's (`build/lt-rules/core/`) with the two
+  no-break rules LanguageTool added after 6.6, and the builtin skips full stops in a run of three or
+  more separated by whitespace, as LanguageTool's `IMMUNIZE_ELLIPSIS` does. The tokenizer binary
+  needs rebuilding.
+- **Spacing that publishers use around ellipses and nested quotes is no longer flagged.** A space
+  between a spaced ellipsis and a quote mark or comma (`. . . ”`, `. . . ,`) and a space between two
+  adjacent quote marks (`‘trouble’ ”`, `' "`) were reported as stray whitespace; LanguageTool 6.9
+  reports them too. A space before a quote at a line end is still flagged.
+- **Words with digits are no longer spell checked**, matching LanguageTool's Morfologik default
+  (`1860s`, `75mm`, `3:21pm`, `21st`).
+- **The fiction profile disables `COMMA_COMPOUND_SENTENCE_2`** as well as
+  `COMMA_COMPOUND_SENTENCE`; it fired for 61 of 70 authors in published fiction.
+
 ### Added
 
+- **Rules for errors LanguageTool misses or needs n-grams for.** The forked `grammar.xml` adds
+  `PEAKED_THROUGH` (peaked → peeked), `HEAL_OF` and `HEAL_POCKET` (heal → heel),
+  `EACH_OF_NNS_VBP` ("…each of the dogs are" → "is" mid-sentence), `THERE_ARE_WHAT` ("There are
+  what I thought was" → "is"), and new sub-rules of `YOUR_YOU_RE` ("Your welcome here anytime",
+  "your welcome to stay") and `HE_THE` ("Popping he SD card" → "the"). Recall is now 50 / 50 on
+  the private corpus and 60 / 60 on the public one; the CI floors are raised to match.
+
+### Changed
+
+- **Double spaces get one message under the fiction profile.** The profile disables
+  `TYPOGRAPHY/CONSECUTIVE_SPACES`, LanguageTool's rule for two spaces between words, so the
+  `WHITESPACE_RULE` builtin reports every repeated space. Its message is now "Possible typo:
+  repeated spaces" (was "Possible typo: you repeated a whitespace"), in every profile. The default
+  profile still runs `CONSECUTIVE_SPACES`.
+
+# 0.11.0 (2026-10-21)
+
+### Added
+
+- **Style presets** ([#305](https://github.com/cmlarsen/writemorebetter/issues/305)). A preset is one
+  named, versioned JSON file that drives the grammar checker's profile, rule selectors and speller
+  variant, the consistency report's preferred forms, Vale-format house-style rules and new built-in
+  preset checks. `chicago-fiction` (the default), `ap` and `uk` are built in; a user preset can
+  `extends` one and override any part as a JSON merge patch (`null` removes an inherited setting).
+  Unknown keys and values are `invalidPreset` errors, and a user preset must set its own `name`
+  (`name`, `version` and `description` are never inherited). The preset checks flag numerals that prose
+  spells out (zero to one hundred, or one to nine for AP, with exceptions for dates, times,
+  addresses, years, percentages, decimals and labels), periods and commas outside closing quotes (or,
+  for UK, inside a quoted non-speech phrase), *James’* versus *James’s*, *AM*/*a.m.* after a time,
+  and *my Mom* versus *Mom* as a name. Rust: `StylePreset::{builtin, parse, load}`,
+  `apply_to_rules`, `report`, `StyleDocument::preset` and `preset_checks`. WASM: `stylePresetNames`,
+  `loadStylePreset`, `parseStylePreset`, `checker.applyPreset`, `document.preset` and
+  `document.presetChecks`, with TypeScript types. Swift: `StylePresets`, `checker.applyPreset(preset:)`,
+  `document.preset(_:)` and `document.presetChecks(optionsJson:)`. The consistency report gains a
+  `preferred` option and `preferred`/`nonPreferred` on each check, and `nlprule` gains
+  `Rules::unmatched_selectors`. Recall is unchanged for every preset (46/50 private, 55/60 public).
+  See [`docs/STYLE-PRESETS.md`](docs/STYLE-PRESETS.md).
+- **House-style rules.** `StyleDocument.houseStyle` (Rust `house_style`, Swift
+  `houseStyle(rules:)`) runs caller-supplied rules in a subset of [Vale](https://vale.sh)'s YAML
+  rule format: `existence`, `substitution`, `consistency` and `occurrence`, with `ignorecase`,
+  `nonword`, `scope`, `exceptions`, `limit` and `link`
+  ([#305](https://github.com/cmlarsen/writemorebetter/issues/305)). Rules come as YAML or JSON
+  text: one rule per YAML document, a list of rules, or `{rules: …}`, so an existing Vale style can be
+  imported. Each match carries its span, rule name, level, message and narration or dialogue mode,
+  and the `skipDialogue` option leaves quoted speech out. Curly apostrophes, em dashes, ellipses and
+  U+2028 are handled, and invalid rules return an `invalidRules` error that names the rule. A rule
+  that needs regex features this engine lacks (lookaround, backreferences) is listed in the
+  report's `unsupported` and skipped, while the rest of the bundle runs. Style
+  presets and the Chicago rules from #305 will follow as rule bundles. See
+  [`docs/STYLE-HOUSE-STYLE.md`](docs/STYLE-HOUSE-STYLE.md).
+- **Title case for headings** ([#307](https://github.com/cmlarsen/writemorebetter/issues/307),
+  part). Rust `title_case::report(&headings, &options)` and `StylePreset::title_case`, WASM
+  `titleCase(headingsJSON, optionsJSON)` and Swift `TitleCase.check(_:optionsJson:)` check chapter
+  titles against Chicago-style or AP-style headline case or sentence case, with each word's rule
+  and its recased form; hyphenated compounds, words after colons and words that are prepositions
+  only sometimes are handled. Presets gain a `titleCase` key (`chicago-fiction`: Chicago, `ap`: AP,
+  `uk`: sentence case), and the built-in presets are now version 1.1.0. See
+  [`docs/STYLE-TITLE-CASE.md`](docs/STYLE-TITLE-CASE.md).
+- **Enable off-by-default rules.** `Rules::enable_rules(&selectors)` turns on LanguageTool's
+  `default="off"` and `picky` rules, such as `PLAIN_ENGLISH`, `REDUNDANCY`, `STYLE/PASSIVE_VOICE` and
+  `STYLE/SERIAL_COMMA_ON`, by the selector syntax profiles use (`CATEGORY`, `CATEGORY/RULE_ID`,
+  `BUILTIN/ID`), applied after the profile; unknown selectors are an error and enable nothing.
+  Swift gets `Checker.enableRules(selectors:)` and WASM `checker.enableRules([...])`. With no
+  selectors the rule set is unchanged. See [`docs/PROFILE.md`](docs/PROFILE.md#enabling-rules)
+  ([#297](https://github.com/cmlarsen/writemorebetter/issues/297)).
+- **Four confusion rules adapted from Harper**
+  ([#306](https://github.com/cmlarsen/writemorebetter/issues/306)). New default-on English builtins
+  `HARPER_WAIST_WASTE`, `HARPER_BELLOW_BELOW`, `HARPER_FEEL_FELL` and `HARPER_QUITE_QUIET`, adapted
+  from Harper's Apache-2.0 lints (commit `37d344cd`, credited in NOTICE), flag *a waist of time*,
+  *right bellow the deck*, *to fell free* and *very quite*. Each pattern is narrower than Harper's so
+  ordinary narration passes (*As night fell*, *had to fell it*, *won’t you quiet down*), and a line
+  break ends any match. Harper's then/than, though/thought, were/where and thing/think lints are not
+  ported because LanguageTool 6.6 already covers them. Grammar conformance and public recall are
+  unchanged ([#311](https://github.com/cmlarsen/writemorebetter/pull/311)).
 - **Diction has a bundled concreteness table**
   ([#256](https://github.com/cmlarsen/writemorebetter/issues/256)).
   `style/data/norms/concreteness.tsv` is writemorebetter's own table (14,572 words, MIT OR
@@ -21,9 +118,124 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   script and validation gate are committed under `bench/style/concreteness/`, and the build is
   byte-reproducible from them. See [`docs/STYLE-NORMS.md`](docs/STYLE-NORMS.md#bundled-concreteness-table-256)
   and NOTICE.
+- **Readability report** ([#300](https://github.com/cmlarsen/writemorebetter/issues/300), phase 1).
+  An opt-in `style` lens that reports Flesch Reading Ease, Flesch–Kincaid grade, Coleman–Liau, the
+  Automated Readability Index and estimated reading time for the whole text, for narration and
+  dialogue separately, and for each paragraph. Dialogue-only paragraphs can be excluded. It returns
+  statistics, never flags, so it doesn't duplicate LanguageTool's readability rules (#207).
+  Syllables come from an original heuristic counter (96.5% on a 484-word development list of hard
+  cases, 99.5% on a 190-word held-out sample, 99.2% of `bench/public` tokens) that a dictionary-backed counter can replace later. Available as
+  `StyleDocument::readability` in Rust, `document.readability()` in WASM and Swift. See
+  [`docs/STYLE-READABILITY.md`](docs/STYLE-READABILITY.md).
+- **Readability counts syllables with CMUdict**
+  ([#300](https://github.com/cmlarsen/writemorebetter/issues/300), phase 2). The readability
+  report's default counter, `DictionarySyllables`, looks words up in a table derived from the CMU
+  Pronouncing Dictionary (commit `74790861`, BSD-2-Clause-style) and falls back to the phase 1
+  heuristic, which stays available as `HeuristicSyllables`. The table holds only the 8,437
+  CMUdict words the heuristic gets wrong (92,749 bytes; +34.9 KB to the gzipped WASM module), so
+  every CMUdict headword gets CMUdict's first-pronunciation count; no phonemes are bundled.
+  Accuracy on the development word list rises from 467 to 482 of 484 and on the held-out list
+  from 189 to 190 of 190; whole-text indices on `bench/public` move by at most 0.5. Built by
+  `scripts/build-cmudict.py` from a pinned sha256. Apps that ship the style reports must
+  reproduce CMU's notice in their documentation; see NOTICE and
+  [`docs/STYLE-READABILITY.md`](docs/STYLE-READABILITY.md#dictionary-phase-2). The XCFramework
+  and data release zips now carry `NOTICE` and the third-party license texts, and `NOTICE` is
+  a release asset. CI regenerates the table from the pinned `cmudict.dict` and fails if it is
+  stale relative to the heuristic.
+- **Consistency report.** A new opt-in style lens, `consistency`, counts and locates mixed usage
+  within one document: curly and straight double and single quotes, apostrophes (counted apart
+  from quotes, with elisions such as `’em` and `rock ’n’ roll`), `…`/`...`/`. . .` ellipses,
+  closed and spaced em dashes, spaced en dashes, `--` and spaced hyphens, the same word
+  capitalized and lowercase mid-sentence, and the same compound written hyphenated, open and
+  closed ([#298](https://github.com/cmlarsen/writemorebetter/issues/298)). Each check returns
+  per-form counts split by narration and dialogue, spans, and whether the document is mixed; it
+  never says which form is right. Rust `StyleDocument::consistency`, WASM
+  `document.consistency()` and Swift `document.consistency()` (typed `ConsistencyReport`). It
+  needs no data and runs on compact documents. See
+  [`docs/STYLE-CONSISTENCY.md`](docs/STYLE-CONSISTENCY.md).
+- **Passive-voice rate** ([#303](https://github.com/cmlarsen/writemorebetter/issues/303)): passive
+  clauses (*be*/*get* + past participle, with guards for adjectival participles such as *was
+  tired* and *was married*) per 100 sentences, with narration and dialogue reported separately.
+  Each passive has a span, and the rate is compared with a p5–p95 band through a replaceable
+  baseline argument. Available as `StyleDocument::passive` in Rust, `passive()` in WASM
+  (`PassiveReport`) and `passive(optionsJson:baseline:)` in Swift. There is **no default band**
+  yet (no comparison) because the published-fiction export was not available. A **provisional
+  public stand-in** band built from `bench/public` and the pinned *Pride and Prejudice* is opt-in
+  with the `"publicStandIn"` baseline (Swift `.passivePublicStandIn`). The flag-rate probe and
+  `published_bands.py --passive` can build the real band from that export. See
+  [`docs/STYLE-PASSIVE.md`](docs/STYLE-PASSIVE.md).
+- **Clarity lens** (opt-in): `clarity` flags sticky sentences, where glue words (determiners,
+  prepositions, conjunctions, pronouns, *to*, modals, forms of *be*/*have*/*do*) are at least 65% of a
+  sentence of 15 or more words, and long subordinate clauses of 20 or more words, opened by a
+  subordinating conjunction or relative/WH-word and bounded by punctuation, mode changes and
+  unpunctuated (including coordinated) main clauses ([#302](https://github.com/cmlarsen/writemorebetter/issues/302)). It
+  uses the existing tagger readings and chunker output, needs no new data, and measures neither
+  sentence length nor `TOO_LONG_SENTENCE`. On published public-domain text the defaults flag 2.0% of
+  sentences as sticky and 0.9% for long clauses. Rust `StyleDocument::clarity`, Swift
+  `document.clarity()` with typed `ClarityReport`, and WASM `document.clarity()` with TypeScript
+  types. See [`docs/STYLE-CLARITY.md`](docs/STYLE-CLARITY.md).
+- **Regional spelling lens** ([#299](https://github.com/cmlarsen/writemorebetter/issues/299)).
+  Rust `StyleDocument::regional_spelling(options)`, WASM `document.regionalSpelling(optionsJSON)`
+  and Swift `document.regionalSpelling()` report mixed American and British spelling: counts for
+  American, British (-ise) and Oxford (-ize) spelling, the dominant system, the variant words seen,
+  and flags for tokens no dominant system accepts or minority forms of one word. Oxford -ize is
+  British, words valid in both are never markers, mid-sentence capitals and quoted titles in
+  narration are skipped as names, and each flag carries the narration/dialogue mode at the marker.
+  Options `minimumMarkers` (default 3) and `system` (fix the expected system). The bundled
+  `style/data/spelling/regional.txt` (153,303 bytes) is a modified table derived from VarCon
+  2020.12.07 by `scripts/build-regional-spelling.py`; its Atkinson, Titze and Ispell notices are in
+  NOTICE and `style/data/licenses/varcon.txt`. See
+  [`docs/STYLE-REGIONAL-SPELLING.md`](docs/STYLE-REGIONAL-SPELLING.md).
+- **Emotion tells lens** ([#304](https://github.com/cmlarsen/writemorebetter/issues/304)). Rust
+  `StyleDocument::emotion_tells`, WASM `document.emotionTells(optionsJSON?)` and Swift
+  `document.emotionTells()` flag narration that names a feeling: *she was afraid*, *he felt angry*,
+  *she felt a surge of relief*, *fear washed over her*. Each tell has its span, the emotion and verb
+  spans, the lexicon word and its pattern (`predicate`, `object`, `subject`); coordinated feelings
+  on one verb (*was angry and afraid*) are one tell. Per-mode counts and
+  rates are in `groups`. Dialogue, quoted text included, is skipped unless `includeDialogue` is
+  set, and hedges such as *I'm afraid so* and *I'm sorry* are never flagged. The lexicon
+  (`style/data/emotions/emotions.tsv`, 760 words, 10 KB) is derived from Princeton WordNet 3.0,
+  weighted by the bundled Lancaster norms, and ships as a separate data file under the WordNet
+  License (`style/data/licenses/WordNet-LICENSE`, NOTICE). `scripts/build-emotion-lexicon.py`
+  rebuilds it. Hand-judged precision on public-domain published fiction is 0.91 on a held-out
+  sample of 100 (0.94 on the 200-row development sample). The WASM module grows by 46 KB
+  (5,678,182 → 5,724,344 bytes; 1,461,541 → 1,474,140 with `gzip -9`). See
+  [`docs/STYLE-EMOTION-TELLS.md`](docs/STYLE-EMOTION-TELLS.md).
+- **Alliteration lens** ([#307](https://github.com/cmlarsen/writemorebetter/issues/307), part).
+  Rust `StyleDocument::alliteration(options)`, WASM `document.alliteration(optionsJSON)` and Swift
+  `document.alliteration()` report runs of three or more different stressed words in one sentence
+  that share a first consonant sound, separately for narration and dialogue, with per-1,000-word
+  counts. Informational only: fiction alliterates on purpose. Function words are skipped without
+  breaking a run; options `minimumWords` (3), `maximumGap` (0) and `skipDialogue`. First sounds
+  come from a new CMUdict-derived table, `style/data/pronunciation/cmudict-onsets.tsv` (each
+  word's first phoneme, only for the 1,943 words the spelling guess gets wrong; 20,888 bytes),
+  built by `scripts/build-cmudict.py` next to the syllable table and covered by CI's staleness
+  check. See [`docs/STYLE-ALLITERATION.md`](docs/STYLE-ALLITERATION.md).
+- **Vague words and hidden verbs lenses** ([#307](https://github.com/cmlarsen/writemorebetter/issues/307),
+  first half). Rust `StyleDocument::vague_words` / `hidden_verbs`, WASM
+  `document.vagueWords(optionsJSON?)` / `document.hiddenVerbs(optionsJSON?)` and Swift
+  `document.vagueWords()` / `document.hiddenVerbs()` count, per narration and dialogue, words that
+  blur a sentence (fillers, hedges such as *sort of* and *a bit*, *a lot*, *thing*, *nice*) and
+  nominalizations doing a verb's work (*made a decision*, *came to the realization*, *the arrival
+  of*). Each match has its span, term and category or pattern; hidden verbs name the related verb
+  (`term`: *decide*) but never rewrite. Options `fillers` and `ofPhrases` (both default true). The
+  vague list is project-authored plus the 80 words/fillers entries backed by mikpanko/expresso
+  (both MIT; `style/data/licenses/fillers.txt`, NOTICE); words already flagged by LanguageTool's
+  `TIRED_INTENSIFIERS` or the overused-words fillers are left out. The 313-row noun→verb table
+  (`style/data/hidden-verbs/nominalizations.tsv`, 7 KB) is derived from Princeton WordNet 3.0 by
+  `scripts/build-hidden-verbs.py` and ships under the WordNet License beside the emotion lexicon;
+  `scripts/build-filler-words.py` rebuilds the filler list. Hand-judged precision on public-domain
+  fiction: 48/50 (vague words) and 36/40 (hidden verbs) on held-out samples. The WASM module grows
+  by 121 KB (7,053,229 → 7,174,085 bytes; 1,771,694 → 1,792,470 with `gzip -9`). See
+  [`docs/STYLE-VAGUE-WORDS.md`](docs/STYLE-VAGUE-WORDS.md) and
+  [`docs/STYLE-HIDDEN-VERBS.md`](docs/STYLE-HIDDEN-VERBS.md).
+- Opt-in manner-adverb counts by lemma and mode, with dialogue-tag adverbs marked for deduplication; personal and possessive pronoun shares of words; and a condition transition category (`if`, `unless`, `provided that`, `as long as`, `in case`) ([#301](https://github.com/cmlarsen/writemorebetter/issues/301)).
 
 ### Changed
 
+- **The rules binary format is now version 32** (was 31) for the Harper builtins, so 0.10.0's
+  `en_rules.bin` does not load; use this release's data zip. The tokenizer format stays 18
+  ([#311](https://github.com/cmlarsen/writemorebetter/pull/311)).
 - **`diction` no longer needs a table.** Rust `StyleDocument::diction(options, None)`, WASM
   `document.diction(optionsJSON)` and Swift `document.diction()` use the bundled table; passing a
   table (JSON object or TSV text) still replaces it for that call. `missingTable` is no longer
@@ -43,6 +255,15 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 - **The WASM module grows by 184 KB** (`writemorebetter_wasm_bg.wasm`, release, wasm-bindgen
   0.2.129: 5,495,225 → 5,678,797 bytes; 1,401,961 → 1,462,831 with `gzip -9`). The bundled table
   loads once, in about 4.5 ms natively.
+
+### Fixed
+
+- **`EN_PLAIN_ENGLISH_REPLACE` no longer suggests the literal text `[OMIT]`.** The word list
+  marks "delete this phrase" with `[OMIT]`, which LanguageTool 6.6 passes through as a
+  suggestion. The builtin now offers a deletion that also removes the surrounding space, or
+  paired commas or dashes, and capitalizes the next word at a sentence start; the message says
+  "omit it". See [`docs/PROFILE.md`](docs/PROFILE.md#enabling-rules).
+- `wmb-probe` exits with an error message instead of panicking on an unknown `ENABLE` selector.
 
 # 0.10.0 (2026-10-20)
 

@@ -15,6 +15,10 @@
 //! source under the same MIT/Apache-2.0 license as the rest of the engine. It
 //! names rules but never carries their definitions, patterns, or examples.
 //!
+//! The same selectors, without the case form, also *enable* rules that are off by
+//! default (LanguageTool's `default="off"` and `picky` rules) with
+//! [`Rules::enable_rules`], applied after the profile.
+//!
 //! # Examples
 //!
 //! ```no_run
@@ -26,7 +30,7 @@
 //! # Ok::<(), nlprule::Error>(())
 //! ```
 
-use crate::{rule::id::Selector, Rules};
+use crate::{rule::id::Selector, Error, Rules};
 use std::convert::TryFrom;
 
 /// The prefix that marks a selector as a builtin rule id rather than an XML rule selector.
@@ -73,6 +77,7 @@ impl Profile {
                 "PUNCTUATION/DASH_RULE",
                 // Comma before "and" in a compound sentence (23).
                 "PUNCTUATION/COMMA_COMPOUND_SENTENCE",
+                "PUNCTUATION/COMMA_COMPOUND_SENTENCE_2",
                 // Missing comma after an introductory phrase (6).
                 "PUNCTUATION/MISSING_COMMA_AFTER_INTRODUCTORY_PHRASE",
                 // Dialogue informality: gonna/gotta/wanna (9/4/1).
@@ -88,6 +93,9 @@ impl Profile {
                 // Indentation with spaces at the start of a paragraph or line, which
                 // LanguageTool flags after a sentence end or a CRLF (403 on moby150k).
                 "BUILTIN/WHITESPACE_RULE/INDENTATION",
+                // LanguageTool's grammar.xml rule for two spaces between words, which only
+                // repeats what the WHITESPACE_RULE builtin says, in different words.
+                "TYPOGRAPHY/CONSECUTIVE_SPACES",
                 // Successive sentences that begin with the same word, which fiction
                 // uses for rhythm ("He waited. He listened. He...").
                 "BUILTIN/ENGLISH_WORD_REPEAT_BEGINNING_RULE",
@@ -172,5 +180,80 @@ impl Rules {
         }
 
         unmatched
+    }
+
+    /// Enables every rule named by `selectors`, e.g. LanguageTool's off-by-default and
+    /// `picky` rules such as `"PLAIN_ENGLISH"`, `"STYLE/PASSIVE_VOICE"` or
+    /// `"BUILTIN/EN_REDUNDANCY_REPLACE"`. Call it after [`Rules::apply_profile`] so a
+    /// selector can turn back on a rule the profile disabled.
+    ///
+    /// Selectors use the profile syntax (see the [module docs](self)) except the builtin
+    /// case form (`"BUILTIN/ID/CASE"`), which only disables. Every selector is checked
+    /// before any rule changes: if one matches no rule, nothing is enabled and
+    /// [`Error::UnknownSelectors`] lists the unmatched ones.
+    ///
+    /// Returns how many grammar and builtin rules changed from disabled to enabled.
+    pub fn enable_rules<S: AsRef<str>>(&mut self, selectors: &[S]) -> Result<usize, Error> {
+        let unmatched: Vec<String> = selectors
+            .iter()
+            .map(AsRef::as_ref)
+            .filter(|selector| !self.selector_matches(selector))
+            .map(str::to_owned)
+            .collect();
+        if !unmatched.is_empty() {
+            return Err(Error::UnknownSelectors(unmatched));
+        }
+
+        let mut enabled = 0;
+        for selector in selectors.iter().map(AsRef::as_ref) {
+            if let Some(id) = selector.strip_prefix(BUILTIN_PREFIX) {
+                for rule in self.builtins.iter_mut().filter(|rule| rule.id() == id) {
+                    enabled += usize::from(!rule.enabled());
+                    rule.enable();
+                }
+            } else if let Ok(parsed) = Selector::try_from(selector) {
+                for rule in self.select_mut(&parsed) {
+                    enabled += usize::from(!rule.enabled());
+                    rule.enable();
+                }
+            }
+        }
+        Ok(enabled)
+    }
+
+    /// The selectors in `selectors` that name no grammar or builtin rule, without changing any
+    /// rule. With `cases`, the builtin case form (`"BUILTIN/ID/CASE"`) that
+    /// [`Rules::apply_profile`] accepts is checked too; without it, as for
+    /// [`Rules::enable_rules`], that form is unmatched.
+    pub fn unmatched_selectors<S: AsRef<str>>(&self, selectors: &[S], cases: bool) -> Vec<String> {
+        selectors
+            .iter()
+            .map(AsRef::as_ref)
+            .filter(|selector| {
+                let case = selector
+                    .strip_prefix(BUILTIN_PREFIX)
+                    .and_then(|id| id.split_once('/'))
+                    .filter(|_| cases);
+                match case {
+                    Some((id, case)) => !self
+                        .builtins
+                        .iter()
+                        .any(|rule| rule.id() == id && rule.has_case(case)),
+                    None => !self.selector_matches(selector),
+                }
+            })
+            .map(str::to_owned)
+            .collect()
+    }
+
+    /// Whether an enable selector names at least one grammar or builtin rule.
+    fn selector_matches(&self, selector: &str) -> bool {
+        match selector.strip_prefix(BUILTIN_PREFIX) {
+            Some(id) => self.builtins.iter().any(|rule| rule.id() == id),
+            None => match Selector::try_from(selector) {
+                Ok(parsed) => self.select(&parsed).next().is_some(),
+                Err(_) => false,
+            },
+        }
     }
 }

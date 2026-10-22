@@ -326,7 +326,7 @@ export interface PacingReport {
   slowRuns: Array<PacingRun>;
 }
 
-export type TransitionType = "contrast" | "cause" | "time" | "addition" | "example";
+export type TransitionType = "contrast" | "cause" | "time" | "addition" | "example" | "condition";
 
 export interface TransitionMatch {
   span: Span;
@@ -394,9 +394,455 @@ export interface PronounStartsGroup {
   pronounStarts: Share;
   pronouns: Array<PronounStartsShare>;
   runs: Array<PronounStartsRun>;
+  words: number;
+  pronounWords: Share;
+  wordPronouns: Array<PronounStartsShare>;
 }
 
 export interface PronounStartsReport {
   starts: Array<PronounStart>;
   groups: Split<PronounStartsGroup>;
+}
+
+export interface ConsistencyVariant {
+  form: string;
+  counts: Split<number>;
+  spans: Array<Span>;
+}
+
+export type SpellingSystem = "american" | "british" | "oxford";
+export type RegionalSpellingReason = "system" | "form";
+
+export interface SpellingSystemCount {
+  system: SpellingSystem;
+  count: number;
+}
+
+export interface RegionalSpellingForm {
+  form: string;
+  systems: Array<SpellingSystem>;
+  counts: Split<number>;
+  spans: Array<Span>;
+}
+
+export interface ConsistencyCheck {
+  mixed: boolean;
+  variants: Array<ConsistencyVariant>;
+  /** The preferred form from the options (a style preset), or null without one. */
+  preferred: string | null;
+  /** Occurrences of every form other than `preferred`; 0 without a preference. */
+  nonPreferred: number;
+}
+
+export interface ConsistencyCount {
+  form: string;
+  counts: Split<number>;
+}
+
+export interface ConsistencyWord {
+  word: string;
+  variants: Array<ConsistencyVariant>;
+}
+
+export interface ConsistencyReport {
+  doubleQuotes: ConsistencyCheck;
+  singleQuotes: ConsistencyCheck;
+  apostrophes: ConsistencyCheck;
+  ellipses: ConsistencyCheck;
+  dashes: ConsistencyCheck;
+  dashCharacters: Array<ConsistencyCount>;
+  capitalization: Array<ConsistencyWord>;
+  hyphenation: Array<ConsistencyWord>;
+}
+
+export interface ReadabilityScores {
+  sentences: number;
+  words: number;
+  syllables: number;
+  characters: number;
+  polysyllables: number;
+  lowConfidence: boolean;
+  fleschReadingEase: number | null;
+  fleschKincaidGrade: number | null;
+  colemanLiau: number | null;
+  automatedReadability: number | null;
+  readingMinutes: number;
+}
+
+export interface ReadabilityParagraph {
+  span: Span;
+  dialogueOnly: boolean;
+  excluded: boolean;
+  scores: ReadabilityScores;
+}
+
+export interface ReadabilityReport {
+  groups: Split<ReadabilityScores>;
+  paragraphs: Array<ReadabilityParagraph>;
+}
+
+export interface AdverbMatch {
+  span: Span;
+  lemma: string;
+  mode: Mode;
+  tagAdverb: boolean;
+}
+
+export interface AdverbLemma {
+  lemma: string;
+  count: number;
+  perThousandWords: number;
+}
+
+export interface AdverbGroup {
+  words: number;
+  count: number;
+  perThousandWords: number;
+  lemmas: Array<AdverbLemma>;
+}
+
+export interface AdverbsReport {
+  matches: Array<AdverbMatch>;
+  groups: Split<AdverbGroup>;
+}
+
+export type PassiveAuxiliary = "be" | "get";
+
+export interface PercentileBand {
+  p5: number;
+  p95: number;
+}
+
+export interface PassiveMatch {
+  span: Span;
+  participle: Span;
+  sentence: number;
+  auxiliary: PassiveAuxiliary;
+  progressive: boolean;
+  agent: boolean;
+  mode: Mode;
+}
+
+export interface PassiveGroup {
+  sentences: number;
+  lowConfidence: boolean;
+  passives: number;
+  perHundredSentences: number | null;
+  band: PercentileBand | null;
+  highlighted: boolean;
+}
+
+export interface PassiveReport {
+  passives: Array<PassiveMatch>;
+  groups: Split<PassiveGroup>;
+}
+
+export type ClarityClauseIntroducer = "subordinator" | "relative";
+
+export interface ClarityStickySentence {
+  span: Span;
+  sentence: number;
+  mode: Mode;
+  words: number;
+  glueWords: number;
+  gluePercent: number;
+  glue: Array<Span>;
+}
+
+export interface ClarityLongClause {
+  span: Span;
+  sentence: number;
+  mode: Mode;
+  introducer: string;
+  introducerSpan: Span;
+  kind: ClarityClauseIntroducer;
+  words: number;
+  sentenceWords: number;
+}
+
+export interface ClarityGroup {
+  sentences: number;
+  eligibleSentences: number;
+  lowConfidence: boolean;
+  glue: Share;
+  sticky: Share;
+  subordinateClauses: number;
+  longClauses: number;
+  longClauseSentences: Share;
+}
+
+export interface ClarityReport {
+  words: Split<number>;
+  stickySentences: Array<ClarityStickySentence>;
+  longClauses: Array<ClarityLongClause>;
+  groups: Split<ClarityGroup>;
+}
+
+export type HouseStyleExtends = "existence" | "substitution" | "consistency" | "occurrence";
+export type HouseStyleLevel = "suggestion" | "warning" | "error";
+export interface HouseStyleMatch {
+  rule: string;
+  extends: HouseStyleExtends;
+  level: HouseStyleLevel;
+  message: string;
+  span: Span;
+  mode: Mode;
+  replacement: string | null;
+  count: number | null;
+  link: string | null;
+}
+
+export interface HouseStyleCounts {
+  suggestions: number;
+  warnings: number;
+  errors: number;
+  words: number;
+}
+
+export interface HouseStyleRuleError {
+  rule: string;
+  message: string;
+}
+
+export interface HouseStyleReport {
+  rules: number;
+  unsupported: Array<HouseStyleRuleError>;
+  matches: Array<HouseStyleMatch>;
+  groups: Split<HouseStyleCounts>;
+}
+
+export interface RegionalSpellingWord {
+  word: string;
+  mixed: boolean;
+  forms: Array<RegionalSpellingForm>;
+}
+
+export interface RegionalSpellingFlag {
+  span: Span;
+  sentence: number;
+  form: string;
+  word: string;
+  systems: Array<SpellingSystem>;
+  reason: RegionalSpellingReason;
+  dominantForm: string | null;
+  mode: Mode;
+}
+
+export interface RegionalSpellingReport {
+  markers: number;
+  systems: Array<SpellingSystemCount>;
+  dominant: Array<SpellingSystem>;
+  words: Array<RegionalSpellingWord>;
+  flags: Array<RegionalSpellingFlag>;
+}
+
+export type EmotionTellPattern = "predicate" | "object" | "subject";
+
+export interface EmotionTell {
+  span: Span;
+  emotion: Span;
+  verb: Span;
+  word: string;
+  pattern: EmotionTellPattern;
+  sentence: number;
+  mode: Mode;
+}
+
+export interface EmotionTellsGroup {
+  tells: number;
+  words: number;
+  perThousandWords: number | null;
+}
+
+export interface EmotionTellsReport {
+  tells: Array<EmotionTell>;
+  groups: Split<EmotionTellsGroup>;
+}
+
+export type QuotePunctuation = "inside" | "outside";
+export type Possessives = "apostropheS" | "apostropheOnly";
+export type TimeAbbreviations = "dotted" | "undotted";
+// Inputs are type aliases rather than interfaces: style-records-test.mjs checks every interface
+// against a result record.
+export type NumberCheck = {
+  spellOutThrough?: number;
+  agesAsNumerals?: boolean;
+  matchLarger?: boolean;
+};
+/** Options for `presetChecks`, and a preset's `checks`. Every check is off by default. */
+export type PresetChecks = {
+  numbers?: NumberCheck | null;
+  quotePunctuation?: QuotePunctuation | null;
+  possessives?: Possessives | null;
+  timeAbbreviations?: TimeAbbreviations | null;
+  familyTitles?: boolean;
+};
+
+export type PresetCheck = "numbers" | "quotePunctuation" | "possessives" | "timeAbbreviations" | "familyTitles";
+export interface PresetCheckMatch {
+  check: PresetCheck;
+  message: string;
+  span: Span;
+  mode: Mode;
+  replacement: string | null;
+}
+
+export interface PresetChecksReport {
+  matches: Array<PresetCheckMatch>;
+  counts: Split<number>;
+}
+
+export type ConsistencyPreferred = {
+  doubleQuotes?: "curly" | "straight";
+  singleQuotes?: "curly" | "straight";
+  apostrophes?: "curly" | "straight";
+  ellipses?: "character" | "periods" | "spacedPeriods";
+  dashes?: "emClosed" | "emSpaced" | "enSpaced" | "doubleHyphen" | "spacedHyphen";
+};
+
+/** A resolved style preset, as `loadStylePreset` and `parseStylePreset` return it. */
+export type StylePreset = {
+  format: 1;
+  name: string;
+  version?: string;
+  description?: string;
+  grammar: {
+    profile?: string;
+    /** Selector → on (true) or off (false); every false applies before every true. */
+    rules: Record<string, boolean>;
+    spellVariant?: string;
+  };
+  consistency: { minimumMinority: number; preferred: ConsistencyPreferred };
+  houseStyle: {
+    options: { skipDialogue: boolean };
+    /** Rule name → Vale rule. */
+    rules: Record<string, Record<string, unknown>>;
+    /** A Vale bundle as YAML or JSON text. */
+    vale?: string;
+  };
+  checks: PresetChecks;
+  /** How headings are capitalized; unset means Chicago-style headline case. */
+  titleCase?: TitleCaseStyle;
+};
+
+export interface PresetReport {
+  preset: string;
+  version: string | null;
+  consistency: ConsistencyReport;
+  houseStyle: HouseStyleReport;
+  checks: PresetChecksReport;
+}
+
+/** Options for `alliteration`. */
+export type AlliterationOptions = {
+  minimumWords?: number;
+  maximumGap?: number;
+  skipDialogue?: boolean;
+};
+
+/** `sound` is the shared first sound, a lowercase ARPAbet consonant label (`k`, `sh`, `jh`, …). */
+export interface AlliterationRun {
+  span: Span;
+  sound: string;
+  spans: Array<Span>;
+  words: Array<string>;
+  sentence: number;
+  mode: Mode;
+}
+
+export interface AlliterationGroup {
+  words: number;
+  runs: number;
+  perThousandWords: number;
+}
+
+export interface AlliterationReport {
+  runs: Array<AlliterationRun>;
+  groups: Split<AlliterationGroup>;
+}
+
+export type TitleCaseStyle = "chicago" | "ap" | "sentence";
+/** Options for `titleCase`. */
+export type TitleCaseOptions = {
+  style?: TitleCaseStyle;
+  skipNames?: Array<string>;
+};
+export type TitleCaseRule = "firstWord" | "lastWord" | "afterColon" | "majorWord" | "minorWord" | "sentenceCase";
+
+export interface TitleCaseMatch {
+  heading: number;
+  span: Span;
+  word: string;
+  replacement: string;
+  rule: TitleCaseRule;
+}
+
+export interface TitleCaseReport {
+  style: TitleCaseStyle;
+  headings: number;
+  flaggedHeadings: number;
+  matches: Array<TitleCaseMatch>;
+}
+
+export type VagueWordCategory = "filler" | "hedge" | "quantity" | "noun" | "adjective";
+
+export interface VagueWord {
+  span: Span;
+  sentence: number;
+  term: string;
+  category: VagueWordCategory;
+  mode: Mode;
+}
+
+export interface VagueWordTerm {
+  term: string;
+  category: VagueWordCategory;
+  count: number;
+  narration: number;
+  dialogue: number;
+}
+
+export interface VagueWordsGroup {
+  matches: number;
+  words: number;
+  perThousandWords: number | null;
+}
+
+export interface VagueWordsReport {
+  matches: Array<VagueWord>;
+  terms: Array<VagueWordTerm>;
+  groups: Split<VagueWordsGroup>;
+}
+
+export type HiddenVerbPattern = "lightVerb" | "ofPhrase";
+
+export interface HiddenVerb {
+  span: Span;
+  noun: Span;
+  lightVerb: Span | null;
+  nominalization: string;
+  term: string;
+  pattern: HiddenVerbPattern;
+  sentence: number;
+  mode: Mode;
+}
+
+export interface HiddenVerbTerm {
+  term: string;
+  nominalization: string;
+  count: number;
+  narration: number;
+  dialogue: number;
+}
+
+export interface HiddenVerbsGroup {
+  matches: number;
+  words: number;
+  perThousandWords: number | null;
+}
+
+export interface HiddenVerbsReport {
+  matches: Array<HiddenVerb>;
+  terms: Array<HiddenVerbTerm>;
+  groups: Split<HiddenVerbsGroup>;
 }

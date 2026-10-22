@@ -87,7 +87,7 @@ def copy_builtin_lt_files(out_dir, lt_dir, lang_code):
             logging.warning(f"{source} does not exist.")
 
 
-def copy_lt_files(out_dir, lt_dir, lang_code):
+def copy_lt_files(out_dir, lt_dir, lang_code, grammar_path=None, segment_path=None):
     tag_dir = out_dir / "tags"
     tag_dir.mkdir()
 
@@ -99,12 +99,15 @@ def copy_lt_files(out_dir, lt_dir, lang_code):
         (lt_resource_dir / "removed.txt", tag_dir / "removed.txt"),
         (lt_resource_dir / "disambiguation.xml", out_dir / "disambiguation.xml"),
         (lt_resource_dir / "multiwords.txt", tag_dir / "multiwords.txt",),
-        (lt_rule_dir / "grammar.xml", out_dir / "grammar.xml"),
+        (grammar_path or lt_rule_dir / "grammar.xml", out_dir / "grammar.xml"),
     ]:
         if source.exists():
             copyfile(source, dest)
         else:
             logging.warning(f"{source} does not exist.")
+
+    if segment_path is not None:
+        copyfile(segment_path, out_dir / "segment.srx")
 
     # copy from zipfiles
     for zipfile, source, dest in [
@@ -114,6 +117,8 @@ def copy_lt_files(out_dir, lt_dir, lang_code):
             out_dir / "segment.srx",
         )
     ]:
+        if dest.exists():
+            continue
         file = ZipFile(zipfile)
         with open(dest, "wb") as f:
             f.write(file.read(str(source)))
@@ -412,6 +417,18 @@ Only needed if the language requires a chunker (e. g. English).
         help="Paths to files containing a mapping from incorrect words to correct ones e.g. contractions.txt for English.",
     )
     parser.add_argument(
+        "--grammar_path",
+        default=None,
+        type=lambda p: Path(p).absolute(),
+        help="grammar.xml to use instead of the one in the LanguageTool release, e.g. the fork in build/lt-rules.",
+    )
+    parser.add_argument(
+        "--segment_path",
+        default=None,
+        type=lambda p: Path(p).absolute(),
+        help="segment.srx to use instead of the one in languagetool-core.jar, e.g. the fork in build/lt-rules.",
+    )
+    parser.add_argument(
         "--out_dir",
         type=lambda p: Path(p).absolute(),
         help="Directory to store the build files in.",
@@ -421,7 +438,9 @@ Only needed if the language requires a chunker (e. g. English).
     args.out_dir.mkdir(parents=True)
 
     write_freqlist(open(args.out_dir / "common.txt", "w"), args.lang_code)
-    copy_lt_files(args.out_dir, args.lt_dir, args.lang_code)
+    copy_lt_files(
+        args.out_dir, args.lt_dir, args.lang_code, args.grammar_path, args.segment_path
+    )
     copy_builtin_lt_files(args.out_dir, args.lt_dir, args.lang_code)
     write_false_friends(args.out_dir, args.lt_dir, args.lang_code)
 

@@ -1,0 +1,35 @@
+# Vague words and phrases written for writemorebetter by its contributors (MIT OR Apache-2.0, like
+# the engine). category<TAB>phrase. Each phrase's guard is in style/src/reports/vague_words.rs.
+hedge	sort of
+hedge	kind of
+hedge	a bit
+hedge	a little
+hedge	somewhat
+hedge	more or less
+hedge	in a way
+hedge	in some ways
+hedge	to some extent
+hedge	to a degree
+hedge	or something
+hedge	or so
+hedge	seem to
+quantity	a lot
+quantity	lots of
+quantity	a number of
+quantity	a great deal
+quantity	various
+quantity	numerous
+quantity	countless
+noun	thing
+noun	stuff
+adjective	nice
+adjective	interesting
+adjective	amazing
+adjective	awesome
+adjective	wonderful
+adjective	beautiful
+adjective	incredible
+adjective	fantastic
+adjective	terrific
+adjective	lovely
+adjective	weird

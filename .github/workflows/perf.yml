@@ -65,7 +65,9 @@ jobs:
           mkdir -p storage/66
           cargo run --release --all-features --bin compile -- --build-dir "$root/data/en-lt66" \
             --tokenizer-out "storage/66/en_tokenizer.bin" --rules-out "storage/66/en_rules.bin"
-          cargo build --release --manifest-path bench/tools/wmb-probe/Cargo.toml
+          # Probe features that call engine APIs newer than the merge base are off here;
+          # perf_ci.py never uses them, so both probes run the same code.
+          cargo build --release --no-default-features --manifest-path bench/tools/wmb-probe/Cargo.toml
       - name: Measure instructions, peak RSS and allocator calls against merge base
         run: |
           echo "Merge base: $BASE_COMMIT" >> "$GITHUB_STEP_SUMMARY"

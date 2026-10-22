@@ -25,7 +25,7 @@ TAG_FLAGS = ('other_speech_verb', 'non_speech_verb', 'manner_adverb', 'untagged_
 TAG_CONTEXT = ('tags', 'said_asked', 'unlisted_verb', 'beats')
 STAGES = ('document', 'sentence_length', 'sentence_starts', 'echoes', 'repeated_phrases', 'cliches',
           'dialogue_tags', 'overused_words', 'sensory_balance', 'diction', 'transitions', 'pronoun_starts',
-          'overused_sweep')
+          'overused_sweep', 'passive')
 FINE = ('subject', 'adverb', 'gerund', 'infinitive', 'subordinatingConjunction', 'coordinatingConjunction',
         'pastParticiple', 'inversion', 'introductory', 'other')
 UNIVERSAL = ('ADJ', 'ADP', 'ADV', 'CONJ', 'DET', 'NOUN', 'NUM', 'PRON', 'PRT', 'VERB', '.', 'X')
@@ -38,7 +38,8 @@ DISCOURSE_KEYS = (TRANSITION_TYPES + PRONOUN_KEYS + (
     'transitions', 'pronoun_starts', 'containing', 'opening', 'types', 'repeats', 'repeat_window', 'runs',
     'pronouns', 'other', 'sense_word_density', 'modality_percent', 'minimum_ratio', 'overused_ratio_sweep',
     'transitions_minimum_sentences', 'transitions_repeat_window', 'pronoun_starts_minimum_sentences',
-    'sensory_minimum_sense_words', 'overused_minimum_ratio'))
+    'sensory_minimum_sense_words', 'overused_minimum_ratio', 'passive', 'passives', 'per_hundred_sentences',
+    'passive_minimum_sentences'))
 LEXICAL_KEYS = ('overused_words', 'sensory_balance', 'diction', 'overused', 'occurrences', 'fillers',
                 'sense_words', 'modalities', 'sight', 'sound', 'touch', 'smell', 'taste',
                 'interoception', 'abstract_sentences', 'abstract_runs', 'rated_words', 'rating_sum', 'mean_rating',
@@ -525,6 +526,18 @@ def pronoun_starts(samples, defaults):
             'measures': measures}
 
 
+def passive(samples, defaults):
+    minimum = defaults.get('passive_minimum_sentences', 50)
+    measures = {}
+    for group in GROUPS:
+        sentences = lambda d, group=group: get(d, 'passive', 'groups', group, 'sentences')
+        passives = lambda d, group=group: get(d, 'passive', 'groups', group, 'passives')
+        measures[group] = {'eligible_share': measured_share(samples, minimum, sentences),
+                           'per_hundred_sentences': eligible_spread(samples, minimum, sentences, passives)}
+    return {'flags_per_1000_words': {'passives': mode_flags(samples, ('passive', 'passives'))},
+            'measures': measures}
+
+
 def section(samples, defaults, length_baseline, starts_baseline):
     return {'samples': len(samples), 'sample_words': spread([(author, words(data)) for author, data in samples]),
             'reports': {'sentence_length': sentence_length(samples, length_baseline, defaults),
@@ -533,6 +546,7 @@ def section(samples, defaults, length_baseline, starts_baseline):
                         'cliches': cliches(samples), 'dialogue_tags': dialogue_tags(samples),
                         'transitions': transitions(samples, defaults),
                         'pronoun_starts': pronoun_starts(samples, defaults),
+                        'passive': passive(samples, defaults),
                         **lexical_reports(samples, defaults)}}
 
 
@@ -638,6 +652,9 @@ def self_test(probe, started=None, diction=True):
     lexical = probe.measure('She glanced. ' * 6 + 'It was red. ' * 20 + 'It was very cold. ' * 3
                             + 'She just left. ' + ABSTRACT_TEXT)
     assert lexical['overused_words']['overused'] >= 1
+    passives = probe.measure('The door was closed. ' * 3 + 'She was tired. ' + '“I was followed.”')['passive']
+    assert passives['groups']['all'] == {'sentences': 5, 'passives': 4}
+    assert passives['passives'] == {'all': 4, 'narration': 3, 'dialogue': 1}
     assert lexical['overused_words']['fillers'] == 4
     assert lexical['sensory_balance']['modalities']['sight'] == 26
     assert lexical['sensory_balance']['modalities']['touch'] == 3
@@ -712,6 +729,7 @@ def self_test(probe, started=None, diction=True):
         assert reports['transitions']['flags_per_1000_words']['repeats']['narration']['flagged_share'] == 1
         assert reports['transitions']['measures']['all']['types']['contrast']['opening']['mean'] > 0
         assert reports['pronoun_starts']['measures']['all']['pronoun_starts']['mean'] > 0
+        assert reports['passive']['measures']['narration']['per_hundred_sentences']['samples'] > 0
         assert reports['sensory_balance']['measures']['narration']['modality_percent']['sight']['samples'] > 0
         assert set(reports['overused_words']['minimum_ratio']) == {'3', '4', '5', '6', '8'}
         assert numeric_only(result)

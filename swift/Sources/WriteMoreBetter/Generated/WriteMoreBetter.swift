@@ -587,6 +587,15 @@ public protocol CheckerProtocol: AnyObject, Sendable {
     func analyzeDocument(text: String, options: DocumentOptions?)  -> Document
     
     /**
+     * Applies a style preset's grammar settings: its profile, the rules it turns off and on, and its
+     * speller variant. `preset` is a built-in preset's name or a preset file (JSON). Every selector
+     * is checked first, so an unknown one throws and changes nothing. Returns how many rules went
+     * from off to on. Apply a preset to a checker constructed with `profile: ""`; to switch presets,
+     * construct another checker (profiles cannot be undone).
+     */
+    func applyPreset(preset: String) throws  -> UInt32
+    
+    /**
      * Checks `text` and returns every flagged span. See [`Suggestion`] for the offset units.
      */
     func check(text: String)  -> [Suggestion]
@@ -595,6 +604,16 @@ public protocol CheckerProtocol: AnyObject, Sendable {
      * Removes every word from the user dictionary.
      */
     func clearWords() 
+    
+    /**
+     * Enables rules that are off by default, such as LanguageTool's `picky` style rules, by the
+     * selector syntax profiles use (`"PLAIN_ENGLISH"`, `"STYLE/PASSIVE_VOICE"`,
+     * `"BUILTIN/EN_REDUNDANCY_REPLACE"`; see `docs/PROFILE.md`). It applies on top of the
+     * constructor's profile, so it can turn back on a rule the profile disabled. Returns how
+     * many rules changed from off to on. A selector that matches no rule throws and nothing is
+     * enabled. Changes apply to the next `check`.
+     */
+    func enableRules(selectors: [String]) throws  -> UInt32
     
     /**
      * Lists the mother tongues the rules binary has false-friend rules for, as sorted language
@@ -762,6 +781,23 @@ open func analyzeDocument(text: String, options: DocumentOptions?) -> Document  
 }
     
     /**
+     * Applies a style preset's grammar settings: its profile, the rules it turns off and on, and its
+     * speller variant. `preset` is a built-in preset's name or a preset file (JSON). Every selector
+     * is checked first, so an unknown one throws and changes nothing. Returns how many rules went
+     * from off to on. Apply a preset to a checker constructed with `profile: ""`; to switch presets,
+     * construct another checker (profiles cannot be undone).
+     */
+open func applyPreset(preset: String)throws  -> UInt32  {
+    return try  FfiConverterUInt32.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_method_checker_apply_preset(
+            self.uniffiCloneHandle(),
+        FfiConverterString.lower(preset),uniffiCallStatus
+    )
+})
+}
+    
+    /**
      * Checks `text` and returns every flagged span. See [`Suggestion`] for the offset units.
      */
 open func check(text: String) -> [Suggestion]  {
@@ -783,6 +819,24 @@ open func clearWords()  {try! rustCall() {
             self.uniffiCloneHandle(),uniffiCallStatus
     )
 }
+}
+    
+    /**
+     * Enables rules that are off by default, such as LanguageTool's `picky` style rules, by the
+     * selector syntax profiles use (`"PLAIN_ENGLISH"`, `"STYLE/PASSIVE_VOICE"`,
+     * `"BUILTIN/EN_REDUNDANCY_REPLACE"`; see `docs/PROFILE.md`). It applies on top of the
+     * constructor's profile, so it can turn back on a rule the profile disabled. Returns how
+     * many rules changed from off to on. A selector that matches no rule throws and nothing is
+     * enabled. Changes apply to the next `check`.
+     */
+open func enableRules(selectors: [String])throws  -> UInt32  {
+    return try  FfiConverterUInt32.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_method_checker_enable_rules(
+            self.uniffiCloneHandle(),
+        FfiConverterSequenceString.lower(selectors),uniffiCallStatus
+    )
+})
 }
     
     /**
@@ -917,9 +971,29 @@ public func FfiConverterTypeChecker_lower(_ value: Checker) -> UInt64 {
 public protocol StyleDocumentProtocol: AnyObject, Sendable {
     
     /**
+     * Returns manner adverbs in narration and speech.
+     */
+    func adverbsJson(optionsJson: String?) throws  -> String
+    
+    /**
+     * Returns the opt-in alliteration lens on the retained analysis; options default when omitted.
+     */
+    func alliterationJson(optionsJson: String?) throws  -> String
+    
+    /**
+     * Returns the opt-in clarity lens (sticky sentences, long subordinate clauses).
+     */
+    func clarityJson(optionsJson: String?) throws  -> String
+    
+    /**
      * Returns this report on the retained analysis; options default when omitted.
      */
     func clichesJson(optionsJson: String?) throws  -> String
+    
+    /**
+     * Returns the opt-in consistency lens on the retained analysis; options default when omitted.
+     */
+    func consistencyJson(optionsJson: String?) throws  -> String
     
     /**
      * Returns this report on the retained analysis; options default when omitted.
@@ -939,6 +1013,23 @@ public protocol StyleDocumentProtocol: AnyObject, Sendable {
     func echoesJson(optionsJson: String?) throws  -> String
     
     /**
+     * Returns the opt-in emotion-tells lens on the retained analysis; narration only by default.
+     */
+    func emotionTellsJson(optionsJson: String?) throws  -> String
+    
+    /**
+     * Returns the opt-in hidden-verbs lens on the retained analysis; each match names the related
+     * verb but never rewrites.
+     */
+    func hiddenVerbsJson(optionsJson: String?) throws  -> String
+    
+    /**
+     * Runs caller-supplied house-style rules on the retained analysis; options default when omitted.
+     * Rules: Vale-format YAML or JSON text; nil throws an invalid-rules error.
+     */
+    func houseStyleJson(optionsJson: String?, rules: String?) throws  -> String
+    
+    /**
      * Returns this report on the retained analysis; options default when omitted.
      * Baseline: omitted/null means bundled; "none" disables comparisons; otherwise pass a JSON object.
      */
@@ -951,8 +1042,36 @@ public protocol StyleDocumentProtocol: AnyObject, Sendable {
     
     /**
      * Returns this report on the retained analysis; options default when omitted.
+     * Baseline: omitted/null, "bundled" and "none" disable comparisons (no published band yet);
+     * "publicStandIn" selects the provisional public stand-in band; otherwise pass a JSON object.
+     */
+    func passiveJson(optionsJson: String?, baselineJson: String?) throws  -> String
+    
+    /**
+     * Runs the built-in preset checks; options are `PresetChecks` JSON (every check off by default).
+     */
+    func presetChecksJson(optionsJson: String?) throws  -> String
+    
+    /**
+     * Runs every report a style preset drives (consistency, house style, preset checks).
+     * `preset` is a built-in preset's name or a preset file (JSON); nil selects "chicago-fiction".
+     */
+    func presetJson(preset: String?) throws  -> String
+    
+    /**
+     * Returns this report on the retained analysis; options default when omitted.
      */
     func pronounStartsJson(optionsJson: String?) throws  -> String
+    
+    /**
+     * Returns the opt-in readability lens on the retained analysis; options default when omitted.
+     */
+    func readabilityJson(optionsJson: String?) throws  -> String
+    
+    /**
+     * Returns this report on the retained analysis; options default when omitted.
+     */
+    func regionalSpellingJson(optionsJson: String?) throws  -> String
     
     /**
      * Returns this report on the retained analysis; options default when omitted.
@@ -985,6 +1104,12 @@ public protocol StyleDocumentProtocol: AnyObject, Sendable {
      * Returns this report on the retained analysis; options default when omitted.
      */
     func transitionsJson(optionsJson: String?) throws  -> String
+    
+    /**
+     * Returns the opt-in vague-words lens on the retained analysis; narration and dialogue are
+     * counted separately.
+     */
+    func vagueWordsJson(optionsJson: String?) throws  -> String
     
 }
 open class StyleDocument: StyleDocumentProtocol, @unchecked Sendable {
@@ -1041,12 +1166,64 @@ open class StyleDocument: StyleDocumentProtocol, @unchecked Sendable {
 
     
     /**
+     * Returns manner adverbs in narration and speech.
+     */
+open func adverbsJson(optionsJson: String? = nil)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_method_styledocument_adverbs_json(
+            self.uniffiCloneHandle(),
+        FfiConverterOptionString.lower(optionsJson),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * Returns the opt-in alliteration lens on the retained analysis; options default when omitted.
+     */
+open func alliterationJson(optionsJson: String? = nil)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_method_styledocument_alliteration_json(
+            self.uniffiCloneHandle(),
+        FfiConverterOptionString.lower(optionsJson),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * Returns the opt-in clarity lens (sticky sentences, long subordinate clauses).
+     */
+open func clarityJson(optionsJson: String? = nil)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_method_styledocument_clarity_json(
+            self.uniffiCloneHandle(),
+        FfiConverterOptionString.lower(optionsJson),uniffiCallStatus
+    )
+})
+}
+    
+    /**
      * Returns this report on the retained analysis; options default when omitted.
      */
 open func clichesJson(optionsJson: String? = nil)throws  -> String  {
     return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
         uniffiCallStatus in
     uniffi_writemorebetter_swift_fn_method_styledocument_cliches_json(
+            self.uniffiCloneHandle(),
+        FfiConverterOptionString.lower(optionsJson),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * Returns the opt-in consistency lens on the retained analysis; options default when omitted.
+     */
+open func consistencyJson(optionsJson: String? = nil)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_method_styledocument_consistency_json(
             self.uniffiCloneHandle(),
         FfiConverterOptionString.lower(optionsJson),uniffiCallStatus
     )
@@ -1097,6 +1274,48 @@ open func echoesJson(optionsJson: String? = nil)throws  -> String  {
 }
     
     /**
+     * Returns the opt-in emotion-tells lens on the retained analysis; narration only by default.
+     */
+open func emotionTellsJson(optionsJson: String? = nil)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_method_styledocument_emotion_tells_json(
+            self.uniffiCloneHandle(),
+        FfiConverterOptionString.lower(optionsJson),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * Returns the opt-in hidden-verbs lens on the retained analysis; each match names the related
+     * verb but never rewrites.
+     */
+open func hiddenVerbsJson(optionsJson: String? = nil)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_method_styledocument_hidden_verbs_json(
+            self.uniffiCloneHandle(),
+        FfiConverterOptionString.lower(optionsJson),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * Runs caller-supplied house-style rules on the retained analysis; options default when omitted.
+     * Rules: Vale-format YAML or JSON text; nil throws an invalid-rules error.
+     */
+open func houseStyleJson(optionsJson: String? = nil, rules: String? = nil)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_method_styledocument_house_style_json(
+            self.uniffiCloneHandle(),
+        FfiConverterOptionString.lower(optionsJson),
+        FfiConverterOptionString.lower(rules),uniffiCallStatus
+    )
+})
+}
+    
+    /**
      * Returns this report on the retained analysis; options default when omitted.
      * Baseline: omitted/null means bundled; "none" disables comparisons; otherwise pass a JSON object.
      */
@@ -1126,11 +1345,80 @@ open func pacingJson(optionsJson: String? = nil)throws  -> String  {
     
     /**
      * Returns this report on the retained analysis; options default when omitted.
+     * Baseline: omitted/null, "bundled" and "none" disable comparisons (no published band yet);
+     * "publicStandIn" selects the provisional public stand-in band; otherwise pass a JSON object.
+     */
+open func passiveJson(optionsJson: String? = nil, baselineJson: String? = nil)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_method_styledocument_passive_json(
+            self.uniffiCloneHandle(),
+        FfiConverterOptionString.lower(optionsJson),
+        FfiConverterOptionString.lower(baselineJson),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * Runs the built-in preset checks; options are `PresetChecks` JSON (every check off by default).
+     */
+open func presetChecksJson(optionsJson: String? = nil)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_method_styledocument_preset_checks_json(
+            self.uniffiCloneHandle(),
+        FfiConverterOptionString.lower(optionsJson),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * Runs every report a style preset drives (consistency, house style, preset checks).
+     * `preset` is a built-in preset's name or a preset file (JSON); nil selects "chicago-fiction".
+     */
+open func presetJson(preset: String? = nil)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_method_styledocument_preset_json(
+            self.uniffiCloneHandle(),
+        FfiConverterOptionString.lower(preset),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * Returns this report on the retained analysis; options default when omitted.
      */
 open func pronounStartsJson(optionsJson: String? = nil)throws  -> String  {
     return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
         uniffiCallStatus in
     uniffi_writemorebetter_swift_fn_method_styledocument_pronoun_starts_json(
+            self.uniffiCloneHandle(),
+        FfiConverterOptionString.lower(optionsJson),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * Returns the opt-in readability lens on the retained analysis; options default when omitted.
+     */
+open func readabilityJson(optionsJson: String? = nil)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_method_styledocument_readability_json(
+            self.uniffiCloneHandle(),
+        FfiConverterOptionString.lower(optionsJson),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * Returns this report on the retained analysis; options default when omitted.
+     */
+open func regionalSpellingJson(optionsJson: String? = nil)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_method_styledocument_regional_spelling_json(
             self.uniffiCloneHandle(),
         FfiConverterOptionString.lower(optionsJson),uniffiCallStatus
     )
@@ -1212,6 +1500,20 @@ open func transitionsJson(optionsJson: String? = nil)throws  -> String  {
     return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
         uniffiCallStatus in
     uniffi_writemorebetter_swift_fn_method_styledocument_transitions_json(
+            self.uniffiCloneHandle(),
+        FfiConverterOptionString.lower(optionsJson),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * Returns the opt-in vague-words lens on the retained analysis; narration and dialogue are
+     * counted separately.
+     */
+open func vagueWordsJson(optionsJson: String? = nil)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_method_styledocument_vague_words_json(
             self.uniffiCloneHandle(),
         FfiConverterOptionString.lower(optionsJson),uniffiCallStatus
     )
@@ -2047,6 +2349,11 @@ enum CheckError: Swift.Error, Equatable, Hashable, Foundation.LocalizedError {
     )
     case ReportInput(message: String
     )
+    /**
+     * `enable_rules` named rule selectors that match no rule.
+     */
+    case UnknownSelectors(selectors: [String]
+    )
 
     
 
@@ -2097,6 +2404,9 @@ public struct FfiConverterTypeCheckError: FfiConverterRustBuffer {
         case 7: return .ReportInput(
             message: try FfiConverterString.read(from: &buf)
             )
+        case 8: return .UnknownSelectors(
+            selectors: try FfiConverterSequenceString.read(from: &buf)
+            )
 
          default: throw UniffiInternalError.unexpectedEnumCase
         }
@@ -2142,6 +2452,11 @@ public struct FfiConverterTypeCheckError: FfiConverterRustBuffer {
         case let .ReportInput(message):
             writeInt(&buf, Int32(7))
             FfiConverterString.write(message, into: &buf)
+            
+        
+        case let .UnknownSelectors(selectors):
+            writeInt(&buf, Int32(8))
+            FfiConverterSequenceString.write(selectors, into: &buf)
             
         }
     }
@@ -2485,6 +2800,52 @@ fileprivate struct FfiConverterDictionaryStringSequenceTypeTokenPosition: FfiCon
         return dict
     }
 }
+/**
+ * A built-in style preset by name, resolved to self-contained preset JSON.
+ */
+public func loadStylePresetJson(name: String)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_func_load_style_preset_json(
+        FfiConverterString.lower(name),uniffiCallStatus
+    )
+})
+}
+/**
+ * Validates a preset file (JSON), resolves its `extends`, and returns self-contained preset JSON.
+ */
+public func parseStylePresetJson(text: String)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_func_parse_style_preset_json(
+        FfiConverterString.lower(text),uniffiCallStatus
+    )
+})
+}
+/**
+ * The built-in style presets' names; the first, `"chicago-fiction"`, is the default.
+ */
+public func stylePresetNames() -> [String]  {
+    return try!  FfiConverterSequenceString.lift(try! rustCall() {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_func_style_preset_names(uniffiCallStatus
+    )
+})
+}
+/**
+ * Checks headings such as chapter titles against a title-case style; options are
+ * `TitleCaseOptions` JSON (Chicago-style headline case when nil). Returns `TitleCaseReport` JSON
+ * with UTF-16 spans into each heading.
+ */
+public func titleCaseJson(headings: [String], optionsJson: String? = nil)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_func_title_case_json(
+        FfiConverterSequenceString.lower(headings),
+        FfiConverterOptionString.lower(optionsJson),uniffiCallStatus
+    )
+})
+}
 
 private enum InitializationResult {
     case ok
@@ -2501,6 +2862,18 @@ private let initializationResult: InitializationResult = {
     if bindings_contract_version != scaffolding_contract_version {
         return InitializationResult.contractVersionMismatch
     }
+    if (uniffi_writemorebetter_swift_checksum_func_load_style_preset_json() != 6118) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_writemorebetter_swift_checksum_func_parse_style_preset_json() != 18265) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_writemorebetter_swift_checksum_func_style_preset_names() != 16914) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_writemorebetter_swift_checksum_func_title_case_json() != 12393) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_writemorebetter_swift_checksum_method_checker_add_words() != 62584) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -2510,10 +2883,16 @@ private let initializationResult: InitializationResult = {
     if (uniffi_writemorebetter_swift_checksum_method_checker_analyze_document() != 58231) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_writemorebetter_swift_checksum_method_checker_apply_preset() != 53913) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_writemorebetter_swift_checksum_method_checker_check() != 47217) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_method_checker_clear_words() != 32061) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_writemorebetter_swift_checksum_method_checker_enable_rules() != 55372) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_method_checker_mother_tongues() != 53045) {
@@ -2534,7 +2913,19 @@ private let initializationResult: InitializationResult = {
     if (uniffi_writemorebetter_swift_checksum_method_checker_words() != 61704) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_writemorebetter_swift_checksum_method_styledocument_adverbs_json() != 23195) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_writemorebetter_swift_checksum_method_styledocument_alliteration_json() != 13991) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_writemorebetter_swift_checksum_method_styledocument_clarity_json() != 41668) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_writemorebetter_swift_checksum_method_styledocument_cliches_json() != 60906) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_writemorebetter_swift_checksum_method_styledocument_consistency_json() != 23343) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_method_styledocument_dialogue_tags_json() != 30832) {
@@ -2546,13 +2937,37 @@ private let initializationResult: InitializationResult = {
     if (uniffi_writemorebetter_swift_checksum_method_styledocument_echoes_json() != 31563) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_writemorebetter_swift_checksum_method_styledocument_emotion_tells_json() != 218) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_writemorebetter_swift_checksum_method_styledocument_hidden_verbs_json() != 56138) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_writemorebetter_swift_checksum_method_styledocument_house_style_json() != 48244) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_writemorebetter_swift_checksum_method_styledocument_overused_words_json() != 59855) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_method_styledocument_pacing_json() != 10494) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_writemorebetter_swift_checksum_method_styledocument_passive_json() != 30217) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_writemorebetter_swift_checksum_method_styledocument_preset_checks_json() != 25905) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_writemorebetter_swift_checksum_method_styledocument_preset_json() != 24366) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_writemorebetter_swift_checksum_method_styledocument_pronoun_starts_json() != 24727) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_writemorebetter_swift_checksum_method_styledocument_readability_json() != 16718) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_writemorebetter_swift_checksum_method_styledocument_regional_spelling_json() != 28938) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_method_styledocument_repeated_phrases_json() != 39140) {
@@ -2571,6 +2986,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_method_styledocument_transitions_json() != 58172) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_writemorebetter_swift_checksum_method_styledocument_vague_words_json() != 15335) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_constructor_checker_new() != 1239) {

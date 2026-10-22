@@ -16,8 +16,8 @@ use writemorebetter_style::reports::repeated_phrases::{
     report as repeated_phrases, RepeatedPhraseOptions as PhraseOptions,
 };
 use writemorebetter_style::reports::{
-    diction, overused_words, pronoun_starts, sensory_balance, sentence_length, sentence_starts,
-    transitions, Split,
+    diction, overused_words, passive, pronoun_starts, sensory_balance, sentence_length,
+    sentence_starts, transitions, Split,
 };
 use writemorebetter_style::{analyze_document, DocumentOptions, Mode};
 
@@ -282,6 +282,7 @@ fn vocabulary(tokenizer: &nlprule::Tokenizer) -> Value {
             "transitions_minimum_sentences": transitions::TransitionsOptions::new().minimum_sentences,
             "transitions_repeat_window": transitions::TransitionsOptions::new().repeat_window,
             "pronoun_starts_minimum_sentences": pronoun_starts::PronounStartsOptions::new().minimum_sentences,
+            "passive_minimum_sentences": passive::PassiveOptions::new().minimum_sentences,
             "sensory_minimum_sense_words": sensory_balance::SensoryBalanceOptions::new().minimum_sense_words,
             "overused_minimum_ratio": overused_words::OverusedWordsOptions::new().minimum_ratio,
             "diction_abstract_below": diction_options.abstract_below,
@@ -396,6 +397,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let pronoun_report =
             pronoun_starts::report(&document, &pronoun_starts::PronounStartsOptions::new())?;
         lap("pronoun_starts", &mut timing);
+        let passive_report = passive::report(&document, &passive::PassiveOptions::new(), None)?;
+        lap("passive", &mut timing);
         let ratio_sweep: BTreeMap<String, Value> = OVERUSED_RATIOS
             .iter()
             .map(|&ratio| {
@@ -503,6 +506,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 "groups": split(&transition_report.groups, transitions_group),
                 "repeats": by_mode(transition_report.repeats.iter().map(|repeat| repeat.mode)),
                 "repeat_window": repeat_sweep,
+            },
+            "passive": {
+                "groups": split(&passive_report.groups, |group| json!({
+                    "sentences": group.sentences,
+                    "passives": group.passives,
+                })),
+                "passives": by_mode(passive_report.passives.iter().map(|found| found.mode)),
             },
             "pronoun_starts": {
                 "groups": split(&pronoun_report.groups, pronoun_group),

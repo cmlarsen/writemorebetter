@@ -14,8 +14,8 @@ numbers, each from its source doc:
 |---|---|
 | Grammar conformance (rules passing LanguageTool's embedded examples, of all 6,098 `<rule>` elements) | 5,977 / 6,098 = 98.0% — [`docs/FINDINGS.md`](docs/FINDINGS.md) |
 | Disambiguation conformance (rules passing their examples, of all 1,060 `<rule>` elements) | 1,012 / 1,060 = 95.5% — [`docs/FINDINGS.md`](docs/FINDINGS.md) |
-| Public stand-in corpus recall | 55 / 60 — [`docs/FINDINGS.md`](docs/FINDINGS.md) |
-| Private fiction corpus recall | 46 / 50 — [`docs/FINDINGS.md`](docs/FINDINGS.md) |
+| Public stand-in corpus recall | 60 / 60 — [`docs/FINDINGS.md`](docs/FINDINGS.md) |
+| Private fiction corpus recall | 50 / 50 — [`docs/FINDINGS.md`](docs/FINDINGS.md) |
 | Peak RSS, 150 KB of Moby-Dick, speller on | 100 MB — [`docs/FINDINGS.md`](docs/FINDINGS.md) |
 | vs. a local LanguageTool server | ~2.5× faster on a full novel at about a seventh of the memory; comparable on short documents — [`docs/FINDINGS.md`](docs/FINDINGS.md) |
 | Swift load / check | ~0.1 s load; ~110 ms per 1,000 words — [`swift/README.md`](swift/README.md) |
@@ -37,7 +37,7 @@ Add the package and the two LGPL data files ([below](#data-files-and-licensing))
 
 ```swift
 // Package.swift
-.package(url: "https://github.com/cmlarsen/writemorebetter", exact: "0.10.0"),
+.package(url: "https://github.com/cmlarsen/writemorebetter", exact: "0.11.0"),
 ```
 
 ```swift
@@ -196,3 +196,8 @@ under the same licenses; see [`NOTICE`](NOTICE). Compiled rule and dictionary da
 LanguageTool are LGPL-2.1 and ship as separate files (see
 [`binaries/README.md`](binaries/README.md)). writemorebetter is not affiliated with LanguageTool or
 LanguageTooler GmbH.
+
+The `style` crate bundles data tables under their own licenses, listed in [`NOTICE`](NOTICE) with
+the license texts in `style/data/licenses/`. Its syllable and initial-sound tables are derived from the CMU
+Pronouncing Dictionary (BSD-2-Clause-style): native, Swift and WASM builds that include the style
+reports must reproduce CMU's notice in their documentation; NOTICE has the text.

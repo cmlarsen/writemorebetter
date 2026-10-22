@@ -65,6 +65,9 @@ pub struct PronounStartsGroup {
     pub pronoun_starts: Share,
     pub pronouns: Vec<PronounStartsShare>,
     pub runs: Vec<PronounStartsRun>,
+    pub words: usize,
+    pub pronoun_words: Share,
+    pub word_pronouns: Vec<PronounStartsShare>,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -165,6 +168,77 @@ fn is_pronoun(tokens: &[&Token]) -> bool {
         || has(first, &["PRP", "WP"])
 }
 
+fn is_word_pronoun(token: &Token, previous: Option<&Token>) -> bool {
+    const FORMS: &[&str] = &[
+        "i",
+        "me",
+        "you",
+        "he",
+        "him",
+        "she",
+        "her",
+        "it",
+        "we",
+        "us",
+        "they",
+        "them",
+        "my",
+        "mine",
+        "your",
+        "yours",
+        "his",
+        "hers",
+        "its",
+        "our",
+        "ours",
+        "their",
+        "theirs",
+        "myself",
+        "yourself",
+        "yourselves",
+        "himself",
+        "herself",
+        "itself",
+        "ourselves",
+        "themselves",
+        "oneself",
+        "thou",
+        "thee",
+        "thy",
+        "thine",
+        "ye",
+    ];
+    let word = token.text.to_lowercase();
+    if !FORMS.contains(&word.as_str()) || token.text == "US" {
+        return false;
+    }
+    // The tagger keeps only the noun reading in "all mine", "both mine".
+    if word == "mine"
+        && previous
+            .is_some_and(|prior| matches!(prior.text.to_lowercase().as_str(), "all" | "both"))
+    {
+        return true;
+    }
+    // The tagger also leaves a possessive reading on the noun in "coal mine".
+    if word == "mine"
+        && previous.is_some_and(|prior| {
+            prior.readings.iter().any(|reading| {
+                matches!(
+                    sentence_starts::normalize_pos(&reading.pos),
+                    "NN" | "JJ" | "DT" | "PRP$"
+                )
+            })
+        })
+    {
+        return false;
+    }
+    token
+        .readings
+        .iter()
+        .any(|reading| matches!(sentence_starts::normalize_pos(&reading.pos), "PRP" | "PRP$"))
+        || matches!(word.as_str(), "thou" | "ye")
+}
+
 pub fn report(
     document: &Document,
     options: &PronounStartsOptions,
@@ -173,6 +247,20 @@ pub fn report(
         return Err(StyleError::needs_token_details("pronounStarts"));
     }
     let mut groups: Split<PronounStartsGroup> = Split::default();
+    let mut word_counts: Split<BTreeMap<String, usize>> = Split::default();
+    let word_totals = super::word_split(document);
+    for sentence in document.sentences() {
+        let mut previous = None;
+        for token in sentence.words() {
+            if is_word_pronoun(token, previous) {
+                let mode = document.mode_at(token.span.byte.start);
+                let word = token.text.to_lowercase();
+                *word_counts.all.entry(word.clone()).or_default() += 1;
+                *word_counts.mode_mut(mode).entry(word).or_default() += 1;
+            }
+            previous = Some(token);
+        }
+    }
     let mut starts = Vec::new();
     let mut run: Option<PronounStartsRun> = None;
     let mut runs = Vec::new();
@@ -264,6 +352,25 @@ pub fn report(
             .map(|(pronoun, count)| PronounStartsShare {
                 pronoun,
                 share: Share::new(count, eligible, enough, None),
+            })
+            .collect();
+        let words = match mode {
+            None => word_totals.all,
+            Some(Mode::Narration) => word_totals.narration,
+            Some(Mode::Dialogue) => word_totals.dialogue,
+        };
+        let word_counts = match mode {
+            None => &word_counts.all,
+            Some(Mode::Narration) => &word_counts.narration,
+            Some(Mode::Dialogue) => &word_counts.dialogue,
+        };
+        group.words = words;
+        group.pronoun_words = Share::new(word_counts.values().sum(), words, words > 0, None);
+        group.word_pronouns = word_counts
+            .iter()
+            .map(|(pronoun, &count)| PronounStartsShare {
+                pronoun: pronoun.clone(),
+                share: Share::new(count, words, words > 0, None),
             })
             .collect();
     }

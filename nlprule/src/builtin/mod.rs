@@ -74,6 +74,8 @@ pub enum Builtin {
     Dash(en::Dash),
     /// Flags a compound written as separate words, e.g. `"part time"`.
     Compounds(en::Compounds),
+    /// A narrow English word confusion adapted from Harper.
+    HarperConfusion(en::HarperConfusion),
 }
 
 impl Builtin {
@@ -102,6 +104,7 @@ impl Builtin {
             Builtin::SpecificCase(rule) => rule.id(),
             Builtin::Dash(rule) => rule.id(),
             Builtin::Compounds(rule) => rule.id(),
+            Builtin::HarperConfusion(rule) => rule.id(),
         }
     }
 
@@ -186,6 +189,9 @@ impl Builtin {
                 .iter()
                 .flat_map(|x| rule.check(x, speller))
                 .collect(),
+            Builtin::HarperConfusion(rule) => {
+                sentences.iter().flat_map(|x| rule.check(x)).collect()
+            }
         }
     }
 
@@ -308,6 +314,15 @@ impl BuiltinRule {
     /// Disables this rule.
     pub fn disable(&mut self) {
         self.enabled = false;
+    }
+
+    /// Whether this rule has a case named `case` that [`BuiltinRule::disable_case`] can turn off.
+    pub fn has_case(&self, case: &str) -> bool {
+        matches!(
+            (&self.builtin, case),
+            (Builtin::MultipleWhitespace(_), "INDENTATION")
+                | (Builtin::TooOftenUsed(_), "DIRECT_SPEECH")
+        )
     }
 
     /// Stops this rule from reporting one of its cases, named `case`, while it

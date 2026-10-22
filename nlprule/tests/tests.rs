@@ -576,6 +576,208 @@ fn apply_profile_disables_builtin_by_id() {
     assert!(!enabled(&rules));
 }
 
+/// Sources of the suggestions `rules` makes on `text`.
+fn sources(rules: &Rules, text: &str) -> Vec<String> {
+    rules
+        .suggest(text, &*TOKENIZER)
+        .iter()
+        .map(|suggestion| suggestion.source().to_owned())
+        .collect()
+}
+
+/// An off-by-default plain-English rule fires once enabled by `CATEGORY/RULE_ID`.
+#[test]
+fn enable_rules_enables_one_rule() {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    let text = "The plan, in my opinion, is sound.";
+    let fires = |rules: &Rules| {
+        sources(rules, text)
+            .iter()
+            .any(|source| source.starts_with("PLAIN_ENGLISH/IN_MY_OPINION"))
+    };
+    assert!(!fires(&rules));
+
+    assert!(
+        rules
+            .enable_rules(&["PLAIN_ENGLISH/IN_MY_OPINION"])
+            .unwrap()
+            > 0
+    );
+    assert!(fires(&rules));
+    // Enabling it again changes nothing.
+    assert_eq!(
+        rules
+            .enable_rules(&["PLAIN_ENGLISH/IN_MY_OPINION"])
+            .unwrap(),
+        0
+    );
+}
+
+/// A category selector enables every rule in the category.
+#[test]
+fn enable_rules_enables_a_category() {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    let category = Selector::try_from("PLAIN_ENGLISH").unwrap();
+    assert!(rules.select(&category).any(|rule| !rule.enabled()));
+
+    let enabled = rules.enable_rules(&["PLAIN_ENGLISH"]).unwrap();
+    assert!(enabled > 1);
+    assert!(rules.select(&category).all(|rule| rule.enabled()));
+}
+
+/// Unknown selectors are an error and nothing is enabled, including the valid ones.
+#[test]
+fn enable_rules_rejects_unknown_selectors() {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    let count = |rules: &Rules| {
+        rules.rules().iter().filter(|rule| rule.enabled()).count()
+            + rules
+                .builtins()
+                .iter()
+                .filter(|rule| rule.enabled())
+                .count()
+    };
+    let before = count(&rules);
+
+    let err = rules
+        .enable_rules(&[
+            "PLAIN_ENGLISH",
+            "NO_SUCH_CATEGORY",
+            "BUILTIN/NO_SUCH_BUILTIN",
+            // The case form only disables.
+            "BUILTIN/TOO_OFTEN_USED_NOUN_EN/DIRECT_SPEECH",
+        ])
+        .unwrap_err();
+    match err {
+        Error::UnknownSelectors(unmatched) => assert_eq!(
+            unmatched,
+            [
+                "NO_SUCH_CATEGORY",
+                "BUILTIN/NO_SUCH_BUILTIN",
+                "BUILTIN/TOO_OFTEN_USED_NOUN_EN/DIRECT_SPEECH"
+            ]
+        ),
+        other => panic!("unexpected error: {}", other),
+    }
+    assert_eq!(count(&rules), before);
+    // An empty list is fine and changes nothing.
+    assert_eq!(rules.enable_rules::<&str>(&[]).unwrap(), 0);
+}
+
+/// Enabling after the fiction profile turns back on what the profile disabled.
+#[test]
+fn enable_rules_after_fiction_profile() {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    assert!(rules.apply_profile(&Profile::fiction()).is_empty());
+    let redundancy = Selector::try_from("REDUNDANCY").unwrap();
+    assert!(rules.select(&redundancy).all(|rule| !rule.enabled()));
+
+    assert!(rules.enable_rules(&["REDUNDANCY"]).unwrap() > 0);
+    assert!(rules.select(&redundancy).all(|rule| rule.enabled()));
+    // Other rules the profile disabled stay off.
+    let quotes = Selector::try_from("TYPOGRAPHY/EN_QUOTES").unwrap();
+    assert!(rules.select(&quotes).all(|rule| !rule.enabled()));
+}
+
+/// Builtins are enabled by `BUILTIN/ID`; a case the profile skipped stays skipped.
+#[test]
+fn enable_rules_enables_builtins() {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    assert!(rules.apply_profile(&Profile::fiction()).is_empty());
+    let enabled = |rules: &Rules, id: &str| {
+        rules
+            .builtins()
+            .iter()
+            .find(|rule| rule.id() == id)
+            .unwrap()
+            .enabled()
+    };
+    assert!(!enabled(&rules, "EN_REDUNDANCY_REPLACE"));
+    assert!(!enabled(&rules, "TOO_OFTEN_USED_NOUN_EN"));
+    assert_eq!(
+        rules
+            .enable_rules(&[
+                "BUILTIN/EN_REDUNDANCY_REPLACE",
+                "BUILTIN/TOO_OFTEN_USED_NOUN_EN"
+            ])
+            .unwrap(),
+        2
+    );
+    assert!(enabled(&rules, "EN_REDUNDANCY_REPLACE"));
+    assert!(enabled(&rules, "TOO_OFTEN_USED_NOUN_EN"));
+}
+
+/// Enabled rules report UTF-16-safe spans on fiction punctuation: curly quotes, curly
+/// apostrophes, em dashes, ellipses and U+2028.
+#[test]
+fn enable_rules_fiction_punctuation() {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    rules
+        .enable_rules(&["PLAIN_ENGLISH", "STYLE/PASSIVE_VOICE", "REDUNDANCY"])
+        .unwrap();
+    let text = "\u{201c}It\u{2019}s, in my opinion, wrong\u{2026}\u{201d} she said\u{2014}quietly.\u{2028}The door was opened by Sam.";
+    let suggestions = rules.suggest(text, &*TOKENIZER);
+    let flagged = |prefix: &str| -> Vec<&str> {
+        suggestions
+            .iter()
+            .filter(|s| s.source().starts_with(prefix))
+            .map(|s| &text[s.span().byte().clone()])
+            .collect()
+    };
+    // Exact spans pin the offsets after the curly quote and apostrophe, and the
+    // passive after the ellipsis, the em dash and U+2028.
+    assert_eq!(
+        flagged("PLAIN_ENGLISH/IN_MY_OPINION/"),
+        vec!["in my opinion"]
+    );
+    assert_eq!(flagged("STYLE/PASSIVE_VOICE/"), vec!["was opened"]);
+    for suggestion in &suggestions {
+        let chars: String = text.chars().collect::<Vec<_>>()[suggestion.span().char().clone()]
+            .iter()
+            .collect();
+        assert_eq!(chars, &text[suggestion.span().byte().clone()]);
+    }
+}
+
+/// Enabling rules adds their matches and leaves every other rule's matches
+/// unchanged (#297).
+#[test]
+fn enable_rules_leaves_other_rules_matches_unchanged() {
+    let selectors = ["PLAIN_ENGLISH", "REDUNDANCY", "STYLE/PASSIVE_VOICE"];
+    let text = "\u{201c}It\u{2019}s, in my opinion, a absolute true fact,\u{201d} she said\u{2014}quietly. \
+                Their going to the the store\u{2026} The door was opened by Sam.\u{2028}\
+                He dont know what what to do. I seen it with my own eyes.";
+    for profile in [None, Some(Profile::fiction())] {
+        let mut rules = Rules::new(RULES_PATH).unwrap();
+        if let Some(profile) = &profile {
+            assert!(rules.apply_profile(profile).is_empty());
+        }
+        let others = |rules: &Rules| -> Vec<(String, std::ops::Range<usize>)> {
+            rules
+                .suggest(text, &*TOKENIZER)
+                .into_iter()
+                .filter(|s| {
+                    !["PLAIN_ENGLISH/", "REDUNDANCY/", "STYLE/PASSIVE_VOICE/"]
+                        .iter()
+                        .any(|prefix| s.source().starts_with(prefix))
+                })
+                .map(|s| (s.source().to_owned(), s.span().byte().clone()))
+                .collect()
+        };
+        let before = others(&rules);
+        assert!(before.len() >= 3, "{:?}", before);
+        let total_before = rules.suggest(text, &*TOKENIZER).len();
+        assert!(rules.enable_rules(&selectors).unwrap() > 0);
+        assert_eq!(
+            others(&rules),
+            before,
+            "profile {:?}",
+            profile.map(|p| p.name)
+        );
+        assert!(rules.suggest(text, &*TOKENIZER).len() > total_before);
+    }
+}
+
 #[test]
 fn spellchecker_works() -> Result<(), Error> {
     let mut rules = Rules::new(RULES_PATH).unwrap();
@@ -613,6 +815,21 @@ fn spellchecker_accepts_fiction_punctuation() {
     ] {
         assert_eq!(spelling_errors(text), Vec::<&str>::new(), "{}", text);
     }
+}
+
+#[test]
+fn spellchecker_ignores_words_with_digits() {
+    for text in &[
+        "\u{201c}Back in the 1860s\u{2014}or the \u{2019}80s\u{2014}nobody cared,\u{201d} she said.",
+        "The 75mm gun fired at 3:21pm\u{2026} then at 8:12pm.\u{2028}It was the 22nd.",
+        "He bought a 4k screen and a 443m cable for the FM-27s.",
+    ] {
+        assert_eq!(spelling_errors(text), Vec::<&str>::new(), "{}", text);
+    }
+    assert_eq!(
+        spelling_errors("\u{201c}The 1940s were teh worst,\u{201d} he said\u{2014}75mm recieved."),
+        vec!["teh", "recieved"]
+    );
 }
 
 #[test]
@@ -1586,6 +1803,85 @@ fn builtin_comma_flags_whitespace_before_full_stop() {
 }
 
 #[test]
+fn builtin_comma_ignores_spaced_ellipsis() {
+    for text in &[
+        "\u{201c}So . . . how was the drive?\u{201d}",
+        "She waited for an answer . . .",
+        "The radio crackled. \u{201c} . . . day. Mayday.\u{201d}",
+        "\u{201c}I just . . . couldn\u{2019}t\u{2014}not then.\u{201d}",
+        "He stopped. . . . Then he left.",
+        "Wait\u{2028}. . . and then what?",
+        "\u{201c}Wait\u{00a0}.\u{00a0}.\u{00a0}. what?\u{201d}",
+    ] {
+        assert!(
+            comma_flags(text).is_empty(),
+            "{:?}: {:?}",
+            text,
+            comma_flags(text)
+        );
+    }
+}
+
+#[test]
+fn builtin_comma_ignores_quote_spaced_from_ellipsis() {
+    for text in &[
+        "\u{201c}It will work. The trouble is . . . \u{201d}",
+        "\"What on earth . . . \" Mara whispered.",
+        "\u{201c}I thought . . . \u{201d} She stopped\u{2014}then went on.",
+        "She said \u{201c} . . . and then nothing\u{2019}s left.\u{201d}",
+        "\u{2018}Maybe . . . \u{2019}\u{2028}he said.",
+        "\u{201c}Yeah . . . ,\u{201d} Alan said.",
+        "\"Uh . . . , James\u{2014}no, Josh.\"",
+        "\"He said, 'Not now . . . ' \" she told me.",
+        "\u{201c}She called it \u{2018}the plan,\u{2019} \u{201d} he said.",
+        "\" 'Crossing the line.' I like that!\"",
+        "What sort of \u{201c} \u{2018}trouble\u{2019} \u{201d} sends you here?",
+    ] {
+        assert!(
+            comma_flags(text).is_empty(),
+            "{:?}: {:?}",
+            text,
+            comma_flags(text)
+        );
+    }
+    assert_eq!(
+        comma_flags("\"Well, I fixed the fence \"\n\"Then what?\""),
+        vec![(
+            " \"\n".to_string(),
+            vec!["\" ".to_string(), " \"".to_string()]
+        )]
+    );
+    assert_eq!(
+        comma_flags("He said \u{201c} hello \u{201d} to me . . . twice."),
+        vec![
+            (
+                " \u{201c} ".to_string(),
+                vec!["\u{201c} ".to_string(), " \u{201c}".to_string()]
+            ),
+            (
+                " \u{201d} ".to_string(),
+                vec!["\u{201d} ".to_string(), " \u{201d}".to_string()]
+            )
+        ]
+    );
+}
+
+#[test]
+fn builtin_comma_flags_full_stop_next_to_short_dot_run() {
+    assert_eq!(
+        comma_flags("It ended . Then . . . nothing."),
+        vec![(" .".to_string(), vec![".".to_string()])]
+    );
+    assert_eq!(
+        comma_flags("It ended . . Then it began."),
+        vec![
+            (" .".to_string(), vec![".".to_string()]),
+            (" .".to_string(), vec![".".to_string()])
+        ]
+    );
+}
+
+#[test]
 fn builtin_comma_flags_all_planted_public_errors() {
     // The four punctuation errors planted in the public corpus.
     assert_eq!(
@@ -2187,6 +2483,26 @@ fn builtin_uppercase_sentence_start_ignores_dialogue_tag_after_comma() {
         "\u{201c}I don\u{2019}t know,\u{201d} she said."
     )
     .is_empty());
+}
+
+#[test]
+fn builtin_uppercase_sentence_start_ignores_lowercase_after_spaced_ellipsis() {
+    for text in &[
+        "\u{201c}So . . . how was the drive?\u{201d}",
+        "\u{201c}Wait . . . and then what?\u{201d}",
+        "He stopped. . . . and then he left.",
+        "I just . . . couldn\u{2019}t\u{2014}not then.",
+    ] {
+        assert!(
+            builtin_uppercase_sentence_start_flags(text).is_empty(),
+            "{:?}",
+            text
+        );
+    }
+    assert_eq!(
+        builtin_uppercase_sentence_start_flags("He waited . . . Then she came. bad start."),
+        vec![("bad".to_string(), "Bad".to_string())]
+    );
 }
 
 #[test]
@@ -3138,6 +3454,186 @@ fn builtin_simple_replace_phrase_spans_curly_quoted_dialogue() {
         ),
         vec![("Sankt Moritz".to_string(), vec!["Saint Moritz".to_string()])]
     );
+}
+
+/// Runs EN_PLAIN_ENGLISH_REPLACE over `text` and returns the flagged text and
+/// `text` with each replacement applied on its own.
+fn plain_english_fixes(text: &str) -> Vec<(String, Vec<String>)> {
+    let sentences: Vec<_> = TOKENIZER.pipe(text).collect();
+    RULES
+        .builtins()
+        .iter()
+        .flat_map(|rule| rule.builtin().check_text(&sentences))
+        .filter(|suggestion| suggestion.source() == "BUILTIN/EN_PLAIN_ENGLISH_REPLACE")
+        .map(|suggestion| {
+            let span = suggestion.span().byte().clone();
+            let chars: Vec<char> = text.chars().collect();
+            let by_char: String = chars[suggestion.span().char().clone()].iter().collect();
+            assert_eq!(by_char, text[span.clone()], "char and byte spans agree");
+            let fixes = suggestion
+                .replacements()
+                .iter()
+                .map(|replacement| {
+                    format!(
+                        "{}{}{}",
+                        &text[..span.start],
+                        replacement,
+                        &text[span.end..]
+                    )
+                })
+                .collect();
+            (text[span].to_owned(), fixes)
+        })
+        .collect()
+}
+
+/// `[OMIT]` in the plain-English table means "delete the phrase". LanguageTool
+/// 6.6 suggests the marker literally; the builtin deletes the phrase and tidies
+/// the space and punctuation around it.
+#[test]
+fn builtin_plain_english_omit_deletes_the_phrase() {
+    let fixes = |text: &str| plain_english_fixes(text);
+    let owned = |items: &[&str]| items.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+
+    // Between paired commas: both commas go.
+    assert_eq!(
+        fixes("He was, as a matter of fact, late."),
+        vec![(
+            ", as a matter of fact,".to_owned(),
+            owned(&["He was, in fact, late.", "He was late."])
+        )]
+    );
+    // Mid-sentence before a word: the space after goes.
+    assert_eq!(
+        fixes("The plan as a whole failed."),
+        vec![("as a whole ".to_owned(), owned(&["The plan failed."]))]
+    );
+    // At the sentence start: the comma goes and the next word is capitalized.
+    assert_eq!(
+        fixes("As a whole, the plan failed."),
+        vec![("As a whole, t".to_owned(), owned(&["The plan failed."]))]
+    );
+    // Before the sentence end: the separator before goes.
+    assert_eq!(
+        fixes("She left early, as a matter of fact."),
+        vec![(
+            ", as a matter of fact".to_owned(),
+            owned(&["She left early, in fact.", "She left early."])
+        )]
+    );
+    // The offsets hold after an earlier sentence.
+    assert_eq!(
+        fixes("She left. The plan as a whole failed."),
+        vec![(
+            "as a whole ".to_owned(),
+            owned(&["She left. The plan failed."])
+        )]
+    );
+}
+
+#[test]
+fn builtin_plain_english_omit_handles_fiction_punctuation() {
+    let fixes = |text: &str| -> Vec<String> {
+        plain_english_fixes(text)
+            .into_iter()
+            .flat_map(|(_, fixes)| fixes)
+            .collect()
+    };
+    // Curly quotes around dialogue, and the sentence start inside them.
+    assert_eq!(
+        fixes("\u{201c}As a matter of fact, I didn\u{2019}t,\u{201d} she said."),
+        vec![
+            "\u{201c}In fact, I didn\u{2019}t,\u{201d} she said.",
+            "\u{201c}I didn\u{2019}t,\u{201d} she said.",
+        ]
+    );
+    assert_eq!(
+        fixes("\u{201c}It failed as a whole,\u{201d} she said."),
+        Vec::<String>::new(),
+        "no clean deletion before a comma mid-sentence"
+    );
+    assert_eq!(
+        fixes("\u{201c}It failed as a whole.\u{201d}"),
+        vec!["\u{201c}It failed.\u{201d}"]
+    );
+    // Curly apostrophes.
+    assert_eq!(
+        fixes("It\u{2019}s, as a matter of fact, Marta\u{2019}s coat."),
+        vec![
+            "It\u{2019}s, in fact, Marta\u{2019}s coat.",
+            "It\u{2019}s Marta\u{2019}s coat."
+        ]
+    );
+    // Closed-up em dashes leave one space; spaced ones leave the outer spaces.
+    assert_eq!(
+        fixes("The plan\u{2014}as a whole\u{2014}failed."),
+        vec!["The plan failed."]
+    );
+    assert_eq!(
+        fixes("The plan \u{2014} as a whole \u{2014} failed."),
+        vec!["The plan failed."]
+    );
+    assert_eq!(
+        fixes("She hesitated\u{2014}as a matter of fact."),
+        vec!["She hesitated\u{2014}in fact.", "She hesitated."]
+    );
+    // Ellipses.
+    assert_eq!(
+        fixes("She was late, as a matter of fact\u{2026}"),
+        vec!["She was late, in fact\u{2026}", "She was late\u{2026}"]
+    );
+    // A deletion never joins two lines across U+2028.
+    assert_eq!(
+        fixes("It failed as a whole\u{2028}and nobody came."),
+        vec!["It failed\u{2028}and nobody came."]
+    );
+    // No clean deletion: only the other replacements stay.
+    assert_eq!(
+        fixes("The plan, as a matter of fact\u{2014}failed."),
+        vec!["The plan, in fact\u{2014}failed."]
+    );
+}
+
+#[test]
+fn builtin_plain_english_never_suggests_the_omit_marker() {
+    let text = "As a whole, the plan failed. He was, as a matter of fact, late. \
+                The plan, as a whole\u{2014}failed. After all is said and done, we left.";
+    let sentences: Vec<_> = TOKENIZER.pipe(text).collect();
+    let suggestions: Vec<_> = RULES
+        .builtins()
+        .iter()
+        .flat_map(|rule| rule.builtin().check_text(&sentences))
+        .filter(|suggestion| suggestion.source() == "BUILTIN/EN_PLAIN_ENGLISH_REPLACE")
+        .collect();
+    assert!(suggestions.len() >= 4);
+    for suggestion in &suggestions {
+        assert!(!suggestion.message().contains("[OMIT]"), "{:?}", suggestion);
+        assert!(suggestion.message().contains("omit it"), "{:?}", suggestion);
+        assert!(
+            suggestion
+                .replacements()
+                .iter()
+                .all(|r| !r.contains("[OMIT]")),
+            "{:?}",
+            suggestion
+        );
+    }
+    let as_a_whole = suggestions
+        .iter()
+        .find(|suggestion| suggestion.message().starts_with("'As a whole'"))
+        .unwrap();
+    assert_eq!(
+        as_a_whole.message(),
+        "'As a whole' is a wordy or complex expression. In some cases, it might be \
+         preferable to omit it."
+    );
+    let matter_of_fact = suggestions
+        .iter()
+        .find(|suggestion| suggestion.message().starts_with("'as a matter of fact'"))
+        .unwrap();
+    assert!(matter_of_fact
+        .message()
+        .ends_with("preferable to use in fact or omit it."));
 }
 
 #[test]
@@ -5112,6 +5608,44 @@ fn fiction_profile_keeps_other_whitespace_flags() {
     );
 }
 
+/// Under the fiction profile every double space between words gets the builtin's message;
+/// LanguageTool's `CONSECUTIVE_SPACES` says the same thing in other words and is disabled.
+#[test]
+fn fiction_profile_reports_double_spaces_once() {
+    let text = "\u{201c}It was a  cold night\u{2014}the  coldest\u{2026}\u{201d} She didn\u{2019}t  move.\u{2028}He  waited.";
+    let flags = |name: &str| -> Vec<(String, String, String)> {
+        let mut rules = Rules::new(RULES_PATH).unwrap();
+        assert!(rules
+            .apply_profile(&Profile::by_name(name).unwrap())
+            .is_empty());
+        let chars: Vec<char> = text.chars().collect();
+        rules
+            .suggest(text, &TOKENIZER)
+            .into_iter()
+            .map(|suggestion| {
+                (
+                    chars[suggestion.span().char().clone()].iter().collect(),
+                    suggestion.source().to_owned(),
+                    suggestion.message().to_owned(),
+                )
+            })
+            .filter(|(flagged, _, _): &(String, _, _)| flagged.trim().is_empty())
+            .collect()
+    };
+
+    let builtin = |flagged: &str| {
+        (
+            flagged.to_owned(),
+            "BUILTIN/WHITESPACE_RULE".to_owned(),
+            "Possible typo: repeated spaces".to_owned(),
+        )
+    };
+    assert_eq!(flags("fiction"), vec![builtin("  "); 4]);
+    assert!(flags("default")
+        .iter()
+        .any(|(_, source, _)| source == "TYPOGRAPHY/CONSECUTIVE_SPACES/0"));
+}
+
 fn builtin_enabled(id: &str) -> bool {
     RULES
         .builtins()
@@ -6054,4 +6588,32 @@ fn word_statistics_builtins_check_text_as_a_whole() {
         ),
         Vec::<usize>::new()
     );
+}
+
+/// `unmatched_selectors` reports unknown selectors without changing any rule, and accepts the
+/// builtin case form only when asked to.
+#[test]
+fn unmatched_selectors_checks_without_changing_rules() {
+    let rules = Rules::new(RULES_PATH).unwrap();
+    let selectors = [
+        "STYLE/SERIAL_COMMA_ON",
+        "BUILTIN/WHITESPACE_RULE",
+        "BUILTIN/WHITESPACE_RULE/INDENTATION",
+        "BUILTIN/WHITESPACE_RULE/NO_SUCH_CASE",
+        "NO_SUCH_CATEGORY",
+    ];
+    assert_eq!(
+        rules.unmatched_selectors(&selectors, true),
+        ["BUILTIN/WHITESPACE_RULE/NO_SUCH_CASE", "NO_SUCH_CATEGORY"]
+    );
+    assert_eq!(
+        rules.unmatched_selectors(&selectors, false),
+        [
+            "BUILTIN/WHITESPACE_RULE/INDENTATION",
+            "BUILTIN/WHITESPACE_RULE/NO_SUCH_CASE",
+            "NO_SUCH_CATEGORY"
+        ]
+    );
+    let serial = Selector::try_from("STYLE/SERIAL_COMMA_ON").unwrap();
+    assert!(rules.select(&serial).all(|rule| !rule.enabled()));
 }

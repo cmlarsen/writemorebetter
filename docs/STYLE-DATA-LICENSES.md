@@ -252,3 +252,318 @@ If the Stanford user directory disappears, the author's website repository serve
 
 `pp_full.xml` holds 53 chapters and `pp_test.xml` holds the other 8 (19–26). Together they cover
 all 61 chapters and 1,750 quotes.
+
+## Wave 3 candidates (#296: #299, #300, #304, #307)
+
+Checked 2026-10-20 from each source itself: release archives and git objects at pinned commits,
+license files, READMEs, data-file comments and PR descriptions. Nothing is vendored by this check;
+each issue's PR vendors its own table and adds the NOTICE entry and the license text under
+`style/data/licenses/`. The standard is the one used above: a list's own origin must be permissive,
+not only its repository's license. Every usable source below stays in a separately loaded data file
+under its own license, never inlined into engine source.
+
+### Decisions
+
+| Source | Pin | License found | Origin of the content | Size | Decision |
+|---|---|---|---|---|---|
+| VarCon 2020.12.07 | SourceForge `wordlist/VarCon/2020.12.07/varcon-2020.12.07.tar.gz`, sha256 `3b0720c5718008f37c02658a83d51d5598dd86531f0a2206d410c854006cb184` (215,978 bytes); same files as en-wl/wordlist tag `rel-2020.12.07` → `5ef55f9c42730ebe4394a78b77855468a6f15dd2` | `README` "Copyright": Atkinson and Titze permissive notices, plus the Ispell BSD-style notice with clause 4 (advertising) removed | Ispell American/British lists, Garst R. Reese's Canadian list, then Atkinson's additions checked entry by entry against M-W and Oxford dictionaries; Titze's Australian data | `varcon.txt`: 7,165 clusters, 845,998 bytes | **usable with conditions** |
+| SCOWL v2 ("ESDB") variant data | en-wl/wordlist `v2` tag `rel-2026.02.25` → `7e99edab8e32f9f9ea2b15f249ca8d4d67237410` | `Copyright`: Atkinson permissive notice; AU (Titze) and UKACD sections apply depending on use; "the WordNet copyright MIGHT apply"; the VarCon/Ispell notice moved to `docs/sources.md` | VarCon, plus 12dicts, ENABLE2K, UKACD, WordNet 1.6 and COCA (under NDA) for sizes | `data/scowl-pre.txt` 15,613,777 bytes; ≈6,300 variant groups | **usable with conditions; VarCon preferred** |
+| Harper `regionalisms.rs` | Automattic/harper `v2.13.0` → `f4ebc61d77df1fc00b6aa8bc604e91af3534dad1` | `LICENSE`: Apache-2.0, "Copyright 2024 Automattic Inc."; no NOTICE file | Contributors' own knowledge, per PRs #1475, #1888, #2360, #2397, #3472, #3619; no outside list cited | 95 terms in 47 concepts, 24,022 bytes | **usable with conditions** |
+| Harper `boring_words.rs`, `hedging.rs`, `filler_words.rs` | same | same | Maintainer's own picks (no source stated); fillers from a transcript the contributor was checking (PR #1626) | 5 + 3 + 2 entries | **usable, not worth vendoring** |
+| CMUdict | cmusphinx/cmudict `74790861f652b15e4ac49015a90074ad62a27690` (no tags; successor to 0.7b) | `LICENSE`: BSD-2-Clause-style, © 1993–2015 Carnegie Mellon University; README asks that redistributors "acknowledge its origin" | CMU Speech Group and volunteers | `cmudict.dict` 126,052 headwords, 3,618,488 bytes, sha256 `81917843c7f44ce2b094ac63873c2c7a4cf802040792c455ba3ca406891c3d22` | **usable with conditions** |
+| Princeton WordNet 3.0 / 3.1 | `WordNet-3.0.tar.gz` sha256 `640db279c949a88f61f851dd54ebbb22d003f8b90b85267042ef85a3781d3a52`; `wn3.1.dict.tar.gz` sha256 `3f7d8be8ef6ecc7167d39b10d66954ec734280b5bdcd57f7d9eafe429d11c22a` | WordNet License (SPDX `WordNet`): any purpose, notice and disclaimer on all copies including modifications, no use of Princeton's name in advertising | Princeton lexicographers | 3.0: 428 `noun.feeling` synsets (771 lemmas), 17,741 noun→verb derivational pointers | **usable with conditions** |
+| Open English Wordnet 2025 | globalwordnet/english-wordnet release `2025-edition` → `dc343f2683279ecbb13fab4e2fd778d7b162d287`; `english-wordnet-2025.zip` sha256 `73355e48f8117a24ca9ebc23ed75b35434e6cd21cc9dd3984e80aff5a5f63636` | `LICENSE.md`: CC BY 4.0, "attribution is given to both Princeton WordNet and the Open English Wordnet team"; `WNDB_License.txt` repeats the Princeton notice | Fork of Princeton WordNet 3.1 | 107,519 synsets; 432 `noun.feeling` synsets | **usable with conditions; Princeton preferred** |
+| Roget's Thesaurus 1911 | Project Gutenberg #22 `pg22.txt` sha256 `b4ba0c94a1212c8f92245f2c408e7272a9b0b2dcc1613fb315c8a3e04e6cd3be`; #10681 `pg10681.txt` sha256 `20de698e5db9d5c8e9dc9a50e0c8be53483b14f4cb3d0c879bf85c6d17d32a12` (both edited in place by PG; fetched 2026-10-20) | "Public domain in the USA."; MICRA "makes no proprietary claims regarding this electronic version"; PG terms apply only if PG references are kept | #22 is MICRA's transcription of the 1911 edition "supplemented with over 1,000 words not present in the original"; #10681 is L. John Old's reformat of #22 | 1,043 numbered entries, 1,539,641 bytes | **usable with conditions** |
+| words/fillers | words/fillers tag 2.0.1 → `d1924b589e6b76d7cd8c4ee3c6d4859aadae8fc7` | `license`: MIT, © 2014 Titus Wormer | `data.txt` header names "Wikipedia" and mikpanko/expresso (`82b800f6`, MIT with the holder placeholder unfilled); all 80 expresso fillers are in the list, 3 entries are unattributed | 83 entries, 972 bytes | **usable with conditions** |
+| words/weasels | words/weasels tag 2.0.1 → `cf8212ec0df90730571b6891e511e0d19f6fc738` | MIT, © 2014 Titus Wormer | `data.txt` header names matt.might.net (no license), Wikipedia, grammar.about.com, changingminds.org (© Changing Works), melissajagears.com (©) | 116 entries, 1,207 bytes | **rejected** |
+| words/hedges | words/hedges tag 2.0.1 → `0e972f034671bc9fde086abd701a8a55adfd4e0c` | MIT, © 2014 Titus Wormer | `data.txt` header names ohEmily/HedgeCounter `ba029812` (no license; 98 of its 115 entries are here) and web pages including readwriteandedit.com ("All rights reserved") | 162 entries, 2,207 bytes | **rejected** |
+| NRC EmoLex | v0.92, <https://saifmohammad.com/WebPages/NRC-Emotion-Lexicon.htm> | "can be used freely for non-commercial research and educational purposes"; "Do not redistribute the data" | Mechanical Turk annotation by NRC | 14,182 words | **rejected: non-commercial, no redistribution** |
+| WordNet-Affect | distributed inside WordNet Domains 3.2 (FBK), no public pin | Conflicting: archived download page says CC BY 3.0 (2013–2024), but the download still requires an agreement whose text could not be retrieved; the earlier licence PDF says "limited to non-commercial use" | FBK annotation of WordNet 1.6 synsets | not downloaded | **rejected: license not verifiable** |
+| DepecheMood / DepecheMood++ | marcoguerini/DepecheMood `c12a1780a200b629a23c575ae5ae1977efbdd7c1` | No LICENSE file; README: "This resource can be used for research purposes." | Reader mood votes harvested from rappler.com and corriere.it news articles | DM 2014: 37,770 rows; DM++ English: 176K–285K rows | **rejected: research only, scraped news** |
+
+### VarCon 2020.12.07 (#299)
+
+- **Notices.** The `README` "Copyright" section (lines 526–582) has three notices: Kevin Atkinson's
+  ("Permission to use, copy, modify, distribute and sell this array, the associated software, and
+  its documentation for any purpose is hereby granted without fee, provided that the above
+  copyright notice appears in all copies and that both that copyright notice and this permission
+  notice appear in supporting documentation"), Benjamin Titze's (same text, for the Australian
+  data), and Geoff Kuenning's 1993 Ispell notice, which applies "since the original words lists
+  come from the Ispell distribution".
+- **Ispell conditions.** Retain the notice in source; reproduce it in the documentation of binary
+  redistributions; "All modifications to the source code must be clearly marked as such. Binary
+  redistributions based on modified source code must be clearly marked as modified versions in the
+  documentation"; Kuenning's name may not endorse derived products. The notice reads "(clause 4
+  removed with permission from Geoff Kuenning)", and the README changelog for revision 4.1 (2004)
+  records the removal. The removed clause was the advertising clause, so no advertising
+  acknowledgment is owed. Kuenning's permission is known only from Atkinson's statement.
+- **Origin.** Garst R. Reese's Canadian list carries no stated license; it is from about 2000 and
+  its entries have since been rechecked against dictionaries. The dictionaries were used to check
+  spelling facts, not copied as lists. `voc.tab` (vocabulary differences) cites web pages as
+  sources; use `varcon.txt` only.
+- **Conditions.** Ship all three notices verbatim in a license file and NOTICE, including in binary
+  documentation; mark the converted table as modified ("Derived from VarCon 2020.12.07; converted
+  and filtered by writemorebetter"); keep it in a separate data file.
+- **Not in the release.** `v1` has unreleased VarCon fixes from 2024-07-22; there is no later
+  release, so pin 2020.12.07. The README's `abbc.tab`, `variant-infl.tab` and `variant-wroot.tab`
+  are not in the tarball; "abbc" is the pre-5.0 name of `varcon.txt`, not a separate source.
+
+### SCOWL v2 / ESDB (#299 alternative)
+
+`v2` is now the default branch of en-wl/wordlist, renamed "English Speller Database" in `bc45348`
+(2026-05-08). Variant data lives in the spelling and variant-level fields of `data/scowl-pre.txt`,
+which the README says comes from "a far more complicated, and unreleased, process". The tag has no
+data release asset, and variant-level meanings changed after it (HEAD `1e5b7d3a`, "Swap variant
+level for archaic and uncommon variants"). Using it would mean the Atkinson ESDB notice, the Titze
+notice whenever `D` codes are used, the UKACD notice above size 80, the VarCon/Ispell notice, the
+WordNet notice to be safe, and a credit to Alan Beale's 12dicts. VarCon gives the same spelling
+variants with three notices and a fixed release.
+
+### Harper lists (#299, #307)
+
+- `harper-core/src/linting/regionalisms.rs` (sha256
+  `61a33117d615f59e09c252aea2337914312a4e2e3f1be456baaee8b8b6782566`) was created in PR #1475
+  (`bb84be83`, 2025-07-03) and grown in PRs #1624, #1888, #2360, #2397, #3429, #3472 and #3619. The
+  PRs cite no outside list; contributors added terms from their own knowledge ("popped into my
+  head", "watching an Australian YouTuber"). Dialects: American, British, Canadian, Australian,
+  Indian. Conditions: Apache-2.0 §4 — include the license text and the "Copyright 2024 Automattic
+  Inc." line, state that the table was converted and modified, record the commit. Review individual
+  rows before use (for example *duvet* is tagged Australian only, and *Xerox* is a trademark).
+- `boring_words.rs` (very, interesting, several, most, many), `hedging.rs` ("I would argue that",
+  ", so to speak", "to a certain degree") and `filler_words.rs` (uh, um) are Apache-2.0 with no
+  outside origin, but ten everyday entries are not worth an attribution chain.
+
+### CMUdict (#300, #307 alliteration)
+
+- `LICENSE` is BSD-2-Clause with a funding acknowledgment: "Redistributions of source code must
+  retain the above copyright notice … The contents of this file are deemed to be source code" and
+  "Redistributions in binary form must reproduce the above copyright notice … in the documentation
+  and/or other materials provided with the distribution." GitHub reports `NOASSERTION` because the
+  text is not a verbatim SPDX match. The `README` adds: "Use of this dictionary for any research or
+  commercial purpose is completely unrestricted."
+- The repository has no tags; `2f4c83d` (2014-11-20) is "Updates from cmudict-0.7b", and the last
+  change to `cmudict.dict` is `0f8072f8` (2024-12-17). Cite by commit, not as 0.7b.
+- **Size.** A syllable table (stress-marked phones per headword, minimum across variants) has
+  126,052 rows: 1,322,203 bytes as `word\tcount` TSV, 396,798 bytes gzipped. 1,715 headwords have
+  variants that disagree. A packed FST or trie would be smaller.
+- **Conditions.** Separate data file, `LICENSE` verbatim in `style/data/licenses/`, NOTICE entry
+  naming CMU and the commit, and the notice in the documentation of WASM and native builds that
+  embed it.
+- **Vendored by #300 phase 2 (2026-10-20).** `style/data/pronunciation/cmudict-syllables.tsv`:
+  syllable counts only (vowel phones of the first pronunciation), no phonemes, for the 8,437 of
+  125,159 keys the heuristic counter gets wrong; 92,749 bytes, 32,885 gzipped, instead of the
+  1.3 MB full table above. Built by `scripts/build-cmudict.py`, which pins the sha256 above. The
+  file header carries CMU's copyright line and marks it as modified; `LICENSE` is verbatim in
+  `style/data/licenses/cmudict.txt`; NOTICE has the entry with the full notice and says binary
+  redistributions must reproduce it; the root, `wasm/` and `swift/` READMEs point to it. The
+  release workflow ships `NOTICE` and `style/data/licenses/` inside the XCFramework and data
+  zips and attaches `NOTICE` as a release asset (#321 review).
+- **Vendored by #307 alliteration (2026-10-21).** `style/data/pronunciation/cmudict-onsets.tsv`:
+  each headword's first phoneme (first pronunciation; one lowercase ARPAbet consonant or `-` for
+  a vowel), never a whole pronunciation, for the 1,943 of 125,159 keys whose first sound the
+  spelling guess `spelled_onset` gets wrong; 20,888 bytes, 7,018 gzipped, instead of 1,324,850
+  (358,104) for every key. Same script, pinned file, header, license file and NOTICE entry as the
+  syllable table; CI's staleness check covers the whole `style/data/pronunciation/` directory.
+- **Cargo metadata.** `license = "MIT OR Apache-2.0"` on `writemorebetter-style`,
+  `writemorebetter-swift` and `writemorebetter-wasm` covers the code only; the crates also compile
+  in this table and the CC BY data above. Their `description` says so, but notice generators that
+  read only the `license` field (`cargo-about`, `cargo-deny`) will not list CMU or the CC BY
+  sources. Consumers building a notice screen add CMU's notice and the CC BY credits from
+  `NOTICE` by hand. #307's
+  alliteration table should be another output of the same script. See
+  [STYLE-READABILITY.md](STYLE-READABILITY.md#dictionary-phase-2).
+
+### Princeton WordNet 3.0 / 3.1 (#304, #307 hidden verbs)
+
+- **License** (`WordNet-3.0/LICENSE`; the same text heads every 3.1 `data.*` file): "Permission to
+  use, copy, modify and distribute this software and database and its documentation for any
+  purpose and without fee or royalty is hereby granted, provided that you agree to comply with the
+  following copyright notice and statements, including the disclaimer, and that the same appear on
+  ALL copies of the software, database and documentation, including modifications that you make
+  for internal use or for distribution." Princeton's name "may not be used in advertising or
+  publicity", and title to copyright stays with Princeton. The license page (read from the Wayback
+  snapshot of 2025-12-26 because the live page returned a Cloudflare 403) says WordNet "may be
+  used in commercial applications".
+- **Derived lists.** An emotion list (the `noun.feeling` lexicographer file, optionally combined
+  with the hyponyms of `feeling.n.01` and `emotion.n.01`) and noun↔verb derivational pairs are
+  modifications of the database, so the notice must travel with them and they cannot be relicensed
+  as MIT/Apache. The license is permissive and compatible with the engine's licenses; it only needs
+  the derived tables to be **separate data files** carrying `style/data/licenses/WordNet-LICENSE`
+  (verbatim, with the version line of the release used) and a NOTICE entry with the version,
+  tarball sha256, derivation, and the citation Princeton asks for (Miller 1995; Fellbaum 1998).
+  Don't use "WordNet" or "Princeton" in product names.
+- **3.0 vs 3.1.** The terms are the same. 3.1 is distributed as database files only, with no
+  separate LICENSE file and no `lexnames`; prefer 3.0 unless a 3.1 correction matters.
+
+### Open English Wordnet (#304, #307 alternative)
+
+Release `2025-edition` was re-uploaded after publication (assets re-uploaded 2026-02-04, files
+added 2026-06-26), so pin by asset sha256, not by tag. `LICENSE.md`: "This resource is derived from
+Princeton WordNet under the WordNet License and further developed under the Creative Commons
+Attribution 4.0 International License. You may share and adapt this resource providing attribution
+is given to both Princeton WordNet and the Open English Wordnet team." The release archives contain
+no standalone license file; both texts come from the repository at the pinned commit. It has
+`noun.feeling` (432 synsets) and derivation relations. It is usable with CC BY attribution plus the
+Princeton notice, but Princeton 3.0 needs one notice instead of two attribution chains, so it is the
+alternative, not the first choice.
+
+### Roget's Thesaurus 1911 (#304 fallback)
+
+- #22 is MICRA, Inc.'s electronic transcription (released 1991-12-01); #10681 (2004-04-01) is "Taken
+  from Project Gutenberg's #22" by L. John Old and drops MICRA's preface.
+- MICRA's preface: the text was "supplemented with over 1,000 words not present in the original
+  1911 edition" and "does not contain any material published commercially after 1911"; MICRA
+  "makes no proprietary claims regarding this electronic version … If the 1911 work is currently
+  public domain, this electronic version can also be treated as public domain." The additions are
+  not marked.
+- PG's license (section 1.C) does not restrict copying "as long as all references to Project
+  Gutenberg are removed"; keeping PG's name brings in its trademark terms.
+- **Conditions.** Derive from #22 with all PG references stripped, pin by sha256 and fetch date,
+  record the MICRA supplement and that public-domain status is confirmed for the US only. The 1911
+  editor is not named in either file, so non-US status is unverified. Filter obsolete (`|`-marked)
+  and foreign words before fiction-facing use.
+
+### words/fillers, words/weasels, words/hedges (#307)
+
+The READMEs credit no source, but each `data.txt` names its sources in `%` comments, unchanged since
+the first commit (2014-08).
+
+- **fillers: usable with conditions.** Its sources are Wikipedia and mikpanko/expresso, whose
+  `LICENSE.txt` is MIT with the placeholder "Copyright (c) <year> <copyright holders>" unfilled and
+  whose `static/corpora/fillers` (added by Mikhail Panko, `81e8c4a`, 2014-01-12) names no source.
+  Vendor only the 80 entries shared with expresso and credit Titus Wormer and expresso (Mikhail
+  Panko), both MIT. The 3 other entries are unattributed.
+- **weasels: rejected.** All 25 words of Matt Might's default list ("Shell scripts to improve your
+  writing", which has no license) are in it, in his order, alongside entries from copyrighted web
+  pages. write-good's weasel check comes from the `weasel-words` npm package (MIT), which says it is
+  "Based on this shell script" (Might's), so write-good does not clear it either.
+- **hedges: rejected.** Its main source, ohEmily/HedgeCounter, has no license, and the others are
+  web pages, one marked "All rights reserved".
+
+A vague-words list for #307 should be authored by this project's contributors, as
+`transitions.tsv` and `cognition.txt` were, plus the expresso-backed fillers.
+
+### Emotion lexicons (#304)
+
+- **NRC EmoLex v0.92: rejected.** "Copyright (C) 2011 National Research Council Canada (NRC)". The
+  terms read "can be used freely for non-commercial research and educational purposes", "Do not
+  redistribute the data", and "You may not rent or license the use of the lexicon nor otherwise
+  permit third parties to use it". Commercial use needs a license from NRC.
+- **WordNet-Affect: rejected (not verifiable).** wndomains.fbk.eu and hltdistributor.fbk.eu did not
+  respond on 2026-10-20. Archived `download.html` captures from 2013-12-16 to 2024-10-10 say
+  "WordNet Domains is licensed under a Creative Commons Attribution 3.0 Unported License" and that
+  the 3.2 distribution "includes WordNet Affect", but downloading still requires accepting an
+  agreement whose text could not be retrieved; earlier captures and `licenceWND.pdf` (2011) say
+  "limited to non-commercial use". It is also keyed to WordNet 1.6 synsets. Reconsider only if FBK
+  confirms CC BY 3.0 in writing.
+- **DepecheMood / DepecheMood++: rejected.** No LICENSE file; the README says "This resource can be
+  used for research purposes" and `DepecheMood/README.txt` "freely available for research
+  purposes". The DM++ paper (arXiv 1810.03660) says the scores come from news articles and reader
+  "Mood Meter" votes "harvested" from rappler.com (53,226 articles, about 1.15M votes) and
+  corriere.it. A CC BY-NC-SA statement for the 2014 release could not be checked (the Internet
+  Archive was offline), but it would be non-commercial either way.
+
+### Recommended source per issue
+
+| Issue | Recommendation | Rejected or not preferred |
+|---|---|---|
+| #299 US/UK spelling | VarCon 2020.12.07 `varcon.txt`, three notices, marked modified; optionally Harper `regionalisms.rs` for vocabulary (Apache-2.0, US/UK/CA/AU rows only) | SCOWL v2/ESDB (more notices, no data release); VarCon `voc.tab` (web-page sources) |
+| #300 readability phase 2 | CMUdict `74790861` syllable-count table, heuristic fallback; vendored as the heuristic's 8,437 misses (92,749 bytes, 32,885 gzipped) | — |
+| #304 emotion tells | Lancaster norms (already vendored) ∩ Princeton WordNet 3.0 `noun.feeling` plus `feeling.n.01`/`emotion.n.01` hyponyms, as a separate file under the WordNet License; Roget 1911 (#22, PG references stripped) as fallback | NRC EmoLex, WordNet-Affect, DepecheMood; OEWN acceptable but needs two attribution chains |
+| #307 vague words | Project-authored list plus words/fillers' 80 expresso-backed entries | words/weasels, words/hedges (unlicensed origins); Harper boring/hedging/filler (usable but 10 entries) |
+| #307 hidden verbs | Princeton WordNet 3.0 noun→verb derivational pointers, separate file under the WordNet License | CatVar (OSL-1.1, per #307) |
+| #307 alliteration | CMUdict `74790861`, a second derived table from the same file as #300: each headword's first phoneme, vendored as the spelling guess's 1,943 misses (20,888 bytes, 7,018 gzipped) | — |
+
+#### Still unverified
+
+- Princeton's live license page (Cloudflare 403; the Wayback copy matches the tarball's `LICENSE`).
+- FBK's current WordNet Domains download agreement.
+- Whether the 2014 DepecheMood page stated a CC license.
+- The license of Garst R. Reese's Canadian list in VarCon's original table.
+- The 1911 Roget editor, and so its public-domain status outside the US.
+
+## Regional spelling (#299)
+
+Vendored 2026-10-20 under the conditions recorded in the wave 3 check (#316).
+
+| Source | Pin | License | Decision |
+|---|---|---|---|
+| VarCon 2020.12.07 | `varcon-2020.12.07.tar.gz` from SourceForge `wordlist/VarCon/2020.12.07/`, sha256 `3b0720c5718008f37c02658a83d51d5598dd86531f0a2206d410c854006cb184`; `varcon.txt` inside it sha256 `340858b990255ec409adcf7faaf2b992aa2a76a16f30b4b9e2663863191dba33` | `README` "Copyright": Kevin Atkinson's and Benjamin Titze's permissive notices and Geoff Kuenning's 1993 Ispell notice (clause 4 removed) | **vendored as a modified, derived table** |
+| Harper `regionalisms.rs` | Automattic/harper `f4ebc61d77df1fc00b6aa8bc604e91af3534dad1` (v2.13.0) | Apache-2.0 | **not vendored** |
+
+- `style/data/spelling/regional.txt` (153,303 bytes, 5,308 rows, 10,689 spellings) is built by
+  `scripts/build-regional-spelling.py` from the archive, which checks both hashes. Only
+  `varcon.txt` is read; `voc.tab` cites web pages and is not used.
+- **Modified version.** The table's header and `style/data/licenses/varcon.txt` say "derived from
+  VarCon 2020.12.07; converted and filtered by writemorebetter", as Ispell clause 3 requires for
+  modified source and binary redistributions. The changes: clusters at SCOWL level 70 or below;
+  lowercase single words without apostrophes; American (`A`), British -ise (`B`) and British -ize
+  (`Z`) categories only, applying VarCon's rule that `B` implies `Z` when a line has no `Z` tag;
+  a spelling accepts a system when tagged preferred, equal (`.`) or variant (`v`); usages marked
+  rare or archaic (`(-)`) ignored; each spelling marked with the union of systems over all its
+  usages, and `~` where usages differ; rows whose spellings all suit the same systems dropped.
+- **Notices.** All three notices are reproduced verbatim in `style/data/licenses/varcon.txt` and
+  NOTICE, so they ship in source and in binary documentation (Ispell clauses 1 and 2). NOTICE says
+  the authors do not endorse writemorebetter (clause 5).
+- **Harper regionalisms** are usable (Apache-2.0, contributors' own knowledge) but not vendored:
+  most of the vocabulary pairs are ordinary American words in another sense (*pavement*, *lift*,
+  *flat*, *boot*, *jumper*), so flagging them needs word-sense information the report does not
+  have, and the 95 terms would add an attribution chain for a lower-confidence category. Revisit
+  with a sense filter.
+
+## Emotion lexicon (#304)
+
+| File | Source | Version | License | Checked |
+|---|---|---|---|---|
+| `style/data/emotions/emotions.tsv` | Princeton WordNet 3.0, <https://wordnetcode.princeton.edu/3.0/WordNet-3.0.tar.gz> | release 3.0; sha256 `640db279c949a88f61f851dd54ebbb22d003f8b90b85267042ef85a3781d3a52`, 11,537,239 bytes | WordNet License (SPDX `WordNet`) | 2026-10-20 |
+
+Vendored as the [Princeton WordNet 3.0 decision](#princeton-wordnet-30--31-304-307-hidden-verbs)
+above requires: a separate data file, never inlined into engine source, with the copyright line
+in its header, `style/data/licenses/WordNet-LICENSE` copied verbatim from the tarball's `LICENSE`
+(including its "WordNet Release 3.0" version line), and a NOTICE entry with the version, sha256,
+derivation and Princeton's requested citation (Miller 1995; Fellbaum 1998). The table is not
+relicensed: the style crate's MIT/Apache license covers its code, not this file. The Lancaster
+norms are used only as a filter (dominant interoception), so no Lancaster values are copied into
+the table. They remain credited under CC BY 4.0.
+
+**Derivation.** `scripts/build-emotion-lexicon.py` reads the tarball in place, checks the sha256
+and rebuilds the table byte for byte: 760 lemmas (438 nouns, 235 adjectives, 112 verbs whose
+participle names a feeling). It takes `noun.feeling` plus the hyponyms of `feeling.n.01` and
+`emotion.n.01`, those nouns' derived and attribute adjectives with their satellites, and
+`verb.emotion` or noun-derived verbs with frame 10. It keeps a lemma when its most frequent sense
+is in that set or the bundled Lancaster table rates it dominantly interoceptive, then applies
+reviewed inclusion and exclusion lists. Every lemma comes from WordNet. Details:
+[STYLE-EMOTION-TELLS.md](STYLE-EMOTION-TELLS.md#lexicon).
+
+## Vague words and hidden verbs (#307)
+
+| File | Source | Version | License | Checked |
+|---|---|---|---|---|
+| `style/data/hidden-verbs/nominalizations.tsv` | Princeton WordNet 3.0, <https://wordnetcode.princeton.edu/3.0/WordNet-3.0.tar.gz> | release 3.0; sha256 `640db279c949a88f61f851dd54ebbb22d003f8b90b85267042ef85a3781d3a52` | WordNet License (SPDX `WordNet`) | 2026-10-21 |
+| `style/data/vague/fillers.txt` | words/fillers `data.txt`, <https://github.com/words/fillers>; mikpanko/expresso `corpora/fillers`, <https://github.com/mikpanko/expresso> | words/fillers tag 2.0.1 → `d1924b589e6b76d7cd8c4ee3c6d4859aadae8fc7`, `data.txt` sha256 `d35af8f76a8989a0fa96ae20a784a20561838008bc90bf32033c8cc57c15d4af`; expresso `2d58bbbcda716ba1e3acc4615c522ad538effe06` (last commit with the file), sha256 `011f59dc812b0d7b92a3937ce1d4f092605211ea32e422dd6ead65e6a49e4c03` | MIT (Titus Wormer, 2014); MIT (expresso, copyright line unfilled) | 2026-10-21 |
+| `style/data/vague/vague-words.tsv` | written for this project | — | MIT OR Apache-2.0 | 2026-10-21 |
+
+- **Hidden verbs.** Vendored as the [Princeton WordNet 3.0 decision](#princeton-wordnet-30--31-304-307-hidden-verbs)
+  requires, in the same way as the emotion lexicon: a separate data file with the copyright line
+  in its header, the existing `style/data/licenses/WordNet-LICENSE` (verbatim from the release, so
+  its text is unchanged), and the existing NOTICE entry, which now names both WordNet-derived
+  files and describes both derivations. The table is not relicensed. `scripts/build-hidden-verbs.py`
+  derives it from WordNet's noun→verb derivational pointers alone; no CatVar (OSL-1.1) or other
+  source is used. It reads `emotions.tsv` only to leave its nouns out. Details:
+  [STYLE-HIDDEN-VERBS.md](STYLE-HIDDEN-VERBS.md#table).
+- **Fillers.** Only the 80 words/fillers entries that expresso also lists are vendored, as the
+  [wave 3 check](#wordsfillers-wordsweasels-wordshedges-307) requires; the three unattributed
+  entries (*amazing*, *stuff*, *things*) are dropped by `scripts/build-filler-words.py`, which
+  checks both files' sha256s. expresso deleted `corpora/fillers` in `e4ee555` (2018); the pinned
+  commit is its parent. The file is Mikhail Panko's 2014 list: 79 words from `81e8c4a`
+  (2014-01-12) plus *too* from `55d0ae8` (2014-01-25), and no later change. Both MIT notices are
+  reproduced in `style/data/licenses/fillers.txt` and NOTICE credits Titus Wormer and Mikhail
+  Panko. words/hedges and words/weasels stay rejected; nothing from them is used.
+- **Project list.** `vague-words.tsv` was written by this project's contributors, as
+  `transitions.tsv` and `cognition.txt` were. *amazing* and *stuff* are in it as two of the
+  commonest vague words, chosen independently; single common words are not a selection taken from
+  words/fillers, whose other unattributed entry (*things*) is matched only as the lemma *thing*.
+  Seven of its common phrases also appear in the rejected lists (*sort of*, *kind of*, *a bit*,
+  *somewhat* and *more or less* in words/hedges; *a lot* and *various* in words/weasels). They were
+  chosen independently, as the ordinary English for hedging and vague amounts, not taken from those
+  lists.

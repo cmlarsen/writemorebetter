@@ -4,6 +4,11 @@ Copyright (c) 2026 Caleb Larsen
 This project includes code from nlprule (https://github.com/bminixhofer/nlprule),
 Copyright (c) 2020-2021 Benjamin Minixhofer, licensed under MIT OR Apache-2.0.
 
+Selected English confusion builtin patterns are adapted from Harper
+(https://github.com/Automattic/harper/tree/master/harper-core/src/linting),
+commit 37d344cd6e41b0465f542d6a477483f26a734001. Copyright (c) Harper
+contributors, licensed under Apache-2.0.
+
 srx/ is vendored from the srx crate 0.1.4 (https://github.com/bminixhofer/srx),
 Copyright (c) Benjamin Minixhofer, licensed under MIT OR Apache-2.0, with
 modifications.
@@ -29,6 +34,15 @@ license text is in style/data/licenses/.
   2016 Titus Wormer, MIT License
   (style/data/licenses/retext-redundant-acronyms.txt). One acronym and expansion
   per line, converted from JavaScript to tab-separated text.
+- style/data/vague/fillers.txt: data.txt from words/fillers
+  (https://github.com/words/fillers) at tag 2.0.1, commit
+  d1924b589e6b76d7cd8c4ee3c6d4859aadae8fc7, Copyright (c) 2014 Titus Wormer, MIT
+  License, keeping only the 80 entries also in corpora/fillers of
+  mikpanko/expresso (https://github.com/mikpanko/expresso) at commit
+  2d58bbbcda716ba1e3acc4615c522ad538effe06, by Mikhail Panko, MIT License (its
+  copyright line is unfilled). Both notices are in
+  style/data/licenses/fillers.txt. One word per line, order unchanged
+  (scripts/build-filler-words.py).
 - style/data/cliches/proselint.txt and style/data/redundancy/proselint-ras.tsv:
   proselint/checks/cliches/hell.py and proselint/checks/redundancy/ras_syndrome.py
   from proselint (https://github.com/amperser/proselint) at commit
@@ -99,3 +113,144 @@ third-party dictionaries or rule resources.
 
 Transition inventory (style/data/transitions.tsv): written for writemorebetter, 2026.
 Copyright writemorebetter contributors; MIT OR Apache-2.0. No third-party list or rule data.
+
+style/data/spelling/regional.txt is derived from VarCon 2020.12.07 (Variant
+Conversion Info, http://wordlist.aspell.net/), Copyright 2000-2020 by Kevin
+Atkinson and Benjamin Titze, with word lists that originally come from the
+Ispell distribution, Copyright 1993 Geoff Kuenning. Source: varcon.txt from
+https://downloads.sourceforge.net/project/wordlist/VarCon/2020.12.07/varcon-2020.12.07.tar.gz
+(archive sha256 3b0720c5718008f37c02658a83d51d5598dd86531f0a2206d410c854006cb184,
+varcon.txt sha256 340858b990255ec409adcf7faaf2b992aa2a76a16f30b4b9e2663863191dba33).
+This is a modified version: derived from VarCon 2020.12.07; converted and
+filtered by writemorebetter (scripts/build-regional-spelling.py): American,
+British -ise and British -ize (Oxford) spellings of lowercase single words in
+clusters at SCOWL level 70 or below, each marked with the spelling systems that
+accept it. The full notices follow and are also in style/data/licenses/varcon.txt.
+Geoff Kuenning, Kevin Atkinson and Benjamin Titze do not endorse writemorebetter.
+
+Copyright 2000-2019 by Kevin Atkinson
+
+Permission to use, copy, modify, distribute and sell this array, the
+associated software, and its documentation for any purpose is hereby
+granted without fee, provided that the above copyright notice appears
+in all copies and that both that copyright notice and this permission
+notice appear in supporting documentation. Kevin Atkinson makes no
+representations about the suitability of this array for any
+purpose. It is provided "as is" without express or implied warranty.
+
+Copyright 2016 by Benjamin Titze
+
+Permission to use, copy, modify, distribute and sell this array, the
+associated software, and its documentation for any purpose is hereby
+granted without fee, provided that the above copyright notice appears
+in all copies and that both that copyright notice and this permission
+notice appear in supporting documentation. Benjamin Titze makes no
+representations about the suitability of this array for any
+purpose. It is provided "as is" without express or implied warranty.
+
+Since the original words lists come from the Ispell distribution:
+
+Copyright 1993, Geoff Kuenning, Granada Hills, CA
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions
+are met:
+
+1. Redistributions of source code must retain the above copyright
+   notice, this list of conditions and the following disclaimer.
+2. Redistributions in binary form must reproduce the above copyright
+   notice, this list of conditions and the following disclaimer in the
+   documentation and/or other materials provided with the distribution.
+3. All modifications to the source code must be clearly marked as
+   such.  Binary redistributions based on modified source code
+   must be clearly marked as modified versions in the documentation
+   and/or other materials provided with the distribution.
+(clause 4 removed with permission from Geoff Kuenning)
+5. The name of Geoff Kuenning may not be used to endorse or promote
+   products derived from this software without specific prior
+   written permission.
+
+THIS SOFTWARE IS PROVIDED BY GEOFF KUENNING AND CONTRIBUTORS ``AS IS'' AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ARE DISCLAIMED.  IN NO EVENT SHALL GEOFF KUENNING OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+SUCH DAMAGE.
+
+style/data/emotions/emotions.tsv and style/data/hidden-verbs/nominalizations.tsv
+are derived from Princeton WordNet 3.0 (https://wordnet.princeton.edu/), release
+tarball WordNet-3.0.tar.gz (sha256
+640db279c949a88f61f851dd54ebbb22d003f8b90b85267042ef85a3781d3a52). WordNet 3.0
+Copyright 2006 by Princeton University. All rights reserved. They are used and
+modified under the WordNet License, whose full text, including the disclaimer,
+is in style/data/licenses/WordNet-LICENSE; the tables are not licensed MIT OR
+Apache-2.0. emotions.tsv, modified by writemorebetter: single-word lemmas of
+the noun.feeling synsets and the hyponyms of feeling.n.01 and emotion.n.01,
+adjectives derived from or attributes of those nouns and their satellites, and verbs whose
+participle names a feeling, filtered by WordNet's most frequent sense, by the
+Lancaster Sensorimotor Norms above (dominant interoception) and by reviewed
+inclusion and exclusion lists (scripts/build-emotion-lexicon.py).
+nominalizations.tsv, modified by writemorebetter: noun-verb pairs from WordNet's
+noun-to-verb derivational pointers, for single-word -tion, -sion, -ment, -ance,
+-ence, -al and -ure nouns formed from the verb's stem, in the noun.act,
+noun.cognition, noun.communication, noun.event, noun.process and noun.state
+files, filtered by sense rank and SemCor tag counts, minus a reviewed exclusion
+list and the nouns of emotions.tsv (scripts/build-hidden-verbs.py). Princeton
+asks that WordNet be cited as: George A. Miller (1995). WordNet: A Lexical
+Database for English. Communications of the ACM, 38(11), 39-41; and Christiane
+Fellbaum (1998, ed.). WordNet: An Electronic Lexical Database. Cambridge, MA:
+MIT Press. Princeton University does not endorse writemorebetter.
+
+style/data/pronunciation/cmudict-syllables.tsv and
+style/data/pronunciation/cmudict-onsets.tsv are derived from the CMU
+Pronouncing Dictionary (https://github.com/cmusphinx/cmudict, cmudict.dict at
+commit 74790861f652b15e4ac49015a90074ad62a27690, sha256
+81917843c7f44ce2b094ac63873c2c7a4cf802040792c455ba3ca406891c3d22), built by
+scripts/build-cmudict.py. Changes: syllable counts (the vowel phones of each
+headword's first pronunciation) and each headword's first phoneme only, never
+whole pronunciations; keys lowercased; only the words writemorebetter's
+heuristic syllable counter or spelling-based first-sound guess gets wrong. The
+tables are compiled into the writemorebetter-style crate and every native, Swift
+and WASM build that includes them; redistributions of those builds must reproduce the
+following notice (also in style/data/licenses/cmudict.txt) in their
+documentation or other materials:
+
+  Copyright (C) 1993-2015 Carnegie Mellon University. All rights reserved.
+
+  Redistribution and use in source and binary forms, with or without
+  modification, are permitted provided that the following conditions
+  are met:
+
+  1. Redistributions of source code must retain the above copyright
+     notice, this list of conditions and the following disclaimer.
+     The contents of this file are deemed to be source code.
+
+  2. Redistributions in binary form must reproduce the above copyright
+     notice, this list of conditions and the following disclaimer in
+     the documentation and/or other materials provided with the
+     distribution.
+
+  This work was supported in part by funding from the Defense Advanced
+  Research Projects Agency, the Office of Naval Research and the National
+  Science Foundation of the United States of America, and by member
+  companies of the Carnegie Mellon Sphinx Speech Consortium. We acknowledge
+  the contributions of many volunteers to the expansion and improvement of
+  this dictionary.
+
+  THIS SOFTWARE IS PROVIDED BY CARNEGIE MELLON UNIVERSITY ``AS IS'' AND
+  ANY EXPRESSED OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
+  THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+  PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL CARNEGIE MELLON UNIVERSITY
+  NOR ITS EMPLOYEES BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.

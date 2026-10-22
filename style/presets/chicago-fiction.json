@@ -1,0 +1,61 @@
+{
+  "format": 1,
+  "name": "chicago-fiction",
+  "version": "1.1.0",
+  "description": "US book conventions for fiction, modeled on The Chicago Manual of Style as we understand common practice. Not affiliated with or endorsed by the University of Chicago Press.",
+  "grammar": {
+    "profile": "fiction",
+    "rules": {
+      "STYLE/SERIAL_COMMA_ON": true
+    }
+  },
+  "consistency": {
+    "preferred": {
+      "doubleQuotes": "curly",
+      "singleQuotes": "curly",
+      "apostrophes": "curly",
+      "dashes": "emClosed"
+    }
+  },
+  "houseStyle": {
+    "rules": {
+      "Preset.Toward": {
+        "extends": "substitution",
+        "message": "Use '%s' instead of '%s'.",
+        "ignorecase": true,
+        "swap": {
+          "towards": "toward",
+          "afterwards": "afterward"
+        }
+      },
+      "Preset.OK": {
+        "extends": "substitution",
+        "message": "Use '%s' instead of '%s'.",
+        "ignorecase": true,
+        "swap": {
+          "okay": "OK",
+          "ok": "OK",
+          "o\\.k\\.": "OK"
+        }
+      },
+      "Preset.Meridiem": {
+        "extends": "substitution",
+        "message": "Use '%s' instead of '%s'.",
+        "swap": {
+          "A\\.M\\.": "a.m.",
+          "P\\.M\\.": "p.m."
+        }
+      }
+    }
+  },
+  "checks": {
+    "numbers": {
+      "spellOutThrough": 100
+    },
+    "quotePunctuation": "inside",
+    "possessives": "apostropheS",
+    "timeAbbreviations": "dotted",
+    "familyTitles": true
+  },
+  "titleCase": "chicago"
+}

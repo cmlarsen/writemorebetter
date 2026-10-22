@@ -1268,3 +1268,51 @@ regressions both require an inspected rebaseline. `--probe PATH` reuses an exist
 `transition_reports` example binary. The output under ignored `out/transitions-pronouns/` holds exact
 gold/prediction rows and aggregate measurements. See
 [definitions and limitations](../../docs/STYLE-TRANSITIONS.md).
+
+## Passive voice (#303)
+
+The flag-rate probe also runs the passive report with default options and reports `passive.groups.<mode>`
+`{sentences, passives}` and `passive.passives` by mode. Both are counts only, under the same key allowlist.
+The aggregate adds `reports.passive.measures.<mode>.per_hundred_sentences`, a distribution over
+windows with at least `passive_minimum_sentences` (50) sentences in that mode, and
+`flags_per_1000_words.passives`. `published_bands.py --passive` turns an aggregate into a baseline
+record. The public run below is shipped only as the opt-in stand-in
+`style/data/baselines/passive-public-stand-in.json`; the owner run on the published export becomes
+the default `style/data/baselines/passive.json`.
+
+The owner export was not available to #303, so the opt-in stand-in came from public text:
+
+```sh
+python3 bench/style/public_export.py /tmp/public-export
+python3 bench/style/run.py tier3 --flag-rates --export /tmp/public-export --skip-diction > public.json
+python3 bench/style/published_bands.py public.json --passive --dataset "…" --tool "…" --run-date … \
+    --output style/data/baselines/passive-public-stand-in.json
+```
+
+`public_export.py` lays out story1–5 (one author), unwrapped `moby150k` and the pinned *Pride and
+Prejudice* (all chapters) as 7 units from 3 authors. The numbers and caveats are in
+[STYLE-PASSIVE.md](../../docs/STYLE-PASSIVE.md#band-provisional-public-stand-in).
+
+## Emotion tells (#304)
+
+`python3 bench/style/emotion_tells.py score --gate` builds the `emotion_tells` probe, runs the report
+with default options over the public stories and the public-domain books and chapters pacing uses,
+and scores two hand-judged samples of its flags: `labels/emotion-tells.jsonl` (200 rows, seed 304,
+the development set) and `labels/emotion-tells-heldout.jsonl` (100 rows, seed 305, drawn after the
+last guards from flags not in the development set). Each row holds the tell, a short public-domain
+context window, the label and a note on false rows. A labeled flag the report no longer produces
+counts as dropped, not as a miss. The gate fails if either set's precision on kept flags falls
+below 0.85. `--write` updates `emotion-tells-baseline.json`. `sample` and `heldout` redraw the sets
+(unlabeled). Definitions, results and limitations are in
+[STYLE-EMOTION-TELLS.md](../../docs/STYLE-EMOTION-TELLS.md).
+
+## Vague words and hidden verbs (#307)
+
+`python3 bench/style/vague_hidden_verbs.py` builds the `vague_hidden_verbs` probe, runs both
+reports with default options over bench/public (story1–5 and `moby150k`) and prints matches, words
+and rates per 1,000 words for narration and dialogue, plus each report's commonest terms.
+`--books` adds the public-domain books and chapters pacing uses. `--sample N --report hiddenVerbs`
+(or `vagueWords`) `[--seed S]` prints N random matches with a short context window for hand
+judging; the samples behind the precision figures were judged in review and are not stored. Results
+are in [STYLE-VAGUE-WORDS.md](../../docs/STYLE-VAGUE-WORDS.md) and
+[STYLE-HIDDEN-VERBS.md](../../docs/STYLE-HIDDEN-VERBS.md).

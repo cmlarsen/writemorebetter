@@ -69,10 +69,31 @@ jobs:
 
       - name: Public corpus recall
         env:
-          RECALL_MIN: 55
+          RECALL_MIN: 60
         run: |
           cargo build --release --manifest-path bench/tools/wmb-probe/Cargo.toml
           python3 bench/tools/public_recall.py --min "$RECALL_MIN"
+
+      # The tables keep only the words the heuristic syllable counter and the spelling-based
+      # first-sound guess get wrong, so any change to either must regenerate them. The script
+      # refuses any other sha256.
+      - name: Cache CMUdict
+        uses: actions/cache@v4
+        with:
+          path: data/cache/cmudict
+          key: cmudict-74790861f652b15e4ac49015a90074ad62a27690
+
+      - name: CMUdict syllable and onset tables are current
+        run: |
+          mkdir -p data/cache/cmudict
+          dict=data/cache/cmudict/cmudict.dict
+          [ -f "$dict" ] || curl -sSfL -o "$dict" \
+            https://raw.githubusercontent.com/cmusphinx/cmudict/74790861f652b15e4ac49015a90074ad62a27690/cmudict.dict
+          python3 scripts/build-cmudict.py "$dict"
+          if ! git diff --exit-code style/data/pronunciation/; then
+            echo "::error::style/data/pronunciation/ is stale; run scripts/build-cmudict.py after changing the syllable heuristic or spelled_onset"
+            exit 1
+          fi
 
       - name: Cache public style datasets
         uses: actions/cache@v4
@@ -94,6 +115,7 @@ jobs:
           python3 bench/style/run.py tier3 --pacing --self-test --probe bench/tools/wmb-document/target/release/pacing
           python3 bench/style/pacing_labels.py check
           python3 bench/style/pacing_labels.py score --gate --probe bench/tools/wmb-document/target/release/pacing
+          python3 bench/style/emotion_tells.py score --gate
           python3 bench/style/run.py tier2 smoke
           python3 bench/style/transitions_pronouns.py --gate
           python3 bench/style/echoes.py --gate --probe bench/tools/wmb-document/target/release/wmb-echoes
@@ -142,8 +164,8 @@ jobs:
       - name: Grammar conformance
         env:
           RUST_LOG: WARN
-          GRAMMAR_PASSING: 6074
-          GRAMMAR_RUNNABLE: 6074
+          GRAMMAR_PASSING: 6085
+          GRAMMAR_RUNNABLE: 6085
         run: |
           # the binary exits 1 when any rule fails its examples; the floors below are the gate
           cargo run --release --all-features --bin test -- --tokenizer storage/en_tokenizer.bin --rules storage/en_rules.bin > storage/grammar_conformance.log 2>&1 || true

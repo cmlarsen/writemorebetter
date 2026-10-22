@@ -298,6 +298,33 @@ final class CheckerTests: XCTestCase {
         XCTAssertTrue(falseFriends().isEmpty)
     }
 
+    func testEnableRulesAfterProfile() throws {
+        let checker = try Checker(
+            tokenizerPath: Self.dataPath("en_tokenizer.bin"),
+            rulesPath: Self.dataPath("en_rules.bin")
+        )
+        let text = "\u{201C}It\u{2019}s, in my opinion, wrong\u{2026}\u{201D} she said\u{2014}quietly.\u{2028}It was a free gift."
+        let fired = { (prefix: String) in
+            checker.check(text: text).filter { $0.source.hasPrefix(prefix) }
+        }
+        XCTAssertTrue(fired("PLAIN_ENGLISH/").isEmpty, "plain-English rules are off by default")
+
+        let enabled = try checker.enableRules(selectors: ["PLAIN_ENGLISH/IN_MY_OPINION", "REDUNDANCY"])
+        XCTAssertGreaterThan(enabled, 1)
+        guard let opinion = fired("PLAIN_ENGLISH/IN_MY_OPINION").first else {
+            return XCTFail("IN_MY_OPINION did not fire once enabled")
+        }
+        XCTAssertTrue((text as NSString).substring(with: opinion.nsRange).contains("in my opinion"))
+        XCTAssertFalse(fired("REDUNDANCY/").isEmpty, "REDUNDANCY is back on after the fiction profile")
+
+        XCTAssertThrowsError(try checker.enableRules(selectors: ["NO_SUCH_CATEGORY"])) { error in
+            guard case let CheckError.UnknownSelectors(selectors) = error else {
+                return XCTFail("unexpected error: \(error)")
+            }
+            XCTAssertEqual(selectors, ["NO_SUCH_CATEGORY"])
+        }
+    }
+
     func testUnknownProfileThrows() throws {
         let tokenizer = try Self.dataPath("en_tokenizer.bin")
         let rules = try Self.dataPath("en_rules.bin")
@@ -419,6 +446,10 @@ final class CheckerTests: XCTestCase {
         let pacingText = try String(contentsOf: Self.repositoryRoot.appendingPathComponent("style/tests/fixtures/pacing.txt"), encoding: .utf8)
         let pacingDocument = try checker().styleDocument(text: pacingText)
         try roundTrip(PacingReport.self, pacingDocument.pacingJson())
+        let clarityText = try String(contentsOf: Self.repositoryRoot.appendingPathComponent("style/tests/fixtures/clarity.txt"), encoding: .utf8)
+        let clarityDocument = try checker().styleDocument(text: clarityText)
+        try roundTrip(ClarityReport.self, clarityDocument.clarityJson(optionsJson: "{\"minimumSentences\":1}"))
+        XCTAssertEqual(try clarityDocument.clarity().longClauses.first?.introducer, "who")
         try roundTrip(DocumentStats.self, document.statsJson())
         try roundTrip(EchoReport.self, document.echoesJson(optionsJson: nil))
         try roundTrip(RepeatedPhraseReport.self, document.repeatedPhrasesJson(optionsJson: nil))
@@ -430,9 +461,31 @@ final class CheckerTests: XCTestCase {
         let transitionDocument = try checker().styleDocument(text: transitionText)
         try roundTrip(TransitionsReport.self, transitionDocument.transitionsJson(optionsJson: "{\"minimumSentences\":1}"))
         try roundTrip(PronounStartsReport.self, transitionDocument.pronounStartsJson(optionsJson: "{\"minimumSentences\":1}"))
+        try roundTrip(ReadabilityReport.self, transitionDocument.readabilityJson(optionsJson: "{\"minimumSentences\":1}"))
+        try roundTrip(AdverbsReport.self, document.adverbsJson(optionsJson: nil))
         XCTAssertEqual(try transitionDocument.transitions().repeats.count, 1)
         XCTAssertEqual(try transitionDocument.pronounStarts().groups.narration.runs.count, 1)
         XCTAssertEqual(try transitionDocument.pronounStarts().groups.dialogue.runs.count, 1)
+        let consistencyText = try String(contentsOf: Self.repositoryRoot.appendingPathComponent("style/tests/fixtures/consistency-records.txt"), encoding: .utf8)
+        let consistencyDocument = try checker().styleDocument(text: consistencyText)
+        try roundTrip(ConsistencyReport.self, consistencyDocument.consistencyJson(optionsJson: nil))
+        XCTAssertTrue(try consistencyDocument.consistency().doubleQuotes.mixed)
+        XCTAssertEqual(try consistencyDocument.consistency().hyphenation.first?.word, "email")
+        let passiveText = try String(contentsOf: Self.repositoryRoot.appendingPathComponent("style/tests/fixtures/passive-records.txt"), encoding: .utf8)
+        let passiveDocument = try checker().styleDocument(text: passiveText)
+        try roundTrip(PassiveReport.self, passiveDocument.passiveJson(optionsJson: "{\"minimumSentences\":1}", baselineJson: nil))
+        let passive = try passiveDocument.passive(optionsJson: "{\"minimumSentences\":1}")
+        XCTAssertEqual(passive.groups.narration.passives, 2)
+        XCTAssertEqual(passive.groups.dialogue.passives, 2)
+        XCTAssertNil(passive.groups.all.band)
+        XCTAssertNotNil(try passiveDocument.passive(baseline: .passivePublicStandIn).groups.all.band)
+        let spellingText = try String(contentsOf: Self.repositoryRoot.appendingPathComponent("style/tests/fixtures/regional-spelling-records.txt"), encoding: .utf8)
+        let spellingDocument = try checker().styleDocument(text: spellingText)
+        try roundTrip(RegionalSpellingReport.self, spellingDocument.regionalSpellingJson(optionsJson: nil))
+        let spelling = try spellingDocument.regionalSpelling()
+        XCTAssertEqual(spelling.flags.map(\.form), ["focused", "color"])
+        XCTAssertEqual(spelling.flags.map(\.reason), [.form, .system])
+        XCTAssertEqual(spelling.dominant, [.british, .oxford])
         let normText = try String(contentsOf: Self.repositoryRoot.appendingPathComponent("style/tests/fixtures/norm-records.txt"), encoding: .utf8)
         let normDocument = try checker().styleDocument(text: normText)
         let table = "{\"hope\": 1.5, \"idea\": 1.6, \"freedom\": 1.3, \"lamp\": 4.8}"
@@ -482,4 +535,111 @@ final class CheckerTests: XCTestCase {
         XCTAssertThrowsError(try document.pacing(optionsJson: "{\"minimumParagraphs\":0}"))
     }
 
+
+    func testHouseStyleRules() throws {
+        let rules = try String(contentsOf: Self.repositoryRoot.appendingPathComponent("style/tests/fixtures/house-style/bundle.yml"), encoding: .utf8)
+        let text = "“Towards the door,” she said, walking towards it — sort of."
+        let document = try checker().styleDocument(text: text)
+        let report = try document.houseStyle(rules: rules)
+        XCTAssertEqual(report.rules, 4)
+        XCTAssertEqual(report.unsupported, [])
+        XCTAssertEqual(report.matches.map(\.rule), ["House.Toward", "House.Toward", "House.Hedging"])
+        XCTAssertEqual(report.matches[0].mode, .dialogue)
+        XCTAssertEqual(report.matches[0].replacement, "toward")
+        XCTAssertEqual((text as NSString).substring(with: report.matches[2].span.nsRange), "sort of")
+        let narration = try document.houseStyle(rules: rules, optionsJson: "{\"skipDialogue\":true}")
+        XCTAssertEqual(narration.matches.count, 2)
+        XCTAssertThrowsError(try document.houseStyleJson(optionsJson: nil, rules: nil)) { error in
+            guard case CheckError.ReportInput(let message) = error else { return XCTFail("unexpected error: \(error)") }
+            XCTAssertTrue(message.hasPrefix("invalid houseStyle rules"))
+        }
+    }
+
+    func testEmotionTellsLens() throws {
+        let text = "😀 “I’m afraid of heights,” he said. She was afraid—then angry.\u{2028}Fear washed over her."
+        let document = try checker().styleDocument(text: text)
+        let tells = try document.emotionTells()
+        XCTAssertEqual(tells.tells.map { (text as NSString).substring(with: $0.span.nsRange) }, ["was afraid", "Fear washed"])
+        XCTAssertEqual(tells.tells.map(\.pattern), [.predicate, .subject])
+        XCTAssertEqual(tells.groups.dialogue.tells, 0)
+        let withDialogue = try document.emotionTells(optionsJson: "{\"includeDialogue\":true}")
+        XCTAssertEqual(withDialogue.groups.dialogue.tells, 1)
+        let roundTrip = try JSONDecoder().decode(EmotionTellsReport.self, from: Data(document.emotionTellsJson().utf8))
+        XCTAssertEqual(roundTrip, tells)
+        XCTAssertThrowsError(try document.emotionTells(optionsJson: "{\"typo\":true}"))
+    }
+
+    func testStylePresets() throws {
+        XCTAssertEqual(StylePresets.names, ["chicago-fiction", "ap", "uk"])
+        let uk = try StylePresets.summary(StylePresets.load("uk"))
+        XCTAssertEqual(uk.name, "uk")
+        XCTAssertEqual(uk.version, "1.1.0")
+        XCTAssertEqual(uk.titleCase, .sentence)
+        XCTAssertEqual(try StylePresets.summary(StylePresets.load("ap")).titleCase, .ap)
+        let mine = try StylePresets.parse("{\"format\": 1, \"name\": \"mine\", \"extends\": \"ap\", \"checks\": {\"numbers\": null}}")
+        XCTAssertEqual(try StylePresets.summary(mine).name, "mine")
+        XCTAssertThrowsError(try StylePresets.parse("{\"format\": 1, \"name\": \"x\", \"colour\": 1}")) { error in
+            guard case CheckError.ReportInput(let message) = error else { return XCTFail("unexpected error: \(error)") }
+            XCTAssertTrue(message.hasPrefix("invalid style preset"))
+        }
+
+        let checker = try Checker(
+            tokenizerPath: Self.dataPath("en_tokenizer.bin"),
+            rulesPath: Self.dataPath("en_rules.bin"),
+            profile: ""
+        )
+        XCTAssertGreaterThan(try checker.applyPreset(preset: "ap"), 0)
+        let serial = checker.check(text: "We bought apples, pears, and plums.").map(\.source)
+        XCTAssertTrue(serial.contains { $0.hasPrefix("STYLE/SERIAL_COMMA_OFF") }, "\(serial)")
+
+        let text = "\u{201C}Mom, it\u{2019}s 7\u{2026}\u{201D} I said\u{2014}then James\u{2019} dad left.\u{2028}He called it \u{201C}art\u{201D}."
+        let document = try checker.styleDocument(text: text)
+        let report = try document.preset()
+        XCTAssertEqual(report.preset, "chicago-fiction")
+        XCTAssertEqual(report.checks.matches.map(\.check), [.numbers, .possessives, .quotePunctuation])
+        XCTAssertEqual((text as NSString).substring(with: report.checks.matches[0].span.nsRange), "7")
+        XCTAssertEqual(report.checks.matches[0].mode, .dialogue)
+        XCTAssertEqual(report.consistency.dashes.preferred, "emClosed")
+        let checks = try document.presetChecks(optionsJson: "{\"familyTitles\": true}")
+        XCTAssertEqual(checks.matches.count, 0)
+    }
+
+    func testAlliterationAndTitleCase() throws {
+        let text = "\u{201C}Please put the pail down,\u{201D} Peter pleaded patiently.\u{2028}She\u{2019}d seen seven swans\u{2014}so still\u{2026}"
+        let document = try checker().styleDocument(text: text)
+        let report = try document.alliteration()
+        XCTAssertEqual(report.runs.map(\.mode), [.dialogue, .narration, .narration])
+        XCTAssertEqual(report.runs.map(\.sound), ["p", "p", "s"])
+        XCTAssertEqual((text as NSString).substring(with: report.runs[2].span.nsRange), "seen seven swans\u{2014}so still")
+        XCTAssertEqual(report.groups.dialogue.runs, 1)
+        XCTAssertThrowsError(try document.alliteration(optionsJson: "{\"gap\":1}"))
+
+        let headings = ["Gone With the Wind", "\u{201C}Don\u{2019}t Look Back\u{201D}\u{2014}a Girl \u{2026} From\u{2028}the \u{1F30A} Sea"]
+        let chicago = try TitleCase.check(headings)
+        XCTAssertEqual(chicago.style, .chicago)
+        XCTAssertEqual(chicago.matches.map(\.word), ["With", "From"])
+        XCTAssertEqual((headings[1] as NSString).substring(with: chicago.matches[1].span.nsRange), "From")
+        XCTAssertEqual(chicago.matches[1].rule, .minorWord)
+        let ap = try TitleCase.check(headings, optionsJson: "{\"style\":\"ap\"}")
+        XCTAssertEqual(ap.matches.map(\.word), [])
+        XCTAssertThrowsError(try TitleCase.check(headings, optionsJson: "{\"style\":\"apa\"}"))
+    }
+
+    func testVagueWordsAndHiddenVerbs() throws {
+        let text = "😀 It was sort of cold—then a little warmer… “Well, it’s kind of nice,” she said.\u{2028}She made a decision."
+        let document = try checker().styleDocument(text: text)
+        let vague = try document.vagueWords()
+        XCTAssertEqual(vague.matches.map { (text as NSString).substring(with: $0.span.nsRange) }, ["sort of", "a little", "Well", "kind of", "nice"])
+        XCTAssertEqual(vague.matches.map(\.mode), [.narration, .narration, .dialogue, .dialogue, .dialogue])
+        XCTAssertEqual(vague.groups.dialogue.matches, 3)
+        XCTAssertEqual(try document.vagueWords(optionsJson: "{\"fillers\":false}").matches.count, 4)
+        let hidden = try document.hiddenVerbs()
+        XCTAssertEqual(hidden.matches.map { (text as NSString).substring(with: $0.span.nsRange) }, ["made a decision"])
+        XCTAssertEqual(hidden.matches.map(\.term), ["decide"])
+        XCTAssertEqual(hidden.matches.map(\.pattern), [.lightVerb])
+        let roundTrip = try JSONDecoder().decode(HiddenVerbsReport.self, from: Data(document.hiddenVerbsJson().utf8))
+        XCTAssertEqual(roundTrip, hidden)
+        XCTAssertThrowsError(try document.vagueWords(optionsJson: "{\"typo\":true}"))
+        XCTAssertThrowsError(try document.hiddenVerbs(optionsJson: "{\"typo\":true}"))
+    }
 }

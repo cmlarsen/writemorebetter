@@ -16,7 +16,10 @@ The data is derived from LanguageTool 6.6:
 
 Derived from that release:
 
-- the grammar and style rule XML (`grammar.xml`, `style.xml`),
+- the grammar and style rule XML (`grammar.xml`, `style.xml`); `grammar.xml`
+  is a fork with the local edits listed in `build/lt-rules/en/README.md`,
+- the sentence segmentation rules (`segment.srx`), a fork with the local edits
+  listed in `build/lt-rules/core/README.md`,
 - the disambiguation rule XML (`disambiguation.xml`),
 - the tagger dictionary (`english.dict` / `english.info`) and the Morfologik
   speller dictionaries (`hunspell/*.dict` / `*.info`),

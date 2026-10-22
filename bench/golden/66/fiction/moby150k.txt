@@ -28,29 +28,29 @@
 326 | SPELLCHECK/SINGLE | "Wallen" -> ["Fallen", "Allen", "Walled", "Walden", "Waller", "Wallet"] | Possibly misspelled word.
 327 | SPELLCHECK/SINGLE | "Walw-ian" -> ["Walk-in"] | Possibly misspelled word.
 330 | SPELLCHECK/SINGLE | "חו" -> [] | Possibly misspelled word.
-330 | BUILTIN/WHITESPACE_RULE | "                " -> [" "] | Possible typo: you repeated a whitespace
+330 | BUILTIN/WHITESPACE_RULE | "                " -> [" "] | Possible typo: repeated spaces
 331 | SPELLCHECK/SINGLE | "ϰητος" -> [] | Possibly misspelled word.
-331 | BUILTIN/WHITESPACE_RULE | "             " -> [" "] | Possible typo: you repeated a whitespace
-332 | BUILTIN/WHITESPACE_RULE | "             " -> [" "] | Possible typo: you repeated a whitespace
+331 | BUILTIN/WHITESPACE_RULE | "             " -> [" "] | Possible typo: repeated spaces
+332 | BUILTIN/WHITESPACE_RULE | "             " -> [" "] | Possible typo: repeated spaces
 333 | SPELLCHECK/SINGLE | "WHŒL" -> ["WHO", "WELL", "WHEN", "WHAT", "WHILE", "WILL", "WHOLE", "WHOM", "WALL", "WHEEL"] | Possibly misspelled word.
-333 | BUILTIN/WHITESPACE_RULE | "              " -> [" "] | Possible typo: you repeated a whitespace
+333 | BUILTIN/WHITESPACE_RULE | "              " -> [" "] | Possible typo: repeated spaces
 334 | SPELLCHECK/SINGLE | "HVALT" -> ["HALT"] | Possibly misspelled word.
-334 | BUILTIN/WHITESPACE_RULE | "             " -> [" "] | Possible typo: you repeated a whitespace
-335 | BUILTIN/WHITESPACE_RULE | "               " -> [" "] | Possible typo: you repeated a whitespace
+334 | BUILTIN/WHITESPACE_RULE | "             " -> [" "] | Possible typo: repeated spaces
+335 | BUILTIN/WHITESPACE_RULE | "               " -> [" "] | Possible typo: repeated spaces
 336 | SPELLCHECK/SINGLE | "HWAL" -> ["HEAL", "HAL", "WAL"] | Possibly misspelled word.
-336 | BUILTIN/WHITESPACE_RULE | "              " -> [" "] | Possible typo: you repeated a whitespace
+336 | BUILTIN/WHITESPACE_RULE | "              " -> [" "] | Possible typo: repeated spaces
 337 | SPELLCHECK/SINGLE | "HVALUR" -> ["VALUE", "VALOR", "HEALER", "VALUER", "HALER"] | Possibly misspelled word.
-337 | BUILTIN/WHITESPACE_RULE | "            " -> [" "] | Possible typo: you repeated a whitespace
-338 | BUILTIN/WHITESPACE_RULE | "             " -> [" "] | Possible typo: you repeated a whitespace
+337 | BUILTIN/WHITESPACE_RULE | "            " -> [" "] | Possible typo: repeated spaces
+338 | BUILTIN/WHITESPACE_RULE | "             " -> [" "] | Possible typo: repeated spaces
 339 | SPELLCHECK/SINGLE | "BALEINE" -> ["ALPINE", "BASELINE", "SALINE", "BLAINE", "BALDING", "BALEEN", "BYLINE", "ALINE", "ALDINE", "BALING"] | Possibly misspelled word.
-339 | BUILTIN/WHITESPACE_RULE | "           " -> [" "] | Possible typo: you repeated a whitespace
+339 | BUILTIN/WHITESPACE_RULE | "           " -> [" "] | Possible typo: repeated spaces
 340 | SPELLCHECK/SINGLE | "BALLENA" -> ["FALLEN", "ALLEN", "BALLET", "BALLERINA", "BALLETS", "BALEEN", "GALENA", "BALLED", "BELLONA", "BALLING"] | Possibly misspelled word.
-340 | BUILTIN/WHITESPACE_RULE | "           " -> [" "] | Possible typo: you repeated a whitespace
+340 | BUILTIN/WHITESPACE_RULE | "           " -> [" "] | Possible typo: repeated spaces
 341 | SPELLCHECK/SINGLE | "PEKEE-NUEE-NUEE" -> [] | Possibly misspelled word.
-341 | BUILTIN/WHITESPACE_RULE | "   " -> [" "] | Possible typo: you repeated a whitespace
+341 | BUILTIN/WHITESPACE_RULE | "   " -> [" "] | Possible typo: repeated spaces
 341 | SPELLCHECK/SINGLE | "Fegee" -> ["Free", "Degree", "Feet", "Feel", "Fee", "Feed", "Fees", "Fewer", "Fence", "Fever"] | Possibly misspelled word.
 342 | SPELLCHECK/SINGLE | "PEHEE-NUEE-NUEE" -> [] | Possibly misspelled word.
-342 | BUILTIN/WHITESPACE_RULE | "   " -> [" "] | Possible typo: you repeated a whitespace
+342 | BUILTIN/WHITESPACE_RULE | "   " -> [" "] | Possible typo: repeated spaces
 342 | SPELLCHECK/SINGLE | "Erromangoan" -> [] | Possibly misspelled word.
 351 | SPELLCHECK/SINGLE | "Vaticans" -> ["Vatican"] | Possibly misspelled word.
 352 | STYLE/ANYWAYS/0 | "anyways" -> ["anyway"] | The word 'anyways' is informal American English. Did you mean anyway?
@@ -154,7 +154,6 @@
 945 | SPELLCHECK/SINGLE | "Randolphs" -> ["Randolph"] | Possibly misspelled word.
 945 | SPELLCHECK/SINGLE | "Hardicanutes" -> ["Hardecanute"] | Possibly misspelled word.
 956 | GRAMMAR/ARTICLE_ADJECTIVE_OF/8 | "less" -> [] | The phrase 'the less of' is not correct. Use a noun, not an adjective, between 'the' and 'of'.
-961 | CONFUSED_WORDS/OTHER_OTHERS/0 | "other" -> ["others"] | It seems that the plural noun others fits better in this context.
 973 | SPELLCHECK/SINGLE | "marvellous" -> ["marvelous"] | Possibly misspelled word.
 975 | BUILTIN/UPPERCASE_SENTENCE_START | "how" -> ["How"] | This sentence does not start with an uppercase letter.
 980 | GRAMMAR/HEAD_COMPOUNDS/0 | "head winds" -> ["headwinds"] | The word headwinds is spelled as one word.
@@ -311,7 +310,6 @@
 1737 | SPELLCHECK/SINGLE | "Queequeg" -> [] | Possibly misspelled word.
 1740 | SPELLCHECK/SINGLE | "parti-coloured" -> ["parti-colored"] | Possibly misspelled word.
 1749 | SPELLCHECK/SINGLE | "Queequeg" -> [] | Possibly misspelled word.
-1759 | SPELLCHECK/SINGLE | "21st" -> ["1st"] | Possibly misspelled word.
 1761 | GRAMMAR/STAIRS_COMPOUNDS/0 | "up stairs" -> ["upstairs"] | Did you mean upstairs?
 1766 | BUILTIN/UPPERCASE_SENTENCE_START | "the" -> ["The"] | This sentence does not start with an uppercase letter.
 1772 | SPELLCHECK/SINGLE | "favour" -> ["favor", "Cavour"] | Possibly misspelled word.

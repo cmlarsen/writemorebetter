@@ -2,7 +2,6 @@
 5 | SPELLCHECK/SINGLE | "Bellhaven" -> ["Belhaven"] | Possibly misspelled word.
 13 | SPELLCHECK/SINGLE | "recieve" -> ["receive", "relieve"] | Possibly misspelled word.
 17 | SPELLCHECK/SINGLE | "untill" -> ["until"] | Possibly misspelled word.
-21 | PUNCTUATION/COMMA_COMPOUND_SENTENCE_2/3 | " and" -> [", and"] | Use a comma before "and" if it connects two independent clauses (unless they are closely connected and short).
 25 | BUILTIN/ENGLISH_WORD_REPEAT_RULE | "the the" -> ["the"] | Possible typo: you repeated a word.
 27 | GRAMMAR/THIS_IS_HAVE/0 | "is would" -> ["is", "would"] | It appears that only one verb is needed.
 28 | BUILTIN/ENGLISH_WORD_REPEAT_RULE | "into into" -> ["into"] | Possible typo: you repeated a word.
@@ -10,6 +9,7 @@
 31 | BUILTIN/COMMA_PARENTHESIS_WHITESPACE | " ," -> [","] | Put a space after the comma, but not before the comma.
 32 | CONFUSED_WORDS/TROUGH_THROUGH/0 | "trough" -> ["through"] | Did you mean the preposition through (e.g. "walk through a door")?
 33 | GRAMMAR/A_NNS/2 | "a boxes" -> ["a box", "boxes"] | The plural noun "boxes" cannot be used with the article "a". Did you mean a box or boxes?
+34 | TYPOS/PEAKED_THROUGH/0 | "peaked" -> ["peeked"] | Did you mean peeked (looked quickly)?
 40 | SPELLCHECK/SINGLE | "definately" -> ["definitely"] | Possibly misspelled word.
 41 | SPELLCHECK/SINGLE | "wierd" -> ["wired", "weird", "wield", "WEIRD", "Wired"] | Possibly misspelled word.
 42 | SPELLCHECK/SINGLE | "beleive" -> ["believe"] | Possibly misspelled word.

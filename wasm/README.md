@@ -30,6 +30,10 @@ deprecated later. Prefer `start16` / `end16`. Pass `undefined`
 disable nothing; `"fiction"` applies the fiction profile (see `docs/PROFILE.md`) and any other
 name is an error.
 
+`checker.enableRules(["PLAIN_ENGLISH", "STYLE/PASSIVE_VOICE"])` turns on rules that are off by
+default, on top of the profile, and returns how many it enabled; an unknown selector throws and
+enables nothing. See "Enabling rules" in `docs/PROFILE.md` for the selectors.
+
 ### User dictionary
 
 Add words the app knows (character names, invented places, coinages) so the speller stops
@@ -184,8 +188,17 @@ const diction = JSON.parse(document.diction()); // bundled table; diction(undefi
 const overused = JSON.parse(document.overusedWords());
 const transitions = JSON.parse(document.transitions());
 const pronouns = JSON.parse(document.pronounStarts());
+const adverbs = JSON.parse(document.adverbs());
+const house = JSON.parse(document.houseStyle('{"skipDialogue":true}', valeRulesYaml));
+const emotions = JSON.parse(document.emotionTells()); // '{"includeDialogue":true}' scans dialogue too
+const vague = JSON.parse(document.vagueWords()); // '{"fillers":false}' skips the bundled filler list
+const hidden = JSON.parse(document.hiddenVerbs()); // '{"ofPhrases":false}' keeps light verbs only
 document.free();
 ```
+
+`houseStyle` takes caller-supplied Vale-format rules (YAML or JSON text) as its second argument
+and throws an `invalidRules` StyleError without them or when a rule is invalid; see
+[`docs/STYLE-HOUSE-STYLE.md`](../docs/STYLE-HOUSE-STYLE.md).
 
 Methods take optional options JSON; `diction` also takes an optional word-to-concreteness table
 (JSON object or TSV text) that replaces the bundled one; baseline-aware methods also take baseline JSON (omitted:
@@ -197,7 +210,7 @@ import type { SentenceLengthReport } from "./pkg/writemorebetter_wasm";
 const length: SentenceLengthReport = JSON.parse(document.sentenceLength());
 ```
 
-Construction respects compact-document options. Echoes, phrases, overused words, pronoun starts, dialogue tags,
+Construction respects compact-document options. Echoes, phrases, overused words, pronoun starts, dialogue tags, adverbs,
 starts, sensory balance and diction require token details and throw on compact documents. Reports run on the retained analysis; construct a new
 object for changed text/options. See [the per-report API](../docs/STYLE-REPORTS.md#independent-reports-shared-analysis)
 for options, result JSON examples, baselines and Subplot’s recommended default set and opt-in lenses.
@@ -211,3 +224,41 @@ Transitions and pronoun starts are opt-in descriptive lenses. See [definitions, 
 measurements](../docs/STYLE-TRANSITIONS.md); neither has a baseline argument yet.
 
 The transitions lens also supports compact documents because it uses token text and position.
+
+Passive voice (`passive`) reports passives per 100 sentences per mode, with spans, and takes a baseline
+argument like the other banded reports. It has no default band yet (no comparison); `"publicStandIn"`
+opts in to a provisional band from public text. See [STYLE-PASSIVE.md](../docs/STYLE-PASSIVE.md).
+
+Readability counts syllables with a table derived from the CMU Pronouncing Dictionary, compiled
+into this module. CMUdict's license (BSD-2-Clause-style) requires that binary redistributions
+reproduce Carnegie Mellon University's copyright notice, conditions and disclaimer in their
+documentation; ship the CMUdict section of [`NOTICE`](../NOTICE) with apps that embed the style
+reports. See [readability](../docs/STYLE-READABILITY.md#dictionary-phase-2).
+
+### Style presets
+
+A style preset is one JSON file that drives the grammar checker and the preset-driven reports; see
+[`docs/STYLE-PRESETS.md`](../docs/STYLE-PRESETS.md). Pass the same name or preset file to both sides:
+
+```javascript
+const names = stylePresetNames();                 // ["chicago-fiction", "ap", "uk"]; the first is the default
+const builtIn = JSON.parse(loadStylePreset("uk")); // resolved, self-contained preset JSON
+const mine = parseStylePreset('{"format":1,"name":"my-uk","extends":"uk","checks":{"numbers":null}}');
+
+const checker = new Checker(tokenizerBytes, rulesBytes);
+checker.applyPreset(mine);                        // grammar profile, rule selectors, speller variant
+
+const document = checker.styleDocument(text);
+const report = JSON.parse(document.preset(mine)); // PresetReport: consistency, houseStyle, checks
+const checks = JSON.parse(document.presetChecks('{"numbers":{"spellOutThrough":9}}'));
+document.free();
+```
+
+`parseStylePreset` validates and resolves a file (its `extends` merged in) and returns the stored
+form; a preset that `extends` a built-in must set its own `name`. `applyPreset` returns how many
+rules it turned on; apply a preset to a new `Checker`, since profiles cannot be undone.
+`preset(nameOrJson?)` runs the consistency, house-style and preset-check reports with the preset's
+settings (omitted: `"chicago-fiction"`). `presetChecks(optionsJSON?)` runs the checks alone with
+`PresetChecks` options, every check off by default. An invalid preset throws a `StyleError` with
+kind `invalidPreset`. Result types are `PresetReport` and `PresetChecksReport` in
+`style-results.d.ts`; spans are UTF-16 `{start, end}`.

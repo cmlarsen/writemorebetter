@@ -405,3 +405,118 @@ fn pronouns_distinguish_determiners_and_independent_uses() {
         assert_eq!(result.starts[0].pronoun, word);
     }
 }
+
+#[test]
+fn condition_transitions_and_ambiguity() {
+    for (text, phrase) in [
+        ("If she waits, I’ll stay.", "if"),
+        ("I’ll go unless she stays.", "unless"),
+        ("Provided that she agrees, we’ll go.", "provided that"),
+        ("As long as he waits, we’ll stay.", "as long as"),
+        ("He stayed as long as she watched.", "as long as"),
+        ("Tell me now; if you see him, run.", "if"),
+        ("He left provided that she agreed.", "provided that"),
+        ("In case she calls, I’ll stay.", "in case"),
+        ("“If she’s ready”—he paused…\u{2028}we’ll go.", "if"),
+    ] {
+        let result = transitions::report(&document(text), &Default::default()).unwrap();
+        let found = result
+            .matches
+            .iter()
+            .find(|item| item.phrase == phrase && item.kind == TransitionType::Condition);
+        assert!(found.is_some(), "{text}");
+        assert!(text.get(found.unwrap().span.byte.clone()).is_some());
+    }
+    for text in [
+        "While she waited, he slept.",
+        "He looked as if he had seen a ghost.",
+        "She asked if I was ready.",
+        "I wonder if it will rain.",
+        "She wonders if it will rain.",
+        "He asks if we can go.",
+        "She knows if he lies.",
+        "Tell me if you see him.",
+        "I’m not sure if she’s coming.",
+        "I doubt if he’ll come.",
+        "She doubted if he’d come—or cared…\u{2028}Then left.",
+        "The rope was as long as the mast.",
+        "The rope was as long as it was wide.",
+        "“It’s as long as it’s wide,” he said—quietly…\u{2028}Then left.",
+        "The food provided that night was cold.",
+        "“I can’t,” she asked if he’d go—slowly…\u{2028}Maybe.",
+    ] {
+        let result = transitions::report(&document(text), &Default::default()).unwrap();
+        assert!(
+            !result
+                .matches
+                .iter()
+                .any(|item| item.kind == TransitionType::Condition),
+            "{text}"
+        );
+    }
+}
+
+#[test]
+fn pronoun_words_count_possessives_and_split_speech() {
+    let text = "“I’ll keep my coat,” she said—her own was gone…\u{2028}He gave his coat to her.";
+    let report = pronoun_starts::report(&document(text), &Default::default()).unwrap();
+    let all = &report.groups.all;
+    assert!(all.words > 0);
+    assert_eq!(
+        all.pronoun_words.count,
+        all.word_pronouns
+            .iter()
+            .map(|row| row.share.count)
+            .sum::<usize>()
+    );
+    assert!(all
+        .word_pronouns
+        .iter()
+        .any(|row| row.pronoun == "my" && row.share.count == 1));
+    assert!(all
+        .word_pronouns
+        .iter()
+        .any(|row| row.pronoun == "his" && row.share.count == 1));
+    assert_eq!(
+        all.words,
+        report.groups.narration.words + report.groups.dialogue.words
+    );
+    assert_eq!(
+        all.pronoun_words.count,
+        report.groups.narration.pronoun_words.count + report.groups.dialogue.pronoun_words.count
+    );
+    assert!(all.pronoun_words.percent.unwrap() > 0.0);
+    let nouns = pronoun_starts::report(
+        &document("The US army marched. The coal mine closed."),
+        &Default::default(),
+    )
+    .unwrap();
+    assert_eq!(nouns.groups.all.pronoun_words.count, 0);
+    for text in [
+        "The choice was all mine.",
+        "“The choice was all mine,” she said—softly…\u{2028}Both were mine.",
+    ] {
+        let quantified = pronoun_starts::report(&document(text), &Default::default()).unwrap();
+        assert!(
+            quantified
+                .groups
+                .all
+                .word_pronouns
+                .iter()
+                .any(|row| row.pronoun == "mine"),
+            "{text}"
+        );
+    }
+    let archaic = pronoun_starts::report(
+        &document("Thou art mad, and thy ship is lost; ye shall see thee and thine."),
+        &Default::default(),
+    )
+    .unwrap();
+    assert_eq!(archaic.groups.all.pronoun_words.count, 5);
+    assert!(!archaic
+        .groups
+        .all
+        .word_pronouns
+        .iter()
+        .any(|row| row.pronoun == "whose"));
+}

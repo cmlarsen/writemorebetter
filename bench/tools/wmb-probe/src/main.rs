@@ -59,8 +59,62 @@ fn main() {
             profile.name, unmatched
         );
     }
+    let enable: Vec<String> = std::env::var("ENABLE")
+        .unwrap_or_default()
+        .split(',')
+        .map(str::trim)
+        .filter(|selector| !selector.is_empty())
+        .map(str::to_owned)
+        .collect();
+    // Behind a default feature so performance CI can build this probe against a merge-base
+    // engine that predates `Rules::enable_rules`; it never sets ENABLE.
+    #[cfg(feature = "enable-rules")]
+    if !enable.is_empty() {
+        match rules.enable_rules(&enable) {
+            Ok(count) => println!("enable {}: {} rules enabled", enable.join(","), count),
+            Err(err) => {
+                eprintln!("ENABLE: {}", err);
+                std::process::exit(2);
+            }
+        }
+    }
+    #[cfg(not(feature = "enable-rules"))]
+    if !enable.is_empty() {
+        eprintln!("ENABLE: this probe was built without the enable-rules feature");
+        std::process::exit(2);
+    }
+    let only: Option<Vec<String>> = std::env::var("ONLY").ok().map(|only| {
+        only.split(',')
+            .map(|prefix| prefix.trim().to_owned())
+            .filter(|prefix| !prefix.is_empty())
+            .collect()
+    });
+    if let Some(prefixes) = &only {
+        let keep = |id: &str| {
+            let name = id.split_once('/').map_or(id, |(_, name)| name);
+            prefixes
+                .iter()
+                .any(|prefix| id.starts_with(prefix.as_str()) || name.starts_with(prefix.as_str()))
+        };
+        for rule in rules.rules_mut() {
+            if !keep(&rule.id().to_string()) {
+                rule.disable();
+            }
+        }
+        for rule in rules.builtins_mut() {
+            if !keep(&format!("BUILTIN/{}", rule.id())) {
+                rule.disable();
+            }
+        }
+        println!("only {:?}: {} rules enabled", prefixes, enabled(&rules));
+    }
+    let spell_wanted = only.as_ref().map_or(true, |prefixes| {
+        prefixes.iter().any(|prefix| {
+            prefix.starts_with("SPELLCHECK") || "SPELLCHECK".starts_with(prefix.as_str())
+        })
+    });
     let variant = std::env::var("SPELL").unwrap_or_else(|_| "en_US".into());
-    if !variant.is_empty() {
+    if spell_wanted && !variant.is_empty() {
         let t = Instant::now();
         rules.spell_mut().options_mut().variant = Some(rules.spell().variant(&variant).unwrap());
         println!(
