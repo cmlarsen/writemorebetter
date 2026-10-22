@@ -634,6 +634,15 @@ public protocol CheckerProtocol: AnyObject, Sendable {
     func setMotherTongue(motherTongue: String?) 
     
     /**
+     * Sets the minimum percentage of the `TOO_OFTEN_USED_ADJECTIVE_EN`, `TOO_OFTEN_USED_NOUN_EN`
+     * and `TOO_OFTEN_USED_VERB_EN` rules: a word is flagged once it makes up at least `percent`
+     * of all the adjectives, nouns or verbs of the checked text. The default is 5. A value
+     * outside 1...100 throws and nothing changes. It does not enable the rules, which are off by
+     * default (see [`Checker::enable_rules`]). Changes apply to the next `check`.
+     */
+    func setTooOftenUsedPercent(percent: UInt32) throws 
+    
+    /**
      * Replaces the whole user dictionary and returns the number of entries now set.
      */
     func setWords(words: [String])  -> UInt32
@@ -875,6 +884,22 @@ open func setMotherTongue(motherTongue: String?)  {try! rustCall() {
     uniffi_writemorebetter_swift_fn_method_checker_set_mother_tongue(
             self.uniffiCloneHandle(),
         FfiConverterOptionString.lower(motherTongue),uniffiCallStatus
+    )
+}
+}
+    
+    /**
+     * Sets the minimum percentage of the `TOO_OFTEN_USED_ADJECTIVE_EN`, `TOO_OFTEN_USED_NOUN_EN`
+     * and `TOO_OFTEN_USED_VERB_EN` rules: a word is flagged once it makes up at least `percent`
+     * of all the adjectives, nouns or verbs of the checked text. The default is 5. A value
+     * outside 1...100 throws and nothing changes. It does not enable the rules, which are off by
+     * default (see [`Checker::enable_rules`]). Changes apply to the next `check`.
+     */
+open func setTooOftenUsedPercent(percent: UInt32)throws   {try rustCallWithError(FfiConverterTypeCheckError_lift) {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_method_checker_set_too_often_used_percent(
+            self.uniffiCloneHandle(),
+        FfiConverterUInt32.lower(percent),uniffiCallStatus
     )
 }
 }
@@ -2354,6 +2379,11 @@ enum CheckError: Swift.Error, Equatable, Hashable, Foundation.LocalizedError {
      */
     case UnknownSelectors(selectors: [String]
     )
+    /**
+     * A rule option was set to a value outside the range it allows.
+     */
+    case InvalidOption(message: String
+    )
 
     
 
@@ -2407,6 +2437,9 @@ public struct FfiConverterTypeCheckError: FfiConverterRustBuffer {
         case 8: return .UnknownSelectors(
             selectors: try FfiConverterSequenceString.read(from: &buf)
             )
+        case 9: return .InvalidOption(
+            message: try FfiConverterString.read(from: &buf)
+            )
 
          default: throw UniffiInternalError.unexpectedEnumCase
         }
@@ -2457,6 +2490,11 @@ public struct FfiConverterTypeCheckError: FfiConverterRustBuffer {
         case let .UnknownSelectors(selectors):
             writeInt(&buf, Int32(8))
             FfiConverterSequenceString.write(selectors, into: &buf)
+            
+        
+        case let .InvalidOption(message):
+            writeInt(&buf, Int32(9))
+            FfiConverterString.write(message, into: &buf)
             
         }
     }
@@ -2902,6 +2940,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_method_checker_set_mother_tongue() != 22149) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_writemorebetter_swift_checksum_method_checker_set_too_often_used_percent() != 44337) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_method_checker_set_words() != 45047) {

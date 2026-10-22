@@ -43,6 +43,9 @@ pub enum CheckError {
     /// `enable_rules` named rule selectors that match no rule.
     #[error("unknown rule selectors: {selectors:?}")]
     UnknownSelectors { selectors: Vec<String> },
+    /// A rule option was set to a value outside the range it allows.
+    #[error("invalid rule option: {message}")]
+    InvalidOption { message: String },
 }
 
 /// A single flagged span.
@@ -491,6 +494,19 @@ impl Checker {
                 },
             })
     }
+
+    /// Sets the minimum percentage of the `TOO_OFTEN_USED_ADJECTIVE_EN`, `TOO_OFTEN_USED_NOUN_EN`
+    /// and `TOO_OFTEN_USED_VERB_EN` rules: a word is flagged once it makes up at least `percent`
+    /// of all the adjectives, nouns or verbs of the checked text. The default is 5. A value
+    /// outside 1...100 throws and nothing changes. It does not enable the rules, which are off by
+    /// default (see [`Checker::enable_rules`]). Changes apply to the next `check`.
+    pub fn set_too_often_used_percent(&self, percent: u32) -> Result<(), CheckError> {
+        self.write_rules()
+            .set_too_often_used_percent(percent as usize)
+            .map_err(|err| CheckError::InvalidOption {
+                message: err.to_string(),
+            })
+    }
 }
 
 /// Maps character indices in a string to UTF-16 code-unit indices.
@@ -620,6 +636,64 @@ mod tests {
             other => panic!("unexpected result: {other:?}"),
         }
         assert_eq!(checker.enable_rules(Vec::new()).unwrap(), 0);
+    }
+
+    #[test]
+    fn too_often_used_percent_sets_the_threshold() {
+        let checker = checker();
+        checker
+            .enable_rules(vec!["BUILTIN/TOO_OFTEN_USED_NOUN_EN".into()])
+            .unwrap();
+        // 10 "cat"s among 105 nouns (9.5%) in narration (the fiction profile leaves dialogue
+        // out), with a curly apostrophe, an em dash, an ellipsis, a line separator and curly
+        // quotes.
+        let mut sentences = vec![
+            "He\u{2019}d seen the cat\u{2014}the cat\u{2026}\u{2028}\u{201c}So?\u{201d} she said.";
+            5
+        ]
+        .join(" ");
+        for noun in "dog tree river car book chair garden street city lamp bottle cup plate shirt \
+            horse apple kitchen window door table house phone mountain forest island bridge castle \
+            candle blanket pillow spoon fork knife basket ladder carpet curtain mirror wallet pocket \
+            jacket helmet hammer engine wheel tunnel valley meadow village harbor lantern barrel \
+            saddle anchor violin piano guitar trumpet tomato potato carrot onion banana lemon cherry \
+            peach pear melon cabbage pepper garlic biscuit pastry sandwich elephant giraffe monkey \
+            tiger rabbit turtle squirrel donkey camel dolphin parrot pigeon sparrow eagle owl spider \
+            beetle ant wasp nephew niece uncle aunt cousin grandmother teacher doctor farmer"
+            .split_whitespace()
+            .take(95)
+        {
+            sentences.push_str(&format!(" I saw the {noun}."));
+        }
+        let cats = || {
+            checker
+                .check(sentences.clone())
+                .into_iter()
+                .filter(|suggestion| suggestion.source == "BUILTIN/TOO_OFTEN_USED_NOUN_EN")
+                .map(|suggestion| (suggestion.start, suggestion.end))
+                .collect::<Vec<_>>()
+        };
+
+        let flagged = cats();
+        assert_eq!(flagged.len(), 10);
+        // UTF-16 offsets of "cat" after the curly apostrophe and the em dash.
+        assert_eq!(flagged[0], (14, 17));
+        assert_eq!(flagged[1], (22, 25));
+
+        checker.set_too_often_used_percent(10).unwrap();
+        assert!(cats().is_empty());
+        checker.set_too_often_used_percent(9).unwrap();
+        assert_eq!(cats().len(), 10);
+
+        for percent in [0, 101] {
+            match checker.set_too_often_used_percent(percent) {
+                Err(super::CheckError::InvalidOption { message }) => {
+                    assert!(message.contains("between 1 and 100"), "{message}")
+                }
+                other => panic!("unexpected result: {other:?}"),
+            }
+        }
+        assert_eq!(cats().len(), 10);
     }
 
     #[test]

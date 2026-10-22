@@ -301,6 +301,12 @@ impl BuiltinRule {
         &self.builtin
     }
 
+    /// Gets the underlying builtin rule (mutable), e.g. to set an option such as
+    /// [`en::TooOftenUsed::set_min_percent`].
+    pub fn builtin_mut(&mut self) -> &mut Builtin {
+        &mut self.builtin
+    }
+
     /// Returns whether this rule is enabled.
     pub fn enabled(&self) -> bool {
         self.enabled

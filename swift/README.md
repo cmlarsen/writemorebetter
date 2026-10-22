@@ -30,12 +30,17 @@ default (style advice such as plain English, redundancy, passive voice), on top 
 many rules it enabled and throws `CheckError.UnknownSelectors` without enabling anything if a selector matches
 no rule. See "Enabling rules" in `docs/PROFILE.md`.
 
+Once enabled, the `TOO_OFTEN_USED_ADJECTIVE_EN`, `TOO_OFTEN_USED_NOUN_EN` and `TOO_OFTEN_USED_VERB_EN` rules
+flag a word that makes up at least 5% of the adjectives, nouns or verbs of the checked text.
+`try checker.setTooOftenUsedPercent(percent: 10)` changes that share for all three (1–100); a value outside the
+range throws `CheckError.InvalidOption` and changes nothing.
+
 Loading deserializes both binaries (about 100 ms and 90 MB of resident memory); `Checker` is `Send + Sync`, so
 load one instance at startup off the main thread and share it. `check` and every other call are safe from any
 thread, but are not free (~110 ms per 1000 words on an M-series Mac), so run them off the main thread too.
 
 Failures throw `CheckError`: `TokenizerFile`/`RulesFile` (read from disk), `Tokenizer`/`Rules` (deserialize),
-`UnknownProfile`, `UnknownSpellVariant`. Nothing panics across the boundary; a Rust panic surfaces as a Swift
+`UnknownProfile`, `UnknownSpellVariant`, and from the setters `UnknownSelectors` and `InvalidOption`. Nothing panics across the boundary; a Rust panic surfaces as a Swift
 error.
 
 ## User dictionary

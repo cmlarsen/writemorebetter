@@ -3,7 +3,7 @@
 use crate::types::*;
 use crate::utils::parallelism::MaybeParallelRefIterator;
 use crate::{
-    builtin::{BuiltinRule, TextState},
+    builtin::{Builtin, BuiltinRule, TextState},
     rule::id::{Group, Selector},
     rule::MatchSentence,
     rule::Rule,
@@ -95,6 +95,24 @@ impl Rules {
                 .unwrap_or_default()
                 .to_lowercase()
         });
+    }
+
+    /// Sets the minimum percentage of the `TOO_OFTEN_USED_ADJECTIVE_EN`, `TOO_OFTEN_USED_NOUN_EN`
+    /// and `TOO_OFTEN_USED_VERB_EN` builtins: a word is reported once it makes up at least
+    /// `percent` of all the adjectives, nouns or verbs of a text. The default is 5, and
+    /// LanguageTool allows 1 to 100. It does not enable the rules, which are off by default. To
+    /// set one rule only, use [`TooOftenUsed::set_min_percent`][crate::builtin::en::TooOftenUsed::set_min_percent]
+    /// through [Rules::builtins_mut].
+    ///
+    /// # Errors
+    /// [Error::OptionOutOfRange] if `percent` is outside 1..=100; no rule changes.
+    pub fn set_too_often_used_percent(&mut self, percent: usize) -> Result<(), Error> {
+        for rule in &mut self.builtins {
+            if let Builtin::TooOftenUsed(rule) = rule.builtin_mut() {
+                rule.set_min_percent(percent)?;
+            }
+        }
+        Ok(())
     }
 
     /// The mother tongue selected with [Rules::set_mother_tongue].

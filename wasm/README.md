@@ -34,6 +34,11 @@ name is an error.
 default, on top of the profile, and returns how many it enabled; an unknown selector throws and
 enables nothing. See "Enabling rules" in `docs/PROFILE.md` for the selectors.
 
+Once enabled, the `TOO_OFTEN_USED_ADJECTIVE_EN`, `TOO_OFTEN_USED_NOUN_EN` and
+`TOO_OFTEN_USED_VERB_EN` rules flag a word that makes up at least 5% of the adjectives, nouns or
+verbs of the checked text. `checker.setTooOftenUsedPercent(10)` changes that share for all three
+(1–100); a value outside the range throws and changes nothing.
+
 ### User dictionary
 
 Add words the app knows (character names, invented places, coinages) so the speller stops
