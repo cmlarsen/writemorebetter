@@ -100,6 +100,18 @@ Surfaces:
 - `bench/tools/wmb-probe` reads `ENABLE`, a comma-separated selector list applied
   after `PROFILE`; `bench/tools/public_recall.py --enable <list>` passes it through.
 
+### Word-frequency threshold
+
+The `TOO_OFTEN_USED_*_EN` builtins flag a word that makes up at least 5% of the
+adjectives, nouns or verbs of a text. LanguageTool lets a user set this minimum
+percentage per rule (a `RuleOption` from 1 to 100). `Rules::set_too_often_used_percent(percent)`
+sets it for all three rules, and `TooOftenUsed::set_min_percent`, reached through
+`Rules::builtins_mut` and `BuiltinRule::builtin_mut`, sets it for one. A value outside
+1–100 is `Error::OptionOutOfRange` and changes nothing. Setting it does not enable the
+rules. Swift has `checker.setTooOftenUsedPercent(percent:)`, which throws
+`CheckError.InvalidOption(message:)`, and WASM has `checker.setTooOftenUsedPercent(n)`,
+which throws a string.
+
 ## The fiction profile
 
 Disables exactly these:

@@ -5,8 +5,8 @@ use std::{
 
 use lazy_static::lazy_static;
 use nlprule::{
-    profile::Profile, rule::id::Category, rule::id::Selector, types::Position, Error, Rules,
-    Tokenizer,
+    builtin::Builtin, profile::Profile, rule::id::Category, rule::id::Selector, types::Position,
+    Error, Rules, Tokenizer,
 };
 use quickcheck_macros::quickcheck;
 
@@ -6630,6 +6630,103 @@ fn too_often_used_counts_dialogue_unless_the_case_is_disabled() {
     assert_eq!(
         too_often_used_nouns(&rules, &narration),
         vec![10, 25, 40, 55, 70]
+    );
+}
+
+#[test]
+fn too_often_used_min_percent_is_configurable() {
+    let with_percent = |percent: usize| {
+        let mut rules = WORD_STATISTICS_RULES.clone();
+        rules.set_too_often_used_percent(percent).unwrap();
+        rules
+    };
+    // 5 cats of 100 nouns, or 5% each.
+    let text = cats_and_nouns("I saw the cat.", 95);
+
+    assert_eq!(
+        too_often_used_nouns(&with_percent(5), &text),
+        vec![10, 25, 40, 55, 70]
+    );
+    assert_eq!(
+        too_often_used_nouns(&with_percent(6), &text),
+        Vec::<usize>::new()
+    );
+    assert_eq!(
+        too_often_used(&with_percent(1), "TOO_OFTEN_USED_NOUN_EN", &text).len(),
+        100
+    );
+    // "saw" is every verb.
+    assert_eq!(
+        too_often_used(&with_percent(100), "TOO_OFTEN_USED_VERB_EN", &text).len(),
+        100
+    );
+
+    let rules = with_percent(4);
+    assert!(rules
+        .suggest(&text, &TOKENIZER)
+        .iter()
+        .filter(|suggestion| suggestion.source() == "BUILTIN/TOO_OFTEN_USED_NOUN_EN")
+        .all(|suggestion| suggestion.message().contains("more than 4% times")));
+
+    // 10 cats of 105 nouns (9.5%), with dialogue, an em dash, an ellipsis, a curly apostrophe
+    // and a line separator.
+    let text = cats_and_nouns(
+        "\u{201c}He\u{2019}d seen the cat\u{2014}the cat\u{2026}\u{201d}\u{2028}She said so.",
+        95,
+    );
+    let cats = |rules: &Rules| {
+        let flags = too_often_used(rules, "TOO_OFTEN_USED_NOUN_EN", &text);
+        assert!(flags.iter().all(|(_, matched)| matched == "cat"));
+        flags.len()
+    };
+    assert_eq!(cats(&with_percent(9)), 10);
+    assert_eq!(cats(&with_percent(10)), 0);
+}
+
+#[test]
+fn too_often_used_min_percent_is_per_rule_and_checked() {
+    let text = cats_and_nouns("I saw the cat.", 95);
+    let mut rules = WORD_STATISTICS_RULES.clone();
+    for rule in rules.builtins_mut() {
+        if rule.id() == "TOO_OFTEN_USED_NOUN_EN" {
+            match rule.builtin_mut() {
+                Builtin::TooOftenUsed(rule) => {
+                    assert_eq!(rule.min_percent(), 5);
+                    rule.set_min_percent(6).unwrap();
+                    assert_eq!(rule.min_percent(), 6);
+                }
+                other => panic!("unexpected builtin: {:?}", other),
+            }
+        }
+    }
+    assert_eq!(too_often_used_nouns(&rules, &text), Vec::<usize>::new());
+    assert_eq!(
+        too_often_used(&rules, "TOO_OFTEN_USED_VERB_EN", &text).len(),
+        100
+    );
+
+    for percent in [0, 101] {
+        assert!(matches!(
+            rules.set_too_often_used_percent(percent),
+            Err(Error::OptionOutOfRange { value, min: 1, max: 100, .. }) if value == percent
+        ));
+    }
+    let mut percents: Vec<(&str, usize)> = rules
+        .builtins()
+        .iter()
+        .filter_map(|rule| match rule.builtin() {
+            Builtin::TooOftenUsed(builtin) => Some((rule.id(), builtin.min_percent())),
+            _ => None,
+        })
+        .collect();
+    percents.sort_unstable();
+    assert_eq!(
+        percents,
+        vec![
+            ("TOO_OFTEN_USED_ADJECTIVE_EN", 5),
+            ("TOO_OFTEN_USED_NOUN_EN", 6),
+            ("TOO_OFTEN_USED_VERB_EN", 5)
+        ]
     );
 }
 

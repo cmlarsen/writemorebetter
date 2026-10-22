@@ -438,6 +438,18 @@ impl Checker {
             .enable_rules(&selectors)
             .map_err(|err| JsValue::from_str(&err.to_string()))
     }
+
+    /// Sets the minimum percentage of the `TOO_OFTEN_USED_ADJECTIVE_EN`, `TOO_OFTEN_USED_NOUN_EN`
+    /// and `TOO_OFTEN_USED_VERB_EN` rules: a word is flagged once it makes up at least `percent`
+    /// of all the adjectives, nouns or verbs of the checked text. The default is 5. A value
+    /// outside 1–100 is an error and nothing changes. It does not enable the rules, which are
+    /// off by default (see `enableRules`). Changes apply to the next `check`.
+    #[wasm_bindgen(js_name = setTooOftenUsedPercent)]
+    pub fn set_too_often_used_percent(&mut self, percent: u32) -> Result<(), JsValue> {
+        self.rules
+            .set_too_often_used_percent(percent as usize)
+            .map_err(|err| JsValue::from_str(&err.to_string()))
+    }
 }
 
 fn style_error(error: writemorebetter_style::StyleError) -> JsValue {

@@ -113,6 +113,15 @@ pub enum Error {
     /// Rule selectors passed to [Rules::enable_rules] that name no rule.
     #[error("unknown rule selectors: {0:?}")]
     UnknownSelectors(Vec<String>),
+    /// A rule option was set to a value outside the range it allows, e.g.
+    /// [Rules::set_too_often_used_percent] with 0.
+    #[error("{option} must be between {min} and {max}, got {value}")]
+    OptionOutOfRange {
+        option: &'static str,
+        value: usize,
+        min: usize,
+        max: usize,
+    },
 }
 
 /// The magic bytes that prefix every serialized [Tokenizer] binary.

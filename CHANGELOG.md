@@ -8,6 +8,15 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
 # Unreleased
 
+### Added
+
+- **The `TOO_OFTEN_USED_*` minimum percentage can be set.** `Rules::set_too_often_used_percent`
+  (Rust), `Checker.setTooOftenUsedPercent(percent:)` (Swift) and `checker.setTooOftenUsedPercent`
+  (WASM) set the share, 1 to 100 as in LanguageTool's rule option, from which the three
+  word-frequency rules flag a word; the default stays 5. Rust callers can set one rule through
+  `TooOftenUsed::set_min_percent`. `Error` gains `OptionOutOfRange` and Swift's `CheckError` gains
+  `InvalidOption`, so exhaustive matches on either need a new arm ([#235](https://github.com/cmlarsen/writemorebetter/issues/235)).
+
 ### Changed
 
 - **`RULES_FORMAT_VERSION` is 33.** `SpellLangOptions` gained `latin_script`, so 0.12.0's

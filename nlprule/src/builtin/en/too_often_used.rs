@@ -6,11 +6,15 @@
 //! by default.
 
 use crate::types::{DefaultHashMap, Sentence, Span, Suggestion, Token};
+use crate::Error;
 use serde::{Deserialize, Serialize};
 
 const MIN_WORD_COUNT: usize = 100;
 
 const DEFAULT_MIN_PERCENT: usize = 5;
+
+/// The range LanguageTool's `RuleOption` allows for the minimum percentage.
+const MIN_PERCENT_RANGE: std::ops::RangeInclusive<usize> = 1..=100;
 
 /// The kind of word a [`TooOftenUsed`] rule counts.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -73,8 +77,9 @@ impl WordClass {
     }
 }
 
-/// Flags each use of a word that makes up at least 5% of all the words of its
-/// class in a text with at least 100 such words.
+/// Flags each use of a word that makes up at least 5% (see
+/// [`TooOftenUsed::set_min_percent`]) of all the words of its class in a text
+/// with at least 100 such words.
 ///
 /// # Scope
 ///
@@ -110,6 +115,39 @@ impl TooOftenUsed {
     /// The LanguageTool rule identifier.
     pub fn id(&self) -> &str {
         self.class.id()
+    }
+
+    /// The share of all the words of its class, in percent, from which a word
+    /// is reported. The default is 5.
+    pub fn min_percent(&self) -> usize {
+        self.min_percent
+    }
+
+    /// Sets the share of all the words of its class, in percent, from which a
+    /// word is reported. This is the option LanguageTool's rule offers in its
+    /// user configuration, which allows 1 to 100.
+    ///
+    /// # Errors
+    /// [`Error::OptionOutOfRange`] if `percent` is outside 1..=100; the rule
+    /// keeps its previous value.
+    pub fn set_min_percent(&mut self, percent: usize) -> Result<(), Error> {
+        Self::check_min_percent(percent)?;
+        self.min_percent = percent;
+        Ok(())
+    }
+
+    /// Checks that `percent` is a minimum percentage [`TooOftenUsed::set_min_percent`] accepts.
+    pub(crate) fn check_min_percent(percent: usize) -> Result<(), Error> {
+        if MIN_PERCENT_RANGE.contains(&percent) {
+            Ok(())
+        } else {
+            Err(Error::OptionOutOfRange {
+                option: "minimum percentage",
+                value: percent,
+                min: *MIN_PERCENT_RANGE.start(),
+                max: *MIN_PERCENT_RANGE.end(),
+            })
+        }
     }
 
     /// Stops counting and reporting words in direct speech, i.e. between an

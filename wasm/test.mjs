@@ -143,6 +143,50 @@ eq(falseFriends(actual), [], "undefined clears the selection");
   picky.free();
 }
 
+// setTooOftenUsedPercent sets the share from which TOO_OFTEN_USED_* flag a word.
+{
+  const counter = new Checker(
+    readFileSync(join(root, "storage", "en_tokenizer.bin")),
+    readFileSync(join(root, "storage", "en_rules.bin")),
+    undefined,
+    "fiction",
+  );
+  counter.enableRules(["BUILTIN/TOO_OFTEN_USED_NOUN_EN"]);
+  // 10 "cat"s among 105 nouns (9.5%), in narration since the fiction profile leaves dialogue out.
+  const nouns = ("dog tree river car book chair garden street city lamp bottle cup plate shirt horse " +
+    "apple kitchen window door table house phone mountain forest island bridge castle candle blanket " +
+    "pillow spoon fork knife basket ladder carpet curtain mirror wallet pocket jacket helmet hammer " +
+    "engine wheel tunnel valley meadow village harbor lantern barrel saddle anchor violin piano guitar " +
+    "trumpet tomato potato carrot onion banana lemon cherry peach pear melon cabbage pepper garlic " +
+    "biscuit pastry sandwich elephant giraffe monkey tiger rabbit turtle squirrel donkey camel dolphin " +
+    "parrot pigeon sparrow eagle owl spider beetle ant wasp nephew niece").split(" ");
+  eq(nouns.length, 95, "95 other nouns");
+  const text = [
+    ...Array(5).fill("😀 He’d seen the cat—the cat…\u2028“So?” she said."),
+    ...nouns.map((noun) => `I saw the ${noun}.`),
+  ].join(" ");
+  const cats = () =>
+    JSON.parse(counter.check(text))
+      .filter((item) => item.source === "BUILTIN/TOO_OFTEN_USED_NOUN_EN")
+      .map((item) => text.slice(item.start16, item.end16));
+  eq(cats(), Array(10).fill("cat"), "nouns at the default 5%, with UTF-16 spans");
+  counter.setTooOftenUsedPercent(10);
+  eq(cats(), [], "a higher minimum percentage flags nothing");
+  counter.setTooOftenUsedPercent(9);
+  eq(cats().length, 10, "the minimum percentage can be lowered again");
+  for (const percent of [0, 101]) {
+    let error = "";
+    try {
+      counter.setTooOftenUsedPercent(percent);
+    } catch (err) {
+      error = String(err);
+    }
+    check(error.includes("between 1 and 100"), `out-of-range percentage throws: ${error}`);
+  }
+  eq(cats().length, 10, "an out-of-range percentage changes nothing");
+  counter.free();
+}
+
 // Analysis uses UTF-16 offsets directly with String.slice, including after emoji.
 const prose = "😀 “She’s goin’—again…”\u2028\n\nHe stayed.";
 const analysis = JSON.parse(checker.analyze(prose));

@@ -325,6 +325,48 @@ final class CheckerTests: XCTestCase {
         }
     }
 
+    func testTooOftenUsedPercent() throws {
+        let checker = try Checker(
+            tokenizerPath: Self.dataPath("en_tokenizer.bin"),
+            rulesPath: Self.dataPath("en_rules.bin")
+        )
+        try checker.enableRules(selectors: ["BUILTIN/TOO_OFTEN_USED_NOUN_EN"])
+        // 10 "cat"s among 105 nouns (9.5%), in narration since the fiction profile leaves dialogue out.
+        let nouns = """
+            dog tree river car book chair garden street city lamp bottle cup plate shirt horse apple kitchen \
+            window door table house phone mountain forest island bridge castle candle blanket pillow spoon fork \
+            knife basket ladder carpet curtain mirror wallet pocket jacket helmet hammer engine wheel tunnel \
+            valley meadow village harbor lantern barrel saddle anchor violin piano guitar trumpet tomato potato \
+            carrot onion banana lemon cherry peach pear melon cabbage pepper garlic biscuit pastry sandwich \
+            elephant giraffe monkey tiger rabbit turtle squirrel donkey camel dolphin parrot pigeon sparrow \
+            eagle owl spider beetle ant wasp nephew niece
+            """.split(separator: " ")
+        XCTAssertEqual(nouns.count, 95)
+        let cat = "He\u{2019}d seen the cat\u{2014}the cat\u{2026}\u{2028}\u{201C}So?\u{201D} she said."
+        let text = (Array(repeating: cat, count: 5) + nouns.map { "I saw the \($0)." }).joined(separator: " ")
+        let cats = {
+            checker.check(text: text)
+                .filter { $0.source == "BUILTIN/TOO_OFTEN_USED_NOUN_EN" }
+                .map { (text as NSString).substring(with: $0.nsRange) }
+        }
+        XCTAssertEqual(cats(), Array(repeating: "cat", count: 10), "nouns at the default 5%")
+
+        try checker.setTooOftenUsedPercent(percent: 10)
+        XCTAssertTrue(cats().isEmpty)
+        try checker.setTooOftenUsedPercent(percent: 9)
+        XCTAssertEqual(cats().count, 10)
+
+        for percent: UInt32 in [0, 101] {
+            XCTAssertThrowsError(try checker.setTooOftenUsedPercent(percent: percent)) { error in
+                guard case let CheckError.InvalidOption(message) = error else {
+                    return XCTFail("unexpected error: \(error)")
+                }
+                XCTAssertTrue(message.contains("between 1 and 100"), message)
+            }
+        }
+        XCTAssertEqual(cats().count, 10, "an out-of-range percentage changes nothing")
+    }
+
     func testUnknownProfileThrows() throws {
         let tokenizer = try Self.dataPath("en_tokenizer.bin")
         let rules = try Self.dataPath("en_rules.bin")
