@@ -119,8 +119,15 @@ impl Disambiguation {
                                 }
                             }
                             either::Right(filter) => {
+                                // As in LanguageTool, a filter whose tag matches none of the
+                                // token's readings leaves it alone: "as" in "as soon as
+                                // possible" keeps its multiword reading against a CC|IN filter.
+                                // (`filterall` takes each filter from the token's own pattern
+                                // tag, so one reading always matches there.)
                                 for token in group.into_iter() {
-                                    filter.keep(token.word_mut())
+                                    if PosFilter::and(&[filter], token.word()) {
+                                        filter.keep(token.word_mut())
+                                    }
                                 }
                             }
                         }
@@ -195,6 +202,7 @@ impl Disambiguation {
                         },
                     )
                     .collect();
+                let sentence_end = PosId::special(SpecialPos::SentEnd);
 
                 for ((group, disambig), use_mask_val) in groups.into_iter().zip(disambigs).zip(mask)
                 {
@@ -208,7 +216,18 @@ impl Disambiguation {
                                 disambig.keep(token.word_mut());
                             }
 
-                            if token.word().tags().is_empty() {
+                            // The sentence end's SENT_END reading is only added when the token
+                            // is finalized. When it is the one reading that unifies, LanguageTool
+                            // keeps it alone, so "." in "the world." loses `./.` and `./PCT`.
+                            let keeps_sentence_end = token.is_sentence_end()
+                                && to_apply.iter().any(|filter| {
+                                    filter.iter().all(|f| f.matcher.is_match(&sentence_end))
+                                })
+                                && disambig
+                                    .as_ref()
+                                    .map_or(true, |d| d.matcher.is_match(&sentence_end));
+
+                            if token.word().tags().is_empty() && !keeps_sentence_end {
                                 *token.word_mut() = before;
                             }
                         }

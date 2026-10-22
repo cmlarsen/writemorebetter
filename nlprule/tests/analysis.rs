@@ -40,15 +40,33 @@ fn parse_taggeronly(transcript: &str) -> Vec<ReferenceToken> {
                 chunks: BTreeSet::new(),
             };
             assert!(!token.text.is_empty(), "unexpected empty CLI token");
-            for tag in tags.split(',') {
-                let tag = tag.strip_prefix("</S>").unwrap_or(tag);
-                if let Some((lemma, pos)) = tag.rsplit_once('/') {
-                    // Keep this independent of the engine's SpecialPos list.
-                    if !matches!(pos, "null" | "" | "UNKNOWN" | "SENT_START" | "SENT_END") {
-                        token.readings.insert((lemma.to_owned(), pos.to_owned()));
+            // Readings are `lemma/POS` joined by commas, then the chunks. A lemma or POS can
+            // itself be "," (`,[,/,,,/PCT,O]`), so a POS takes at least one character. `</S>`
+            // marks the sentence end, before a reading (`</S>./PCT`) or alone (`![</S>,O]`).
+            let mut tags = tags;
+            while !tags.is_empty() {
+                if let Some(rest) = tags.strip_prefix("</S>") {
+                    tags = match rest.strip_prefix(',') {
+                        Some(after) if rest.find('/') != Some(1) => after,
+                        _ => rest,
+                    };
+                }
+                let Some((lemma, rest)) = tags.split_once('/') else {
+                    if !tags.is_empty() {
+                        token.chunks.extend(tags.split('|').map(str::to_owned));
                     }
-                } else {
-                    token.chunks.extend(tag.split('|').map(str::to_owned));
+                    break;
+                };
+                let pos_len = rest
+                    .char_indices()
+                    .skip(1)
+                    .find(|(_, c)| *c == ',')
+                    .map_or(rest.len(), |(i, _)| i);
+                let pos = &rest[..pos_len];
+                tags = rest[pos_len..].strip_prefix(',').unwrap_or("");
+                // Keep this independent of the engine's SpecialPos list.
+                if !matches!(pos, "null" | "" | "UNKNOWN" | "SENT_START" | "SENT_END") {
+                    token.readings.insert((lemma.to_owned(), pos.to_owned()));
                 }
             }
             tokens.push(token);
@@ -199,6 +217,26 @@ fn analysis_readings_follow_lt66_probes() {
         readings(&sentences, "again"),
         vec![("again".into(), "RB".into())]
     );
+
+    // Every token of a multiword phrase keeps the phrase's reading, even a repeated word that
+    // a filter rule for another tag also matches (AS_NOT_ADVERB filters "as" to CC|IN).
+    let sentences = TOKENIZER.analyze(include_str!("fixtures/analysis/multiword_filter.txt"));
+    let tokens: Vec<_> = sentences.iter().flat_map(|s| &s.tokens).collect();
+    let phrase = vec![("as soon as possible".to_owned(), "RB".to_owned())];
+    for token in tokens.iter().filter(|t| t.text == "as") {
+        let readings: Vec<_> = token
+            .readings
+            .iter()
+            .map(|r| (r.lemma.clone(), r.pos.clone()))
+            .collect();
+        assert_eq!(readings, phrase);
+    }
+    assert_eq!(
+        readings(&sentences, "after"),
+        vec![("after all".into(), "RB".into())]
+    );
+    // The DT + NN + sentence end unify rule keeps only the sentence end's SENT_END reading.
+    assert_eq!(readings(&sentences, "!"), vec![]);
 
     let sentences = TOKENIZER.analyze(include_str!("fixtures/analysis/paragraphs.txt"));
     assert_eq!(
