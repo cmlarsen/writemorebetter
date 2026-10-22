@@ -48,10 +48,11 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
 ### Changed
 
-- **`RULES_FORMAT_VERSION` is 35.** Version 33 added `SpellLangOptions::latin_script`, 34 the
-  `ConsistentApostrophes` builtin, and 35 stores the multitoken phrase list once instead of twice
-  ([#212](https://github.com/cmlarsen/writemorebetter/issues/212)), so 0.12.0's `en_rules.bin` no
-  longer loads; use the next release's data zip. The tokenizer format stays 18.
+- **`RULES_FORMAT_VERSION` is 36.** Version 33 added `SpellLangOptions::latin_script`, 34 the
+  `ConsistentApostrophes` builtin, 35 stores the multitoken phrase list once instead of twice
+  ([#212](https://github.com/cmlarsen/writemorebetter/issues/212)), and 36 adds the speller
+  dictionaries' replacement pairs (#194), so 0.12.0's `en_rules.bin` no longer loads; use the
+  next release's data zip. The tokenizer format stays 18.
 - **`Builtin::check` and `Builtin::check_text` take the speller.** Both take an
   `Option<&Speller>` as a new last argument, as `Builtin::check_paragraph` does. Pass
   `rules.spell().speller().as_ref()` to get the `EN_COMPOUNDS` suggestions `Rules::suggest`
@@ -159,6 +160,11 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 - **`<token min="N">` with N > 1 and a `max` other than 1 is rejected at compile time** instead of
   matching N..M tokens where LanguageTool can match up to N·M. No English rule uses it
   ([#224](https://github.com/cmlarsen/writemorebetter/issues/224)).
+- **Spelling suggestions apply the dictionary's replacement pairs.** The speller now reads
+  `fsa.dict.speller.replacement-pairs` from each variant's `.info` into the data binary and, as
+  Morfologik does, treats each pair (`ei`/`a`, `ey`/`a`, `ph`/`f`, `kw`/`qu`, `uff`/`ough`, …) as a
+  free edit: "Feyre" gets Fare, Care, Face; "fone" gets phone; "enuff" gets enough. Top-1
+  agreement with LanguageTool 6.6 on a 308-word probe rose from 80.8% to 86.7% (#194).
 
 ### Removed
 

@@ -1,4 +1,4 @@
-4 | SPELLCHECK/SINGLE | "Aldermere" -> ["Aldermen"] | Possibly misspelled word.
+4 | SPELLCHECK/SINGLE | "Aldermere" -> ["Alderman"] | Possibly misspelled word.
 13 | SPELLCHECK/SINGLE | "occured" -> ["occurred"] | Possibly misspelled word.
 16 | SPELLCHECK/SINGLE | "neccessary" -> ["necessary"] | Possibly misspelled word.
 22 | PUNCTUATION/PRP_COMMA/0 | "us" -> ["us,"] | Consider adding a comma here to clarify the structure of the sentence.

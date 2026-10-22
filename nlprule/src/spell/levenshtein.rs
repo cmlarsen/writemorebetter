@@ -1,7 +1,10 @@
 use fnv::FnvHasher;
 use fst::Automaton;
+
+use super::replacements::{Edit, ReplacementPairs};
 use std::{
     cmp::{self, min},
+    convert::TryFrom,
     hash::{Hash, Hasher},
 };
 
@@ -12,7 +15,14 @@ pub struct LevenshteinState {
     // to compute the next row of the matrix, we also need the row two rows up for transposes
     prev_row: Option<Vec<usize>>,
     prev_char: char,
+    // the previous character as stored in the FST, for replacement pairs (which match case)
+    prev_raw: char,
     row: Vec<usize>,
+    // the largest row minimum on the way here (see `LevenshteinState::reach`)
+    max_cutoff: usize,
+    // the offsets between query and key positions that replacement pairs have produced so far,
+    // as bits `offset + SHIFT_BIAS`; a pair applies only at one of them
+    shifts: u32,
     // the bytes of a multi-byte UTF-8 character read so far
     pending: [u8; 4],
     pending_len: usize,
@@ -23,6 +33,14 @@ impl LevenshteinState {
     pub fn dist(&self) -> usize {
         self.dist
     }
+
+    /// The smallest maximum distance at which a search reaches this state: its distance, or more
+    /// when a prefix of the key was further from the query than the whole key (a replacement
+    /// pair can make a longer key cheaper than its prefix). Morfologik searches distance 1
+    /// before distance 2 and prunes such prefixes in the distance-1 search.
+    pub fn reach(&self) -> usize {
+        self.dist.max(self.max_cutoff)
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -31,6 +49,8 @@ pub struct Levenshtein {
     distance: usize,
     prefix: usize,
     fold_case: bool,
+    // zero-cost edits from replacement pairs, indexed by the query position where they start
+    edits: Vec<Vec<Edit>>,
 }
 
 impl Levenshtein {
@@ -40,7 +60,19 @@ impl Levenshtein {
             distance,
             prefix,
             fold_case: false,
+            edits: Vec::new(),
         }
+    }
+
+    /// Lets the search apply `pairs` as zero-cost edits. Must be called before
+    /// [Levenshtein::fold_case], since the pairs match the query's original case.
+    pub fn replacements(mut self, pairs: &ReplacementPairs) -> Self {
+        debug_assert!(!self.fold_case);
+        self.edits = pairs.edits_for(&self.query);
+        if self.edits.iter().all(Vec::is_empty) {
+            self.edits = Vec::new();
+        }
+        self
     }
 
     pub fn fold_case(mut self, fold_case: bool) -> Self {
@@ -59,6 +91,11 @@ impl Levenshtein {
         }
     }
 }
+
+const SHIFT_BIAS: i32 = 16;
+
+/// At most this many replacement pairs apply to one key character.
+const MAX_STEP_EDITS: usize = 8;
 
 fn fold(c: char) -> char {
     if c.is_ascii() {
@@ -89,7 +126,10 @@ impl Automaton for Levenshtein {
             n: 0,
             prev_row: None,
             prev_char: '\0',
+            prev_raw: '\0',
             row: (0..=self.query.len()).collect(),
+            max_cutoff: 0,
+            shifts: 1 << SHIFT_BIAS,
             pending: [0; 4],
             pending_len: 0,
             hash: FnvHasher::default().finish(),
@@ -131,10 +171,53 @@ impl Automaton for Levenshtein {
                     .and_then(|s| s.chars().next())
                     .unwrap_or(char::REPLACEMENT_CHARACTER)
             };
+            let raw = c;
             let c = self.normalize(c);
 
             let row = &state.row;
             let mut next_row = state.row.to_vec();
+
+            // Replacement pairs: query characters `start..end` stand for this key character, or
+            // for the previous one and this one, at no cost. As in Morfologik, a pair applies
+            // only where it starts at the position in the query that lines up with the key
+            // (shifted by the pairs applied before it).
+            let mut step_edits = [(0usize, 0usize); MAX_STEP_EDITS];
+            let mut n_step_edits = 0;
+            let mut shifts = state.shifts;
+            if !self.edits.is_empty() {
+                let mut bits = state.shifts;
+                while bits != 0 {
+                    let shift = bits.trailing_zeros() as i32 - SHIFT_BIAS;
+                    bits &= bits - 1;
+                    let anchored = |back: usize| {
+                        usize::try_from(state.n as i32 + shift - back as i32)
+                            .ok()
+                            .and_then(|start| self.edits.get(start))
+                            .map_or(&[][..], Vec::as_slice)
+                    };
+                    let one = anchored(0).iter().filter(|e| e.to_len == 1 && e.to[0] == raw);
+                    let two = state.prev_row.iter().flat_map(|_| {
+                        anchored(1)
+                            .iter()
+                            .filter(|e| e.to_len == 2 && e.to == [state.prev_raw, raw])
+                    });
+                    for edit in one.chain(two) {
+                        let source = if edit.to_len == 1 {
+                            row[edit.start]
+                        } else {
+                            state.prev_row.as_ref().map_or(usize::MAX, |r| r[edit.start])
+                        };
+                        if n_step_edits < MAX_STEP_EDITS {
+                            step_edits[n_step_edits] = (edit.end, source);
+                            n_step_edits += 1;
+                        }
+                        let next = shift + edit.shift as i32 + SHIFT_BIAS;
+                        if (0..32).contains(&next) {
+                            shifts |= 1 << next;
+                        }
+                    }
+                }
+            }
 
             next_row[0] = state.n + 1;
 
@@ -160,6 +243,12 @@ impl Automaton for Levenshtein {
                     }
                 }
 
+                for &(end, source) in &step_edits[..n_step_edits] {
+                    if end == i {
+                        cost = min(cost, source);
+                    }
+                }
+
                 next_row[i] = cost;
             }
 
@@ -169,8 +258,16 @@ impl Automaton for Levenshtein {
                 1
             };
 
-            let lower_bound = (state.n + 1).saturating_sub(distance);
-            let upper_bound = cmp::min(state.n + 1 + distance, self.query.len());
+            // Without replacement pairs only the cells within `distance` of the diagonal can
+            // stay within `distance`; a pair can move a cheap path further off it.
+            let (lower_bound, upper_bound) = if self.edits.is_empty() {
+                (
+                    (state.n + 1).saturating_sub(distance),
+                    cmp::min(state.n + 1 + distance, self.query.len()),
+                )
+            } else {
+                (0, self.query.len())
+            };
 
             let cutoff = if lower_bound > upper_bound {
                 0
@@ -190,7 +287,10 @@ impl Automaton for Levenshtein {
                 n: state.n + 1,
                 prev_row: Some(row.clone()),
                 prev_char: c,
+                prev_raw: raw,
                 row: next_row,
+                max_cutoff: state.max_cutoff.max(cutoff),
+                shifts,
                 pending: [0; 4],
                 pending_len: 0,
                 hash: next_hash,

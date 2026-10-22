@@ -1,4 +1,4 @@
-4 | SPELLCHECK/SINGLE | "Aldermere" -> ["Aldermen"] | Possibly misspelled word.
+4 | SPELLCHECK/SINGLE | "Aldermere" -> ["Alderman"] | Possibly misspelled word.
 8 | REDUNDANCY/WHETHER/6 | "whether or not" -> ["whether"] | Consider shortening this phrase to just 'whether', unless you mean 'regardless of whether'.
 11 | PUNCTUATION/COMMA_COMPOUND_SENTENCE_2/3 | " and" -> [", and"] | Use a comma before "and" if it connects two independent clauses (unless they are closely connected and short).
 11 | PUNCTUATION/COMMA_COMPOUND_SENTENCE_2/3 | " and" -> [", and"] | Use a comma before "and" if it connects two independent clauses (unless they are closely connected and short).

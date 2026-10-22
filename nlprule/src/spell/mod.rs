@@ -20,7 +20,9 @@ use crate::{
 
 pub(crate) mod levenshtein;
 pub(crate) mod multitoken;
+pub(crate) mod replacements;
 use multitoken::MultitokenSpeller;
+use replacements::ReplacementPairs;
 mod spell_int {
     use std::cmp;
 
@@ -104,6 +106,9 @@ pub(crate) use spell_int::SpellInt;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 struct Candidate {
+    /// The maximum distance of the first search that finds this candidate (1 or 2), see
+    /// [levenshtein::LevenshteinState::reach].
+    tier: usize,
     distance: usize,
     freq: usize,
     term: String,
@@ -115,8 +120,9 @@ impl PartialOrd for Candidate {
 }
 impl Ord for Candidate {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.distance
-            .cmp(&other.distance)
+        self.tier
+            .cmp(&other.tier)
+            .then_with(|| self.distance.cmp(&other.distance))
             .then_with(|| other.freq.cmp(&self.freq))
             .then_with(|| self.term.cmp(&other.term))
     }
@@ -183,6 +189,14 @@ pub(crate) struct SpellLangOptions {
     /// in LanguageTool's `isLatinScript()`. A token mixing scripts is still checked.
     #[serde(default)]
     pub latin_script: bool,
+}
+
+/// Settings of one variant's speller dictionary, read from its Morfologik `.info` file at
+/// compile time. Part of the (LGPL) data binary.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub(crate) struct VariantInfo {
+    /// `fsa.dict.speller.replacement-pairs`: letter groups commonly misspelled for one another.
+    pub replacement_pairs: ReplacementPairs,
 }
 
 impl Default for SpellOptions {
@@ -444,6 +458,7 @@ pub(crate) struct VariantChecker {
     lang_options: SpellLangOptions,
     options: SpellOptions,
     user: UserMatcher,
+    info: VariantInfo,
 }
 
 impl VariantChecker {
@@ -475,8 +490,14 @@ impl VariantChecker {
     }
 
     fn is_known(&self, fst: &Map<&[u8]>, word: &str) -> bool {
+        self.lookup(fst, word).is_some()
+    }
+
+    /// The entry for `word` if it is a word of this variant.
+    fn lookup(&self, fst: &Map<&[u8]>, word: &str) -> Option<SpellInt> {
         fst.get(word)
-            .is_some_and(|v| SpellInt(v).contains_variant(self.variant_index))
+            .map(SpellInt)
+            .filter(|id| id.contains_variant(self.variant_index))
     }
 
     /// Populates `correct_mask` according to the correctness of the given zeroth token.
@@ -570,19 +591,18 @@ impl VariantChecker {
         if len > MAX_SEARCH_LEN {
             return Vec::new();
         }
-        let search_distance = if len <= self.options.max_distance {
-            len.saturating_sub(1)
-        } else {
-            self.options.max_distance
+        let search_distance = |len: usize| {
+            if len <= self.options.max_distance {
+                len.saturating_sub(1)
+            } else {
+                self.options.max_distance
+            }
         };
 
         let all_caps = is_all_caps(word);
         // As LanguageTool does, a word starting with a capital gets capitalized candidates, also
         // when it is mixed case (`LeBRON` -> `Learn`, not `learn`).
         let convert_case = all_caps || word.chars().next().is_some_and(char::is_uppercase);
-        let query =
-            levenshtein::Levenshtein::new(word, search_distance, self.options.prefix_length)
-                .fold_case(true);
         let restore_case = |term: String| {
             if convert_case {
                 recase(term, all_caps)
@@ -592,21 +612,59 @@ impl VariantChecker {
         };
 
         let mut out = BinaryHeap::with_capacity(self.options.top_n);
-        self.push_candidates(&mut out, fst, &query, &restore_case);
-
-        if !self.user.suggestion_fst.is_empty() {
-            let user_map = Map::new(self.user.suggestion_fst.as_slice())
-                .expect("serialized user suggestion fst must be valid.");
-            self.push_candidates(&mut out, &user_map, &query, &restore_case);
+        let pairs = &self.info.replacement_pairs;
+        // As in Morfologik, the longer replacement pairs rewrite the word (`enuff` -> `enough`):
+        // a rewrite that is a word is a candidate at distance 0, and the word and its first
+        // rewrites are all searched.
+        let checked = pairs.rewrites(word);
+        for rewrite in checked.iter().skip(1) {
+            let lower = rewrite.to_lowercase();
+            let forms = [
+                rewrite.clone(),
+                apply_to_first(&lower, |x| x.to_uppercase().collect()),
+                rewrite.to_uppercase(),
+                lower,
+            ];
+            for form in forms {
+                if let Some(id) = self.lookup(fst, &form) {
+                    self.push(&mut out, restore_case(form), 0, 0, id.freq());
+                }
+            }
         }
 
+        // Morfologik searches at most 14 words and stops at a rewrite shorter than 4 letters.
+        const MAX_SEARCHES: usize = 14;
+        const MIN_REWRITE_LEN: usize = 4;
+        for (i, query) in checked.iter().take(MAX_SEARCHES).enumerate() {
+            let len = query.chars().count();
+            if i > 0 && len < MIN_REWRITE_LEN {
+                break;
+            }
+            let query = levenshtein::Levenshtein::new(
+                query,
+                search_distance(len),
+                self.options.prefix_length,
+            )
+            .replacements(pairs)
+            .fold_case(true);
+
+            self.push_candidates(&mut out, fst, &query, &restore_case);
+            if !self.user.suggestion_fst.is_empty() {
+                let user_map = Map::new(self.user.suggestion_fst.as_slice())
+                    .expect("serialized user suggestion fst must be valid.");
+                self.push_candidates(&mut out, &user_map, &query, &restore_case);
+            }
+        }
+
+        // LanguageTool takes the candidates of a distance-1 search, and adds those of a
+        // distance-2 search when there are none or the best one differs from the word only in
+        // case.
         let out = out.into_sorted_vec();
-        let max_distance = match out.first() {
-            Some(x) if x.distance > 0 => x.distance,
-            _ => search_distance,
-        };
+        let first_tier_only = out.first().is_some_and(|x| {
+            x.tier <= 1 && !(x.distance == 0 && x.term.to_lowercase() == word.to_lowercase())
+        });
         out.into_iter()
-            .take_while(|x| x.distance <= max_distance)
+            .take_while(|x| !first_tier_only || x.tier <= 1)
             .map(|x| x.term)
             .collect()
     }
@@ -632,21 +690,34 @@ impl VariantChecker {
 
             let term =
                 recase(String::from_utf8(k.to_vec()).expect("fst keys must be valid utf-8."));
-            let candidate = Candidate {
-                distance: state.dist(),
-                freq: id.freq(),
-                term,
-            };
-            if let Some(existing) = out.iter().find(|x| x.term == candidate.term) {
-                if *existing <= candidate {
-                    continue;
-                }
-                out.retain(|x| x.term != candidate.term);
+            self.push(out, term, state.dist(), state.reach(), id.freq());
+        }
+    }
+
+    /// Pushes one candidate into `out`, keeping the best entry per term and at most `top_n`.
+    fn push(
+        &self,
+        out: &mut BinaryHeap<Candidate>,
+        term: String,
+        distance: usize,
+        reach: usize,
+        freq: usize,
+    ) {
+        let candidate = Candidate {
+            tier: reach.max(1),
+            distance,
+            freq,
+            term,
+        };
+        if let Some(existing) = out.iter().find(|x| x.term == candidate.term) {
+            if *existing <= candidate {
+                return;
             }
-            out.push(candidate);
-            if out.len() > self.options.top_n {
-                out.pop();
-            }
+            out.retain(|x| x.term != candidate.term);
+        }
+        out.push(candidate);
+        if out.len() > self.options.top_n {
+            out.pop();
         }
     }
 }
@@ -669,6 +740,8 @@ pub struct Spell {
     pub(crate) options: SpellOptions,
     /// Known multi-word names and phrases for the multitoken spelling rules.
     pub(crate) multitoken: MultitokenSpeller,
+    /// Per-variant dictionary settings, parallel to [SpellLangOptions::variants].
+    pub(crate) variant_info: Vec<VariantInfo>,
     /// The structure containing the actual spellchecking logic. Computed based on the selected variant.
     #[serde(skip)]
     pub(crate) variant_checker: Option<VariantChecker>,
@@ -774,6 +847,11 @@ impl Spell {
                 options: self.options.clone(),
                 lang_options: self.lang_options.clone(),
                 user: UserMatcher::default(),
+                info: self
+                    .variant_info
+                    .get(variant_index)
+                    .cloned()
+                    .unwrap_or_default(),
             },
         };
 

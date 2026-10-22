@@ -1192,6 +1192,50 @@ fn speller_capitalizes_candidates_for_mixed_case_words() {
 }
 
 #[test]
+fn speller_applies_the_dictionarys_replacement_pairs() {
+    // LanguageTool 6.6 (`We saw <word> there.`, en-US): `ey` may stand for `a`, `f` for `ph`,
+    // `kw` for `qu`, and `uff` for `ough`.
+    let speller = RULES.spell().speller().unwrap();
+    for (word, expected) in [
+        ("Feyre", &["Fare", "Care", "Face", "Far", "Farm"][..]),
+        ("Weyre", &["Ware", "Were", "Care", "War", "Rare"][..]),
+        ("fone", &["phone", "one", "fine", "done", "gone"][..]),
+        ("fotograph", &["photograph", "photographs", "photography", "phonograph"][..]),
+        ("kwestion", &["question", "questions"][..]),
+        ("enuff", &["enough", "snuff", "enoughs"][..]),
+        ("neice", &["name", "nice", "race", "face", "niece"][..]),
+        // Two pairs in one word (`ei` for `a`, then `gh` for `f`).
+        ("heighth", &["height", "eighth", "heights", "haft", "hafts"][..]),
+        // A pair applies only where it lines up with the candidate, so `Squier` does not get
+        // `Sewer` (`ui` for `ew` after deleting `q`).
+        ("Squier", &["Squire", "Squeak", "Squeal"][..]),
+    ] {
+        assert_eq!(speller.suggest(word, expected.len()), expected, "{}", word);
+    }
+
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    rules.spell_mut().options_mut().variant = Some(rules.spell().variant("en_US").unwrap());
+    // The pairs match case, as in LanguageTool: `Kwik` gets `KWIC`, `kwik` gets `quick`.
+    let text = "\u{201c}Feyre\u{2019}s fone\u{2014}enuff\u{2026}\u{201d}\u{2028}\u{2018}Kwik, kwik!\u{2019}";
+    let first_replacements: Vec<(&str, String)> = rules
+        .suggest(text, &*TOKENIZER)
+        .into_iter()
+        .filter(|x| x.source().starts_with("SPELLCHECK"))
+        .map(|x| (&text[x.span().byte().clone()], x.replacements()[0].clone()))
+        .collect();
+    assert_eq!(
+        first_replacements,
+        vec![
+            ("Feyre", "Fare".to_string()),
+            ("fone", "phone".to_string()),
+            ("enuff", "enough".to_string()),
+            ("Kwik", "KWIC".to_string()),
+            ("kwik", "quick".to_string()),
+        ]
+    );
+}
+
+#[test]
 fn spelling_suggestions_keep_the_case_of_shouted_dialogue() {
     let mut rules = Rules::new(RULES_PATH).unwrap();
     rules.spell_mut().options_mut().variant = Some(rules.spell().variant("en_US").unwrap());

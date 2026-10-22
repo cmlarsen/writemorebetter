@@ -1,6 +1,6 @@
 17 | SPELLCHECK/SINGLE | "Sokolov" -> ["Sokoto"] | Possibly misspelled word.
 19 | SPELLCHECK/SINGLE | "buisness" -> ["business"] | Possibly misspelled word.
-24 | SPELLCHECK/SINGLE | "freind" -> ["friend"] | Possibly misspelled word.
+24 | SPELLCHECK/SINGLE | "freind" -> ["friend", "brand", "Frank", "grand", "fraud", "Franz", "franc", "Fran", "frank", "Frans"] | Possibly misspelled word.
 25 | SPELLCHECK/SINGLE | "goverment" -> ["government"] | Possibly misspelled word.
 28 | SPELLCHECK/SINGLE | "happend" -> ["happened", "happen", "happens", "append", "happed"] | Possibly misspelled word.
 32 | SPELLCHECK/SINGLE | "immediatly" -> ["immediately"] | Possibly misspelled word.

@@ -4,7 +4,7 @@
 22 | SPELLCHECK/SINGLE | "diffrent" -> ["different"] | Possibly misspelled word.
 28 | SPELLCHECK/SINGLE | "foriegn" -> ["foreign"] | Possibly misspelled word.
 35 | SPELLCHECK/SINGLE | "gratefull" -> ["grateful", "gratefully"] | Possibly misspelled word.
-36 | SPELLCHECK/SINGLE | "hieght" -> ["height"] | Possibly misspelled word.
+36 | SPELLCHECK/SINGLE | "hieght" -> ["height", "Haifa", "Haigh"] | Possibly misspelled word.
 39 | SPELLCHECK/SINGLE | "independant" -> ["independent", "Independent"] | Possibly misspelled word.
 42 | TYPOS/A_WAS/0 | "was" -> ["way"] | Did you mean way?
 45 | GRAMMAR/EACH_OF_NNS_VBP/0 | "are" -> ["is"] | You should probably use is.
