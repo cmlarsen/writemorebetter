@@ -336,7 +336,7 @@ mod tests {
         )
     }
 
-    fn readings(token: &IncompleteToken) -> Vec<(String, String)> {
+    fn lemma_pos_readings(token: &IncompleteToken) -> Vec<(String, String)> {
         token
             .word()
             .tags()
@@ -366,14 +366,14 @@ mod tests {
             let mut with_lemma = token(text, &readings_before);
             replace_with_lemma.apply(vec![vec![&mut with_lemma]]);
             assert_eq!(
-                readings(&with_lemma),
+                lemma_pos_readings(&with_lemma),
                 vec![("hound".to_string(), "UH".to_string())]
             );
 
             let mut without_lemma = token(text, &readings_before);
             replace_without_lemma.apply(vec![vec![&mut without_lemma]]);
             assert_eq!(
-                readings(&without_lemma),
+                lemma_pos_readings(&without_lemma),
                 vec![(text.to_string(), "UH".to_string())]
             );
         }
@@ -402,14 +402,17 @@ mod tests {
             );
             retaining.apply(vec![vec![&mut kept]]);
             assert_eq!(
-                readings(&kept),
+                lemma_pos_readings(&kept),
                 vec![("walks".to_string(), "NN".to_string())]
             );
 
             for (filter, lemma) in [(&retaining, "walk"), (&not_retaining, text)] {
                 let mut made = token(text, &[("walk", pos("VB", 1)), ("walker", pos("UH", 2))]);
                 filter.apply(vec![vec![&mut made]]);
-                assert_eq!(readings(&made), vec![(lemma.to_string(), "NN".to_string())]);
+                assert_eq!(
+                    lemma_pos_readings(&made),
+                    vec![(lemma.to_string(), "NN".to_string())]
+                );
             }
         }
     }
@@ -445,7 +448,7 @@ mod tests {
                     .iter()
                     .map(|(lemma, pos)| (lemma.to_string(), pos.to_string()))
                     .collect();
-                assert_eq!(readings(&token), expected, "{:?}", remove);
+                assert_eq!(lemma_pos_readings(&token), expected, "{:?}", remove);
             }
         }
     }
