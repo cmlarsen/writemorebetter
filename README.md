@@ -1,7 +1,7 @@
 # writemorebetter
 
 An embeddable grammar, style and spelling checker that runs LanguageTool's open English rules with no
-JVM — in the browser and Electron (WASM), in native Rust, and in Swift (iOS/macOS). It was built for
+JVM — in the browser and Electron (WASM), in native Rust, in Swift (iOS/macOS) and in Python. It was built for
 fiction prose: Subplot, a writing app for fiction authors, is the first consumer.
 
 LanguageTool is the source of the rules; writemorebetter is an independent project and is **not
@@ -90,6 +90,25 @@ The constructor copies the two byte buffers into wasm memory; read them, constru
 them. `addWords` / `removeWords` / `setWords` / `words` work as in Swift. See
 [`wasm/README.md`](wasm/README.md).
 
+### Python
+
+The `writemorebetter` package is not on PyPI yet; build the wheel from the checkout with
+[maturin](https://www.maturin.rs) (`cd python && maturin build --release`), or take one from the
+Python workflow's artifacts. The data files ship separately, as for the other bindings:
+
+```python
+from writemorebetter import Checker
+
+checker = Checker.from_dir("writemorebetter-data", spell_variant="en_US")  # profile="fiction"
+for s in checker.check(paragraph):
+    # start/end are Python string indices (code points): paragraph[s.start:s.end]
+    print(paragraph[s.start:s.end], s.source, s.message, s.replacements)
+```
+
+`add_words` / `remove_words` / `set_words` / `clear_words` / `words`, `analyze`,
+`analyze_document` and the style reports (`checker.style_document(text).adverbs()`, …) work as in
+Swift and WASM. See [`python/README.md`](python/README.md).
+
 ### Rust
 
 The engine crate is `nlprule` (0.7.0), inherited from upstream; it is not published to crates.io, so
@@ -126,7 +145,7 @@ thread.
 `tokenizer.analyze(text)` returns owned sentences and tagged tokens with original surface text,
 lemma/POS readings, chunk tags, whitespace/punctuation flags, and byte, scalar and UTF-16 spans.
 Swift's `checker.analyze(text:)` and WASM's `checker.analyze(text)` reuse the loaded tokenizer and
-return UTF-16 offsets. See [`docs/ANALYSIS.md`](docs/ANALYSIS.md) for the contract and reference tests.
+return UTF-16 offsets; Python's `checker.analyze(text)` returns code-point offsets. See [`docs/ANALYSIS.md`](docs/ANALYSIS.md) for the contract and reference tests.
 
 ## Data files and licensing
 
@@ -163,7 +182,7 @@ caller owns persistence — the words are not written into a binary.
   [#87](https://github.com/cmlarsen/writemorebetter/issues/87).
 - **The user dictionary does no Unicode normalization**, so entries must match the speller's
   tokenization byte-for-byte ([#86](https://github.com/cmlarsen/writemorebetter/issues/86)).
-- **Python bindings are not shipped**; the upstream `python/` crate is unmaintained
+- **The Python package is not on PyPI yet**; build it from `python/`
   ([#93](https://github.com/cmlarsen/writemorebetter/issues/93)).
 
 ## Repository layout
@@ -175,14 +194,14 @@ caller owns persistence — the words are not written into a binary.
 - `binaries/` — the LGPL data README and license; `scripts/build-data.sh` — the reproducible data build.
 - `bench/` — the comparison harness and the public stand-in corpus; `docs/` — evaluation, perf and
   design notes.
-- `python/` — upstream nlprule's Python crate, not built or shipped.
+- `python/` — the `writemorebetter` Python package (PyO3 bindings, built with maturin).
 
 ## Developing
 
 Gates before review: `cargo fmt --check`, `cargo clippy --all-targets`, `cargo test`, the WASM build
 (`cargo build --target wasm32-unknown-unknown --no-default-features --features regex-fancy -p nlprule`),
 and `bench/tools/golden.sh --check` for the LT 6.6 output. CI also gates the LanguageTool conformance
-pass rate (its embedded rule examples) and public-corpus recall, runs the Swift and fuzz jobs, and
+pass rate (its embedded rule examples) and public-corpus recall, runs the Swift, Python and fuzz jobs, and
 compares each PR's speed and memory against its merge base on the Performance workflow.
 
 `bench/corpus/` holds private, unpublished fiction; it is git-ignored and absent from clones. Use
@@ -199,5 +218,5 @@ LanguageTooler GmbH.
 
 The `style` crate bundles data tables under their own licenses, listed in [`NOTICE`](NOTICE) with
 the license texts in `style/data/licenses/`. Its syllable and initial-sound tables are derived from the CMU
-Pronouncing Dictionary (BSD-2-Clause-style): native, Swift and WASM builds that include the style
+Pronouncing Dictionary (BSD-2-Clause-style): native, Swift, WASM and Python builds that include the style
 reports must reproduce CMU's notice in their documentation; NOTICE has the text.

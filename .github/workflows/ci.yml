@@ -48,16 +48,16 @@ jobs:
         run: cargo fmt --all -- --check
 
       - name: Build workspace
-        run: cargo build --workspace --exclude nlprule-python --all-features
+        run: cargo build --workspace --exclude writemorebetter-python --all-features
 
       - name: Build wasm
         run: cargo build --target wasm32-unknown-unknown --no-default-features --features regex-fancy -p nlprule
 
       - name: Lint with clippy
-        run: cargo clippy --workspace --exclude nlprule-python --all-features
+        run: cargo clippy --workspace --exclude writemorebetter-python --all-features
 
       - name: Test
-        run: cargo test --workspace --exclude nlprule-python --all-features --release
+        run: cargo test --workspace --exclude writemorebetter-python --all-features --release
 
       - name: Build wasm package and run its JS tests
         run: |

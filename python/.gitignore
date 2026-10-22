@@ -1,0 +1,6 @@
+dist/
+__pycache__/
+.pytest_cache/
+# `maturin develop` builds the extension module in place.
+python/writemorebetter/*.so
+python/writemorebetter/*.pyd

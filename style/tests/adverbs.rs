@@ -2,7 +2,7 @@ use nlprule::Tokenizer;
 use std::sync::{Arc, OnceLock};
 use writemorebetter_style::reports::{
     adverbs::{self, AdverbsOptions},
-    to_utf16_json, StyleResources,
+    to_char_json, to_utf16_json, StyleResources,
 };
 use writemorebetter_style::{analyze_document, DocumentOptions, StyleDocument, StyleError};
 
@@ -58,6 +58,44 @@ fn manner_adverbs_split_and_mark_tags() {
         serialized["span"]["start"].as_u64(),
         Some(quiet.span.utf16.start as u64)
     );
+}
+
+#[test]
+fn char_json_counts_code_points() {
+    // The emoji is one code point but two UTF-16 units, so the two serializations disagree
+    // after it; the curly quotes, em dash and ellipsis are multi-byte but one unit each.
+    let text = "🙂 “Go,” he said softly—quietly… and left.\u{2028}She walked slowly.";
+    let document = analyze_document(tokenizer(), text, &DocumentOptions::new());
+    let report = adverbs::report(&document, &AdverbsOptions::new()).unwrap();
+    let chars: serde_json::Value = serde_json::from_str(&to_char_json(&report)).unwrap();
+    let utf16: serde_json::Value = serde_json::from_str(&to_utf16_json(&report)).unwrap();
+    for (item, (by_char, by_utf16)) in report.matches.iter().zip(
+        chars["matches"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .zip(utf16["matches"].as_array().unwrap()),
+    ) {
+        assert_eq!(
+            by_char["span"]["start"].as_u64(),
+            Some(item.span.char.start as u64)
+        );
+        assert_eq!(
+            by_char["span"]["end"].as_u64(),
+            Some(item.span.char.end as u64)
+        );
+        assert_eq!(
+            by_utf16["span"]["start"].as_u64(),
+            Some(item.span.char.start as u64 + 1)
+        );
+        let surface: String = text
+            .chars()
+            .skip(item.span.char.start)
+            .take(item.span.char.end - item.span.char.start)
+            .collect();
+        assert_eq!(surface, text[item.span.byte.clone()]);
+    }
+    assert!(!report.matches.is_empty());
 }
 
 #[test]

@@ -13,27 +13,40 @@ pub struct Span {
     pub utf16: Range<usize>,
 }
 
-thread_local! {
-    static UTF16_SPANS: Cell<bool> = const { Cell::new(false) };
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum SpanUnits {
+    /// Every unit, as `{"byte", "char", "utf16"}`.
+    All,
+    /// The UTF-16 range alone, for JavaScript strings and `NSRange`.
+    Utf16,
+    /// The Unicode scalar (code point) range alone, for Python string indices.
+    Char,
 }
 
-// While set, every Span serializes as its UTF-16 range alone; see reports::to_utf16_json.
-pub(crate) fn with_utf16_spans<T>(serialize: impl FnOnce() -> T) -> T {
-    struct Reset(bool);
+thread_local! {
+    static SPAN_UNITS: Cell<SpanUnits> = const { Cell::new(SpanUnits::All) };
+}
+
+// While set, every Span serializes as the chosen range alone; see reports::to_utf16_json and
+// reports::to_char_json.
+pub(crate) fn with_span_units<T>(units: SpanUnits, serialize: impl FnOnce() -> T) -> T {
+    struct Reset(SpanUnits);
     impl Drop for Reset {
         fn drop(&mut self) {
-            UTF16_SPANS.with(|flag| flag.set(self.0));
+            SPAN_UNITS.with(|flag| flag.set(self.0));
         }
     }
-    let _reset = Reset(UTF16_SPANS.with(|flag| flag.replace(true)));
+    let _reset = Reset(SPAN_UNITS.with(|flag| flag.replace(units)));
     serialize()
 }
 
 impl Serialize for Span {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         use serde::ser::SerializeStruct;
-        if UTF16_SPANS.with(Cell::get) {
-            return self.utf16.serialize(serializer);
+        match SPAN_UNITS.with(Cell::get) {
+            SpanUnits::Utf16 => return self.utf16.serialize(serializer),
+            SpanUnits::Char => return self.char.serialize(serializer),
+            SpanUnits::All => {}
         }
         let mut span = serializer.serialize_struct("Span", 3)?;
         span.serialize_field("byte", &self.byte)?;

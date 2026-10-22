@@ -1,0 +1,41 @@
+[build-system]
+requires = ["maturin>=1.9,<2"]
+build-backend = "maturin"
+
+[project]
+name = "writemorebetter"
+description = "English grammar, spelling and fiction style checking without a JVM, running LanguageTool's open English rules."
+readme = "README.md"
+requires-python = ">=3.9"
+# The wheel holds engine code only. The LGPL-2.1 rule and dictionary data ship separately in
+# writemorebetter-data-<version>.zip on the GitHub release. The license files are copies of the
+# repository root's (maturin cannot reach outside python/); CI checks they match.
+license = "MIT OR Apache-2.0"
+license-files = ["LICENSE-MIT", "LICENSE-APACHE", "NOTICE", "licenses/*"]
+keywords = ["grammar", "spelling", "spellcheck", "proofreading", "fiction", "style"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Natural Language :: English",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Rust",
+    "Topic :: Text Processing :: Linguistic",
+    "Typing :: Typed",
+]
+dynamic = ["version"]
+
+[project.urls]
+Homepage = "https://github.com/cmlarsen/writemorebetter"
+Source = "https://github.com/cmlarsen/writemorebetter/tree/main/python"
+Issues = "https://github.com/cmlarsen/writemorebetter/issues"
+
+[project.optional-dependencies]
+test = ["pytest>=7"]
+
+[tool.maturin]
+python-source = "python"
+module-name = "writemorebetter._native"
+features = ["extension-module"]
+# The release profile's defaults; a wheel is ~10 MB and checks run several times faster than
+# a debug build.
+profile = "release"
