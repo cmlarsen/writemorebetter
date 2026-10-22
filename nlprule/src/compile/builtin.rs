@@ -302,7 +302,7 @@ fn word_coherency(build_dir: &Path) -> WordCoherency {
 /// Reads a builtin data list from `<build_dir>/builtin/<name>.txt`. One entry
 /// per line; lines starting with `#` and blank lines are ignored. A missing
 /// file yields an empty list and a warning.
-fn read_list(build_dir: &Path, name: &str) -> Vec<String> {
+pub(super) fn read_list(build_dir: &Path, name: &str) -> Vec<String> {
     let path = build_dir.join("builtin").join(format!("{}.txt", name));
     match fs::read_to_string(&path) {
         Ok(content) => content

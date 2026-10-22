@@ -24,7 +24,11 @@ use crate::{
         DisambiguationRule, Repetition, Rule,
     },
     rules::{Rules, RulesLangOptions},
-    spell::{multitoken::MultitokenSpeller, Spell, SpellInt, SpellLangOptions},
+    spell::{
+        multitoken::{normalize_key, MultitokenSpeller},
+        replacements::ReplacementPairs,
+        Spell, SpellInt, SpellLangOptions, VariantInfo,
+    },
     tokenizer::{
         chunk,
         multiword::{MultiwordTagger, MultiwordTaggerFields},
@@ -48,6 +52,7 @@ impl Spell {
         max_freq: usize,
         map: DefaultHashMap<String, String>,
         lang_options: SpellLangOptions,
+        variant_info: Vec<VariantInfo>,
     ) -> Self {
         let mut spell = Spell {
             fst,
@@ -56,6 +61,7 @@ impl Spell {
             max_freq,
             map,
             lang_options,
+            variant_info,
             ..Default::default()
         };
         spell.ingest_options();
@@ -108,6 +114,65 @@ impl Spell {
             value.update_freq(freq);
             value.add_variant(variant_index);
         }
+    }
+
+    /// Reads the speller settings this engine uses from a Morfologik `.info` file (a Java
+    /// properties file). A missing file gives the defaults.
+    fn variant_info(path: &Path) -> io::Result<VariantInfo> {
+        if !path.exists() {
+            return Ok(VariantInfo::default());
+        }
+
+        let mut properties = HashMap::new();
+        let mut logical = String::new();
+        for line in BufReader::new(File::open(path)?).lines() {
+            let line = line?;
+            let line = line.trim_start();
+            if logical.is_empty() && (line.starts_with('#') || line.starts_with('!')) {
+                continue;
+            }
+            // a trailing backslash continues the value on the next line
+            if let Some(continued) = line.strip_suffix('\\') {
+                logical.push_str(continued);
+                continue;
+            }
+            logical.push_str(line);
+            if let Some((key, value)) = logical.split_once(['=', ':']) {
+                properties.insert(key.trim().to_owned(), value.trim().to_owned());
+            }
+            logical.clear();
+        }
+
+        let replacement_pairs = properties
+            .get("fsa.dict.speller.replacement-pairs")
+            .map(|value| {
+                ReplacementPairs::new(value.split(',').filter_map(|pair| {
+                    let mut parts = pair.trim().split(' ');
+                    match (parts.next(), parts.next(), parts.next()) {
+                        (Some(from), Some(to), None) => Some((from.to_owned(), to.to_owned())),
+                        _ => None,
+                    }
+                }))
+            })
+            .unwrap_or_default();
+
+        let ignore_diacritics = properties
+            .get("fsa.dict.speller.ignore-diacritics")
+            .map_or(VariantInfo::default().ignore_diacritics, |value| {
+                value.eq_ignore_ascii_case("true")
+            });
+
+        let run_on_words = properties
+            .get("fsa.dict.speller.runon-words")
+            .map_or(VariantInfo::default().run_on_words, |value| {
+                value.eq_ignore_ascii_case("true")
+            });
+
+        Ok(VariantInfo {
+            replacement_pairs,
+            ignore_diacritics,
+            run_on_words,
+        })
     }
 
     fn casing_variants(entry: &str) -> Vec<String> {
@@ -182,6 +247,7 @@ impl Spell {
         let mut multiwords: DefaultHashMap<String, Vec<(Vec<String>, SpellInt)>> =
             DefaultHashMap::default();
         let mut max_freq = 0;
+        let mut variant_info = Vec::new();
 
         if let Some(default) = &lang_options.default_variant {
             if !lang_options.variants.contains(default) {
@@ -213,6 +279,7 @@ impl Spell {
                 .as_ref()
                 .join(variant.as_str())
                 .with_extension("dump");
+            variant_info.push(Spell::variant_info(&spell_path.with_extension("info"))?);
 
             let reader = BufReader::new(File::open(&spell_path)?);
             for line in reader.lines() {
@@ -298,6 +365,7 @@ impl Spell {
             max_freq,
             map,
             lang_options,
+            variant_info,
         ))
     }
 }

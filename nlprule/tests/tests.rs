@@ -926,15 +926,32 @@ fn speller_accepts_and_suggests_words_from_the_global_list() {
 #[test]
 fn speller_folds_the_case_of_accented_letters() {
     let speller = RULES.spell().speller().unwrap();
+    // An accent difference costs no edit (see `speller_ignores_diacritics`), so the unaccented
+    // forms follow at the same distance, as in LanguageTool 6.6.
     assert_eq!(
         speller.suggest("\u{c9}CLAIRR", 5),
-        vec!["\u{c9}CLAIR", "\u{c9}CLAIRS"]
+        vec![
+            "\u{c9}CLAIR",
+            "\u{c9}CLAIRS",
+            "ECLAIR",
+            "ECLAIRS",
+            "\u{c9}CLAIR R"
+        ]
     );
     assert_eq!(
         speller.suggest("\u{c9}clairr", 5),
-        vec!["\u{c9}clair", "\u{c9}clairs"]
+        vec![
+            "Declarer",
+            "\u{c9}clair",
+            "\u{c9}clairs",
+            "Eclair",
+            "Eclairs"
+        ]
     );
-    assert_eq!(speller.suggest("NA\u{cf}VEE", 1), vec!["NA\u{cf}VE"]);
+    assert_eq!(
+        speller.suggest("NA\u{cf}VEE", 2),
+        vec!["NAIVE", "NA\u{cf}VE"]
+    );
     assert_eq!(speller.suggest("S\u{d8}RENN", 5), vec!["S\u{d8}REN"]);
     assert_eq!(
         speller.suggest("WH\u{152}L", 5),
@@ -961,7 +978,61 @@ fn speller_folds_the_case_of_accented_letters() {
         first_replacements,
         vec![
             ("S\u{d8}RENN", "S\u{d8}REN".to_string()),
-            ("\u{c9}clairr", "\u{c9}clair".to_string()),
+            ("\u{c9}clairr", "Declarer".to_string()),
+        ]
+    );
+}
+
+#[test]
+fn speller_ignores_diacritics() {
+    // LanguageTool 6.6 (`We saw <word> there.`, en-US): the dictionary sets
+    // `fsa.dict.speller.ignore-diacritics`, so a letter matches the same letter with any accent
+    // at no cost, and accented and plain candidates rank by frequency alone. `\u{f8}` has no
+    // decomposition, so it does not match `o`.
+    let speller = RULES.spell().speller().unwrap();
+    for (word, expected) in [
+        (
+            "Zoee",
+            &["Zone", "Zoe", "ZEE", "Zoey", "Zo\u{e9}", "Zo\u{eb}"][..],
+        ),
+        (
+            "Zo\u{eb}e",
+            &["Zone", "Zoe", "ZEE", "Zoey", "Zo\u{e9}", "Zo\u{eb}"][..],
+        ),
+        ("REN\u{c9}EE", &["RENEE", "REN\u{c9}E", "RENEGE"][..]),
+        // Ties keep dictionary order, except that the word's own case forms come first.
+        ("Ren\u{e9}ee", &["Renee", "Ren\u{e9}e", "Renege"][..]),
+        (
+            "ren\u{e9}e",
+            &["Ren\u{e9}e", "Renee", "renew", "Ren\u{e9}", "Rene"][..],
+        ),
+        (
+            "zo\u{eb}",
+            &["Zoe", "Zo\u{eb}", "Zo\u{e9}", "zone", "Joe"][..],
+        ),
+        ("Nescafee", &["Nescaf\u{e9}"][..]),
+        ("Citroen", &["Citro\u{eb}n", "Citron", "Citro\u{eb}ns"][..]),
+        ("Soreen", &["Screen", "Doreen", "Noreen", "Moreen"][..]),
+        ("S\u{d8}RENN", &["S\u{d8}REN"][..]),
+    ] {
+        assert_eq!(speller.suggest(word, expected.len()), expected, "{}", word);
+    }
+
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    rules.spell_mut().options_mut().variant = Some(rules.spell().variant("en_US").unwrap());
+    let text = "\u{201c}Zoee\u{2019}s Citroen\u{2014}gone\u{2026}\u{201d}\u{2028}\u{2018}Nescafee?\u{2019}";
+    let first_replacements: Vec<(&str, String)> = rules
+        .suggest(text, &*TOKENIZER)
+        .into_iter()
+        .filter(|x| x.source().starts_with("SPELLCHECK"))
+        .map(|x| (&text[x.span().byte().clone()], x.replacements()[0].clone()))
+        .collect();
+    assert_eq!(
+        first_replacements,
+        vec![
+            ("Zoee", "Zone".to_string()),
+            ("Citroen", "Citro\u{eb}n".to_string()),
+            ("Nescafee", "Nescaf\u{e9}".to_string()),
         ]
     );
 }
@@ -998,7 +1069,9 @@ fn speller_suggests_the_name_first_for_a_lowercased_name() {
         flags,
         vec![
             ("s\u{f8}ren", strings(&["S\u{f8}ren", "siren"])),
-            ("zo\u{eb}", strings(&["Zo\u{eb}", "zoo"])),
+            // As in LanguageTool 6.6: `Zoe` costs no edit with diacritics ignored and is
+            // more frequent.
+            ("zo\u{eb}", strings(&["Zoe", "Zo\u{eb}"])),
         ]
     );
 }
@@ -1150,7 +1223,8 @@ fn speller_capitalizes_candidates_for_mixed_case_words() {
     for (word, expected) in [
         ("PayPAL", &["PayPal", "Papal"][..]),
         ("XerXes", &["Xerxes", "Xeroxes", "Xeres"][..]),
-        ("DeVITO", &["DeVito", "Device"][..]),
+        // `DeV ITO` is a split, as in LanguageTool 6.6.
+        ("DeVITO", &["DeVito", "DeV ITO", "Device"][..]),
     ] {
         let suggestions = speller.suggest(word, 10);
         assert_eq!(&suggestions[..expected.len()], expected, "{}", word);
@@ -1187,6 +1261,226 @@ fn speller_capitalizes_candidates_for_mixed_case_words() {
             ("LeBRON", "LeBron".to_string()),
             ("PayPAL", "PayPal".to_string()),
             ("XerXes", "Xerxes".to_string()),
+        ]
+    );
+}
+
+#[test]
+fn speller_applies_the_dictionarys_replacement_pairs() {
+    // LanguageTool 6.6 (`We saw <word> there.`, en-US): `ey` may stand for `a`, `f` for `ph`,
+    // `kw` for `qu`, and `uff` for `ough`.
+    let speller = RULES.spell().speller().unwrap();
+    for (word, expected) in [
+        ("Feyre", &["Fare", "Care", "Face", "Far", "Farm"][..]),
+        ("Weyre", &["Ware", "Were", "Care", "War", "Rare"][..]),
+        ("fone", &["phone", "one", "fine", "done", "gone"][..]),
+        (
+            "fotograph",
+            &["photograph", "photographs", "photography", "phonograph"][..],
+        ),
+        ("kwestion", &["question", "questions"][..]),
+        ("enuff", &["enough", "snuff", "enoughs"][..]),
+        ("neice", &["name", "nice", "race", "face", "niece"][..]),
+        // Two pairs in one word (`ei` for `a`, then `gh` for `f`).
+        (
+            "heighth",
+            &["height", "eighth", "heights", "haft", "hafts"][..],
+        ),
+        // A pair applies only where it lines up with the candidate, so `Squier` does not get
+        // `Sewer` (`ui` for `ew` after deleting `q`).
+        ("Squier", &["Squire", "Squeak", "Squeal"][..]),
+    ] {
+        assert_eq!(speller.suggest(word, expected.len()), expected, "{}", word);
+    }
+    // A pair's cell is not extended by deletions in its own column, as in Morfologik: `Kalth`
+    // does not get `Keith` (`a` for `ei`, then delete `l`).
+    assert_eq!(speller.suggest("Kalth", 10), ["Kath"]);
+
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    rules.spell_mut().options_mut().variant = Some(rules.spell().variant("en_US").unwrap());
+    // The pairs match case, as in LanguageTool: `Kwik` gets `KWIC`, `kwik` gets `quick`.
+    let text = "\u{201c}Feyre\u{2019}s fone\u{2014}enuff\u{2026}\u{201d}\u{2028}\u{2018}Kwik, kwik!\u{2019}";
+    let first_replacements: Vec<(&str, String)> = rules
+        .suggest(text, &*TOKENIZER)
+        .into_iter()
+        .filter(|x| x.source().starts_with("SPELLCHECK"))
+        .map(|x| (&text[x.span().byte().clone()], x.replacements()[0].clone()))
+        .collect();
+    assert_eq!(
+        first_replacements,
+        vec![
+            ("Feyre", "Fare".to_string()),
+            ("fone", "phone".to_string()),
+            ("enuff", "enough".to_string()),
+            ("Kwik", "KWIC".to_string()),
+            ("kwik", "quick".to_string()),
+        ]
+    );
+}
+
+#[test]
+fn speller_finds_two_edits_at_the_start_of_a_word() {
+    // LanguageTool 6.6 (`We saw <word> there.`, en-US) has no prefix limit: `IPHONE` gets
+    // PRONE, HONE and SHONE (delete `I`, edit `P`/`H`), `Davenant` gets Covenant.
+    let speller = RULES.spell().speller().unwrap();
+    let iphone = speller.suggest("IPHONE", 10);
+    for expected in ["PRONE", "HONE", "SHONE"] {
+        assert!(iphone.contains(&expected.to_string()), "{:?}", iphone);
+    }
+    assert_eq!(speller.suggest("Davenant", 5), vec!["Covenant", "Revenant"]);
+    assert_eq!(
+        speller.suggest("Tyerman", 5),
+        vec!["German", "Thermal", "Sherman", "Herman", "Berman"]
+    );
+
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    rules.spell_mut().options_mut().variant = Some(rules.spell().variant("en_US").unwrap());
+    let text = "\u{201c}Tyerman\u{2019}s gone\u{2014}to Davenant\u{2026}\u{201d}\u{2028}\u{2018}Tyerman!\u{2019}";
+    let first_replacements = |rules: &Rules| -> Vec<(&str, String)> {
+        rules
+            .suggest(text, &*TOKENIZER)
+            .into_iter()
+            .filter(|x| x.source().starts_with("SPELLCHECK"))
+            .map(|x| {
+                let first = x.replacements().first().cloned().unwrap_or_default();
+                (&text[x.span().byte().clone()], first)
+            })
+            .collect()
+    };
+    assert_eq!(
+        first_replacements(&rules),
+        vec![
+            ("Tyerman", "German".to_string()),
+            ("Davenant", "Covenant".to_string()),
+            ("Tyerman", "German".to_string()),
+        ]
+    );
+
+    // The limit is still an option: with 2, only one edit may touch the first two letters, and
+    // `Davenant` gets only what the distance-3 retry finds.
+    rules.spell_mut().options_mut().prefix_length = 2;
+    assert_eq!(
+        first_replacements(&rules),
+        vec![
+            ("Tyerman", "Thermal".to_string()),
+            ("Davenant", "Dominant".to_string()),
+            ("Tyerman", "Thermal".to_string()),
+        ]
+    );
+}
+
+#[test]
+fn speller_suggests_splits_of_run_together_words() {
+    // LanguageTool 6.6 (`We saw <word> there.`, en-US): a split into two words comes after the
+    // speller's own candidates, and a word with a split gets no distance-2 search. Splits into
+    // a prefix, suffix or stray letter are dropped (`Fey re`, `F eyre`, `Zoe s`).
+    let speller = RULES.spell().speller().unwrap();
+    for (word, expected) in [
+        ("Aduke", &["Duke", "A duke"][..]),
+        (
+            "Shakespear",
+            &["Shakespeare", "Shake spear", "Shakes pear"][..],
+        ),
+        ("Rhysand", &["Rhys and"][..]),
+        ("Magwitch", &["Mag witch"][..]),
+        ("crosslights", &["cross lights"][..]),
+        (
+            "\u{c9}CLAIRR",
+            &[
+                "\u{c9}CLAIR",
+                "\u{c9}CLAIRS",
+                "ECLAIR",
+                "ECLAIRS",
+                "\u{c9}CLAIR R",
+            ][..],
+        ),
+    ] {
+        assert_eq!(speller.suggest(word, 10), expected, "{}", word);
+    }
+    let feyre = speller.suggest("Feyre", 50);
+    assert!(feyre.iter().all(|x| !x.contains(' ')), "{:?}", feyre);
+    let zoes = speller.suggest("Zoes", 50);
+    assert!(zoes.iter().all(|x| !x.contains(' ')), "{:?}", zoes);
+
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    rules.spell_mut().options_mut().variant = Some(rules.spell().variant("en_US").unwrap());
+    let text = "\u{201c}Rhysand\u{2019}s here\u{2014}with Magwitch\u{2026}\u{201d}\u{2028}\u{2018}Aduke!\u{2019}";
+    let suggestions: Vec<(&str, Vec<String>)> = rules
+        .suggest(text, &*TOKENIZER)
+        .into_iter()
+        .filter(|x| x.source().starts_with("SPELLCHECK"))
+        .map(|x| (&text[x.span().byte().clone()], x.replacements().to_vec()))
+        .collect();
+    assert_eq!(
+        suggestions,
+        vec![
+            ("Rhysand", strings(&["Rhys and"])),
+            ("Magwitch", strings(&["Mag witch"])),
+            ("Aduke", strings(&["Duke", "A duke"])),
+        ]
+    );
+}
+
+#[test]
+fn speller_retries_at_distance_three_when_nothing_is_closer() {
+    // LanguageTool 6.6 (`We saw <word> there.`, en-US) searches distance 3 for a word of five
+    // or more letters when distances 1 and 2 find nothing.
+    let speller = RULES.spell().speller().unwrap();
+    for (word, expected) in [
+        (
+            "Queequeg",
+            &["Queue", "Queues", "Queued", "Queening", "Queened"][..],
+        ),
+        ("Thornfeild", &["Shortfall", "Cornfield"][..]),
+        // Not `Heysham` at distance 2 (`a` for `ey`, then delete `vi`): Morfologik does not
+        // follow a pair with deletions in the same column.
+        (
+            "Havisham",
+            &["Lavish", "Lavishly", "Evesham", "Hamish", "Lewisham"][..],
+        ),
+        (
+            "Yossarain",
+            &["Constrain", "Ossuaries", "Pessaries", "Hossain", "Rosmarie"][..],
+        ),
+        (
+            "Gondibert",
+            &["Goldberg", "Condiment", "Godber", "Noninert"][..],
+        ),
+    ] {
+        assert_eq!(speller.suggest(word, expected.len()), expected, "{}", word);
+    }
+
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    rules.spell_mut().options_mut().variant = Some(rules.spell().variant("en_US").unwrap());
+    let text = "\u{201c}Queequeg\u{2019}s gone\u{2014}Thornfeild said so\u{2026}\u{201d}\u{2028}\u{2018}Queequeg!\u{2019}";
+    let first_replacements = |rules: &Rules| -> Vec<(&str, String)> {
+        rules
+            .suggest(text, &*TOKENIZER)
+            .into_iter()
+            .filter(|x| x.source().starts_with("SPELLCHECK"))
+            .map(|x| {
+                let first = x.replacements().first().cloned().unwrap_or_default();
+                (&text[x.span().byte().clone()], first)
+            })
+            .collect()
+    };
+    assert_eq!(
+        first_replacements(&rules),
+        vec![
+            ("Queequeg", "Queue".to_string()),
+            ("Thornfeild", "Shortfall".to_string()),
+            ("Queequeg", "Queue".to_string()),
+        ]
+    );
+
+    // `max_distance` 2 turns the retry off.
+    rules.spell_mut().options_mut().max_distance = 2;
+    assert_eq!(
+        first_replacements(&rules),
+        vec![
+            ("Queequeg", String::new()),
+            ("Thornfeild", String::new()),
+            ("Queequeg", String::new()),
         ]
     );
 }
@@ -1432,6 +1726,45 @@ fn user_dictionary_remove_set_and_list() {
     assert_eq!(rules.words(), vec!["Ng\u{0169}g\u{0129}", "Zo\u{00eb}"]);
     rules.clear_words();
     assert!(rules.words().is_empty());
+}
+
+#[test]
+fn spelling_suggestions_follow_user_dictionary_and_option_changes() {
+    // Suggestions are cached per word; changing the user dictionary or the options must not
+    // serve stale ones.
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    rules.spell_mut().options_mut().variant = Some(rules.spell().variant("en_US").unwrap());
+    let text = "\u{201c}Xylophonik\u{2019}s here\u{2014}now\u{2026}\u{201d}\u{2028}\u{2018}Xylophonik!\u{2019}";
+    let suggestions = |rules: &Rules| -> Vec<Vec<String>> {
+        rules
+            .suggest(text, &*TOKENIZER)
+            .into_iter()
+            .filter(|x| x.source().starts_with("SPELLCHECK"))
+            .map(|x| x.replacements().to_vec())
+            .collect()
+    };
+    let before = suggestions(&rules);
+    assert_eq!(before.len(), 2);
+    assert!(before
+        .iter()
+        .all(|x| !x.contains(&"Xylophonix".to_string())));
+
+    rules.add_words(["Xylophonix"]);
+    let with_word = suggestions(&rules);
+    assert_eq!(with_word.len(), 2);
+    assert!(
+        with_word
+            .iter()
+            .all(|x| x.contains(&"Xylophonix".to_string())),
+        "{:?}",
+        with_word
+    );
+
+    rules.remove_words(["Xylophonix"]);
+    assert_eq!(suggestions(&rules), before);
+
+    rules.spell_mut().options_mut().top_n = 1;
+    assert!(suggestions(&rules).iter().all(|x| x.len() <= 1));
 }
 
 #[test]
@@ -5076,6 +5409,15 @@ fn number_in_word_filter_matches_languagetool_on_fiction_text() {
     let flagged = rule_flags("\u{201c}H3llo,\u{201d} she said\u{2026}", rule);
     assert_eq!(flagged.len(), 1);
     assert_eq!(flagged[0].1.first().map(String::as_str), Some("Hello"));
+    // An invented name: the distance-3 retry (#182) gives `Mirrwen` candidates, as in
+    // LanguageTool 6.6, so the rule flags it (#199).
+    let flagged = rule_flags("Mirr0wen smiled at the door\u{2026}", rule);
+    assert_eq!(flagged.len(), 1);
+    assert_eq!(flagged[0].0, "Mirr0wen");
+    assert_eq!(
+        flagged[0].1[..4],
+        strings(&["Married", "Warren", "Mirror", "Marries"])[..]
+    );
 }
 
 #[test]

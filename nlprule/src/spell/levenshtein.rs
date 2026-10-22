@@ -1,9 +1,13 @@
 use fnv::FnvHasher;
 use fst::Automaton;
+
+use super::replacements::{Edit, ReplacementPairs};
 use std::{
     cmp::{self, min},
+    convert::TryFrom,
     hash::{Hash, Hasher},
 };
+use unicode_normalization::UnicodeNormalization;
 
 #[derive(Clone, Debug)]
 pub struct LevenshteinState {
@@ -12,7 +16,14 @@ pub struct LevenshteinState {
     // to compute the next row of the matrix, we also need the row two rows up for transposes
     prev_row: Option<Vec<usize>>,
     prev_char: char,
+    // the previous character as stored in the FST, for replacement pairs (which match case)
+    prev_raw: char,
     row: Vec<usize>,
+    // the largest row minimum on the way here (see `LevenshteinState::reach`)
+    max_cutoff: usize,
+    // the offsets between query and key positions that replacement pairs have produced so far,
+    // as bits `offset + SHIFT_BIAS`; a pair applies only at one of them
+    shifts: u32,
     // the bytes of a multi-byte UTF-8 character read so far
     pending: [u8; 4],
     pending_len: usize,
@@ -23,6 +34,14 @@ impl LevenshteinState {
     pub fn dist(&self) -> usize {
         self.dist
     }
+
+    /// The smallest maximum distance at which a search reaches this state: its distance, or more
+    /// when a prefix of the key was further from the query than the whole key (a replacement
+    /// pair can make a longer key cheaper than its prefix). Morfologik searches distance 1
+    /// before distance 2 and prunes such prefixes in the distance-1 search.
+    pub fn reach(&self) -> usize {
+        self.dist.max(self.max_cutoff)
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -31,6 +50,10 @@ pub struct Levenshtein {
     distance: usize,
     prefix: usize,
     fold_case: bool,
+    // the base letter of each query character (see `base`) if accents are ignored, else empty
+    query_base: Vec<char>,
+    // zero-cost edits from replacement pairs, indexed by the query position where they start
+    edits: Vec<Vec<Edit>>,
 }
 
 impl Levenshtein {
@@ -40,7 +63,20 @@ impl Levenshtein {
             distance,
             prefix,
             fold_case: false,
+            query_base: Vec::new(),
+            edits: Vec::new(),
         }
+    }
+
+    /// Lets the search apply `pairs` as zero-cost edits. Must be called before
+    /// [Levenshtein::fold_case], since the pairs match the query's original case.
+    pub fn replacements(mut self, pairs: &ReplacementPairs) -> Self {
+        debug_assert!(!self.fold_case);
+        self.edits = pairs.edits_for(&self.query);
+        if self.edits.iter().all(Vec::is_empty) {
+            self.edits = Vec::new();
+        }
+        self
     }
 
     pub fn fold_case(mut self, fold_case: bool) -> Self {
@@ -48,6 +84,18 @@ impl Levenshtein {
             self.query.iter_mut().for_each(|c| *c = fold(*c));
         }
         self.fold_case = fold_case;
+        self
+    }
+
+    /// Lets a key character match a query character with the same base letter (`é` matches `e`
+    /// and `ë`), as Morfologik's `areEqual` does for dictionaries that ignore diacritics. Must be
+    /// called after [Levenshtein::fold_case].
+    pub fn ignore_diacritics(mut self, ignore: bool) -> Self {
+        self.query_base = if ignore {
+            self.query.iter().map(|c| base(*c)).collect()
+        } else {
+            Vec::new()
+        };
         self
     }
 
@@ -60,6 +108,11 @@ impl Levenshtein {
     }
 }
 
+const SHIFT_BIAS: i32 = 16;
+
+/// At most this many replacement pairs apply to one key character.
+const MAX_STEP_EDITS: usize = 8;
+
 fn fold(c: char) -> char {
     if c.is_ascii() {
         return c.to_ascii_lowercase();
@@ -69,6 +122,15 @@ fn fold(c: char) -> char {
         (Some(lower), None) => lower,
         _ => c,
     }
+}
+
+/// The first character of `c`'s canonical decomposition (NFD): `é` -> `e`. `ø` has none, so it
+/// stays `ø`.
+fn base(c: char) -> char {
+    if c.is_ascii() {
+        return c;
+    }
+    c.nfd().next().unwrap_or(c)
 }
 
 fn utf8_width(lead: u8) -> usize {
@@ -89,7 +151,10 @@ impl Automaton for Levenshtein {
             n: 0,
             prev_row: None,
             prev_char: '\0',
+            prev_raw: '\0',
             row: (0..=self.query.len()).collect(),
+            max_cutoff: 0,
+            shifts: 1 << SHIFT_BIAS,
             pending: [0; 4],
             pending_len: 0,
             hash: FnvHasher::default().finish(),
@@ -131,15 +196,70 @@ impl Automaton for Levenshtein {
                     .and_then(|s| s.chars().next())
                     .unwrap_or(char::REPLACEMENT_CHARACTER)
             };
+            let raw = c;
             let c = self.normalize(c);
 
+            let c_base = if self.query_base.is_empty() {
+                c
+            } else {
+                base(c)
+            };
             let row = &state.row;
             let mut next_row = state.row.to_vec();
+
+            // Replacement pairs: query characters `start..end` stand for this key character, or
+            // for the previous one and this one, at no cost. As in Morfologik, a pair applies
+            // only where it starts at the position in the query that lines up with the key
+            // (shifted by the pairs applied before it).
+            let mut step_edits = [(0usize, 0usize, 0usize, 0usize); MAX_STEP_EDITS];
+            let mut n_step_edits = 0;
+            let mut shifts = state.shifts;
+            if !self.edits.is_empty() {
+                let mut bits = state.shifts;
+                while bits != 0 {
+                    let shift = bits.trailing_zeros() as i32 - SHIFT_BIAS;
+                    bits &= bits - 1;
+                    let anchored = |back: usize| {
+                        usize::try_from(state.n as i32 + shift - back as i32)
+                            .ok()
+                            .and_then(|start| self.edits.get(start))
+                            .map_or(&[][..], Vec::as_slice)
+                    };
+                    let one = anchored(0)
+                        .iter()
+                        .filter(|e| e.to_len == 1 && e.to[0] == raw);
+                    let two = state.prev_row.iter().flat_map(|_| {
+                        anchored(1)
+                            .iter()
+                            .filter(|e| e.to_len == 2 && e.to == [state.prev_raw, raw])
+                    });
+                    for edit in one.chain(two) {
+                        let source = if edit.to_len == 1 {
+                            row[edit.start]
+                        } else {
+                            state
+                                .prev_row
+                                .as_ref()
+                                .map_or(usize::MAX, |r| r[edit.start])
+                        };
+                        if n_step_edits < MAX_STEP_EDITS {
+                            step_edits[n_step_edits] = (edit.start, edit.end, edit.to_len, source);
+                            n_step_edits += 1;
+                        }
+                        let next = shift + edit.shift as i32 + SHIFT_BIAS;
+                        if (0..32).contains(&next) {
+                            shifts |= 1 << next;
+                        }
+                    }
+                }
+            }
 
             next_row[0] = state.n + 1;
 
             for i in 1..next_row.len() {
-                let mut cost = if c == self.query[i - 1] {
+                let same = c == self.query[i - 1]
+                    || self.query_base.get(i - 1).is_some_and(|q| *q == c_base);
+                let mut cost = if same {
                     row[i - 1]
                 } else {
                     min(
@@ -163,14 +283,49 @@ impl Automaton for Levenshtein {
                 next_row[i] = cost;
             }
 
+            // The column a pair leaves behind, as Morfologik's `findRepl` builds it: the
+            // column before the replaced key characters, realigned to the query position after
+            // the pair, with the pair's cost on the new diagonal. The pair's cell is not
+            // extended by deletions in this column, so a pair is followed by further edits only
+            // from the next key character on, and its cost does not leak into cells that
+            // Morfologik keeps from the unreplaced path. At the end of a key, the query
+            // characters after the pair are deleted (`isEndOfCandidate`).
+            let mut dist = next_row[self.query.len()];
+            if n_step_edits > 0 {
+                let len = self.query.len();
+                for &(start, end, to_len, source) in &step_edits[..n_step_edits] {
+                    if source == usize::MAX {
+                        continue;
+                    }
+                    dist = min(dist, source + (len - end));
+                    // `to_len == 2`: the column before the previous key character is the
+                    // pair's cost; the realigned one is the column before this character.
+                    let back = end - start + 1 - to_len;
+                    let lo = end.saturating_sub(self.distance).max(back);
+                    let hi = min(end + self.distance, len);
+                    for (q, cell) in next_row.iter_mut().enumerate().take(hi + 1).skip(lo) {
+                        let value = if q == end { source } else { row[q - back] };
+                        *cell = min(*cell, value);
+                    }
+                }
+            }
+
             let distance = if state.n >= self.prefix {
                 self.distance
             } else {
                 1
             };
 
-            let lower_bound = (state.n + 1).saturating_sub(distance);
-            let upper_bound = cmp::min(state.n + 1 + distance, self.query.len());
+            // Without replacement pairs only the cells within `distance` of the diagonal can
+            // stay within `distance`; a pair can move a cheap path further off it.
+            let (lower_bound, upper_bound) = if self.edits.is_empty() {
+                (
+                    (state.n + 1).saturating_sub(distance),
+                    cmp::min(state.n + 1 + distance, self.query.len()),
+                )
+            } else {
+                (0, self.query.len())
+            };
 
             let cutoff = if lower_bound > upper_bound {
                 0
@@ -186,11 +341,14 @@ impl Automaton for Levenshtein {
             }
 
             Some(LevenshteinState {
-                dist: next_row[self.query.len()],
+                dist,
                 n: state.n + 1,
                 prev_row: Some(row.clone()),
                 prev_char: c,
+                prev_raw: raw,
                 row: next_row,
+                max_cutoff: state.max_cutoff.max(cutoff),
+                shifts,
                 pending: [0; 4],
                 pending_len: 0,
                 hash: next_hash,
@@ -261,6 +419,36 @@ mod tests {
             Some(0)
         );
         assert_eq!(distance("\u{c9}LCAIR", "\u{e9}clair", true), Some(1));
+    }
+
+    #[test]
+    fn ignore_diacritics_matches_base_letters() {
+        let distance = |query: &str, key: &str| {
+            let automaton = Levenshtein::new(query, 2, 0)
+                .fold_case(true)
+                .ignore_diacritics(true);
+            let mut state = automaton.start();
+            for byte in key.bytes() {
+                state = automaton.accept(&state, byte);
+            }
+            state.map(|state| state.dist())
+        };
+        assert_eq!(distance("Zoe", "Zo\u{eb}"), Some(0));
+        assert_eq!(distance("Zo\u{e9}", "Zo\u{eb}"), Some(0));
+        assert_eq!(distance("REN\u{c9}E", "Renee"), Some(0));
+        assert_eq!(distance("NA\u{cf}VEE", "naive"), Some(1));
+        assert_eq!(distance("Nescafee", "Nescaf\u{e9}"), Some(1));
+        // `\u{f8}` has no decomposition.
+        assert_eq!(distance("Soren", "S\u{f8}ren"), Some(1));
+        // Punctuation is unaffected.
+        assert_eq!(distance("\u{2019}\u{2014}\u{2026}", "'-."), None);
+        // Off unless asked for.
+        let automaton = Levenshtein::new("Zoe", 2, 0).fold_case(true);
+        let mut state = automaton.start();
+        for byte in "Zo\u{eb}".bytes() {
+            state = automaton.accept(&state, byte);
+        }
+        assert_eq!(state.map(|state| state.dist()), Some(1));
     }
 
     #[test]

@@ -48,10 +48,11 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
 ### Changed
 
-- **`RULES_FORMAT_VERSION` is 35.** Version 33 added `SpellLangOptions::latin_script`, 34 the
-  `ConsistentApostrophes` builtin, and 35 stores the multitoken phrase list once instead of twice
-  ([#212](https://github.com/cmlarsen/writemorebetter/issues/212)), so 0.12.0's `en_rules.bin` no
-  longer loads; use the next release's data zip. The tokenizer format stays 18.
+- **`RULES_FORMAT_VERSION` is 36.** Version 33 added `SpellLangOptions::latin_script`, 34 the
+  `ConsistentApostrophes` builtin, 35 stores the multitoken phrase list once instead of twice
+  ([#212](https://github.com/cmlarsen/writemorebetter/issues/212)), and 36 adds the speller
+  dictionaries' replacement pairs (#194), so 0.12.0's `en_rules.bin` no longer loads; use the
+  next release's data zip. The tokenizer format stays 18.
 - **`Builtin::check` and `Builtin::check_text` take the speller.** Both take an
   `Option<&Speller>` as a new last argument, as `Builtin::check_paragraph` does. Pass
   `rules.spell().speller().as_ref()` to get the `EN_COMPOUNDS` suggestions `Rules::suggest`
@@ -159,6 +160,37 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 - **`<token min="N">` with N > 1 and a `max` other than 1 is rejected at compile time** instead of
   matching N..M tokens where LanguageTool can match up to N·M. No English rule uses it
   ([#224](https://github.com/cmlarsen/writemorebetter/issues/224)).
+- **Spelling suggestions apply the dictionary's replacement pairs.** The speller now reads
+  `fsa.dict.speller.replacement-pairs` from each variant's `.info` into the data binary and, as
+  Morfologik does, treats each pair (`ei`/`a`, `ey`/`a`, `ph`/`f`, `kw`/`qu`, `uff`/`ough`, …) as a
+  free edit: "Feyre" gets Fare, Care, Face; "fone" gets phone; "enuff" gets enough. Top-1
+  agreement with LanguageTool 6.6 on a 308-word probe rose from 80.8% to 86.7% (#194).
+- **Suggestions may change the first two letters twice.** `SpellOptions::prefix_length` now
+  defaults to 0, no limit, as in LanguageTool: "Tyerman" gets German, "Davenant" gets Covenant,
+  "IPHONE" gets PRONE. The distance-2 search now runs only when distance 1 finds nothing, which
+  pays for most of the wider search (#195).
+- **Suggestions ignore accents as LanguageTool does.** The English dictionaries set
+  `fsa.dict.speller.ignore-diacritics`, now read into the data binary: a letter matches the same
+  letter with any accent at no cost ("Citroen" gets Citroën, "Nescafee" Nescafé, "Zoee" Zoé and
+  Zoë). Ties now keep dictionary order with the word's own case forms first, as in Morfologik
+  ("renée" gets Renée, then Renee). Probe top-1 agreement 88.0% → 91.9% (#219).
+- **Long words with nothing within two edits get distance-3 suggestions.** As in LanguageTool,
+  a word of five or more letters with no candidate at distance 2 is searched again at distance
+  3: "Queequeg" gets Queue, "Thornfeild" Shortfall, "Havisham" Lavish, "Yossarain" Constrain.
+  `SpellOptions::max_distance` now defaults to 3; set it to 2 for the old behaviour. Suggestions
+  are now cached per word (emptied when the options or the user dictionary change), so a
+  repeated name costs one search. With the defaults of #194, #195 and #182 together, the first
+  search for an invented name takes about 15 ms instead of about 3 ms; `prefix_length` 2 and
+  `max_distance` 2 bring it to about 5 ms (#182).
+- **Run-together words get split suggestions.** As in LanguageTool, a misspelling that is two
+  dictionary words run together gets the split after the other candidates ("Aduke" gets Duke,
+  A duke; "Rhysand" gets Rhys and; "oilpainting" gets oil painting). Splits into a prefix,
+  suffix or stray letter ("re view", "use full") are dropped using LanguageTool's English list,
+  now a builtin data file (`speller_split_filter.txt`, LGPL) compiled into `en_rules.bin`.
+  Probe top-1 agreement 94.2% → 99.4% (#183).
+- **`NUMBERS_IN_WORDS` flags invented names again.** It drops a match when the speller has no
+  suggestions for the word without its digits; with the distance-3 retry, "Mirr0wen" now gets
+  LanguageTool 6.6's Married, Warren, Mirror, … (#199).
 
 ### Removed
 

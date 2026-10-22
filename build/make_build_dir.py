@@ -478,6 +478,8 @@ Only needed if the language requires a chunker (e. g. English).
             info,
             java=args.java,
         )
+        # the speller settings (replacement pairs) are read from the .info at compile time
+        copyfile(info, args.out_dir / "spell" / f"{variant_name}.info")
         proc_spelling_text(
             [
                 (

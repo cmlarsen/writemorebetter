@@ -9,6 +9,7 @@ use std::{
     cmp::Ordering,
     collections::{BTreeSet, BinaryHeap, HashSet},
     ops::{Deref, DerefMut},
+    sync::Mutex,
 };
 use unicode_categories::UnicodeCategories;
 
@@ -20,7 +21,11 @@ use crate::{
 
 pub(crate) mod levenshtein;
 pub(crate) mod multitoken;
+pub(crate) mod replacements;
+pub(crate) mod split;
 use multitoken::MultitokenSpeller;
+use replacements::ReplacementPairs;
+use split::SplitFilter;
 mod spell_int {
     use std::cmp;
 
@@ -104,8 +109,18 @@ pub(crate) use spell_int::SpellInt;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 struct Candidate {
+    /// The maximum distance of the first search that finds this candidate (1 or 2), see
+    /// [levenshtein::LevenshteinState::reach].
+    tier: usize,
     distance: usize,
     freq: usize,
+    /// Whether the candidate came from the edit-distance search rather than a dictionary lookup
+    /// of the word's own case forms. Among equally good candidates, Morfologik lists the
+    /// lookups first (`ren\u{e9}e` -> Ren\u{e9}e, Renee), then the search results in dictionary
+    /// order (`Ren\u{e9}ee` -> Renee, Ren\u{e9}e).
+    searched: bool,
+    /// The dictionary entry, before [Candidate::term] restored the word's case.
+    key: String,
     term: String,
 }
 impl PartialOrd for Candidate {
@@ -115,9 +130,12 @@ impl PartialOrd for Candidate {
 }
 impl Ord for Candidate {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.distance
-            .cmp(&other.distance)
+        self.tier
+            .cmp(&other.tier)
+            .then_with(|| self.distance.cmp(&other.distance))
             .then_with(|| other.freq.cmp(&self.freq))
+            .then_with(|| self.searched.cmp(&other.searched))
+            .then_with(|| self.key.cmp(&other.key))
             .then_with(|| self.term.cmp(&other.term))
     }
 }
@@ -129,8 +147,13 @@ pub struct SpellOptions {
     /// The language variant to use. Setting this to `None` disables spellchecking.
     pub variant: Option<Variant>,
     /// The maximum edit distance to consider for corrections. Currently Optimal String Alignment distance is used.
+    /// As in LanguageTool, distance 2 is searched only when distance 1 finds nothing (or only a
+    /// case variant), and distance 3 only when distance 2 finds nothing either and the word has
+    /// at least five letters.
     pub max_distance: usize,
-    /// A fixed prefix length for which to consider only edits with a distance of 1. This speeds up the search by pruning the tree early.
+    /// A fixed prefix length for which to consider only edits with a distance of 1. This speeds
+    /// up the search by pruning the tree early, but misses candidates with two edits at the start
+    /// (`IPHONE` -> `prone`). The default is 0, no limit, as in LanguageTool.
     pub prefix_length: usize,
     /// The maximum number of correction candidates to return. Candidates are ranked by edit
     /// distance, then by word frequency, and only those at the smallest distance found are kept,
@@ -185,12 +208,35 @@ pub(crate) struct SpellLangOptions {
     pub latin_script: bool,
 }
 
+/// Settings of one variant's speller dictionary, read from its Morfologik `.info` file at
+/// compile time. Part of the (LGPL) data binary.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub(crate) struct VariantInfo {
+    /// `fsa.dict.speller.replacement-pairs`: letter groups commonly misspelled for one another.
+    pub replacement_pairs: ReplacementPairs,
+    /// `fsa.dict.speller.ignore-diacritics`: an accent difference (`e`/`é`) costs no edit.
+    pub ignore_diacritics: bool,
+    /// `fsa.dict.speller.runon-words`: suggest splits of two words run together (`a lot`).
+    pub run_on_words: bool,
+}
+
+impl Default for VariantInfo {
+    /// Morfologik's defaults.
+    fn default() -> Self {
+        VariantInfo {
+            replacement_pairs: ReplacementPairs::default(),
+            ignore_diacritics: true,
+            run_on_words: true,
+        }
+    }
+}
+
 impl Default for SpellOptions {
     fn default() -> Self {
         SpellOptions {
             variant: None,
-            max_distance: 2,
-            prefix_length: 2,
+            max_distance: 3,
+            prefix_length: 0,
             top_n: 10,
             whitelist: DefaultHashSet::default(),
         }
@@ -444,6 +490,50 @@ pub(crate) struct VariantChecker {
     lang_options: SpellLangOptions,
     options: SpellOptions,
     user: UserMatcher,
+    info: VariantInfo,
+    split_filter: SplitFilter,
+    cache: SearchCache,
+}
+
+/// Suggestions already found, by word. Fiction repeats its misspelled names, and a search takes
+/// milliseconds (tens when it has to go to distance 3). Emptied when the options or the user
+/// dictionary change, and when it holds [SearchCache::CAPACITY] words. A clone starts empty.
+#[derive(Debug, Default)]
+struct SearchCache(Mutex<DefaultHashMap<String, Vec<String>>>);
+
+impl SearchCache {
+    const CAPACITY: usize = 4096;
+
+    fn get_or_insert_with(&self, word: &str, search: impl FnOnce() -> Vec<String>) -> Vec<String> {
+        if let Some(found) = self
+            .0
+            .lock()
+            .ok()
+            .and_then(|cache| cache.get(word).cloned())
+        {
+            return found;
+        }
+        let found = search();
+        if let Ok(mut cache) = self.0.lock() {
+            if cache.len() >= Self::CAPACITY {
+                cache.clear();
+            }
+            cache.insert(word.to_owned(), found.clone());
+        }
+        found
+    }
+
+    fn clear(&mut self) {
+        if let Ok(cache) = self.0.get_mut() {
+            cache.clear();
+        }
+    }
+}
+
+impl Clone for SearchCache {
+    fn clone(&self) -> Self {
+        SearchCache::default()
+    }
 }
 
 impl VariantChecker {
@@ -475,8 +565,14 @@ impl VariantChecker {
     }
 
     fn is_known(&self, fst: &Map<&[u8]>, word: &str) -> bool {
+        self.lookup(fst, word).is_some()
+    }
+
+    /// The entry for `word` if it is a word of this variant.
+    fn lookup(&self, fst: &Map<&[u8]>, word: &str) -> Option<SpellInt> {
         fst.get(word)
-            .is_some_and(|v| SpellInt(v).contains_variant(self.variant_index))
+            .map(SpellInt)
+            .filter(|id| id.contains_variant(self.variant_index))
     }
 
     /// Populates `correct_mask` according to the correctness of the given zeroth token.
@@ -558,6 +654,11 @@ impl VariantChecker {
     }
 
     fn search(&self, fst: &Map<&[u8]>, word: &str) -> Vec<String> {
+        self.cache
+            .get_or_insert_with(word, || self.search_uncached(fst, word))
+    }
+
+    fn search_uncached(&self, fst: &Map<&[u8]>, word: &str) -> Vec<String> {
         if let Some(candidate) = self.map.get(word) {
             return vec![candidate.to_owned()];
         }
@@ -570,19 +671,18 @@ impl VariantChecker {
         if len > MAX_SEARCH_LEN {
             return Vec::new();
         }
-        let search_distance = if len <= self.options.max_distance {
-            len.saturating_sub(1)
-        } else {
-            self.options.max_distance
+        let search_distance = |len: usize| {
+            if len <= self.options.max_distance {
+                len.saturating_sub(1)
+            } else {
+                self.options.max_distance
+            }
         };
 
         let all_caps = is_all_caps(word);
         // As LanguageTool does, a word starting with a capital gets capitalized candidates, also
         // when it is mixed case (`LeBRON` -> `Learn`, not `learn`).
         let convert_case = all_caps || word.chars().next().is_some_and(char::is_uppercase);
-        let query =
-            levenshtein::Levenshtein::new(word, search_distance, self.options.prefix_length)
-                .fold_case(true);
         let restore_case = |term: String| {
             if convert_case {
                 recase(term, all_caps)
@@ -592,22 +692,94 @@ impl VariantChecker {
         };
 
         let mut out = BinaryHeap::with_capacity(self.options.top_n);
-        self.push_candidates(&mut out, fst, &query, &restore_case);
-
-        if !self.user.suggestion_fst.is_empty() {
-            let user_map = Map::new(self.user.suggestion_fst.as_slice())
-                .expect("serialized user suggestion fst must be valid.");
-            self.push_candidates(&mut out, &user_map, &query, &restore_case);
+        let pairs = &self.info.replacement_pairs;
+        // As in Morfologik, the longer replacement pairs rewrite the word (`enuff` -> `enough`):
+        // a rewrite, or a case form of the word or a rewrite, that is a word is a candidate at
+        // distance 0, and the word and its first rewrites are all searched.
+        let checked = pairs.rewrites(word);
+        for rewrite in &checked {
+            let lower = rewrite.to_lowercase();
+            let forms = [
+                rewrite.clone(),
+                apply_to_first(&lower, |x| x.to_uppercase().collect()),
+                rewrite.to_uppercase(),
+                lower,
+            ];
+            for form in forms {
+                if form == word {
+                    continue;
+                }
+                if let Some(id) = self.lookup(fst, &form) {
+                    self.push(&mut out, form, &restore_case, 0, 0, id.freq(), false);
+                }
+            }
         }
 
-        let out = out.into_sorted_vec();
-        let max_distance = match out.first() {
-            Some(x) if x.distance > 0 => x.distance,
-            _ => search_distance,
+        // Morfologik searches at most 14 words and stops at a rewrite shorter than 4 letters.
+        const MAX_SEARCHES: usize = 14;
+        const MIN_REWRITE_LEN: usize = 4;
+        let search = |out: &mut BinaryHeap<Candidate>, max_distance: usize| {
+            for (i, query) in checked.iter().take(MAX_SEARCHES).enumerate() {
+                let len = query.chars().count();
+                if i > 0 && len < MIN_REWRITE_LEN {
+                    break;
+                }
+                let query = levenshtein::Levenshtein::new(
+                    query,
+                    search_distance(len).min(max_distance),
+                    self.options.prefix_length,
+                )
+                .replacements(pairs)
+                .fold_case(true)
+                .ignore_diacritics(self.info.ignore_diacritics);
+
+                self.push_candidates(out, fst, &query, &restore_case);
+                if !self.user.suggestion_fst.is_empty() {
+                    let user_map = Map::new(self.user.suggestion_fst.as_slice())
+                        .expect("serialized user suggestion fst must be valid.");
+                    self.push_candidates(out, &user_map, &query, &restore_case);
+                }
+            }
         };
-        out.into_iter()
-            .take_while(|x| x.distance <= max_distance)
+
+        // LanguageTool takes the candidates of a distance-1 search, and adds those of a
+        // distance-2 search when there are none or the best one differs from the word only in
+        // case. The distance-1 search is much cheaper, so the wider one runs only when needed.
+        let first_tier_only = |out: &BinaryHeap<Candidate>| {
+            out.iter().min().is_some_and(|x| {
+                x.tier <= 1 && !(x.distance == 0 && x.term.to_lowercase() == word.to_lowercase())
+            })
+        };
+        search(&mut out, 1);
+        // Morfologik lists the word's splits (`alot` -> `a lot`) after each speller's
+        // candidates. They count as found, so a word with a split gets no distance-2 search.
+        if self.info.run_on_words {
+            let splits = split::run_ons(word, |part| self.lookup(fst, part).is_some());
+            for split in splits {
+                self.push(&mut out, split, &restore_case, usize::MAX, 1, 0, true);
+            }
+        }
+        // A wider search only runs when `max_distance` allows it; otherwise it would repeat the
+        // narrower one.
+        if !first_tier_only(&out) && self.options.max_distance >= 2 {
+            search(&mut out, 2);
+            // LanguageTool retries at distance 3 when nothing is closer, for words of at least
+            // five UTF-16 units (`MorfologikSpellerRule.calcSpellerSuggestions`).
+            const MIN_DISTANCE_3_LEN: usize = 5;
+            if out.is_empty()
+                && self.options.max_distance >= 3
+                && word.encode_utf16().count() >= MIN_DISTANCE_3_LEN
+            {
+                search(&mut out, 3);
+            }
+        }
+
+        let first_tier_only = first_tier_only(&out);
+        out.into_sorted_vec()
+            .into_iter()
+            .take_while(|x| !first_tier_only || x.tier <= 1)
             .map(|x| x.term)
+            .filter(|term| self.split_filter.keeps(term))
             .collect()
     }
 
@@ -630,23 +802,48 @@ impl VariantChecker {
 
             let state = s.expect("matching levenshtein state is always `Some`.");
 
-            let term =
-                recase(String::from_utf8(k.to_vec()).expect("fst keys must be valid utf-8."));
-            let candidate = Candidate {
-                distance: state.dist(),
-                freq: id.freq(),
-                term,
-            };
-            if let Some(existing) = out.iter().find(|x| x.term == candidate.term) {
-                if *existing <= candidate {
-                    continue;
-                }
-                out.retain(|x| x.term != candidate.term);
+            let key = String::from_utf8(k.to_vec()).expect("fst keys must be valid utf-8.");
+            self.push(
+                out,
+                key,
+                recase,
+                state.dist(),
+                state.reach(),
+                id.freq(),
+                true,
+            );
+        }
+    }
+
+    /// Pushes one candidate into `out`, keeping the best entry per term and at most `top_n`.
+    #[allow(clippy::too_many_arguments)]
+    fn push(
+        &self,
+        out: &mut BinaryHeap<Candidate>,
+        key: String,
+        recase: &dyn Fn(String) -> String,
+        distance: usize,
+        reach: usize,
+        freq: usize,
+        searched: bool,
+    ) {
+        let candidate = Candidate {
+            tier: reach.max(1),
+            distance,
+            freq,
+            searched,
+            term: recase(key.clone()),
+            key,
+        };
+        if let Some(existing) = out.iter().find(|x| x.term == candidate.term) {
+            if *existing <= candidate {
+                return;
             }
-            out.push(candidate);
-            if out.len() > self.options.top_n {
-                out.pop();
-            }
+            out.retain(|x| x.term != candidate.term);
+        }
+        out.push(candidate);
+        if out.len() > self.options.top_n {
+            out.pop();
         }
     }
 }
@@ -669,6 +866,10 @@ pub struct Spell {
     pub(crate) options: SpellOptions,
     /// Known multi-word names and phrases for the multitoken spelling rules.
     pub(crate) multitoken: MultitokenSpeller,
+    /// Per-variant dictionary settings, parallel to [SpellLangOptions::variants].
+    pub(crate) variant_info: Vec<VariantInfo>,
+    /// The split suggestions this language drops.
+    pub(crate) split_filter: SplitFilter,
     /// The structure containing the actual spellchecking logic. Computed based on the selected variant.
     #[serde(skip)]
     pub(crate) variant_checker: Option<VariantChecker>,
@@ -764,6 +965,7 @@ impl Spell {
             // if the variant checker exists and uses the correct variant, we don't need to rebuild
             Some(mut checker) if checker.variant == variant => {
                 checker.options = self.options.clone();
+                checker.cache.clear();
                 checker
             }
             _ => VariantChecker {
@@ -774,6 +976,13 @@ impl Spell {
                 options: self.options.clone(),
                 lang_options: self.lang_options.clone(),
                 user: UserMatcher::default(),
+                info: self
+                    .variant_info
+                    .get(variant_index)
+                    .cloned()
+                    .unwrap_or_default(),
+                split_filter: self.split_filter.clone(),
+                cache: SearchCache::default(),
             },
         };
 
@@ -850,6 +1059,7 @@ impl Spell {
                 checker.variant_index,
                 &self.lang_options.word_chars,
             );
+            checker.cache.clear();
         }
     }
 
