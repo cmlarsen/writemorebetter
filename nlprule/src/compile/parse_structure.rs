@@ -1,8 +1,8 @@
 use std::{ops::Range, path::PathBuf, sync::Arc};
 
 use super::{structure, Error};
+use crate::utils::regex::Regex;
 use crate::{tokenizer::tag::Tagger, types::*};
-use crate::{utils, utils::regex::Regex};
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 
@@ -1274,20 +1274,11 @@ impl Rule {
                         );
 
                         if let Some(correction_text) = &example.correction {
-                            let mut replacements: Vec<_> =
+                            // Compared as written, like LanguageTool's `PatternRuleTest`: a
+                            // suggestion is not capitalized just for being at the start
+                            // of the example.
+                            let replacements: Vec<_> =
                                 correction_text.split('|').map(|x| x.to_string()).collect();
-
-                            replacements = if chars_before == 0 {
-                                // title case if at start
-                                replacements
-                                    .into_iter()
-                                    .map(|x| {
-                                        utils::apply_to_first(&x, |c| c.to_uppercase().collect())
-                                    })
-                                    .collect()
-                            } else {
-                                replacements
-                            };
 
                             suggestion = Some(Suggestion::new(
                                 "_Test".into(),
