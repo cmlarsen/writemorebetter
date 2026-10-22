@@ -2038,6 +2038,138 @@ mod tests {
         }
     }
 
+    const DISAMBIGUATION_MARKED_ANTIPATTERNS: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
+<rules lang="en">
+  <rule id="D_MARKER" name="d">
+    <antipattern><token>table</token><marker><token>near</token></marker></antipattern>
+    <pattern><token>the</token><marker><token>table</token></marker></pattern>
+    <disambig action="replace"><wd lemma="table" pos="ZZ"/></disambig>
+  </rule>
+  <rule id="D_NO_MARKER" name="d">
+    <antipattern><token>chair</token><token>near</token></antipattern>
+    <pattern><token>the</token><marker><token>chair</token></marker></pattern>
+    <disambig action="replace"><wd lemma="chair" pos="ZZ"/></disambig>
+  </rule>
+  <rule id="D_EMPTY_MARKER" name="d">
+    <antipattern><token>lamp</token><marker><token min="0">so</token></marker><token>near</token></antipattern>
+    <pattern><token>the</token><marker><token>lamp</token></marker></pattern>
+    <disambig action="replace"><wd lemma="lamp" pos="ZZ"/></disambig>
+  </rule>
+</rules>
+"#;
+
+    /// Each case matches LanguageTool 6.6's `--taggeronly` output with these rules added to its
+    /// English disambiguation file: an antipattern blocks with its marked tokens, or with its whole
+    /// match when the marked tokens are absent.
+    #[test]
+    fn disambiguation_antipattern_blocks_with_its_marked_span_like_languagetool() {
+        let (tokenizer, rules, pool) = disambiguation_rules(DISAMBIGUATION_MARKED_ANTIPATTERNS);
+        for (text, expected) in [
+            (
+                "\u{201c}Put the table near the door\u{2014}now\u{2026}\u{201d}",
+                vec!["D_MARKER"],
+            ),
+            ("Put the chair near the door.", vec![]),
+            ("She left.\u{2028}Put the chair near it.", vec![]),
+            ("Put the chair\u{2019}s leg near it.", vec!["D_NO_MARKER"]),
+            ("Put the table so near it.", vec!["D_MARKER"]),
+            ("\u{2018}Put the lamp near it,\u{2019} she said.", vec![]),
+            ("Put the lamp so near it.", vec!["D_EMPTY_MARKER"]),
+        ] {
+            assert_eq!(
+                disambiguated(&tokenizer, &rules, &pool, text),
+                expected,
+                "{:?}",
+                text
+            );
+        }
+    }
+
+    const GATED_ANTIPATTERNS: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
+<rules lang="en">
+<category id="PROBE" name="Probe">
+  <rule id="IMMUNE_EXC" name="m">
+    <antipattern><marker><token>then</token></marker><token>was</token></antipattern>
+    <pattern><token skip="3">it<exception scope="next">then</exception></token><token>was</token></pattern>
+    <message>m</message>
+  </rule>
+  <rule id="GATE_OPTIONAL" name="m">
+    <antipattern><token>so</token></antipattern>
+    <pattern><token>it</token><token min="0">so</token><token>was</token></pattern>
+    <message>m</message>
+  </rule>
+  <rule id="GATE_FILTER" name="m">
+    <antipattern><marker><token>then</token></marker><token>was</token></antipattern>
+    <pattern><token skip="3">it<exception scope="next">then</exception></token><token>was</token></pattern>
+    <filter class="org.languagetool.rules.patterns.RegexAntiPatternFilter" args="antipatterns:and\sit\swas"/>
+    <message>m</message>
+  </rule>
+</category>
+</rules>
+"#;
+
+    /// IMMUNE_EXC and GATE_OPTIONAL match what LanguageTool 6.6 reports with `--rulefile`: the
+    /// antipatterns apply only once a run without them found a match somewhere in the sentence,
+    /// and then to a second run over the whole sentence. GATE_FILTER shows that a match a filter
+    /// vetoes does not count, as LanguageTool counts `RuleMatch`es.
+    #[test]
+    fn antipatterns_immunize_the_whole_sentence_once_the_rule_matches() {
+        assert_flag_starts(
+            "gated-antipatterns",
+            GATED_ANTIPATTERNS,
+            vec![
+                (
+                    "It soon then was eaten and it was gone.",
+                    vec![("GATE_OPTIONAL", 27), ("IMMUNE_EXC", 0), ("IMMUNE_EXC", 27)],
+                ),
+                (
+                    "\u{201c}It soon then was eaten\u{2014}and it was gone\u{2026}\u{201d}",
+                    vec![("GATE_OPTIONAL", 28), ("IMMUNE_EXC", 1), ("IMMUNE_EXC", 28)],
+                ),
+                ("It soon then was eaten.", vec![]),
+                (
+                    "It\u{2019}s odd. It soon then was eaten and it was then gone.",
+                    vec![
+                        ("GATE_OPTIONAL", 37),
+                        ("IMMUNE_EXC", 10),
+                        ("IMMUNE_EXC", 37),
+                    ],
+                ),
+                (
+                    "She left.\u{2028}It soon then was eaten and it was gone.",
+                    vec![
+                        ("GATE_OPTIONAL", 37),
+                        ("IMMUNE_EXC", 10),
+                        ("IMMUNE_EXC", 37),
+                    ],
+                ),
+                (
+                    "It so was gone and it was here.",
+                    vec![
+                        ("GATE_FILTER", 0),
+                        ("GATE_OPTIONAL", 19),
+                        ("IMMUNE_EXC", 0),
+                        ("IMMUNE_EXC", 19),
+                    ],
+                ),
+                (
+                    "It so was gone.",
+                    vec![("GATE_FILTER", 0), ("IMMUNE_EXC", 0)],
+                ),
+                (
+                    "It soon then was eaten and so it was gone.",
+                    vec![
+                        ("GATE_FILTER", 0),
+                        ("GATE_FILTER", 30),
+                        ("GATE_OPTIONAL", 30),
+                        ("IMMUNE_EXC", 0),
+                        ("IMMUNE_EXC", 30),
+                    ],
+                ),
+            ],
+        );
+    }
+
     #[test]
     fn antipattern_marker_limits_the_immunized_tokens() {
         assert_flag_starts(
