@@ -131,16 +131,23 @@ impl TooOftenUsed {
     /// [`Error::OptionOutOfRange`] if `percent` is outside 1..=100; the rule
     /// keeps its previous value.
     pub fn set_min_percent(&mut self, percent: usize) -> Result<(), Error> {
-        if !MIN_PERCENT_RANGE.contains(&percent) {
-            return Err(Error::OptionOutOfRange {
+        Self::check_min_percent(percent)?;
+        self.min_percent = percent;
+        Ok(())
+    }
+
+    /// Checks that `percent` is a minimum percentage [`TooOftenUsed::set_min_percent`] accepts.
+    pub(crate) fn check_min_percent(percent: usize) -> Result<(), Error> {
+        if MIN_PERCENT_RANGE.contains(&percent) {
+            Ok(())
+        } else {
+            Err(Error::OptionOutOfRange {
                 option: "minimum percentage",
                 value: percent,
                 min: *MIN_PERCENT_RANGE.start(),
                 max: *MIN_PERCENT_RANGE.end(),
-            });
+            })
         }
-        self.min_percent = percent;
-        Ok(())
     }
 
     /// Stops counting and reporting words in direct speech, i.e. between an

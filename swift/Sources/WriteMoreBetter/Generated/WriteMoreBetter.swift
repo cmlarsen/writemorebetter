@@ -638,7 +638,7 @@ public protocol CheckerProtocol: AnyObject, Sendable {
      * and `TOO_OFTEN_USED_VERB_EN` rules: a word is flagged once it makes up at least `percent`
      * of all the adjectives, nouns or verbs of the checked text. The default is 5. A value
      * outside 1...100 throws and nothing changes. It does not enable the rules, which are off by
-     * default (see [`Checker::enable_rules`]). Changes apply to the next `check`.
+     * default; turn them on with `enableRules`. Changes apply to the next `check`.
      */
     func setTooOftenUsedPercent(percent: UInt32) throws 
     
@@ -893,7 +893,7 @@ open func setMotherTongue(motherTongue: String?)  {try! rustCall() {
      * and `TOO_OFTEN_USED_VERB_EN` rules: a word is flagged once it makes up at least `percent`
      * of all the adjectives, nouns or verbs of the checked text. The default is 5. A value
      * outside 1...100 throws and nothing changes. It does not enable the rules, which are off by
-     * default (see [`Checker::enable_rules`]). Changes apply to the next `check`.
+     * default; turn them on with `enableRules`. Changes apply to the next `check`.
      */
 open func setTooOftenUsedPercent(percent: UInt32)throws   {try rustCallWithError(FfiConverterTypeCheckError_lift) {
         uniffiCallStatus in

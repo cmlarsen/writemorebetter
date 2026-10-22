@@ -499,7 +499,7 @@ impl Checker {
     /// and `TOO_OFTEN_USED_VERB_EN` rules: a word is flagged once it makes up at least `percent`
     /// of all the adjectives, nouns or verbs of the checked text. The default is 5. A value
     /// outside 1...100 throws and nothing changes. It does not enable the rules, which are off by
-    /// default (see [`Checker::enable_rules`]). Changes apply to the next `check`.
+    /// default; turn them on with `enableRules`. Changes apply to the next `check`.
     pub fn set_too_often_used_percent(&self, percent: u32) -> Result<(), CheckError> {
         self.write_rules()
             .set_too_often_used_percent(percent as usize)

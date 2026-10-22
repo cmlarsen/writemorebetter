@@ -107,6 +107,8 @@ impl Rules {
     /// # Errors
     /// [Error::OptionOutOfRange] if `percent` is outside 1..=100; no rule changes.
     pub fn set_too_often_used_percent(&mut self, percent: usize) -> Result<(), Error> {
+        // Validate up front so the result does not depend on which builtins this rule set has.
+        crate::builtin::en::TooOftenUsed::check_min_percent(percent)?;
         for rule in &mut self.builtins {
             if let Builtin::TooOftenUsed(rule) = rule.builtin_mut() {
                 rule.set_min_percent(percent)?;
