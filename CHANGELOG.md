@@ -125,6 +125,12 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   SPECTACLES, fr GRAPES, and grammar rules such as APART_A_PART fired where LanguageTool 6.6
   doesn't. The SENT_END reading now takes the first reading's lemma, as in LanguageTool
   ([#157](https://github.com/cmlarsen/writemorebetter/issues/157)).
+- **`<disambig>` with `<wd>` children compiles as in LanguageTool 6.6, or is rejected.** The
+  default action and `action="replace"` replace the token's readings with the `<wd>` reading
+  (lemma included), `action="remove"` matches the `<wd>`, and shapes LanguageTool would apply
+  differently fail to compile with `Unimplemented` instead of silently filtering. No English
+  rule uses these shapes, so the English binaries are unchanged
+  ([#230](https://github.com/cmlarsen/writemorebetter/issues/230)).
 
 ### Removed
 
