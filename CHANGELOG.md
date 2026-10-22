@@ -115,6 +115,11 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   readings ("!" in "He saw the city!" loses `.` and `PCT`) instead of restoring them. Tagger
   output on bench/public now matches LanguageTool 6.6 `--taggeronly` on every aligned token's
   reading set ([#153](https://github.com/cmlarsen/writemorebetter/issues/153)).
+- **SENT_END sits where LanguageTool 6.6 puts it among a final token's readings.** It came last;
+  it now follows the tagger's readings, comes first on an untagged final token, and goes after
+  the readings a disambiguation rule rebuilds. A `scope="next"` exception that checks the first
+  reading now sees it, so `TYPOS/A3FT` flags "It was a3ft!" as LanguageTool does
+  ([#152](https://github.com/cmlarsen/writemorebetter/issues/152)).
 
 ### Removed
 
