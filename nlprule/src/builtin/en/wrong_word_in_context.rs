@@ -11,7 +11,7 @@
 //! contains the matching logic.
 
 use crate::types::{Sentence, Suggestion};
-use crate::utils::regex::Regex;
+use crate::utils::{regex::Regex, uppercase_first_letter_or_digit};
 use serde::{Deserialize, Serialize};
 
 /// The identifier of the LanguageTool rule this builtin reimplements.
@@ -234,7 +234,7 @@ fn preserve_case(text: &str, model: &str) -> String {
     }
 
     if is_capitalized_word(model) {
-        return uppercase_first_char(&text.to_lowercase());
+        return uppercase_first_letter_or_digit(&text.to_lowercase());
     }
 
     if is_all_uppercase(model) {
@@ -260,13 +260,4 @@ fn is_capitalized_word(text: &str) -> bool {
 /// all-uppercase).
 fn is_all_uppercase(text: &str) -> bool {
     !text.chars().any(|c| c.is_alphabetic() && c.is_lowercase())
-}
-
-/// Uppercases the first character of `text`.
-fn uppercase_first_char(text: &str) -> String {
-    let mut chars = text.chars();
-    match chars.next() {
-        None => String::new(),
-        Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
-    }
 }

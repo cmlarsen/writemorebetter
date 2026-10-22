@@ -512,29 +512,41 @@ pub struct Synthesizer {
     pub(crate) suppress_misspelled: bool,
 }
 
+/// Whether a rule's suggestions keep the case they are built with even when the
+/// matched text starts uppercase. This is the negation of LanguageTool's
+/// `PatternRuleMatcher.matchPreservesCase`: the first suggestion starts with a match
+/// reference and some match in the suggestions converts case. LanguageTool checks the
+/// suggestions in the message and those after it separately; for LanguageTool 6.6's
+/// English and false-friend rules that gives the same answer as checking them together.
+pub(crate) fn suggestions_keep_case(suggesters: &[Synthesizer]) -> bool {
+    suggesters.first().map_or(false, |first| {
+        matches!(first.parts.first(), Some(SynthesizerPart::Match(_)))
+    }) && suggesters.iter().any(|suggester| {
+        suggester.parts.iter().any(|part| match part {
+            SynthesizerPart::Match(m) => m.has_conversion(),
+            SynthesizerPart::Text(_) => false,
+        })
+    })
+}
+
 impl Synthesizer {
     /// The alternative strings this synthesizer can produce.
     ///
     /// A part that expands to several forms (inflection synthesis) yields several alternatives, in
     /// the same way LanguageTool's `toFinalString` + `combineLists` build a Cartesian product over
-    /// the parts of a `<suggestion>`.
+    /// the parts of a `<suggestion>`. `keep_case` is the rule's [`suggestions_keep_case`].
     pub(crate) fn alternatives(
         &self,
         sentence: &MatchSentence,
         graph: &MatchGraph,
         start: GraphId,
-        _end: GraphId,
+        keep_case: bool,
         articles: Option<&ArticleData>,
     ) -> Option<Vec<String>> {
         let mut output = vec![String::new()];
         // Whether the next text part should lose one leading space because the
         // preceding match expanded to the empty string (see below).
         let mut skip_leading_space = vec![false];
-
-        let starts_with_conversion = match &self.parts[..] {
-            [SynthesizerPart::Match(m), ..] => m.has_conversion(),
-            _ => false,
-        };
 
         for (idx, part) in self.parts.iter().enumerate() {
             match part {
@@ -584,24 +596,37 @@ impl Synthesizer {
             }
         }
 
-        // if the suggestion does not start with a case conversion match, make it title case if:
-        // * at sentence start
-        // * the replaced text is title case
-        let make_uppercase = !starts_with_conversion
-            && graph.groups()[graph.get_index(start)..]
-                .iter()
-                .find_map(|x| x.tokens(sentence).next())
-                .map(|first_token| {
-                    (self.use_titlecase_adjust
-                        && first_token
-                            .word()
-                            .as_str()
-                            .chars()
-                            .next() // a word is expected to always have at least one char, but be defensive here
-                            .map_or(false, char::is_uppercase))
-                        || first_token.span().start() == sentence.span().start()
-                })
-                .unwrap_or(false);
+        // Uppercase the suggestion's first letter when the matched text starts uppercase
+        // (LanguageTool's `PatternRuleMatcher.createRuleMatch`). Being at sentence start
+        // is not enough: `a compete` keeps `a competed`. `keep_case` turns this off,
+        // except when the match starts at `SENT_START` (a zero-width group before the
+        // sentence's first token): LanguageTool then takes the case of the next token
+        // without that check. A regex rule (`RegexPatternRule`) uppercases only a match
+        // at the start of the sentence.
+        let first_group = graph.get_index(start);
+        let make_uppercase = graph.groups()[first_group..]
+            .iter()
+            .find_map(|x| x.tokens(sentence).next())
+            .map_or(false, |first_token| {
+                let at_sentence_start = first_token.span().start() == sentence.span().start();
+                let starts_uppercase = first_token
+                    .word()
+                    .as_str()
+                    .chars()
+                    .next() // a word is expected to always have at least one char, but be defensive here
+                    .map_or(false, char::is_uppercase);
+                let from_sent_start = at_sentence_start
+                    && graph.groups()[first_group]
+                        .tokens(sentence)
+                        .next()
+                        .is_none();
+                starts_uppercase
+                    && if self.use_titlecase_adjust {
+                        !keep_case || from_sent_start
+                    } else {
+                        !keep_case && at_sentence_start
+                    }
+            });
 
         Some(
             output
@@ -609,7 +634,7 @@ impl Synthesizer {
                 .map(|suggestion| {
                     let suggestion = utils::normalize_whitespace(&suggestion);
                     if make_uppercase {
-                        utils::apply_to_first(&suggestion, |x| x.to_uppercase().collect())
+                        utils::uppercase_first_letter_or_digit(&suggestion)
                     } else {
                         suggestion
                     }
@@ -624,11 +649,11 @@ impl Synthesizer {
         sentence: &MatchSentence,
         graph: &MatchGraph,
         start: GraphId,
-        end: GraphId,
+        keep_case: bool,
         articles: Option<&ArticleData>,
     ) -> Option<String> {
         Some(
-            self.alternatives(sentence, graph, start, end, articles)?
+            self.alternatives(sentence, graph, start, keep_case, articles)?
                 .join("|"),
         )
     }

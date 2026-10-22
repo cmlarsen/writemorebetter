@@ -14,6 +14,7 @@
 //! matching logic lives in this MIT/Apache-2.0 source file.
 
 use crate::types::{DefaultHashMap, Position, Sentence, Span, Suggestion, Token};
+use crate::utils::uppercase_first_letter_or_digit;
 use serde::{Deserialize, Serialize};
 
 /// The maximum number of whitespace-separated words a phrase table entry may
@@ -338,7 +339,7 @@ impl SimpleReplace {
         for replacement in &entry.replacements {
             let mut adjusted = replacement.clone();
             if !first_word_is_camel_case && (start == sent_start || capitalized) {
-                adjusted = uppercase_first_char(replacement);
+                adjusted = uppercase_first_letter_or_digit(replacement);
             }
             if all_uppercase {
                 adjusted = replacement.to_uppercase();
@@ -716,24 +717,6 @@ fn is_camel_case(text: &str) -> bool {
     chars[i + 1..].iter().all(|c| c.is_ascii_alphabetic())
 }
 
-/// `StringTools.uppercaseFirstChar`: uppercases the first letter or digit,
-/// keeping any characters before it, or else the last character.
-fn uppercase_first_char(text: &str) -> String {
-    let Some((pos, c)) = text
-        .char_indices()
-        .find(|(_, c)| c.is_alphanumeric())
-        .or_else(|| text.char_indices().last())
-    else {
-        return String::new();
-    };
-    format!(
-        "{}{}{}",
-        &text[..pos],
-        c.to_uppercase(),
-        &text[pos + c.len_utf8()..]
-    )
-}
-
 /// The literal text Java's `String.replaceFirst` inserts for `replacement`: a
 /// backslash makes the next character literal and is dropped itself.
 fn java_replacement(replacement: &str) -> String {
@@ -751,17 +734,6 @@ fn java_replacement(replacement: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn uppercase_first_char_skips_leading_non_alphanumerics() {
-        assert_eq!(uppercase_first_char("(either one)"), "(Either one)");
-        assert_eq!(
-            uppercase_first_char("\u{201c}well\u{201d}"),
-            "\u{201c}Well\u{201d}"
-        );
-        assert_eq!(uppercase_first_char("\u{2026}"), "\u{2026}");
-        assert_eq!(uppercase_first_char(""), "");
-    }
 
     #[test]
     fn java_replacement_drops_escaping_backslashes() {

@@ -35,7 +35,10 @@ use crate::{
         Tokenizer, TokenizerLangOptions,
     },
     types::*,
-    utils::{apply_to_first, parallelism::MaybeParallelIterator, regex::Regex},
+    utils::{
+        apply_to_first, parallelism::MaybeParallelIterator, regex::Regex,
+        uppercase_first_letter_or_digit,
+    },
 };
 
 use super::{parse_structure::BuildInfo, Error};
@@ -621,26 +624,6 @@ impl Tagger {
         }
         .into())
     }
-}
-
-fn uppercase_first_letter_or_digit(text: &str) -> String {
-    let mut chars = text.char_indices();
-    if text.chars().nth(1).is_none() {
-        return text.to_uppercase();
-    }
-    let last = text.char_indices().last().map_or(0, |(i, _)| i);
-    let (pos, first) = chars
-        .find(|(i, c)| c.is_alphanumeric() || *i == last)
-        .expect("text has at least two chars");
-    let mut upper = first.to_uppercase();
-    let upper = match (upper.next(), upper.next()) {
-        (Some(c), None) => c,
-        _ => first,
-    };
-    let mut out = text[..pos].to_owned();
-    out.push(upper);
-    out.push_str(&text[pos + first.len_utf8()..]);
-    out
 }
 
 fn is_camel_case(text: &str) -> bool {
@@ -2309,6 +2292,153 @@ mod tests {
         }
     }
 
+    const SUGGESTION_CASE: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
+<rules lang="en">
+<category id="PROBE" name="Probe">
+  <rule id="LIT" name="m">
+    <pattern><token>zork</token><token>blat</token></pattern>
+    <message>m <suggestion>quux frob</suggestion>.</message>
+  </rule>
+  <rule id="REF" name="m">
+    <pattern><token>zirk</token><token>blat</token></pattern>
+    <message>m <suggestion>\1 frob</suggestion>.</message>
+  </rule>
+  <rule id="PUNCT" name="m">
+    <pattern><token>zark</token><token>blat</token></pattern>
+    <message>m <suggestion>(the) frob</suggestion> <suggestion>‘tis frob</suggestion> <suggestion>—…</suggestion> <suggestion>ßa</suggestion> <suggestion>ß</suggestion> <suggestion>"½ frob</suggestion>.</message>
+  </rule>
+  <rule id="CONV" name="m">
+    <pattern><token>zerk</token><token>blat</token></pattern>
+    <message>m <suggestion><match no="1" case_conversion="alllower"/> frob</suggestion>.</message>
+  </rule>
+  <rule id="LATE_CONV" name="m">
+    <pattern><token>qerk</token><token>blat</token></pattern>
+    <message>m <suggestion>\2 <match no="1" case_conversion="startlower"/></suggestion>.</message>
+  </rule>
+  <rule id="SECOND_CONV" name="m">
+    <pattern><token>zwerk</token><token>blat</token></pattern>
+    <message>m <suggestion>quux</suggestion> <suggestion><match no="1" case_conversion="alllower"/> frob</suggestion>.</message>
+  </rule>
+  <rule id="START_CONV" name="m">
+    <pattern><token postag="SENT_START"/><token>zurk</token><token>blat</token></pattern>
+    <message>m <suggestion><match no="2" case_conversion="alllower"/> frob</suggestion>.</message>
+  </rule>
+  <rule id="START_LIT" name="m">
+    <pattern><token postag="SENT_START"/><token>zyrk</token><token>blat</token></pattern>
+    <message>m <suggestion>quux frob</suggestion>.</message>
+  </rule>
+  <rule id="REGEX" name="m">
+    <regexp>zork blot</regexp>
+    <message>m <suggestion>quux frob</suggestion>.</message>
+  </rule>
+</category>
+</rules>
+"#;
+
+    #[test]
+    fn suggestion_case_follows_the_matched_text() {
+        // Every expectation was checked against LanguageTool 6.6 with these rules as
+        // a `--rulefile` (#158, #191).
+        let tokenizer = Tokenizer::new("../storage/en_tokenizer.bin").unwrap();
+        let path =
+            std::env::temp_dir().join(format!("wmb-suggestion-case-{}.xml", std::process::id()));
+        std::fs::write(&path, SUGGESTION_CASE).unwrap();
+        let mut info = BuildInfo::new(
+            tokenizer.tagger().clone(),
+            RegexCache::new(0),
+            PathBuf::new(),
+        );
+        let mut pool = PartInterner::default();
+        let rules = rules_from_xml(
+            &path,
+            &mut info,
+            &RulesLangOptions::default(),
+            &mut pool,
+            &mut HashMap::new(),
+        );
+        std::fs::remove_file(&path).unwrap();
+        let pool = pool.into_pool();
+        assert_eq!(rules.len(), SUGGESTION_CASE.matches("<rule ").count());
+
+        let quux = |first: &str| vec![format!("{} frob", first)];
+        for (text, rule, expected) in [
+            ("zork blat is here.", "LIT", quux("quux")),
+            ("Zork blat is here.", "LIT", quux("Quux")),
+            ("It is zork blat here.", "LIT", quux("quux")),
+            (
+                "\u{201c}Zork blat,\u{201d} she said\u{2026}",
+                "LIT",
+                quux("Quux"),
+            ),
+            ("Fine.\u{2028}zork blat\u{2014}here.", "LIT", quux("quux")),
+            ("zirk blat is here.", "REF", quux("zirk")),
+            ("Zirk blat is here.", "REF", quux("Zirk")),
+            (
+                "zark blat is here.",
+                "PUNCT",
+                vec!["(the) frob", "‘tis frob", "—…", "ßa", "ß", "\"½ frob"]
+                    .into_iter()
+                    .map(String::from)
+                    .collect(),
+            ),
+            (
+                "Zark blat is here.",
+                "PUNCT",
+                vec!["(The) frob", "‘Tis frob", "—…", "ßa", "SS", "\"½ Frob"]
+                    .into_iter()
+                    .map(String::from)
+                    .collect(),
+            ),
+            ("Zerk blat is here.", "CONV", quux("zerk")),
+            // A conversion anywhere in the suggestions counts once the first
+            // suggestion starts with a match reference, and only then.
+            (
+                "Qerk blat is here.",
+                "LATE_CONV",
+                vec!["blat qerk".to_string()],
+            ),
+            (
+                "Zwerk blat is here.",
+                "SECOND_CONV",
+                vec!["Quux".to_string(), "Zwerk frob".to_string()],
+            ),
+            (
+                "It was zwerk blat.",
+                "SECOND_CONV",
+                vec!["quux".to_string(), "zwerk frob".to_string()],
+            ),
+            // From `SENT_START`, LanguageTool skips the case conversion check.
+            ("Zurk blat is here.", "START_CONV", quux("Zurk")),
+            ("zurk blat is here.", "START_CONV", quux("zurk")),
+            ("zyrk blat is here.", "START_LIT", quux("quux")),
+            ("Zyrk blat is here.", "START_LIT", quux("Quux")),
+            // A regex rule uppercases only a match at the start of the sentence.
+            ("zork blot is here.", "REGEX", quux("quux")),
+            ("Zork blot is here.", "REGEX", quux("Quux")),
+            ("It was Zork blot.", "REGEX", quux("quux")),
+            (
+                "\u{201c}Zork blot,\u{201d} she said.",
+                "REGEX",
+                quux("quux"),
+            ),
+        ] {
+            let mut flagged = Vec::new();
+            for sentence in tokenizer.pipe(text) {
+                let sentence = MatchSentence::new(&sentence);
+                for compiled in &rules {
+                    let id = compiled.id.to_string();
+                    let name = id.split('/').nth(1).unwrap().to_string();
+                    flagged.extend(
+                        compiled
+                            .apply(&pool, &sentence, None, None, None)
+                            .map(|suggestion| (name.clone(), suggestion.replacements().to_vec())),
+                    );
+                }
+            }
+            assert_eq!(flagged, vec![(rule.to_string(), expected)], "{:?}", text);
+        }
+    }
+
     #[test]
     fn multitoken_phrases_keep_the_java_hash_map_order() {
         assert_eq!(java_hash_map_hash("hello"), 99162322 ^ (99162322 >> 16));
@@ -2389,12 +2519,7 @@ mod tests {
     }
 
     #[test]
-    fn uppercase_first_letter_or_digit_skips_leading_punctuation() {
-        assert_eq!(uppercase_first_letter_or_digit("ß"), "SS");
-        assert_eq!(uppercase_first_letter_or_digit("ßa"), "ßa");
-        assert_eq!(uppercase_first_letter_or_digit("‘tis"), "‘Tis");
-        assert_eq!(uppercase_first_letter_or_digit("—…"), "—…");
-        assert_eq!(uppercase_first_letter_or_digit("\u{2028}x"), "\u{2028}X");
+    fn is_camel_case_needs_lowercase_then_two_more_chars() {
         assert!(is_camel_case("iPad"));
         assert!(!is_camel_case("iP"));
         assert!(!is_camel_case("O'Brien"));

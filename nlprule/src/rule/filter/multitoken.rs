@@ -3,11 +3,12 @@
 
 use unicode_categories::UnicodeCategories;
 
-use super::{group, is_capitalized_word, is_misspelled, uppercase_first, FilterMatch};
+use super::{group, is_capitalized_word, is_misspelled, FilterMatch};
 use crate::rule::engine::composition::{MatchGraph, MatchSentence};
 use crate::spell::multitoken::{normalize_key, MultitokenSpeller};
 use crate::spell::Speller;
 use crate::types::{Span, Token};
+use crate::utils::uppercase_first_letter_or_digit;
 
 const MAX_LENGTH_DIFF: usize = 3;
 
@@ -54,7 +55,7 @@ pub(super) fn accept<'t>(
             replacements = dedup_without(
                 replacements.iter().map(|x| {
                     if *x == x.to_lowercase() {
-                        uppercase_first(x)
+                        uppercase_first_letter_or_digit(x)
                     } else {
                         x.clone()
                     }

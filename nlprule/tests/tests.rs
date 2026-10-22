@@ -3020,6 +3020,42 @@ fn apostrophe_rules_match_languagetool_on_fiction_text() {
 }
 
 #[test]
+fn suggestions_at_sentence_start_keep_the_matched_case() {
+    // LanguageTool capitalizes a suggestion only when the matched text starts
+    // uppercase; sentence start alone does not (#191). `A_INFINITIVE` suggests
+    // `\1 {suggestion}`. Checked against LanguageTool 6.6.
+    let flags = |text: &str, matched: &str, article: &str| {
+        assert_eq!(
+            rule_flags(text, "GRAMMAR/A_INFINITIVE/"),
+            vec![(
+                matched.to_string(),
+                ["competed", "complete", "compote"]
+                    .iter()
+                    .map(|word| format!("{} {}", article, word))
+                    .collect::<Vec<_>>()
+            )],
+            "{:?}",
+            text
+        );
+    };
+    flags("a compete", "a compete", "a");
+    flags("A compete", "A compete", "A");
+    flags(
+        "\u{201c}a compete,\u{201d} she said\u{2026}",
+        "a compete",
+        "a",
+    );
+    flags(
+        "\u{2018}a compete\u{2019} she said\u{2026}",
+        "a compete",
+        "a",
+    );
+    flags("Wait\u{2014}a compete?", "a compete", "a");
+    flags("Fine.\u{2028}a compete it was.", "a compete", "a");
+    flags("Fine.\u{2028}A compete it was.", "A compete", "A");
+}
+
+#[test]
 fn skip_continues_past_antipattern_immunized_token() {
     for (text, expected) in [
         ("He said \u{201c}a,\u{201c} b c\u{201c} d.", vec![16]),
@@ -4473,6 +4509,50 @@ fn mother_tongue_selects_its_false_friends() {
     assert!(false_friends(&rules, FALSE_FRIEND_TEXT).is_empty());
     rules.set_mother_tongue(None);
     assert!(false_friends(&rules, FALSE_FRIEND_TEXT).is_empty());
+}
+
+#[test]
+fn capitalized_suggestions_uppercase_their_first_letter() {
+    // LanguageTool's `StringTools.uppercaseFirstChar` skips leading punctuation, so
+    // a capitalized "Actual" gets "(The) latest", not "(the) latest" (#158).
+    // Checked against LanguageTool 6.6 with `-m pl --level PICKY`.
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    rules.set_mother_tongue(Some("pl"));
+    let replacements = |text: &str| -> Vec<Vec<String>> {
+        false_friends(&rules, text)
+            .into_iter()
+            .map(|(_, _, replacements)| replacements)
+            .collect()
+    };
+    let capitalized = vec![vec![
+        "Current".to_string(),
+        "(The) latest".to_string(),
+        "Up-to-date".to_string(),
+    ]];
+    let lowercase = vec![vec![
+        "current".to_string(),
+        "(the) latest".to_string(),
+        "up-to-date".to_string(),
+    ]];
+    assert_eq!(replacements("Actual is what they said."), capitalized);
+    assert_eq!(
+        replacements("\u{201c}Actual,\u{201d} she said\u{2014}again."),
+        capitalized
+    );
+    assert_eq!(
+        replacements("Fine.\u{2028}Actual numbers matter."),
+        capitalized
+    );
+    assert_eq!(
+        replacements("It\u{2019}s the actual problem\u{2026}"),
+        lowercase
+    );
+    // Sentence start alone does not capitalize a suggestion.
+    assert_eq!(replacements("actual numbers matter."), lowercase);
+    assert_eq!(
+        replacements("Camera is what they said."),
+        vec![vec!["(Motion-picture) camera".to_string()]]
+    );
 }
 
 #[test]

@@ -350,6 +350,7 @@ impl<'a, 't> Iterator for Suggestions<'a, 't> {
         let (start, end) = (self.rule.start, self.rule.end);
         let filter_context = &self.filter_context;
         let articles = self.articles;
+        let keep_case = grammar::suggestions_keep_case(&rule.suggesters);
 
         let evaluate = |graph: &MatchGraph<'t>, vetoed: &mut bool| {
             if let Some(unification) = &rule.unification {
@@ -364,7 +365,7 @@ impl<'a, 't> Iterator for Suggestions<'a, 't> {
             let replacements: Vec<String> = rule
                 .suggesters
                 .iter()
-                .filter_map(|x| x.alternatives(sentence, graph, start, end, articles))
+                .filter_map(|x| x.alternatives(sentence, graph, start, keep_case, articles))
                 .flatten()
                 .collect();
 
@@ -422,7 +423,7 @@ impl<'a, 't> Iterator for Suggestions<'a, 't> {
 
             let message = rule
                 .message
-                .apply(sentence, graph, rule.start, rule.end, articles)
+                .apply(sentence, graph, rule.start, keep_case, articles)
                 .expect("Rules must have a message.");
 
             let match_ = filter::FilterMatch {

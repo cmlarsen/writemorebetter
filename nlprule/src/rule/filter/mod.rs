@@ -22,7 +22,7 @@ use serde::{Deserialize, Serialize};
 use crate::rule::engine::composition::{GraphId, MatchGraph, MatchSentence};
 use crate::spell::Speller;
 use crate::types::{DefaultHashMap, DefaultHashSet, Position, Span};
-use crate::utils::regex::Regex;
+use crate::utils::{regex::Regex, uppercase_first_letter_or_digit};
 
 pub(crate) use date::Date;
 use date::*;
@@ -932,7 +932,7 @@ impl FindSuggestions {
                 replacement = replacement.to_uppercase();
             }
             if is_capitalized {
-                replacement = uppercase_first(&replacement);
+                replacement = uppercase_first_letter_or_digit(&replacement);
             }
             if self
                 .priority_postag
@@ -969,7 +969,7 @@ impl FindSuggestions {
                     let (placeholder, value) = if template.contains("{suggestion}") {
                         ("{suggestion}", replacement.clone())
                     } else if template.contains("{Suggestion}") {
-                        ("{Suggestion}", uppercase_first(replacement))
+                        ("{Suggestion}", uppercase_first_letter_or_digit(replacement))
                     } else {
                         ("{SUGGESTION}", replacement.to_uppercase())
                     };
@@ -1092,22 +1092,6 @@ fn is_capitalized_word(word: &str) -> bool {
         && chars.all(|c| !c.is_alphabetic() || c.is_lowercase())
 }
 
-/// `StringTools.uppercaseFirstChar`: uppercases the first letter or digit,
-/// keeping any characters before it.
-fn uppercase_first(word: &str) -> String {
-    let pos = word
-        .char_indices()
-        .find(|(_, c)| c.is_alphanumeric())
-        .or_else(|| word.char_indices().last())
-        .map_or(0, |(i, _)| i);
-    let (before, rest) = word.split_at(pos);
-    format!(
-        "{}{}",
-        before,
-        crate::utils::apply_to_first(rest, |c| c.to_uppercase().collect())
-    )
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1177,10 +1161,5 @@ mod tests {
         assert!(is_capitalized_word("A\u{2028}"));
         assert!(!is_capitalized_word("\u{201c}Trait"));
         assert!(!is_capitalized_word(""));
-        assert_eq!(uppercase_first("\u{e9}clair"), "\u{c9}clair");
-        assert_eq!(uppercase_first("\u{2019}tis"), "\u{2019}Tis");
-        assert_eq!(uppercase_first("\u{201c}\u{2026}"), "\u{201c}\u{2026}");
-        assert_eq!(uppercase_first("\u{2014}"), "\u{2014}");
-        assert_eq!(uppercase_first(""), "");
     }
 }

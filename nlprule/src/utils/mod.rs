@@ -17,6 +17,34 @@ where
     }
 }
 
+/// LanguageTool's `StringTools.uppercaseFirstChar`: uppercases the first letter or
+/// decimal digit, keeping the characters before it (`(the)` becomes `(The)`,
+/// `‘tis` becomes `‘Tis`). Text without one changes only its last character. A
+/// one-character text is uppercased in full (`ß` becomes `SS`); otherwise only a
+/// one-to-one case mapping applies, as with Java's `Character.toUpperCase`.
+pub fn uppercase_first_letter_or_digit(text: &str) -> String {
+    use unicode_categories::UnicodeCategories;
+
+    if text.chars().nth(1).is_none() {
+        return text.to_uppercase();
+    }
+    let last = text.char_indices().last().map_or(0, |(i, _)| i);
+    let (pos, first) = text
+        .char_indices()
+        .find(|&(i, c)| c.is_letter() || c.is_number_decimal_digit() || i == last)
+        .expect("text has at least two chars");
+    let mut upper = first.to_uppercase();
+    let upper = match (upper.next(), upper.next()) {
+        (Some(c), None) => c,
+        _ => first,
+    };
+    let mut out = String::with_capacity(text.len());
+    out.push_str(&text[..pos]);
+    out.push(upper);
+    out.push_str(&text[pos + first.len_utf8()..]);
+    out
+}
+
 pub fn is_title_case(string: &str) -> bool {
     let mut char_case = string.chars().map(|x| x.is_uppercase());
 
@@ -110,4 +138,33 @@ pub fn fix_nospace_chars(text: &str) -> String {
         })
         .map(|x| x.1)
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn uppercase_first_letter_or_digit_skips_leading_punctuation() {
+        assert_eq!(
+            uppercase_first_letter_or_digit("(the) latest"),
+            "(The) latest"
+        );
+        assert_eq!(uppercase_first_letter_or_digit("ß"), "SS");
+        assert_eq!(uppercase_first_letter_or_digit("ßa"), "ßa");
+        assert_eq!(uppercase_first_letter_or_digit("‘tis"), "‘Tis");
+        assert_eq!(uppercase_first_letter_or_digit("’tis"), "’Tis");
+        assert_eq!(uppercase_first_letter_or_digit("“well”"), "“Well”");
+        assert_eq!(uppercase_first_letter_or_digit("—…"), "—…");
+        assert_eq!(uppercase_first_letter_or_digit("…and"), "…And");
+        assert_eq!(uppercase_first_letter_or_digit("\u{2028}x"), "\u{2028}X");
+        // `½` is a number but not a decimal digit, so Java skips it.
+        assert_eq!(uppercase_first_letter_or_digit("\"½ frob"), "\"½ Frob");
+        assert_eq!(uppercase_first_letter_or_digit("1st"), "1st");
+        assert_eq!(
+            uppercase_first_letter_or_digit("\u{e9}clair"),
+            "\u{c9}clair"
+        );
+        assert_eq!(uppercase_first_letter_or_digit(""), "");
+    }
 }
