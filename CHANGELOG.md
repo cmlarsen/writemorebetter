@@ -174,6 +174,12 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   letter with any accent at no cost ("Citroen" gets Citroën, "Nescafee" Nescafé, "Zoee" Zoé and
   Zoë). Ties now keep dictionary order with the word's own case forms first, as in Morfologik
   ("renée" gets Renée, then Renee). Probe top-1 agreement 88.0% → 91.9% (#219).
+- **Long words with nothing within two edits get distance-3 suggestions.** As in LanguageTool,
+  a word of five or more letters with no candidate at distance 2 is searched again at distance
+  3: "Queequeg" gets Queue, "Thornfeild" Shortfall, "Yossarain" Constrain.
+  `SpellOptions::max_distance` now defaults to 3; set it to 2 for the old behaviour. Suggestions
+  are now cached per word (emptied when the options or the user dictionary change), so a
+  repeated name costs one search (#182).
 
 ### Removed
 

@@ -145,6 +145,9 @@ pub struct SpellOptions {
     /// The language variant to use. Setting this to `None` disables spellchecking.
     pub variant: Option<Variant>,
     /// The maximum edit distance to consider for corrections. Currently Optimal String Alignment distance is used.
+    /// As in LanguageTool, distance 2 is searched only when distance 1 finds nothing (or only a
+    /// case variant), and distance 3 only when distance 2 finds nothing either and the word has
+    /// at least five letters.
     pub max_distance: usize,
     /// A fixed prefix length for which to consider only edits with a distance of 1. This speeds
     /// up the search by pruning the tree early, but misses candidates with two edits at the start
@@ -227,7 +230,7 @@ impl Default for SpellOptions {
     fn default() -> Self {
         SpellOptions {
             variant: None,
-            max_distance: 2,
+            max_distance: 3,
             prefix_length: 0,
             top_n: 10,
             whitelist: DefaultHashSet::default(),
@@ -738,7 +741,13 @@ impl VariantChecker {
         };
         search(&mut out, 1);
         if !first_tier_only(&out) {
-            search(&mut out, usize::MAX);
+            search(&mut out, 2);
+            // LanguageTool retries at distance 3 when nothing is closer, for words of at least
+            // five UTF-16 units (`MorfologikSpellerRule.calcSpellerSuggestions`).
+            const MIN_DISTANCE_3_LEN: usize = 5;
+            if out.is_empty() && word.encode_utf16().count() >= MIN_DISTANCE_3_LEN {
+                search(&mut out, 3);
+            }
         }
 
         let first_tier_only = first_tier_only(&out);

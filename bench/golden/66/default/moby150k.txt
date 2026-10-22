@@ -9,11 +9,11 @@
 161 | SPELLCHECK/SINGLE | "Stubb" -> ["Stub", "Stubby", "Stubbs", "Stubs"] | Possibly misspelled word.
 170 | SPELLCHECK/SINGLE | "Heidelburgh" -> ["Heidelberg"] | Possibly misspelled word.
 178 | SPELLCHECK/SINGLE | "Pequod" -> ["Period", "Piqued", "Mequon", "Quod"] | Possibly misspelled word.
-184 | SPELLCHECK/SINGLE | "Pitchpoling" -> [] | Possibly misspelled word.
+184 | SPELLCHECK/SINGLE | "Pitchpoling" -> ["Pitching", "Potholing", "Pitchforking"] | Possibly misspelled word.
 198 | SPELLCHECK/SINGLE | "Pequod" -> ["Period", "Piqued", "Mequon", "Quod"] | Possibly misspelled word.
 220 | SPELLCHECK/SINGLE | "Arsacides" -> ["Arsenides"] | Possibly misspelled word.
 234 | SPELLCHECK/SINGLE | "Starbuck" -> ["Starbucks"] | Possibly misspelled word.
-236 | SPELLCHECK/SINGLE | "Queequeg" -> [] | Possibly misspelled word.
+236 | SPELLCHECK/SINGLE | "Queequeg" -> ["Queue", "Queues", "Queued", "Queening", "Queened", "Queering", "Queenie", "Queenies", "Queered", "Queerer"] | Possibly misspelled word.
 246 | SPELLCHECK/SINGLE | "Pequod" -> ["Period", "Piqued", "Mequon", "Quod"] | Possibly misspelled word.
 272 | SPELLCHECK/SINGLE | "Pequod" -> ["Period", "Piqued", "Mequon", "Quod"] | Possibly misspelled word.
 278 | SPELLCHECK/SINGLE | "Pequod" -> ["Period", "Piqued", "Mequon", "Quod"] | Possibly misspelled word.
@@ -112,7 +112,7 @@
 374 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: repeated spaces
 375 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: repeated spaces
 376 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: repeated spaces
-376 | SPELLCHECK/SINGLE | "unsplinterable" -> [] | Possibly misspelled word.
+376 | SPELLCHECK/SINGLE | "unsplinterable" -> ["unsplittable"] | Possibly misspelled word.
 380 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: repeated spaces
 382 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: repeated spaces
 382 | SPELLCHECK/SINGLE | "maketh" -> ["make", "makes", "market", "makeup", "markets", "maker", "makers", "math", "Gareth", "Macbeth"] | Possibly misspelled word.
@@ -173,7 +173,7 @@
 440 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: repeated spaces
 445 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: repeated spaces
 445 | SPELLCHECK/SINGLE | "sovereignest" -> ["sovereigns"] | Possibly misspelled word.
-445 | SPELLCHECK/SINGLE | "parmacetti" -> [] | Possibly misspelled word.
+445 | SPELLCHECK/SINGLE | "parmacetti" -> ["pharmaceutic", "spermaceti"] | Possibly misspelled word.
 446 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: repeated spaces
 448 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: repeated spaces
 451 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: repeated spaces
@@ -192,7 +192,7 @@
 459 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: repeated spaces
 459 | SPELLCHECK/SINGLE | "Davenant" -> ["Covenant", "Revenant"] | Possibly misspelled word.
 460 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: repeated spaces
-460 | SPELLCHECK/SINGLE | "Gondibert" -> [] | Possibly misspelled word.
+460 | SPELLCHECK/SINGLE | "Gondibert" -> ["Goldberg", "Condiment", "Godber", "Noninert"] | Possibly misspelled word.
 462 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: repeated spaces
 462 | SPELLCHECK/SINGLE | "spermacetti" -> ["spermaceti"] | Possibly misspelled word.
 463 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: repeated spaces
@@ -256,7 +256,7 @@
 526 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: repeated spaces
 527 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: repeated spaces
 528 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: repeated spaces
-528 | SPELLCHECK/SINGLE | "Pitferren" -> [] | Possibly misspelled word.
+528 | SPELLCHECK/SINGLE | "Pitferren" -> ["Preferred", "Pierre", "Inferred", "Petersen", "Pilfered", "Pilferer", "Pilferers", "Perren", "Preferrer"] | Possibly misspelled word.
 529 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: repeated spaces
 529 | SPELLCHECK/SINGLE | "Sibbald" -> ["Sinbad", "Piebald", "Ribald", "Siebold"] | Possibly misspelled word.
 531 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: repeated spaces
@@ -301,7 +301,7 @@
 575 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: repeated spaces
 577 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: repeated spaces
 577 | SPELLCHECK/SINGLE | "Spermacetti" -> ["Spermaceti"] | Possibly misspelled word.
-577 | SPELLCHECK/SINGLE | "Nantuckois" -> [] | Possibly misspelled word.
+577 | SPELLCHECK/SINGLE | "Nantuckois" -> ["Nantucket"] | Possibly misspelled word.
 578 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: repeated spaces
 579 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: repeated spaces
 581 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: repeated spaces
@@ -490,7 +490,7 @@
 791 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: repeated spaces
 792 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: repeated spaces
 793 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: repeated spaces
-793 | SPELLCHECK/SINGLE | "Hobomack" -> [] | Possibly misspelled word.
+793 | SPELLCHECK/SINGLE | "Hobomack" -> ["Potomac", "Cormack", "Hogback", "Holdback", "Womack", "Hopsack", "Tokomak"] | Possibly misspelled word.
 795 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: repeated spaces
 796 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: repeated spaces
 797 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: repeated spaces
@@ -557,9 +557,9 @@
 1149 | STYLE/SENT_START_ARE_NOT_ARENT_FORMAL/0 | "Would not" -> ["Wouldn't"] | Questions beginning with 'Would not' can sound very formal.
 1151 | BUILTIN/UPPERCASE_SENTENCE_START | "go" -> ["Go"] | This sentence does not start with an uppercase letter.
 1162 | GRAMMAR/KIND_OF_A/0 | "sort of a" -> ["sort of"] | If 'sort' is a classification term, 'a' is not necessary. Use sort of. (The phrases 'kind of' and 'sort of' are informal if they mean 'to some extent'.)
-1170 | SPELLCHECK/SINGLE | "oilpainting" -> [] | Possibly misspelled word.
+1170 | SPELLCHECK/SINGLE | "oilpainting" -> ["painting", "imprinting", "repainting", "pinpointing", "outpointing", "misprinting", "bioprinting"] | Possibly misspelled word.
 1170 | SPELLCHECK/SINGLE | "besmoked" -> ["bestowed", "smoked", "bespoke", "bespoken", "unsmoked"] | Possibly misspelled word.
-1171 | SPELLCHECK/SINGLE | "crosslights" -> [] | Possibly misspelled word.
+1171 | SPELLCHECK/SINGLE | "crosslights" -> ["crossruffs"] | Possibly misspelled word.
 1177 | SPELLCHECK/SINGLE | "ponderings" -> ["pondering", "wonderings"] | Possibly misspelled word.
 1183 | SPELLCHECK/SINGLE | "centre" -> ["center", "Centrex", "CENTR", "centra"] | Possibly misspelled word.
 1185 | SPELLCHECK/SINGLE | "squitchy" -> ["squishy", "squelchy", "squinch", "smoochy"] | Possibly misspelled word.
@@ -570,7 +570,7 @@
 1250 | SPELLCHECK/SINGLE | "skrimshander" -> [] | Possibly misspelled word.
 1253 | SPELLCHECK/SINGLE | "haint" -> ["paint", "saint", "faint", "haunt", "hint", "taint"] | Possibly misspelled word.
 1254 | SPELLCHECK/SINGLE | "harpooneer" -> ["harpooner"] | Possibly misspelled word.
-1255 | SPELLCHECK/SINGLE | "a-whalin" -> [] | Possibly misspelled word.
+1255 | SPELLCHECK/SINGLE | "a-whalin" -> ["whaling", "Sakhalin", "Whalen", "al-Khalil", "al-Walid"] | Possibly misspelled word.
 1258 | GRAMMAR/IN_WHO/0 | "who" -> ["whom"] | Did you mean whom?
 1258 | SPELLCHECK/SINGLE | "harpooneer" -> ["harpooner"] | Possibly misspelled word.
 1260 | SPELLCHECK/SINGLE | "harpooneer" -> ["harpooner"] | Possibly misspelled word.
@@ -614,7 +614,7 @@
 1426 | SPELLCHECK/SINGLE | "airley" -> ["Earley", "early", "Early", "arena", "barley", "Harley", "Carla", "Earle", "Farley", "Marley"] | Possibly misspelled word.
 1428 | SPELLCHECK/SINGLE | "airth" -> ["earth", "Earth", "birth", "Gareth", "Garth", "earthy", "girth", "hearth", "Aretha", "Barth"] | Possibly misspelled word.
 1431 | GRAMMAR/KIND_OF_A/0 | "sort of a" -> ["sort of"] | If 'sort' is a classification term, 'a' is not necessary. Use sort of. (The phrases 'kind of' and 'sort of' are informal if they mean 'to some extent'.)
-1431 | SPELLCHECK/SINGLE | "bamboozingly" -> [] | Possibly misspelled word.
+1431 | SPELLCHECK/SINGLE | "bamboozingly" -> ["bamboozling"] | Possibly misspelled word.
 1433 | SPELLCHECK/SINGLE | "harpooneer" -> ["harpooner"] | Possibly misspelled word.
 1448 | SPELLCHECK/SINGLE | "rayther" -> ["rather", "Rather"] | Possibly misspelled word.
 1448 | SPELLCHECK/SINGLE | "harpooneer" -> ["harpooner"] | Possibly misspelled word.
@@ -673,47 +673,47 @@
 1693 | SPELLCHECK/SINGLE | "tell-ee" -> ["teller", "Teller", "Téllez", "tellies"] | Possibly misspelled word.
 1693 | SPELLCHECK/SINGLE | "who-ee" -> ["whole", "whose", "wholes", "whee", "whoopee", "whoaed", "whore", "whored", "whores", "Shopee"] | Possibly misspelled word.
 1694 | SPELLCHECK/SINGLE | "flourishings" -> ["flourishing"] | Possibly misspelled word.
-1699 | SPELLCHECK/SINGLE | "Queequeg" -> [] | Possibly misspelled word.
+1699 | SPELLCHECK/SINGLE | "Queequeg" -> ["Queue", "Queues", "Queued", "Queening", "Queened", "Queering", "Queenie", "Queenies", "Queered", "Queerer"] | Possibly misspelled word.
 1703 | SPELLCHECK/SINGLE | "harpooneer" -> ["harpooner"] | Possibly misspelled word.
 1705 | GRAMMAR/A_NNS/0 | "a peddlin’ heads" -> ["a peddlin’ head"] | The plural noun "heads" cannot be used with the article "a". Did you mean a peddlin' head?
-1706 | SPELLCHECK/SINGLE | "Queequeg" -> [] | Possibly misspelled word.
+1706 | SPELLCHECK/SINGLE | "Queequeg" -> ["Queue", "Queues", "Queued", "Queening", "Queened", "Queering", "Queenie", "Queenies", "Queered", "Queerer"] | Possibly misspelled word.
 1707 | SPELLCHECK/SINGLE | "sabbee" -> ["Abbey", "abbey", "stabbed", "sable", "Sabine", "saber", "rabble", "tabbed", "Abbie", "Albee"] | Possibly misspelled word.
 1707 | SPELLCHECK/SINGLE | "sabbee" -> ["Abbey", "abbey", "stabbed", "sable", "Sabine", "saber", "rabble", "tabbed", "Abbie", "Albee"] | Possibly misspelled word.
 1707 | SPELLCHECK/SINGLE | "sleepe" -> ["sleep", "sleeve", "sleeper", "sleeps", "sleepy"] | Possibly misspelled word.
 1707 | SPELLCHECK/SINGLE | "sabbee" -> ["Abbey", "abbey", "stabbed", "sable", "Sabine", "saber", "rabble", "tabbed", "Abbie", "Albee"] | Possibly misspelled word.
 1709 | SPELLCHECK/SINGLE | "sabbee" -> ["Abbey", "abbey", "stabbed", "sable", "Sabine", "saber", "rabble", "tabbed", "Abbie", "Albee"] | Possibly misspelled word.
-1709 | SPELLCHECK/SINGLE | "Queequeg" -> [] | Possibly misspelled word.
+1709 | SPELLCHECK/SINGLE | "Queequeg" -> ["Queue", "Queues", "Queued", "Queening", "Queened", "Queering", "Queenie", "Queenies", "Queered", "Queerer"] | Possibly misspelled word.
 1712 | SPELLCHECK/SINGLE | "gettee" -> ["getter", "settee"] | Possibly misspelled word.
 1715 | SPELLCHECK/SINGLE | "tattooings" -> ["tattooing"] | Possibly misspelled word.
-1726 | SPELLCHECK/SINGLE | "Queequeg" -> [] | Possibly misspelled word.
-1737 | SPELLCHECK/SINGLE | "Queequeg" -> [] | Possibly misspelled word.
+1726 | SPELLCHECK/SINGLE | "Queequeg" -> ["Queue", "Queues", "Queued", "Queening", "Queened", "Queering", "Queenie", "Queenies", "Queered", "Queerer"] | Possibly misspelled word.
+1737 | SPELLCHECK/SINGLE | "Queequeg" -> ["Queue", "Queues", "Queued", "Queening", "Queened", "Queering", "Queenie", "Queenies", "Queered", "Queerer"] | Possibly misspelled word.
 1740 | SPELLCHECK/SINGLE | "parti-coloured" -> ["parti-colored"] | Possibly misspelled word.
-1749 | SPELLCHECK/SINGLE | "Queequeg" -> [] | Possibly misspelled word.
+1749 | SPELLCHECK/SINGLE | "Queequeg" -> ["Queue", "Queues", "Queued", "Queening", "Queened", "Queering", "Queenie", "Queenies", "Queered", "Queerer"] | Possibly misspelled word.
 1761 | GRAMMAR/STAIRS_COMPOUNDS/0 | "up stairs" -> ["upstairs"] | Did you mean upstairs?
 1762 | REDUNDANCY/SO_AS_TO/0 | "so as to" -> ["to"] | 'So as to' expresses purpose and is used in formal texts. Consider using to.
 1766 | BUILTIN/UPPERCASE_SENTENCE_START | "the" -> ["The"] | This sentence does not start with an uppercase letter.
 1772 | SPELLCHECK/SINGLE | "favour" -> ["favor", "Cavour"] | Possibly misspelled word.
 1773 | SPELLCHECK/SINGLE | "slippering" -> ["skippering"] | Possibly misspelled word.
 1773 | SPELLCHECK/SINGLE | "misbehaviour" -> ["misbehavior"] | Possibly misspelled word.
-1796 | SPELLCHECK/SINGLE | "Queequeg" -> [] | Possibly misspelled word.
-1802 | SPELLCHECK/SINGLE | "Queequeg" -> [] | Possibly misspelled word.
-1807 | SPELLCHECK/SINGLE | "Queequeg" -> [] | Possibly misspelled word.
-1808 | SPELLCHECK/SINGLE | "Queequeg" -> [] | Possibly misspelled word.
+1796 | SPELLCHECK/SINGLE | "Queequeg" -> ["Queue", "Queues", "Queued", "Queening", "Queened", "Queering", "Queenie", "Queenies", "Queered", "Queerer"] | Possibly misspelled word.
+1802 | SPELLCHECK/SINGLE | "Queequeg" -> ["Queue", "Queues", "Queued", "Queening", "Queened", "Queering", "Queenie", "Queenies", "Queered", "Queerer"] | Possibly misspelled word.
+1807 | SPELLCHECK/SINGLE | "Queequeg" -> ["Queue", "Queues", "Queued", "Queening", "Queened", "Queering", "Queenie", "Queenies", "Queered", "Queerer"] | Possibly misspelled word.
+1808 | SPELLCHECK/SINGLE | "Queequeg" -> ["Queue", "Queues", "Queued", "Queening", "Queened", "Queering", "Queenie", "Queenies", "Queered", "Queerer"] | Possibly misspelled word.
 1809 | SPELLCHECK/SINGLE | "unbecomingness" -> ["becomingness"] | Possibly misspelled word.
-1822 | SPELLCHECK/SINGLE | "Queequeg" -> [] | Possibly misspelled word.
+1822 | SPELLCHECK/SINGLE | "Queequeg" -> ["Queue", "Queues", "Queued", "Queening", "Queened", "Queering", "Queenie", "Queenies", "Queered", "Queerer"] | Possibly misspelled word.
 1825 | SPELLCHECK/SINGLE | "marvellous" -> ["marvelous"] | Possibly misspelled word.
-1826 | SPELLCHECK/SINGLE | "Queequeg" -> [] | Possibly misspelled word.
-1830 | SPELLCHECK/SINGLE | "Queequeg" -> [] | Possibly misspelled word.
+1826 | SPELLCHECK/SINGLE | "Queequeg" -> ["Queue", "Queues", "Queued", "Queening", "Queened", "Queering", "Queenie", "Queenies", "Queered", "Queerer"] | Possibly misspelled word.
+1830 | SPELLCHECK/SINGLE | "Queequeg" -> ["Queue", "Queues", "Queued", "Queening", "Queened", "Queering", "Queenie", "Queenies", "Queered", "Queerer"] | Possibly misspelled word.
 1834 | SPELLCHECK/SINGLE | "trowsers" -> ["trousers", "browsers"] | Possibly misspelled word.
-1840 | SPELLCHECK/SINGLE | "Queequeg" -> [] | Possibly misspelled word.
-1856 | SPELLCHECK/SINGLE | "Queequeg" -> [] | Possibly misspelled word.
-1860 | SPELLCHECK/SINGLE | "Queequeg" -> [] | Possibly misspelled word.
+1840 | SPELLCHECK/SINGLE | "Queequeg" -> ["Queue", "Queues", "Queued", "Queening", "Queened", "Queering", "Queenie", "Queenies", "Queered", "Queerer"] | Possibly misspelled word.
+1856 | SPELLCHECK/SINGLE | "Queequeg" -> ["Queue", "Queues", "Queued", "Queening", "Queened", "Queering", "Queenie", "Queenies", "Queered", "Queerer"] | Possibly misspelled word.
+1860 | SPELLCHECK/SINGLE | "Queequeg" -> ["Queue", "Queues", "Queued", "Queening", "Queened", "Queering", "Queenie", "Queenies", "Queered", "Queerer"] | Possibly misspelled word.
 1863 | SPELLCHECK/SINGLE | "centre" -> ["center", "Centrex", "CENTR", "centra"] | Possibly misspelled word.
-1869 | SPELLCHECK/SINGLE | "Queequeg" -> [] | Possibly misspelled word.
+1869 | SPELLCHECK/SINGLE | "Queequeg" -> ["Queue", "Queues", "Queued", "Queening", "Queened", "Queering", "Queenie", "Queenies", "Queered", "Queerer"] | Possibly misspelled word.
 1895 | SPELLCHECK/SINGLE | "whalemen" -> ["Whalen", "whaleses"] | Possibly misspelled word.
 1897 | SPELLCHECK/SINGLE | "harpooneers" -> ["harpooners"] | Possibly misspelled word.
 1906 | SPELLCHECK/SINGLE | "tawn" -> ["town", "Town", "dawn", "Dawn", "lawn", "pawn", "tan", "fawn", "sawn", "tawny"] | Possibly misspelled word.
-1908 | SPELLCHECK/SINGLE | "Queequeg" -> [] | Possibly misspelled word.
+1908 | SPELLCHECK/SINGLE | "Queequeg" -> ["Queue", "Queues", "Queued", "Queening", "Queened", "Queering", "Queenie", "Queenies", "Queered", "Queerer"] | Possibly misspelled word.
 1908 | BUILTIN/UPPERCASE_SENTENCE_START | "which" -> ["Which"] | This sentence does not start with an uppercase letter.
 1917 | SPELLCHECK/SINGLE | "Ledyard" -> ["Edward", "Leonard", "Leopard", "Eduard", "Rudyard", "Lanyard", "Leeward", "Leotard", "Layard", "Lenard"] | Possibly misspelled word.
 1917 | SPELLCHECK/SINGLE | "traveller" -> ["travelled", "traveler"] | Possibly misspelled word.
@@ -721,19 +721,19 @@
 1933 | REDUNDANCY/ALL_OF_THE/0 | "all of the" -> ["all the"] | Consider removing "of" to be more concise
 1936 | GRAMMAR/THIS_NNS/7 | "these timid warrior" -> ["this timid warrior", "these timid warriors"] | The plural determiner 'these' does not agree with the singular noun 'warrior'.
 1937 | SPELLCHECK/SINGLE | "whalemen" -> ["Whalen", "whaleses"] | Possibly misspelled word.
-1939 | SPELLCHECK/SINGLE | "Queequeg" -> [] | Possibly misspelled word.
-1939 | SPELLCHECK/SINGLE | "Queequeg" -> [] | Possibly misspelled word.
-1949 | SPELLCHECK/SINGLE | "Queequeg" -> [] | Possibly misspelled word.
-1960 | SPELLCHECK/SINGLE | "Queequeg" -> [] | Possibly misspelled word.
+1939 | SPELLCHECK/SINGLE | "Queequeg" -> ["Queue", "Queues", "Queued", "Queening", "Queened", "Queering", "Queenie", "Queenies", "Queered", "Queerer"] | Possibly misspelled word.
+1939 | SPELLCHECK/SINGLE | "Queequeg" -> ["Queue", "Queues", "Queued", "Queening", "Queened", "Queering", "Queenie", "Queenies", "Queered", "Queerer"] | Possibly misspelled word.
+1949 | SPELLCHECK/SINGLE | "Queequeg" -> ["Queue", "Queues", "Queued", "Queening", "Queened", "Queering", "Queenie", "Queenies", "Queered", "Queerer"] | Possibly misspelled word.
+1960 | SPELLCHECK/SINGLE | "Queequeg" -> ["Queue", "Queues", "Queued", "Queening", "Queened", "Queering", "Queenie", "Queenies", "Queered", "Queerer"] | Possibly misspelled word.
 1965 | SPELLCHECK/SINGLE | "nondescripts" -> ["nondescript"] | Possibly misspelled word.
 1968 | SPELLCHECK/SINGLE | "Lascars" -> ["NASCAR", "Lasers", "Scars", "Oscars", "Lancers", "Flatcars", "Mascara", "Rascals", "Lascaux", "Pascals"] | Possibly misspelled word.
 1970 | SPELLCHECK/SINGLE | "Wapping" -> ["Mapping", "Rapping", "Swapping", "Tapping", "Wrapping", "Capping", "Warping", "Lapping", "Napping", "Sapping"] | Possibly misspelled word.
-1975 | SPELLCHECK/SINGLE | "Feegeeans" -> [] | Possibly misspelled word.
+1975 | SPELLCHECK/SINGLE | "Feegeeans" -> ["Freegans"] | Possibly misspelled word.
 1975 | SPELLCHECK/SINGLE | "Tongatobooarrs" -> [] | Possibly misspelled word.
 1975 | SPELLCHECK/SINGLE | "Erromanggoans" -> [] | Possibly misspelled word.
-1975 | SPELLCHECK/SINGLE | "Pannangians" -> [] | Possibly misspelled word.
-1976 | SPELLCHECK/SINGLE | "Brighggians" -> [] | Possibly misspelled word.
-1979 | SPELLCHECK/SINGLE | "Vermonters" -> [] | Possibly misspelled word.
+1975 | SPELLCHECK/SINGLE | "Pannangians" -> ["Panamanians", "Tanzanians", "Lagrangians", "Pannonian", "Parnassians"] | Possibly misspelled word.
+1976 | SPELLCHECK/SINGLE | "Brighggians" -> ["Briggsian"] | Possibly misspelled word.
+1979 | SPELLCHECK/SINGLE | "Vermonters" -> ["Vermont", "Overwinters", "Vermouths", "Warmongers", "Venters", "Verniers", "Cementers", "Germanders", "Viramontes", "Aerometers"] | Possibly misspelled word.
 1984 | BUILTIN/UPPERCASE_SENTENCE_START | "that" -> ["That"] | This sentence does not start with an uppercase letter.
 1995 | SPELLCHECK/SINGLE | "trowsers" -> ["trousers", "browsers"] | Possibly misspelled word.
 1995 | BUILTIN/UPPERCASE_SENTENCE_START | "how" -> ["How"] | This sentence does not start with an uppercase letter.
@@ -742,7 +742,7 @@
 2010 | BUILTIN/UPPERCASE_SENTENCE_START | "how" -> ["How"] | This sentence does not start with an uppercase letter.
 2010 | SPELLCHECK/SINGLE | "scoria" -> ["scotia"] | Possibly misspelled word.
 2025 | REDUNDANCY/SUMMER_TIME/1 | "summer time" -> ["summer"] | Consider using summer.
-2029 | SPELLCHECK/SINGLE | "superinduced" -> [] | Possibly misspelled word.
+2029 | SPELLCHECK/SINGLE | "superinduced" -> ["sun-induced"] | Possibly misspelled word.
 2035 | PUNCTUATION/SENT_START_CONJUNCTIVE_LINKING_ADVERB_COMMA/0 | "Elsewhere" -> ["Elsewhere,"] | A comma may be missing after the conjunctive/linking adverb 'Elsewhere'.
 2037 | BUILTIN/EN_COMPOUNDS_OFF_SHORE | "off\r\nshore" -> ["offshore"] | This word is normally spelled as one.
 2039 | SPELLCHECK/SINGLE | "Puritanic" -> ["Puritan", "Puritans", "Puritanical", "Puritanism", "Puranic", "Ruritania", "Puritanize"] | Possibly misspelled word.
@@ -753,7 +753,7 @@
 2066 | SPELLCHECK/SINGLE | "ELLERY" -> ["EVERY", "ELDER", "GALLERY", "ELDERLY", "ELLEN", "ALLEY", "ELDERS", "SELLER", "SELLERS", "KELLER"] | Possibly misspelled word.
 2067 | SPELLCHECK/SINGLE | "GLEIG" -> ["LEG", "GLEN", "GLENN", "GREG", "GIG", "KLEIN", "LEIGH", "GREGG", "OLEG", "LEIF"] | Possibly misspelled word.
 2069 | SPELLCHECK/SINGLE | "st" -> ["St", "ST", "at", "it", "set", "so", "ft", "sat", "sit", "GT"] | Possibly misspelled word.
-2078 | SPELLCHECK/SINGLE | "Queequeg" -> [] | Possibly misspelled word.
+2078 | SPELLCHECK/SINGLE | "Queequeg" -> ["Queue", "Queues", "Queued", "Queening", "Queened", "Queering", "Queenie", "Queenies", "Queered", "Queerer"] | Possibly misspelled word.
 2087 | SPELLCHECK/SINGLE | "unhealing" -> ["unsealing", "unhearing"] | Possibly misspelled word.
 2091 | BUILTIN/UPPERCASE_SENTENCE_START | "ye" -> ["Ye"] | This sentence does not start with an uppercase letter.
 2094 | GRAMMAR/WHAT_VBZ/0 | "despair" -> ["despairs"] | After 'What', use the third-person verb form despairs.
@@ -827,15 +827,15 @@
 2534 | BUILTIN/UPPERCASE_SENTENCE_START | "on" -> ["On"] | This sentence does not start with an uppercase letter.
 2536 | STYLE/SENT_START_ARE_NOT_ARENT_FORMAL/0 | "Is not" -> ["Isn't"] | Questions beginning with 'Is not' can sound very formal.
 2542 | GRAMMAR/HE_VERB_AGR/0 | "pluck" -> ["plucks", "plucked"] | The pronoun 'he' is usually used with a third-person or a past tense verb.
-2561 | SPELLCHECK/SINGLE | "Queequeg" -> [] | Possibly misspelled word.
+2561 | SPELLCHECK/SINGLE | "Queequeg" -> ["Queue", "Queues", "Queued", "Queening", "Queened", "Queering", "Queenie", "Queenies", "Queered", "Queerer"] | Possibly misspelled word.
 2562 | GRAMMAR/PRP_VBG/3 | "he having" -> ["he's having", "he is having", "he was having"] | An auxiliary verb seems to be missing from this progressive structure. Did you mean he's having, he is having, or he was having?
 2576 | REDUNDANCY/LARGE_NUMBER_OF/0 | "a large number of" -> ["many", "numerous"] | To reduce wordiness, try specifying a number or using many or numerous instead.
 2582 | SPELLCHECK/SINGLE | "tattooings" -> ["tattooing"] | Possibly misspelled word.
-2596 | SPELLCHECK/SINGLE | "Queequeg" -> [] | Possibly misspelled word.
+2596 | SPELLCHECK/SINGLE | "Queequeg" -> ["Queue", "Queues", "Queued", "Queening", "Queened", "Queering", "Queenie", "Queenies", "Queered", "Queerer"] | Possibly misspelled word.
 2601 | SPELLCHECK/SINGLE | "marvellous" -> ["marvelous"] | Possibly misspelled word.
 2606 | PUNCTUATION/MISSING_COMMA_AFTER_INTRODUCTORY_PHRASE/0 | "first" -> ["first,"] | A comma is probably missing here.
 2607 | GRAMMAR/A_UNCOUNTABLE/2 | "a Socratic wisdom" -> ["Socratic wisdom"] | Uncountable nouns are usually not used with an indefinite article. Use simply Socratic wisdom.
-2608 | SPELLCHECK/SINGLE | "Queequeg" -> [] | Possibly misspelled word.
+2608 | SPELLCHECK/SINGLE | "Queequeg" -> ["Queue", "Queues", "Queued", "Queening", "Queened", "Queering", "Queenie", "Queenies", "Queered", "Queerer"] | Possibly misspelled word.
 2608 | GRAMMAR/AND_BUT/0 | "or but" -> ["or", "but"] | Please check if you only wanted to use one conjunction here.
 2639 | PUNCTUATION/MISSING_COMMA_AFTER_INTRODUCTORY_PHRASE/0 | "first" -> ["first,"] | A comma is probably missing here.
 2646 | PUNCTUATION/SENT_START_CONJUNCTIVE_LINKING_ADVERB_COMMA/0 | "Thus" -> ["Thus,"] | A comma may be missing after the conjunctive/linking adverb 'Thus'.
@@ -844,32 +844,32 @@
 2678 | SPELLCHECK/SINGLE | "idolator" -> ["isolator", "idolater"] | Possibly misspelled word.
 2679 | SPELLCHECK/SINGLE | "worshipping" -> ["worshiping"] | Possibly misspelled word.
 2679 | BUILTIN/UPPERCASE_SENTENCE_START | "thought" -> ["Thought"] | This sentence does not start with an uppercase letter.
-2685 | SPELLCHECK/SINGLE | "Queequeg" -> [] | Possibly misspelled word.
-2686 | SPELLCHECK/SINGLE | "Queequeg" -> [] | Possibly misspelled word.
+2685 | SPELLCHECK/SINGLE | "Queequeg" -> ["Queue", "Queues", "Queued", "Queening", "Queened", "Queering", "Queenie", "Queenies", "Queered", "Queerer"] | Possibly misspelled word.
+2686 | SPELLCHECK/SINGLE | "Queequeg" -> ["Queue", "Queues", "Queued", "Queening", "Queened", "Queering", "Queenie", "Queenies", "Queered", "Queerer"] | Possibly misspelled word.
 2688 | SPELLCHECK/SINGLE | "idolator" -> ["isolator", "idolater"] | Possibly misspelled word.
-2690 | SPELLCHECK/SINGLE | "Queequeg" -> [] | Possibly misspelled word.
+2690 | SPELLCHECK/SINGLE | "Queequeg" -> ["Queue", "Queues", "Queued", "Queening", "Queened", "Queering", "Queenie", "Queenies", "Queered", "Queerer"] | Possibly misspelled word.
 2690 | SPELLCHECK/SINGLE | "salamed" -> ["salaamed"] | Possibly misspelled word.
-2698 | SPELLCHECK/SINGLE | "Queequeg" -> [] | Possibly misspelled word.
+2698 | SPELLCHECK/SINGLE | "Queequeg" -> ["Queue", "Queues", "Queued", "Queening", "Queened", "Queering", "Queenie", "Queenies", "Queered", "Queerer"] | Possibly misspelled word.
 2698 | SPELLCHECK/SINGLE | "cosy" -> ["cost", "copy", "Cody", "Cory", "Cosby", "cozy", "rosy", "coy", "nosy", "posy"] | Possibly misspelled word.
-2704 | SPELLCHECK/SINGLE | "Queequeg" -> [] | Possibly misspelled word.
+2704 | SPELLCHECK/SINGLE | "Queequeg" -> ["Queue", "Queues", "Queued", "Queening", "Queened", "Queering", "Queenie", "Queenies", "Queered", "Queerer"] | Possibly misspelled word.
 2707 | SPELLCHECK/SINGLE | "nappishness" -> ["snappishness"] | Possibly misspelled word.
 2714 | SPELLCHECK/SINGLE | "kneepans" -> ["kneecaps", "KeePass"] | Possibly misspelled word.
-2722 | SPELLCHECK/SINGLE | "Queequeg" -> [] | Possibly misspelled word.
-2741 | SPELLCHECK/SINGLE | "Queequeg" -> [] | Possibly misspelled word.
-2747 | SPELLCHECK/SINGLE | "Queequeg" -> [] | Possibly misspelled word.
+2722 | SPELLCHECK/SINGLE | "Queequeg" -> ["Queue", "Queues", "Queued", "Queening", "Queened", "Queering", "Queenie", "Queenies", "Queered", "Queerer"] | Possibly misspelled word.
+2741 | SPELLCHECK/SINGLE | "Queequeg" -> ["Queue", "Queues", "Queued", "Queening", "Queened", "Queering", "Queenie", "Queenies", "Queered", "Queerer"] | Possibly misspelled word.
+2747 | SPELLCHECK/SINGLE | "Queequeg" -> ["Queue", "Queues", "Queued", "Queening", "Queened", "Queering", "Queenie", "Queenies", "Queered", "Queerer"] | Possibly misspelled word.
 2749 | TYPOS/I_IF/0 | "I" -> ["If", "I,"] | Did you mean If or is a comma missing (I,)?
-2767 | SPELLCHECK/SINGLE | "Queequeg" -> [] | Possibly misspelled word.
-2767 | SPELLCHECK/SINGLE | "Rokovoko" -> [] | Possibly misspelled word.
-2772 | SPELLCHECK/SINGLE | "Queequeg" -> [] | Possibly misspelled word.
-2780 | SPELLCHECK/SINGLE | "Queequeg" -> [] | Possibly misspelled word.
-2783 | SPELLCHECK/SINGLE | "Queequeg" -> [] | Possibly misspelled word.
-2796 | SPELLCHECK/SINGLE | "Queequeg" -> [] | Possibly misspelled word.
-2797 | SPELLCHECK/SINGLE | "Queequeg" -> [] | Possibly misspelled word.
+2767 | SPELLCHECK/SINGLE | "Queequeg" -> ["Queue", "Queues", "Queued", "Queening", "Queened", "Queering", "Queenie", "Queenies", "Queered", "Queerer"] | Possibly misspelled word.
+2767 | SPELLCHECK/SINGLE | "Rokovoko" -> ["Krokorok"] | Possibly misspelled word.
+2772 | SPELLCHECK/SINGLE | "Queequeg" -> ["Queue", "Queues", "Queued", "Queening", "Queened", "Queering", "Queenie", "Queenies", "Queered", "Queerer"] | Possibly misspelled word.
+2780 | SPELLCHECK/SINGLE | "Queequeg" -> ["Queue", "Queues", "Queued", "Queening", "Queened", "Queering", "Queenie", "Queenies", "Queered", "Queerer"] | Possibly misspelled word.
+2783 | SPELLCHECK/SINGLE | "Queequeg" -> ["Queue", "Queues", "Queued", "Queening", "Queened", "Queering", "Queenie", "Queenies", "Queered", "Queerer"] | Possibly misspelled word.
+2796 | SPELLCHECK/SINGLE | "Queequeg" -> ["Queue", "Queues", "Queued", "Queening", "Queened", "Queering", "Queenie", "Queenies", "Queered", "Queerer"] | Possibly misspelled word.
+2797 | SPELLCHECK/SINGLE | "Queequeg" -> ["Queue", "Queues", "Queued", "Queening", "Queened", "Queering", "Queenie", "Queenies", "Queered", "Queerer"] | Possibly misspelled word.
 2801 | SPELLCHECK/SINGLE | "whaleman" -> ["Whalen", "Walkman", "Alemán", "Waldman"] | Possibly misspelled word.
-2802 | SPELLCHECK/SINGLE | "Queequeg" -> [] | Possibly misspelled word.
+2802 | SPELLCHECK/SINGLE | "Queequeg" -> ["Queue", "Queues", "Queued", "Queening", "Queened", "Queering", "Queenie", "Queenies", "Queered", "Queerer"] | Possibly misspelled word.
 2807 | BUILTIN/UPPERCASE_SENTENCE_START | "the" -> ["The"] | This sentence does not start with an uppercase letter.
 2808 | SPELLCHECK/SINGLE | "whalemen" -> ["Whalen", "whaleses"] | Possibly misspelled word.
-2812 | SPELLCHECK/SINGLE | "Queequeg" -> [] | Possibly misspelled word.
+2812 | SPELLCHECK/SINGLE | "Queequeg" -> ["Queue", "Queues", "Queued", "Queening", "Queened", "Queering", "Queenie", "Queenies", "Queered", "Queerer"] | Possibly misspelled word.
 2816 | SPELLCHECK/SINGLE | "idolator" -> ["isolator", "idolater"] | Possibly misspelled word.
 2817 | PUNCTUATION/SENT_START_CONJUNCTIVE_LINKING_ADVERB_COMMA/0 | "Hence" -> ["Hence,"] | A comma may be missing after the conjunctive/linking adverb 'Hence'.
 2822 | GRAMMAR/HE_VERB_AGR/0 | "being" -> ["'s", "is", "was", "wast", "were"] | The pronoun 'he' is usually used with a third-person or a past tense verb.

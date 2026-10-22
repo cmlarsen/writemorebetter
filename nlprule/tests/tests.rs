@@ -1319,14 +1319,67 @@ fn speller_finds_two_edits_at_the_start_of_a_word() {
         ]
     );
 
-    // The limit is still an option: with 2, only one edit may touch the first two letters.
+    // The limit is still an option: with 2, only one edit may touch the first two letters, and
+    // `Davenant` gets only what the distance-3 retry finds.
     rules.spell_mut().options_mut().prefix_length = 2;
     assert_eq!(
         first_replacements(&rules),
         vec![
             ("Tyerman", "Thermal".to_string()),
-            ("Davenant", String::new()),
+            ("Davenant", "Dominant".to_string()),
             ("Tyerman", "Thermal".to_string()),
+        ]
+    );
+}
+
+#[test]
+fn speller_retries_at_distance_three_when_nothing_is_closer() {
+    // LanguageTool 6.6 (`We saw <word> there.`, en-US) searches distance 3 for a word of five
+    // or more letters when distances 1 and 2 find nothing.
+    let speller = RULES.spell().speller().unwrap();
+    for (word, expected) in [
+        ("Queequeg", &["Queue", "Queues", "Queued", "Queening", "Queened"][..]),
+        ("Thornfeild", &["Shortfall", "Cornfield"][..]),
+        (
+            "Yossarain",
+            &["Constrain", "Ossuaries", "Pessaries", "Hossain", "Rosmarie"][..],
+        ),
+        ("Gondibert", &["Goldberg", "Condiment", "Godber", "Noninert"][..]),
+    ] {
+        assert_eq!(speller.suggest(word, expected.len()), expected, "{}", word);
+    }
+
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    rules.spell_mut().options_mut().variant = Some(rules.spell().variant("en_US").unwrap());
+    let text = "\u{201c}Queequeg\u{2019}s gone\u{2014}Thornfeild said so\u{2026}\u{201d}\u{2028}\u{2018}Queequeg!\u{2019}";
+    let first_replacements = |rules: &Rules| -> Vec<(&str, String)> {
+        rules
+            .suggest(text, &*TOKENIZER)
+            .into_iter()
+            .filter(|x| x.source().starts_with("SPELLCHECK"))
+            .map(|x| {
+                let first = x.replacements().first().cloned().unwrap_or_default();
+                (&text[x.span().byte().clone()], first)
+            })
+            .collect()
+    };
+    assert_eq!(
+        first_replacements(&rules),
+        vec![
+            ("Queequeg", "Queue".to_string()),
+            ("Thornfeild", "Shortfall".to_string()),
+            ("Queequeg", "Queue".to_string()),
+        ]
+    );
+
+    // `max_distance` 2 turns the retry off.
+    rules.spell_mut().options_mut().max_distance = 2;
+    assert_eq!(
+        first_replacements(&rules),
+        vec![
+            ("Queequeg", String::new()),
+            ("Thornfeild", String::new()),
+            ("Queequeg", String::new()),
         ]
     );
 }
