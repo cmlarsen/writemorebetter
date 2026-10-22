@@ -7,7 +7,9 @@
 //! the list allows for it. Suggestions the speller rejects are dropped, and a
 //! match without suggestions is not reported. Tokens covered by one of the
 //! rule's antipatterns are skipped entirely. Each match reports the
-//! sub-rule id LanguageTool gives it, e.g. `EN_COMPOUNDS_PART_TIME`.
+//! sub-rule id LanguageTool gives it, e.g. `EN_COMPOUNDS_PART_TIME`. Unlike
+//! LanguageTool, a sentence-initial match starts at the first word rather than
+//! at the whitespace before it, so accepting it keeps paragraph indentation.
 //!
 //! The compounds list and the antipatterns are LanguageTool data (LGPL-2.1),
 //! read from the build directory's `builtin/compounds.txt` and
@@ -306,10 +308,18 @@ impl Compounds {
                 message = MESSAGE_WITH_OR_WITHOUT_HYPHEN;
             }
 
+            // LanguageTool starts a sentence-initial match at `SENT_START`, so its span covers any
+            // whitespace before the first word, which the trimmed suggestion drops: accepting it
+            // would delete a paragraph's indentation. The match starts at the first word instead,
+            // the one place these offsets differ from LanguageTool's.
+            let start = match queue.get(1) {
+                Some(first) if head.sentence_start => first.start,
+                _ => head.start,
+            };
             let base = sentence.span().start().byte;
             let covered = sentence
                 .text()
-                .get(head.start.byte - base..end.end.byte - base)
+                .get(start.byte - base..end.end.byte - base)
                 .unwrap_or("");
             let replacements: Vec<String> = replacements
                 .into_iter()
@@ -320,14 +330,14 @@ impl Compounds {
                 return None;
             }
 
-            if *previous_start == Some(head.start) {
+            if *previous_start == Some(start) {
                 return None;
             }
-            *previous_start = Some(head.start);
+            *previous_start = Some(start);
             return Some(Suggestion::new(
                 format!("BUILTIN/{}", sub_rule_id(normalized)),
                 message.to_owned(),
-                Span::from_positions(head.start, end.end),
+                Span::from_positions(start, end.end),
                 replacements,
             ));
         }

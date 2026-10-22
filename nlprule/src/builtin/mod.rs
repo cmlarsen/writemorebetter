@@ -108,16 +108,20 @@ impl Builtin {
         }
     }
 
-    /// Runs this rule on one sentence and returns the suggestions it produces.
-    pub fn check(&self, sentence: &Sentence) -> Vec<Suggestion> {
-        self.check_text(std::slice::from_ref(sentence))
+    /// Runs this rule on one sentence and returns the suggestions it produces. `speller` is
+    /// used as by [`Builtin::check_text`].
+    pub fn check(&self, sentence: &Sentence, speller: Option<&Speller>) -> Vec<Suggestion> {
+        self.check_text(std::slice::from_ref(sentence), speller)
     }
 
     /// Runs this rule on consecutive sentences of one paragraph. Rules that need context beyond one sentence
     /// (e.g. quotes spanning sentences) see all of them; sentence-level rules check each one separately.
     /// The rules that count words across a text (`EN_REPEATEDWORDS`, `TOO_OFTEN_USED_*`) take
-    /// `sentences` as the whole text.
-    pub fn check_text(&self, sentences: &[Sentence]) -> Vec<Suggestion> {
+    /// `sentences` as the whole text. Rules that check their suggestions against the speller
+    /// (`EN_COMPOUNDS`) use `speller`; pass [`Spell::speller`](crate::spell::Spell::speller) of
+    /// the [`Rules`](crate::Rules) to get the suggestions [`Rules::suggest`](crate::Rules::suggest)
+    /// reports. Without one they keep every suggestion.
+    pub fn check_text(&self, sentences: &[Sentence], speller: Option<&Speller>) -> Vec<Suggestion> {
         match self {
             Builtin::RepeatedWords(_) | Builtin::TooOftenUsed(_) => {
                 let mut state = RuleState::default();
@@ -131,7 +135,7 @@ impl Builtin {
                 suggestions.extend(self.finish_text(&state));
                 suggestions
             }
-            _ => self.check_paragraph(sentences, &[], true, None),
+            _ => self.check_paragraph(sentences, &[], true, speller),
         }
     }
 
@@ -142,8 +146,7 @@ impl Builtin {
     /// uses the last two sentences, the others at most the last one. Only
     /// rules that look at the end of the text (`EMPTY_LINE`,
     /// `TOO_LONG_PARAGRAPH`, `ENGLISH_WORD_REPEAT_BEGINNING_RULE`) use
-    /// `ends_text`. Rules that check their suggestions against the speller
-    /// (`EN_COMPOUNDS`) use `speller`; without one they keep every suggestion.
+    /// `ends_text`. `speller` is used as by [`Builtin::check_text`].
     /// The rules that count words across a text return nothing here:
     /// [`Rules::suggest`](crate::Rules::suggest) runs them on the whole text.
     pub fn check_paragraph(
