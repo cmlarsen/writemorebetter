@@ -326,6 +326,18 @@ impl Rules {
         builtin_suggestions: Vec<Suggestion>,
         parallel: bool,
     ) -> SentenceMatches {
+        if sentence.tokens().is_empty() {
+            // A whitespace-only sentence: only the text-level builtins can match in it.
+            let (picky, output): (Vec<_>, Vec<_>) = builtin_suggestions
+                .into_iter()
+                .partition(|x| crate::builtin::yields_to_overlaps(x.source()));
+            return SentenceMatches {
+                output: output.into_iter().map(|x| (0, x)).collect(),
+                repeated: Vec::new(),
+                picky,
+            };
+        }
+
         let spell_suggestions = self.spell.suggest(sentence);
         let speller = self.spell.speller();
         let default_speller = self.spell.default_speller();
@@ -499,7 +511,9 @@ impl Rules {
         // builtins (UppercaseSentenceStart) can use them as context.
         let mut previous: Vec<Sentence> = Vec::new();
 
-        let mut sentences = tokenizer.pipe_with_raw(text, self.needs_raw()).peekable();
+        let mut sentences = tokenizer
+            .pipe_with_whitespace_sentences(text, self.needs_raw())
+            .peekable();
         while let Some(sentence) = sentences.next() {
             let ends_paragraph = sentence.text().contains('\n');
             paragraph.push(sentence);

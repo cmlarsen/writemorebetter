@@ -375,6 +375,13 @@ pub struct IncompleteSentenceIter<'t> {
     index: usize,
     position: Position,
     keep_raw: bool,
+    whitespace_sentences: bool,
+}
+
+impl<'t> IncompleteSentenceIter<'t> {
+    fn is_whitespace(&self, range: &Range<usize>) -> bool {
+        self.text[range.clone()].trim().is_empty()
+    }
 }
 
 impl<'t> Iterator for IncompleteSentenceIter<'t> {
@@ -388,12 +395,31 @@ impl<'t> Iterator for IncompleteSentenceIter<'t> {
         let mut range = self.splits[self.index].clone();
         self.index += 1;
 
-        // as long as the current sentence contains only whitespace, add the next sentence
-        // in practice, this might never happen, but we can not make any assumption about
-        // SRX rule behavior here.
-        while self.text[range.clone()].trim().is_empty() && self.index < self.splits.len() {
+        if self.whitespace_sentences && self.is_whitespace(&range) {
+            let text = &self.text[range.clone()];
+            let sentence = IncompleteSentence::new(Vec::new(), text, &self.tokenizer.tagger)
+                .rshift(self.position);
+            self.position += Position {
+                char: text.chars().count(),
+                byte: range.len(),
+            };
+            return Some(sentence);
+        }
+
+        // Whitespace-only splits before the first sentence belong to it.
+        while self.is_whitespace(&range) && self.index < self.splits.len() {
             range.end = self.splits[self.index].end;
             self.index += 1;
+        }
+
+        // Whitespace-only splits after a sentence belong to it, so its line breaks end it and
+        // never start the next sentence ("Short para.  \n\nNext." splits after the first space,
+        // leaving " \n\n" on its own).
+        if !self.whitespace_sentences {
+            while self.index < self.splits.len() && self.is_whitespace(&self.splits[self.index]) {
+                range.end = self.splits[self.index].end;
+                self.index += 1;
+            }
         }
 
         let sentence = self
@@ -413,7 +439,7 @@ impl<'t> Iterator for IncompleteSentenceIter<'t> {
 /// An iterator over [Sentence]s. Has some key properties:
 /// - Preceding whitespace is always included so the first sentence always starts at byte and char index zero.
 /// - There are no gaps between sentences i.e. `sentence[i - 1].span().end() == sentence[i].span().start()`.
-/// - Behavior for trailing whitespace is not defined. Can be included in the last sentence or not be part of any sentence.
+/// - Whitespace after a sentence, line breaks included, belongs to that sentence, so the last sentence ends at the end of the text.
 pub struct SentenceIter<'t> {
     inner: IncompleteSentenceIter<'t>,
     tokenizer: &'t Tokenizer,
@@ -423,9 +449,13 @@ impl<'t> Iterator for SentenceIter<'t> {
     type Item = Sentence<'t>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.inner
-            .next()
-            .map(|sentence| self.tokenizer.disambiguate(sentence).into_sentence())
+        self.inner.next().map(|sentence| {
+            if sentence.len() == 0 {
+                sentence.into_sentence()
+            } else {
+                self.tokenizer.disambiguate(sentence).into_sentence()
+            }
+        })
     }
 }
 
@@ -905,6 +935,7 @@ impl Tokenizer {
             index: 0,
             position: Position::default(),
             keep_raw,
+            whitespace_sentences: false,
         }
     }
 
@@ -921,6 +952,25 @@ impl Tokenizer {
     pub fn pipe_with_raw<'t>(&'t self, text: &'t str, keep_raw: bool) -> SentenceIter<'t> {
         SentenceIter {
             inner: self.sentencize_with_raw(text, keep_raw),
+            tokenizer: &self,
+        }
+    }
+
+    /// Like [Tokenizer::pipe_with_raw], but yields each whitespace-only split as a sentence of
+    /// its own, without tokens, instead of merging it into a neighbour. LanguageTool keeps these
+    /// splits as sentences, so [Rules::suggest][crate::Rules::suggest] checks this sequence to
+    /// see the sentence and paragraph boundaries LanguageTool's text-level rules see. Unlike
+    /// other [Sentence]s, a whitespace-only one has no tokens.
+    #[doc(hidden)]
+    pub fn pipe_with_whitespace_sentences<'t>(
+        &'t self,
+        text: &'t str,
+        keep_raw: bool,
+    ) -> SentenceIter<'t> {
+        let mut inner = self.sentencize_with_raw(text, keep_raw);
+        inner.whitespace_sentences = true;
+        SentenceIter {
+            inner,
             tokenizer: &self,
         }
     }

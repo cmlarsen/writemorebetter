@@ -51,8 +51,11 @@ impl UppercaseSentenceStart {
     ) -> Vec<Suggestion> {
         // A paragraph that consists of a single word is not useful to complain
         // about; the missing capitalization may just be a typo.
-        if sentences.is_empty() || (sentences.len() == 1 && sentences[0].tokens().len() == 1) {
-            return Vec::new();
+        let mut with_tokens = sentences.iter().filter(|x| !x.tokens().is_empty());
+        match (with_tokens.next(), with_tokens.next()) {
+            (None, _) => return Vec::new(),
+            (Some(sentence), None) if sentence.tokens().len() == 1 => return Vec::new(),
+            _ => {}
         }
 
         let suppress_before = previous.map(|_| sentences[0].span().char().start);
@@ -82,8 +85,11 @@ impl UppercaseSentenceStart {
 
         for sentence in sentences {
             let tokens = sentence.tokens();
+            // A whitespace-only sentence (the blank line after `"End.  \n\n"`) leaves the
+            // previous sentence as the context, as in LanguageTool; so does the ellipsis.
             if tokens.is_empty() {
-                break;
+                numbered_list = false;
+                continue;
             }
 
             let check_pos = check_token_pos(tokens);
