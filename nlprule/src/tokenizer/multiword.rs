@@ -183,6 +183,7 @@ impl MultiwordTagger {
                 for k in hit.start..=hit.end {
                     tokens[k].word_mut().clear();
                     tokens[k].word_mut().push(data_for(hit.index));
+                    tokens[k].put_sent_end_last();
                     covered[k] = true;
                 }
                 i = hit.end + 1;
