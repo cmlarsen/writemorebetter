@@ -9,6 +9,7 @@ use std::{
     cmp::Ordering,
     collections::{BTreeSet, BinaryHeap, HashSet},
     ops::{Deref, DerefMut},
+    sync::Mutex,
 };
 use unicode_categories::UnicodeCategories;
 
@@ -482,6 +483,43 @@ pub(crate) struct VariantChecker {
     options: SpellOptions,
     user: UserMatcher,
     info: VariantInfo,
+    cache: SearchCache,
+}
+
+/// Suggestions already found, by word. Fiction repeats its misspelled names, and a search takes
+/// milliseconds (tens when it has to go to distance 3). Emptied when the options or the user
+/// dictionary change, and when it holds [SearchCache::CAPACITY] words. A clone starts empty.
+#[derive(Debug, Default)]
+struct SearchCache(Mutex<DefaultHashMap<String, Vec<String>>>);
+
+impl SearchCache {
+    const CAPACITY: usize = 4096;
+
+    fn get_or_insert_with(&self, word: &str, search: impl FnOnce() -> Vec<String>) -> Vec<String> {
+        if let Some(found) = self.0.lock().ok().and_then(|cache| cache.get(word).cloned()) {
+            return found;
+        }
+        let found = search();
+        if let Ok(mut cache) = self.0.lock() {
+            if cache.len() >= Self::CAPACITY {
+                cache.clear();
+            }
+            cache.insert(word.to_owned(), found.clone());
+        }
+        found
+    }
+
+    fn clear(&mut self) {
+        if let Ok(cache) = self.0.get_mut() {
+            cache.clear();
+        }
+    }
+}
+
+impl Clone for SearchCache {
+    fn clone(&self) -> Self {
+        SearchCache::default()
+    }
 }
 
 impl VariantChecker {
@@ -602,6 +640,11 @@ impl VariantChecker {
     }
 
     fn search(&self, fst: &Map<&[u8]>, word: &str) -> Vec<String> {
+        self.cache
+            .get_or_insert_with(word, || self.search_uncached(fst, word))
+    }
+
+    fn search_uncached(&self, fst: &Map<&[u8]>, word: &str) -> Vec<String> {
         if let Some(candidate) = self.map.get(word) {
             return vec![candidate.to_owned()];
         }
@@ -878,6 +921,7 @@ impl Spell {
             // if the variant checker exists and uses the correct variant, we don't need to rebuild
             Some(mut checker) if checker.variant == variant => {
                 checker.options = self.options.clone();
+                checker.cache.clear();
                 checker
             }
             _ => VariantChecker {
@@ -893,6 +937,7 @@ impl Spell {
                     .get(variant_index)
                     .cloned()
                     .unwrap_or_default(),
+                cache: SearchCache::default(),
             },
         };
 
@@ -969,6 +1014,7 @@ impl Spell {
                 checker.variant_index,
                 &self.lang_options.word_chars,
             );
+            checker.cache.clear();
         }
     }
 

@@ -1575,6 +1575,45 @@ fn user_dictionary_remove_set_and_list() {
 }
 
 #[test]
+fn spelling_suggestions_follow_user_dictionary_and_option_changes() {
+    // Suggestions are cached per word; changing the user dictionary or the options must not
+    // serve stale ones.
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    rules.spell_mut().options_mut().variant = Some(rules.spell().variant("en_US").unwrap());
+    let text = "\u{201c}Xylophonik\u{2019}s here\u{2014}now\u{2026}\u{201d}\u{2028}\u{2018}Xylophonik!\u{2019}";
+    let suggestions = |rules: &Rules| -> Vec<Vec<String>> {
+        rules
+            .suggest(text, &*TOKENIZER)
+            .into_iter()
+            .filter(|x| x.source().starts_with("SPELLCHECK"))
+            .map(|x| x.replacements().to_vec())
+            .collect()
+    };
+    let before = suggestions(&rules);
+    assert_eq!(before.len(), 2);
+    assert!(before
+        .iter()
+        .all(|x| !x.contains(&"Xylophonix".to_string())));
+
+    rules.add_words(["Xylophonix"]);
+    let with_word = suggestions(&rules);
+    assert_eq!(with_word.len(), 2);
+    assert!(
+        with_word
+            .iter()
+            .all(|x| x.contains(&"Xylophonix".to_string())),
+        "{:?}",
+        with_word
+    );
+
+    rules.remove_words(["Xylophonix"]);
+    assert_eq!(suggestions(&rules), before);
+
+    rules.spell_mut().options_mut().top_n = 1;
+    assert!(suggestions(&rules).iter().all(|x| x.len() <= 1));
+}
+
+#[test]
 fn user_dictionary_does_not_change_output_without_words() {
     let text = "The Xylophonix arrived\u{2014}befuddled. Zo\u{00eb} waved.";
     assert_eq!(spelling_errors(text), spelling_errors_with_words(&[], text));
