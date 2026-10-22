@@ -759,7 +759,31 @@ fn guards_from_published_prose_shapes() {
     // unclosed parenthesis.
     assert_eq!(
         found("Just now (but this cannot last, she thought, turning away) she was safe."),
-        [thought("but this cannot last", "she thought", VoiceShift::Tense)]
+        [thought(
+            "but this cannot last",
+            "she thought",
+            VoiceShift::Tense
+        )]
+    );
+    // A participle after a split tag is the tag's subject acting, not more thought.
+    assert_eq!(
+        found("That is not a thing, she thought, ladling soup, that one says.")
+            .iter()
+            .map(|f| f.text.as_str())
+            .collect::<Vec<_>>(),
+        ["That is not a thing"]
+    );
+    // An inverted tag takes the whole name.
+    assert_eq!(
+        found("So it ends then, thought Ann Lee, looking out.")[0]
+            .tag
+            .as_deref(),
+        Some("thought Ann Lee")
+    );
+    // A clause that began inside a closed parenthesis is narration.
+    assert_eq!(
+        found("He came in (all, thought Ann, because Kit is cruel to him) and sat down, Ann thought, watching."),
+        []
     );
     // A second tag in the sentence bounds the next clause.
     assert_eq!(

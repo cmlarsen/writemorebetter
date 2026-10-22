@@ -229,6 +229,14 @@ fn adverb(item: &Item) -> bool {
         && !matches!(word(item).as_str(), "not" | "n't" | "never")
 }
 
+/// A past, participle or gerund reading: a second predicate of the tag's subject, not new content.
+fn predicate_opening(token: &Token) -> bool {
+    token
+        .readings
+        .iter()
+        .any(|reading| matches!(reading.pos.as_str(), "VBD" | "VBN" | "VBG"))
+}
+
 fn capitalized_word(token: &Token) -> bool {
     token.text.chars().next().is_some_and(char::is_uppercase)
 }
@@ -500,10 +508,12 @@ impl<'a> Parser<'a, '_> {
         // VERB SUBJECT: *thought Anne*, after the clause only.
         if parsed.is_none() && position == Position::Trailing {
             if let Some((Tense::Past, reflexive)) = self.verb(at, lexicon, position) {
+                // The longest name: *thought Lily Briscoe*, not *thought Lily*.
                 if let Some(&(end, person, gender)) = self
                     .subjects(at + 1, position)
                     .iter()
-                    .find(|(_, person, _)| *person == NarrativePerson::Third)
+                    .filter(|(_, person, _)| *person == NarrativePerson::Third)
+                    .max_by_key(|(end, _, _)| *end)
                 {
                     let tag = Tag {
                         range: at..end,
@@ -754,6 +764,22 @@ impl<'a> Parser<'a, '_> {
         sentence.start
     }
 
+    /// Moves a clause start past a ) that closes a parenthesis opened before it: the clause began
+    /// inside a parenthesis (*(all, thought Mrs. Ramsay, because …) and denounced …*).
+    fn after_closed(&self, start: usize, end: usize) -> usize {
+        let mut start = start;
+        let mut depth = 0usize;
+        for index in start..end {
+            match self.items[index].token.text.as_str() {
+                "(" => depth += 1,
+                ")" if depth == 0 => start = index + 1,
+                ")" => depth -= 1,
+                _ => {}
+            }
+        }
+        start
+    }
+
     fn trimmed(&self, range: Range<usize>) -> Option<Range<usize>> {
         let mut range = range;
         while range.start < range.end && linking(&self.items[range.start]) {
@@ -894,13 +920,7 @@ impl<'a> Parser<'a, '_> {
                 let continued = opening.is_some_and(|offset| {
                     let first = &items[start + offset];
                     COORDINATORS.contains(&word(first).as_str())
-                        || ["VBD", "VBN", "VBG"].iter().any(|pos| {
-                            first
-                                .token
-                                .readings
-                                .iter()
-                                .any(|reading| reading.pos == *pos)
-                        })
+                        || predicate_opening(first.token)
                         || [Lexicon::Thought, Lexicon::Speech].iter().any(|&lexicon| {
                             self.tag(start + offset, lexicon, Position::Trailing)
                                 .is_some()
@@ -948,7 +968,8 @@ impl<'a> Parser<'a, '_> {
                 else {
                     continue;
                 };
-                let start = self.clause_before(&bounds, separator).max(floor);
+                let start =
+                    self.after_closed(self.clause_before(&bounds, separator).max(floor), separator);
                 floor = tag.range.end;
                 let keep = !matches!(item.token.text.as_str(), "," | "—" | "–");
                 let clause = start..separator + usize::from(keep);
@@ -979,11 +1000,15 @@ impl<'a> Parser<'a, '_> {
                         })
                         .unwrap_or(bounds.end);
                     let second = second_start..second_end;
+                    // A lowercase continuation that is not a coordinator or a participle or
+                    // past predicate of the tag's subject (*she thought, ladling out soup*).
                     let opens = items[second.clone()]
                         .iter()
                         .find(|item| is_word(item))
                         .is_some_and(|item| {
-                            !capitalized(item) && !COORDINATORS.contains(&word(item).as_str())
+                            !capitalized(item)
+                                && !COORDINATORS.contains(&word(item).as_str())
+                                && !predicate_opening(item.token)
                         });
                     if opens && self.continues(&second, &tag, shift) {
                         floor = second.end;
