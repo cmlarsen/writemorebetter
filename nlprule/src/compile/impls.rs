@@ -2104,6 +2104,11 @@ mod tests {
     <filter class="org.languagetool.rules.patterns.RegexAntiPatternFilter" args="antipatterns:and\sit\swas"/>
     <message>m</message>
   </rule>
+  <rule id="ABSENT_MARK" name="m">
+    <antipattern><token>it</token><marker><token min="0">so</token></marker><token>was</token></antipattern>
+    <pattern><token>it</token><token>was</token></pattern>
+    <message>m</message>
+  </rule>
 </category>
 </rules>
 "#;
@@ -2111,7 +2116,9 @@ mod tests {
     /// IMMUNE_EXC and GATE_OPTIONAL match what LanguageTool 6.6 reports with `--rulefile`: the
     /// antipatterns apply only once a run without them found a match somewhere in the sentence,
     /// and then to a second run over the whole sentence. GATE_FILTER shows that a match a filter
-    /// vetoes does not count, as LanguageTool counts `RuleMatch`es.
+    /// vetoes does not count, as LanguageTool counts `RuleMatch`es. ABSENT_MARK's marker covers
+    /// only an absent optional token, so LanguageTool immunizes the whole antipattern match and
+    /// never flags it.
     #[test]
     fn antipatterns_immunize_the_whole_sentence_once_the_rule_matches() {
         assert_flag_starts(
@@ -2125,6 +2132,20 @@ mod tests {
                 (
                     "\u{201c}It soon then was eaten\u{2014}and it was gone\u{2026}\u{201d}",
                     vec![("GATE_OPTIONAL", 28), ("IMMUNE_EXC", 1), ("IMMUNE_EXC", 28)],
+                ),
+                (
+                    "It was here.",
+                    vec![("GATE_FILTER", 0), ("GATE_OPTIONAL", 0), ("IMMUNE_EXC", 0)],
+                ),
+                (
+                    "\u{201c}It was here\u{2014}it so was\u{2026}\u{201d}",
+                    vec![
+                        ("GATE_FILTER", 1),
+                        ("GATE_FILTER", 13),
+                        ("GATE_OPTIONAL", 1),
+                        ("IMMUNE_EXC", 1),
+                        ("IMMUNE_EXC", 13),
+                    ],
                 ),
                 ("It soon then was eaten.", vec![]),
                 (

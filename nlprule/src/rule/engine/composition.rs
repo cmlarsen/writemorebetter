@@ -485,7 +485,8 @@ type AntipatternMatches = OnceLock<Box<[AntipatternMatch]>>;
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct AntipatternMatch {
     /// The token positions a grammar rule's match cannot use: the marked tokens when the
-    /// antipattern has a `<marker>`, else all of them.
+    /// antipattern has a `<marker>` and they matched, else all of them, as in LanguageTool 6.6's
+    /// `PatternRuleMatcher` immunization.
     pub(crate) tokens: Range<usize>,
     /// The characters a disambiguation rule's match must not overlap: the span of the marked
     /// tokens when the antipattern has a `<marker>` and they matched, else the whole match, as in
@@ -613,9 +614,11 @@ impl<'t> MatchSentence<'t> {
                                         ..self.index(last).span().char().end;
                                     (first..last + 1, chars)
                                 }
-                                // LanguageTool reports the whole match when no marked token
-                                // matched (`AbstractPatternRulePerformer.matchFrom`).
-                                None => (i..i, whole),
+                                // LanguageTool uses the whole match when no marked token
+                                // matched: `AbstractPatternRulePerformer.matchFrom` leaves the
+                                // marker positions at -1, so both immunization and blocking
+                                // cover every token of the antipattern.
+                                None => (i..end, whole),
                             }
                         }
                         None => (i..end, whole),
