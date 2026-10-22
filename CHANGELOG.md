@@ -108,6 +108,13 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   tags `_apostrophe_contraction_`, `POS` or `NNP` now counts as an apostrophe. Plural possessives
   inside single quotes are unchanged and still match 6.6
   (part of [#187](https://github.com/cmlarsen/writemorebetter/issues/187)).
+- **Disambiguation keeps the readings LanguageTool 6.6 keeps.** A `filter` whose tag matched none
+  of a token's readings emptied it, so both "as" tokens in "as soon as possible" lost their
+  multiword `RB` reading; such a filter now leaves the token alone. A `unify` whose only
+  surviving reading on the sentence-final token is SENT_END now drops that token's other
+  readings ("!" in "He saw the city!" loses `.` and `PCT`) instead of restoring them. Tagger
+  output on bench/public now matches LanguageTool 6.6 `--taggeronly` on every aligned token's
+  reading set ([#153](https://github.com/cmlarsen/writemorebetter/issues/153)).
 
 ### Removed
 

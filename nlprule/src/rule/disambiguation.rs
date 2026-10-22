@@ -123,7 +123,8 @@ impl Disambiguation {
                                 // token's readings leaves it alone: "as" in "as soon as
                                 // possible" keeps its multiword reading against a CC|IN filter.
                                 // (`filterall` takes each filter from the token's own pattern
-                                // tag, so one reading always matches there.)
+                                // tag, so one reading always matches there. `negate_pos` is not
+                                // carried into that filter; no English filterall rule uses it.)
                                 for token in group.into_iter() {
                                     if PosFilter::and(&[filter], token.word()) {
                                         filter.keep(token.word_mut())
@@ -218,7 +219,8 @@ impl Disambiguation {
 
                             // The sentence end's SENT_END reading is only added when the token
                             // is finalized. When it is the one reading that unifies, LanguageTool
-                            // keeps it alone, so "." in "the world." loses `./.` and `./PCT`.
+                            // keeps it alone, so "!" in "He saw the city!" loses its `.` and `PCT`
+                            // tags.
                             let keeps_sentence_end = token.is_sentence_end()
                                 && to_apply.iter().any(|filter| {
                                     filter.iter().all(|f| f.matcher.is_match(&sentence_end))
