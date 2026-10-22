@@ -35,19 +35,20 @@ impl UppercaseSentenceStart {
 
     /// Checks the sentences of one paragraph and returns the resulting suggestions.
     pub fn check(&self, sentences: &[Sentence]) -> Vec<Suggestion> {
-        self.check_with_previous(sentences, None)
+        self.check_with_previous(sentences, &[])
     }
 
-    /// Checks the sentences of one paragraph, using the last sentence of the
-    /// preceding paragraph as context. The corresponding LanguageTool rule is
-    /// text-level, so the first sentence of a paragraph is only checked against
-    /// the sentence before it; without that context a paragraph after a line
-    /// that is not a real sentence end (`Hello;\n\nworld.`) would be flagged.
-    /// Only the sentences of the paragraph itself are reported.
+    /// Checks the sentences of one paragraph, using the end of the preceding
+    /// paragraph as context: its last sentence with tokens and any
+    /// whitespace-only sentences after it. The corresponding LanguageTool rule
+    /// is text-level, so the first sentence of a paragraph is only checked
+    /// against the sentence before it; without that context a paragraph after a
+    /// line that is not a real sentence end (`Hello;\n\nworld.`) would be
+    /// flagged. Only the sentences of the paragraph itself are reported.
     pub fn check_with_previous(
         &self,
         sentences: &[Sentence],
-        previous: Option<&Sentence>,
+        previous: &[Sentence],
     ) -> Vec<Suggestion> {
         // A paragraph that consists of a single word is not useful to complain
         // about; the missing capitalization may just be a typo.
@@ -58,11 +59,9 @@ impl UppercaseSentenceStart {
             _ => {}
         }
 
-        let suppress_before = previous.map(|_| sentences[0].span().char().start);
-        let mut context: Vec<&Sentence> = Vec::with_capacity(sentences.len() + 1);
-        if let Some(previous) = previous {
-            context.push(previous);
-        }
+        let suppress_before = (!previous.is_empty()).then(|| sentences[0].span().char().start);
+        let mut context: Vec<&Sentence> = Vec::with_capacity(previous.len() + sentences.len());
+        context.extend(previous.iter());
         context.extend(sentences.iter());
 
         self.run(&context, suppress_before)
@@ -86,7 +85,8 @@ impl UppercaseSentenceStart {
         for sentence in sentences {
             let tokens = sentence.tokens();
             // A whitespace-only sentence (the blank line after `"End.  \n\n"`) leaves the
-            // previous sentence as the context, as in LanguageTool; so does the ellipsis.
+            // previous sentence as the context, as in LanguageTool, and so does the ellipsis,
+            // but it does end a numbered list marker (`"1.  \n\nthe item."` is flagged).
             if tokens.is_empty() {
                 numbered_list = false;
                 continue;

@@ -715,7 +715,9 @@ impl Repetitions {
             }
         }
 
-        self.tokens += sentence.tokens().len();
+        // A whitespace-only sentence (the blank line after `"End.  \n\n"`) has no tokens, but
+        // LanguageTool counts its sentence start, so it moves the distance on by one.
+        self.tokens += sentence.tokens().len().max(1);
     }
 
     fn token_position(sentence: &Sentence, suggestion: &Suggestion) -> usize {

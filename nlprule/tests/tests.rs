@@ -499,7 +499,7 @@ lazy_static! {
 /// text) reach every builtin in `Rules::suggest`; none may fail on them.
 #[quickcheck]
 fn suggest_handles_whitespace_only_sentences(picks: Vec<u8>) -> bool {
-    const PIECES: [&str; 12] = [
+    const PIECES: [&str; 13] = [
         "He sat.",
         "  ",
         " ",
@@ -508,6 +508,7 @@ fn suggest_handles_whitespace_only_sentences(picks: Vec<u8>) -> bool {
         "\r\n",
         "\t",
         "\u{2028}",
+        "\u{2029}",
         "\u{201c}No.\u{201d}",
         "it\u{2019}s\u{2026}",
         "\u{2014}",
@@ -6326,6 +6327,35 @@ fn builtin_sentence_whitespace_skips_a_sentence_opening_with_a_line_break() {
 }
 
 #[test]
+fn sentence_whitespace_skips_a_match_touching_the_last_one() {
+    // Each U+2029 is a sentence of its own. LanguageTool reports the second one, but drops the
+    // match on the next sentence when it touches the one before (SameRuleGroupFilter).
+    let spans = |text: &str| -> Vec<std::ops::Range<usize>> {
+        RULES
+            .suggest(text, &*TOKENIZER)
+            .into_iter()
+            .filter(|x| x.source() == "BUILTIN/SENTENCE_WHITESPACE")
+            .map(|x| x.span().char().clone())
+            .collect()
+    };
+    assert_eq!(spans("\u{2029}\u{2029}He left."), vec![1..2]);
+    assert_eq!(spans("\u{2029}He left."), vec![1..3]);
+    assert_eq!(spans("He sat.  \u{2029}\u{2029}He left."), vec![10..11]);
+    assert_eq!(
+        spans("He sat.\u{2029}\u{2029}\u{2029}He left."),
+        vec![8..9, 10..12]
+    );
+    assert_eq!(
+        spans("He sat.\u{2029}\u{2029}He left. He ran.  \u{2029}He sat."),
+        vec![8..9, 28..30]
+    );
+    assert_eq!(
+        spans("\u{201c}Wait\u{2026}\u{201d}\u{2029}\u{2029}She\u{2019}d gone\u{2014}then left.\u{2028}"),
+        vec![8..9]
+    );
+}
+
+#[test]
 fn builtin_empty_line_flags_a_whitespace_only_sentence() {
     // LanguageTool keeps "  \n\n\n\n" after "Para one. " (and a leading blank line) as a
     // sentence of its own and reports its last line break.
@@ -6521,6 +6551,25 @@ fn uppercase_sentence_start_after_trailing_spaces_and_a_blank_line() {
         "\u{201c}Wait\u{2014}\u{201d}\u{2028}She\u{2019}d gone\u{2026}  \n\nthen she came back.",
     ] {
         assert_eq!(flags(text), vec![], "{text:?}");
+    }
+}
+
+#[test]
+fn uppercase_sentence_start_after_a_list_marker_with_trailing_spaces() {
+    // The blank line after "1.  " is a sentence of its own, so the next paragraph no longer
+    // follows the list marker directly and is checked, as in LanguageTool.
+    let flags = |text| suggest_flags(&RULES, "UPPERCASE_SENTENCE_START", text);
+    for text in [
+        "1.  \n\nthe item.",
+        "1. \n\nthe item.",
+        "a)  \n\nthe item.",
+        "She\u{2019}d gone\u{2026}  \n\n2.  \n\nthe \u{201c}item\u{201d}.",
+    ] {
+        assert_eq!(
+            flags(text),
+            vec![("the".to_owned(), vec!["The".to_owned()])],
+            "{text:?}"
+        );
     }
 }
 
@@ -7412,6 +7461,37 @@ fn repetition_rule_starts_after_a_leading_blank_line() {
     };
     assert_eq!(flags(&text(47)), vec![276..289]);
     assert_eq!(flags(&text(48)), Vec::<std::ops::Range<usize>>::new());
+}
+
+#[test]
+fn repetition_rule_counts_a_whitespace_sentence_between_matches() {
+    // "tea.  \n\n" splits after the first space, and LanguageTool counts the blank line left
+    // over as a sentence, so the distance limit is one filler lower than after "tea. \n\n".
+    let flags = |text: &str| repetition_flags(&RULES, "REP_THANK_YOU_FOR", text);
+    let text = |end: &str, dogs: usize| {
+        format!(
+            "Thank you for the tea.{end}{}Dogs. Thank you for the cake.",
+            "Dogs ".repeat(dogs)
+        )
+    };
+    for (end, limit) in [(" \n\n", 51), ("  \n\n", 50), ("  \r\n\r\n", 50)] {
+        let start = 22 + end.chars().count() + 5 * limit + 6;
+        assert_eq!(flags(&text(end, limit)), vec![start..start + 13], "{end:?}");
+        assert_eq!(
+            flags(&text(end, limit + 1)),
+            Vec::<std::ops::Range<usize>>::new(),
+            "{end:?}"
+        );
+    }
+
+    let text = |dogs: usize| {
+        format!(
+            "Thank you for the \u{2018}tea\u{2019}\u{2026} It\u{2019}s late\u{2014}really.  \n\n{}dogs. Thank you for the cake.",
+            "dogs ".repeat(dogs)
+        )
+    };
+    assert_eq!(flags(&text(42)), vec![262..275]);
+    assert_eq!(flags(&text(43)), Vec::<std::ops::Range<usize>>::new());
 }
 
 #[test]

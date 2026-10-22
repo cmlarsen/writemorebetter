@@ -993,6 +993,10 @@ impl Tokenizer {
                 range.end = splits[index].end;
                 index += 1;
             }
+            while index < splits.len() && text[splits[index].clone()].trim().is_empty() {
+                range.end = splits[index].end;
+                index += 1;
+            }
             if let Some(sentence) = self.tokenize_no_chunk(&text[range]) {
                 out.push(sentence);
             }
