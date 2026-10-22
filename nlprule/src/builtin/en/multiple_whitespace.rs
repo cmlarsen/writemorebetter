@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 /// The identifier of the LanguageTool rule this builtin reimplements.
 const ID: &str = "WHITESPACE_RULE";
 
-const MESSAGE: &str = "Possible typo: you repeated a whitespace";
+const MESSAGE: &str = "Possible typo: repeated spaces";
 
 /// Flags a run of repeated whitespace, e.g. two spaces between words.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]

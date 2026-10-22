@@ -40,6 +40,14 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   "your welcome to stay") and `HE_THE` ("Popping he SD card" → "the"). Recall is now 50 / 50 on
   the private corpus and 60 / 60 on the public one; the CI floors are raised to match.
 
+### Changed
+
+- **Double spaces get one message under the fiction profile.** The profile disables
+  `TYPOGRAPHY/CONSECUTIVE_SPACES`, LanguageTool's rule for two spaces between words, so the
+  `WHITESPACE_RULE` builtin reports every repeated space. Its message is now "Possible typo:
+  repeated spaces" (was "Possible typo: you repeated a whitespace"), in every profile. The default
+  profile still runs `CONSECUTIVE_SPACES`.
+
 # 0.11.0 (2026-10-21)
 
 ### Added
