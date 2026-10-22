@@ -6004,6 +6004,14 @@ fn builtin_compounds_span_starts_at_the_first_word() {
         ),
         vec![flag("E mail", &["E-mail"]), flag("back fire", &["backfire"])]
     );
+    assert_eq!(
+        builtin_flags("EN_COMPOUNDS", "\u{201c}Go.\u{201d}\n\u{a0}\u{a0}E mail me\u{2026}"),
+        vec![flag("E mail", &["E-mail"])]
+    );
+    assert_eq!(
+        builtin_flags("EN_COMPOUNDS", "\u{3000}E mail me."),
+        vec![flag("E mail", &["E-mail"])]
+    );
 
     let text = "\u{201c}Go.\u{201d}\n  E mail me\u{2014}now\u{2026}";
     let compound = RULES
