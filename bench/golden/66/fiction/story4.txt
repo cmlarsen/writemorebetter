@@ -13,7 +13,7 @@
 39 | BUILTIN/EN_A_VS_AN | "a apple" -> ["an"] | Use "an" instead of "a" if the following word starts with a vowel sound, e.g. "an article", "an hour".
 44 | SPELLCHECK/SINGLE | "Aduke" -> ["Duke"] | Possibly misspelled word.
 46 | GRAMMAR/THE_WHETHER/0 | "The whether" -> ["Whether", "The weather"] | Possible error detected.
-48 | GRAMMAR/IT_IT/5 | "It it" -> ["It is", "If it", "It", "It, it"] | It seems you either mean it is, if it, it or there is a comma missing.
+48 | GRAMMAR/IT_IT/3 | "It it" -> ["If it"] | It seems you mean if it.
 54 | STYLE/MOST_EVERYONE/0 | "most anyone" -> ["almost anyone"] | Avoid the colloquial phrase 'most anyone' in formal writing. Use almost anyone instead.
 55 | SPELLCHECK/SINGLE | "Aduke" -> ["Duke"] | Possibly misspelled word.
 78 | CONFUSED_WORDS/IS_US/0 | "is" -> ["us"] | Did you mean us?

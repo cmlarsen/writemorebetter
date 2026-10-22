@@ -7,7 +7,7 @@
 29 | SPELLCHECK/SINGLE | "arguement" -> ["argument"] | Possibly misspelled word.
 33 | BUILTIN/ENGLISH_WORD_REPEAT_RULE | "on on" -> ["on"] | Possible typo: you repeated a word.
 38 | GRAMMAR/MISSING_TO_BEFORE_A_VERB/3 | "like take" -> ["like to take"] | The verb "take" needs to be in the to-infinitive form.
-42 | GRAMMAR/IS_VBZ/2 | "is seems" -> ["is seeming", "it seems", "seems"] | The verb form seems incorrect.
+42 | GRAMMAR/IS_VBZ/1 | "is seems" -> ["is seeming", "it seems", "seems"] | The verb form seems incorrect.
 64 | SPELLCHECK/SINGLE | "Teodor" -> ["Theodor"] | Possibly misspelled word.
 81 | BUILTIN/COMMA_PARENTHESIS_WHITESPACE | ",and" -> [", and"] | Put a space after the comma.
 86 | TYPOS/HEAL_OF/0 | "heal" -> ["heel"] | Did you mean heel (the back of the foot or shoe)?

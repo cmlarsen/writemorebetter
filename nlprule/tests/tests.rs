@@ -2876,6 +2876,26 @@ fn rule_flags_with(rules: &Rules, text: &str, rule: &str) -> Vec<(String, Vec<St
         .collect()
 }
 
+/// When subrules of one rule group match the same span, the earliest subrule wins, as in
+/// LanguageTool 6.6 (issue #190): subrule 0 of `EN_SPLIT_WORDS_HYPHEN`, not subrule 3.
+#[test]
+fn earliest_subrule_of_a_group_wins_the_same_span() {
+    let text = "\u{201c}The break- up was painful\u{2026}\u{201d} she said\u{2014}it\u{2019}s over.\u{2028}The break- up hurt.";
+    let flagged = (
+        "break- up".to_owned(),
+        vec![
+            "break-up".to_owned(),
+            "break - up".to_owned(),
+            "breakup".to_owned(),
+        ],
+    );
+    assert_eq!(
+        rule_flags(text, "TYPOS/EN_SPLIT_WORDS_HYPHEN/0"),
+        vec![flagged.clone(), flagged]
+    );
+    assert!(rule_flags(text, "TYPOS/EN_SPLIT_WORDS_HYPHEN/3").is_empty());
+}
+
 #[test]
 fn apostrophe_rules_match_languagetool_on_fiction_text() {
     assert_eq!(
