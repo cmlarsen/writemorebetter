@@ -229,6 +229,10 @@ fn adverb(item: &Item) -> bool {
         && !matches!(word(item).as_str(), "not" | "n't" | "never")
 }
 
+fn capitalized_word(token: &Token) -> bool {
+    token.text.chars().next().is_some_and(char::is_uppercase)
+}
+
 fn capitalized(item: &Item) -> bool {
     item.token
         .text
@@ -250,7 +254,12 @@ impl Detector {
         }
     }
 
-    pub(crate) fn paragraph(&mut self, paragraph: &Paragraph, dialogue: &[Span]) {
+    pub(crate) fn paragraph(
+        &mut self,
+        tokenizer: &nlprule::Tokenizer,
+        paragraph: &Paragraph,
+        dialogue: &[Span],
+    ) {
         if !self.thought && !self.speech {
             return;
         }
@@ -291,7 +300,10 @@ impl Detector {
         if items.is_empty() {
             return;
         }
-        let parser = Parser { items: &items };
+        let parser = Parser {
+            items: &items,
+            tokenizer,
+        };
         if self.thought {
             for (index, span) in &quotes {
                 let after =
@@ -326,6 +338,7 @@ impl Detector {
 
 struct Parser<'a, 'b> {
     items: &'b [Item<'a>],
+    tokenizer: &'b nlprule::Tokenizer,
 }
 
 impl<'a> Parser<'a, '_> {
@@ -403,8 +416,16 @@ impl<'a> Parser<'a, '_> {
                 index += 1;
             }
         }
+        // A capitalized title noun before a name: *Aunt Hester*, *Captain Ahab*.
+        let titled = |at: usize| {
+            items.get(at).is_some_and(|item| {
+                is_word(item) && !item.blocked && capitalized(item) && has_pos(item.token, "NN")
+            }) && items.get(at + 1).is_some_and(name)
+        };
         let mut length = 0;
-        while length < MAX_NAME && items.get(index + length).is_some_and(name) {
+        while length < MAX_NAME
+            && (items.get(index + length).is_some_and(name) || titled(index + length))
+        {
             length += 1;
             found.push((index + length, NarrativePerson::Third, Gender::Unknown));
         }
@@ -617,13 +638,38 @@ impl<'a> Parser<'a, '_> {
                     chain.class,
                     ChainClass::Present | ChainClass::Modal { present: true }
                 )
-            }) || imperative_start(&tokens));
+            }) || self.imperative(&tokens));
         match (person, tense) {
             (true, true) => Some(VoiceShift::Both),
             (true, false) => Some(VoiceShift::Person),
             (false, true) => Some(VoiceShift::Tense),
             (false, false) => None,
         }
+    }
+
+    /// `imperative_start`, plus a capitalized verb the tagger read only as a name after a tag
+    /// (*She thought, Stay calm.*): its lowercase form must have a bare-verb reading in the
+    /// lexicon, and the chunker must have opened a verb phrase on it.
+    fn imperative(&self, tokens: &[&Token]) -> bool {
+        if imperative_start(tokens) {
+            return true;
+        }
+        let Some(first) = tokens.iter().find(|token| token.is_word) else {
+            return false;
+        };
+        let named = !first.readings.is_empty()
+            && first
+                .readings
+                .iter()
+                .all(|reading| reading.pos.starts_with("NNP"));
+        named
+            && capitalized_word(first)
+            && first.chunks.iter().any(|chunk| chunk == "B-VP")
+            && self
+                .tokenizer
+                .tagger()
+                .get_tags(&first.text.to_lowercase())
+                .any(|data| data.pos().as_str() == "VB")
     }
 
     /// A third-person subject pronoun that can refer to the tag's subject.
@@ -648,20 +694,22 @@ impl<'a> Parser<'a, '_> {
             return false;
         };
         let tokens = self.tokens(range);
-        let tense = matches!(shift, VoiceShift::Tense | VoiceShift::Both);
-        let person = matches!(shift, VoiceShift::Person | VoiceShift::Both);
-        if tense
-            && chains(&tokens)
+        // The clause continues by a path the anchor took: for a tense shift, its own present
+        // tense and no past chain; for a person shift, its own first person and no third-person
+        // pronoun that could be the tag's subject. A thought that shifted both ways may continue
+        // by either (*I have to get out, she thought, before he wakes*).
+        let past = || {
+            chains(&tokens)
                 .iter()
                 .any(|chain| matches!(chain.class, ChainClass::Past | ChainClass::PastPerfect))
-        {
-            return false;
-        }
-        if person && tokens.iter().any(|token| self.frame_pronoun(token, tag)) {
-            return false;
-        }
-        // The same kind of shift, so a person-only thought does not absorb a tense-only clause.
-        own == shift || own == VoiceShift::Both || shift == VoiceShift::Both
+        };
+        let tense = matches!(shift, VoiceShift::Tense | VoiceShift::Both)
+            && matches!(own, VoiceShift::Tense | VoiceShift::Both)
+            && !past();
+        let person = matches!(shift, VoiceShift::Person | VoiceShift::Both)
+            && matches!(own, VoiceShift::Person | VoiceShift::Both)
+            && !tokens.iter().any(|token| self.frame_pronoun(token, tag));
+        tense || person
     }
 
     /// Thought evidence for expansion: ends in ? ! …, has a first-person pronoun, or is an order.
@@ -672,7 +720,7 @@ impl<'a> Parser<'a, '_> {
             .rev()
             .find(|token| !matches!(token.text.as_str(), "”" | "’" | "\"" | "'" | ")"))
             .is_some_and(|token| token.text.contains(['?', '!', '…']));
-        ends || imperative_start(&tokens)
+        ends || self.imperative(&tokens)
             || (0..tokens.len()).any(|index| {
                 pronoun_person(&tokens, index).map(|(person, _)| person)
                     == Some(NarrativePerson::First)

@@ -415,8 +415,8 @@ pub fn pronoun_person(tokens: &[&Token], index: usize) -> Option<(NarrativePerso
 }
 
 /// A clause that opens with a bare verb and no subject: *Get out.*, *Keep moving.* The verb must
-/// be chunked as a verb phrase, or carry no noun or adjective reading when unchunked, so
-/// noun-initial fragments (*Run-down shack*) are not imperatives.
+/// be chunked as a verb phrase, or carry no noun or adjective reading, so noun-initial fragments
+/// (*Run-down shack*) are not imperatives.
 #[doc(hidden)]
 pub fn imperative_start(tokens: &[&Token]) -> bool {
     let Some(first) = tokens.iter().position(|token| token.is_word) else {
@@ -426,8 +426,10 @@ pub fn imperative_start(tokens: &[&Token]) -> bool {
     if token.is_skipped || readings(token, "VB").next().is_none() {
         return false;
     }
+    // Chunked as a verb phrase, or with no noun or adjective reading whatever the chunk
+    // (*Breathe slowly* is chunked as a noun phrase).
     let chunked = chunk(token, "B-VP");
-    let bare = unchunked(token) && !has_pos(token, "NN") && !has_pos(token, "JJ");
+    let bare = !common_noun(token) && !has_pos(token, "JJ");
     // *Do you…*, *Have you…*: a question, not an order.
     let question = tokens
         .get(first + 1)

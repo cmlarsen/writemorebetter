@@ -1,0 +1,116 @@
+{
+  "license": "CC0-1.0",
+  "note": "Written for writemorebetter (#353) and dedicated to the public domain. Synthetic thoughts, tags and negatives for bench/style/voices.py synthetic. Curly apostrophes are canonical; the script also emits straight-apostrophe variants.",
+  "clauses": {
+    "firstPersonPresent": [
+      "I can’t do this anymore",
+      "I’m not going back there",
+      "I have to tell him tonight",
+      "I don’t trust any of them",
+      "I’ll never forgive her for this",
+      "I know exactly what he wants",
+      "I am so tired of waiting",
+      "My hands won’t stop shaking",
+      "We’re running out of time",
+      "I need to find the key first"
+    ],
+    "imperative": [
+      "Get out now",
+      "Keep walking",
+      "Stay calm",
+      "Don’t look back",
+      "Breathe slowly",
+      "Say nothing to anyone",
+      "Go home and sleep",
+      "Trust the plan"
+    ],
+    "question": [
+      "Where is he?",
+      "Why doesn’t she call?",
+      "What does he want from me?",
+      "Is it already too late?",
+      "Who keeps leaving the gate open?",
+      "How can they not see it?",
+      "Does anyone even care?",
+      "Why is the light still on?"
+    ],
+    "thirdPersonPresent": [
+      "He’s lying",
+      "The door is locked",
+      "She knows the truth",
+      "They don’t care at all",
+      "The money is gone",
+      "He wants the house"
+    ],
+    "firstPersonPast": [
+      "I was wrong about him",
+      "I should have stayed home",
+      "We lost everything that winter",
+      "I never wanted any of it"
+    ]
+  },
+  "split": [
+    ["I have to get out", "before he wakes"],
+    ["I can still make it", "if the train is late"],
+    ["We need the money", "whatever it costs"],
+    ["I won’t tell her", "not until it’s over"]
+  ],
+  "subjects": {
+    "pronoun": [["she", "feminine"], ["he", "masculine"]],
+    "name": [["Mara", "feminine"], ["Tomas", "masculine"], ["Aunt Hester", "feminine"]]
+  },
+  "thoughtVerbs": ["thought", "wondered", "decided", "realized", "reasoned", "reckoned", "told herself", "reminded himself", "muttered to herself"],
+  "speechVerbs": ["said", "muttered", "whispered", "insisted", "snapped", "added"],
+  "negatives": {
+    "indirect": [
+      "She thought that he was late.",
+      "He wondered where the money had gone.",
+      "She said to go home.",
+      "He thought about the letter.",
+      "Mara wondered whether the gate was locked.",
+      "She thought it over and left."
+    ],
+    "agreeing": [
+      "She was a fool, she thought.",
+      "He would never forgive her, she realized.",
+      "The door was locked, he said.",
+      "Tomas had lost everything, he reckoned."
+    ],
+    "untaggedFid": [
+      "She had to get out. Now. Before he woke.",
+      "Where was he? The house had gone silent.",
+      "What a fool she had been.",
+      "Is it too late? The street is empty."
+    ],
+    "excludedVerbs": [
+      "I’m late, she knew.",
+      "I’m late, she felt.",
+      "I can do this, he believed.",
+      "We were happy here, she remembered.",
+      "I’ll be fine, he hoped."
+    ],
+    "hedges": [
+      "It’s late, I think.",
+      "It was, I suppose, inevitable.",
+      "The road is long, they say.",
+      "Well, it’s fine, you know."
+    ],
+    "nounThought": [
+      "A thought struck her: I’m alone.",
+      "The thought came to him at dawn.",
+      "Having thought it over, she left."
+    ],
+    "paragraphBreak": [
+      "I can’t do this anymore,\nshe thought.",
+      "Where is he?\n\nI wondered.",
+      "Get out now,\r\nhe thought.",
+      "I’m done she thought."
+    ],
+    "presentFrame": [
+      "She walks to the door. She is tired, she thinks. She opens it.",
+      "He waits by the window. The bus is late, he decides. He sits down again.",
+      "I walk to the door. It’s late, I think. I open it."
+    ]
+  },
+  "guardSentence": "The room is dark."
+}

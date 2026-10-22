@@ -1004,7 +1004,7 @@ pub fn analyze_document(tokenizer: &Tokenizer, text: &str, options: &DocumentOpt
         chapter_start = false;
         speech_evidence(&paragraph, &document.dialogue, &mut evidence);
         // Voices need readings, so they run before compact mode drops them.
-        voices.paragraph(&paragraph, &document.dialogue);
+        voices.paragraph(tokenizer, &paragraph, &document.dialogue);
         if !options.include_token_details {
             for token in paragraph
                 .sentences
