@@ -265,13 +265,31 @@ impl Rules {
         }
     }
 
+    /// Whether an enabled rule matches [Sentence::raw], so sentences passed to [Rules::apply]
+    /// should keep their raw tokens ([Tokenizer::pipe_with_raw]).
+    pub fn needs_raw(&self) -> bool {
+        self.rules
+            .iter()
+            .any(|rule| rule.enabled() && rule.raw_pos())
+    }
+
     /// Compute the suggestions for the given sentence by checking all rules.
     /// Builtin rules that look across sentences only see this sentence, and those that need the
     /// whole text (`EN_CONSISTENT_APOS`) don't run; use [Rules::suggest] for full context.
     /// A rule with LanguageTool's `raw_pos` matches [Sentence::raw]; on a sentence that did not keep
-    /// it (one not from [Tokenizer::pipe]) such a rule matches the disambiguated tokens instead.
+    /// it such a rule matches the disambiguated tokens instead. Get the sentences from
+    /// [Tokenizer::pipe_with_raw] with [Rules::needs_raw] to match it as [Rules::suggest] does.
     /// Rules with LanguageTool's `min_prev_matches` only count earlier matches in this sentence.
     pub fn apply(&self, sentence: &Sentence) -> Vec<Suggestion> {
+        if sentence.raw().is_none() && self.needs_raw() {
+            static WARNED: std::sync::Once = std::sync::Once::new();
+            WARNED.call_once(|| {
+                log::warn!(
+                    "Rules::apply: a raw_pos rule is enabled but the sentence kept no raw tokens; \
+                     pipe with Tokenizer::pipe_with_raw(text, rules.needs_raw())"
+                )
+            });
+        }
         let builtin_suggestions =
             self.builtin_suggestions(std::slice::from_ref(sentence), &[], true);
         let matches = self.sentence_matches(sentence, builtin_suggestions, true);
@@ -481,12 +499,7 @@ impl Rules {
         // builtins (UppercaseSentenceStart) can use them as context.
         let mut previous: Vec<Sentence> = Vec::new();
 
-        let keep_raw = self
-            .rules
-            .iter()
-            .any(|rule| rule.enabled() && rule.raw_pos());
-
-        let mut sentences = tokenizer.pipe_with_raw(text, keep_raw).peekable();
+        let mut sentences = tokenizer.pipe_with_raw(text, self.needs_raw()).peekable();
         while let Some(sentence) = sentences.next() {
             let ends_paragraph = sentence.text().contains('\n');
             paragraph.push(sentence);

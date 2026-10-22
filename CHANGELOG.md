@@ -71,6 +71,12 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   deserialization. Loaded live heap goes from 62.9 MiB to 51.0 MiB, and loaded RSS drops by
   about 4 to 5 MiB ([#212](https://github.com/cmlarsen/writemorebetter/issues/212),
   [#225](https://github.com/cmlarsen/writemorebetter/issues/225)).
+- **`Tokenizer::pipe` no longer keeps the raw tokens.** Its sentences' `Sentence::raw()` is now
+  `None`, which saves a copy of every sentence's tokens for callers that never check rules
+  (Python's `Tokenizer.pipe`, `dump_sentences`, `dump_tags`, `wmb-chunkbench`). To pass piped
+  sentences to `Rules::apply` with `raw_pos` rules matching as `Rules::suggest` matches them, use
+  the now public `Tokenizer::pipe_with_raw(text, rules.needs_raw())`; `Rules::needs_raw` is new
+  ([#169](https://github.com/cmlarsen/writemorebetter/issues/169)).
 
 ### Fixed
 
@@ -191,6 +197,13 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 - **`NUMBERS_IN_WORDS` flags invented names again.** It drops a match when the speller has no
   suggestions for the word without its digits; with the distance-3 retry, "Mirr0wen" now gets
   LanguageTool 6.6's Married, Warren, Mirror, … (#199).
+- **Parallel disambiguation of very long sentences is no longer several times slower than
+  serial.** The parallel search for the next disambiguation rule that applies evaluated rules
+  past it and threw their results away, and on a long sentence the next rule is usually only a
+  few rules further. After each change, the next 16 rules are now tried serially before the rest
+  are searched in parallel. On LanguageTool’s rule examples glued into one 108,000-token
+  sentence, parallel disambiguation uses 9.9 s of CPU instead of 30.4 s, about the same as
+  serial. The output is unchanged ([#149](https://github.com/cmlarsen/writemorebetter/issues/149)).
 
 ### Removed
 
