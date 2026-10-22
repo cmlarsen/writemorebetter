@@ -143,7 +143,9 @@ class Checker:
     def analyze_document(self, text: str, options: Options = None) -> dict:
         """Analyzes a whole document into paragraphs, sentences and tokens, with dialogue spans
         and a lemma index. ``options`` are ``DocumentOptions`` (``skip_names``,
-        ``include_token_details``, ``hard_wrapped``). Offsets are code points."""
+        ``include_token_details``, ``hard_wrapped``, ``marked_spans``, ``marked_span_units``,
+        ``detect_thought``, ``detect_unquoted_speech``). Offsets are code points, and
+        ``marked_spans`` offsets default to code points too."""
         return json.loads(self._native.analyze_document_json(text, _json_arg(options)))
 
     def style_document(self, text: str, options: Options = None) -> "StyleDocument":
@@ -315,6 +317,12 @@ class StyleDocument:
 
     def hidden_verbs(self, options: Options = None) -> dict:
         return self._report("hidden_verbs", options)
+
+    def voices(self, options: Options = None) -> dict:
+        """Speech, thought, quoted-term and caller-marked spans with their counts (#353). Mark
+        spans with the document option ``markedSpans``; Python offsets default to code points
+        (``markedSpanUnits``: ``"char"``). Works on compact documents."""
+        return self._report("voices", options)
 
 
 def style_preset_names() -> List[str]:

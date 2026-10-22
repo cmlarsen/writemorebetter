@@ -375,8 +375,9 @@ impl Checker {
         text: String,
         options_json: Option<String>,
     ) -> PyResult<String> {
-        let options =
-            reports::parse_document_options(options_json.as_deref()).map_err(style_error)?;
+        let options = char_marked_spans(
+            reports::parse_document_options(options_json.as_deref()).map_err(style_error)?,
+        );
         Ok(py.detach(|| {
             let document =
                 writemorebetter_style::analyze_document(&self.tokenizer, &text, &options);
@@ -391,8 +392,9 @@ impl Checker {
         text: String,
         options_json: Option<String>,
     ) -> PyResult<StyleDocument> {
-        let options =
-            reports::parse_document_options(options_json.as_deref()).map_err(style_error)?;
+        let options = char_marked_spans(
+            reports::parse_document_options(options_json.as_deref()).map_err(style_error)?,
+        );
         Ok(py.detach(|| StyleDocument {
             inner: writemorebetter_style::StyleDocument::new(
                 self.tokenizer.clone(),
@@ -542,6 +544,7 @@ impl StyleDocument {
             "alliteration" => no_extra(name).and_then(|_| run!(doc.alliteration(options))),
             "vague_words" => no_extra(name).and_then(|_| run!(doc.vague_words(options))),
             "hidden_verbs" => no_extra(name).and_then(|_| run!(doc.hidden_verbs(options))),
+            "voices" => no_extra(name).and_then(|_| run!(doc.voices(options))),
             _ => Err(new_style_error(
                 "unknownReport",
                 None,
@@ -549,6 +552,16 @@ impl StyleDocument {
             )),
         }
     }
+}
+
+/// Python strings index by code point, so caller spans default to Unicode scalars.
+fn char_marked_spans(
+    mut options: writemorebetter_style::DocumentOptions,
+) -> writemorebetter_style::DocumentOptions {
+    if options.marked_span_units.is_none() {
+        options.marked_span_units = Some(writemorebetter_style::OffsetUnits::Char);
+    }
+    options
 }
 
 /// The built-in style presets' names; the first, `"chicago-fiction"`, is the default.

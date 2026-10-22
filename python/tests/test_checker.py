@@ -197,7 +197,7 @@ def test_style_reports_use_code_point_spans(checker):
         "sentence_starts", "transitions", "pronoun_starts", "sensory_balance", "pacing",
         "diction", "overused_words", "consistency", "readability", "passive", "clarity",
         "regional_spelling", "emotion_tells", "preset_checks", "preset", "alliteration",
-        "vague_words", "hidden_verbs",
+        "vague_words", "hidden_verbs", "voices",
     ]:
         assert isinstance(getattr(document, name)(), dict), name
     assert isinstance(document.dialogue_tags(baseline="none"), dict)
@@ -318,3 +318,28 @@ def test_dictionary_edits_do_not_hold_the_gil(data_dir):
     worker.join()
     gaps = [b - a for a, b in zip(beats, beats[1:])]
     assert waited < 0.1 or max(gaps) < 0.5 * waited, (waited, max(gaps))
+
+
+def test_voices_use_code_point_marked_spans(checker):
+    text = "🙂 She read the note. Dear Sam, I am gone. I’m done with this, she thought."
+    letter = "Dear Sam, I am gone."
+    start = text.index(letter)
+    # No markedSpanUnits: Python offsets are code points.
+    document = checker.style_document(
+        text, {"markedSpans": [{"start": start, "end": start + len(letter), "voice": "embedded"}]}
+    )
+    report = document.voices()
+    found = [(text[s["span"]["start"] : s["span"]["end"]], s["voice"], s["source"]) for s in report["spans"]]
+    assert found == [(letter, "embedded", "caller"), ("I’m done with this", "thought", "tag")]
+    tag = report["spans"][1]["tag"]
+    assert text[tag["start"] : tag["end"]] == "she thought"
+    assert report["spans"][1]["shift"] == "both"
+    assert report["counts"]["thought"] == {"spans": 1, "words": 5}
+    words = sum(count["words"] for count in report["counts"].values())
+    assert report["narrationWords"] + words == document.stats()["words"]["all"]
+    quiet = checker.style_document(text, {"detectThought": False, "detectUnquotedSpeech": False})
+    assert quiet.voices()["spans"] == []
+    with pytest.raises(StyleError):
+        checker.style_document(text, {"markedSpans": [{"start": 0, "end": 1, "voice": "quoted"}]})
+    with pytest.raises(StyleError):
+        document.voices({"typo": 1})
