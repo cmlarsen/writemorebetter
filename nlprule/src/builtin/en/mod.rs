@@ -3,6 +3,7 @@
 mod a_vs_an;
 mod comma_parenthesis_whitespace;
 mod compounds;
+mod consistent_apostrophes;
 mod dash;
 mod double_punctuation;
 mod empty_line;
@@ -31,6 +32,8 @@ pub use comma_parenthesis_whitespace::CommaParenthesisWhitespace;
 pub use compounds::Compounds;
 #[cfg(feature = "compile")]
 pub(crate) use compounds::{CompoundData, PatternToken};
+pub(crate) use consistent_apostrophes::apostrophe_style;
+pub use consistent_apostrophes::ConsistentApostrophes;
 pub use dash::Dash;
 pub use double_punctuation::DoublePunctuation;
 pub use empty_line::EmptyLine;
