@@ -332,7 +332,7 @@ impl Rules {
                 .into_iter()
                 .partition(|x| crate::builtin::yields_to_overlaps(x.source()));
             return SentenceMatches {
-                output: output.into_iter().map(|x| (0, x)).collect(),
+                output: output.into_iter().map(|x| (None, x)).collect(),
                 repeated: Vec::new(),
                 picky,
             };

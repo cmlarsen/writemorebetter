@@ -6298,20 +6298,21 @@ fn builtin_sentence_whitespace_treats_unicode_line_breaks_as_whitespace() {
 #[test]
 fn builtin_sentence_whitespace_skips_a_sentence_opening_with_a_line_break() {
     use nlprule::builtin::en::SentenceWhitespace;
-    // The splitter keeps a line break at the end of the previous sentence, so
-    // pair a previous sentence that has no trailing whitespace with one that
-    // opens with the break, as LanguageTool's `isLineBreakToken` check covers.
+    // The splitter attaches a line break to the end of the previous sentence, and
+    // only the text's first sentence can open with one. So pair a previous sentence
+    // that has no trailing whitespace with a text that opens with the break, as
+    // LanguageTool's `isLineBreakToken` check covers.
     let previous: Vec<_> = TOKENIZER.pipe("\u{201c}He left\u{2026}\u{201d}").collect();
     assert_eq!(previous.len(), 1);
     for (text, opener) in [
-        ("Then.\u{2029}\u{2029}Now\u{2014}gone.", "\u{2029}"),
-        ("Then.\r\rShe didn\u{2019}t.", "\r"),
+        ("\u{2029}Now\u{2014}gone.", "\u{2029}"),
+        ("\rShe didn\u{2019}t.", "\r"),
     ] {
         let sentences: Vec<_> = TOKENIZER.pipe(text).collect();
-        let next = &sentences[1];
+        let next = &sentences[0];
         assert!(next.text().starts_with(opener), "{:?}", next.text());
         assert_eq!(
-            SentenceWhitespace.check_with_previous(&sentences[1..], previous.last()),
+            SentenceWhitespace.check_with_previous(&sentences, previous.last()),
             vec![],
             "{text:?}"
         );
@@ -6328,8 +6329,10 @@ fn builtin_sentence_whitespace_skips_a_sentence_opening_with_a_line_break() {
 
 #[test]
 fn sentence_whitespace_skips_a_match_touching_the_last_one() {
-    // Each U+2029 is a sentence of its own. LanguageTool reports the second one, but drops the
-    // match on the next sentence when it touches the one before (SameRuleGroupFilter).
+    // Each U+2029 is a sentence of its own. LanguageTool 6.6 reports the second one and drops a
+    // match that touches the one before (SameRuleGroupFilter, kept in the rule). Since #193 the
+    // rule follows LanguageTool's post-6.6 fix (86c5f3a9): a line break before or at the start of
+    // a sentence counts as whitespace, so none of these sentences is flagged.
     let spans = |text: &str| -> Vec<std::ops::Range<usize>> {
         RULES
             .suggest(text, &*TOKENIZER)
@@ -6338,20 +6341,20 @@ fn sentence_whitespace_skips_a_match_touching_the_last_one() {
             .map(|x| x.span().char().clone())
             .collect()
     };
-    assert_eq!(spans("\u{2029}\u{2029}He left."), vec![1..2]);
-    assert_eq!(spans("\u{2029}He left."), vec![1..3]);
-    assert_eq!(spans("He sat.  \u{2029}\u{2029}He left."), vec![10..11]);
+    for text in [
+        "\u{2029}\u{2029}He left.",
+        "\u{2029}He left.",
+        "He sat.  \u{2029}\u{2029}He left.",
+        "He sat.\u{2029}\u{2029}\u{2029}He left.",
+        "He sat.\u{2029}\u{2029}He left. He ran.  \u{2029}He sat.",
+        "\u{201c}Wait\u{2026}\u{201d}\u{2029}\u{2029}She\u{2019}d gone\u{2014}then left.\u{2028}",
+    ] {
+        assert!(spans(text).is_empty(), "{text:?}");
+    }
+    // A real missing space is still flagged.
     assert_eq!(
-        spans("He sat.\u{2029}\u{2029}\u{2029}He left."),
-        vec![8..9, 10..12]
-    );
-    assert_eq!(
-        spans("He sat.\u{2029}\u{2029}He left. He ran.  \u{2029}He sat."),
-        vec![8..9, 28..30]
-    );
-    assert_eq!(
-        spans("\u{201c}Wait\u{2026}\u{201d}\u{2029}\u{2029}She\u{2019}d gone\u{2014}then left.\u{2028}"),
-        vec![8..9]
+        spans("He sat.\u{2029}\u{2029}No.Then he left."),
+        vec![12..16]
     );
 }
 
