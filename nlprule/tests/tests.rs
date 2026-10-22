@@ -930,7 +930,7 @@ fn speller_folds_the_case_of_accented_letters() {
     // forms follow at the same distance, as in LanguageTool 6.6.
     assert_eq!(
         speller.suggest("\u{c9}CLAIRR", 5),
-        vec!["\u{c9}CLAIR", "\u{c9}CLAIRS", "ECLAIR", "ECLAIRS"]
+        vec!["\u{c9}CLAIR", "\u{c9}CLAIRS", "ECLAIR", "ECLAIRS", "\u{c9}CLAIR R"]
     );
     assert_eq!(
         speller.suggest("\u{c9}clairr", 5),
@@ -1196,7 +1196,8 @@ fn speller_capitalizes_candidates_for_mixed_case_words() {
     for (word, expected) in [
         ("PayPAL", &["PayPal", "Papal"][..]),
         ("XerXes", &["Xerxes", "Xeroxes", "Xeres"][..]),
-        ("DeVITO", &["DeVito", "Device"][..]),
+        // `DeV ITO` is a split, as in LanguageTool 6.6.
+        ("DeVITO", &["DeVito", "DeV ITO", "Device"][..]),
     ] {
         let suggestions = speller.suggest(word, 10);
         assert_eq!(&suggestions[..expected.len()], expected, "{}", word);
@@ -1328,6 +1329,46 @@ fn speller_finds_two_edits_at_the_start_of_a_word() {
             ("Tyerman", "Thermal".to_string()),
             ("Davenant", "Dominant".to_string()),
             ("Tyerman", "Thermal".to_string()),
+        ]
+    );
+}
+
+#[test]
+fn speller_suggests_splits_of_run_together_words() {
+    // LanguageTool 6.6 (`We saw <word> there.`, en-US): a split into two words comes after the
+    // speller's own candidates, and a word with a split gets no distance-2 search. Splits into
+    // a prefix, suffix or stray letter are dropped (`Fey re`, `F eyre`, `Zoe s`).
+    let speller = RULES.spell().speller().unwrap();
+    for (word, expected) in [
+        ("Aduke", &["Duke", "A duke"][..]),
+        ("Shakespear", &["Shakespeare", "Shake spear", "Shakes pear"][..]),
+        ("Rhysand", &["Rhys and"][..]),
+        ("Magwitch", &["Mag witch"][..]),
+        ("crosslights", &["cross lights"][..]),
+        ("\u{c9}CLAIRR", &["\u{c9}CLAIR", "\u{c9}CLAIRS", "ECLAIR", "ECLAIRS", "\u{c9}CLAIR R"][..]),
+    ] {
+        assert_eq!(speller.suggest(word, 10), expected, "{}", word);
+    }
+    let feyre = speller.suggest("Feyre", 50);
+    assert!(feyre.iter().all(|x| !x.contains(' ')), "{:?}", feyre);
+    let zoes = speller.suggest("Zoes", 50);
+    assert!(zoes.iter().all(|x| !x.contains(' ')), "{:?}", zoes);
+
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    rules.spell_mut().options_mut().variant = Some(rules.spell().variant("en_US").unwrap());
+    let text = "\u{201c}Rhysand\u{2019}s here\u{2014}with Magwitch\u{2026}\u{201d}\u{2028}\u{2018}Aduke!\u{2019}";
+    let suggestions: Vec<(&str, Vec<String>)> = rules
+        .suggest(text, &*TOKENIZER)
+        .into_iter()
+        .filter(|x| x.source().starts_with("SPELLCHECK"))
+        .map(|x| (&text[x.span().byte().clone()], x.replacements().to_vec()))
+        .collect();
+    assert_eq!(
+        suggestions,
+        vec![
+            ("Rhysand", strings(&["Rhys and"])),
+            ("Magwitch", strings(&["Mag witch"])),
+            ("Aduke", strings(&["Duke", "A duke"])),
         ]
     );
 }

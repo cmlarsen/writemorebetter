@@ -1,4 +1,4 @@
-4 | SPELLCHECK/SINGLE | "Aldermere" -> ["Alderman"] | Possibly misspelled word.
+4 | SPELLCHECK/SINGLE | "Aldermere" -> ["Alderman", "Alder mere"] | Possibly misspelled word.
 8 | REDUNDANCY/WHETHER/6 | "whether or not" -> ["whether"] | Consider shortening this phrase to just 'whether', unless you mean 'regardless of whether'.
 11 | PUNCTUATION/COMMA_COMPOUND_SENTENCE_2/3 | " and" -> [", and"] | Use a comma before "and" if it connects two independent clauses (unless they are closely connected and short).
 11 | PUNCTUATION/COMMA_COMPOUND_SENTENCE_2/3 | " and" -> [", and"] | Use a comma before "and" if it connects two independent clauses (unless they are closely connected and short).
@@ -13,7 +13,7 @@
 38 | GRAMMAR/MISSING_TO_BEFORE_A_VERB/3 | "like take" -> ["like to take"] | The verb "take" needs to be in the to-infinitive form.
 42 | GRAMMAR/IS_VBZ/1 | "is seems" -> ["is seeming", "it seems", "seems"] | The verb form seems incorrect.
 51 | PUNCTUATION/COMMA_COMPOUND_SENTENCE/0 | " and" -> [", and"] | Use a comma before 'and' if it connects two independent clauses (unless they are closely connected and short).
-64 | SPELLCHECK/SINGLE | "Teodor" -> ["Theodor"] | Possibly misspelled word.
+64 | SPELLCHECK/SINGLE | "Teodor" -> ["Theodor", "Te odor"] | Possibly misspelled word.
 81 | BUILTIN/COMMA_PARENTHESIS_WHITESPACE | ",and" -> [", and"] | Put a space after the comma.
 82 | PUNCTUATION/COMMA_COMPOUND_SENTENCE_2/3 | " and" -> [", and"] | Use a comma before "and" if it connects two independent clauses (unless they are closely connected and short).
 84 | BUILTIN/ENGLISH_WORD_REPEAT_BEGINNING_RULE | "It" -> ["Furthermore, it", "Likewise, it", "Not only that, but it"] | Three successive sentences begin with the same word. Consider rewording the sentence or use a thesaurus to find a synonym.

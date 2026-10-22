@@ -162,9 +162,16 @@ impl Spell {
                 value.eq_ignore_ascii_case("true")
             });
 
+        let run_on_words = properties
+            .get("fsa.dict.speller.runon-words")
+            .map_or(VariantInfo::default().run_on_words, |value| {
+                value.eq_ignore_ascii_case("true")
+            });
+
         Ok(VariantInfo {
             replacement_pairs,
             ignore_diacritics,
+            run_on_words,
         })
     }
 

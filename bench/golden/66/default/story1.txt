@@ -1,5 +1,5 @@
-4 | SPELLCHECK/SINGLE | "Kerrow" -> ["Merrow"] | Possibly misspelled word.
-5 | SPELLCHECK/SINGLE | "Bellhaven" -> ["Belhaven"] | Possibly misspelled word.
+4 | SPELLCHECK/SINGLE | "Kerrow" -> ["Merrow", "Kerr ow"] | Possibly misspelled word.
+5 | SPELLCHECK/SINGLE | "Bellhaven" -> ["Belhaven", "Bell haven"] | Possibly misspelled word.
 13 | SPELLCHECK/SINGLE | "recieve" -> ["receive", "relieve"] | Possibly misspelled word.
 17 | SPELLCHECK/SINGLE | "untill" -> ["until"] | Possibly misspelled word.
 21 | PUNCTUATION/COMMA_COMPOUND_SENTENCE_2/3 | " and" -> [", and"] | Use a comma before "and" if it connects two independent clauses (unless they are closely connected and short).

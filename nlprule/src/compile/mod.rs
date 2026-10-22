@@ -14,7 +14,7 @@ use std::{
 
 use crate::{
     rules::Rules,
-    spell::{multitoken::MultitokenSpeller, Spell},
+    spell::{multitoken::MultitokenSpeller, split::SplitFilter, Spell},
     tokenizer::{chunk::Chunker, multiword::MultiwordTagger, tag::Tagger, Tokenizer},
     types::DefaultHasher,
 };
@@ -270,6 +270,7 @@ pub fn compile(
         if paths.spell_multitoken_path.exists() {
             spell.multitoken = MultitokenSpeller::from_file(&paths.spell_multitoken_path)?;
         }
+        spell.split_filter = SplitFilter::new(builtin::read_list(build_dir, "speller_split_filter"));
         spell
     } else {
         info!(

@@ -85,6 +85,12 @@ cp -r build/builtin-data/en/. data/en/builtin/
   described at the top of the file. The rule's synonym list is LanguageTool's
   `en/synonyms.txt`, which `build/make_build_dir.py` copies unchanged into
   `<build_dir>/builtin/synonyms.txt`.
+- `speller_split_filter.txt` — split suggestions ("a lot" for "alot") the English
+  speller drops, taken from LanguageTool's `AbstractEnglishSpellerRule`: its
+  `CONTAINS_TOKEN` pattern (a split ending in a stray letter, "timezone s") and the
+  first and last words of `cleanSuggestions` ("re view", "use full"). One entry per
+  line, `first-ignore-case <word>`, `first <word>` or `last <word>`. The last
+  entry, `mis`, is backported from LanguageTool after 6.6 (commit 7658fa83).
 - `adverb_adjective.txt` — adverb -> adjective pairs used by the English
   `AdverbFilter` rule filter (`org.languagetool.rules.en.AdverbFilter`), copied
   from that class's table. Tab separated `adverb<TAB>adjective`; loaded at

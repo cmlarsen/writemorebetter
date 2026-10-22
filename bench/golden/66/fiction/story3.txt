@@ -2,7 +2,7 @@
 19 | SPELLCHECK/SINGLE | "buisness" -> ["business"] | Possibly misspelled word.
 24 | SPELLCHECK/SINGLE | "freind" -> ["friend", "brand", "Frank", "grand", "fraud", "Franz", "franc", "Fran", "frank", "Frans"] | Possibly misspelled word.
 25 | SPELLCHECK/SINGLE | "goverment" -> ["government"] | Possibly misspelled word.
-28 | SPELLCHECK/SINGLE | "happend" -> ["happened", "happen", "happens", "append", "happed"] | Possibly misspelled word.
+28 | SPELLCHECK/SINGLE | "happend" -> ["happened", "happen", "happens", "append", "happed", "hap pend"] | Possibly misspelled word.
 32 | SPELLCHECK/SINGLE | "immediatly" -> ["immediately"] | Possibly misspelled word.
 38 | BUILTIN/COMMA_PARENTHESIS_WHITESPACE | " ," -> [","] | Put a space after the comma, but not before the comma.
 41 | GRAMMAR/DT_PRP/0 | "The we" -> ["The", "We"] | Possible typo. Did you mean The or we?

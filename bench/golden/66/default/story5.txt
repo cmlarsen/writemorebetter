@@ -1,11 +1,11 @@
-4 | SPELLCHECK/SINGLE | "Ashgrove" -> ["Shrove"] | Possibly misspelled word.
+4 | SPELLCHECK/SINGLE | "Ashgrove" -> ["Ash grove"] | Possibly misspelled word.
 5 | SPELLCHECK/SINGLE | "enviroment" -> ["environment"] | Possibly misspelled word.
 13 | PUNCTUATION/MISSING_COMMA_AFTER_INTRODUCTORY_PHRASE/0 | "course" -> ["course,"] | A comma is probably missing here.
-22 | SPELLCHECK/SINGLE | "diffrent" -> ["different"] | Possibly misspelled word.
+22 | SPELLCHECK/SINGLE | "diffrent" -> ["different", "diff rent"] | Possibly misspelled word.
 28 | SPELLCHECK/SINGLE | "foriegn" -> ["foreign"] | Possibly misspelled word.
 35 | SPELLCHECK/SINGLE | "gratefull" -> ["grateful", "gratefully"] | Possibly misspelled word.
 36 | SPELLCHECK/SINGLE | "hieght" -> ["height", "Haifa", "Haigh"] | Possibly misspelled word.
-39 | SPELLCHECK/SINGLE | "independant" -> ["independent", "Independent"] | Possibly misspelled word.
+39 | SPELLCHECK/SINGLE | "independant" -> ["independent", "Independent", "in dependant"] | Possibly misspelled word.
 42 | TYPOS/A_WAS/0 | "was" -> ["way"] | Did you mean way?
 45 | GRAMMAR/EACH_OF_NNS_VBP/0 | "are" -> ["is"] | You should probably use is.
 47 | PUNCTUATION/COMMA_COMPOUND_SENTENCE/0 | " and" -> [", and"] | Use a comma before 'and' if it connects two independent clauses (unless they are closely connected and short).

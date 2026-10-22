@@ -180,6 +180,12 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   `SpellOptions::max_distance` now defaults to 3; set it to 2 for the old behaviour. Suggestions
   are now cached per word (emptied when the options or the user dictionary change), so a
   repeated name costs one search (#182).
+- **Run-together words get split suggestions.** As in LanguageTool, a misspelling that is two
+  dictionary words run together gets the split after the other candidates ("Aduke" gets Duke,
+  A duke; "Rhysand" gets Rhys and; "oilpainting" gets oil painting). Splits into a prefix,
+  suffix or stray letter ("re view", "use full") are dropped using LanguageTool's English list,
+  now a builtin data file (`speller_split_filter.txt`, LGPL) compiled into `en_rules.bin`.
+  Probe top-1 agreement 94.2% → 99.4% (#183).
 
 ### Removed
 

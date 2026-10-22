@@ -22,8 +22,10 @@ use crate::{
 pub(crate) mod levenshtein;
 pub(crate) mod multitoken;
 pub(crate) mod replacements;
+pub(crate) mod split;
 use multitoken::MultitokenSpeller;
 use replacements::ReplacementPairs;
+use split::SplitFilter;
 mod spell_int {
     use std::cmp;
 
@@ -214,6 +216,8 @@ pub(crate) struct VariantInfo {
     pub replacement_pairs: ReplacementPairs,
     /// `fsa.dict.speller.ignore-diacritics`: an accent difference (`e`/`é`) costs no edit.
     pub ignore_diacritics: bool,
+    /// `fsa.dict.speller.runon-words`: suggest splits of two words run together (`a lot`).
+    pub run_on_words: bool,
 }
 
 impl Default for VariantInfo {
@@ -222,6 +226,7 @@ impl Default for VariantInfo {
         VariantInfo {
             replacement_pairs: ReplacementPairs::default(),
             ignore_diacritics: true,
+            run_on_words: true,
         }
     }
 }
@@ -486,6 +491,7 @@ pub(crate) struct VariantChecker {
     options: SpellOptions,
     user: UserMatcher,
     info: VariantInfo,
+    split_filter: SplitFilter,
     cache: SearchCache,
 }
 
@@ -740,6 +746,14 @@ impl VariantChecker {
             })
         };
         search(&mut out, 1);
+        // Morfologik lists the word's splits (`alot` -> `a lot`) after each speller's
+        // candidates. They count as found, so a word with a split gets no distance-2 search.
+        if self.info.run_on_words {
+            let splits = split::run_ons(word, |part| self.lookup(fst, part).is_some());
+            for split in splits {
+                self.push(&mut out, split, &restore_case, usize::MAX, 1, 0, true);
+            }
+        }
         if !first_tier_only(&out) {
             search(&mut out, 2);
             // LanguageTool retries at distance 3 when nothing is closer, for words of at least
@@ -755,6 +769,7 @@ impl VariantChecker {
             .into_iter()
             .take_while(|x| !first_tier_only || x.tier <= 1)
             .map(|x| x.term)
+            .filter(|term| self.split_filter.keeps(term))
             .collect()
     }
 
@@ -835,6 +850,8 @@ pub struct Spell {
     pub(crate) multitoken: MultitokenSpeller,
     /// Per-variant dictionary settings, parallel to [SpellLangOptions::variants].
     pub(crate) variant_info: Vec<VariantInfo>,
+    /// The split suggestions this language drops.
+    pub(crate) split_filter: SplitFilter,
     /// The structure containing the actual spellchecking logic. Computed based on the selected variant.
     #[serde(skip)]
     pub(crate) variant_checker: Option<VariantChecker>,
@@ -946,6 +963,7 @@ impl Spell {
                     .get(variant_index)
                     .cloned()
                     .unwrap_or_default(),
+                split_filter: self.split_filter.clone(),
                 cache: SearchCache::default(),
             },
         };
