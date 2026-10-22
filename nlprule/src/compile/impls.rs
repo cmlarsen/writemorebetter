@@ -2633,6 +2633,22 @@ mod tests {
     <pattern><token>it’s…</token></pattern>
     <disambig><wd pos=\"NN\">it’s\u{2028}—</wd></disambig>
   </rule>
+  <rule id=\"DEFAULT_WD_SAME_TEXT\" name=\"d\">
+    <pattern case_sensitive=\"yes\"><token>it’s…</token></pattern>
+    <disambig><wd pos=\"NN\">it’s…</wd></disambig>
+  </rule>
+  <rule id=\"DEFAULT_WD_SAME_TEXT_CASELESS\" name=\"d\">
+    <pattern><token>it’s…</token></pattern>
+    <disambig><wd pos=\"NN\">it’s…</wd></disambig>
+  </rule>
+  <rule id=\"REPLACE_WD_COUNT\" name=\"d\">
+    <pattern><marker><token>“a</token><token>b’s</token></marker></pattern>
+    <disambig action=\"replace\"><wd pos=\"NN\"/></disambig>
+  </rule>
+  <rule id=\"REPLACE_WD_PER_TOKEN\" name=\"d\">
+    <pattern><marker><token>“a</token><token>b’s</token></marker><token>—</token></pattern>
+    <disambig action=\"replace\"><wd pos=\"DT\"/><wd lemma=\"b\" pos=\"NN\"/></disambig>
+  </rule>
   <rule id=\"DEFAULT_POSTAG\" name=\"d\">
     <pattern><token>“dog</token></pattern>
     <disambig postag=\"NN\"/>
@@ -2689,7 +2705,7 @@ mod tests {
                 })
                 .collect();
         std::fs::remove_file(&path).unwrap();
-        assert_eq!(compiled.len(), 9);
+        assert_eq!(compiled.len(), 13);
 
         let readings = |id: &str| -> Vec<(String, String)> {
             match &compiled[id] {
@@ -2713,7 +2729,29 @@ mod tests {
         // `<wd>` without a lemma takes its text, or else the token text at runtime.
         assert_eq!(readings("DEFAULT_WD"), pair("dog", "NN"));
         assert_eq!(readings("DEFAULT_WD_OVER_POSTAG"), pair("", "NN"));
-        assert_eq!(readings("DEFAULT_WD_TEXT"), pair("it’s\u{2028}—", "NN"));
+        // LT also makes a `<wd>`'s text the token's surface text. We cannot, so the text is
+        // only accepted where the token must already read exactly that.
+        assert!(matches!(
+            compiled["DEFAULT_WD_TEXT"],
+            Err(Error::Unimplemented(_))
+        ));
+        assert_eq!(readings("DEFAULT_WD_SAME_TEXT"), pair("it’s…", "NN"));
+        assert!(matches!(
+            compiled["DEFAULT_WD_SAME_TEXT_CASELESS"],
+            Err(Error::Unimplemented(_))
+        ));
+        // LT refuses `replace` when the `<wd>` count differs from the matched-token count.
+        assert!(matches!(
+            compiled["REPLACE_WD_COUNT"],
+            Err(Error::Unimplemented(_))
+        ));
+        assert_eq!(
+            readings("REPLACE_WD_PER_TOKEN"),
+            vec![
+                (String::new(), "DT".to_string()),
+                ("b".to_string(), "NN".to_string())
+            ]
+        );
         assert!(matches!(
             compiled["DEFAULT_POSTAG"],
             Ok(Disambiguation::Filter(ref filters, _))
