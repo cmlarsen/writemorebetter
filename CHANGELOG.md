@@ -70,6 +70,12 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   result `She said 'goin'.` now splits like LanguageTool (`'` `goin` `'`). Curly-quoted names
   and multi-word quotations ending in a name still behave like LanguageTool 6.6
   (part of [#203](https://github.com/cmlarsen/writemorebetter/issues/203)).
+- **`EN_UNPAIRED_QUOTES` reads clipped words as apostrophes.** In `‘Will o’ the wisp,’ she said.`
+  or `‘He was jus’ there—tho’ he left…’` the mark of `o’`, `jus’` or `tho’` closed the opening
+  quote, so the real closing quote was flagged. As in LanguageTool 6.6, a mark the disambiguator
+  tags `_apostrophe_contraction_`, `POS` or `NNP` now counts as an apostrophe. Plural possessives
+  inside single quotes are unchanged and still match 6.6
+  (part of [#187](https://github.com/cmlarsen/writemorebetter/issues/187)).
 
 # 0.12.0 (2026-10-22)
 
