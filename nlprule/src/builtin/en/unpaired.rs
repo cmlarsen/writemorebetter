@@ -28,6 +28,13 @@ const START_QUOTES: [char; 4] = ['\u{201c}', '"', '\'', '\u{2018}'];
 /// Closing counterparts of [`START_QUOTES`], in the same order.
 const END_QUOTES: [char; 4] = ['\u{201d}', '"', '\'', '\u{2019}'];
 
+/// Part-of-speech tags that mark a quote token as an apostrophe. The
+/// disambiguator adds `_apostrophe_contraction_` to the mark of a clipped word
+/// such as `o’`, `jus’` or `tho’`, and `POS` to a possessive mark such as the one
+/// in `Texas’ cities`. LanguageTool's English rule never treats a mark carrying
+/// one of these tags as a quotation mark.
+const APOSTROPHE_TAGS: [&str; 3] = ["_apostrophe_contraction_", "POS", "NNP"];
+
 /// One character of a paragraph with its exact position and the sentence it came
 /// from. Working per character (rather than per token) makes symbols that the
 /// tokenizer attached to a word, such as the `[` of `[eBook` or the `)` of `_)`,
@@ -40,6 +47,9 @@ struct Piece<'s> {
     /// Whether this is the trailing apostrophe of a word token the tokenizer kept
     /// whole, such as `doin’`. LanguageTool sees such a token as a word, not a quote.
     word_tail: bool,
+    /// Whether this is a quote token the disambiguator tagged as an apostrophe
+    /// (see [`APOSTROPHE_TAGS`]).
+    apostrophe_tag: bool,
 }
 
 /// Flattens all characters of a paragraph into one list so that a character's
@@ -60,6 +70,12 @@ fn flatten<'s>(sentences: &'s [Sentence<'_>]) -> Vec<Piece<'s>> {
             let text = &sentence_text[token.span().byte().start - sentence_start
                 ..token.span().byte().end - sentence_start];
             let start = token.span().start();
+            let apostrophe_tag = text.chars().count() == 1
+                && token
+                    .word()
+                    .tags()
+                    .iter()
+                    .any(|reading| APOSTROPHE_TAGS.contains(&reading.pos().as_str()));
             let tail_byte = text
                 .char_indices()
                 .last()
@@ -80,6 +96,7 @@ fn flatten<'s>(sentences: &'s [Sentence<'_>]) -> Vec<Piece<'s>> {
                     },
                     sentence,
                     word_tail: tail_byte == Some(byte_offset),
+                    apostrophe_tag,
                 });
                 char_offset += 1;
             }
@@ -395,14 +412,16 @@ impl UnpairedQuotes {
 
 /// A quote character directly followed by a word is an apostrophe (or an
 /// elision) rather than an opening mark: `don’t`, `Marta’s`, `’90s`, `’tis`.
-/// The left single quotation mark is always an opening mark, following fiction
-/// convention.
+/// So is a mark the disambiguator tagged as an apostrophe, such as the one in
+/// `will o’ the wisp`. The left single quotation mark is always an opening
+/// mark, following fiction convention.
 fn is_apostrophe_beginning(pieces: &[Piece], k: usize) -> bool {
     let sym = first_char(pieces[k].text);
     if !matches!(sym, '\'' | '\u{2019}') {
         return false;
     }
-    k + 1 < pieces.len() && adjacent_next(pieces, k) && is_word(pieces[k + 1].text)
+    pieces[k].apostrophe_tag
+        || (k + 1 < pieces.len() && adjacent_next(pieces, k) && is_word(pieces[k + 1].text))
 }
 
 /// A quote character directly preceded by a word is a trailing apostrophe:

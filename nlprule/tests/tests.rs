@@ -2427,6 +2427,57 @@ fn builtin_unpaired_quotes_ignores_contraction_apostrophe() {
 }
 
 #[test]
+fn builtin_unpaired_quotes_ignores_clipped_word_apostrophe() {
+    // The mark after `o`, `jus`, `tho`, `ya` or `an` is tagged
+    // `_apostrophe_contraction_`, so it does not close the opening quote
+    // (LanguageTool 6.6 flags none of these).
+    assert!(
+        builtin_unpaired_flags("\u{2018}Will o\u{2019} the wisp,\u{2019} she said.").is_empty()
+    );
+    assert!(builtin_unpaired_flags("'Will o' the wisp,' she said.").is_empty());
+    assert!(builtin_unpaired_flags(
+        "\u{2018}He was jus\u{2019} there\u{2014}tho\u{2019} he left\u{2026}\u{2019} she said."
+    )
+    .is_empty());
+    assert!(builtin_unpaired_flags(
+        "\u{2018}A cat o\u{2019} nine tails\u{2026}\u{2019} she said.\u{2028}\
+         \u{2018}Ya\u{2019} know\u{2014}an\u{2019} then?\u{2019}"
+    )
+    .is_empty());
+    assert!(
+        builtin_unpaired_flags("\u{201c}Will o\u{2019} the wisp,\u{201d} she said.").is_empty()
+    );
+}
+
+#[test]
+fn builtin_unpaired_quotes_flags_stray_closing_beside_clipped_word() {
+    assert_eq!(
+        builtin_unpaired_flags(
+            "\u{2018}Hello,\u{2019} she said.\u{2019} \u{2018}Will o\u{2019} the wisp,\u{2019} he said."
+        ),
+        vec![quote_flag("\u{2019}")]
+    );
+    assert_eq!(
+        builtin_unpaired_flags("'Will o' the wisp,' she said.'"),
+        vec![quote_flag("'")]
+    );
+}
+
+#[test]
+fn builtin_unpaired_quotes_plural_possessive_closes_like_6_6() {
+    // Inside `‘…’` the disambiguator does not tag the mark after a plural as a
+    // possessive (a quotation-mark antipattern blocks it), so like LanguageTool
+    // 6.6 the rule reads it as the closing quote and flags the later one.
+    assert_eq!(
+        builtin_unpaired_flags("\u{2018}The students\u{2019} books are here,\u{2019} she said."),
+        vec![quote_flag("\u{2019}")]
+    );
+    assert!(
+        builtin_unpaired_flags("\u{2018}The students\u{2019} books are here, she said.").is_empty()
+    );
+}
+
+#[test]
 fn builtin_unpaired_quotes_span_points_into_the_original_text() {
     // The tokenizer normalizes both curly marks to `'`, so the reported span
     // must still address the original characters.
