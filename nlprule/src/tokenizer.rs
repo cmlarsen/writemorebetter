@@ -59,24 +59,58 @@ pub(crate) fn is_apostrophe(c: char) -> bool {
     c == '\'' || c == '\u{2019}'
 }
 
-/// Whether an apostrophe after `word` (a slice of `text`) can close a quote
-/// opened before it: one that ends a word, so follows a non-space and precedes
-/// no letter or digit. An apostrophe after `in` is skipped, since it may be
-/// another dropped g (`'Corin' was goin' home.`).
+/// Aphetic words written with a leading apostrophe. Inside a quotation they
+/// look like an opening quote but do not start a new one (`'Comin' for 'em,'`).
+const APHETIC_WORDS: &[&str] = &[
+    "bout", "cause", "cept", "em", "fore", "n", "nuff", "round", "til", "tis", "twas", "twere",
+    "twill", "twould",
+];
+
+/// Whether a straight quote opened just before `word` (a slice of `text`) is
+/// closed by a later apostrophe in `text` rather than by `word`'s own.
+///
+/// Scanning forward, a closer is an apostrophe that ends a word: it follows a
+/// non-space and precedes no letter or digit. Skipped as closers are an
+/// apostrophe after `in`, which may be another dropped g (`'Corin' was goin'
+/// home.`), and an `s'` before a lowercase word, a plural possessive (`the
+/// boys' mother`). A straight quote that opens a word other than an aphetic one
+/// (`'em`, `'cause`) starts a new quotation, so the one before `word` must
+/// already have closed with `word`'s own apostrophe (`'Corin' said 'hi'.`).
 fn closing_quote_follows(text: &str, word: &str) -> bool {
     let end = (word.as_ptr() as usize)
         .checked_sub(text.as_ptr() as usize)
         .expect("The word is a slice of the text.")
         + word.len();
+    let rest = &text[end..];
     let mut prev = ['\0', word.chars().last().unwrap_or(' ')];
-    let mut chars = text[end..].chars().peekable();
-    while let Some(c) = chars.next() {
-        if is_apostrophe(c)
-            && !prev[1].is_whitespace()
-            && !(prev[0].eq_ignore_ascii_case(&'i') && prev[1].eq_ignore_ascii_case(&'n'))
-            && chars.peek().is_none_or(|next| !next.is_alphanumeric())
-        {
-            return true;
+    for (i, c) in rest.char_indices() {
+        let after = &rest[i + c.len_utf8()..];
+        let next = after.chars().next();
+        if is_apostrophe(c) {
+            let next_is_alnum = next.is_some_and(char::is_alphanumeric);
+            if !prev[1].is_alphanumeric() && next_is_alnum {
+                if c == '\'' {
+                    let opened: String = after
+                        .chars()
+                        .take_while(|c| c.is_alphanumeric())
+                        .flat_map(char::to_lowercase)
+                        .collect();
+                    if !APHETIC_WORDS.contains(&opened.as_str()) {
+                        return false;
+                    }
+                }
+            } else if !prev[1].is_whitespace() && !next_is_alnum {
+                let after_in =
+                    prev[0].eq_ignore_ascii_case(&'i') && prev[1].eq_ignore_ascii_case(&'n');
+                let possessive = prev[1].eq_ignore_ascii_case(&'s') && {
+                    let mut following = after.chars().skip_while(|c| c.is_whitespace());
+                    next.is_some_and(char::is_whitespace)
+                        && following.next().is_some_and(char::is_lowercase)
+                };
+                if !after_in && !possessive {
+                    return true;
+                }
+            }
         }
         prev = [prev[1], c];
     }

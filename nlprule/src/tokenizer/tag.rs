@@ -166,7 +166,9 @@ pub(crate) struct TaggerLangOptions {
     /// Whether to tag an unknown word ending in `in'` as its `-ing` form (`doin'` as `doing`),
     /// as LanguageTool 6.6's English tagger does. Unlike LanguageTool, the fallback is skipped
     /// when the word without its apostrophe is known (`sin'`, `robin'`), so a closing single
-    /// quote after such a word stays a token of its own.
+    /// quote after such a word stays a token of its own. It is also skipped (issue #203) when no
+    /// vowel precedes the `in`, since only the unstressed `-ing` suffix drops its g: LanguageTool
+    /// tags `Rin'` as `ring`, this leaves it untagged.
     #[serde(default)]
     pub tag_g_dropped_ing: bool,
     /// Used part-of-speech tags which are not in the tagger dictionary.

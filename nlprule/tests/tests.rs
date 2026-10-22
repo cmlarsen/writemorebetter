@@ -5095,6 +5095,24 @@ fn quoted_name_ending_in_in_is_not_a_g_dropped_word() {
         token_texts("I met Rin' and Strin' there."),
         vec!["I", "met", "Rin", "'", "and", "Strin", "'", "there", "."]
     );
+    // A later quotation or a plural possessive does not close the first quote.
+    for text in [
+        "His name was 'Corin' and hers was 'Mary'.",
+        "'Corin' said 'hi'.",
+        "Call him 'Corin', not 'Rob'.",
+        "They said 'Corin' to the boys' mother.",
+        "'Corin'\u{2014}'Rin'\u{2026}",
+    ] {
+        let tokens = token_texts(text);
+        assert!(
+            tokens.iter().any(|t| t == "Corin") && !tokens.iter().any(|t| t == "Corin'"),
+            "{text}: {tokens:?}"
+        );
+    }
+    assert_eq!(
+        spelling_errors("His name was 'Corin' and hers was 'Mary'."),
+        vec!["Corin"]
+    );
     assert!(tags_of("His name was 'Corin'.", "Corin")
         .iter()
         .all(|(lemma, pos)| lemma == "Corin" && (pos.is_empty() || pos == "UNKNOWN")));
@@ -5128,6 +5146,16 @@ fn g_dropped_words_with_a_vowel_before_in_are_still_tagged() {
     assert!(has_lemma("Thanks, darlin'.", "darlin'", "darling"));
     assert!(has_lemma("'Doin' fine,' he said.", "Doin'", "do"));
     assert!(has_lemma("He was flyin' high.", "flyin'", "fly"));
+    // An aphetic word inside the quotation does not open a new one.
+    assert!(has_lemma("'Comin' for 'em,' he said.", "Comin'", "come"));
+    assert!(has_lemma("'Doin' it 'cause I can.'", "Doin'", "do"));
+    // A closing quote is found past U+2028 and a no-break space.
+    assert!(has_lemma(
+        "'Mornin'\u{2028}to you,' she said.",
+        "Mornin'",
+        "morning"
+    ));
+    assert!(has_lemma("'Lyin'\u{a0}again!'", "Lyin'", "lie"));
 }
 
 #[test]
