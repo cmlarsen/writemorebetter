@@ -553,7 +553,7 @@ impl Tagger {
     /// - Adds tags for the title-case variant of an all-uppercase word if nothing else matched
     ///   (unless `add_lower` is `AddLower::Never`).
     /// - Tags an untagged word ending in `in'` as its `-ing` form if `tag_g_dropped_ing` is set
-    ///   (unless `add_lower` is `AddLower::Never`).
+    ///   and a vowel precedes the `in` (unless `add_lower` is `AddLower::Never`).
     fn get_strict_tags(&self, word: &str, add_lower: AddLower) -> StrictTagIter {
         let tag_iter = self.get_raw(&word);
         let lower_tag_iter = if (matches!(add_lower, AddLower::Always)
@@ -609,7 +609,10 @@ impl Tagger {
     fn get_g_dropped_tags(&self, word: &str) -> Option<StrictTagIter<'_>> {
         let stem = word.strip_suffix('\'')?;
         let lower_stem = stem.to_lowercase();
-        if !lower_stem.ends_with("in") {
+        // Only the unstressed `-ing` suffix drops its g, so the part before `in`
+        // needs a vowel: `Rin'` is not `ring`, nor `Strin'` `string`.
+        let onset = lower_stem.strip_suffix("in")?;
+        if !onset.chars().any(|c| "aeiouy".contains(c)) {
             return None;
         }
 

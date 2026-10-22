@@ -5062,10 +5062,72 @@ fn g_dropped_word_after_an_opening_straight_quote_stays_whole() {
             "'", "Cause", "\u{2019}", "T", "was", "cold", ".",
         ]
     );
+    // With no later apostrophe to close the quote, the word's own closes it.
     assert_eq!(
         token_texts("She said 'goin'."),
-        vec!["She", "said", "'", "goin'", "."]
+        vec!["She", "said", "'", "goin", "'", "."]
     );
+}
+
+#[test]
+fn quoted_name_ending_in_in_is_not_a_g_dropped_word() {
+    assert_eq!(
+        token_texts("His name was 'Corin'. Call him 'Rin'."),
+        vec!["His", "name", "was", "'", "Corin", "'", ".", "Call", "him", "'", "Rin", "'", ".",]
+    );
+    assert_eq!(
+        token_texts(
+            "\u{201c}His name was 'Corin'\u{2014}or \u{2018}Rin\u{2019}\u{2026}\u{201d}\u{2028}"
+        ),
+        vec![
+            "\u{201c}", "His", "name", "was", "'", "Corin", "'", "\u{2014}", "or", "\u{2018}",
+            "Rin", "\u{2019}", "\u{2026}", "\u{201d}",
+        ]
+    );
+    assert_eq!(
+        token_texts("'Corin' was goin' home. 'Corin' and 'Darin' came."),
+        vec![
+            "'", "Corin", "'", "was", "goin'", "home", ".", "'", "Corin", "'", "and", "'", "Darin",
+            "'", "came", ".",
+        ]
+    );
+    assert_eq!(
+        token_texts("I met Rin' and Strin' there."),
+        vec!["I", "met", "Rin", "'", "and", "Strin", "'", "there", "."]
+    );
+    assert!(tags_of("His name was 'Corin'.", "Corin")
+        .iter()
+        .all(|(lemma, pos)| lemma == "Corin" && (pos.is_empty() || pos == "UNKNOWN")));
+    assert!(tags_of("Call him \u{2018}Rin\u{2019}.", "Rin")
+        .iter()
+        .all(|(lemma, pos)| lemma == "Rin" && (pos.is_empty() || pos == "UNKNOWN")));
+    assert_eq!(
+        spelling_errors("His name was 'Corin'. Call him \u{2018}Rin\u{2019}."),
+        vec!["Corin", "Rin"]
+    );
+}
+
+#[test]
+fn g_dropped_words_with_a_vowel_before_in_are_still_tagged() {
+    let has_lemma = |text: &str, word: &str, lemma: &str| {
+        tags_of(text, word)
+            .iter()
+            .any(|(l, pos)| l == lemma && !pos.is_empty())
+    };
+    assert!(has_lemma("'Mornin',' she said.", "Mornin'", "morning"));
+    assert!(has_lemma(
+        "\u{2018}Evenin\u{2019}\u{2014}\u{2019}",
+        "Evenin'",
+        "evening"
+    ));
+    assert!(has_lemma(
+        "Somethin' or nothin'\u{2026}\u{2028}",
+        "nothin'",
+        "nothing"
+    ));
+    assert!(has_lemma("Thanks, darlin'.", "darlin'", "darling"));
+    assert!(has_lemma("'Doin' fine,' he said.", "Doin'", "do"));
+    assert!(has_lemma("He was flyin' high.", "flyin'", "fly"));
 }
 
 #[test]
