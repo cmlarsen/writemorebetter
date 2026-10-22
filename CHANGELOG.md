@@ -165,6 +165,10 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   Morfologik does, treats each pair (`ei`/`a`, `ey`/`a`, `ph`/`f`, `kw`/`qu`, `uff`/`ough`, …) as a
   free edit: "Feyre" gets Fare, Care, Face; "fone" gets phone; "enuff" gets enough. Top-1
   agreement with LanguageTool 6.6 on a 308-word probe rose from 80.8% to 86.7% (#194).
+- **Suggestions may change the first two letters twice.** `SpellOptions::prefix_length` now
+  defaults to 0, no limit, as in LanguageTool: "Tyerman" gets German, "Davenant" gets Covenant,
+  "IPHONE" gets PRONE. The distance-2 search now runs only when distance 1 finds nothing, which
+  pays for most of the wider search (#195).
 
 ### Removed
 

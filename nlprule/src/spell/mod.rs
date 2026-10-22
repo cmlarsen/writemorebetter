@@ -136,7 +136,9 @@ pub struct SpellOptions {
     pub variant: Option<Variant>,
     /// The maximum edit distance to consider for corrections. Currently Optimal String Alignment distance is used.
     pub max_distance: usize,
-    /// A fixed prefix length for which to consider only edits with a distance of 1. This speeds up the search by pruning the tree early.
+    /// A fixed prefix length for which to consider only edits with a distance of 1. This speeds
+    /// up the search by pruning the tree early, but misses candidates with two edits at the start
+    /// (`IPHONE` -> `prone`). The default is 0, no limit, as in LanguageTool.
     pub prefix_length: usize,
     /// The maximum number of correction candidates to return. Candidates are ranked by edit
     /// distance, then by word frequency, and only those at the smallest distance found are kept,
@@ -204,7 +206,7 @@ impl Default for SpellOptions {
         SpellOptions {
             variant: None,
             max_distance: 2,
-            prefix_length: 2,
+            prefix_length: 0,
             top_n: 10,
             whitelist: DefaultHashSet::default(),
         }

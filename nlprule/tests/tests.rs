@@ -1236,6 +1236,56 @@ fn speller_applies_the_dictionarys_replacement_pairs() {
 }
 
 #[test]
+fn speller_finds_two_edits_at_the_start_of_a_word() {
+    // LanguageTool 6.6 (`We saw <word> there.`, en-US) has no prefix limit: `IPHONE` gets
+    // PRONE, HONE and SHONE (delete `I`, edit `P`/`H`), `Davenant` gets Covenant.
+    let speller = RULES.spell().speller().unwrap();
+    let iphone = speller.suggest("IPHONE", 10);
+    for expected in ["PRONE", "HONE", "SHONE"] {
+        assert!(iphone.contains(&expected.to_string()), "{:?}", iphone);
+    }
+    assert_eq!(speller.suggest("Davenant", 5), vec!["Covenant", "Revenant"]);
+    assert_eq!(
+        speller.suggest("Tyerman", 5),
+        vec!["German", "Thermal", "Sherman", "Herman", "Berman"]
+    );
+
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    rules.spell_mut().options_mut().variant = Some(rules.spell().variant("en_US").unwrap());
+    let text = "\u{201c}Tyerman\u{2019}s gone\u{2014}to Davenant\u{2026}\u{201d}\u{2028}\u{2018}Tyerman!\u{2019}";
+    let first_replacements = |rules: &Rules| -> Vec<(&str, String)> {
+        rules
+            .suggest(text, &*TOKENIZER)
+            .into_iter()
+            .filter(|x| x.source().starts_with("SPELLCHECK"))
+            .map(|x| {
+                let first = x.replacements().first().cloned().unwrap_or_default();
+                (&text[x.span().byte().clone()], first)
+            })
+            .collect()
+    };
+    assert_eq!(
+        first_replacements(&rules),
+        vec![
+            ("Tyerman", "German".to_string()),
+            ("Davenant", "Covenant".to_string()),
+            ("Tyerman", "German".to_string()),
+        ]
+    );
+
+    // The limit is still an option: with 2, only one edit may touch the first two letters.
+    rules.spell_mut().options_mut().prefix_length = 2;
+    assert_eq!(
+        first_replacements(&rules),
+        vec![
+            ("Tyerman", "Thermal".to_string()),
+            ("Davenant", String::new()),
+            ("Tyerman", "Thermal".to_string()),
+        ]
+    );
+}
+
+#[test]
 fn spelling_suggestions_keep_the_case_of_shouted_dialogue() {
     let mut rules = Rules::new(RULES_PATH).unwrap();
     rules.spell_mut().options_mut().variant = Some(rules.spell().variant("en_US").unwrap());
