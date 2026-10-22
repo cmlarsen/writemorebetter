@@ -14,6 +14,7 @@ use crate::{
 use fs_err::File;
 use serde::{Deserialize, Serialize};
 use std::{
+    cmp::Reverse,
     collections::HashMap,
     io::{BufReader, Read, Write},
     path::Path,
@@ -316,17 +317,29 @@ impl Rules {
             .into_iter()
             .partition(|(i, _)| self.rules[*i].repetition().is_some());
 
-        output.extend(spell_suggestions.into_iter().map(|x| (0, x)));
+        let mut output: Vec<_> = output.into_iter().map(|(i, x)| (Some(i), x)).collect();
+        output.extend(spell_suggestions.into_iter().map(|x| (None, x)));
         let (picky, builtin_suggestions): (Vec<_>, Vec<_>) = builtin_suggestions
             .into_iter()
             .partition(|x| crate::builtin::yields_to_overlaps(x.source()));
-        output.extend(builtin_suggestions.into_iter().map(|x| (0, x)));
+        output.extend(builtin_suggestions.into_iter().map(|x| (None, x)));
 
         SentenceMatches {
             output,
             repeated,
             picky,
         }
+    }
+
+    /// The index of the first rule in the run of rules that shares rule `i`'s group. A group's
+    /// rules are stored together, except that false friends repeat a group once per mother tongue.
+    fn group_start(&self, i: usize) -> usize {
+        let group = self.rules[i].id().parent();
+        i - self.rules[..i]
+            .iter()
+            .rev()
+            .take_while(|rule| rule.id().parent() == group)
+            .count()
     }
 
     fn resolve(
@@ -347,20 +360,23 @@ impl Rules {
                 .builtins
                 .check_sentence(&self.builtins, sentence, ends_text)
                 .into_iter()
-                .map(|x| (0, x)),
+                .map(|x| (None, x)),
         );
 
-        output.sort_by(|(ia, a), (ib, b)| {
-            a.span()
-                .char()
-                .start
-                .cmp(&b.span().char().start)
-                .then_with(|| ib.cmp(ia))
+        // At one start, a later rule group wins over an earlier one (the order nlprule has always
+        // used across groups), and within a group the earliest subrule wins, as LanguageTool's
+        // same-rule-group filter keeps it. Builtins and the speller come last.
+        output.sort_by_cached_key(|(i, suggestion)| {
+            (
+                suggestion.span().char().start,
+                Reverse(i.map(|i| self.group_start(i))),
+                *i,
+            )
         });
 
         let mut mask = vec![false; sentence.text().chars().count()];
         let has_picky = !picky.is_empty();
-        let picky = picky.into_iter().map(|x| (0, x));
+        let picky = picky.into_iter().map(|x| (None, x));
 
         let mut kept: Vec<Suggestion> = output
             .into_iter()
@@ -545,7 +561,8 @@ impl Rules {
 }
 
 struct SentenceMatches {
-    output: Vec<(usize, Suggestion)>,
+    /// Matches with the index of the rule that made them, `None` for builtins and the speller.
+    output: Vec<(Option<usize>, Suggestion)>,
     repeated: Vec<(usize, Suggestion)>,
     picky: Vec<Suggestion>,
 }
@@ -563,7 +580,7 @@ impl Repetitions {
         rules: &[Rule],
         sentence: &Sentence,
         mut repeated: Vec<(usize, Suggestion)>,
-        output: &mut Vec<(usize, Suggestion)>,
+        output: &mut Vec<(Option<usize>, Suggestion)>,
     ) {
         repeated.sort_by_key(|(i, suggestion)| (suggestion.span().char().start, *i));
 
@@ -596,7 +613,7 @@ impl Repetitions {
                     && position.saturating_sub(history[history.len() - repetition.min_prev_matches])
                         < repetition.distance_tokens
                 {
-                    output.push((i, suggestion));
+                    output.push((Some(i), suggestion));
                 }
 
                 history.push(position);

@@ -677,7 +677,7 @@
 1694 | SPELLCHECK/SINGLE | "flourishings" -> ["flourishing"] | Possibly misspelled word.
 1699 | SPELLCHECK/SINGLE | "Queequeg" -> [] | Possibly misspelled word.
 1703 | SPELLCHECK/SINGLE | "harpooneer" -> ["harpooner"] | Possibly misspelled word.
-1705 | GRAMMAR/A_NNS/1 | "a peddlin’ heads" -> ["a peddlin’ head"] | The plural noun "heads" cannot be used with the article "a". Did you mean a peddlin' head?
+1705 | GRAMMAR/A_NNS/0 | "a peddlin’ heads" -> ["a peddlin’ head"] | The plural noun "heads" cannot be used with the article "a". Did you mean a peddlin' head?
 1706 | SPELLCHECK/SINGLE | "Queequeg" -> [] | Possibly misspelled word.
 1707 | SPELLCHECK/SINGLE | "sabbee" -> ["Abbey", "abbey", "stabbed", "sable", "Sabine", "saber", "rabble", "tabbed", "Abbie", "Santee"] | Possibly misspelled word.
 1707 | SPELLCHECK/SINGLE | "sabbee" -> ["Abbey", "abbey", "stabbed", "sable", "Sabine", "saber", "rabble", "tabbed", "Abbie", "Santee"] | Possibly misspelled word.
@@ -769,7 +769,7 @@
 2145 | SPELLCHECK/SINGLE | "Mapple" -> ["Apple", "Maple", "Marple", "Dapple"] | Possibly misspelled word.
 2151 | SPELLCHECK/SINGLE | "Mapple" -> ["Apple", "Maple", "Marple", "Dapple"] | Possibly misspelled word.
 2161 | BUILTIN/EN_COMPOUNDS_OLD_FASHIONED | "old fashioned" -> ["old-fashioned"] | This word is normally spelled with a hyphen.
-2161 | GRAMMAR/A_NNS/4 | "a\r\nregular stairs" -> ["a regular stair", "regular stairs"] | The plural noun "stairs" cannot be used with the article "a".
+2161 | GRAMMAR/A_NNS/2 | "a\r\nregular stairs" -> ["a regular stair", "regular stairs"] | The plural noun "stairs" cannot be used with the article "a". Did you mean a regular stair or regular stairs?
 2164 | SPELLCHECK/SINGLE | "Mapple" -> ["Apple", "Maple", "Marple", "Dapple"] | Possibly misspelled word.
 2165 | GRAMMAR/A_NNS/2 | "a stairs" -> ["a stair", "stairs"] | The plural noun "stairs" cannot be used with the article "a". Did you mean a stair or stairs?
 2169 | SPELLCHECK/SINGLE | "colour" -> ["color"] | Possibly misspelled word.

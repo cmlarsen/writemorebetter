@@ -6,6 +6,16 @@ inherited 0.6.4 track this project's own release line. Each version is a top-lev
 `# <version>` heading; the Release workflow copies that section verbatim into the GitHub
 release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
+# Unreleased
+
+### Fixed
+
+- **The earliest subrule of a rule group wins a span, as in LanguageTool 6.6.** When two subrules
+  of one group matched at the same start, the later one was reported: "The break- up was
+  painful." got `EN_SPLIT_WORDS_HYPHEN/3` ("breakup") instead of subrule 0 ("break-up",
+  "break - up", "breakup"), and "It it" got `IT_IT/5` instead of `IT_IT/3` ("If it"). Rules of
+  different groups keep the old order ([#190](https://github.com/cmlarsen/writemorebetter/issues/190)).
+
 # 0.12.0 (2026-10-22)
 
 ### Added
