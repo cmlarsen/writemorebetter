@@ -176,10 +176,12 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   ("renée" gets Renée, then Renee). Probe top-1 agreement 88.0% → 91.9% (#219).
 - **Long words with nothing within two edits get distance-3 suggestions.** As in LanguageTool,
   a word of five or more letters with no candidate at distance 2 is searched again at distance
-  3: "Queequeg" gets Queue, "Thornfeild" Shortfall, "Yossarain" Constrain.
+  3: "Queequeg" gets Queue, "Thornfeild" Shortfall, "Havisham" Lavish, "Yossarain" Constrain.
   `SpellOptions::max_distance` now defaults to 3; set it to 2 for the old behaviour. Suggestions
   are now cached per word (emptied when the options or the user dictionary change), so a
-  repeated name costs one search (#182).
+  repeated name costs one search. With the defaults of #194, #195 and #182 together, the first
+  search for an invented name takes about 15 ms instead of about 3 ms; `prefix_length` 2 and
+  `max_distance` 2 bring it to about 5 ms (#182).
 - **Run-together words get split suggestions.** As in LanguageTool, a misspelling that is two
   dictionary words run together gets the split after the other candidates ("Aduke" gets Duke,
   A duke; "Rhysand" gets Rhys and; "oilpainting" gets oil painting). Splits into a prefix,

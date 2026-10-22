@@ -1292,6 +1292,9 @@ fn speller_applies_the_dictionarys_replacement_pairs() {
     ] {
         assert_eq!(speller.suggest(word, expected.len()), expected, "{}", word);
     }
+    // A pair's cell is not extended by deletions in its own column, as in Morfologik: `Kalth`
+    // does not get `Keith` (`a` for `ei`, then delete `l`).
+    assert_eq!(speller.suggest("Kalth", 10), ["Kath"]);
 
     let mut rules = Rules::new(RULES_PATH).unwrap();
     rules.spell_mut().options_mut().variant = Some(rules.spell().variant("en_US").unwrap());
@@ -1429,6 +1432,12 @@ fn speller_retries_at_distance_three_when_nothing_is_closer() {
             &["Queue", "Queues", "Queued", "Queening", "Queened"][..],
         ),
         ("Thornfeild", &["Shortfall", "Cornfield"][..]),
+        // Not `Heysham` at distance 2 (`a` for `ey`, then delete `vi`): Morfologik does not
+        // follow a pair with deletions in the same column.
+        (
+            "Havisham",
+            &["Lavish", "Lavishly", "Evesham", "Hamish", "Lewisham"][..],
+        ),
         (
             "Yossarain",
             &["Constrain", "Ossuaries", "Pessaries", "Hossain", "Rosmarie"][..],

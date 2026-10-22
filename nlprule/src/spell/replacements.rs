@@ -143,10 +143,10 @@ impl ReplacementPairs {
 mod tests {
     use super::*;
 
-    fn en_us() -> ReplacementPairs {
+    // Invented pairs in the `.info` format (not a dictionary's own list).
+    fn pairs() -> ReplacementPairs {
         ReplacementPairs::new(
-            "ninties 1990s, a ei, ei a, f ph, ph f, kw qu, are air, are ear, ier ear, uff ough, \
-             lite light, bo beau"
+            "x ks, ks x, v w, w v, j dg, ung ing, ung ang, ip ipe"
                 .split(", ")
                 .map(|pair| {
                     let (from, to) = pair.split_once(' ').unwrap();
@@ -157,51 +157,47 @@ mod tests {
 
     #[test]
     fn short_replacements_are_edits_and_long_ones_rewrites() {
-        let pairs = en_us();
+        let pairs = pairs();
         assert_eq!(pairs.edits.len(), 5);
         assert_eq!(
-            pairs.rewrites[1],
-            ("are".to_owned(), vec!["air".to_owned(), "ear".to_owned()])
+            pairs.rewrites[0],
+            ("ung".to_owned(), vec!["ing".to_owned(), "ang".to_owned()])
         );
     }
 
     #[test]
     fn edits_are_indexed_by_their_start() {
-        let query: Vec<char> = "fone".chars().collect();
-        let edits = en_us().edits_for(&query);
+        let query: Vec<char> = "jake".chars().collect();
+        let edits = pairs().edits_for(&query);
         assert_eq!(
             edits[0],
             vec![Edit {
                 start: 0,
                 end: 1,
-                to: ['p', 'h'],
+                to: ['d', 'g'],
                 to_len: 2,
                 shift: -1,
             }]
         );
         assert!(edits[1].is_empty());
         // Case-sensitive, as in Morfologik.
-        assert!(en_us().edits_for(&['F', 'o']).iter().all(Vec::is_empty));
+        assert!(pairs().edits_for(&['J', 'a']).iter().all(Vec::is_empty));
     }
 
     #[test]
     fn rewrites_keep_the_word_first_and_combine_replacements() {
-        let pairs = en_us();
-        assert_eq!(pairs.rewrites("enuff"), vec!["enuff", "enough"]);
-        assert_eq!(pairs.rewrites("lite"), vec!["lite", "light"]);
+        let pairs = pairs();
+        assert_eq!(pairs.rewrites("rip"), vec!["rip", "ripe"]);
+        assert_eq!(pairs.rewrites("sung"), vec!["sung", "sing", "sang"]);
         assert_eq!(
-            pairs.rewrites("Thier"),
-            vec!["Thier".to_owned(), "Thear".to_owned()]
-        );
-        assert_eq!(
-            pairs.rewrites("bare\u{2019}s lite"),
+            pairs.rewrites("sung\u{2019}s rip"),
             vec![
-                "bare\u{2019}s lite",
-                "bare\u{2019}s light",
-                "bair\u{2019}s lite",
-                "bair\u{2019}s light",
-                "bear\u{2019}s lite",
-                "bear\u{2019}s light",
+                "sung\u{2019}s rip",
+                "sung\u{2019}s ripe",
+                "sing\u{2019}s rip",
+                "sing\u{2019}s ripe",
+                "sang\u{2019}s rip",
+                "sang\u{2019}s ripe",
             ]
         );
         assert_eq!(pairs.rewrites("zzz"), vec!["zzz"]);

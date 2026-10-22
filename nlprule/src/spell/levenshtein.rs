@@ -211,7 +211,7 @@ impl Automaton for Levenshtein {
             // for the previous one and this one, at no cost. As in Morfologik, a pair applies
             // only where it starts at the position in the query that lines up with the key
             // (shifted by the pairs applied before it).
-            let mut step_edits = [(0usize, 0usize); MAX_STEP_EDITS];
+            let mut step_edits = [(0usize, 0usize, 0usize, 0usize); MAX_STEP_EDITS];
             let mut n_step_edits = 0;
             let mut shifts = state.shifts;
             if !self.edits.is_empty() {
@@ -243,7 +243,7 @@ impl Automaton for Levenshtein {
                                 .map_or(usize::MAX, |r| r[edit.start])
                         };
                         if n_step_edits < MAX_STEP_EDITS {
-                            step_edits[n_step_edits] = (edit.end, source);
+                            step_edits[n_step_edits] = (edit.start, edit.end, edit.to_len, source);
                             n_step_edits += 1;
                         }
                         let next = shift + edit.shift as i32 + SHIFT_BIAS;
@@ -280,13 +280,34 @@ impl Automaton for Levenshtein {
                     }
                 }
 
-                for &(end, source) in &step_edits[..n_step_edits] {
-                    if end == i {
-                        cost = min(cost, source);
+                next_row[i] = cost;
+            }
+
+            // The column a pair leaves behind, as Morfologik's `findRepl` builds it: the
+            // column before the replaced key characters, realigned to the query position after
+            // the pair, with the pair's cost on the new diagonal. The pair's cell is not
+            // extended by deletions in this column, so a pair is followed by further edits only
+            // from the next key character on, and its cost does not leak into cells that
+            // Morfologik keeps from the unreplaced path. At the end of a key, the query
+            // characters after the pair are deleted (`isEndOfCandidate`).
+            let mut dist = next_row[self.query.len()];
+            if n_step_edits > 0 {
+                let len = self.query.len();
+                for &(start, end, to_len, source) in &step_edits[..n_step_edits] {
+                    if source == usize::MAX {
+                        continue;
+                    }
+                    dist = min(dist, source + (len - end));
+                    // `to_len == 2`: the column before the previous key character is the
+                    // pair's cost; the realigned one is the column before this character.
+                    let back = end - start + 1 - to_len;
+                    let lo = end.saturating_sub(self.distance).max(back);
+                    let hi = min(end + self.distance, len);
+                    for (q, cell) in next_row.iter_mut().enumerate().take(hi + 1).skip(lo) {
+                        let value = if q == end { source } else { row[q - back] };
+                        *cell = min(*cell, value);
                     }
                 }
-
-                next_row[i] = cost;
             }
 
             let distance = if state.n >= self.prefix {
@@ -320,7 +341,7 @@ impl Automaton for Levenshtein {
             }
 
             Some(LevenshteinState {
-                dist: next_row[self.query.len()],
+                dist,
                 n: state.n + 1,
                 prev_row: Some(row.clone()),
                 prev_char: c,

@@ -135,7 +135,7 @@
 401 | SPELLCHECK/SINGLE | "breedeth" -> ["breadth", "breeder", "breeders"] | Possibly misspelled word.
 402 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: repeated spaces
 402 | SPELLCHECK/SINGLE | "Whirlpooles" -> ["Whirlpools"] | Possibly misspelled word.
-402 | SPELLCHECK/SINGLE | "Balaene" -> ["Balance", "Blaine", "Baleen", "Blane", "Baleens", "Alkene"] | Possibly misspelled word.
+402 | SPELLCHECK/SINGLE | "Balaene" -> ["Balance", "Blaine", "Baleen", "Blane", "Baleens", "Alleyne", "Alkene"] | Possibly misspelled word.
 403 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: repeated spaces
 403 | SPELLCHECK/SINGLE | "arpens" -> ["aspens"] | Possibly misspelled word.
 405 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: repeated spaces
@@ -439,7 +439,7 @@
 734 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: repeated spaces
 734 | BUILTIN/UPPERCASE_SENTENCE_START | "so" -> ["So"] | This sentence does not start with an uppercase letter.
 736 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: repeated spaces
-736 | SPELLCHECK/SINGLE | "Cruize" -> ["Cruise", "Crewe"] | Possibly misspelled word.
+736 | SPELLCHECK/SINGLE | "Cruize" -> ["Cruise"] | Possibly misspelled word.
 739 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: repeated spaces
 740 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: repeated spaces
 741 | BUILTIN/WHITESPACE_RULE | "  " -> [" "] | Possible typo: repeated spaces
@@ -562,7 +562,7 @@
 1171 | SPELLCHECK/SINGLE | "crosslights" -> ["cross lights"] | Possibly misspelled word.
 1177 | SPELLCHECK/SINGLE | "ponderings" -> ["pondering", "wonderings"] | Possibly misspelled word.
 1183 | SPELLCHECK/SINGLE | "centre" -> ["center", "Centrex", "CENTR", "centra"] | Possibly misspelled word.
-1185 | SPELLCHECK/SINGLE | "squitchy" -> ["squishy", "squelchy", "squinch", "smoochy"] | Possibly misspelled word.
+1185 | SPELLCHECK/SINGLE | "squitchy" -> ["squishy", "squelchy", "squinch"] | Possibly misspelled word.
 1189 | SPELLCHECK/SINGLE | "marvellous" -> ["marvelous"] | Possibly misspelled word.
 1196 | BUILTIN/UPPERCASE_SENTENCE_START | "even" -> ["Even"] | This sentence does not start with an uppercase letter.
 1203 | BUILTIN/EN_COMPOUNDS_SPRING_CLEAN | "spring clean" -> ["spring-clean"] | This word is normally spelled with a hyphen.
@@ -610,8 +610,8 @@
 1414 | SPELLCHECK/SINGLE | "harpooneer" -> ["harpooner"] | Possibly misspelled word.
 1419 | SPELLCHECK/SINGLE | "harpooneer" -> ["harpooner"] | Possibly misspelled word.
 1421 | GRAMMAR/KIND_OF_A/0 | "sort of a" -> ["sort of"] | If 'sort' is a classification term, 'a' is not necessary. Use sort of. (The phrases 'kind of' and 'sort of' are informal if they mean 'to some extent'.)
-1426 | SPELLCHECK/SINGLE | "airley" -> ["Earley", "early", "Early", "arena", "barley", "Harley", "Carla", "Earle", "Farley", "Marley"] | Possibly misspelled word.
-1426 | SPELLCHECK/SINGLE | "airley" -> ["Earley", "early", "Early", "arena", "barley", "Harley", "Carla", "Earle", "Farley", "Marley"] | Possibly misspelled word.
+1426 | SPELLCHECK/SINGLE | "airley" -> ["Earley", "early", "Early", "arena", "barley", "Harley", "airway", "Carla", "Earle", "Farley"] | Possibly misspelled word.
+1426 | SPELLCHECK/SINGLE | "airley" -> ["Earley", "early", "Early", "arena", "barley", "Harley", "airway", "Carla", "Earle", "Farley"] | Possibly misspelled word.
 1428 | SPELLCHECK/SINGLE | "airth" -> ["earth", "Earth", "birth", "Gareth", "Garth", "earthy", "girth", "hearth", "Aretha", "Barth"] | Possibly misspelled word.
 1431 | GRAMMAR/KIND_OF_A/0 | "sort of a" -> ["sort of"] | If 'sort' is a classification term, 'a' is not necessary. Use sort of. (The phrases 'kind of' and 'sort of' are informal if they mean 'to some extent'.)
 1431 | SPELLCHECK/SINGLE | "bamboozingly" -> ["bamboozling"] | Possibly misspelled word.

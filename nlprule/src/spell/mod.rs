@@ -759,12 +759,17 @@ impl VariantChecker {
                 self.push(&mut out, split, &restore_case, usize::MAX, 1, 0, true);
             }
         }
-        if !first_tier_only(&out) {
+        // A wider search only runs when `max_distance` allows it; otherwise it would repeat the
+        // narrower one.
+        if !first_tier_only(&out) && self.options.max_distance >= 2 {
             search(&mut out, 2);
             // LanguageTool retries at distance 3 when nothing is closer, for words of at least
             // five UTF-16 units (`MorfologikSpellerRule.calcSpellerSuggestions`).
             const MIN_DISTANCE_3_LEN: usize = 5;
-            if out.is_empty() && word.encode_utf16().count() >= MIN_DISTANCE_3_LEN {
+            if out.is_empty()
+                && self.options.max_distance >= 3
+                && word.encode_utf16().count() >= MIN_DISTANCE_3_LEN
+            {
                 search(&mut out, 3);
             }
         }
