@@ -120,6 +120,11 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   the readings a disambiguation rule rebuilds. A `scope="next"` exception that checks the first
   reading now sees it, so `TYPOS/A3FT` flags "It was a3ft!" as LanguageTool does
   ([#152](https://github.com/cmlarsen/writemorebetter/issues/152)).
+- **Inflected tokens match lemmas only.** `inflected="yes"` also matched the surface form through
+  the empty and SENT_END readings, so false friends such as pt RETIRED, VEGETABLES and
+  SPECTACLES, fr GRAPES, and grammar rules such as APART_A_PART fired where LanguageTool 6.6
+  doesn't. The SENT_END reading now takes the first reading's lemma, as in LanguageTool
+  ([#157](https://github.com/cmlarsen/writemorebetter/issues/157)).
 
 ### Removed
 
