@@ -59,6 +59,10 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   ([#233](https://github.com/cmlarsen/writemorebetter/issues/233)).
 - **The Release workflow checks `python/Cargo.toml`'s version** with the other crates, so a
   wheel's version always names the data release it pairs with.
+- **The chunker is faster.** Model lookups are hoisted out of the beam search and the pmap gets a
+  bucket index built at load, recovering the cost of OpenNLP beam parity: about 44% fewer
+  instructions per chunker pass and 2.5% per whole check on moby150k, with byte-identical output
+  and data binaries ([#174](https://github.com/cmlarsen/writemorebetter/issues/174)).
 
 ### Fixed
 
