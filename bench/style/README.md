@@ -710,7 +710,7 @@ calibration is invalid. No worker read private exports, titles, authors or unit 
 
 ```sh
 python3 bench/style/run.py tier3 --flag-rates --self-test
-python3 bench/style/run.py tier3 --flag-rates --export /path/to/fiction-baseline/out --diction-table /approved/ratings.json   # owner only
+python3 bench/style/run.py tier3 --flag-rates --export /path/to/fiction-baseline/out   # owner only
 ```
 
 This measures how often every style report flags published fiction, at the scale Subplot runs the
@@ -955,17 +955,17 @@ transitions, pronoun-start or pacing suite is added here; #247 and #251 own thos
 ### Every merged report in owner-only tier 3
 
 The `--flag-rates` probe now includes overused words, sensory balance and diction alongside the
-six earlier reports. Run the self-test as before. A real owner run must supply the actual diction
-table chosen by the caller:
+six earlier reports. Diction uses the bundled concreteness table (`ConcretenessTable::bundled()`)
+unless `--diction-table` passes a caller's table:
 
 ```sh
 python3 bench/style/run.py tier3 --flag-rates --self-test
-# Owner only; use an approved export and a legally usable caller-supplied table:
+# Owner only; use an approved export:
+python3 bench/style/run.py tier3 --flag-rates --export /approved/export
 python3 bench/style/run.py tier3 --flag-rates --export /approved/export --diction-table /approved/ratings.json
 ```
 
-The self-test alone uses the committed invented table. There is no synthetic fallback for a real
-export. Overused output counts flagged lemmas, their occurrences and filler tokens; sensory output
+The self-test uses the bundled table too and checks its ratings on a fixed abstract sentence; it then starts a second probe with `diction-synthetic.json` and checks that the caller table replaces the bundled ratings on the same sentence. `--diction-table` is passed to the probe as an absolute path, so a file named `bundled` or `-` cannot be read as the probe's bundled or skip setting, and the self-test rejects it. Overused output counts flagged lemmas, their occurrences and filler tokens; sensory output
 counts sense words and each of six modalities; diction counts abstract
 sentences/runs and pools rated-word sums/counts into a mean rating. Each count has an author-weighted
 per-1,000-word distribution and flagged share at both chapter-window and manuscript/author scales.
@@ -995,11 +995,20 @@ output, at both scales:
   that mode) and `modality_percent` for each modality over samples with at least
   `minimumSenseWords` (20) sense words in that mode.
 - `overused_words.minimum_ratio.<ratio>`: flagged lemmas per 1,000 words at each ratio.
+- `diction.abstract_below.<threshold>` for 2.5/2.6/2.7/2.85/3.0/3.2: abstract sentences and runs
+  (flagged share and per 1,000 words) and `abstract_share`, abstract sentences as a percent of the
+  sample's rated narration sentences without speech (the probe counts those by rerunning the report
+  with `abstractBelow` at `f64::MAX`). `diction.measures` per mode: `mean_rating`, the mean over the
+  mode's rated words, over samples with at least 50 rated sentences in that mode (`eligible_share`
+  is the weighted share meeting it); and `sentence_mean`, the distribution of every rated
+  sentence's mean in that mode, rounded to 0.01 inside the probe, each sentence weighted
+  1 / (its author's rated sentences in the section). Sentence modes follow the report's `mode`, so
+  narration sentences containing speech count as narration here.
 
-`--skip-diction` runs a real export without a concreteness table and omits `diction` from the
-output; the owner has not chosen a table, so the 2026-10-16 run used it. `--diction-table` and
-`--skip-diction` are mutually exclusive. `--self-test` uses `diction-synthetic.json` unless
-`--skip-diction` is passed, and CI runs the self-test both ways. `published_bands.py AGGREGATE --dataset … --tool …
+`--skip-diction` omits `diction` from the output; the 2026-10-16 run used it because no table had
+been chosen then. `--diction-table` and `--skip-diction` are mutually exclusive. Without either,
+the run and the self-test use the bundled table, and CI runs the self-test with and without
+`--skip-diction`. `published_bands.py AGGREGATE --dataset … --tool …
 --run-date … --output …` turns a saved aggregate into the band file below; it reads only the
 aggregate JSON. The unit tests cover the mode floors, author weighting, the bucketed pronoun
 allowlist and the band builder on invented counts.
@@ -1042,24 +1051,49 @@ tags' "all flag categories" includes the legacy `other_speech_verb` count (every
 [`published-bands-transitions-pronouns-sensory.json`](published-bands-transitions-pronouns-sensory.json)
 holds the transitions, pronoun-start and sensory p5/p95 bands per mode.
 
-### Label inventory and what the owner still owes
+#### 2026-10-20 owner-run diction results
 
-| Set | Size | Actual labeler provenance | Still owed |
+Same export and windows (1,559 chapter windows, 71 authors), with diction on the bundled table at
+`64ad447`; 652 s wall clock, 487 s of it document construction and 41 s diction (eight report passes
+per document); probe peak RSS 311 MB. The aggregate stayed in the session scratchpad and was deleted
+after the tables and the band file were recorded; no text, titles, author keys or unit identifiers
+were printed or kept. Chapter windows, author-weighted; runs per 1,000 words as median (p5–p95):
+
+| `abstractBelow` | Chapter windows with a run | Authors with a run | Runs per 1,000 words | Abstract % of rated narration sentences, median (p5–p95) |
+|---:|---:|---:|---|---|
+| 2.5 | 17.4% | 63.4% | 0 (0–0.25) | 6.54 (1.26–13.49) |
+| 2.6 | 30.4% | 69.0% | 0 (0–0.49) | 9.92 (2.74–19.71) |
+| 2.7 | 57.0% | 85.9% | 0.16 (0–0.97) | 14.62 (5.35–27.84) |
+| **2.85 (default)** | **78.1%** | **93.0%** | **0.46 (0–1.69)** | **22.26 (9.35–40.75)** |
+| 3.0 | 91.3% | 97.2% | 0.96 (0–2.62) | 32.13 (14.29–54.30) |
+| 3.2 | 97.4% | 98.6% | 1.86 (0.28–3.53) | 48.72 (24.31–71.40) |
+
+The default stays 2.85 (owner-approved); the analysis and the recommendation are in
+[STYLE-NORMS.md](../../docs/STYLE-NORMS.md#published-fiction-calibration-2026-10-20).
+[`published-bands-diction.json`](published-bands-diction.json) holds the per-mode p5/p95 bands of
+window mean concreteness and sentence means, the full percentile sets at both scales and the sweep.
+
+### Label inventory and optional owner follow-ups
+
+| Set | Size | Actual labeler provenance | Optional owner follow-up |
 |---|---:|---|---|
-| `labels/sentence-starts.jsonl` | 332 sentences | Codex + independent Claude; coordinator adjudication; second model saw the category definitions, not existing labels/predictions | Owner adjudication/acceptance; independent human labels if “hand-labeled” is literal; untouched evaluation set (current rows were used in development) |
+| `labels/sentence-starts.jsonl` | 332 sentences | Codex + independent Claude; coordinator adjudication; second model saw the category definitions, not existing labels/predictions | Owner adjudication/acceptance; independent human labels; an untouched evaluation set (current rows were used in development) |
 | `labels/sentence-starts-modern.jsonl` | 34 sentences | One implementing model; invented public story excerpts | Second independent labels and owner adjudication; diagnostic only, not part of the 332-row floor |
-| `labels/dialogue-tags.jsonl` | 238 records over 186 quote spans (70 tags, 10 beats) | Two Claude sessions, coordinator adjudication; detector-marked quote worksheets | Owner acceptance; independent human labels if required; not 238 independent sentences and not held out |
-| Transitions | No set on audited main | None | #247 lane plus approximately 300 public-domain sentences, two independent labelers and owner adjudication |
-| `labels/pacing/*.jsonl`, `labels/pacing-consensus.jsonl` | 305 paragraphs in 40 passages | Five independent, blind model labelers (2026-10-16, owner's choice): DeepSeek V4 Pro and Muse Spark 1.3 via OpenCode Go, Codex gpt-6.1-sol, Claude Opus 5.5 (`claude-opus-5-5`) and Claude Fable 5.1 (`claude-fable-5-1`). Each saw only the packet built from the committed item file (`itemsSha256` in the consensus meta row) and guidelines version 1. Where each labeler ran was not recorded. Merged by 5-way majority with no coordinator adjudication. Guidelines version 1 is [`labels/PACING-GUIDELINES-v1.md`](labels/PACING-GUIDELINES-v1.md), sha256 `d7eaa315…db6`, the wording first committed as `bf832a2`; the consensus meta row records it as `guidelines` | Owner acceptance; independent human labels optional; not held out (the threshold sweep tunes on it) |
-| Overused words, sensory balance, diction | No hand-labeled natural-text set | Deterministic generated answer keys only | Owner usefulness/calibration review; injections do not substitute for editorial judgments |
+| `labels/dialogue-tags.jsonl` | 238 records over 186 quote spans (70 tags, 10 beats) | Two Claude sessions, coordinator adjudication; detector-marked quote worksheets | Owner acceptance; independent human labels. The set is not 238 independent sentences and not held out |
+| `labels/transitions.jsonl` | 62 development examples; no ~300-sentence judgment set | Original hand-written development examples from #247, including known misses | A ~300-sentence public-domain judgment set with two independent labelers and owner adjudication |
+| `labels/pacing/*.jsonl`, `labels/pacing-consensus.jsonl` | 305 paragraphs in 40 passages | Five independent, blind model labelers (2026-10-16, owner's choice): DeepSeek V4 Pro and Muse Spark 1.3 via OpenCode Go, Codex gpt-6.1-sol, Claude Opus 5.5 (`claude-opus-5-5`) and Claude Fable 5.1 (`claude-fable-5-1`). Each saw only the packet built from the committed item file (`itemsSha256` in the consensus meta row) and guidelines version 1. Where each labeler ran was not recorded. Merged by 5-way majority with no coordinator adjudication. Guidelines version 1 is [`labels/PACING-GUIDELINES-v1.md`](labels/PACING-GUIDELINES-v1.md), sha256 `d7eaa315…db6`, the wording first committed as `bf832a2`; the consensus meta row records it as `guidelines` | Owner acceptance; independent human labels. The set is not held out (the threshold sweep tunes on it) |
+| Overused words, sensory balance, diction | No hand-labeled natural-text set | Deterministic generated answer keys; diction's bundled-table usefulness review had one judge, not blind (STYLE-NORMS) | Optional owner usefulness review; injections do not substitute for editorial judgments. Published flag rates: #291 (overused, sensory) and the 2026-10-20 diction run |
 
 The small `labels/example.jsonl` (3 records), `documents.jsonl` and `excerpt.txt` demonstrate the
 scorer format and are not an accuracy set. No second labeler or owner judgment was invented here.
-The original #256 request for about 300 sentences **per judgment report**, independently labeled
-and owner-adjudicated, is therefore still open. Private tier 3 measurements for newly merged reports,
-the chosen diction table and its calibration, and owner publication/acceptance of aggregate numbers
-also remain owner work. This PR references #256 rather than closing it. The requirement-by-requirement
-audit is in [`AUDIT-256.md`](AUDIT-256.md) and the PR body.
+The sentence-start, dialogue-tag and pacing sets are model-labeled and transitions has development
+examples only, so none is the independently hand-labeled, owner-adjudicated ~300 sentences per
+report that #256 first asked for. The owner's #256 status comments of 2026-10-19 and 2026-10-20 list
+only optional independent human labels as remaining label work, and the owner accepted model labels
+for pacing on 2026-10-16; every entry in the last column, a transitions judgment set included, is
+therefore an optional owner follow-up. Nothing here invents a human labeler. The diction table (#313), its published-fiction calibration (2026-10-20) and the
+private tier 3 measurements for the newly merged reports (#291) are done. The requirement-by-requirement
+audit is in [`AUDIT-256.md`](AUDIT-256.md).
 
 ## Pacing (#251)
 

@@ -596,3 +596,65 @@ basic insincerity of what she had said"). Noise in the sample is short stage bus
 words ("Various veterans had told him tales.", "For a moment he seemed to be searching for a
 formidable reply.") and soldiers clamouring. Single abstract sentences now cover a fifth of
 narration, so runs remain the flag to show; diction stays an opt-in lens.
+
+### Published-fiction calibration (2026-10-20)
+
+The owner-only `tier3 --flag-rates` run measured diction on the bundled table with default options
+on the published-fiction export (`cmlarsen/fiction-baseline` at b464cac, EXTRACTOR_VERSION 1, 210
+units, 71 authors, 7,702,268 counted words, 1,559 chapter windows cut by the
+[#291 window rule](#published-fiction-bands-2026-10-16); aggregate numbers only). Windows are weighted so every
+author counts equally. "Authors" means authors whose pooled manuscripts have at least one run.
+Abstract % is abstract sentences as a percent of the window's rated narration sentences without
+speech, the sentences that can be flagged.
+
+| `abstractBelow` | Chapter windows with a run | Authors with a run | Runs per 1,000 words, median (p5–p95) | Abstract %, median (p5–p95) |
+|---:|---:|---:|---|---|
+| 2.5 | 17.4% | 63.4% | 0 (0–0.25) | 6.54 (1.26–13.49) |
+| 2.6 | 30.4% | 69.0% | 0 (0–0.49) | 9.92 (2.74–19.71) |
+| 2.7 | 57.0% | 85.9% | 0.16 (0–0.97) | 14.62 (5.35–27.84) |
+| **2.85 (default)** | **78.1%** | **93.0%** | **0.46 (0–1.69)** | **22.26 (9.35–40.75)** |
+| 3.0 | 91.3% | 97.2% | 0.96 (0–2.62) | 32.13 (14.29–54.30) |
+| 3.2 | 97.4% | 98.6% | 1.86 (0.28–3.53) | 48.72 (24.31–71.40) |
+
+Single abstract sentences occur in 99.9% of windows at 2.85 (7.54 per 1,000 words, p5–p95
+2.58–15.73), so runs remain the only flag worth showing.
+
+Mean concreteness on the bundled 1–5 scale, per mode. Window means use the mode's rated words and
+count only windows with at least 50 rated sentences in that mode (eligible share in brackets).
+Sentence means are every rated sentence's mean (at least `minimumRatedWords`, 3, rated words),
+rounded to 0.01, each weighted 1 / its author's rated sentences. Modes follow the report's sentence
+`mode`, so narration here includes narration sentences that contain speech.
+
+| Measure (p5 / median / p95) | All | Narration | Dialogue |
+|---|---|---|---|
+| Window mean | 2.94 / 3.16 / 3.39 (100%) | 2.99 / 3.22 / 3.45 (97.4%) | 2.79 / 2.98 / 3.18 (62.9%) |
+| Sentence mean | 2.38 / 3.15 / 3.90 | 2.43 / 3.22 / 3.93 | 2.30 / 2.99 / 3.80 |
+| Sentence mean p25 / p75 | 2.81 / 3.49 | 2.88 / 3.54 | 2.70 / 3.32 |
+| Rated sentences (authors) | 417,517 (71) | 271,413 (71) | 146,104 (69) |
+
+At manuscript scale (71 pooled authors) the narration mean is 3.05 / 3.22 / 3.42 and the dialogue
+mean 2.86 / 2.98 / 3.14 (56 authors with 50 rated dialogue sentences). The p5–p95 bands, the full
+percentile sets at both scales and the sweep are in
+[`bench/style/published-bands-diction.json`](../bench/style/published-bands-diction.json),
+following the sentence-band provenance convention. Diction takes no baseline argument, so the bands
+are a reference only.
+
+**2.85 flags most published chapters.** At the default, 78.1% of published chapter windows and
+93.0% of authors have at least one abstract run, well above the roughly 30% of chapters that would
+make runs a selective flag. Sentence-level behaviour matches the bench/public retune: a median
+window has 22.3% of its rated narration sentences abstract at 2.85 (bench/public pooled: 21.3%),
+and the published narration sentence median is 3.22 (bench/public: 3.21). The difference is
+length. A window averages about 4,900 words and 170 rated narration sentences, so three abstract
+ones in a row turn up about twice in a median window (0.46 runs per 1,000 words).
+
+**Recommendation (not applied).** If runs should flag at most about 30% of published chapters,
+`abstractBelow` **2.6** is the highest swept value that does (30.4% of windows, 69.0% of authors,
+runs per 1,000 words 0 at the median, 0.49 at p95). 2.5 flags 17.4%. Both cost the retune's evidence:
+bench/public showed no runs at 2.5 or 2.6, and the held-out Crane, Wharton and Gatsby chapters were
+not judged at either. 2.85 stays the default because the owner approved it, and diction is an
+opt-in lens, so a writer who turns it on asks for these flags. Choosing between 2.6 and 2.85 needs a
+judged sample of published or draft runs at 2.6, which this aggregate-only run cannot provide.
+
+**Decision (owner, 2026-10-21): keep 2.85.** About two runs per published chapter is an acceptable
+volume for an opt-in lens, and 2.85 is the only setting with judged runs (19 of 20 useful in the
+#313 review); 2.6 found no runs on bench/public.
