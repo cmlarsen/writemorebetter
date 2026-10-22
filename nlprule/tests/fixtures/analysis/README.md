@@ -5,13 +5,16 @@ from the **LanguageTool 6.6** distribution's own `--taggeronly` analysis, not fr
 The adjacent `*.tags.txt` files contain that CLI's stdout, with trailing spaces removed. Inputs
 retain their exact original punctuation and whitespace; `fiction_unicode.txt` includes an emoji,
 curly quotes/apostrophe, an em dash, an ellipsis and U+2028. `paragraphs.txt` has a blank line.
+`multiword_filter.txt` covers a multiword phrase that repeats a word ("as soon as possible", whose
+readings a `filter` rule must not empty) and a sentence-final "!" that loses its readings to a
+`unify` rule; it has the same fiction punctuation as `fiction_unicode.txt`.
 
 Reproduce from the repository root with the pinned distribution downloaded by `scripts/build-data.sh`:
 
 ```sh
 LT_DIR=data/cache/LanguageTool-6.6
 # Set LT_JAVA to a Java 17+ runtime, e.g. the portable JRE under data/cache/temurin21-jre/.
-for probe in multiword dropped_g fiction_unicode paragraphs; do
+for probe in multiword multiword_filter dropped_g fiction_unicode paragraphs; do
   "$LT_JAVA" -jar "$LT_DIR/languagetool-commandline.jar" --taggeronly -l en -c utf-8 \
     "nlprule/tests/fixtures/analysis/$probe.txt" |
     sed 's/[[:blank:]]*$//' > "nlprule/tests/fixtures/analysis/$probe.tags.txt"
