@@ -1111,13 +1111,11 @@ impl chunk::Chunker {
             token_model: chunk::MaxentTokenizer {
                 model: chunk_data.token_model.into(),
             },
-            pos_model: chunk::MaxentPosTagger {
-                model: chunk_data.pos_model.into(),
-                tagdict: chunk_data.pos_tagdict.into(),
-            },
-            chunk_model: chunk::MaxentChunker {
-                model: chunk_data.chunk_model.into(),
-            },
+            pos_model: chunk::MaxentPosTagger::new(
+                chunk_data.pos_model.into(),
+                chunk_data.pos_tagdict.into(),
+            ),
+            chunk_model: chunk::MaxentChunker::new(chunk_data.chunk_model.into()),
         })
     }
 }

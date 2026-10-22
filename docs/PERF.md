@@ -847,3 +847,44 @@ byte-identical before and after them):
 The remaining cost is the extra model evaluations a full beam needs. Using `f64` for the model
 sums, softmax and log-probabilities (as OpenNLP does) changed no chunk or POS label on the six
 public texts and cost about 10% more chunker instructions, so it was not kept.
+
+### Beam search and pmap lookups after beam parity ([#174](https://github.com/cmlarsen/writemorebetter/issues/174))
+
+Output-preserving changes to the chunker and POS model (the chunker golden and the golden files
+are byte-identical before and after):
+
+- `Pmap` keeps its sorted entries but adds a bucket index by the top bits of the key (about 4
+  entries per bucket), so a lookup scans one bucket instead of binary-searching the whole table.
+  The keys are SipHash outputs, so the buckets are even. The index is rebuilt at load and not
+  serialized, so the data binaries are unchanged; it adds 0.31 MiB of live heap.
+- The two `p_2` features and the chunk-tag transition check depend only on the previous two
+  outcomes, so they are looked up once per model in a table indexed by outcome
+  (`ChunkTables`). The POS tagger maps each outcome label to its tag-dictionary id once.
+- `beam_search` keys its per-position cache by the outcome indices of the window instead of a
+  SipHash of their labels, reuses the score buffers, stores log-probabilities, and selects each
+  context's top outcomes with `select_nth_unstable` before sorting them.
+- The best `size` sequences are selected and sorted directly instead of through a
+  `BinaryHeap`. Ties are the only case where the heap's order shows, so the heap is replayed
+  when two kept sequences, or the last kept and the best dropped one, have equal
+  log-probabilities.
+- The 20 `pred1_context` hashes share the hasher state for their `p_1=<outcome>` prefix.
+- `Chunker::apply` maps byte to char indices by binary search over a `Vec` instead of a
+  `HashMap` per sentence.
+
+Same setup as above, against main at `1ef7868`:
+
+| | whole check | chunker pass | chunker alloc calls / requested MiB per pass | loaded live heap |
+|---|---:|---:|---:|---:|
+| main (`1ef7868`) | 57.22B | 4.34B | 1.79M / 331 | 28.84 MiB |
+| these changes | 55.79B (-2.5%) | 2.42B (-44%) | 0.84M / 157 | 29.15 MiB |
+
+Ablations on the final code (chunker pass): binary search instead of buckets 2.83B; 8 entries per
+bucket 2.45B for 0.15 MiB instead of 0.31 MiB; `BinaryHeap` selection 2.74B; `HashMap` char
+index 2.47B.
+
+Dropped: pre-summing the 20 `p_1` features per position and outcome (into the static prior, or
+as a separate delta vector, in `f32`) changed no label on the six public texts but cost 2.46B
+and 2.62B: most (position, outcome) pairs are evaluated about once, so the extra vector and copy
+cost more than the saved additions. Instruction counts here move by about 3% with unrelated
+codegen changes (`is_some_and` in place of `map_or` in `ChunkTables::new` costs 2.48B), so
+differences that small are not significant.
