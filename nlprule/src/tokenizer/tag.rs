@@ -166,7 +166,9 @@ pub(crate) struct TaggerLangOptions {
     /// Whether to tag an unknown word ending in `in'` as its `-ing` form (`doin'` as `doing`),
     /// as LanguageTool 6.6's English tagger does. Unlike LanguageTool, the fallback is skipped
     /// when the word without its apostrophe is known (`sin'`, `robin'`), so a closing single
-    /// quote after such a word stays a token of its own.
+    /// quote after such a word stays a token of its own. It is also skipped (issue #203) when no
+    /// vowel precedes the `in`, since only the unstressed `-ing` suffix drops its g: LanguageTool
+    /// tags `Rin'` as `ring`, this leaves it untagged.
     #[serde(default)]
     pub tag_g_dropped_ing: bool,
     /// Used part-of-speech tags which are not in the tagger dictionary.
@@ -553,7 +555,7 @@ impl Tagger {
     /// - Adds tags for the title-case variant of an all-uppercase word if nothing else matched
     ///   (unless `add_lower` is `AddLower::Never`).
     /// - Tags an untagged word ending in `in'` as its `-ing` form if `tag_g_dropped_ing` is set
-    ///   (unless `add_lower` is `AddLower::Never`).
+    ///   and a vowel precedes the `in` (unless `add_lower` is `AddLower::Never`).
     fn get_strict_tags(&self, word: &str, add_lower: AddLower) -> StrictTagIter {
         let tag_iter = self.get_raw(&word);
         let lower_tag_iter = if (matches!(add_lower, AddLower::Always)
@@ -609,7 +611,10 @@ impl Tagger {
     fn get_g_dropped_tags(&self, word: &str) -> Option<StrictTagIter<'_>> {
         let stem = word.strip_suffix('\'')?;
         let lower_stem = stem.to_lowercase();
-        if !lower_stem.ends_with("in") {
+        // Only the unstressed `-ing` suffix drops its g, so the part before `in`
+        // needs a vowel: `Rin'` is not `ring`, nor `Strin'` `string`.
+        let onset = lower_stem.strip_suffix("in")?;
+        if !onset.chars().any(|c| "aeiouy".contains(c)) {
             return None;
         }
 

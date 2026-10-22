@@ -59,6 +59,64 @@ pub(crate) fn is_apostrophe(c: char) -> bool {
     c == '\'' || c == '\u{2019}'
 }
 
+/// Aphetic words written with a leading apostrophe. Inside a quotation they
+/// look like an opening quote but do not start a new one (`'Comin' for 'em,'`).
+const APHETIC_WORDS: &[&str] = &[
+    "bout", "cause", "cept", "em", "fore", "n", "nuff", "round", "til", "tis", "twas", "twere",
+    "twill", "twould",
+];
+
+/// Whether a straight quote opened just before `word` (a slice of `text`) is
+/// closed by a later apostrophe in `text` rather than by `word`'s own.
+///
+/// Scanning forward, a closer is an apostrophe that ends a word: it follows a
+/// non-space and precedes no letter or digit. Skipped as closers are an
+/// apostrophe after `in`, which may be another dropped g (`'Corin' was goin'
+/// home.`), and an `s'` before a lowercase word, a plural possessive (`the
+/// boys' mother`). A straight quote that opens a word other than an aphetic one
+/// (`'em`, `'cause`) starts a new quotation, so the one before `word` must
+/// already have closed with `word`'s own apostrophe (`'Corin' said 'hi'.`).
+fn closing_quote_follows(text: &str, word: &str) -> bool {
+    let end = (word.as_ptr() as usize)
+        .checked_sub(text.as_ptr() as usize)
+        .expect("The word is a slice of the text.")
+        + word.len();
+    let rest = &text[end..];
+    let mut prev = ['\0', word.chars().last().unwrap_or(' ')];
+    for (i, c) in rest.char_indices() {
+        let after = &rest[i + c.len_utf8()..];
+        let next = after.chars().next();
+        if is_apostrophe(c) {
+            let next_is_alnum = next.is_some_and(char::is_alphanumeric);
+            if !prev[1].is_alphanumeric() && next_is_alnum {
+                if c == '\'' {
+                    let opened: String = after
+                        .chars()
+                        .take_while(|c| c.is_alphanumeric())
+                        .flat_map(char::to_lowercase)
+                        .collect();
+                    if !APHETIC_WORDS.contains(&opened.as_str()) {
+                        return false;
+                    }
+                }
+            } else if !prev[1].is_whitespace() && !next_is_alnum {
+                let after_in =
+                    prev[0].eq_ignore_ascii_case(&'i') && prev[1].eq_ignore_ascii_case(&'n');
+                let possessive = prev[1].eq_ignore_ascii_case(&'s') && {
+                    let mut following = after.chars().skip_while(|c| c.is_whitespace());
+                    next.is_some_and(char::is_whitespace)
+                        && following.next().is_some_and(char::is_lowercase)
+                };
+                if !after_in && !possessive {
+                    return true;
+                }
+            }
+        }
+        prev = [prev[1], c];
+    }
+    false
+}
+
 /// Whether `c` falls in one of the sorted, non-overlapping inclusive `ranges`.
 pub(crate) fn in_ranges(ranges: &[(char, char)], c: char) -> bool {
     ranges
@@ -500,17 +558,17 @@ impl Tokenizer {
 
         let word_chars = &self.lang_options.word_chars;
         let split_char = |c: char| is_split_char(word_chars, c);
-        let split_text = |text: &'t str| {
+        let split_text = |piece: &'t str| {
             let mut tokens = Vec::new();
             if self.lang_options.split_contractions {
                 // Split on everything except apostrophes first so a whole word
                 // containing an apostrophe can be handed to the contraction
                 // splitter, matching LanguageTool 6.6+'s English word tokenizer.
-                for pretoken in split(text, |c| split_char(c) && !is_apostrophe(c)) {
-                    self.split_contraction_word(pretoken, &mut tokens);
+                for pretoken in split(piece, |c| split_char(c) && !is_apostrophe(c)) {
+                    self.split_contraction_word(pretoken, text, &mut tokens);
                 }
             } else {
-                for pretoken in split(text, split_char) {
+                for pretoken in split(piece, split_char) {
                     // if the token is in the dictionary, we add it right away
                     if self.tagger.id_word(pretoken.into()).1.is_some() {
                         tokens.push((pretoken, None));
@@ -582,7 +640,12 @@ impl Tokenizer {
     /// The second component is the text a token should be represented by when
     /// LanguageTool normalizes it (a recognized contraction is emitted with a
     /// straight apostrophe even if the input used a curly one).
-    fn split_contraction_word<'t>(&self, s: &'t str, out: &mut Vec<(&'t str, Option<String>)>) {
+    fn split_contraction_word<'t>(
+        &self,
+        s: &'t str,
+        text: &'t str,
+        out: &mut Vec<(&'t str, Option<String>)>,
+    ) {
         if s.is_empty() {
             return;
         }
@@ -590,13 +653,13 @@ impl Tokenizer {
         if s.chars().any(is_apostrophe) {
             if let Some(parts) = contraction_parts(s) {
                 for part in parts {
-                    self.words_to_add(part, out);
+                    self.words_to_add(part, text, out);
                 }
                 return;
             }
         }
 
-        self.words_to_add(s, out);
+        self.words_to_add(s, text, out);
     }
 
     /// Appends the tokens for a single word the way LanguageTool's
@@ -605,16 +668,28 @@ impl Tokenizer {
     /// normalized form is known to the tagger) stays whole, an unknown word
     /// containing apostrophes is split at them. Unlike LanguageTool, a leading
     /// straight quote is split off a g-dropped word such as `'goin'`, which then
-    /// stays whole.
-    fn words_to_add<'t>(&self, s: &'t str, out: &mut Vec<(&'t str, Option<String>)>) {
+    /// stays whole, if a later apostrophe in `text` (the sentence `s` is a slice
+    /// of) can close the quote; otherwise the word's own apostrophe closes it, as
+    /// in `'Corin'.`
+    fn words_to_add<'t>(
+        &self,
+        s: &'t str,
+        text: &'t str,
+        out: &mut Vec<(&'t str, Option<String>)>,
+    ) {
         let core = s.trim_start_matches('-');
         out.extend((0..s.len() - core.len()).map(|i| (&s[i..i + 1], None)));
         let trimmed = core.trim_end_matches('-');
-        self.words_to_add_core(trimmed, out);
+        self.words_to_add_core(trimmed, text, out);
         out.extend((trimmed.len()..core.len()).map(|i| (&core[i..i + 1], None)));
     }
 
-    fn words_to_add_core<'t>(&self, s: &'t str, out: &mut Vec<(&'t str, Option<String>)>) {
+    fn words_to_add_core<'t>(
+        &self,
+        s: &'t str,
+        text: &'t str,
+        out: &mut Vec<(&'t str, Option<String>)>,
+    ) {
         if s.is_empty() {
             return;
         }
@@ -656,10 +731,10 @@ impl Tokenizer {
             }
         } else if let Some(rest) = s
             .strip_prefix('\'')
-            .filter(|rest| self.is_g_dropped_word(rest))
+            .filter(|rest| self.is_g_dropped_word(rest) && closing_quote_follows(text, s))
         {
             out.push((&s[..1], None));
-            self.words_to_add_core(rest, out);
+            self.words_to_add_core(rest, text, out);
         } else {
             out.extend(split(s, is_apostrophe).into_iter().map(|x| (x, None)));
         }
