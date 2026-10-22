@@ -67,21 +67,25 @@ impl SentenceWhitespace {
     }
 }
 
-/// Whether the last token of `sentence` is a single whitespace character in the
-/// sense of Java's `String.trim`, which strips control characters and the
-/// space, a no-break space, or one of the line breaks U+2028 and U+2029.
+/// Whether the last token of `sentence` is a single whitespace character: one
+/// that Java's `String.trim` strips (control characters and the space), a
+/// no-break space, or one of the line breaks NEL (U+0085), U+2028 and U+2029
+/// that LanguageTool's `StringTools.containsLineBreak` adds after 6.6.
 fn ends_with_whitespace(sentence: &Sentence) -> bool {
     matches!(
         sentence.text().chars().next_back(),
-        Some(c) if c <= ' ' || matches!(c, '\u{a0}' | '\u{2028}' | '\u{2029}')
+        Some(c) if c <= ' ' || matches!(c, '\u{85}' | '\u{a0}' | '\u{2028}' | '\u{2029}')
     )
 }
 
 /// Whether `piece` is a line break as LanguageTool's `StringTools.containsLineBreak`
-/// counts them; a sentence that opens with one is not flagged.
+/// counts them; a sentence that opens with one is not flagged. The sentence
+/// splitter currently leaves a break at the end of the previous sentence, so
+/// `ends_with_whitespace` catches it first; this keeps the upstream check in
+/// case the split changes (e.g. #179).
 fn is_line_break(piece: &str) -> bool {
     matches!(
         piece,
-        "\n" | "\r" | "\u{b}" | "\u{c}" | "\u{2028}" | "\u{2029}"
+        "\n" | "\r" | "\u{b}" | "\u{c}" | "\u{85}" | "\u{2028}" | "\u{2029}"
     )
 }

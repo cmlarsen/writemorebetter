@@ -5268,6 +5268,37 @@ fn builtin_sentence_whitespace_treats_unicode_line_breaks_as_whitespace() {
 }
 
 #[test]
+fn builtin_sentence_whitespace_skips_a_sentence_opening_with_a_line_break() {
+    use nlprule::builtin::en::SentenceWhitespace;
+    // The splitter keeps a line break at the end of the previous sentence, so
+    // pair a previous sentence that has no trailing whitespace with one that
+    // opens with the break, as LanguageTool's `isLineBreakToken` check covers.
+    let previous: Vec<_> = TOKENIZER.pipe("\u{201c}He left\u{2026}\u{201d}").collect();
+    assert_eq!(previous.len(), 1);
+    for (text, opener) in [
+        ("Then.\u{2029}\u{2029}Now\u{2014}gone.", "\u{2029}"),
+        ("Then.\r\rShe didn\u{2019}t.", "\r"),
+    ] {
+        let sentences: Vec<_> = TOKENIZER.pipe(text).collect();
+        let next = &sentences[1];
+        assert!(next.text().starts_with(opener), "{:?}", next.text());
+        assert_eq!(
+            SentenceWhitespace.check_with_previous(&sentences[1..], previous.last()),
+            vec![],
+            "{text:?}"
+        );
+    }
+    // Without the leading break the same pairing is flagged.
+    let sentences: Vec<_> = TOKENIZER.pipe("Then.").collect();
+    assert_eq!(
+        SentenceWhitespace
+            .check_with_previous(&sentences, previous.last())
+            .len(),
+        1
+    );
+}
+
+#[test]
 fn builtin_empty_line_ignores_the_end_of_the_text() {
     assert_eq!(builtin_flags("EMPTY_LINE", "Para one.\n\n\n\n"), vec![]);
     assert_eq!(
