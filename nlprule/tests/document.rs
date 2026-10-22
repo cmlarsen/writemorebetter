@@ -3,6 +3,7 @@
 use lazy_static::lazy_static;
 use nlprule::{
     document::{merge_document_suggestions, DIGEST_VERSION},
+    profile::Profile,
     types::{Position, Suggestion},
     Error, ParagraphDigest, Rules, Tokenizer,
 };
@@ -518,4 +519,116 @@ fn digest_size_per_thousand_words() {
         bytes,
         bytes as f64 * 1000.0 / words as f64
     );
+}
+
+lazy_static! {
+    static ref FICTION: Rules = {
+        let mut rules = Rules::new(RULES_PATH).unwrap();
+        assert!(rules.apply_profile(&Profile::fiction()).is_empty());
+        rules
+    };
+}
+
+/// `EN_CONSISTENT_APOS` suggestions under the fiction profile, as `flags` gives them.
+fn fiction_flags(text: &str) -> Vec<(String, String, bool)> {
+    FICTION
+        .suggest(text, &TOKENIZER)
+        .into_iter()
+        .filter(|s| s.source() == SOURCE)
+        .map(|s| {
+            let flagged = text[s.span().byte().clone()].to_owned();
+            let typographic = s.message() == TYPOGRAPHIC;
+            (flagged, s.replacements()[0].clone(), typographic)
+        })
+        .collect()
+}
+
+/// A curly-typeset fiction draft: curly double and single quotes, curly apostrophes, clipped
+/// words, a plural possessive before a closing quote, em dashes, ellipses and U+2028.
+const CURLY_DRAFT: &str = "\u{201c}Don\u{2019}t go,\u{201d} she said\u{2014}softly. \u{201c}I\u{2019}m \
+                           jus\u{2019} tired o\u{2019} waitin\u{2019}\u{2026}\u{201d}\n\
+                           \n\
+                           \u{2018}Tell \u{2019}em I said so,\u{2019} he wrote. \u{201c}She said \
+                           \u{2018}no\u{2019}.\u{201d}\u{2028}The dogs\u{2019} bowls were \
+                           empty\u{2026} \u{2018}Rock \u{2019}n\u{2019} roll\u{2019}\u{2014}that\u{2019}s \
+                           all.\n\
+                           \n\
+                           \u{2018}Where\u{2019}s the boys\u{2019}?\u{2019} she asked. \u{2018}Gone.\u{2019}";
+
+#[test]
+fn fiction_profile_enables_consistent_apostrophes() {
+    let enabled = |rules: &Rules| {
+        rules
+            .builtins()
+            .iter()
+            .find(|x| x.id() == ID)
+            .unwrap()
+            .enabled()
+    };
+    assert!(enabled(&FICTION));
+    assert!(Profile::fiction().enable.contains(&SOURCE.to_owned()));
+    // The default profile leaves it off.
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    assert!(rules.apply_profile(&Profile::default_profile()).is_empty());
+    assert!(!enabled(&rules));
+}
+
+/// Curly single quotes used as quotation marks are not apostrophes: a draft typeset with curly
+/// quotes and apostrophes throughout has no flags, and neither does one with straight
+/// apostrophes inside curly quotation marks.
+#[test]
+fn fiction_curly_quotes_are_not_mixed_apostrophes() {
+    assert_eq!(fiction_flags(CURLY_DRAFT), vec![]);
+    for text in [
+        "\u{2018}Don't go,\u{2019} she said\u{2014}softly. \u{2018}I'm tired\u{2026}\u{2019}",
+        "\u{201c}She said \u{2018}no\u{2019}.\u{201d}\u{2028}It's late.",
+        "\u{2018}Gone.\u{2019} \u{2018}Where?\u{2019} \u{2018}Out!\u{2019}\u{2014}we'll see.",
+        "\u{2018}Come here\u{2019}\u{2014}she couldn't\u{2026}",
+    ] {
+        assert_eq!(fiction_flags(text), vec![], "{text:?}");
+    }
+}
+
+/// One straight apostrophe in an otherwise curly draft flags every apostrophe token, the curly
+/// quotation marks still excepted, with the same spans whether the text is checked whole or
+/// paragraph by paragraph.
+#[test]
+fn fiction_flags_a_pasted_straight_apostrophe() {
+    let text = format!("{CURLY_DRAFT}\n\nHe didn't answer.");
+    let flagged = fiction_flags(&text);
+    assert!(flagged.contains(&typewriter("n't")), "{:?}", flagged);
+    assert!(
+        flagged.contains(&typographic("n\u{2019}t")),
+        "{:?}",
+        flagged
+    );
+    assert!(
+        flagged.contains(&typographic("waitin\u{2019}")),
+        "{:?}",
+        flagged
+    );
+    // As in LanguageTool 6.6, the tokenizer splits the `’` off `’em`, `jus’`, `o’` and `dogs’`
+    // (checked with `-e EN_CONSISTENT_APOS`), so those are lone quotes and not flagged.
+    assert_eq!(
+        fiction_flags(
+            "\u{2018}Tell \u{2019}em I\u{2019}m jus\u{2019} tired o\u{2019} waitin\u{2019}\u{2026}\u{2019} \
+             The dogs\u{2019} bowls. \u{2018}Come here\u{2019}\u{2014}he said \u{2018}no\u{2019}. \
+             He didn't answer."
+        ),
+        vec![
+            typographic("\u{2019}m"),
+            typographic("waitin\u{2019}"),
+            typewriter("n't")
+        ]
+    );
+    assert!(
+        flagged
+            .iter()
+            .all(|(span, _, _)| span != "\u{2019}" && span != "\u{2018}"),
+        "{:?}",
+        flagged
+    );
+    let whole = apos_keys(&FICTION.suggest(&text, &TOKENIZER));
+    let (split, _) = incremental(&FICTION, &paragraphs(&text), "", false);
+    assert_eq!(whole, apos_keys(&split));
 }

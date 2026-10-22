@@ -165,7 +165,8 @@ CI and the release workflow both call it. See [`binaries/README.md`](binaries/RE
 
 `profile` names a set of disabled rules; `"default"` (or `""`) disables nothing, and `"fiction"`
 turns off the rules that misfire on fiction voice — straight-to-curly quote and dash typography,
-dialogue informality ("gonna", "You okay?"), comma-before-"and" style, and redundancy advice. See
+dialogue informality ("gonna", "You okay?"), comma-before-"and" style, and redundancy advice. It
+also turns on `EN_CONSISTENT_APOS`, which flags a text that mixes straight and curly apostrophes. See
 [`docs/PROFILE.md`](docs/PROFILE.md).
 
 The user dictionary (`add_words` and friends) whitelists character names, invented places and

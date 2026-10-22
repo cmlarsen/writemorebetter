@@ -1,4 +1,5 @@
-//! Named rule profiles: sets of rules to disable for a particular kind of text.
+//! Named rule profiles: sets of rules to disable, and of off-by-default rules to enable, for a
+//! particular kind of text.
 //!
 //! A [`Profile`] is a name plus a list of *rule selector strings*. A selector is
 //! either
@@ -16,7 +17,8 @@
 //! names rules but never carries their definitions, patterns, or examples.
 //!
 //! The same selectors, without the case form, also *enable* rules that are off by
-//! default (LanguageTool's `default="off"` and `picky` rules) with
+//! default (LanguageTool's `default="off"` and `picky` rules): a profile's
+//! [`enable`](Profile::enable) list, applied after its disable list, or
 //! [`Rules::enable_rules`], applied after the profile.
 //!
 //! # Examples
@@ -36,33 +38,35 @@ use std::convert::TryFrom;
 /// The prefix that marks a selector as a builtin rule id rather than an XML rule selector.
 const BUILTIN_PREFIX: &str = "BUILTIN/";
 
-/// A named set of rules to disable.
+/// A named set of rules to disable, and of off-by-default rules to enable.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Profile {
     /// The profile name.
     pub name: String,
     /// The rules to disable, as selector strings (see the [module docs](self)).
     pub disable: Vec<String>,
+    /// The rules to enable after `disable`, as selector strings without the builtin case
+    /// form; for rules that are off by default, as in LanguageTool.
+    pub enable: Vec<String>,
 }
 
 impl Profile {
-    /// Creates a profile from a name and a disable list.
+    /// Creates a profile from a name and a disable list; it enables nothing.
     pub fn new(name: impl Into<String>, disable: Vec<String>) -> Self {
         Profile {
             name: name.into(),
             disable,
+            enable: Vec::new(),
         }
     }
 
-    /// The default profile: disables nothing.
+    /// The default profile: disables and enables nothing.
     pub fn default_profile() -> Profile {
-        Profile {
-            name: "default".to_owned(),
-            disable: Vec::new(),
-        }
+        Profile::new("default", Vec::new())
     }
 
-    /// The fiction profile: disables rules that are known to misfire on fiction drafts.
+    /// The fiction profile: disables rules that are known to misfire on fiction drafts, and
+    /// enables `EN_CONSISTENT_APOS`, which is off by default in LanguageTool.
     ///
     /// The counts in the comments are how often each rule fired on the private draft
     /// corpus before tuning. This list is expected to change as the corpus grows; the
@@ -108,6 +112,14 @@ impl Profile {
             .iter()
             .map(|selector| (*selector).to_owned())
             .collect(),
+            enable: [
+                // A manuscript that mixes straight and curly apostrophes, often from text
+                // pasted in from another editor. Lone curly quotes are not apostrophes to it.
+                "BUILTIN/EN_CONSISTENT_APOS",
+            ]
+            .iter()
+            .map(|selector| (*selector).to_owned())
+            .collect(),
         }
     }
 
@@ -123,11 +135,14 @@ impl Profile {
 }
 
 impl Rules {
-    /// Disables every rule named by `profile`.
+    /// Disables every rule named by `profile.disable`, then enables every rule named by
+    /// `profile.enable`.
     ///
     /// Grammar rules are selected with [`Rules::select_mut`](crate::Rules::select_mut)
     /// using each selector string; builtins are matched by the part of the selector
     /// after `"BUILTIN/"`, and a selector that also names a case disables only that case.
+    /// Enable selectors follow [`Rules::enable_rules`], except that one that matches no
+    /// rule is reported here and does not stop the others.
     ///
     /// Returns the selectors that matched no rule, so a typo in a profile is caught by
     /// a test rather than silently ignored. Each unmatched selector is also logged at
@@ -172,6 +187,20 @@ impl Rules {
             if !matched {
                 log::warn!(
                     "profile \"{}\": selector \"{}\" matched no rules",
+                    profile.name,
+                    selector
+                );
+                unmatched.push(selector.clone());
+            }
+        }
+
+        for selector in &profile.enable {
+            if self.selector_matches(selector) {
+                self.enable_rules(&[selector])
+                    .expect("a selector that matches a rule enables it");
+            } else {
+                log::warn!(
+                    "profile \"{}\": enable selector \"{}\" matched no rules",
                     profile.name,
                     selector
                 );

@@ -43,7 +43,10 @@ Surfaces:
 
 ## Enabling rules
 
-Profiles only disable. LanguageTool also ships rules that are off until a user turns
+A profile can also enable rules, after its disable list: `Profile::enable` takes the
+selectors `Rules::enable_rules` takes (below), and `apply_profile` reports the ones
+that match nothing with the unmatched disable selectors. `fiction` enables one rule
+this way (see [The fiction profile](#the-fiction-profile)). LanguageTool also ships rules that are off until a user turns
 them on: `default="off"` rules and categories, and `tags="picky"` rules (its
 Level.PICKY). The compiler keeps them in the rules binary but disabled, so these
 style rules ship off:
@@ -133,6 +136,12 @@ Disables exactly these:
 | `BUILTIN/ENGLISH_WORD_REPEAT_BEGINNING_RULE` | three sentences in a row that begin with the same word ("He waited. He listened. He...") are a deliberate rhythm in fiction |
 | `BUILTIN/TOO_OFTEN_USED_ADJECTIVE_EN/DIRECT_SPEECH`, `…_NOUN_EN/…`, `…_VERB_EN/…` | these word-frequency hints are off by default, as in LT. Once an author enables them, words inside dialogue are neither counted nor flagged (LT's `setWithoutDirectSpeech`): characters repeat words on purpose, and the narration is what the hint is for. |
 
+And enables this one, which is off by default in LanguageTool 6.6:
+
+| Selector | Why |
+|---|---|
+| `BUILTIN/EN_CONSISTENT_APOS` | a manuscript that mixes straight (`'`) and curly (`’`) apostrophes, often from text pasted in from another editor. Once the text has both, every apostrophe token is flagged with the other style as the suggestion; a text that uses one style throughout gets no flags. A lone `‘` or `’` (a single quotation mark, or a clipped `jus’` or plural `dogs’` the tokenizer splits the same way) is not an apostrophe to it, so curly-quoted dialogue does not trigger it. A lone straight `'` does count, as in LanguageTool: straight single quotation marks around dialogue in a curly-apostrophe text are flagged. |
+
 `EN_REPEATEDWORDS` (synonyms for a word repeated within 150 words) needs no
 entry: it is off by default (`picky` in LT), and when enabled it already skips
 every sentence that does not end in `.`, `!` or `?`, which leaves out dialogue
@@ -140,7 +149,7 @@ that ends in a closing quote. Dialogue followed by a tag (`“Definitely,” she
 said.`) is still checked. Its word list is short (about 40 words such as
 "nice", "amazing", "definitely"), so an author who turns it on gets few flags.
 
-Applying it to the compiled English rules disables 172 rules and reports 0
+Applying it to the compiled English rules disables 172 rules, enables 1, and reports 0
 unmatched selectors.
 
 The fiction profile does not need to name rules that are off by default. Of the

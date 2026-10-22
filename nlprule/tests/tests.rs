@@ -650,6 +650,38 @@ fn apply_profile_disables_builtin_by_id() {
     assert!(!enabled(&rules));
 }
 
+/// A profile's enable list turns on off-by-default rules after its disable list, and reports
+/// enable selectors that match nothing (the case form only disables) without stopping the rest.
+#[test]
+fn apply_profile_enables_after_disabling() {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    let enabled = |rules: &Rules, id: &str| {
+        rules
+            .builtins()
+            .iter()
+            .find(|rule| rule.id() == id)
+            .unwrap()
+            .enabled()
+    };
+    assert!(!enabled(&rules, "EN_CONSISTENT_APOS"));
+    let mut profile = Profile::new("test", vec!["BUILTIN/UPPERCASE_SENTENCE_START".to_owned()]);
+    profile.enable = vec![
+        "BUILTIN/NO_SUCH_BUILTIN".to_owned(),
+        "BUILTIN/WHITESPACE_RULE/INDENTATION".to_owned(),
+        "BUILTIN/EN_CONSISTENT_APOS".to_owned(),
+        "BUILTIN/UPPERCASE_SENTENCE_START".to_owned(),
+    ];
+    assert_eq!(
+        rules.apply_profile(&profile),
+        [
+            "BUILTIN/NO_SUCH_BUILTIN",
+            "BUILTIN/WHITESPACE_RULE/INDENTATION"
+        ]
+    );
+    assert!(enabled(&rules, "EN_CONSISTENT_APOS"));
+    assert!(enabled(&rules, "UPPERCASE_SENTENCE_START"));
+}
+
 /// Sources of the suggestions `rules` makes on `text`.
 fn sources(rules: &Rules, text: &str) -> Vec<String> {
     rules
