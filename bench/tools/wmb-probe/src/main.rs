@@ -51,7 +51,7 @@ fn main() {
     println!(
         "profile {}: {} rules disabled",
         profile.name,
-        before - after
+        before.saturating_sub(after)
     );
     if !unmatched.is_empty() {
         eprintln!(

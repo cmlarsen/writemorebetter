@@ -344,6 +344,7 @@ impl BuiltinRule {
             (&self.builtin, case),
             (Builtin::MultipleWhitespace(_), "INDENTATION")
                 | (Builtin::TooOftenUsed(_), "DIRECT_SPEECH")
+                | (Builtin::ConsistentApostrophes(_), "MAJORITY")
         )
     }
 
@@ -351,9 +352,15 @@ impl BuiltinRule {
     /// keeps reporting the others. Returns whether the rule has such a case.
     /// The cases are `INDENTATION` of `WHITESPACE_RULE`, see
     /// [`en::MultipleWhitespace::skip_indentation`], and `DIRECT_SPEECH` of the
-    /// `TOO_OFTEN_USED_*` rules, see [`en::TooOftenUsed::skip_direct_speech`].
+    /// `TOO_OFTEN_USED_*` rules, see [`en::TooOftenUsed::skip_direct_speech`], and `MAJORITY`
+    /// of `EN_CONSISTENT_APOS` (the apostrophes of the more common style), see
+    /// [`en::ConsistentApostrophes::flag_minority_only`].
     pub fn disable_case(&mut self, case: &str) -> bool {
         match (&mut self.builtin, case) {
+            (Builtin::ConsistentApostrophes(rule), "MAJORITY") => {
+                rule.flag_minority_only();
+                true
+            }
             (Builtin::MultipleWhitespace(rule), "INDENTATION") => {
                 rule.skip_indentation();
                 true

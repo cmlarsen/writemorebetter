@@ -70,6 +70,20 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   lowercase suggestions for the first word of a sentence (after any opening punctuation such
   as a quote or a dash) start with a capital ("“wierd thing…" gets Weird, "alot of"
   gets A lot, Lot), unless the word is the sentence's last token.
+- **The `fiction` profile turns on `EN_CONSISTENT_APOS`**, so a manuscript that mixes straight
+  and curly apostrophes is flagged by default in the Swift, WASM and Python checkers. In this
+  profile the rule flags only the less common style and suggests the more common one (on a tie,
+  the straight ones), so one stray `'` in a curly manuscript is one flag rather than one per
+  apostrophe. It is the rule's new `MAJORITY` case (`BUILTIN/EN_CONSISTENT_APOS/MAJORITY`, which
+  the profile disables; `ConsistentApostrophes::flag_minority_only` in Rust); elsewhere the rule
+  still flags both styles as in LanguageTool. The counts cover the whole document, so
+  `Rules::suggest` and `check_paragraph` + `resolve_document` agree. The option is set at
+  runtime and not stored in `en_rules.bin`, whose format does not change. Curly single
+  quotation marks are not apostrophes to the rule, so curly-quoted dialogue does not trigger
+  it; straight single quotation marks in a curly-apostrophe text count, as in LanguageTool. Profiles
+  can now enable rules: `Profile` gains a public `enable` list, applied after `disable`, whose
+  unmatched selectors `Rules::apply_profile` reports too. Code that builds a `Profile` with a
+  struct literal needs the new field; `Profile::new` is unchanged.
 - **`Builtin::check` and `Builtin::check_text` take the speller.** Both take an
   `Option<&Speller>` as a new last argument, as `Builtin::check_paragraph` does. Pass
   `rules.spell().speller().as_ref()` to get the `EN_COMPOUNDS` suggestions `Rules::suggest`
@@ -102,6 +116,11 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
 ### Fixed
 
+- **`apply_suggestions` (and so `Rules::correct`) no longer panics on overlapping suggestions.**
+  It shifted each span by the length change of the replacements before it, which underflowed
+  once two suggestions overlapped, as `EN_CONSISTENT_APOS` and another rule do on the same word.
+  It now applies suggestions in order and skips one that overlaps or precedes an applied one or
+  reaches past the end of the text. The stress harness's input is in the fuzz crash corpus.
 - **The multitoken run-on check uses the en_US speller in every variant, as in LanguageTool
   6.6.** It used the selected variant's speller, so with en_GB "Lincol nCenter" was flagged as a
   misspelled phrase and "Roger sCentre" (→ "Rogers Centre") was not. Both now match

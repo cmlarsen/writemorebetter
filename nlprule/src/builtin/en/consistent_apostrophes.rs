@@ -13,6 +13,9 @@
 //! while a lone `'` does count as typewriter style. If the text has tokens of both styles, every
 //! such token is reported; otherwise none is.
 //!
+//! With [`ConsistentApostrophes::flag_minority_only`] (the fiction profile) only the tokens of
+//! the less common style are reported, the typewriter ones on a tie. This is not in LanguageTool.
+//!
 //! The rule needs the whole text before it can report anything, so it works on
 //! [`ParagraphDigest`]s: each paragraph records the char spans of its apostrophe tokens and their
 //! style while it is checked, and [`ConsistentApostrophes::resolve`] decides from all of them.
@@ -30,13 +33,21 @@ const TYPOGRAPHIC_MESSAGE: &str = "You used a typographic apostrophe here, but a
                                    apostrophe elsewhere in this text. Both are correct, but \
                                    consider using the same type everywhere in your text.";
 
-/// Flags apostrophe tokens of both styles in a text that mixes them.
+/// Flags apostrophe tokens of both styles in a text that mixes them, or with
+/// [`ConsistentApostrophes::flag_minority_only`] only those of the less common style.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct ConsistentApostrophes;
+pub struct ConsistentApostrophes {
+    /// Set at runtime (the `MAJORITY` case, see [`BuiltinRule::disable_case`]), never stored in
+    /// the rules binary, so the binary format is that of the field-less rule.
+    ///
+    /// [`BuiltinRule::disable_case`]: crate::builtin::BuiltinRule::disable_case
+    #[serde(skip)]
+    minority_only: bool,
+}
 
 impl ConsistentApostrophes {
     pub(crate) fn new() -> Self {
-        ConsistentApostrophes
+        ConsistentApostrophes::default()
     }
 
     /// The LanguageTool rule identifier.
@@ -44,43 +55,69 @@ impl ConsistentApostrophes {
         ID
     }
 
+    /// Flags only the apostrophe tokens of the less common style in a text that mixes them,
+    /// suggesting the more common one; on a tie, the typewriter (`'`) tokens. LanguageTool
+    /// flags the tokens of both styles, which stays the default. This is the rule's `MAJORITY`
+    /// case (`"BUILTIN/EN_CONSISTENT_APOS/MAJORITY"`), which the fiction profile disables.
+    ///
+    /// The counts are over the whole text: every current digest passed to
+    /// [`Rules::resolve_document`](crate::Rules::resolve_document), so an edit in one paragraph
+    /// can change which style is flagged in all of them.
+    pub fn flag_minority_only(&mut self) {
+        self.minority_only = true;
+    }
+
+    /// Whether only the less common style is flagged, see
+    /// [`ConsistentApostrophes::flag_minority_only`].
+    pub fn flags_minority_only(&self) -> bool {
+        self.minority_only
+    }
+
     /// The matches for a text made of `digests`, in text order: none unless the text has
     /// apostrophe tokens of both styles.
     pub(crate) fn resolve(&self, digests: &[ParagraphDigest]) -> Vec<DocumentMatch> {
-        let mut typewriter = false;
-        let mut typographic = false;
+        let mut typewriter = 0usize;
+        let mut typographic = 0usize;
         for apostrophe in digests.iter().flat_map(|digest| digest.apostrophes()) {
             if apostrophe.typographic {
-                typographic = true;
+                typographic += 1;
             } else {
-                typewriter = true;
+                typewriter += 1;
             }
         }
-        if !(typewriter && typographic) {
+        if typewriter == 0 || typographic == 0 {
             return Vec::new();
         }
+        // With `minority_only`, the style to flag: typographic only when it is strictly rarer.
+        let flagged_style = self.minority_only.then(|| typographic < typewriter);
 
         digests
             .iter()
             .enumerate()
             .flat_map(|(paragraph, digest)| {
-                digest.apostrophes().iter().map(move |apostrophe| {
-                    let (message, to_typographic) = if apostrophe.typographic {
-                        (TYPOGRAPHIC_MESSAGE, false)
-                    } else {
-                        (TYPEWRITER_MESSAGE, true)
-                    };
-                    DocumentMatch::new(
-                        paragraph,
-                        format!("BUILTIN/{}", ID),
-                        message.to_owned(),
-                        apostrophe.span(),
-                        DocumentFix::SwapApostrophes {
-                            to_typographic,
-                            first: apostrophe.first,
-                        },
-                    )
-                })
+                digest
+                    .apostrophes()
+                    .iter()
+                    .filter(move |apostrophe| {
+                        flagged_style.map_or(true, |style| apostrophe.typographic == style)
+                    })
+                    .map(move |apostrophe| {
+                        let (message, to_typographic) = if apostrophe.typographic {
+                            (TYPOGRAPHIC_MESSAGE, false)
+                        } else {
+                            (TYPEWRITER_MESSAGE, true)
+                        };
+                        DocumentMatch::new(
+                            paragraph,
+                            format!("BUILTIN/{}", ID),
+                            message.to_owned(),
+                            apostrophe.span(),
+                            DocumentFix::SwapApostrophes {
+                                to_typographic,
+                                first: apostrophe.first,
+                            },
+                        )
+                    })
             })
             .collect()
     }

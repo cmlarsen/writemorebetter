@@ -650,6 +650,38 @@ fn apply_profile_disables_builtin_by_id() {
     assert!(!enabled(&rules));
 }
 
+/// A profile's enable list turns on off-by-default rules after its disable list, and reports
+/// enable selectors that match nothing (the case form only disables) without stopping the rest.
+#[test]
+fn apply_profile_enables_after_disabling() {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    let enabled = |rules: &Rules, id: &str| {
+        rules
+            .builtins()
+            .iter()
+            .find(|rule| rule.id() == id)
+            .unwrap()
+            .enabled()
+    };
+    assert!(!enabled(&rules, "EN_CONSISTENT_APOS"));
+    let mut profile = Profile::new("test", vec!["BUILTIN/UPPERCASE_SENTENCE_START".to_owned()]);
+    profile.enable = vec![
+        "BUILTIN/NO_SUCH_BUILTIN".to_owned(),
+        "BUILTIN/WHITESPACE_RULE/INDENTATION".to_owned(),
+        "BUILTIN/EN_CONSISTENT_APOS".to_owned(),
+        "BUILTIN/UPPERCASE_SENTENCE_START".to_owned(),
+    ];
+    assert_eq!(
+        rules.apply_profile(&profile),
+        [
+            "BUILTIN/NO_SUCH_BUILTIN",
+            "BUILTIN/WHITESPACE_RULE/INDENTATION"
+        ]
+    );
+    assert!(enabled(&rules, "EN_CONSISTENT_APOS"));
+    assert!(enabled(&rules, "UPPERCASE_SENTENCE_START"));
+}
+
 /// Sources of the suggestions `rules` makes on `text`.
 fn sources(rules: &Rules, text: &str) -> Vec<String> {
     rules
@@ -1989,6 +2021,44 @@ fn spellchecker_does_not_search_very_long_tokens() {
         "checking a 100k-char token took {:?}",
         start.elapsed()
     );
+}
+
+/// `EN_CONSISTENT_APOS` flags apostrophe tokens that other rules also flag, so `suggest` can
+/// return overlapping suggestions. `apply_suggestions` used to shift later spans by the length
+/// change of earlier ones and underflow; it now applies the first of overlapping suggestions.
+/// The text is the stress harness's generated input from #351, also in the crash corpus. The
+/// rule flags both styles here, as in LanguageTool, which the fiction profile does not.
+#[test]
+fn overlapping_whole_text_suggestions_apply_cleanly() {
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    rules.enable_rules(&["BUILTIN/EN_CONSISTENT_APOS"]).unwrap();
+    rules.spell_mut().options_mut().variant = Some(rules.spell().variant("en_US").unwrap());
+
+    let text = "I she\u{2019}s don\u{2019}t is heroin matter Willdidn't \0 Dr. saidwindow\u{201d}t";
+    let suggestions = rules.suggest(text, &*TOKENIZER);
+    assert!(
+        suggestions
+            .windows(2)
+            .any(|pair| pair[1].span().char().start < pair[0].span().char().end),
+        "{:?}",
+        suggestions
+    );
+    let corrected = nlprule::rules::apply_suggestions(text, &suggestions);
+    assert!(
+        corrected.starts_with('I') && corrected.ends_with('t'),
+        "{}",
+        corrected
+    );
+
+    // Suggestions out of text order are skipped rather than applied at shifted offsets.
+    for text in [
+        "It's don\u{2019}t \u{2014} it\u{2019}s\u{2026}\u{2028}'tis",
+        "a\u{2019}b",
+    ] {
+        let mut suggestions = rules.suggest(text, &*TOKENIZER);
+        suggestions.reverse();
+        let _ = nlprule::rules::apply_suggestions(text, &suggestions);
+    }
 }
 
 #[test]

@@ -3,6 +3,7 @@
 use lazy_static::lazy_static;
 use nlprule::{
     document::{merge_document_suggestions, DIGEST_VERSION},
+    profile::Profile,
     types::{Position, Suggestion},
     Error, ParagraphDigest, Rules, Tokenizer,
 };
@@ -518,4 +519,211 @@ fn digest_size_per_thousand_words() {
         bytes,
         bytes as f64 * 1000.0 / words as f64
     );
+}
+
+lazy_static! {
+    static ref FICTION: Rules = {
+        let mut rules = Rules::new(RULES_PATH).unwrap();
+        assert!(rules.apply_profile(&Profile::fiction()).is_empty());
+        rules
+    };
+}
+
+/// `EN_CONSISTENT_APOS` suggestions under the fiction profile, as `flags` gives them.
+fn fiction_flags(text: &str) -> Vec<(String, String, bool)> {
+    FICTION
+        .suggest(text, &TOKENIZER)
+        .into_iter()
+        .filter(|s| s.source() == SOURCE)
+        .map(|s| {
+            let flagged = text[s.span().byte().clone()].to_owned();
+            let typographic = s.message() == TYPOGRAPHIC;
+            (flagged, s.replacements()[0].clone(), typographic)
+        })
+        .collect()
+}
+
+/// A curly-typeset fiction draft: curly double and single quotes, curly apostrophes, clipped
+/// words, a plural possessive before a closing quote, em dashes, ellipses and U+2028.
+const CURLY_DRAFT: &str = "\u{201c}Don\u{2019}t go,\u{201d} she said\u{2014}softly. \u{201c}I\u{2019}m \
+                           jus\u{2019} tired o\u{2019} waitin\u{2019}\u{2026}\u{201d}\n\
+                           \n\
+                           \u{2018}Tell \u{2019}em I said so,\u{2019} he wrote. \u{201c}She said \
+                           \u{2018}no\u{2019}.\u{201d}\u{2028}The dogs\u{2019} bowls were \
+                           empty\u{2026} \u{2018}Rock \u{2019}n\u{2019} roll\u{2019}\u{2014}that\u{2019}s \
+                           all.\n\
+                           \n\
+                           \u{2018}Where\u{2019}s the boys\u{2019}?\u{2019} she asked. \u{2018}Gone.\u{2019}";
+
+#[test]
+fn fiction_profile_enables_consistent_apostrophes() {
+    let enabled = |rules: &Rules| {
+        rules
+            .builtins()
+            .iter()
+            .find(|x| x.id() == ID)
+            .unwrap()
+            .enabled()
+    };
+    assert!(enabled(&FICTION));
+    assert!(Profile::fiction().enable.contains(&SOURCE.to_owned()));
+    // The default profile leaves it off.
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    assert!(rules.apply_profile(&Profile::default_profile()).is_empty());
+    assert!(!enabled(&rules));
+}
+
+/// Curly single quotes used as quotation marks are not apostrophes: a draft typeset with curly
+/// quotes and apostrophes throughout has no flags, and neither does one with straight
+/// apostrophes inside curly quotation marks.
+#[test]
+fn fiction_curly_quotes_are_not_mixed_apostrophes() {
+    assert_eq!(fiction_flags(CURLY_DRAFT), vec![]);
+    for text in [
+        "\u{2018}Don't go,\u{2019} she said\u{2014}softly. \u{2018}I'm tired\u{2026}\u{2019}",
+        "\u{201c}She said \u{2018}no\u{2019}.\u{201d}\u{2028}It's late.",
+        "\u{2018}Gone.\u{2019} \u{2018}Where?\u{2019} \u{2018}Out!\u{2019}\u{2014}we'll see.",
+        "\u{2018}Come here\u{2019}\u{2014}she couldn't\u{2026}",
+    ] {
+        assert_eq!(fiction_flags(text), vec![], "{text:?}");
+    }
+}
+
+/// A straight-typeset draft: straight apostrophes and clipped words, curly double quotes, em
+/// dashes, ellipses and U+2028.
+const STRAIGHT_DRAFT: &str =
+    "\u{201c}Don't go,\u{201d} she said\u{2014}softly. \u{201c}I'm jus' tired o' \
+                              waitin'\u{2026}\u{201d}\n\
+                              \n\
+                              He couldn't say\u{2014}wouldn't.\u{2028}It's late\u{2026} we'll see.";
+
+/// The LanguageTool probe below, checked with `-e EN_CONSISTENT_APOS`: two curly apostrophe
+/// tokens and one straight. The tokenizer splits the `’` off `’em`, `jus’`, `o’` and `dogs’`, so
+/// those are lone quotes and do not count, in LanguageTool too.
+const PROBE: &str = "\u{2018}Tell \u{2019}em I\u{2019}m jus\u{2019} tired o\u{2019} waitin\u{2019}\u{2026}\u{2019} \
+                     The dogs\u{2019} bowls. \u{2018}Come here\u{2019}\u{2014}he said \u{2018}no\u{2019}. \
+                     He didn't answer.";
+
+/// LanguageTool flags both styles; the fiction profile only the rarer one, suggesting the other.
+#[test]
+fn fiction_flags_only_the_minority_style() {
+    assert_eq!(
+        flags(PROBE),
+        vec![
+            typographic("\u{2019}m"),
+            typographic("waitin\u{2019}"),
+            typewriter("n't")
+        ]
+    );
+    assert_eq!(fiction_flags(PROBE), vec![typewriter("n't")]);
+
+    // Majority curly: one straight apostrophe pasted into a curly draft.
+    let text = format!("{CURLY_DRAFT}\n\nHe didn't answer.");
+    assert!(flags(&text).len() > 5);
+    assert_eq!(fiction_flags(&text), vec![typewriter("n't")]);
+
+    // Majority straight: one curly apostrophe in a straight draft.
+    let text = format!("{STRAIGHT_DRAFT}\n\nShe\u{2019}d gone.");
+    assert!(flags(&text).len() > 5);
+    assert_eq!(fiction_flags(&text), vec![typographic("\u{2019}d")]);
+
+    // A tie flags the straight ones, as curly is the fiction norm.
+    assert_eq!(
+        fiction_flags("\u{201c}It's late,\u{201d} she said\u{2014}it\u{2019}s late\u{2026}"),
+        vec![typewriter("'s")]
+    );
+    assert_eq!(
+        fiction_flags("We'll go.\u{2028}\u{2018}Don't.\u{2019} I\u{2019}m\u{2026} you\u{2019}re."),
+        vec![typewriter("'ll"), typewriter("n't")]
+    );
+    // Curly by one: the straight ones.
+    assert_eq!(
+        fiction_flags("We'll go. I\u{2019}m\u{2014}you\u{2019}re."),
+        vec![typewriter("'ll")]
+    );
+    // Straight by one: the curly one. A lone `’` quotation mark does not count.
+    assert_eq!(
+        fiction_flags("We'll go. It's \u{2018}fine\u{2019}. I\u{2019}m here."),
+        vec![typographic("\u{2019}m")]
+    );
+
+    // One style throughout: no flags.
+    for text in [CURLY_DRAFT, STRAIGHT_DRAFT] {
+        assert_eq!(fiction_flags(text), vec![], "{:?}", text);
+    }
+}
+
+/// The counts are over the whole document, so checking it whole and checking it paragraph by
+/// paragraph (however it is split) flag the same apostrophes.
+#[test]
+fn fiction_whole_text_equals_paragraphs() {
+    let texts = [
+        format!("{CURLY_DRAFT}\n\nHe didn't answer."),
+        format!("{STRAIGHT_DRAFT}\n\nShe\u{2019}d gone."),
+        format!("{CURLY_DRAFT}\n\n{STRAIGHT_DRAFT}"),
+        format!("{STRAIGHT_DRAFT}\u{2028}{CURLY_DRAFT}"),
+        "It's here.\n\nIt\u{2019}s there.\n\nWe'll go.\n".to_owned(),
+        "It\u{2019}s here.\u{2029}It's there.\u{2029}We\u{2019}ll go.".to_owned(),
+        "\u{201c}It's late,\u{201d}\n\nshe said\u{2014}it\u{2019}s late\u{2026}".to_owned(),
+    ];
+    for text in &texts {
+        let whole = apos_keys(&FICTION.suggest(text, &TOKENIZER));
+        assert!(!whole.is_empty(), "{:?}", text);
+        for separator in ["\n", "\u{2029}", "\u{2028}", ". "] {
+            let parts: Vec<&str> = text.split_inclusive(separator).collect();
+            let (split, _) = incremental(&FICTION, &parts, "", false);
+            assert_eq!(whole, apos_keys(&split), "{:?} {:?}", text, separator);
+            let parts: Vec<&str> = text.split(separator).collect();
+            let (split, _) = incremental(&FICTION, &parts, separator, true);
+            assert_eq!(whole, apos_keys(&split), "{:?} {:?}", text, separator);
+        }
+    }
+}
+
+/// Editing one paragraph can change which style is the minority, and so which apostrophes are
+/// flagged in the paragraphs that did not change.
+#[test]
+fn fiction_an_edit_flips_the_minority_elsewhere() {
+    let first = "It's late. We'll go.";
+    let (_, a) = FICTION.check_paragraph(first, true, &TOKENIZER);
+    let flagged = |second: &str| {
+        let (_, b) = FICTION.check_paragraph(second, true, &TOKENIZER);
+        FICTION
+            .resolve_document(&[a.clone(), b])
+            .matches
+            .iter()
+            .map(|m| m.paragraph())
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(flagged("He didn\u{2019}t\u{2014}no."), vec![1]);
+    // Two curly against two straight: a tie flags the straight ones in the first paragraph.
+    assert_eq!(
+        flagged("He didn\u{2019}t\u{2014}I\u{2019}m sure."),
+        vec![0, 0]
+    );
+    assert_eq!(
+        flagged("He didn\u{2019}t\u{2026} I\u{2019}m sure you\u{2019}re."),
+        vec![0, 0]
+    );
+    assert_eq!(flagged("He said no."), Vec::<usize>::new());
+}
+
+/// The fiction profile's option is a case of the rule: without it the rule flags both styles.
+#[test]
+fn minority_only_is_a_case_of_the_rule() {
+    let rule = |rules: &Rules| match rules
+        .builtins()
+        .iter()
+        .find(|x| x.id() == ID)
+        .unwrap()
+        .builtin()
+    {
+        nlprule::builtin::Builtin::ConsistentApostrophes(rule) => rule.flags_minority_only(),
+        _ => unreachable!(),
+    };
+    assert!(rule(&FICTION));
+    assert!(!rule(&APOS));
+    assert!(Profile::fiction()
+        .disable
+        .contains(&format!("{}/MAJORITY", SOURCE)));
 }

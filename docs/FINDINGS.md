@@ -268,6 +268,14 @@ What moved since 2026-10-11 (LT 6.6 column):
   2026-10-11 run did not record which files it counted. The Harper confusion builtins from #311
   raise nothing on the private corpus, the opt-in rules from #310 are off by default, and #322 adds
   no rules to either profile.
+- **`EN_CONSISTENT_APOS` in the fiction profile (2026-10-22): fiction flags 178 → 214, recall
+  unchanged.** Measured with `bench/tools/gates.sh` on main as of #359 (private recall 50/50 with
+  and without it). The 36 new flags are all `EN_CONSISTENT_APOS`, in the 2 of 5 private files that
+  mix straight and curly apostrophes; no other flag changes. The fiction profile flags only the
+  rarer style (`BUILTIN/EN_CONSISTENT_APOS/MAJORITY`). LanguageTool's flag-everything behaviour
+  gave 232 on the same files, because one file has a single curly apostrophe among about 125
+  straight ones. On the public `moby150k.txt` golden, one straight closing single quote among 264
+  curly apostrophes adds 1 flag (267 with LanguageTool's behaviour).
 - **Grammar conformance 5,977 → 6,074 and disambiguation 1,012 → 1,016**: the 2026-10-14 wave of
   filter, matcher and builtin fixes (#181–#254; e.g. the speller-backed rule filters and the
   `min_prev_matches` repetition rules). #308–#322 did not change it; CI gates 6,074 and 1,016.
