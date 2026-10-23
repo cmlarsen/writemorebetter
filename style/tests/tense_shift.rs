@@ -615,3 +615,30 @@ ceremonies which are instituted by the Church of England.";
     let report = run(text, &TenseShiftOptions::new());
     assert!(report.shifts.is_empty());
 }
+
+#[test]
+fn the_narrators_present_does_not_vote() {
+    // Guards added from the development labels (docs/STYLE-TENSE-SHIFT.md).
+    clean("Nowadays we have revues. To this day the house is empty. These days the road is paved.");
+    clean("I have known a lot of losses. Of Silver we have heard no more.");
+    clean("I am glad to think of it. I recollect the wet housetops. I picture my small self.");
+    // Third-person present perfect still votes.
+    one_run(
+        "She has opened the door. They have left.",
+        "She has opened the door. They have left.",
+        &["has", "have"],
+    );
+}
+
+#[test]
+fn indefinite_and_habitual_past_chains_vote_past() {
+    // *A package came* is narration, not a generic statement: it closes the run before it.
+    let text = framed("The room is dark. The air is cold. A package came. She always walked home.");
+    let report = run(&text, &defaults());
+    assert_eq!(report.shifts.len(), 1);
+    assert_eq!(
+        &text[report.shifts[0].span.byte.clone()],
+        "The room is dark. The air is cold."
+    );
+    assert_eq!(report.scenes[0].votes.past, 10);
+}

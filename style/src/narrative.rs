@@ -688,6 +688,45 @@ const FRAME: [&str; 20] = [
     "admit", "confess", "mean", "hope", "doubt", "suspect", "say", "tell", "swear", "grant",
     "expect",
 ];
+/// Narrator-frame verbs beyond the issue's list, added from the #355 development labels: a first-
+/// person narrator recollecting or judging in the present (*I recollect the wet housetops*, *I
+/// picture my small self*, *I fear to approach it*). *feel*, *find* and *seem* are left out: they
+/// are scene verbs as often as frames (*I feel the cold*).
+const FRAME_EXTRA: [&str; 13] = [
+    "recollect",
+    "picture",
+    "fear",
+    "trust",
+    "own",
+    "fancy",
+    "assure",
+    "beg",
+    "declare",
+    "acknowledge",
+    "regret",
+    "venture",
+    "presume",
+];
+/// Attitude adjectives after a first-person *be* (*I am glad to think*, *I am sorry to say*).
+const FRAME_ADJECTIVES: [&str; 12] = [
+    "glad",
+    "sorry",
+    "afraid",
+    "thankful",
+    "sure",
+    "certain",
+    "bound",
+    "ashamed",
+    "aware",
+    "conscious",
+    "persuaded",
+    "convinced",
+];
+/// Deictics of the narrator's present: a present chain beside one is the narrator's now
+/// (*Nowadays we have revues.*), not the scene's. *now* and *still* are left out: they are common
+/// in past narration (*She was still holding it*), and exempting them cost 9 points of synthetic
+/// run recall for little precision (docs/STYLE-TENSE-SHIFT.md).
+const NARRATOR_NOW: [&str; 1] = ["nowadays"];
 const DISPLAY_VERBS: [&str; 7] = [
     "said",
     "read",
@@ -878,14 +917,18 @@ fn subordinate(tokens: &[&Token], found: &[Chain], n: usize, start: usize, np: u
     }
     // The subject's noun phrase can open before the clause start the chunker gave (*those rites
     // and ceremonies which are instituted*); then nothing lies between them.
-    let opener = tokens.get(start..np).unwrap_or_default().iter().any(|token| {
-        token.is_word
-            && (chunk(token, "B-SBAR")
-                || has_pos(token, "WDT")
-                || has_pos(token, "WP")
-                || has_pos(token, "WRB")
-                || SUBORDINATORS.contains(&normalized(token).as_str()))
-    });
+    let opener = tokens
+        .get(start..np)
+        .unwrap_or_default()
+        .iter()
+        .any(|token| {
+            token.is_word
+                && (chunk(token, "B-SBAR")
+                    || has_pos(token, "WDT")
+                    || has_pos(token, "WP")
+                    || has_pos(token, "WRB")
+                    || SUBORDINATORS.contains(&normalized(token).as_str()))
+        });
     if opener {
         return true;
     }
@@ -970,10 +1013,43 @@ fn habitual(tokens: &[&Token]) -> bool {
 
 fn narrator_frame(tokens: &[&Token], chain: &Chain, subject: usize) -> bool {
     let first = tokens[subject].text == "I" || normalized(tokens[subject]) == "we";
-    first
-        && tokens[chain.head..chain.end]
-            .iter()
-            .any(|token| has_verb_lemma(token, |lemma| FRAME.contains(&lemma)))
+    let verbs = &tokens[chain.head..chain.end];
+    if first {
+        if verbs.iter().any(|token| {
+            has_verb_lemma(token, |lemma| {
+                FRAME.contains(&lemma) || FRAME_EXTRA.contains(&lemma)
+            })
+        }) {
+            return true;
+        }
+        // A first-person present perfect ties the past to the narrator's now (*I have known a
+        // lot of losses*, *Of Silver we have heard no more*).
+        let perfect = has_verb_lemma(tokens[chain.head], |lemma| lemma == "have")
+            && verbs[1..].iter().any(|token| has_pos(token, "VBN"));
+        if perfect {
+            return true;
+        }
+        let be = has_verb_lemma(tokens[chain.head], |lemma| lemma == "be");
+        if be
+            && tokens[chain.end..]
+                .iter()
+                .take(2)
+                .any(|token| FRAME_ADJECTIVES.contains(&normalized(token).as_str()))
+        {
+            return true;
+        }
+    }
+    // *now*, *still* or *nowadays* in the same narration, or *to this day*, *these days* or *at
+    // present*. Deictics never vote; here they only take a present vote away.
+    tokens.iter().enumerate().any(|(i, token)| {
+        let word = normalized(token);
+        let next = tokens.get(i + 1).map(|t| normalized(t)).unwrap_or_default();
+        let after = tokens.get(i + 2).map(|t| normalized(t)).unwrap_or_default();
+        NARRATOR_NOW.contains(&word.as_str())
+            || (word == "these" && next == "days")
+            || (word == "at" && next == "present")
+            || (word == "to" && next == "this" && after == "day")
+    })
 }
 
 fn specific_subject(tokens: &[&Token], subject: usize, np: usize) -> bool {

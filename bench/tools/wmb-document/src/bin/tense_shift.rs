@@ -3,8 +3,9 @@
 //!
 //! In:  {"text": "...", "hardWrapped": false, "documentOptions": {...}, "options": {...}}
 //! Out: {"report": TenseShiftReport, "sentences": [{"scene", "span", "class", "tagOnly",
-//!       "pastPerfectOnly", "specific", "gnomic", "chains": [{"head", "end", "text", "readings",
-//!       "subject", "class", "exemption"}]}]}, spans with byte, char and UTF-16 ranges.
+//!       "pastPerfectOnly", "specific", "gnomic", "backstory", "narration", "chains": [{"head",
+//!       "end", "text", "readings", "subject", "subjectReadings", "class", "exemption"}]}]}, spans
+//!       with byte, char and UTF-16 ranges.
 use std::io::{self, BufRead, Write};
 
 use serde::Deserialize;
@@ -32,7 +33,6 @@ fn class_name(class: ChainClass) -> &'static str {
         ChainClass::Present => "present",
         ChainClass::Modal { .. } => "modal",
         ChainClass::Ambiguous => "ambiguous",
-        _ => "other",
     }
 }
 
@@ -65,7 +65,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         for scene in scenes(&document) {
             for (index, vote) in scene_votes(&document, &scene) {
                 let sentence = all[index];
-                let tokens: Vec<_> = sentence.tokens.iter().filter(|t| !t.is_whitespace).collect();
+                let tokens: Vec<_> = sentence
+                    .tokens
+                    .iter()
+                    .filter(|t| !t.is_whitespace)
+                    .collect();
                 let span = match (tokens.first(), tokens.last()) {
                     (Some(first), Some(last)) => Span::covering(&first.span, &last.span),
                     _ => sentence.span.clone(),
@@ -82,12 +86,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             "readings": head.readings.iter()
                                 .map(|r| [r.lemma.as_str(), r.pos.as_str()]).collect::<Vec<_>>(),
                             "subject": chain.subject.map(|s| &sentence.tokens[s].text),
+                            "subjectReadings": chain.subject.map(|s| sentence.tokens[s].readings.iter()
+                                .map(|r| r.pos.as_str()).collect::<Vec<_>>()),
                             "class": class_name(chain.class),
                             "exemption": chain.exemption,
                         })
                     })
                     .collect();
                 sentences.push(json!({
+                    "index": index,
                     "scene": scene.index,
                     "span": span,
                     "class": sentence_class(vote.class),

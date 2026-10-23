@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use crate::narrative::{
     scene_votes, scenes, tense_tally, NarrativeTense, SentenceTense, SentenceVote, TenseThresholds,
 };
-use crate::{Document, Span, StyleError};
+use crate::{Document, Sentence, Span, StyleError};
 
 pub use crate::narrative::TenseExemption;
 
@@ -242,15 +242,13 @@ fn class_of(tense: NarrativeTense) -> SentenceTense {
 }
 
 /// From the first non-whitespace token of the first sentence to the last of the last.
-fn sentences_span(document: &Document, sentences: &Range<usize>) -> Span {
-    let mut tokens = document
-        .sentences()
-        .skip(sentences.start)
-        .take(sentences.len())
+fn sentences_span(all: &[&Sentence], sentences: &Range<usize>) -> Span {
+    let mut tokens = all[sentences.clone()]
+        .iter()
         .flat_map(|sentence| &sentence.tokens)
         .filter(|token| !token.is_whitespace);
     let first = tokens.next().expect("a flagged sentence has tokens");
-    let last = tokens.last().unwrap_or(first);
+    let last = tokens.next_back().unwrap_or(first);
     Span::covering(&first.span, &last.span)
 }
 
@@ -262,7 +260,8 @@ enum Step {
 }
 
 struct Flagger<'a> {
-    document: &'a Document,
+    /// Every sentence in document order, so a run's sentences are found by index.
+    sentences: &'a [&'a Sentence],
     options: &'a TenseShiftOptions,
     scene: usize,
     tense: NarrativeTense,
@@ -328,17 +327,13 @@ impl Flagger<'_> {
         };
         let sentences = votes[first].0..votes[last].0 + 1;
         let mut verbs = Vec::new();
-        let mut global = self.document.sentences().enumerate();
         for &k in run {
             let (index, vote) = &votes[k];
-            let sentence = global
-                .find(|(i, _)| i == index)
-                .map(|(_, sentence)| sentence)
-                .expect("a run sentence exists");
+            let sentence = self.sentences[*index];
             verbs.extend(vote.voting.iter().map(|&t| sentence.tokens[t].span.clone()));
         }
         shifts.push(TenseShift {
-            span: sentences_span(self.document, &sentences),
+            span: sentences_span(self.sentences, &sentences),
             sentences,
             verbs,
             scene: self.scene,
@@ -396,6 +391,7 @@ pub fn report(
     }
     .infer(past, present);
 
+    let all: Vec<&Sentence> = document.sentences().collect();
     let mut exemptions: BTreeMap<TenseExemption, usize> = BTreeMap::new();
     let mut shifts = Vec::new();
     let mut records = Vec::new();
@@ -442,7 +438,7 @@ pub fn report(
         };
         if let Some(tense) = tense {
             Flagger {
-                document,
+                sentences: &all,
                 options,
                 scene: scene.index,
                 tense,
