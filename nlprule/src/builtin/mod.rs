@@ -82,6 +82,12 @@ pub enum Builtin {
     /// Flags every apostrophe token in a text that mixes `'` and `’`. A whole-text rule: see
     /// [`crate::document`].
     ConsistentApostrophes(en::ConsistentApostrophes),
+    /// Flags paragraphs whose Flesch reading ease is too high (`READABILITY_RULE_SIMPLE`) or too
+    /// low (`READABILITY_RULE_DIFFICULT`). A whole-text rule: see [`crate::document`].
+    Readability(en::Readability),
+    /// Flags two successive paragraphs that begin with the same word. A whole-text rule: see
+    /// [`crate::document`].
+    ParagraphRepeatBeginning(en::ParagraphRepeatBeginning),
 }
 
 impl Builtin {
@@ -112,6 +118,8 @@ impl Builtin {
             Builtin::Compounds(rule) => rule.id(),
             Builtin::HarperConfusion(rule) => rule.id(),
             Builtin::ConsistentApostrophes(rule) => rule.id(),
+            Builtin::Readability(rule) => rule.id(),
+            Builtin::ParagraphRepeatBeginning(rule) => rule.id(),
         }
     }
 
@@ -124,7 +132,8 @@ impl Builtin {
     /// Runs this rule on consecutive sentences of one paragraph. Rules that need context beyond one sentence
     /// (e.g. quotes spanning sentences) see all of them; sentence-level rules check each one separately.
     /// The whole-text rules (`EN_CONSISTENT_APOS`, `EN_REPEATEDWORDS`, `EN_WORD_COHERENCY`,
-    /// `TOO_OFTEN_USED_*`; see [`crate::document`]) take `sentences` as the whole text. Rules that
+    /// `TOO_OFTEN_USED_*`, `READABILITY_RULE_*`, `PARAGRAPH_REPEAT_BEGINNING_RULE`; see
+    /// [`crate::document`]) take `sentences` as the whole text. Rules that
     /// check their suggestions against the speller (`EN_COMPOUNDS`) use `speller`; pass
     /// [`Spell::speller`](crate::spell::Spell::speller) of the [`Rules`](crate::Rules) to get the
     /// suggestions [`Rules::suggest`](crate::Rules::suggest) reports. Without one they keep every
@@ -202,7 +211,9 @@ impl Builtin {
             Builtin::ConsistentApostrophes(_)
             | Builtin::WordCoherency(_)
             | Builtin::RepeatedWords(_)
-            | Builtin::TooOftenUsed(_) => Vec::new(),
+            | Builtin::TooOftenUsed(_)
+            | Builtin::Readability(_)
+            | Builtin::ParagraphRepeatBeginning(_) => Vec::new(),
         }
     }
 }

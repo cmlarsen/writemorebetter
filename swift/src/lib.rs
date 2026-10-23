@@ -938,7 +938,7 @@ mod tests {
     fn unreadable_digests_are_stale() {
         let checker = checker();
         let check = checker.check_paragraph(PARAGRAPHS[1].to_string(), true);
-        assert_eq!(check.digest[..4], [2, 0, 0, 0]);
+        assert_eq!(check.digest[..4], [3, 0, 0, 0]);
         let resolution = checker.resolve_document(vec![check.digest, vec![1, 0, 0, 0, 7], vec![]]);
         assert_eq!(resolution.stale(), [1, 2]);
         // A checked span inside a surrogate pair is left out rather than misplaced.

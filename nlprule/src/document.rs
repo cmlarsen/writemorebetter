@@ -34,10 +34,28 @@
 //! whitespace to sentences. An editor that stores paragraphs without their separators says so
 //! with the `ends_paragraph` argument of [`Rules::check_paragraph`].
 //!
+//! The paragraph rules (`READABILITY_RULE_SIMPLE`, `READABILITY_RULE_DIFFICULT`,
+//! `PARAGRAPH_REPEAT_BEGINNING_RULE`) follow LanguageTool's sentence-level test instead: a
+//! paragraph ends after a sentence whose text ends with a blank line or before one whose text
+//! starts with a line break (`Tools.isParagraphEnd`). A digest groups its sentences into such
+//! paragraphs, with the counts and first words those rules need, and leaves the last one open
+//! for the resolver to join with the next digest's. Their results equal the whole text's for a
+//! split between sentences (by line, by sentence, at blank lines) of ordinary text. Where the
+//! split falls in whitespace, the resolver has to guess how the sentencizer would have split
+//! the joined text (see [`Lead`]), and some rare runs come out differently: a tab right after a
+//! blank line (kept with the sentence before it in a whole text), line breaks that mix a bare LF
+//! with CRLF, and whitespace before the line break. A readability match whose first three words
+//! are not in one piece ends with the first piece; with the separators stripped
+//! (`ends_paragraph`), whitespace at the end of a paragraph, which LanguageTool can count as a
+//! sentence, must stay in the piece. A piece of only ASCII whitespace adds nothing, as a blank
+//! line holding spaces adds nothing to a whole text.
+//!
+//! # Versions
 //! # Versions
 //!
-//! Digests hold offsets, flags and the lemmas the word-statistics rules count (as strings, so a
-//! digest does not depend on the tagger's word ids), never the paragraph's text itself. Their
+//! Digests hold offsets, counts, flags, the lemmas the word-statistics rules count (as strings,
+//! so a digest does not depend on the tagger's word ids) and hashes of the first words of
+//! paragraphs, never the paragraph's text itself. Their
 //! layout changes when a whole-text rule needs more from a paragraph; [`DIGEST_VERSION`] changes
 //! with it. [`ParagraphDigest::to_bytes`] and
 //! [`ParagraphDigest::from_bytes`] store a digest with its version and reject one from another
@@ -74,13 +92,16 @@ use std::ops::Range;
 /// Version 2: the word-statistics rules (`TOO_OFTEN_USED_*`, `EN_REPEATEDWORDS`,
 /// `EN_WORD_COHERENCY`), and [`ParagraphDigest::to_bytes`] writes variable-length integers and
 /// relative offsets.
-pub const DIGEST_VERSION: u32 = 2;
+///
+/// Version 3: the paragraph rules (`READABILITY_RULE_SIMPLE`, `READABILITY_RULE_DIFFICULT`,
+/// `PARAGRAPH_REPEAT_BEGINNING_RULE`).
+pub const DIGEST_VERSION: u32 = 3;
 
 /// A compact text position: byte and char offset relative to the start of a digest's text.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct Offset {
-    byte: u32,
-    char: u32,
+    pub(crate) byte: u32,
+    pub(crate) char: u32,
 }
 
 impl Offset {
@@ -98,7 +119,7 @@ impl Offset {
         }
     }
 
-    fn position(self) -> Position {
+    pub(crate) fn position(self) -> Position {
         Position {
             byte: self.byte as usize,
             char: self.char as usize,
@@ -304,8 +325,507 @@ pub(crate) struct VariantWord {
     pub(crate) candidates: Vec<VariantCandidate>,
 }
 
-/// What the whole-text rules need to know about one paragraph: offsets, flags and the lemmas the
-/// word-statistics rules count, no text.
+/// An offset in the digest at index `digest` of a document, as [`Rules::resolve_document`] sees
+/// it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct At {
+    pub(crate) digest: usize,
+    pub(crate) offset: Offset,
+}
+
+/// The run of CR and LF chars that ends a sentence's text, its last four at most: enough to tell
+/// whether the text ends with a blank line as LanguageTool's `Tools.isParagraphEnd` sees it. The
+/// low three bits hold the length, bit `3 + i` whether the `i`th char (oldest first) is a CR.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) struct LineEnd(u8);
+
+impl LineEnd {
+    const MAX: usize = 4;
+
+    fn from_chars(chars: &[char]) -> Self {
+        let chars = &chars[chars.len().saturating_sub(Self::MAX)..];
+        let mut bits = chars.len() as u8;
+        for (i, c) in chars.iter().enumerate() {
+            if *c == '\r' {
+                bits |= 1 << (3 + i);
+            }
+        }
+        LineEnd(bits)
+    }
+
+    /// The run of CR and LF chars at the end of `text`.
+    fn of(text: &str) -> Self {
+        let mut chars: Vec<char> = text
+            .chars()
+            .rev()
+            .take_while(|c| matches!(c, '\r' | '\n'))
+            .take(Self::MAX)
+            .collect();
+        chars.reverse();
+        Self::from_chars(&chars)
+    }
+
+    fn chars(self) -> Vec<char> {
+        (0..self.len().min(Self::MAX))
+            .map(|i| {
+                if self.0 & (1 << (3 + i)) != 0 {
+                    '\r'
+                } else {
+                    '\n'
+                }
+            })
+            .collect()
+    }
+
+    /// The run of `self` followed by that of `other`.
+    fn then(self, other: LineEnd) -> Self {
+        let mut chars = self.chars();
+        chars.extend(other.chars());
+        Self::from_chars(&chars)
+    }
+
+    /// The number of chars in the run.
+    fn len(self) -> usize {
+        (self.0 & 7) as usize
+    }
+
+    fn ends_with_lf(self) -> bool {
+        self.chars().last() == Some(&'\n')
+    }
+
+    /// Whether the text ends with a blank line, `\n\n`, `\n\r\n\r` or `\r\n\r\n`, as LanguageTool
+    /// checks.
+    fn is_blank(self) -> bool {
+        let text: String = self.chars().into_iter().collect();
+        text.ends_with("\n\n") || text.ends_with("\n\r\n\r") || text.ends_with("\r\n\r\n")
+    }
+}
+
+/// One of the first tokens of a sentence, as `PARAGRAPH_REPEAT_BEGINNING_RULE` compares them:
+/// its span, a hash of its text (digests hold no text) and what kind of token it is.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) struct BeginningToken<P> {
+    pub(crate) start: P,
+    pub(crate) end: P,
+    /// The 64-bit FNV-1a hash of the token's text, with `’` normalized to `'` as the tagger does.
+    pub(crate) hash: u64,
+    /// The flags [`BeginningToken::QUOTE`], [`BeginningToken::LETTER`] and
+    /// [`BeginningToken::DETERMINER`].
+    kind: u8,
+}
+
+impl<P> BeginningToken<P> {
+    const QUOTE: u8 = 1;
+    const LETTER: u8 = 2;
+    const DETERMINER: u8 = 4;
+
+    pub(crate) fn new(
+        start: P,
+        end: P,
+        text: &str,
+        is_quote: bool,
+        starts_with_letter: bool,
+        is_determiner: bool,
+    ) -> Self {
+        let hash = text.bytes().fold(0xcbf2_9ce4_8422_2325u64, |hash, byte| {
+            (hash ^ u64::from(byte)).wrapping_mul(0x0100_0000_01b3)
+        });
+        let kind = (u8::from(is_quote) * Self::QUOTE)
+            | (u8::from(starts_with_letter) * Self::LETTER)
+            | (u8::from(is_determiner) * Self::DETERMINER);
+        BeginningToken {
+            start,
+            end,
+            hash,
+            kind,
+        }
+    }
+
+    /// Whether the token is a single quote or bracket.
+    pub(crate) fn is_quote(&self) -> bool {
+        self.kind & Self::QUOTE != 0
+    }
+
+    /// Whether the token's first UTF-16 unit is a letter.
+    pub(crate) fn starts_with_letter(&self) -> bool {
+        self.kind & Self::LETTER != 0
+    }
+
+    /// Whether a reading of the token is tagged `DT…`.
+    pub(crate) fn is_determiner(&self) -> bool {
+        self.kind & Self::DETERMINER != 0
+    }
+
+    fn map<Q>(self, f: impl Fn(P) -> Q) -> BeginningToken<Q> {
+        BeginningToken {
+            start: f(self.start),
+            end: f(self.end),
+            hash: self.hash,
+            kind: self.kind,
+        }
+    }
+}
+
+/// The first tokens of a sentence (at most three), for `PARAGRAPH_REPEAT_BEGINNING_RULE`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) struct Beginning<P> {
+    /// The length of the sentence's text before its first token.
+    pub(crate) lead: Offset,
+    pub(crate) tokens: Vec<BeginningToken<P>>,
+}
+
+impl<P> Beginning<P> {
+    fn map<Q>(self, f: impl Fn(P) -> Q + Copy) -> Beginning<Q> {
+        Beginning {
+            lead: self.lead,
+            tokens: self.tokens.into_iter().map(|x| x.map(f)).collect(),
+        }
+    }
+}
+
+/// Consecutive sentences of one LanguageTool paragraph, as the paragraph rules
+/// (`READABILITY_RULE_*`, `PARAGRAPH_REPEAT_BEGINNING_RULE`) see them. A part that is not
+/// `closed` may continue in the text after it. Positions are `P`: [`Offset`]s in a digest, [`At`]
+/// in the resolver.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) struct Part<P> {
+    /// The sentences, counting whitespace-only ones as LanguageTool does.
+    sentences: u32,
+    /// The words and their syllables, as `READABILITY_RULE_*` counts them.
+    words: u32,
+    syllables: u32,
+    /// The start of the first token of the first sentence with a token.
+    mark_start: Option<P>,
+    /// The end of the third token of the first sentence with at least three.
+    mark_end: Option<P>,
+    /// The first sentence's first tokens; `None` if it has no token.
+    beginning: Option<Beginning<P>>,
+    /// Whether the first sentence's text starts with a line break, which ends the paragraph
+    /// before it.
+    starts_with_line_break: bool,
+    /// The line breaks that end the last sentence's text.
+    line_end: LineEnd,
+    /// Whether a paragraph ends after the part.
+    closed: bool,
+    /// The length of the part's text, and how many LF chars it holds (at most 2), if it is a
+    /// single whitespace-only sentence that may still turn out to be the leading whitespace of
+    /// the next sentence, see [`Lead`].
+    whitespace: Option<(Offset, u8)>,
+}
+
+impl<P> Part<P> {
+    fn map<Q>(self, f: impl Fn(P) -> Q + Copy) -> Part<Q> {
+        Part {
+            sentences: self.sentences,
+            words: self.words,
+            syllables: self.syllables,
+            mark_start: self.mark_start.map(f),
+            mark_end: self.mark_end.map(f),
+            beginning: self.beginning.map(|x| x.map(f)),
+            starts_with_line_break: self.starts_with_line_break,
+            line_end: self.line_end,
+            closed: self.closed,
+            whitespace: self.whitespace,
+        }
+    }
+
+    /// Adds `next`, the sentences right after this part's, to this part.
+    fn join(&mut self, next: Part<P>) {
+        self.sentences += next.sentences;
+        self.words += next.words;
+        self.syllables += next.syllables;
+        if self.mark_start.is_none() {
+            self.mark_start = next.mark_start;
+        }
+        if self.mark_end.is_none() {
+            self.mark_end = next.mark_end;
+        }
+        self.line_end = next.line_end;
+        self.closed = next.closed;
+        self.whitespace = None;
+    }
+
+    /// Makes `whitespace`, a whitespace-only part right before this part, the leading whitespace
+    /// of this part's first sentence.
+    fn absorb(&mut self, whitespace: &Part<P>) {
+        let Some((by, by_line_feeds)) = whitespace.whitespace else {
+            return;
+        };
+        self.starts_with_line_break = whitespace.starts_with_line_break;
+        if let Some(beginning) = &mut self.beginning {
+            beginning.lead = beginning.lead.shift(by);
+        }
+        if let Some((len, line_feeds)) = &mut self.whitespace {
+            // Two whitespace-only sentences make one: `"\r\n"` and `"\r\n"` end a paragraph.
+            if len.char as usize == self.line_end.len() {
+                self.line_end = whitespace.line_end.then(self.line_end);
+                self.closed = self.line_end.is_blank();
+            }
+            *len = len.shift(by);
+            *line_feeds = (*line_feeds + by_line_feeds).min(2);
+        }
+    }
+}
+
+impl Part<Offset> {
+    /// The part made of `sentence` alone, in a digest whose text starts at `start` in the checked
+    /// text.
+    fn of(sentence: &Sentence, start: Position) -> Self {
+        let offset = |position: Position| Offset::new(position - start);
+        let tokens = sentence.tokens();
+        let (words, syllables) = en::readability_count(sentence);
+        let text = sentence.text();
+        let line_end = LineEnd::of(text);
+        Part {
+            sentences: 1,
+            words,
+            syllables,
+            mark_start: tokens.first().map(|x| offset(x.span().start())),
+            mark_end: tokens.get(2).map(|x| offset(x.span().end())),
+            beginning: en::paragraph_beginning(sentence, offset),
+            starts_with_line_break: starts_with_line_break(text),
+            line_end,
+            closed: line_end.is_blank(),
+            whitespace: None,
+        }
+    }
+}
+
+fn starts_with_line_break(text: &str) -> bool {
+    text.starts_with('\n') || text.starts_with("\r\n")
+}
+
+/// The LF chars in `text`, at most 2.
+fn line_feeds(text: &str) -> u8 {
+    text.chars().filter(|c| *c == '\n').take(2).count() as u8
+}
+
+/// Whether `text` is made only of the whitespace Java's `\s` matches.
+fn is_ascii_space(text: &str) -> bool {
+    text.chars()
+        .all(|c| matches!(c, ' ' | '\t' | '\n' | '\r' | '\u{b}' | '\u{c}'))
+}
+
+/// How the sentences added by [`extend_parts`] follow those before them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Seam {
+    /// Both come from one run of the sentencizer over the text (one digest, or the engine
+    /// paragraphs of [`Rules::suggest`]): every whitespace-only sentence is one LanguageTool
+    /// has too.
+    Exact,
+    /// The text was split there and the pieces checked on their own: a whitespace-only sentence
+    /// at the seam may be an artifact of the split, see [`Lead`].
+    Split,
+    /// Split, and the caller said a paragraph ends before the added sentences
+    /// (`ends_paragraph`), so their separator was stripped.
+    Sealed,
+}
+
+/// A whitespace-only sentence, which may belong to the sentence before it.
+///
+/// LanguageTool keeps a whitespace-only split of its sentence splitter as a sentence: it counts
+/// for `READABILITY_RULE_*`, and one that starts a paragraph makes `PARAGRAPH_REPEAT_BEGINNING_RULE`
+/// see no first word. Its splitter makes one only where a line-break rule matches, so it always
+/// holds two line feeds (`"She ran.\n"`, `"\r\n\r\n"`, `"She hid."`; `"She ran.\n\n"`,
+/// `"\u{a0}\n\n"`, `"She hid."`). Ours finds overlapping matches of a rule (see the `srx` crate)
+/// and also splits off whitespace with fewer line feeds, which LanguageTool's next sentence
+/// starts with (`"She ran.\u{a0}\n"`, `"\nShe hid."`); such a sentence becomes that leading
+/// whitespace, see [`push_part`]. At the end of the text it stays a sentence, as in
+/// LanguageTool.
+///
+/// A text split by the app adds whitespace-only sentences the whole text does not have. Where a
+/// piece ends a sentence with a line break and the next piece starts with whitespace that holds
+/// one (`"She ran.\n"`, `"\n"`), the whole text keeps both in one sentence (`"She ran.\n\n"`),
+/// so the piece's first sentence is merged into the sentence before it, see [`Lead::merges_into`].
+/// After a stripped separator (`ends_paragraph`) ASCII whitespace adds no sentence either: the
+/// sentencizer keeps whitespace after a blank line with the sentence before it
+/// (`"She ran.\n\n \n\n"`). Other whitespace, a no-break space, U+2028 or U+3000, is a sentence
+/// of its own in a whole text too and is never merged.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) struct Lead {
+    len: Offset,
+    line_end: LineEnd,
+    /// Whether the sentence is made only of CR and LF chars.
+    all_breaks: bool,
+    /// Whether the sentence is made only of the whitespace Java's `\s` matches (space, tab, CR,
+    /// LF, form feed, vertical tab), which the sentencizer keeps with the sentence before it
+    /// after a blank line. Other whitespace (a no-break space, U+2028, U+3000) makes a sentence
+    /// of its own in a whole text too.
+    ascii: bool,
+    starts_with_line_break: bool,
+    /// Whether the sentence starts with an LF rather than a CRLF.
+    starts_with_lf: bool,
+    has_line_break: bool,
+    /// The LF chars in the sentence, at most 2.
+    line_feeds: u8,
+}
+
+impl Lead {
+    /// The lead of a whitespace-only sentence, `None` for one with tokens.
+    fn of(sentence: &Sentence) -> Option<Self> {
+        let text = sentence.text();
+        sentence.tokens().is_empty().then(|| Lead {
+            len: Offset::of(text),
+            line_end: LineEnd::of(text),
+            all_breaks: text.chars().all(|c| matches!(c, '\r' | '\n')),
+            ascii: is_ascii_space(text),
+            starts_with_line_break: starts_with_line_break(text),
+            starts_with_lf: text.starts_with('\n'),
+            has_line_break: text.contains(['\r', '\n']),
+            line_feeds: line_feeds(text),
+        })
+    }
+
+    /// Whether this sentence belongs to `last`, the sentences before it. The splitter keeps an
+    /// LF right after an LF, and a CRLF right after a CRLF, with the sentence before it
+    /// (`"She ran.\n\n"`), but starts the next sentence with a CRLF after a bare LF
+    /// (`"She ran.\n"`, `"\r\nShe hid."`).
+    fn merges_into<P>(&self, last: &Part<P>) -> bool {
+        let crlf = last.line_end.chars().ends_with(&['\r', '\n']);
+        self.ascii
+            && last.line_end.ends_with_lf()
+            && (self.starts_with_lf
+                || self.starts_with_line_break && crlf
+                || self.has_line_break && last.line_end.is_blank())
+    }
+
+    fn into_part<P>(self) -> Part<P> {
+        Part {
+            sentences: 1,
+            words: 0,
+            syllables: 0,
+            mark_start: None,
+            mark_end: None,
+            beginning: None,
+            starts_with_line_break: self.starts_with_line_break,
+            line_end: self.line_end,
+            closed: self.line_end.is_blank(),
+            whitespace: Some((self.len, self.line_feeds)),
+        }
+    }
+}
+
+/// Adds `lead` (if any) and then `more`, the sentences after those of `parts`, to `parts`,
+/// joining the parts that belong to one LanguageTool paragraph: a paragraph ends after a sentence
+/// that ends with a blank line or before one that starts with a line break
+/// (`Tools.isParagraphEnd`), and at the end of the text. The result does not depend on where the
+/// text was split, as long as each split is between sentences.
+///
+/// `seam` says how the text was split between `parts` and the added sentences. With
+/// [`Seam::Exact`] nothing is merged. With [`Seam::Sealed`] a paragraph ends after `parts`, and
+/// a `lead` made only of ASCII whitespace is dropped: in the whole text the stripped separator
+/// and that whitespace both end the sentence before it, so it adds no sentence.
+fn extend_parts<P>(parts: &mut Vec<Part<P>>, lead: Option<Lead>, more: Vec<Part<P>>, seam: Seam) {
+    let mut more = more.into_iter().peekable();
+    // Whether the next part is the first one after the split.
+    let mut boundary = seam != Seam::Exact;
+    if let Some(lead) = lead {
+        match parts.last_mut() {
+            Some(_) if seam == Seam::Sealed && lead.ascii => {}
+            Some(last) if seam == Seam::Split && lead.merges_into(last) => {
+                last.line_end = if lead.all_breaks {
+                    last.line_end.then(lead.line_end)
+                } else {
+                    lead.line_end
+                };
+                // Whether the merged sentence ends a paragraph is decided anew: `"\n\n"` and
+                // `" \r\n"` make `"…\n\n \r\n"`, which does not end with a blank line.
+                last.closed = last.line_end.is_blank()
+                    || more.peek().is_some_and(|x| x.starts_with_line_break);
+                if let Some((len, line_feeds)) = &mut last.whitespace {
+                    *len = len.shift(lead.len);
+                    *line_feeds = (*line_feeds + lead.line_feeds).min(2);
+                }
+            }
+            _ => {
+                push_part(parts, lead.into_part(), boundary);
+                boundary = false;
+            }
+        }
+    }
+    for part in more {
+        push_part(parts, part, boundary);
+        boundary = false;
+    }
+}
+
+/// Adds `next`, the sentences after those of `parts`, to `parts`. With `boundary`, the text was
+/// split between them.
+fn push_part<P>(parts: &mut Vec<Part<P>>, mut next: Part<P>, boundary: bool) {
+    let whitespace = parts
+        .last()
+        .filter(|x| !x.closed)
+        .and_then(|x| x.whitespace);
+    if whitespace.is_some_and(|(_, line_feeds)| boundary || line_feeds < 2) {
+        // A whitespace-only sentence that ends no paragraph and that LanguageTool's splitter
+        // does not make starts the next sentence, see [`Lead`]. At a split, any that ends no
+        // paragraph does: the whole text has it at the start of the next sentence.
+        if let Some(whitespace) = parts.pop() {
+            next.absorb(&whitespace);
+        }
+    }
+    match parts.last_mut() {
+        Some(last) if !last.closed && !next.starts_with_line_break => last.join(next),
+        Some(last) => {
+            last.closed = true;
+            parts.push(next);
+        }
+        None => parts.push(next),
+    }
+}
+
+/// A LanguageTool paragraph of a document, from its [`ParagraphDigest`]s: what the paragraph
+/// rules need of it.
+#[derive(Debug, Clone)]
+pub(crate) struct LtParagraph {
+    pub(crate) sentences: u32,
+    pub(crate) words: u32,
+    pub(crate) syllables: u32,
+    pub(crate) mark_start: Option<At>,
+    pub(crate) mark_end: Option<At>,
+    pub(crate) beginning: Option<Beginning<At>>,
+}
+
+/// The LanguageTool paragraphs of the document made of `digests`, in order. Digests of another
+/// version contribute nothing. With `exact`, the digests' texts were split from one run of the
+/// sentencizer ([`Rules::suggest`]), else each was checked on its own.
+pub(crate) fn document_paragraphs(digests: &[ParagraphDigest], exact: bool) -> Vec<LtParagraph> {
+    let mut parts: Vec<Part<At>> = Vec::new();
+    let mut sealed = false;
+    for (digest, x) in digests.iter().enumerate().filter(|(_, x)| x.is_usable()) {
+        let more = x
+            .parts
+            .iter()
+            .map(|part| part.clone().map(|offset| At { digest, offset }))
+            .collect();
+        let seam = match (exact, sealed) {
+            (true, _) => Seam::Exact,
+            (false, true) => Seam::Sealed,
+            (false, false) => Seam::Split,
+        };
+        extend_parts(&mut parts, x.lead, more, seam);
+        sealed = x.closes;
+        if x.closes {
+            if let Some(last) = parts.last_mut() {
+                last.closed = true;
+            }
+        }
+    }
+    parts
+        .into_iter()
+        .map(|part| LtParagraph {
+            sentences: part.sentences,
+            words: part.words,
+            syllables: part.syllables,
+            mark_start: part.mark_start,
+            mark_end: part.mark_end,
+            beginning: part.beginning,
+        })
+        .collect()
+}
+
+/// What the whole-text rules need to know about one paragraph: offsets, counts, flags and the
+/// lemmas the word-statistics rules count, no text.
 ///
 /// Built while the paragraph is checked, from its already tokenized and tagged sentences
 /// ([`Rules::check_paragraph`]). Offsets are relative to the start of the paragraph's text.
@@ -338,6 +858,14 @@ pub struct ParagraphDigest {
     pub(crate) repeated_words: RepeatedWords,
     /// The tokens `EN_WORD_COHERENCY` looks up, in text order.
     pub(crate) variants: Vec<VariantWord>,
+    /// A whitespace-only first sentence that may belong to the sentence before the text, see
+    /// [`Lead`] (`READABILITY_RULE_*`, `PARAGRAPH_REPEAT_BEGINNING_RULE`).
+    lead: Option<Lead>,
+    /// The text's sentences grouped into LanguageTool paragraphs, or the parts of them that are
+    /// in this text, in order (`READABILITY_RULE_*`, `PARAGRAPH_REPEAT_BEGINNING_RULE`).
+    parts: Vec<Part<Offset>>,
+    /// Whether the caller of [`Rules::check_paragraph`] said that a paragraph ends after the text.
+    closes: bool,
 }
 
 impl Default for ParagraphDigest {
@@ -354,6 +882,9 @@ impl Default for ParagraphDigest {
             too_often_used: Default::default(),
             repeated_words: RepeatedWords::default(),
             variants: Vec::new(),
+            lead: None,
+            parts: Vec::new(),
+            closes: false,
         }
     }
 }
@@ -433,7 +964,61 @@ impl ParagraphDigest {
                 "paragraph digest has trailing bytes".to_owned(),
             ));
         }
+        if !digest.is_well_formed() {
+            return Err(Error::Format(
+                "paragraph digest is malformed; check the paragraph again".to_owned(),
+            ));
+        }
         Ok(digest)
+    }
+
+    /// Whether the digest's offsets are ordered and within its text, as every digest this
+    /// engine makes is. One that is not (corrupted or tampered with) is not used, so that it
+    /// can't make [`Rules::resolve_document`] build an inverted span or one past its text.
+    fn is_well_formed(&self) -> bool {
+        let len = self.len;
+        // At least one and at most four bytes per char.
+        let fits = |x: Offset| x.byte <= len.byte && x.char <= len.char && x.char <= x.byte;
+        let ordered =
+            |a: Offset, b: Offset| fits(a) && fits(b) && a.byte <= b.byte && a.char <= b.char;
+        let span = |x: &TokenSpan| ordered(x.start, x.end);
+        let line_end = |x: LineEnd| x.len() <= LineEnd::MAX;
+        len.char <= len.byte
+            && len.byte <= len.char.saturating_mul(4)
+            && self.paragraph_starts.iter().all(|x| *x <= len.char)
+            && self.apostrophes.iter().all(|x| span(&x.span))
+            && self
+                .too_often_used
+                .iter()
+                .all(|class| class.words.iter().all(|x| span(&x.span)))
+            && self.repeated_words.words.iter().all(|x| span(&x.span))
+            && self.variants.iter().all(|x| span(&x.span))
+            && self
+                .lead
+                .is_none_or(|x| fits(x.len) && line_end(x.line_end))
+            && self.parts.iter().all(|part| {
+                part.mark_start.is_none_or(fits)
+                    && part.mark_end.is_none_or(fits)
+                    && match (part.mark_start, part.mark_end) {
+                        (Some(start), Some(end)) => ordered(start, end),
+                        _ => true,
+                    }
+                    && part.beginning.as_ref().is_none_or(|x| {
+                        fits(x.lead)
+                            && x.tokens.iter().all(|token| ordered(token.start, token.end))
+                            && x.tokens
+                                .windows(2)
+                                .all(|pair| ordered(pair[0].end, pair[1].start))
+                    })
+                    && line_end(part.line_end)
+                    && part.whitespace.is_none_or(|(x, _)| fits(x))
+            })
+    }
+
+    /// Whether the digest is [current](ParagraphDigest::is_current) and well formed, and so
+    /// contributes to [`Rules::resolve_document`].
+    pub(crate) fn is_usable(&self) -> bool {
+        self.is_current() && self.is_well_formed()
     }
 
     /// A digest that is not [current](ParagraphDigest::is_current), standing in for bytes that
@@ -445,9 +1030,9 @@ impl ParagraphDigest {
         }
     }
 
-    /// The apostrophe tokens, or none for a digest of another version.
+    /// The apostrophe tokens, or none for a digest that is not usable.
     pub(crate) fn apostrophes(&self) -> &[Apostrophe] {
-        if self.is_current() {
+        if self.is_usable() {
             &self.apostrophes
         } else {
             &[]
@@ -478,9 +1063,20 @@ impl ParagraphDigest {
     ) -> Self {
         let mut digest = ParagraphDigest::default();
         digest.set_ends(text);
+        let paragraphs = rules.clone().any(Builtin::is_paragraph_rule);
 
         let mut previous_end: Option<usize> = None;
         for sentence in sentences {
+            if paragraphs {
+                match Lead::of(sentence) {
+                    Some(lead) if digest.parts.is_empty() && digest.lead.is_none() => {
+                        digest.lead = Some(lead)
+                    }
+                    // A whitespace-only sentence inside the text is one LanguageTool has too.
+                    Some(lead) => push_part(&mut digest.parts, lead.into_part(), false),
+                    None => push_part(&mut digest.parts, Part::of(sentence, start), false),
+                }
+            }
             for token in sentence.tokens() {
                 let span = token.span().clone().lshift(start);
                 if let Some(end) = previous_end {
@@ -528,6 +1124,12 @@ impl ParagraphDigest {
                 span: word.span.shift(by),
                 ..word
             }));
+        let parts = std::mem::take(&mut other.parts)
+            .into_iter()
+            .map(|part| part.map(|offset| offset.shift(by)))
+            .collect();
+        extend_parts(&mut self.parts, other.lead, parts, Seam::Exact);
+        self.closes = other.closes;
         self.len = self.len.shift(other.len);
         self.ends_with_line_break = other.ends_with_line_break;
         self.ends_paragraph = other.ends_paragraph;
@@ -538,7 +1140,7 @@ impl ParagraphDigest {
 /// is stored relative to the start of the one before it in its list, so that the variable-length
 /// integers of [`ParagraphDigest::to_bytes`] are mostly one byte long.
 mod wire {
-    use super::Offset;
+    use super::{Lead, Offset, Part};
     use crate::types::DefaultHashMap;
     use serde::{Deserialize, Serialize};
     use std::convert::TryFrom;
@@ -600,8 +1202,8 @@ mod wire {
         version: u32,
         len: Offset,
         /// `starts_with_line_break`, `ends_with_line_break`, `starts_paragraph`,
-        /// `ends_paragraph`, and `repeated_words.trailing_whitespace` and `.line_breaks_only`, as
-        /// bits 0 to 5.
+        /// `ends_paragraph`, `repeated_words.trailing_whitespace` and `.line_breaks_only`, and
+        /// `closes`, as bits 0 to 6.
         flags: u8,
         paragraph_starts: Vec<u32>,
         apostrophes: Vec<Apostrophe>,
@@ -612,6 +1214,8 @@ mod wire {
         repeated_words: Vec<RepeatedWord>,
         repeated_last_sentence: Option<u32>,
         variants: Vec<VariantWord>,
+        lead: Option<Lead>,
+        parts: Vec<Part<Offset>>,
     }
 
     /// Writes spans relative to the previous one.
@@ -750,7 +1354,8 @@ mod wire {
                     | u8::from(digest.starts_paragraph) << 2
                     | u8::from(digest.ends_paragraph) << 3
                     | u8::from(digest.repeated_words.trailing_whitespace) << 4
-                    | u8::from(digest.repeated_words.line_breaks_only) << 5,
+                    | u8::from(digest.repeated_words.line_breaks_only) << 5
+                    | u8::from(digest.closes) << 6,
                 paragraph_starts: digest.paragraph_starts,
                 apostrophes,
                 lemmas: lemmas.list,
@@ -759,6 +1364,8 @@ mod wire {
                 repeated_words,
                 repeated_last_sentence: digest.repeated_words.last_sentence,
                 variants,
+                lead: digest.lead,
+                parts: digest.parts,
             }
         }
     }
@@ -886,6 +1493,9 @@ mod wire {
                     line_breaks_only: digest.flags & 32 != 0,
                 },
                 variants,
+                lead: digest.lead,
+                parts: digest.parts,
+                closes: digest.flags & 64 != 0,
             })
         }
     }
@@ -941,6 +1551,10 @@ pub(crate) enum DocumentFix {
     Replacements(Vec<String>),
     /// Replace `word`, the spelling the token holds, with `other` (`EN_WORD_COHERENCY`).
     Variant { word: String, other: String },
+    /// No replacement: the match only marks the span (`READABILITY_RULE_*`,
+    /// `PARAGRAPH_REPEAT_BEGINNING_RULE`). Its byte end is recomputed from the char end, see
+    /// [`DocumentMatch::to_suggestion`].
+    Mark,
 }
 
 /// The result of [`Rules::resolve_document`].
@@ -949,8 +1563,8 @@ pub(crate) enum DocumentFix {
 pub struct DocumentMatches {
     /// The matches, sorted by paragraph and then by position.
     pub matches: Vec<DocumentMatch>,
-    /// The indices of the digests that are not [current](ParagraphDigest::is_current) and so
-    /// contributed nothing: check those paragraphs again and resolve again. While any are listed,
+    /// The indices of the digests that are not [current](ParagraphDigest::is_current), or whose
+    /// offsets don't fit their text (a corrupted digest), and so contributed nothing: check those paragraphs again and resolve again. While any are listed,
     /// `matches` can miss matches in every paragraph, not only in those.
     pub stale: Vec<usize>,
 }
@@ -1027,7 +1641,9 @@ impl DocumentMatch {
         &self.message
     }
 
-    /// The span of the match, relative to the start of its paragraph's text.
+    /// The span of the match, relative to the start of its paragraph's text. For the rare
+    /// `PARAGRAPH_REPEAT_BEGINNING_RULE` match that ends inside a word (see
+    /// [`DocumentMatch::to_suggestion`]) the byte end is estimated; the suggestion's is exact.
     pub fn span(&self) -> &Span {
         &self.span
     }
@@ -1038,23 +1654,40 @@ impl DocumentMatch {
     /// about (for `EN_CONSISTENT_APOS`: the same apostrophe style, with the first apostrophe at
     /// the same place; for `EN_WORD_COHERENCY`: a spelling it can replace). Replace a
     /// paragraph's digest whenever its text changes; this check is a guard, not a substitute.
+    ///
+    /// The span's byte end is not checked for the matches that only mark a span (the paragraph
+    /// rules): it is taken from the char end, which `PARAGRAPH_REPEAT_BEGINNING_RULE` knows
+    /// exactly even where LanguageTool's quirky later match ends inside a word the digest has no
+    /// byte offsets for.
     pub fn to_suggestion(&self, paragraph: &str) -> Option<Suggestion> {
-        let bytes = self.span.byte().clone();
+        let mut span = self.span.clone();
+        if self.fix == DocumentFix::Mark {
+            let start = span.byte().start;
+            let rest = paragraph.get(start..)?;
+            let len = rest
+                .char_indices()
+                .map(|(i, _)| i)
+                .chain(std::iter::once(rest.len()))
+                .nth(span.char().len())?;
+            span = Span::new(start..start + len, span.char().clone());
+        }
+        let bytes = span.byte().clone();
         let original = paragraph.get(bytes.clone())?;
-        if original.chars().count() != self.span.char().len()
-            || paragraph[..bytes.start].chars().count() != self.span.char().start
+        if original.chars().count() != span.char().len()
+            || paragraph[..bytes.start].chars().count() != span.char().start
         {
             return None;
         }
-        self.suggestion_for(original)
+        self.suggestion_for(original, span)
     }
 
-    /// The suggestion for this match, given `original`, the text of its span.
-    pub(crate) fn suggestion_for(&self, original: &str) -> Option<Suggestion> {
+    /// The suggestion for this match, given `original`, the text of `span`.
+    fn suggestion_for(&self, original: &str, span: Span) -> Option<Suggestion> {
         if original.is_empty() {
             return None;
         }
         let replacements = match &self.fix {
+            DocumentFix::Mark => Vec::new(),
             DocumentFix::SwapApostrophes {
                 to_typographic,
                 first,
@@ -1079,7 +1712,7 @@ impl DocumentMatch {
         let suggestion = Suggestion::new(
             self.source.clone(),
             self.message.clone(),
-            self.span.clone(),
+            span,
             replacements,
         );
         Some(match self.fix {
@@ -1109,6 +1742,14 @@ impl Builtin {
                 | Builtin::TooOftenUsed(_)
                 | Builtin::RepeatedWords(_)
                 | Builtin::WordCoherency(_)
+        ) || self.is_paragraph_rule()
+    }
+
+    /// Whether this whole-text rule works on LanguageTool paragraphs ([`Part`]s of digests).
+    pub(crate) fn is_paragraph_rule(&self) -> bool {
+        matches!(
+            self,
+            Builtin::Readability(_) | Builtin::ParagraphRepeatBeginning(_)
         )
     }
 
@@ -1154,13 +1795,20 @@ impl Builtin {
     }
 
     /// The matches of this whole-text rule in the document made of `digests`, of which only the
-    /// current ones count.
-    pub(crate) fn resolve_document(&self, digests: &[ParagraphDigest]) -> Vec<DocumentMatch> {
+    /// usable ones count. `paragraphs` caches the document's LanguageTool paragraphs for the
+    /// paragraph rules; with `exact`, the digests were made from one run of the sentencizer over
+    /// the whole text, see [`document_paragraphs`].
+    pub(crate) fn resolve_document(
+        &self,
+        digests: &[ParagraphDigest],
+        paragraphs: &mut Option<Vec<LtParagraph>>,
+        exact: bool,
+    ) -> Vec<DocumentMatch> {
         let current = || {
             digests
                 .iter()
                 .enumerate()
-                .filter(|(_, digest)| digest.is_current())
+                .filter(|(_, digest)| digest.is_usable())
         };
         match self {
             Builtin::ConsistentApostrophes(rule) => rule.resolve(digests),
@@ -1183,37 +1831,35 @@ impl Builtin {
                 rule.resolve(current.into_iter(), skipped)
             }
             Builtin::WordCoherency(rule) => rule.resolve(current()),
+            Builtin::Readability(rule) => {
+                let lengths: Vec<Position> = digests.iter().map(|x| x.text_len()).collect();
+                rule.resolve(
+                    paragraphs.get_or_insert_with(|| document_paragraphs(digests, exact)),
+                    &lengths,
+                )
+            }
+            Builtin::ParagraphRepeatBeginning(rule) => {
+                rule.resolve(paragraphs.get_or_insert_with(|| document_paragraphs(digests, exact)))
+            }
             _ => Vec::new(),
         }
     }
 
     /// The suggestions of this whole-text rule for `sentences`, taken as the whole text.
     pub(crate) fn check_document(&self, sentences: &[Sentence]) -> Vec<Suggestion> {
-        let (Some(first), Some(last)) = (sentences.first(), sentences.last()) else {
+        let Some(first) = sentences.first() else {
             return Vec::new();
         };
         let start = first.span().start();
-        let mut digest = ParagraphDigest::default();
-        for sentence in sentences {
-            self.digest_sentence(sentence, start, &mut digest);
-        }
-        digest.len = Offset::new(last.span().end() - start);
+        // Consecutive sentences of one text cover it, whitespace included.
+        let text: String = sentences.iter().map(|x| x.text()).collect();
+        let digest =
+            ParagraphDigest::from_sentences(&text, sentences, start, std::iter::once(self));
 
         let document = self
-            .resolve_document(std::slice::from_ref(&digest))
+            .resolve_document(std::slice::from_ref(&digest), &mut None, true)
             .into_iter()
-            .filter_map(|x| {
-                let span = x.span().clone().rshift(start);
-                let sentence = sentences.iter().find(|sentence| {
-                    sentence.span().byte().start <= span.byte().start
-                        && span.byte().end <= sentence.span().byte().end
-                })?;
-                let offset = sentence.span().byte().start;
-                let original = sentence
-                    .text()
-                    .get(span.byte().start - offset..span.byte().end - offset)?;
-                Some(x.suggestion_for(original)?.rshift(start))
-            })
+            .filter_map(|x| Some(x.to_suggestion(&text)?.rshift(start)))
             .collect();
         merge_document_suggestions(Vec::new(), document)
     }
@@ -1249,24 +1895,35 @@ impl Rules {
     /// text order. Matches are sorted by paragraph and then by position, and are relative to their
     /// paragraph. The result replaces any earlier one for the document: one changed paragraph can
     /// add or remove matches in others. Digests that are not [current](ParagraphDigest::is_current)
-    /// contribute nothing and are listed in [`DocumentMatches::stale`].
+    /// or are malformed contribute nothing and are listed in [`DocumentMatches::stale`].
     ///
     /// Turn each match into a suggestion with [`DocumentMatch::to_suggestion`] and merge those
     /// into the paragraph's suggestions with [`merge_document_suggestions`], which also drops a
     /// match that touches another of the same rule, as LanguageTool does;
     /// [`DocumentMatches::suggestions`] does both for one paragraph.
     pub fn resolve_document(&self, digests: &[ParagraphDigest]) -> DocumentMatches {
+        self.resolve_digests(digests, false)
+    }
+
+    /// [`Rules::resolve_document`]; with `exact`, the digests were made from one run of the
+    /// sentencizer over the whole text, see [`document_paragraphs`].
+    fn resolve_digests(&self, digests: &[ParagraphDigest], exact: bool) -> DocumentMatches {
+        // Grouped into LanguageTool paragraphs once, for the rules that need them.
+        let mut paragraphs = None;
         let mut matches: Vec<DocumentMatch> = self
             .builtins
             .iter()
             .filter(|rule| rule.enabled() && rule.builtin().is_document_rule())
-            .flat_map(|rule| rule.builtin().resolve_document(digests))
+            .flat_map(|rule| {
+                rule.builtin()
+                    .resolve_document(digests, &mut paragraphs, exact)
+            })
             .collect();
         matches.sort_by_key(|x| (x.paragraph, x.span.char().start));
         let stale = digests
             .iter()
             .enumerate()
-            .filter(|(_, digest)| !digest.is_current())
+            .filter(|(_, digest)| !digest.is_usable())
             .map(|(i, _)| i)
             .collect();
         DocumentMatches { matches, stale }
@@ -1317,6 +1974,7 @@ impl Rules {
         // or text after its last sentence.
         digest.set_ends(paragraph);
         digest.ends_paragraph |= ends_paragraph;
+        digest.closes = ends_paragraph;
         (suggestions, digest)
     }
 
@@ -1351,7 +2009,7 @@ impl Rules {
         }
 
         let document: Vec<Suggestion> = self
-            .resolve_document(&digests)
+            .resolve_digests(&digests, true)
             .matches
             .into_iter()
             .filter_map(|x| {
@@ -1476,6 +2134,34 @@ mod tests {
                 replaceable: 0b101,
             }],
         });
+        d.lead = Some(Lead {
+            len: Offset { byte: 1, char: 1 },
+            line_end: LineEnd::of("\n"),
+            all_breaks: true,
+            ascii: true,
+            starts_with_line_break: true,
+            starts_with_lf: true,
+            has_line_break: true,
+            line_feeds: 1,
+        });
+        d.parts.push(Part {
+            mark_start: Some(Offset { byte: 3, char: 1 }),
+            mark_end: Some(Offset { byte: 14, char: 10 }),
+            beginning: Some(Beginning {
+                lead: Offset { byte: 3, char: 1 },
+                tokens: vec![BeginningToken::new(
+                    Offset { byte: 3, char: 1 },
+                    Offset { byte: 6, char: 4 },
+                    "Cat",
+                    false,
+                    true,
+                    false,
+                )],
+            }),
+            whitespace: Some((Offset { byte: 1, char: 1 }, 1)),
+            ..part(false, "\n", 3)
+        });
+        d.closes = true;
         d
     }
 
@@ -1536,6 +2222,26 @@ mod tests {
         assert!(fails(&|d| d.repeated_words.last_sentence = Some(2)));
         assert!(!fails(&|d| d.repeated_words.last_sentence = Some(1)));
         assert!(fails(&|d| d.repeated_words.words[0].number = 5));
+        // Spans past the text, inverted or overlapping paragraph-rule offsets, a too long run of
+        // line breaks.
+        assert!(fails(&|d| d.variants[0].span = span(17..30, 11..20)));
+        assert!(fails(
+            &|d| d.parts[0].mark_end = Some(Offset { byte: 2, char: 1 })
+        ));
+        assert!(fails(
+            &|d| d.parts[0].mark_start = Some(Offset { byte: 40, char: 20 })
+        ));
+        assert!(fails(&|d| d.parts[0].line_end = LineEnd(5)));
+        assert!(fails(
+            &|d| d.parts[0].whitespace = Some((Offset { byte: 30, char: 20 }, 0))
+        ));
+        assert!(fails(
+            &|d| d.lead.as_mut().unwrap().len = Offset { byte: 30, char: 20 }
+        ));
+        assert!(fails(&|d| {
+            let tokens = &mut d.parts[0].beginning.as_mut().unwrap().tokens;
+            tokens.push(tokens[0].clone());
+        }));
     }
 
     #[test]
@@ -1662,10 +2368,44 @@ mod tests {
                 typographic: false,
                 first: 0,
             }],
-            ..digest
+            ..digest.clone()
         };
         assert!(!stale.is_current());
         assert!(stale.apostrophes().is_empty());
+
+        // Offsets outside the text or out of order: rejected, and unused if they arrive another
+        // way.
+        let mut outside_apostrophe = digest.clone();
+        outside_apostrophe.apostrophes.push(Apostrophe {
+            span: span(3..9, 3..9),
+            typographic: false,
+            first: 0,
+        });
+        let mut outside = digest.clone();
+        outside.parts.push(Part {
+            mark_start: Some(Offset { byte: 9, char: 9 }),
+            ..part(false, "", 1)
+        });
+        let mut inverted = digest.clone();
+        inverted.parts.push(Part {
+            mark_start: Some(Offset { byte: 3, char: 3 }),
+            mark_end: Some(Offset { byte: 1, char: 1 }),
+            ..part(false, "", 1)
+        });
+        let mut line_end = digest.clone();
+        line_end.parts.push(Part {
+            line_end: LineEnd(7),
+            ..part(false, "", 1)
+        });
+        for bad in [outside_apostrophe, outside, inverted, line_end] {
+            assert!(matches!(
+                ParagraphDigest::from_bytes(&bad.to_bytes()),
+                Err(Error::Format(_))
+            ));
+            assert!(!bad.is_usable());
+            assert!(bad.apostrophes().is_empty());
+        }
+        assert!(digest.is_usable());
     }
 
     #[test]
@@ -1758,5 +2498,174 @@ mod tests {
                 (apos, 29..31)
             ]
         );
+    }
+
+    #[test]
+    fn line_ends() {
+        let blank = |text: &str| LineEnd::of(text).is_blank();
+        assert!(blank("End.\n\n"));
+        assert!(blank("End.  \n\n"));
+        assert!(blank("End.\r\n\r\n"));
+        assert!(blank("End.\n\r\n\r"));
+        assert!(blank("End.\n\n\n\n\n"));
+        assert!(!blank("End.\n"));
+        assert!(!blank("End.\r\n"));
+        assert!(!blank("End.\n\r\n"));
+        assert!(!blank("End.\n\n "));
+        assert!(!blank("End.\n\n\u{2028}"));
+        assert!(!blank(""));
+        assert!(LineEnd::of("A.\r\n").ends_with_lf());
+        assert!(!LineEnd::of("A.\n\r").ends_with_lf());
+        // Joined runs keep their last four chars.
+        let joined = LineEnd::of("A.\r\n").then(LineEnd::of("\r\n"));
+        assert!(joined.is_blank());
+        assert_eq!(joined.chars(), ['\r', '\n', '\r', '\n']);
+        assert_eq!(
+            LineEnd::of("\n\n\n").then(LineEnd::of("\r\n")).chars(),
+            ['\n', '\n', '\r', '\n']
+        );
+    }
+
+    fn part(starts_with_line_break: bool, text_end: &str, words: u32) -> Part<Offset> {
+        let line_end = LineEnd::of(text_end);
+        Part {
+            sentences: 1,
+            words,
+            syllables: words,
+            mark_start: None,
+            mark_end: None,
+            beginning: None,
+            starts_with_line_break,
+            line_end,
+            closed: line_end.is_blank(),
+            whitespace: None,
+        }
+    }
+
+    #[test]
+    fn parts_join_into_paragraphs() {
+        let lead = |text: &str| Lead {
+            len: Offset::of(text),
+            line_end: LineEnd::of(text),
+            all_breaks: text.chars().all(|c| matches!(c, '\r' | '\n')),
+            ascii: is_ascii_space(text),
+            starts_with_line_break: starts_with_line_break(text),
+            starts_with_lf: text.starts_with('\n'),
+            has_line_break: text.contains(['\r', '\n']),
+            line_feeds: line_feeds(text),
+        };
+        let counts = |parts: &[Part<Offset>]| -> Vec<(u32, u32)> {
+            parts.iter().map(|x| (x.sentences, x.words)).collect()
+        };
+
+        // "One.\n" + "Two.\n\n" + "\nThree.": a blank line, then a sentence starting with a
+        // line break, end paragraphs.
+        let mut parts = Vec::new();
+        extend_parts(
+            &mut parts,
+            None,
+            vec![
+                part(false, "\n", 1),
+                part(false, "\n\n", 2),
+                part(true, "", 3),
+            ],
+            Seam::Split,
+        );
+        assert_eq!(counts(&parts), [(2, 3), (1, 3)]);
+
+        // "One.\n" split from "\n" + "Two.": the lead completes the blank line.
+        let mut parts = vec![part(false, "\n", 1)];
+        extend_parts(
+            &mut parts,
+            Some(lead("\n")),
+            vec![part(false, "", 2)],
+            Seam::Split,
+        );
+        assert_eq!(counts(&parts), [(1, 1), (1, 2)]);
+        // In a whole text, LanguageTool's splitter makes a whitespace-only sentence only of two
+        // line feeds ("One.\n" + "\r\n\r\n"); ours also splits off one line feed
+        // ("One.\u{a0}\n" + "\n"), which LanguageTool's next sentence starts with.
+        let mut parts = vec![part(false, "\n", 1)];
+        extend_parts(
+            &mut parts,
+            Some(lead("\r\n\r\n")),
+            vec![part(false, "", 2)],
+            Seam::Exact,
+        );
+        assert_eq!(counts(&parts), [(1, 1), (1, 0), (1, 2)]);
+        let mut parts = vec![part(false, "\n", 1)];
+        extend_parts(
+            &mut parts,
+            Some(lead("\n")),
+            vec![part(false, "", 2)],
+            Seam::Exact,
+        );
+        assert_eq!(counts(&parts), [(1, 1), (1, 2)]);
+        assert!(parts[1].starts_with_line_break);
+        // Two such sentences make one: "One.\u{a0}" + "\r\n" + "\r\n" ends a paragraph.
+        let mut parts = vec![part(false, "", 1)];
+        extend_parts(
+            &mut parts,
+            Some(lead("\r\n")),
+            vec![lead("\r\n").into_part(), part(false, "", 2)],
+            Seam::Exact,
+        );
+        assert_eq!(counts(&parts), [(1, 1), (1, 0), (1, 2)]);
+        // A no-break space is a sentence of its own in a whole text too.
+        let mut parts = vec![part(false, "\n\n", 1)];
+        extend_parts(
+            &mut parts,
+            Some(lead("\u{a0}\n\n")),
+            vec![part(false, "", 2)],
+            Seam::Split,
+        );
+        assert_eq!(counts(&parts), [(1, 1), (1, 0), (1, 2)]);
+        // After a stripped separator, ASCII whitespace ends the sentence before it: it adds no
+        // sentence. Other whitespace is a sentence of its own, in the next paragraph.
+        let mut parts = vec![part(false, "", 1)];
+        parts[0].closed = true;
+        extend_parts(
+            &mut parts,
+            Some(lead("\n")),
+            vec![part(false, "", 2)],
+            Seam::Sealed,
+        );
+        assert_eq!(counts(&parts), [(1, 1), (1, 2)]);
+        let mut parts = vec![part(false, "", 1)];
+        parts[0].closed = true;
+        extend_parts(&mut parts, Some(lead(" ")), Vec::new(), Seam::Sealed);
+        assert_eq!(counts(&parts), [(1, 1)]);
+        let mut parts = vec![part(false, "", 1)];
+        parts[0].closed = true;
+        extend_parts(
+            &mut parts,
+            Some(lead("\u{a0}\n\n")),
+            vec![part(false, "", 2)],
+            Seam::Sealed,
+        );
+        assert_eq!(counts(&parts), [(1, 1), (1, 0), (1, 2)]);
+
+        // "End. " + "\r\n" at the end of a piece, then "Next.": the whitespace starts "Next.".
+        let mut parts = vec![part(false, "", 1)];
+        extend_parts(
+            &mut parts,
+            None,
+            vec![lead("\r\n").into_part()],
+            Seam::Split,
+        );
+        assert_eq!(counts(&parts), [(1, 1), (1, 0)]);
+        extend_parts(&mut parts, None, vec![part(false, "", 2)], Seam::Split);
+        assert_eq!(counts(&parts), [(1, 1), (1, 2)]);
+        assert!(parts[1].starts_with_line_break);
+        // A whitespace-only sentence that ends with a blank line stays a sentence.
+        let mut parts = vec![part(false, "", 1)];
+        extend_parts(
+            &mut parts,
+            None,
+            vec![lead(" \n\n").into_part()],
+            Seam::Split,
+        );
+        extend_parts(&mut parts, None, vec![part(false, "", 2)], Seam::Split);
+        assert_eq!(counts(&parts), [(2, 1), (1, 2)]);
     }
 }

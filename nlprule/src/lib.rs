@@ -227,7 +227,8 @@ pub const TOKENIZER_FORMAT_VERSION: u32 = 18;
 /// Version 36: `Spell::variant_info` (the speller dictionaries' replacement pairs and
 /// ignore-diacritics and run-on settings) and `Spell::split_filter` were added.
 /// Version 37: `Spell::curated` (curated spelling suggestions) was added.
-pub const RULES_FORMAT_VERSION: u32 = 37;
+/// Version 38: the `Readability` and `ParagraphRepeatBeginning` builtins were added.
+pub const RULES_FORMAT_VERSION: u32 = 38;
 
 /// The longest engine version string accepted in a binary header.
 const MAX_ENGINE_VERSION_LEN: usize = 256;

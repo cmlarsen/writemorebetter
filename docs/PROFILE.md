@@ -167,6 +167,15 @@ default as in LanguageTool 6.6, so they stay off in fiction too. `EN_COMPOUNDS`
 (`part time` → `part-time`) and `EN_SPECIFIC_CASE` (`Harry potter` → `Harry Potter`)
 flag spelling errors and stay on.
 
+The whole-text paragraph rules of [#206](https://github.com/cmlarsen/writemorebetter/issues/206)
+and [#207](https://github.com/cmlarsen/writemorebetter/issues/207) stay off in fiction too, as in
+LanguageTool 6.6. `READABILITY_RULE_SIMPLE` would flag most dialogue-heavy paragraphs: short
+lines of speech score as "very easy", and once the whole text does too, every such paragraph of
+ten or more words is flagged (`READABILITY_RULE_DIFFICULT` rarely fires on fiction).
+`PARAGRAPH_REPEAT_BEGINNING_RULE` flags two successive paragraphs that open with the same word,
+which close-third narration ("She…", "He…") and runs of dialogue (`“I…` / `“I…`) do on
+purpose.
+
 ### Rules found while searching `data/en/grammar.xml`
 
 - **Verbless dialogue questions:** the rule is `<rulegroup id="YOU_GOOD">`

@@ -47,6 +47,27 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   rule flags the same word, as in LanguageTool. It is off by default,
   as in LanguageTool 6.6; enable it with `BUILTIN/EN_CONSISTENT_APOS`
   ([#228](https://github.com/cmlarsen/writemorebetter/issues/228)).
+- **`READABILITY_RULE_SIMPLE`, `READABILITY_RULE_DIFFICULT` and
+  `PARAGRAPH_REPEAT_BEGINNING_RULE`**, LanguageTool's paragraph-level style checks, are ported as
+  whole-text builtins. The readability rules score each paragraph of 10 or more words with
+  LanguageTool's Flesch reading ease and syllable counter and flag its first words when its level
+  (0 very difficult to 6 very easy) is above (SIMPLE) or below (DIFFICULT) the configured one, 3
+  by default (`Readability::set_level`), but only when the whole text's level crosses it too
+  (for SIMPLE, only in a text of more than one paragraph, a quirk of LanguageTool's kept as is).
+  `PARAGRAPH_REPEAT_BEGINNING_RULE` flags two successive paragraphs whose first sentences begin
+  with the same word, after a shared quote or determiner, with "Same beginning as last
+  paragraph" on both. Paragraphs end where LanguageTool's do (a sentence ending with a blank line
+  or followed by one starting with a line break); the digests record each paragraph's sentence,
+  word and syllable counts and a hash of its first three tokens, so `Rules::suggest` and
+  `check_paragraph` + `resolve_document` agree when ordinary text is split between sentences (a
+  few rare whitespace runs at a split, such as a tab after a blank line or a bare LF followed by
+  a CRLF, can differ; see the `document` module). Whitespace-only sentences count as
+  LanguageTool counts them, so a line holding only a no-break space is a paragraph of its own.
+  All three are off by default, as in LanguageTool 6.6, and stay off in the fiction profile.
+  Matches and spans equal LanguageTool 6.6's on 109 probes; where LanguageTool throws (a paragraph with no
+  sentence of three tokens, or a later match that would end before it starts), the builtin
+  reports nothing for it ([#206](https://github.com/cmlarsen/writemorebetter/issues/206),
+  [#207](https://github.com/cmlarsen/writemorebetter/issues/207)).
 
 - **Incremental document checking in Swift, WASM and Python.** `checkParagraph` (Swift
   `checker.checkParagraph(text:endsParagraph:)`, WASM `checker.checkParagraph(text,
@@ -82,9 +103,9 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   paragraph (an editor's document after Enter at its end) counts as that whitespace. The digests
   store the lemmas as strings, so they stay valid when the tagger data's word ids change: on
   `moby150k`, checked paragraph by paragraph, the digests take 3,528 bytes per 1,000 words (784
-  before), and resolving all of them from bytes takes about 5 ms. `DIGEST_VERSION` is 2, and
-  `ParagraphDigest::to_bytes` writes variable-length integers and relative offsets; digests of
-  version 1 are stale. A pure function of the paragraph's text, a digest does not depend on
+  before), and resolving all of them from bytes takes about 5 ms. `DIGEST_VERSION` went to 2
+  (and to 3 with the paragraph rules, below), and `ParagraphDigest::to_bytes` writes
+  variable-length integers and relative offsets; digests of version 1 are stale. A pure function of the paragraph's text, a digest does not depend on
   which rules are on or their options (the minimum percentage, `DIRECT_SPEECH`)
   ([#234](https://github.com/cmlarsen/writemorebetter/issues/234)).
 - **Overlapping matches of the word-statistics rules are kept.** A `TOO_OFTEN_USED_*` match that
@@ -98,11 +119,20 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 - **`Rules::apply` and `Builtin::check_text` run the whole-text rules** on their sentences as
   the whole text, so `EN_CONSISTENT_APOS` now also flags in `apply`, and `check_text` of a
   whole-text rule returns its matches; `Builtin::check_paragraph` still returns none for them.
-- **`RULES_FORMAT_VERSION` is 37.** Version 33 added `SpellLangOptions::latin_script`, 34 the
+- **`RULES_FORMAT_VERSION` is 38.** Version 33 added `SpellLangOptions::latin_script`, 34 the
   `ConsistentApostrophes` builtin, 35 stores the multitoken phrase list once instead of twice
   ([#212](https://github.com/cmlarsen/writemorebetter/issues/212)), 36 adds the speller
-  dictionaries' replacement pairs (#194), and 37 the curated spelling suggestions, so 0.12.0's
-  `en_rules.bin` no longer loads; use the next release's data zip. The tokenizer format stays 18.
+  dictionaries' replacement pairs (#194), 37 the curated spelling suggestions, and 38 the
+  `Readability` and `ParagraphRepeatBeginning` builtins, so 0.12.0's `en_rules.bin` no longer
+  loads; use the next release's data zip. The tokenizer format stays 18.
+- **`DIGEST_VERSION` is 3.** Paragraph digests gained the paragraph rules' counts and first
+  words, so digests stored by an app with version 2 are rejected by `ParagraphDigest::from_bytes`
+  and listed in `DocumentMatches::stale`; check those paragraphs again. A digest whose offsets
+  don't fit its text (a corrupted one) is rejected the same way, and if it reaches
+  `resolve_document` some other way it contributes nothing and is listed in `stale`. One digest
+  holds what the paragraph rules and the word-statistics rules need: on `moby150k`, checked
+  paragraph by paragraph, the digests take 4,616 bytes per 1,000 words (3,528 for the
+  word-statistics rules alone).
 - **Common misspellings get LanguageTool's hand-written suggestions first.** "wierd" now gets
   weird, "freind" friend and "cemetary" cemetery as the only suggestion; "tonite" gets tonight,
   "alot" a lot and "ur" your before the speller's candidates; a word ending in "ys" gets its
