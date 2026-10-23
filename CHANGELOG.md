@@ -59,9 +59,12 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   paragraph" on both. Paragraphs end where LanguageTool's do (a sentence ending with a blank line
   or followed by one starting with a line break); the digests record each paragraph's sentence,
   word and syllable counts and a hash of its first three tokens, so `Rules::suggest` and
-  `check_paragraph` + `resolve_document` agree however the text is split between sentences. All
-  three are off by default, as in LanguageTool 6.6, and stay off in the fiction profile. Matches
-  and spans equal LanguageTool 6.6's on 95 probes; where LanguageTool throws (a paragraph with no
+  `check_paragraph` + `resolve_document` agree when ordinary text is split between sentences (a
+  few rare whitespace runs at a split, such as a tab after a blank line or a bare LF followed by
+  a CRLF, can differ; see the `document` module). Whitespace-only sentences count as
+  LanguageTool counts them, so a line holding only a no-break space is a paragraph of its own.
+  All three are off by default, as in LanguageTool 6.6, and stay off in the fiction profile.
+  Matches and spans equal LanguageTool 6.6's on 109 probes; where LanguageTool throws (a paragraph with no
   sentence of three tokens, or a later match that would end before it starts), the builtin
   reports nothing for it ([#206](https://github.com/cmlarsen/writemorebetter/issues/206),
   [#207](https://github.com/cmlarsen/writemorebetter/issues/207)).
@@ -124,8 +127,9 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   loads; use the next release's data zip. The tokenizer format stays 18.
 - **`DIGEST_VERSION` is 3.** Paragraph digests gained the paragraph rules' counts and first
   words, so digests stored by an app with version 2 are rejected by `ParagraphDigest::from_bytes`
-  and listed in `DocumentMatches::stale`; check those paragraphs again. `from_bytes` also rejects
-  a digest whose offsets fall outside its text or out of order.
+  and listed in `DocumentMatches::stale`; check those paragraphs again. A digest whose offsets
+  don't fit its text (a corrupted one) is rejected the same way, and if it reaches
+  `resolve_document` some other way it contributes nothing and is listed in `stale`.
 - **Common misspellings get LanguageTool's hand-written suggestions first.** "wierd" now gets
   weird, "freind" friend and "cemetary" cemetery as the only suggestion; "tonite" gets tonight,
   "alot" a lot and "ur" your before the speller's candidates; a word ending in "ys" gets its

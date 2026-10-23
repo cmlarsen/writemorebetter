@@ -119,6 +119,12 @@ const READABILITY_PROBES: &[Probe] = &[
     ("The cat sat on the mat. The dog ran to the park. We had fun.\n\n\u{a0}I saw a big red bus. It was fast. We got on it and sat down.", &[("READABILITY_RULE_SIMPLE", 0..11), ("READABILITY_RULE_SIMPLE", 63..70)]),
     ("The cat sat on the mat. The dog ran to the park. We had fun.\r\n\r\nI saw a big red bus. It was fast. We got on it and sat down.\r\n", &[("READABILITY_RULE_SIMPLE", 0..11), ("READABILITY_RULE_SIMPLE", 64..71)]),
     ("The cat sat on the mat. The dog ran to the park. We had fun.\n\n\n\nI saw a big red bus. It was fast. We got on it and sat down.\n\n\n", &[("READABILITY_RULE_SIMPLE", 0..11), ("READABILITY_RULE_SIMPLE", 64..71)]),
+    // Whitespace-only sentences of a whole text: a no-break space line makes a paragraph of its
+    // own, so the text has two; a trailing one before a blank line too.
+    ("The cat sat on the mat. The dog ran to the park. We had fun.\n\n\u{a0}\n\n", &[("READABILITY_RULE_SIMPLE", 0..11)]),
+    ("The cat sat on the mat. The dog ran to the park. We had fun.\u{a0}\n\n", &[("READABILITY_RULE_SIMPLE", 0..11)]),
+    ("The cat sat on the mat. The dog ran to the park. We had fun.\u{a0}\n\nThe cat sat on the mat. The dog ran to the park. We had fun.", &[("READABILITY_RULE_SIMPLE", 0..11), ("READABILITY_RULE_SIMPLE", 63..74)]),
+    ("It\u{2019}s late.\u{2014}She ran.She ran.\n\r\n\u{2014}She ran.\u{2026}", &[]),
 ];
 
 /// Probes run through LanguageTool 6.6 (`-eo -e PARAGRAPH_REPEAT_BEGINNING_RULE`), with its
@@ -451,6 +457,37 @@ const REPEAT_PROBES: &[Probe] = &[
         ],
     ),
     ("She hid.\n\n\n \r\nShe hid.", &[]),
+    // Whitespace-only sentences of a whole text: a line of other whitespace than ASCII is a
+    // paragraph of its own; a CRLF after a bare LF, or a line break after a no-break space,
+    // starts the next sentence.
+    ("She ran.\n\n\u{a0}\n\nShe hid.", &[]),
+    ("She ran.\n\n\u{2028}\n\nShe hid.", &[]),
+    ("She ran.\n\n\u{3000}\n\nShe hid.", &[]),
+    ("She ran.\n\n\u{202f}\n\nShe hid.", &[]),
+    (
+        "She ran.\n\n \n\nShe hid.",
+        &[
+            ("PARAGRAPH_REPEAT_BEGINNING_RULE", 0..3),
+            ("PARAGRAPH_REPEAT_BEGINNING_RULE", 13..16),
+        ],
+    ),
+    (
+        "She ran.\u{a0}\n\nShe hid.",
+        &[
+            ("PARAGRAPH_REPEAT_BEGINNING_RULE", 0..3),
+            ("PARAGRAPH_REPEAT_BEGINNING_RULE", 11..13),
+        ],
+    ),
+    ("She ran.\n\r\n\r\nShe hid.", &[]),
+    (
+        "She ran.\n\r\nShe hid.",
+        &[
+            ("PARAGRAPH_REPEAT_BEGINNING_RULE", 0..3),
+            ("PARAGRAPH_REPEAT_BEGINNING_RULE", 11..12),
+        ],
+    ),
+    ("She ran.\u{a0}\r\n\r\nShe hid.", &[]),
+    ("She ran.\u{a0}\r\n\nShe hid.", &[]),
 ];
 
 #[test]
@@ -664,6 +701,38 @@ const MANUSCRIPT: &str = "\u{201c}The cat sat on the mat,\u{201d} she said\u{201
                           Institutional considerations regarding international collaboration \
                           necessitate comprehensive organizational restructuring.";
 
+/// Whether `text` has whitespace where a split can change the paragraph rules' matches (see the
+/// `document` module): a tab after a blank line, a bare LF followed by a CRLF, or other
+/// whitespace than ASCII before a line break.
+fn split_gap(text: &str) -> bool {
+    let chars: Vec<char> = text.chars().collect();
+    text.contains("\n\n\t")
+        || text.contains("\n\r\n")
+        || chars
+            .windows(2)
+            .any(|x| x[0].is_whitespace() && !x[0].is_ascii() && matches!(x[1], '\r' | '\n'))
+}
+
+/// A blank line holding spaces adds nothing, also as a paragraph of its own with the separators
+/// stripped; one holding a no-break space is a paragraph of its own (LanguageTool 6.6).
+#[test]
+fn whitespace_only_paragraphs() {
+    for (paragraphs, expected) in [
+        (["She ran.", " ", "She hid."], 2),
+        (["She ran.", "\t", "She hid."], 2),
+        (["She ran.", "\u{a0}", "She hid."], 0),
+    ] {
+        let whole = keys(&ON.suggest(&paragraphs.join("\n\n"), &TOKENIZER));
+        assert_eq!(whole.len(), expected, "{:?}", paragraphs);
+        assert_eq!(
+            whole,
+            keys(&incremental(&ON, &paragraphs, "\n\n", true)),
+            "{:?}",
+            paragraphs
+        );
+    }
+}
+
 /// `suggest` on the whole text gives the same paragraph-rule matches as checking it in pieces
 /// and resolving the digests, however it is split between sentences: line by line with the line
 /// breaks kept, sentence by sentence, as one piece, or at blank lines with the separators
@@ -684,8 +753,8 @@ fn suggest_equals_paragraph_digests_and_resolver() {
             "{:?}",
             text
         );
-        if text.contains("\n\n\t") {
-            // Not equivalent when split at the blank line, see `equivalence_on_random_texts`.
+        if split_gap(text) {
+            // Not equivalent when split in that whitespace, see `equivalence_on_random_texts`.
             continue;
         }
         let lines: Vec<&str> = text.split_inclusive('\n').collect();
@@ -803,6 +872,49 @@ fn digests_round_trip() {
     // Digests cover the paragraph rules while they are disabled.
     let (_, off) = RULES.check_paragraph(MANUSCRIPT, true, &TOKENIZER);
     assert_eq!(off, digest);
+}
+
+/// Corrupted digests are rejected or resolve without panicking: a stored digest that was
+/// damaged must not crash the app.
+#[test]
+fn corrupted_digests_never_panic() {
+    let texts = [
+        "\u{201c}She ran,\u{201d} he said. The cat sat.\n\nShe hid in the barn.\n",
+        "\nShe hid. It\u{2019}s late. We go.\u{a0}\n\n",
+        "The dog ran. \r\n",
+    ];
+    let digests: Vec<Vec<u8>> = texts
+        .iter()
+        .map(|text| ON.check_paragraph(text, false, &TOKENIZER).1.to_bytes())
+        .collect();
+    let mut seed: u64 = 99;
+    let mut next = move || {
+        seed = seed
+            .wrapping_mul(6_364_136_223_846_793_005)
+            .wrapping_add(1_442_695_040_888_963_407);
+        (seed >> 33) as usize
+    };
+    for _ in 0..5000 {
+        let mut decoded = Vec::new();
+        for bytes in &digests {
+            let mut bytes = bytes.clone();
+            for _ in 0..next() % 3 {
+                let i = 4 + next() % (bytes.len() - 4);
+                bytes[i] = (next() % 256) as u8;
+            }
+            if next() % 10 == 0 {
+                bytes.truncate(4 + next() % (bytes.len() - 4));
+            }
+            if let Ok(digest) = ParagraphDigest::from_bytes(&bytes) {
+                decoded.push(digest);
+            }
+        }
+        for m in ON.resolve_document(&decoded).matches {
+            for text in texts {
+                let _ = m.to_suggestion(text);
+            }
+        }
+    }
 }
 
 /// A match of the paragraph rules applied to an edited paragraph never panics.
