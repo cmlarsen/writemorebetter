@@ -344,4 +344,13 @@ impl StyleDocument {
     ) -> Result<crate::reports::voices::VoicesReport, StyleError> {
         crate::reports::voices::report(&self.document, &options(json)?)
     }
+
+    /// Flags isolated slips in grammatical person per scene (#354). Opt-in and narration-only;
+    /// needs token details.
+    pub fn person_drift(
+        &self,
+        json: Option<&str>,
+    ) -> Result<crate::reports::person_drift::PersonDriftReport, StyleError> {
+        crate::reports::person_drift::report(&self.document, &options(json)?)
+    }
 }

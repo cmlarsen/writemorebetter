@@ -475,3 +475,146 @@ pub fn paragraph_quotes_balanced(document: &Document, paragraph: usize) -> bool 
             .is_some_and(|span| span.byte.start <= byte)
     })
 }
+
+/// Thresholds for `scene_tense`. The defaults are provisional: tense shift (#355) owns them, and
+/// person drift (#354) uses them unchanged so both lenses read one scene tense.
+#[doc(hidden)]
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SceneTenseThresholds {
+    /// Past plus present narration chains a scene needs before it has a tense.
+    pub minimum_chains: usize,
+    /// The majority tense's share of those chains.
+    pub minimum_share: f64,
+}
+
+impl Default for SceneTenseThresholds {
+    fn default() -> Self {
+        Self {
+            minimum_chains: 5,
+            minimum_share: 0.7,
+        }
+    }
+}
+
+/// Past and present narration chains in a scene: past and past-perfect chains count as past,
+/// present chains as present. Modal and ambiguous chains are no evidence. Chains in voice tags
+/// count, since a tag is narration in the narrator's tense.
+#[doc(hidden)]
+pub fn scene_tense_counts(document: &Document, scene: &Scene) -> (usize, usize) {
+    let mut past = 0;
+    let mut present = 0;
+    for paragraph in &document.paragraphs[scene.paragraphs.clone()] {
+        for sentence in &paragraph.sentences {
+            for run in document.narration_runs(sentence) {
+                let tokens: Vec<&Token> = sentence.tokens[run]
+                    .iter()
+                    .filter(|token| !token.is_whitespace)
+                    .collect();
+                for chain in chains(&tokens) {
+                    match chain.class {
+                        ChainClass::Past | ChainClass::PastPerfect => past += 1,
+                        ChainClass::Present => present += 1,
+                        ChainClass::Modal { .. } | ChainClass::Ambiguous => {}
+                    }
+                }
+            }
+        }
+    }
+    (past, present)
+}
+
+/// The scene's narrative tense with the default thresholds, or `None` when the narration has too
+/// few finite chains or no clear majority.
+#[doc(hidden)]
+pub fn scene_tense(document: &Document, scene: &Scene) -> Option<NarrativeTense> {
+    scene_tense_with(document, scene, &SceneTenseThresholds::default())
+}
+
+#[doc(hidden)]
+pub fn scene_tense_with(
+    document: &Document,
+    scene: &Scene,
+    thresholds: &SceneTenseThresholds,
+) -> Option<NarrativeTense> {
+    let (past, present) = scene_tense_counts(document, scene);
+    let total = past + present;
+    if total < thresholds.minimum_chains.max(1) {
+        return None;
+    }
+    let share = |count: usize| count as f64 / total as f64;
+    if share(past) >= thresholds.minimum_share {
+        Some(NarrativeTense::Past)
+    } else if share(present) >= thresholds.minimum_share {
+        Some(NarrativeTense::Present)
+    } else {
+        None
+    }
+}
+
+/// Words that introduce displayed or written text before a colon: *The note read:*, *She wrote:*,
+/// *the sign said:*. English-specific, like the rest of these helpers.
+const DISPLAY_WORDS: [&str; 44] = [
+    "read",
+    "reads",
+    "ran",
+    "runs",
+    "said",
+    "says",
+    "wrote",
+    "writes",
+    "written",
+    "write",
+    "printed",
+    "scrawled",
+    "scribbled",
+    "typed",
+    "inscribed",
+    "engraved",
+    "stamped",
+    "painted",
+    "lettered",
+    "carved",
+    "follows",
+    "note",
+    "letter",
+    "message",
+    "sign",
+    "notice",
+    "inscription",
+    "label",
+    "caption",
+    "headline",
+    "telegram",
+    "card",
+    "words",
+    "text",
+    "entry",
+    "postcard",
+    "poster",
+    "banner",
+    "plaque",
+    "memo",
+    "diary",
+    "journal",
+    "wire",
+    "cable",
+];
+
+/// The index of a colon that follows a writing or display word within four words (*The note
+/// read: I will be back by noon.*), in a run of non-whitespace tokens. Text after it, to the end
+/// of the paragraph, is an unquoted embedded document rather than narration.
+#[doc(hidden)]
+pub fn display_colon_lead_in(tokens: &[&Token]) -> Option<usize> {
+    tokens.iter().enumerate().find_map(|(index, token)| {
+        if token.text != ":" {
+            return None;
+        }
+        let lead_in = tokens[..index]
+            .iter()
+            .rev()
+            .filter(|token| token.is_word)
+            .take(4)
+            .any(|token| DISPLAY_WORDS.contains(&normalized(token).as_str()));
+        lead_in.then_some(index)
+    })
+}
