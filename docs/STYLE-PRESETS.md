@@ -182,7 +182,8 @@ small ones as numerals too (`Of 250 guests, 12 stayed`), so the numbers it compa
 `agesAsNumerals`, ages stay numerals (`5 years old`, `a 6-year-old`, `aged 7`), as news styles set
 them. `ap` sets `spellOutThrough: 9`, `agesAsNumerals: true` and `matchLarger: false`.
 
-The message names the limit. The check offers no replacement: spelling a number out is the author's
+The message names the limit, except on an ordinal before *century* or *centuries* (`19th-century`),
+where it asks for the century spelled out (CMOS 9.33). The check offers no replacement: spelling a number out is the author's
 wording.
 
 ### `quotePunctuation`

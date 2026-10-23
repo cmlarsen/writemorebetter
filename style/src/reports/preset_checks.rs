@@ -774,13 +774,32 @@ fn number_matches(text: &Text, paragraph: &Paragraph, check: &NumberCheck, out: 
         while text.char(end).is_some_and(char::is_alphabetic) {
             end += 1;
         }
+        let message = if end > numeral.chars.end && century_after(text, end) {
+            "Spell out centuries in prose, as in “the nineteenth century”.".to_string()
+        } else {
+            message.clone()
+        };
         out.push((
             PresetCheck::Numbers,
-            message.clone(),
+            message,
             text.span(numeral.chars.start, end),
             None,
         ));
     }
+}
+
+/// Whether `century` or `centuries` follows the ordinal ending at char `end`, as its own word or
+/// joined by a hyphen (`19th century`, `19th-century ruins`).
+fn century_after(text: &Text, end: usize) -> bool {
+    let start = match text.char(end) {
+        Some('-' | '‐') => end + 1,
+        Some(ch) if ch.is_whitespace() => end,
+        _ => return false,
+    };
+    text.words_after(start, 1).first().is_some_and(|word| {
+        let word = key(text.slice(word.start, word.end));
+        word.starts_with("century") || word.starts_with("centuries")
+    })
 }
 
 // ---------------------------------------------------------------------------------------------
