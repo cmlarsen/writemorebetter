@@ -120,6 +120,20 @@ which throws a string, and Python has `checker.set_too_often_used_percent(n)`, w
 `ValueError`. A paragraph's digest does not depend on the percentage, so changing it needs no
 recheck, only a new `resolve_document`.
 
+### Readability level
+
+`READABILITY_RULE_SIMPLE` flags a paragraph whose Flesch reading level (0 very difficult to 6
+very easy) is above a level, 3 by default, and `READABILITY_RULE_DIFFICULT` one whose level is
+below it; LanguageTool lets a user set the level per rule (a `RuleOption` from 0 to 6).
+`Rules::set_readability_level(level)` sets it for both rules, and `Readability::set_level`,
+reached through `Rules::builtins_mut` and `BuiltinRule::builtin_mut`, sets it for one. A level
+above 6 is `Error::OptionOutOfRange` and changes nothing. Setting it does not enable the rules,
+which are off by default and in the fiction profile. Swift has
+`checker.setReadabilityLevel(level:)`, which throws `CheckError.InvalidOption(message:)`, WASM has
+`checker.setReadabilityLevel(n)`, which throws a string, and Python has
+`checker.set_readability_level(n)`, which raises `ValueError`. Digests do not depend on the
+level either: changing it needs only a new `resolve_document`.
+
 ## The fiction profile
 
 Disables exactly these:

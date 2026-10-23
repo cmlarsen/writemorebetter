@@ -89,6 +89,14 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   `Suggestion::new` is public so bindings can rebuild suggestions from their own records
   ([#234](https://github.com/cmlarsen/writemorebetter/issues/234)).
 
+- **The readability level in Swift, WASM and Python.** `Rules::set_readability_level(level)`
+  sets the level (0 very difficult to 6 very easy, default 3) of both `READABILITY_RULE_SIMPLE`
+  and `READABILITY_RULE_DIFFICULT`; Swift `checker.setReadabilityLevel(level:)`, WASM
+  `checker.setReadabilityLevel(level)` and Python `checker.set_readability_level(level)` expose
+  it. A level above 6 is `Error::OptionOutOfRange` (Swift `CheckError.InvalidOption`, a thrown
+  string in WASM, `ValueError` in Python) and changes nothing. It does not enable the rules,
+  which stay off by default and in the fiction profile.
+
 ### Changed
 
 - **The word-statistics builtins count the whole document.** `EN_WORD_COHERENCY`,

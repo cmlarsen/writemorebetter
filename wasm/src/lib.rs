@@ -610,6 +610,19 @@ impl Checker {
             .set_too_often_used_percent(percent as usize)
             .map_err(|err| JsValue::from_str(&err.to_string()))
     }
+
+    /// Sets the level of the `READABILITY_RULE_SIMPLE` and `READABILITY_RULE_DIFFICULT` rules,
+    /// from 0 (very difficult) to 6 (very easy): `READABILITY_RULE_SIMPLE` flags a paragraph whose
+    /// Flesch reading level is above it, `READABILITY_RULE_DIFFICULT` one whose level is below
+    /// it. The default is 3. A value above 6 is an error and nothing changes. It does not enable
+    /// the rules, which are off by default (see `enableRules`). Changes apply to the next `check`
+    /// and `resolveDocument`.
+    #[wasm_bindgen(js_name = setReadabilityLevel)]
+    pub fn set_readability_level(&mut self, level: u32) -> Result<(), JsValue> {
+        self.rules
+            .set_readability_level(level as usize)
+            .map_err(|err| JsValue::from_str(&err.to_string()))
+    }
 }
 
 fn style_error(error: writemorebetter_style::StyleError) -> JsValue {

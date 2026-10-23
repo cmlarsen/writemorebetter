@@ -214,6 +214,14 @@ class Checker:
         :class:`OverflowError` for a negative ``percent``."""
         self._native.set_too_often_used_percent(percent)
 
+    def set_readability_level(self, level: int) -> None:
+        """Sets the level (0 very difficult to 6 very easy, default 3) the
+        ``READABILITY_RULE_SIMPLE`` and ``READABILITY_RULE_DIFFICULT`` rules compare each
+        paragraph's Flesch reading level with: SIMPLE flags a paragraph above it, DIFFICULT one
+        below it. It does not enable the rules, which are off by default. Above 6 raises
+        :class:`ValueError`, a negative ``level`` :class:`OverflowError`; nothing changes."""
+        self._native.set_readability_level(level)
+
     # Incremental checking (#329)
 
     def check_paragraph(self, text: str, *, ends_paragraph: bool = True) -> "ParagraphCheck":

@@ -403,6 +403,48 @@ def test_unreadable_digests_are_stale(words_checker):
         resolution.suggestions(0, "short", [Suggestion(0, 10, "X", "", ())])
 
 
+def test_readability_level_sets_both_rules(data_dir):
+    checker = Checker.from_dir(data_dir)
+    checker.enable_rules(
+        ["BUILTIN/READABILITY_RULE_SIMPLE", "BUILTIN/READABILITY_RULE_DIFFICULT"]
+    )
+    # Two easy paragraphs (level 5), the first starting with an astral emoji (its first token).
+    paragraph = (
+        "\u201cShe walked to the store\u2014and bought some bread for her family\u2019s "
+        "table,\u201d he said\u2026\u2028It was before the evening came."
+    )
+    text = f"\U0001F600 {paragraph}\n\n{paragraph}"
+    second = text.rindex("\u201c")
+
+    def flags():
+        return [
+            (s.source[len("BUILTIN/"):], s.start)
+            for s in checker.check(text)
+            if s.source.startswith("BUILTIN/READABILITY_RULE_")
+        ]
+
+    simple, difficult = "READABILITY_RULE_SIMPLE", "READABILITY_RULE_DIFFICULT"
+    assert flags() == [(simple, 0), (simple, second)]
+    checker.set_readability_level(5)
+    assert flags() == []
+    checker.set_readability_level(6)
+    assert flags() == [(difficult, 0), (difficult, second)]
+    with pytest.raises(ValueError, match="between 0 and 6"):
+        checker.set_readability_level(7)
+    with pytest.raises(OverflowError):
+        checker.set_readability_level(-1)
+    assert len(flags()) == 2
+    checker.set_readability_level(0)
+    assert flags() == [(simple, 0), (simple, second)]
+    # The level also applies to whole-document resolution of separately checked paragraphs.
+    split, _ = incremental(checker, [f"\U0001F600 {paragraph}", paragraph])
+    assert [
+        (s.source[len("BUILTIN/"):], s.start)
+        for s in split
+        if s.source.startswith("BUILTIN/READABILITY_RULE_")
+    ] == [(simple, 0), (simple, second)]
+
+
 def test_too_often_used_counts_the_whole_document(data_dir):
     checker = Checker.from_dir(data_dir)
     checker.enable_rules(["BUILTIN/TOO_OFTEN_USED_NOUN_EN"])

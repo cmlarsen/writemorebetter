@@ -143,6 +143,48 @@ eq(falseFriends(actual), [], "undefined clears the selection");
   picky.free();
 }
 
+// setReadabilityLevel sets the level both READABILITY_RULE_* rules compare paragraphs with.
+{
+  const reader = new Checker(
+    readFileSync(join(root, "storage", "en_tokenizer.bin")),
+    readFileSync(join(root, "storage", "en_rules.bin")),
+    undefined,
+    "fiction",
+  );
+  reader.enableRules(["BUILTIN/READABILITY_RULE_SIMPLE", "BUILTIN/READABILITY_RULE_DIFFICULT"]);
+  // Two easy paragraphs (level 5), the first starting with an astral emoji (its first token), so
+  // that the second starts at different UTF-16 and char offsets.
+  const paragraph =
+    "“She walked to the store—and bought some bread for her family’s table,” he said…\u2028" +
+    "It was before the evening came.";
+  const text = `😀 ${paragraph}\n\n${paragraph}`;
+  const second = text.lastIndexOf("“");
+  const flags = () =>
+    JSON.parse(reader.check(text))
+      .filter((item) => item.source.startsWith("BUILTIN/READABILITY_RULE_"))
+      .map((item) => [item.source.slice("BUILTIN/".length), item.start16]);
+  const simple = "READABILITY_RULE_SIMPLE";
+  const difficult = "READABILITY_RULE_DIFFICULT";
+  eq(flags(), [[simple, 0], [simple, second]], "easy paragraphs are too simple at the default 3");
+  reader.setReadabilityLevel(5);
+  eq(flags(), [], "level 5 flags neither");
+  reader.setReadabilityLevel(6);
+  eq(flags(), [[difficult, 0], [difficult, second]], "level 6 finds them too difficult");
+  for (const level of [7, -1]) {
+    let error = "";
+    try {
+      reader.setReadabilityLevel(level);
+    } catch (err) {
+      error = String(err);
+    }
+    check(error.includes("between 0 and 6"), `out-of-range level ${level} throws: ${error}`);
+  }
+  eq(flags().length, 2, "an out-of-range level changes nothing");
+  reader.setReadabilityLevel(0);
+  eq(flags(), [[simple, 0], [simple, second]], "level 0 finds them too simple");
+  reader.free();
+}
+
 // setTooOftenUsedPercent sets the share from which TOO_OFTEN_USED_* flag a word.
 {
   const counter = new Checker(

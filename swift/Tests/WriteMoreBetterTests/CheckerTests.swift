@@ -325,6 +325,42 @@ final class CheckerTests: XCTestCase {
         }
     }
 
+    func testReadabilityLevel() throws {
+        let checker = try Checker(
+            tokenizerPath: Self.dataPath("en_tokenizer.bin"),
+            rulesPath: Self.dataPath("en_rules.bin")
+        )
+        try checker.enableRules(selectors: [
+            "BUILTIN/READABILITY_RULE_SIMPLE", "BUILTIN/READABILITY_RULE_DIFFICULT",
+        ])
+        // Two easy paragraphs (level 5), the first starting with an astral emoji (its first token).
+        let paragraph = "\u{201C}She walked to the store\u{2014}and bought some bread for her family\u{2019}s "
+            + "table,\u{201D} he said\u{2026}\u{2028}It was before the evening came."
+        let text = "\u{1F600} \(paragraph)\n\n\(paragraph)"
+        let second = UInt32((text as NSString).range(of: "\u{201C}", options: .backwards).location)
+        let flags = {
+            checker.check(text: text)
+                .filter { $0.source.hasPrefix("BUILTIN/READABILITY_RULE_") }
+                .map { "\($0.source.dropFirst("BUILTIN/".count))@\($0.start)" }
+        }
+        XCTAssertEqual(flags(), ["READABILITY_RULE_SIMPLE@0", "READABILITY_RULE_SIMPLE@\(second)"])
+
+        try checker.setReadabilityLevel(level: 5)
+        XCTAssertTrue(flags().isEmpty)
+        try checker.setReadabilityLevel(level: 6)
+        XCTAssertEqual(flags(), ["READABILITY_RULE_DIFFICULT@0", "READABILITY_RULE_DIFFICULT@\(second)"])
+
+        XCTAssertThrowsError(try checker.setReadabilityLevel(level: 7)) { error in
+            guard case let CheckError.InvalidOption(message) = error else {
+                return XCTFail("unexpected error: \(error)")
+            }
+            XCTAssertTrue(message.contains("between 0 and 6"), message)
+        }
+        XCTAssertEqual(flags().count, 2, "an out-of-range level changes nothing")
+        try checker.setReadabilityLevel(level: 0)
+        XCTAssertEqual(flags(), ["READABILITY_RULE_SIMPLE@0", "READABILITY_RULE_SIMPLE@\(second)"])
+    }
+
     func testTooOftenUsedPercent() throws {
         let checker = try Checker(
             tokenizerPath: Self.dataPath("en_tokenizer.bin"),

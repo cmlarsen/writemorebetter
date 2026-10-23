@@ -39,6 +39,11 @@ Once enabled, the `TOO_OFTEN_USED_ADJECTIVE_EN`, `TOO_OFTEN_USED_NOUN_EN` and
 verbs of the checked text. `checker.setTooOftenUsedPercent(10)` changes that share for all three
 (1–100); a value outside the range throws and changes nothing.
 
+Once enabled, `READABILITY_RULE_SIMPLE` flags a paragraph whose Flesch reading level is above 3
+(0 very difficult to 6 very easy) and `READABILITY_RULE_DIFFICULT` one whose level is below it.
+`checker.setReadabilityLevel(5)` changes that level for both (0–6); a value above 6 (or a
+negative one) throws and changes nothing.
+
 ### Checking a document paragraph by paragraph
 
 A few rules need the whole document: `EN_CONSISTENT_APOS` (mixed `'` and `’`),
