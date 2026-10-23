@@ -367,6 +367,72 @@ final class CheckerTests: XCTestCase {
         XCTAssertEqual(cats().count, 10, "an out-of-range percentage changes nothing")
     }
 
+    /// Checking paragraph by paragraph and resolving the digests gives the whole-document rules'
+    /// matches of `check` on the joined text, in UTF-16 offsets. Curly quotes and apostrophes, an
+    /// em dash, an ellipsis, U+2028, an emoji, a single line break and blank lines; straight
+    /// apostrophes in the last paragraph.
+    func testIncrementalDocument() throws {
+        let checker = try Checker(
+            tokenizerPath: Self.dataPath("en_tokenizer.bin"),
+            rulesPath: Self.dataPath("en_rules.bin")
+        )
+        try checker.enableRules(selectors: ["BUILTIN/EN_REPEATEDWORDS"])
+        let wholeDocument = { (suggestion: Suggestion) in
+            ["EN_CONSISTENT_APOS", "EN_WORD_COHERENCY", "EN_REPEATEDWORDS"]
+                .contains { suggestion.source.contains($0) }
+        }
+        var paragraphs = [
+            "\u{201C}I\u{2019}ll be the adviser\u{2014}no one else,\u{201D} she said\u{2026}\u{2028}He nodded. 😀 She was definitely tired.\nThe dog\u{2019}s bowl was empty.",
+            "It\u{2019}s late. 😀 The advisor left. She definitely knew.",
+            "'Tis true, he said. It's done.",
+        ]
+        var checks = paragraphs.map { checker.checkParagraph(text: $0) }
+        XCTAssertTrue(checks.allSatisfy { !$0.digest.isEmpty })
+
+        func incremental() -> [Suggestion] {
+            let resolution = checker.resolveDocument(digests: checks.map(\.digest))
+            XCTAssertEqual(resolution.stale(), [])
+            var out: [Suggestion] = []
+            var start: UInt32 = 0
+            for (index, text) in paragraphs.enumerated() {
+                for suggestion in resolution.suggestions(
+                    paragraph: UInt32(index), text: text, checked: checks[index].suggestions
+                ) {
+                    out.append(Suggestion(
+                        start: suggestion.start + start, end: suggestion.end + start,
+                        source: suggestion.source, message: suggestion.message,
+                        replacements: suggestion.replacements
+                    ))
+                }
+                start += UInt32(text.utf16.count) + 2
+            }
+            return out
+        }
+
+        var document = paragraphs.joined(separator: "\n\n")
+        let whole = checker.check(text: document).filter(wholeDocument)
+        XCTAssertEqual(incremental().filter(wholeDocument), whole)
+        guard let advisor = whole.first(where: { $0.source.contains("EN_WORD_COHERENCY") }) else {
+            return XCTFail("EN_WORD_COHERENCY did not fire across paragraphs: \(whole)")
+        }
+        XCTAssertEqual((document as NSString).substring(with: advisor.nsRange), "advisor")
+        XCTAssertEqual(advisor.replacements, ["adviser"])
+        XCTAssertTrue(whole.contains { $0.source.contains("EN_REPEATEDWORDS") })
+        XCTAssertTrue(whole.contains { $0.source.contains("EN_CONSISTENT_APOS") })
+
+        // An edit rechecks one paragraph; the variant in an unchanged one goes away.
+        paragraphs[0] = paragraphs[0].replacingOccurrences(of: "adviser", with: "counselor")
+        checks[0] = checker.checkParagraph(text: paragraphs[0], endsParagraph: true)
+        document = paragraphs.joined(separator: "\n\n")
+        let edited = incremental().filter(wholeDocument)
+        XCTAssertEqual(edited, checker.check(text: document).filter(wholeDocument))
+        XCTAssertFalse(edited.contains { $0.source.contains("EN_WORD_COHERENCY") })
+
+        // Bytes that are not a digest of this version are stale.
+        let stale = checker.resolveDocument(digests: [checks[0].digest, Data([1, 0, 0, 0, 7])])
+        XCTAssertEqual(stale.stale(), [1])
+    }
+
     func testUnknownProfileThrows() throws {
         let tokenizer = try Self.dataPath("en_tokenizer.bin")
         let rules = try Self.dataPath("en_rules.bin")
