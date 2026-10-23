@@ -94,6 +94,9 @@ export function checkStyleRecords(checker) {
     JSON.stringify({ markedSpans: [marked] }));
   results.push(["VoicesReport", voiceDocument.voices()]);
   voiceDocument.free();
+  const driftDocument = checker.styleDocument("😀 He sat. He waited. … I crossed the room. She smiled. He nodded.");
+  results.push(["PersonDriftReport", driftDocument.personDrift('{"person":"third"}')]);
+  driftDocument.free();
   const vagueDocument = checker.styleDocument("It was sort of cold. “Well, it’s a nice thing,” she said. She made a decision after the arrival of the train.");
   results.push(["VagueWordsReport", vagueDocument.vagueWords()]);
   results.push(["HiddenVerbsReport", vagueDocument.hiddenVerbs()]);

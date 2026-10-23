@@ -895,3 +895,76 @@ export interface VoicesReport {
   sentences: number;
   ignoredMarkedSpans: Array<number>;
 }
+
+/** Grammatical person of a scene's narration (#354). */
+export type NarrativePerson = "first" | "second" | "third";
+export type NarrativeTense = "past" | "present";
+export type PersonPronoun = "she" | "he" | "they";
+export type PersonSource = "declared" | "inferred" | "mixed" | "undetermined";
+export type PersonDriftKind = "firstInThird" | "thirdInFirst" | "narratorName";
+export type PersonSuppression = "witnessNarrator" | "tooManySlips" | "noNarrator" | "undeterminedTense";
+
+/** A per-scene declaration; `scene` indexes `PersonDriftReport.scenes`. */
+export interface ScenePerson {
+  scene: number;
+  person: NarrativePerson;
+}
+
+/** The first-person narrator's names and the pronoun a third-person slip would use. */
+export interface Narrator {
+  names?: Array<string>;
+  pronoun?: PersonPronoun | null;
+}
+
+export interface CastMember {
+  name: string;
+  pronoun: PersonPronoun;
+}
+
+/** Options for `personDrift`; every field is optional. */
+export interface PersonDriftOptions {
+  person?: NarrativePerson | null;
+  scenePersons?: Array<ScenePerson>;
+  narrator?: Narrator | null;
+  cast?: Array<CastMember>;
+  minimumSubjects?: number;
+  maximumSlips?: number;
+  includeWitnessScenes?: boolean;
+}
+
+export interface PersonSubjects {
+  first: number;
+  second: number;
+  third: number;
+}
+
+export interface PersonScene {
+  scene: number;
+  span: Span;
+  paragraphs: SentenceRange;
+  sentences: SentenceRange;
+  person: NarrativePerson | null;
+  source: PersonSource;
+  tense: NarrativeTense | null;
+  subjects: PersonSubjects;
+  narrationWords: number;
+  suppressed: PersonSuppression | null;
+}
+
+export interface PersonDrift {
+  span: Span;
+  sentenceSpan: Span;
+  sentence: number;
+  scene: number;
+  kind: PersonDriftKind;
+  /** The folded surface (`i`, `my`, `she`), or the declared narrator name that matched. */
+  word: string;
+  expected: NarrativePerson;
+}
+
+export interface PersonDriftReport {
+  scenes: Array<PersonScene>;
+  drifts: Array<PersonDrift>;
+  narrationWords: number;
+  perThousandWords: number | null;
+}

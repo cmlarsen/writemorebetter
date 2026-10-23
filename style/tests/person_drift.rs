@@ -419,6 +419,9 @@ fn interjections_and_numerals() {
         "Dear me, the noise was loud.",
         "Henry I ruled the land.",
         "Chapter I ended there.",
+        "They had dances at I.O.O.F. Hall.",
+        "They opened the first mine.",
+        "The railway linked mine with mine.",
     ] {
         assert_eq!(found(&in_third(middle)), vec![], "{middle}");
     }
@@ -807,4 +810,23 @@ fn compact_documents_and_json_shape() {
     assert!(drift["sentenceSpan"]["end"].as_u64().unwrap() > utf16);
     let words = json["narrationWords"].as_f64().unwrap();
     assert_eq!(json["perThousandWords"].as_f64().unwrap(), 1000.0 / words);
+}
+
+/// The text every binding test round-trips (Swift, WASM, Python).
+#[test]
+fn binding_fixture() {
+    let text = "😀 He sat. He waited. … I crossed the room. She smiled. He nodded.";
+    let third = PersonDriftOptions::new().with_person(Some(NarrativePerson::Third));
+    let result = run(text, &third);
+    assert_eq!(result.drifts.len(), 1, "{result:?}");
+    let drift = &result.drifts[0];
+    assert_eq!(&text[drift.span.byte.clone()], "I");
+    let before = &text[..drift.span.byte.start];
+    assert_eq!(drift.span.utf16.start, before.encode_utf16().count());
+    assert_eq!(drift.span.char.start, before.chars().count());
+    assert_eq!(
+        result.scenes[0].tense,
+        Some(writemorebetter_style::narrative::NarrativeTense::Past)
+    );
+    assert_eq!(run(text, &PersonDriftOptions::new()).drifts, vec![]);
 }

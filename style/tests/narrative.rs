@@ -119,6 +119,8 @@ fn roman_numeral_i_is_not_a_pronoun() {
         ("Henry I ruled.", "I"),
         ("Chapter I begins.", "I"),
         ("The letter I is thin.", "I"),
+        // An initial in an abbreviation (#354).
+        ("They had dances at I.O.O.F. Hall.", "I"),
     ] {
         let document = analyze(text);
         let tokens = sentence_tokens(&document, 0);
@@ -186,4 +188,39 @@ fn quote_balance() {
     assert!(paragraph_quotes_balanced(&document, 0));
     assert!(!paragraph_quotes_balanced(&document, 1));
     assert!(paragraph_quotes_balanced(&document, 2));
+}
+
+/// *mine* the noun carries no person (#354); the possessive pronoun does.
+#[test]
+fn mine_the_noun() {
+    for text in [
+        "They opened the first mine.",
+        "It was the habit of the mine.",
+        "The railway linked mine with mine.",
+        "The electricity was carried into every mine.",
+    ] {
+        let document = analyze(text);
+        let tokens = sentence_tokens(&document, 0);
+        assert!(
+            (0..tokens.len()).all(|index| pronoun_person(&tokens, index).is_none()),
+            "{text}"
+        );
+    }
+    for text in [
+        "The book was mine.",
+        "A friend of mine came.",
+        "Mine was red.",
+    ] {
+        let document = analyze(text);
+        let tokens = sentence_tokens(&document, 0);
+        let index = tokens
+            .iter()
+            .position(|token| token.text.eq_ignore_ascii_case("mine"))
+            .unwrap();
+        assert_eq!(
+            pronoun_person(&tokens, index),
+            Some((NarrativePerson::First, Case::Possessive)),
+            "{text}"
+        );
+    }
 }

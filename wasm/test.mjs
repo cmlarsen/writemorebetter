@@ -393,7 +393,7 @@ check(typeof lengthReport.groups.all.meanDifference === "number", "bundled basel
 eq(JSON.parse(retained.sentenceLength(options, "none")).groups.all.meanDifference, null, "baseline disabled per call");
 const custom = JSON.parse(retained.sentenceLength(options, '{"mean":1}'));
 eq(custom.groups.all.meanDifference, custom.groups.all.mean - 1, "custom baseline per call");
-const calls = ["echoes", "repeatedPhrases", "cliches", "dialogueTags", "adverbs", "sentenceLength", "sentenceStarts", "sensoryBalance", "pacing", "overusedWords", "transitions", "pronounStarts", "emotionTells", "voices", "stats"];
+const calls = ["echoes", "repeatedPhrases", "cliches", "dialogueTags", "adverbs", "sentenceLength", "sentenceStarts", "sensoryBalance", "pacing", "overusedWords", "transitions", "pronounStarts", "emotionTells", "voices", "personDrift", "stats"];
 for (const method of calls) {
   const fresh = checker.styleDocument(reportText);
   eq(JSON.parse(retained[method]()), JSON.parse(fresh[method]()), `shared analysis matches fresh ${method}`);
@@ -422,7 +422,7 @@ eq(invalid.kind, "invalidBaseline", "invalid baseline rejected");
 eq(invalid.report, "sentenceStarts", "error names report");
 eq(styleError(() => checker.styleDocument("text", '{"typo":true}')).kind, "invalidOptions", "document options validated");
 const compactStyle = checker.styleDocument(reportText, '{"includeTokenDetails":false}');
-for (const method of ["echoes", "repeatedPhrases", "dialogueTags", "adverbs", "sentenceStarts", "sensoryBalance", "pacing", "overusedWords", "pronounStarts", "emotionTells"]) {
+for (const method of ["echoes", "repeatedPhrases", "dialogueTags", "adverbs", "sentenceStarts", "sensoryBalance", "pacing", "overusedWords", "pronounStarts", "emotionTells", "personDrift"]) {
   eq(styleError(() => compactStyle[method]()).kind, "needsTokenDetails", `compact rejects ${method}`);
 }
 eq(styleError(() => compactStyle.diction(undefined, '{"hope":1.5}')).kind, "needsTokenDetails", "compact rejects diction");
@@ -468,6 +468,15 @@ eq(voices.ignoredMarkedSpans, [1], "surrogate-splitting caller span ignored");
 eq(voices.counts.thought, {spans: 1, words: 5}, "thought counts");
 eq(voices.narrationWords + Object.values(voices.counts).reduce((sum, count) => sum + count.words, 0), JSON.parse(voiceDocument.stats()).words.all, "voice words add up");
 eq(styleError(() => voiceDocument.voices('{"typo":1}')).kind, "invalidOptions", "voices reject unknown options");
+const driftText = "😀 He sat. He waited. … I crossed the room. She smiled. He nodded.";
+const driftDocument = checker.styleDocument(driftText);
+const drift = JSON.parse(driftDocument.personDrift('{"person":"third"}'));
+eq(drift.drifts.map(d => [driftText.slice(d.span.start, d.span.end), d.kind, d.word, d.expected]), [["I", "firstInThird", "i", "third"]], "UTF-16 person drift after emoji");
+eq(drift.scenes.map(s => [s.person, s.source, s.tense]), [["third", "declared", "past"]], "person drift scene");
+eq(JSON.parse(driftDocument.personDrift()).drifts, [], "person drift needs evidence or a declaration");
+eq(styleError(() => driftDocument.personDrift('{"person":"mixed"}')).kind, "invalidOptions", "person drift rejects unknown persons");
+eq(styleError(() => driftDocument.personDrift('{"scenePersons":[{"scene":3,"person":"first"}]}')).kind, "invalidOptions", "person drift rejects out-of-range scenes");
+driftDocument.free();
 voiceDocument.free();
 const quiet = checker.styleDocument(voiceText, '{"detectThought":false,"detectUnquotedSpeech":false}');
 eq(JSON.parse(quiet.voices()).spans, [], "detection off");

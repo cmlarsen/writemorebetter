@@ -365,7 +365,51 @@ fn first_person_i(tokens: &[&Token], index: usize) -> bool {
                     .iter()
                     .all(|reading| reading.pos.starts_with("NNP")))
     });
-    !numeral && !named
+    // An initial in an abbreviation: *I.O.O.F. Hall*.
+    let initial = tokens.get(index + 1).is_some_and(|dot| {
+        dot.text == "."
+            && dot.span.byte.start == token.span.byte.end
+            && tokens.get(index + 2).is_some_and(|after| {
+                after.span.byte.start == dot.span.byte.end
+                    && after.text.chars().next().is_some_and(char::is_alphanumeric)
+            })
+    });
+    !numeral && !named && !initial
+}
+
+/// *mine* the noun (*the first mine*, *linking mine with mine*): a noun-only reading, or a noun
+/// reading after a determiner, adjective, number, possessive, noun or non-copular verb, or two
+/// words from another *mine* (*mine after mine*).
+fn noun_mine(tokens: &[&Token], index: usize) -> bool {
+    let token = tokens[index];
+    let noun = token
+        .readings
+        .iter()
+        .any(|reading| reading.pos == "NN" || reading.pos.starts_with("NN:"));
+    if !noun {
+        return false;
+    }
+    if token
+        .readings
+        .iter()
+        .all(|reading| reading.pos.starts_with("NN"))
+    {
+        return true;
+    }
+    let repeated = (index.saturating_sub(2)..(index + 3).min(tokens.len()))
+        .any(|other| other != index && normalized(tokens[other]) == "mine");
+    repeated
+        || index.checked_sub(1).is_some_and(|previous| {
+            let previous = tokens[previous];
+            let copula = previous
+                .readings
+                .iter()
+                .any(|reading| matches!(reading.lemma.as_str(), "be" | "seem" | "become"));
+            ["DT", "JJ", "CD", "PRP$", "POS", "NN"]
+                .iter()
+                .any(|pos| has_pos(previous, pos))
+                || (has_pos(previous, "VB") && !copula)
+        })
 }
 
 /// The grammatical person of a personal pronoun. *they*, *it* and *one* return `None`, and so does
@@ -395,6 +439,7 @@ pub fn pronoun_person(tokens: &[&Token], index: usize) -> Option<(NarrativePerso
     };
     Some(match normalized(token).as_str() {
         "me" => (First, Object),
+        "mine" if noun_mine(tokens, index) => return None,
         "my" | "mine" => (First, Possessive),
         "myself" => (First, Reflexive),
         "we" => (First, Subject),

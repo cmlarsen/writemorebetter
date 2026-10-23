@@ -805,6 +805,17 @@ impl StyleDocument {
             .map(|report| reports::to_utf16_json(&report))
             .map_err(style_error)
     }
+
+    /// Returns the opt-in person-drift lens (#354): per-scene grammatical person and isolated
+    /// first-person slips in third-person scenes, or the declared narrator's pronoun or name in
+    /// first-person scenes. Narration only; needs token details.
+    #[wasm_bindgen(js_name = personDrift)]
+    pub fn person_drift(&self, options_json: Option<String>) -> Result<String, JsValue> {
+        self.inner
+            .person_drift(options_json.as_deref())
+            .map(|report| reports::to_utf16_json(&report))
+            .map_err(style_error)
+    }
 }
 
 /// JavaScript offsets are UTF-16 code units, so caller spans default to them.
