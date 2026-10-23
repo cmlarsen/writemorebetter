@@ -512,7 +512,7 @@ def kappa(pairs):
     p_a = sum(a for a, _ in pairs) / n
     p_b = sum(b for _, b in pairs) / n
     expected = p_a * p_b + (1 - p_a) * (1 - p_b)
-    return round((observed - expected) / (1 - expected), 3) if expected < 1 else 1.0
+    return round((observed - expected) / (1 - expected), 3) + 0.0 if expected < 1 else 1.0
 
 
 def merge(labels, first, second, adjudicate, meta):

@@ -10,6 +10,21 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
 ### Added
 
+- **Person drift, an opt-in lens (#354).** `personDrift` gives each scene a grammatical person
+  (declared with `person`/`scenePersons`, or inferred from narration subjects) and flags isolated
+  slips: *I*, *me* or *my* in a third-person scene (`firstInThird`), and, with a declared
+  `narrator`, the narrator's *she*/*he* (`thirdInFirst`) or name (`narratorName`) in a
+  first-person scene. Narration only, from the #353 voice layer; it diagnoses and never suggests
+  text. Surfaces: `StyleDocument::person_drift` (Rust), `personDrift()` (WASM), `personDriftJson`
+  plus a typed `personDrift(options:)` (Swift) and `person_drift` (Python). `narrative` gains
+  `scene_tense` and `display_colon_lead_in`, and `pronoun_person` no longer reads the noun *mine*
+  or an initial *I* (*I.O.O.F.*) as first person. On public text, perturbation recall is 0.80
+  (first-in-third), 0.83 (narrator name) and 0.48 (third-in-first with no same-gender
+  character), with precision 0.995, 0 trap false positives and 0.0037 natural flags per 1,000
+  narration words. WASM grows by 30.2 KB gzipped (7,692,477 → 7,845,773 bytes; 1,916,974 →
+  1,947,141 with `gzip -9`, wasm-bindgen 0.2.129). No data is loaded, so memory is unchanged. See
+  [`docs/STYLE-PERSON-DRIFT.md`](docs/STYLE-PERSON-DRIFT.md).
+
 - **Voices and the `voices` report (#353).** The style document resolves every byte to a
   `Voice`: narration, speech, thought, a quoted term, or a caller-marked embedded text, quotation
   or excluded span. Unquoted direct thought (*I’m done with this, she thought.*) and tagged

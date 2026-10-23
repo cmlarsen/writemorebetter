@@ -1083,6 +1083,7 @@ window mean concreteness and sentence means, the full percentile sets at both sc
 | `labels/transitions.jsonl` | 62 development examples; no ~300-sentence judgment set | Original hand-written development examples from #247, including known misses | A ~300-sentence public-domain judgment set with two independent labelers and owner adjudication |
 | `labels/pacing/*.jsonl`, `labels/pacing-consensus.jsonl` | 305 paragraphs in 40 passages | Five independent, blind model labelers (2026-10-16, owner's choice): DeepSeek V4 Pro and Muse Spark 1.3 via OpenCode Go, Codex gpt-6.1-sol, Claude Opus 5.5 (`claude-opus-5-5`) and Claude Fable 5.1 (`claude-fable-5-1`). Each saw only the packet built from the committed item file (`itemsSha256` in the consensus meta row) and guidelines version 1. Where each labeler ran was not recorded. Merged by 5-way majority with no coordinator adjudication. Guidelines version 1 is [`labels/PACING-GUIDELINES-v1.md`](labels/PACING-GUIDELINES-v1.md), sha256 `d7eaa315…db6`, the wording first committed as `bf832a2`; the consensus meta row records it as `guidelines` | Owner acceptance; independent human labels. The set is not held out (the threshold sweep tunes on it) |
 | `labels/thought-spans*.jsonl`, `labels/thought-misses.jsonl` | 150 development, 100 + 100 held-out spans, 100 miss sentences | Two blind model labelers from different families, 2026-10-22: Codex `gpt-6-sol` (OpenAI, Codex CLI 0.163.0, reasoning medium) and DeepSeek V4 Pro (`opencode-go/deepseek-v4-pro`, OpenCode 2.1.2), each run on the coordinator machine in an empty directory holding only the guidelines and items; coordinator (`claude-opus-5-5`, the implementer) adjudicated 6 disagreements. Meta rows record models, rules commit, guidelines sha256 and itemsSha256. Guidelines: [`labels/THOUGHT-GUIDELINES.md`](labels/THOUGHT-GUIDELINES.md) | Owner acceptance; human labels; confirming OpenCode Go's terms allow benchmark labels (see STYLE-DATA-LICENSES.md) |
+| `labels/person-drift-natural.jsonl`, `labels/person-drift-perturbations.jsonl` | 7 natural flags (every one at default and declared options); 775 perturbations and 154 traps (offsets and CC0 replacement strings only) | Natural: two blind model labelers from different families, 2026-10-22, Codex `gpt-6-sol` (OpenAI, Codex CLI 0.163.0, reasoning medium) and DeepSeek V4 Pro (`opencode-go/deepseek-v4-pro`, OpenCode 2.1.2), each in an empty directory holding only the guidelines and items; agreement 6/7, kappa 0.0 (degenerate: one `true` in 14 answers); coordinator (`claude-opus-5-5`, the implementer) adjudicated 1. Perturbations are generated (seed 354) and need no labels. Guidelines: [`labels/PERSON-DRIFT-GUIDELINES.md`](labels/PERSON-DRIFT-GUIDELINES.md) | Owner acceptance; human labels; a larger natural set (published fiction has almost no person slips), ideally unedited drafts |
 | Overused words, sensory balance, diction | No hand-labeled natural-text set | Deterministic generated answer keys; diction's bundled-table usefulness review had one judge, not blind (STYLE-NORMS) | Optional owner usefulness review; injections do not substitute for editorial judgments. Published flag rates: #291 (overused, sensory) and the 2026-10-20 diction run |
 
 The small `labels/example.jsonl` (3 records), `documents.jsonl` and `excerpt.txt` demonstrate the
@@ -1335,6 +1336,30 @@ options}` in, `{voices, stats, moved}` out) and runs:
 sets (unlabeled); `packet LABELS OUT` writes a blind labeler packet (`id`, `voice`, marked
 `context` only) and `merge LABELS A B --adjudicate FILE --meta JSON` folds two labelers' answers
 in. Results and the gate's reasoning are in [STYLE-VOICES.md](../../docs/STYLE-VOICES.md#evaluation).
+
+## Person drift (#354)
+
+`python3 bench/style/person_drift.py score --gate` builds the `person_drift` probe
+(`bench/tools/wmb-document/src/bin/person_drift.rs`: JSONL `{text, hardWrapped, documentOptions,
+options}` in, a `PersonDriftReport` out) and runs, on the CC0 stories and the Standard Ebooks
+books (one document per chapter, blockquotes passed as caller `embedded` spans):
+
+- **scene inference** against book-level person (13 first-person, 5 third-person sources), with
+  abstentions counted separately;
+- **perturbations** from `labels/person-drift-perturbations.jsonl` (seed 354): `1in3` (the
+  scene's main *She*/*He* → *I*; run undeclared and with `person: third`), `3in1a`/`3in1b`
+  (*I* → the narrator's pronoun in a window with no same-gender character, or in the full
+  chapter), `name` (*I* → the narrator's name) and seven trap kinds that must raise nothing;
+- **natural flags** per 1,000 narration words at default and declared options, plus 15 more CC0
+  novels (`EXTRA`) at default options, and their precision from `labels/person-drift-natural.jsonl`.
+
+The gate needs perturbed precision ≥ 0.90, 0 trap false positives, ≤ 0.05 natural flags per
+1,000 narration words pooled at default options, and recall at or above
+`person-drift-baseline.json` per set. `--write` updates the baseline. `perturb` and `sample`
+redraw the sets; `packet LABELS OUT` writes a blind labeler packet (`id`, `bookPerson`, marked
+`context`) and `merge LABELS A B --adjudicate FILE --meta JSON` folds two labelers' answers in.
+`flags` prints the natural flags. Results are in
+[STYLE-PERSON-DRIFT.md](../../docs/STYLE-PERSON-DRIFT.md#evaluation-2026-10-22).
 
 ## Vague words and hidden verbs (#307)
 

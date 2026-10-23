@@ -1,0 +1,532 @@
+{
+ "seed": 354,
+ "perturbations": {
+  "recall": {
+   "1in3/declared": {
+    "found": 242,
+    "total": 300,
+    "recall": 0.807
+   },
+   "1in3/undeclared": {
+    "found": 239,
+    "total": 300,
+    "recall": 0.797
+   },
+   "3in1a/narrator": {
+    "found": 12,
+    "total": 25,
+    "recall": 0.48
+   },
+   "3in1b/narrator": {
+    "found": 0,
+    "total": 150,
+    "recall": 0.0
+   },
+   "name/narrator": {
+    "found": 249,
+    "total": 300,
+    "recall": 0.83
+   }
+  },
+  "precision": {
+   "true": 742,
+   "false": 4,
+   "precision": 0.995
+  },
+  "traps": {
+   "runs": 308,
+   "falsePositives": 0,
+   "flags": []
+  }
+ },
+ "inference": {
+  "ackroyd": {
+   "scenes": 27,
+   "right": 27,
+   "wrong": 0,
+   "abstain": 0,
+   "accuracy": 1.0,
+   "abstention": 0.0
+  },
+  "hound": {
+   "scenes": 16,
+   "right": 12,
+   "wrong": 0,
+   "abstain": 4,
+   "accuracy": 1.0,
+   "abstention": 0.25
+  },
+  "sign_ch1": {
+   "scenes": 1,
+   "right": 1,
+   "wrong": 0,
+   "abstain": 0,
+   "accuracy": 1.0,
+   "abstention": 0.0
+  },
+  "styles_ch1": {
+   "scenes": 1,
+   "right": 1,
+   "wrong": 0,
+   "abstain": 0,
+   "accuracy": 1.0,
+   "abstention": 0.0
+  },
+  "thirty_nine_steps": {
+   "scenes": 15,
+   "right": 14,
+   "wrong": 0,
+   "abstain": 1,
+   "accuracy": 1.0,
+   "abstention": 0.067
+  },
+  "treasure_island": {
+   "scenes": 34,
+   "right": 34,
+   "wrong": 0,
+   "abstain": 0,
+   "accuracy": 1.0,
+   "abstention": 0.0
+  },
+  "gatsby_ch1": {
+   "scenes": 3,
+   "right": 3,
+   "wrong": 0,
+   "abstain": 0,
+   "accuracy": 1.0,
+   "abstention": 0.0
+  },
+  "moby": {
+   "scenes": 140,
+   "right": 61,
+   "wrong": 23,
+   "abstain": 56,
+   "accuracy": 0.726,
+   "abstention": 0.4
+  },
+  "story1": {
+   "scenes": 1,
+   "right": 1,
+   "wrong": 0,
+   "abstain": 0,
+   "accuracy": 1.0,
+   "abstention": 0.0
+  },
+  "story2": {
+   "scenes": 1,
+   "right": 1,
+   "wrong": 0,
+   "abstain": 0,
+   "accuracy": 1.0,
+   "abstention": 0.0
+  },
+  "story3": {
+   "scenes": 1,
+   "right": 1,
+   "wrong": 0,
+   "abstain": 0,
+   "accuracy": 1.0,
+   "abstention": 0.0
+  },
+  "story4": {
+   "scenes": 1,
+   "right": 1,
+   "wrong": 0,
+   "abstain": 0,
+   "accuracy": 1.0,
+   "abstention": 0.0
+  },
+  "story5": {
+   "scenes": 1,
+   "right": 1,
+   "wrong": 0,
+   "abstain": 0,
+   "accuracy": 1.0,
+   "abstention": 0.0
+  },
+  "pride": {
+   "scenes": 67,
+   "right": 62,
+   "wrong": 0,
+   "abstain": 5,
+   "accuracy": 1.0,
+   "abstention": 0.075
+  },
+  "blue_castle": {
+   "scenes": 46,
+   "right": 40,
+   "wrong": 0,
+   "abstain": 6,
+   "accuracy": 1.0,
+   "abstention": 0.13
+  },
+  "age_of_innocence": {
+   "scenes": 60,
+   "right": 55,
+   "wrong": 0,
+   "abstain": 5,
+   "accuracy": 1.0,
+   "abstention": 0.083
+  },
+  "silas_marner": {
+   "scenes": 21,
+   "right": 14,
+   "wrong": 0,
+   "abstain": 7,
+   "accuracy": 1.0,
+   "abstention": 0.333
+  },
+  "avonlea_ch1": {
+   "scenes": 1,
+   "right": 1,
+   "wrong": 0,
+   "abstain": 0,
+   "accuracy": 1.0,
+   "abstention": 0.0
+  },
+  "pooled": {
+   "scenes": 437,
+   "right": 330,
+   "wrong": 23,
+   "abstain": 84,
+   "accuracy": 0.935,
+   "abstention": 0.192
+  }
+ },
+ "natural": {
+  "default": {
+   "ackroyd": {
+    "drifts": 0,
+    "narrationWords": 27893,
+    "perThousand": 0.0
+   },
+   "hound": {
+    "drifts": 0,
+    "narrationWords": 15553,
+    "perThousand": 0.0
+   },
+   "sign_ch1": {
+    "drifts": 0,
+    "narrationWords": 748,
+    "perThousand": 0.0
+   },
+   "styles_ch1": {
+    "drifts": 0,
+    "narrationWords": 2306,
+    "perThousand": 0.0
+   },
+   "thirty_nine_steps": {
+    "drifts": 0,
+    "narrationWords": 31725,
+    "perThousand": 0.0
+   },
+   "treasure_island": {
+    "drifts": 0,
+    "narrationWords": 47235,
+    "perThousand": 0.0
+   },
+   "gatsby_ch1": {
+    "drifts": 0,
+    "narrationWords": 4697,
+    "perThousand": 0.0
+   },
+   "moby": {
+    "drifts": 2,
+    "narrationWords": 163290,
+    "perThousand": 0.0122
+   },
+   "story1": {
+    "drifts": 0,
+    "narrationWords": 1922,
+    "perThousand": 0.0
+   },
+   "story2": {
+    "drifts": 0,
+    "narrationWords": 1776,
+    "perThousand": 0.0
+   },
+   "story3": {
+    "drifts": 0,
+    "narrationWords": 1740,
+    "perThousand": 0.0
+   },
+   "story4": {
+    "drifts": 0,
+    "narrationWords": 1990,
+    "perThousand": 0.0
+   },
+   "story5": {
+    "drifts": 0,
+    "narrationWords": 1638,
+    "perThousand": 0.0
+   },
+   "pride": {
+    "drifts": 0,
+    "narrationWords": 65104,
+    "perThousand": 0.0
+   },
+   "blue_castle": {
+    "drifts": 0,
+    "narrationWords": 46987,
+    "perThousand": 0.0
+   },
+   "age_of_innocence": {
+    "drifts": 0,
+    "narrationWords": 75397,
+    "perThousand": 0.0
+   },
+   "silas_marner": {
+    "drifts": 0,
+    "narrationWords": 47945,
+    "perThousand": 0.0
+   },
+   "avonlea_ch1": {
+    "drifts": 0,
+    "narrationWords": 1668,
+    "perThousand": 0.0
+   },
+   "pooled": {
+    "drifts": 2,
+    "narrationWords": 539614,
+    "perThousand": 0.0037
+   }
+  },
+  "declared": {
+   "ackroyd": {
+    "drifts": 0,
+    "narrationWords": 27893,
+    "perThousand": 0.0
+   },
+   "hound": {
+    "drifts": 0,
+    "narrationWords": 15553,
+    "perThousand": 0.0
+   },
+   "sign_ch1": {
+    "drifts": 0,
+    "narrationWords": 748,
+    "perThousand": 0.0
+   },
+   "styles_ch1": {
+    "drifts": 0,
+    "narrationWords": 2306,
+    "perThousand": 0.0
+   },
+   "thirty_nine_steps": {
+    "drifts": 0,
+    "narrationWords": 31725,
+    "perThousand": 0.0
+   },
+   "treasure_island": {
+    "drifts": 4,
+    "narrationWords": 47235,
+    "perThousand": 0.0847
+   },
+   "gatsby_ch1": {
+    "drifts": 0,
+    "narrationWords": 4697,
+    "perThousand": 0.0
+   },
+   "moby": {
+    "drifts": 0,
+    "narrationWords": 163290,
+    "perThousand": 0.0
+   },
+   "story1": {
+    "drifts": 0,
+    "narrationWords": 1922,
+    "perThousand": 0.0
+   },
+   "story2": {
+    "drifts": 0,
+    "narrationWords": 1776,
+    "perThousand": 0.0
+   },
+   "story3": {
+    "drifts": 0,
+    "narrationWords": 1740,
+    "perThousand": 0.0
+   },
+   "story4": {
+    "drifts": 0,
+    "narrationWords": 1990,
+    "perThousand": 0.0
+   },
+   "story5": {
+    "drifts": 0,
+    "narrationWords": 1638,
+    "perThousand": 0.0
+   },
+   "pride": {
+    "drifts": 0,
+    "narrationWords": 65104,
+    "perThousand": 0.0
+   },
+   "blue_castle": {
+    "drifts": 0,
+    "narrationWords": 46987,
+    "perThousand": 0.0
+   },
+   "age_of_innocence": {
+    "drifts": 0,
+    "narrationWords": 75397,
+    "perThousand": 0.0
+   },
+   "silas_marner": {
+    "drifts": 1,
+    "narrationWords": 47945,
+    "perThousand": 0.0209
+   },
+   "avonlea_ch1": {
+    "drifts": 0,
+    "narrationWords": 1668,
+    "perThousand": 0.0
+   },
+   "pooled": {
+    "drifts": 5,
+    "narrationWords": 539614,
+    "perThousand": 0.0093
+   }
+  },
+  "extra": {
+   "to_the_lighthouse": {
+    "drifts": 0,
+    "narrationWords": 67138,
+    "perThousand": 0.0
+   },
+   "jacobs_room": {
+    "drifts": 0,
+    "narrationWords": 49110,
+    "perThousand": 0.0
+   },
+   "portrait": {
+    "drifts": 0,
+    "narrationWords": 80886,
+    "perThousand": 0.0
+   },
+   "ulysses": {
+    "drifts": 0,
+    "narrationWords": 224839,
+    "perThousand": 0.0
+   },
+   "sons_and_lovers": {
+    "drifts": 0,
+    "narrationWords": 119663,
+    "perThousand": 0.0
+   },
+   "voyage_out": {
+    "drifts": 0,
+    "narrationWords": 98428,
+    "perThousand": 0.0
+   },
+   "night_and_day": {
+    "drifts": 0,
+    "narrationWords": 129772,
+    "perThousand": 0.0
+   },
+   "women_in_love": {
+    "drifts": 0,
+    "narrationWords": 129223,
+    "perThousand": 0.0
+   },
+   "howards_end": {
+    "drifts": 0,
+    "narrationWords": 62398,
+    "perThousand": 0.0
+   },
+   "this_side_of_paradise": {
+    "drifts": 0,
+    "narrationWords": 46916,
+    "perThousand": 0.0
+   },
+   "main_street": {
+    "drifts": 0,
+    "narrationWords": 95759,
+    "perThousand": 0.0
+   },
+   "orlando": {
+    "drifts": 0,
+    "narrationWords": 73604,
+    "perThousand": 0.0
+   },
+   "sound_and_the_fury": {
+    "drifts": 0,
+    "narrationWords": 64583,
+    "perThousand": 0.0
+   },
+   "as_i_lay_dying": {
+    "drifts": 0,
+    "narrationWords": 43535,
+    "perThousand": 0.0
+   },
+   "a_farewell_to_arms": {
+    "drifts": 0,
+    "narrationWords": 53949,
+    "perThousand": 0.0
+   },
+   "pooled": {
+    "drifts": 0,
+    "narrationWords": 1339803,
+    "perThousand": 0.0
+   }
+  }
+ },
+ "naturalPrecision": {
+  "agreement": {
+   "agree": 6,
+   "items": 7,
+   "kappa": 0.0
+  },
+  "groups": {
+   "all": {
+    "kept": 7,
+    "true": 0,
+    "false": 7,
+    "unlabeled": 0,
+    "dropped": 0,
+    "precision": 0.0
+   },
+   "declared": {
+    "kept": 5,
+    "true": 0,
+    "false": 5,
+    "unlabeled": 0,
+    "dropped": 0,
+    "precision": 0.0
+   },
+   "declared/firstInThird": {
+    "kept": 1,
+    "true": 0,
+    "false": 1,
+    "unlabeled": 0,
+    "dropped": 0,
+    "precision": 0.0
+   },
+   "declared/narratorName": {
+    "kept": 4,
+    "true": 0,
+    "false": 4,
+    "unlabeled": 0,
+    "dropped": 0,
+    "precision": 0.0
+   },
+   "default": {
+    "kept": 2,
+    "true": 0,
+    "false": 2,
+    "unlabeled": 0,
+    "dropped": 0,
+    "precision": 0.0
+   },
+   "default/firstInThird": {
+    "kept": 2,
+    "true": 0,
+    "false": 2,
+    "unlabeled": 0,
+    "dropped": 0,
+    "precision": 0.0
+   }
+  },
+  "currentFlagsNotInSample": 0
+ }
+}
