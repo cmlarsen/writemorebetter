@@ -286,5 +286,29 @@
     "license": "CC0 1.0",
     "sha256": "12ec6e2c640e5f5aab8bf4f49b9feb66ff148d657648112fe65de65a2b334355",
     "license_url": "https://standardebooks.org/about/standard-ebooks-and-the-public-domain"
+  },
+  "bleak_house": {
+    "filename": "bleak_house.tar.gz",
+    "url": "https://codeload.github.com/standardebooks/charles-dickens_bleak-house/tar.gz/5e9f4aedfc100c064f5eeff700185921e20e1446",
+    "version": "5e9f4aedfc100c064f5eeff700185921e20e1446",
+    "license": "CC0 1.0",
+    "sha256": "19d38fde8617f7194bef746aaebcedbc5f363387eb2377165255af688f41aaef",
+    "license_url": "https://standardebooks.org/about/standard-ebooks-and-the-public-domain"
+  },
+  "jane_eyre": {
+    "filename": "jane_eyre.tar.gz",
+    "url": "https://codeload.github.com/standardebooks/charlotte-bronte_jane-eyre/tar.gz/f0b188283cdc96670a2f629e312fffb57440f4e6",
+    "version": "f0b188283cdc96670a2f629e312fffb57440f4e6",
+    "license": "CC0 1.0",
+    "sha256": "44a0c790fe7ad420ca884def9ccaf9eb2a0b9136a9d030f0e4582ac9b9ba1bb7",
+    "license_url": "https://standardebooks.org/about/standard-ebooks-and-the-public-domain"
+  },
+  "david_copperfield": {
+    "filename": "david_copperfield.tar.gz",
+    "url": "https://codeload.github.com/standardebooks/charles-dickens_david-copperfield/tar.gz/6134c96ef10f2ba05a489281a2d5461d627b69f5",
+    "version": "6134c96ef10f2ba05a489281a2d5461d627b69f5",
+    "license": "CC0 1.0",
+    "sha256": "d4a1340c6c86fe0eaaec7e2ddf5de6d4909478e0f931060108485231e6675dca",
+    "license_url": "https://standardebooks.org/about/standard-ebooks-and-the-public-domain"
   }
 }

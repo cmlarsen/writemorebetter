@@ -520,6 +520,19 @@ pub enum SentenceTense {
     Unclassified,
 }
 
+/// One finite chain the vote looked at. Indexes point into `sentence.tokens`.
+#[doc(hidden)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct VoteChain {
+    pub head: usize,
+    /// One past the chain's last token.
+    pub end: usize,
+    pub subject: Option<usize>,
+    pub class: ChainClass,
+    /// Why the chain did not vote; `None` for a voting chain.
+    pub exemption: Option<TenseExemption>,
+}
+
 #[doc(hidden)]
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct SentenceVote {
@@ -540,6 +553,8 @@ pub struct SentenceVote {
     /// A backstory anchor in the narration: *ago*, *last*, *once*, *years*, *back then*, *used
     /// to*, *when she was*, or a *remember*/*recall* verb.
     pub backstory: bool,
+    /// Every chain in the sentence's narration, voting or not, in order.
+    pub chains: Vec<VoteChain>,
 }
 
 /// What `sentence_tense` needs from outside the sentence.
@@ -1092,6 +1107,13 @@ pub fn sentence_tense(
                     }
                 }
             };
+            vote.chains.push(VoteChain {
+                head: indexes[chain.head],
+                end: indexes[chain.end - 1] + 1,
+                subject: chain.subject.map(|subject| indexes[subject]),
+                class: chain.class,
+                exemption: reason,
+            });
             if let Some(reason) = reason {
                 vote.exemptions.push(reason);
                 continue;
