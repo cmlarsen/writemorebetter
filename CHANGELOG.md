@@ -103,9 +103,9 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   paragraph (an editor's document after Enter at its end) counts as that whitespace. The digests
   store the lemmas as strings, so they stay valid when the tagger data's word ids change: on
   `moby150k`, checked paragraph by paragraph, the digests take 3,528 bytes per 1,000 words (784
-  before), and resolving all of them from bytes takes about 5 ms. `DIGEST_VERSION` is 2, and
-  `ParagraphDigest::to_bytes` writes variable-length integers and relative offsets; digests of
-  version 1 are stale. A pure function of the paragraph's text, a digest does not depend on
+  before), and resolving all of them from bytes takes about 5 ms. `DIGEST_VERSION` went to 2
+  (and to 3 with the paragraph rules, below), and `ParagraphDigest::to_bytes` writes
+  variable-length integers and relative offsets; digests of version 1 are stale. A pure function of the paragraph's text, a digest does not depend on
   which rules are on or their options (the minimum percentage, `DIRECT_SPEECH`)
   ([#234](https://github.com/cmlarsen/writemorebetter/issues/234)).
 - **Overlapping matches of the word-statistics rules are kept.** A `TOO_OFTEN_USED_*` match that
@@ -129,7 +129,10 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   words, so digests stored by an app with version 2 are rejected by `ParagraphDigest::from_bytes`
   and listed in `DocumentMatches::stale`; check those paragraphs again. A digest whose offsets
   don't fit its text (a corrupted one) is rejected the same way, and if it reaches
-  `resolve_document` some other way it contributes nothing and is listed in `stale`.
+  `resolve_document` some other way it contributes nothing and is listed in `stale`. One digest
+  holds what the paragraph rules and the word-statistics rules need: on `moby150k`, checked
+  paragraph by paragraph, the digests take 4,616 bytes per 1,000 words (3,528 for the
+  word-statistics rules alone).
 - **Common misspellings get LanguageTool's hand-written suggestions first.** "wierd" now gets
   weird, "freind" friend and "cemetary" cemetery as the only suggestion; "tonite" gets tonight,
   "alot" a lot and "ur" your before the speller's candidates; a word ending in "ys" gets its

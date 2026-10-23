@@ -989,3 +989,113 @@ fn equivalence_on_random_texts() {
         );
     }
 }
+
+lazy_static! {
+    /// Every whole-text builtin on: the paragraph rules and the word-statistics ones share each
+    /// digest and one resolver.
+    static ref ALL: Rules = {
+        let mut rules = Rules::new(RULES_PATH).unwrap();
+        let selectors: Vec<String> = IDS
+            .iter()
+            .chain(&[
+                "EN_CONSISTENT_APOS",
+                "EN_REPEATEDWORDS",
+                "EN_WORD_COHERENCY",
+                "TOO_OFTEN_USED_ADJECTIVE_EN",
+                "TOO_OFTEN_USED_NOUN_EN",
+                "TOO_OFTEN_USED_VERB_EN",
+            ])
+            .map(|x| format!("BUILTIN/{}", x))
+            .collect();
+        rules.enable_rules(&selectors).unwrap();
+        rules
+    };
+}
+
+/// `(source, char start, char end, message)` of the suggestions of the whole-text rules, without
+/// the end of a readability match (it may end with the first piece of a split).
+fn whole_text_keys(suggestions: &[Suggestion]) -> Vec<(String, usize, Option<usize>, String)> {
+    let sources = [
+        "EN_CONSISTENT_APOS",
+        "EN_REPEATEDWORDS",
+        "EN_WORD_COHERENCY",
+        "TOO_OFTEN_USED",
+        SIMPLE,
+        DIFFICULT,
+        REPEAT,
+    ];
+    suggestions
+        .iter()
+        .filter(|s| {
+            sources
+                .iter()
+                .any(|x| s.source().starts_with(&format!("BUILTIN/{}", x)))
+        })
+        .map(|s| {
+            let end = (!s.source().starts_with("BUILTIN/READABILITY")).then(|| s.span().char().end);
+            (
+                s.source().to_owned(),
+                s.span().char().start,
+                end,
+                s.message().to_owned(),
+            )
+        })
+        .collect()
+}
+
+/// With every whole-text rule on, checking the paragraphs one by one and resolving their digests
+/// gives the matches of the whole text for the paragraph rules and the word-statistics rules
+/// alike, and damaged digest bytes never panic.
+#[test]
+fn all_whole_text_rules_share_the_digests() {
+    let text = format!(
+        "{0}\n\nThe advisor\u{2019}s weird problem. The adviser said it was weird. It's \
+         weird.\n\n{0}",
+        // Not split inside the run of three line breaks, where a split is in whitespace.
+        MANUSCRIPT.replace("\n\n\n", "\n\n")
+    );
+    let whole = whole_text_keys(&ALL.suggest(&text, &TOKENIZER));
+    let sources: Vec<&str> = whole.iter().map(|x| x.0.as_str()).collect();
+    for id in [REPEAT, "EN_WORD_COHERENCY", "EN_CONSISTENT_APOS"] {
+        assert!(
+            sources.iter().any(|x| x.contains(id)),
+            "{}: {:?}",
+            id,
+            sources
+        );
+    }
+    let blocks: Vec<&str> = text.split("\n\n").collect();
+    assert_eq!(
+        whole_text_keys(&incremental(&ALL, &blocks, "\n\n", true)),
+        whole
+    );
+    let lines: Vec<&str> = text.split_inclusive('\n').collect();
+    assert_eq!(
+        whole_text_keys(&incremental(&ALL, &lines, "", false)),
+        whole
+    );
+
+    let digests: Vec<Vec<u8>> = blocks
+        .iter()
+        .map(|block| ALL.check_paragraph(block, true, &TOKENIZER).1.to_bytes())
+        .collect();
+    let mut seed: u64 = 7;
+    let mut next = move || {
+        seed = seed
+            .wrapping_mul(6_364_136_223_846_793_005)
+            .wrapping_add(1_442_695_040_888_963_407);
+        (seed >> 33) as usize
+    };
+    for _ in 0..3000 {
+        let mut changed = digests.clone();
+        for bytes in changed.iter_mut() {
+            for _ in 0..next() % 3 {
+                let i = 4 + next() % (bytes.len() - 4);
+                bytes[i] = (next() % 256) as u8;
+            }
+        }
+        for m in ALL.resolve_document_bytes(&changed).matches {
+            let _ = m.to_suggestion(blocks[m.paragraph()]);
+        }
+    }
+}

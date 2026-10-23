@@ -285,6 +285,12 @@ What moved since 2026-10-11 (LT 6.6 column):
   `EN_CONSISTENT_APOS`), mostly the lemmas (46 KB of 89 KB: nearly every counted lemma is distinct
   within its paragraph). Check time and peak RSS are unchanged (single thread, 7 interleaved runs:
   6.04 → 6.06 s CPU, 85.0 → 84.4 MiB).
+- **Paragraph rules in the same digests (2026-10-23, #206, #207): no flag changes.**
+  `READABILITY_RULE_*` and `PARAGRAPH_REPEAT_BEGINNING_RULE` are off by default and in the fiction
+  profile. `bench/tools/gates.sh`: conformance 6,085/6,085, public 60/60, private 50/50 with 214
+  flags, goldens and chunker unchanged. One digest now carries both the word statistics and the
+  paragraph rules' counts and first words (`DIGEST_VERSION` 3): 4,616 bytes per 1,000 words on
+  `moby150k.txt`, up from 3,528.
 - **Grammar conformance 5,977 → 6,074 and disambiguation 1,012 → 1,016**: the 2026-10-14 wave of
   filter, matcher and builtin fixes (#181–#254; e.g. the speller-backed rule filters and the
   `min_prev_matches` repetition rules). #308–#322 did not change it; CI gates 6,074 and 1,016.

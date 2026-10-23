@@ -276,7 +276,8 @@ impl Rules {
     /// Compute the suggestions for the given sentence by checking all rules.
     /// Builtin rules that look across sentences only see this sentence, and those that need the
     /// whole text (`EN_CONSISTENT_APOS`, `EN_WORD_COHERENCY`, `EN_REPEATEDWORDS`,
-    /// `TOO_OFTEN_USED_*`) take it as the whole text; use [Rules::suggest] for full context.
+    /// `TOO_OFTEN_USED_*`, `READABILITY_RULE_*`, `PARAGRAPH_REPEAT_BEGINNING_RULE`) take it as
+    /// the whole text; use [Rules::suggest] for full context.
     /// A rule with LanguageTool's `raw_pos` matches [Sentence::raw]; on a sentence that did not keep
     /// it such a rule matches the disambiguated tokens instead. Get the sentences from
     /// [Tokenizer::pipe_with_raw] with [Rules::needs_raw] to match it as [Rules::suggest] does.
