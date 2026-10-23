@@ -788,17 +788,17 @@ impl<'a> Parser<'a, '_> {
     /// Moves a clause start past a ) that closes a parenthesis opened before it: the clause began
     /// inside a parenthesis (*(all, thought Mrs. Ramsay, because …) and denounced …*).
     fn after_closed(&self, start: usize, end: usize) -> usize {
-        let mut start = start;
+        let mut clause = start;
         let mut depth = 0usize;
         for index in start..end {
             match self.items[index].token.text.as_str() {
                 "(" => depth += 1,
-                ")" if depth == 0 => start = index + 1,
+                ")" if depth == 0 => clause = index + 1,
                 ")" => depth -= 1,
                 _ => {}
             }
         }
-        start
+        clause
     }
 
     fn trimmed(&self, range: Range<usize>) -> Option<Range<usize>> {
