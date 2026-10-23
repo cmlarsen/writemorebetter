@@ -418,6 +418,7 @@
 2415 | GRAMMAR/PRP_JJ/1 | "he the far" -> ["he is the far", "he was the far"] | A verb may be missing after "he". Please verify.
 2420 | BUILTIN/UPPERCASE_SENTENCE_START | "arise" -> ["Arise"] | This sentence does not start with an uppercase letter.
 2438 | SPELLCHECK/SINGLE | "comest" -> ["comes", "comet", "comets", "coyest"] | Possibly misspelled word.
+2438 | BUILTIN/EN_CONSISTENT_APOS | "'" -> ["’"] | You used a typewriter-style apostrophe here, but a typographic apostrophe elsewhere in this text. Both are correct, but consider using the same type everywhere in your text.
 2447 | SPELLCHECK/SINGLE | "mightest" -> ["lightest", "mightiest", "tightest", "rightest"] | Possibly misspelled word.
 2455 | SPELLCHECK/SINGLE | "invokingly" -> ["invoking", "invitingly", "unjokingly"] | Possibly misspelled word.
 2507 | SPELLCHECK/SINGLE | "slantings" -> ["plantings", "slanting", "slangings", "slatings"] | Possibly misspelled word.

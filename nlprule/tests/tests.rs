@@ -2026,11 +2026,12 @@ fn spellchecker_does_not_search_very_long_tokens() {
 /// `EN_CONSISTENT_APOS` flags apostrophe tokens that other rules also flag, so `suggest` can
 /// return overlapping suggestions. `apply_suggestions` used to shift later spans by the length
 /// change of earlier ones and underflow; it now applies the first of overlapping suggestions.
-/// The text is the stress harness's generated input from #351, also in the crash corpus.
+/// The text is the stress harness's generated input from #351, also in the crash corpus. The
+/// rule flags both styles here, as in LanguageTool, which the fiction profile does not.
 #[test]
 fn overlapping_whole_text_suggestions_apply_cleanly() {
     let mut rules = Rules::new(RULES_PATH).unwrap();
-    assert!(rules.apply_profile(&Profile::fiction()).is_empty());
+    rules.enable_rules(&["BUILTIN/EN_CONSISTENT_APOS"]).unwrap();
     rules.spell_mut().options_mut().variant = Some(rules.spell().variant("en_US").unwrap());
 
     let text = "I she\u{2019}s don\u{2019}t is heroin matter Willdidn't \0 Dr. saidwindow\u{201d}t";

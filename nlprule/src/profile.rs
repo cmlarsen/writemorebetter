@@ -66,7 +66,8 @@ impl Profile {
     }
 
     /// The fiction profile: disables rules that are known to misfire on fiction drafts, and
-    /// enables `EN_CONSISTENT_APOS`, which is off by default in LanguageTool.
+    /// enables `EN_CONSISTENT_APOS`, which is off by default in LanguageTool, flagging only
+    /// the less common apostrophe style.
     ///
     /// The counts in the comments are how often each rule fired on the private draft
     /// corpus before tuning. This list is expected to change as the corpus grows; the
@@ -108,6 +109,10 @@ impl Profile {
                 "BUILTIN/TOO_OFTEN_USED_ADJECTIVE_EN/DIRECT_SPEECH",
                 "BUILTIN/TOO_OFTEN_USED_NOUN_EN/DIRECT_SPEECH",
                 "BUILTIN/TOO_OFTEN_USED_VERB_EN/DIRECT_SPEECH",
+                // EN_CONSISTENT_APOS (enabled below) flags only the less common apostrophe
+                // style, not every apostrophe as in LanguageTool: one stray straight `'` in a
+                // curly manuscript flags that one, not the hundreds of curly ones.
+                "BUILTIN/EN_CONSISTENT_APOS/MAJORITY",
             ]
             .iter()
             .map(|selector| (*selector).to_owned())

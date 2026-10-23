@@ -52,7 +52,6 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
 - **`RULES_FORMAT_VERSION` is 37.** Version 33 added `SpellLangOptions::latin_script`, 34 the
   `ConsistentApostrophes` builtin, 35 stores the multitoken phrase list once instead of twice
-<<<<<<< HEAD
   ([#212](https://github.com/cmlarsen/writemorebetter/issues/212)), 36 adds the speller
   dictionaries' replacement pairs (#194), and 37 the curated spelling suggestions, so 0.12.0's
   `en_rules.bin` no longer loads; use the next release's data zip. The tokenizer format stays 18.
@@ -72,9 +71,16 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   as a quote or a dash) start with a capital ("“wierd thing…" gets Weird, "alot of"
   gets A lot, Lot), unless the word is the sentence's last token.
 - **The `fiction` profile turns on `EN_CONSISTENT_APOS`**, so a manuscript that mixes straight
-  and curly apostrophes is flagged by default in the Swift, WASM and Python checkers. Curly
-  single quotation marks are not apostrophes to it, so curly-quoted dialogue does not trigger it;
-  straight single quotation marks in a curly-apostrophe text do, as in LanguageTool. Profiles
+  and curly apostrophes is flagged by default in the Swift, WASM and Python checkers. In this
+  profile the rule flags only the less common style and suggests the more common one (on a tie,
+  the straight ones), so one stray `'` in a curly manuscript is one flag rather than one per
+  apostrophe. It is the rule's new `MAJORITY` case (`BUILTIN/EN_CONSISTENT_APOS/MAJORITY`, which
+  the profile disables; `ConsistentApostrophes::flag_minority_only` in Rust); elsewhere the rule
+  still flags both styles as in LanguageTool. The counts cover the whole document, so
+  `Rules::suggest` and `check_paragraph` + `resolve_document` agree. The option is set at
+  runtime and not stored in `en_rules.bin`, whose format does not change. Curly single
+  quotation marks are not apostrophes to the rule, so curly-quoted dialogue does not trigger
+  it; straight single quotation marks in a curly-apostrophe text count, as in LanguageTool. Profiles
   can now enable rules: `Profile` gains a public `enable` list, applied after `disable`, whose
   unmatched selectors `Rules::apply_profile` reports too. Code that builds a `Profile` with a
   struct literal needs the new field; `Profile::new` is unchanged.

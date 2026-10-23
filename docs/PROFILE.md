@@ -18,9 +18,11 @@ asks for a profile.
   `"BUILTIN/UPPERCASE_SENTENCE_START"`; or
 - a builtin rule id plus one of its cases, which disables only that case and keeps
   the rule on (`BuiltinRule::disable_case`). The cases are
-  `"BUILTIN/WHITESPACE_RULE/INDENTATION"` and `DIRECT_SPEECH` of the three
+  `"BUILTIN/WHITESPACE_RULE/INDENTATION"`, `DIRECT_SPEECH` of the three
   `TOO_OFTEN_USED_*_EN` builtins, e.g.
-  `"BUILTIN/TOO_OFTEN_USED_NOUN_EN/DIRECT_SPEECH"`.
+  `"BUILTIN/TOO_OFTEN_USED_NOUN_EN/DIRECT_SPEECH"`, and
+  `"BUILTIN/EN_CONSISTENT_APOS/MAJORITY"` (the apostrophes of the more common style,
+  so only the rarer style is flagged).
 
 `Profile::by_name` accepts `"default"` (disables nothing) and `"fiction"`.
 `Rules::apply_profile(&profile)` disables every matching grammar rule and builtin
@@ -135,12 +137,13 @@ Disables exactly these:
 | `TYPOGRAPHY/CONSECUTIVE_SPACES` | two spaces between words; the `WHITESPACE_RULE` builtin flags the same spaces, so only its message ("Possible typo: repeated spaces") is shown |
 | `BUILTIN/ENGLISH_WORD_REPEAT_BEGINNING_RULE` | three sentences in a row that begin with the same word ("He waited. He listened. He...") are a deliberate rhythm in fiction |
 | `BUILTIN/TOO_OFTEN_USED_ADJECTIVE_EN/DIRECT_SPEECH`, `…_NOUN_EN/…`, `…_VERB_EN/…` | these word-frequency hints are off by default, as in LT. Once an author enables them, words inside dialogue are neither counted nor flagged (LT's `setWithoutDirectSpeech`): characters repeat words on purpose, and the narration is what the hint is for. |
+| `BUILTIN/EN_CONSISTENT_APOS/MAJORITY` | the rule (enabled below) flags only the less common apostrophe style, not every apostrophe as in LT: one stray straight `'` in a curly manuscript flags that one mark, not the hundreds of curly ones (267 → 1 flag on moby150k) |
 
 And enables this one, which is off by default in LanguageTool 6.6:
 
 | Selector | Why |
 |---|---|
-| `BUILTIN/EN_CONSISTENT_APOS` | a manuscript that mixes straight (`'`) and curly (`’`) apostrophes, often from text pasted in from another editor. Once the text has both, every apostrophe token is flagged with the other style as the suggestion; a text that uses one style throughout gets no flags. A lone `‘` or `’` (a single quotation mark, or a clipped `jus’` or plural `dogs’` the tokenizer splits the same way) is not an apostrophe to it, so curly-quoted dialogue does not trigger it. A lone straight `'` does count, as in LanguageTool: straight single quotation marks around dialogue in a curly-apostrophe text are flagged. |
+| `BUILTIN/EN_CONSISTENT_APOS` | a manuscript that mixes straight (`'`) and curly (`’`) apostrophes, often from text pasted in from another editor. Once the text has both, the fiction profile flags only the apostrophe tokens of the less common style, with the more common one as the suggestion (on a tie, the straight ones, as curly is the fiction norm); a text that uses one style throughout gets no flags. This is the `BUILTIN/EN_CONSISTENT_APOS/MAJORITY` entry in the disable list above: LanguageTool, and the rule outside this profile, flag the tokens of both styles. The counts cover the whole document (every current digest passed to `resolve_document`), so checking it whole or paragraph by paragraph flags the same tokens, and an edit in one paragraph can change which style is flagged in others. A lone `‘` or `’` (a single quotation mark, or a clipped `jus’` or plural `dogs’` the tokenizer splits the same way) is not an apostrophe to it, so curly-quoted dialogue does not trigger it. A lone straight `'` does count, as in LanguageTool: straight single quotation marks around dialogue in a curly-apostrophe text are flagged. |
 
 `EN_REPEATEDWORDS` (synonyms for a word repeated within 150 words) needs no
 entry: it is off by default (`picky` in LT), and when enabled it already skips

@@ -150,7 +150,7 @@ A word counts when the document writes it in two or more of: hyphenated (`e-mail
 LanguageTool's `EN_QUOTES` and `ELLIPSIS` rules prescribe one typographic form and flag the
 other wherever it appears. This report prescribes nothing: it counts every form and says whether
 the document mixes them, so a manuscript written entirely with straight quotes is consistent.
-`EN_CONSISTENT_APOS` (#228, a builtin that is off by default and on in the `fiction` profile) is the closest rule: it flags every apostrophe token
+`EN_CONSISTENT_APOS` (#228, a builtin that is off by default and on in the `fiction` profile, which flags only the rarer style) is the closest rule: it flags every apostrophe token
 once a text mixes the two kinds and suggests the other one. The `apostrophes` check gives the
 same mix as counts and spans, keeps apostrophes apart from single quotes, and suggests nothing.
 `EN_WORD_COHERENCY` flags a second spelling from a fixed list of variant pairs (LGPL data) within
