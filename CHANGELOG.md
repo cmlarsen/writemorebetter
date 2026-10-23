@@ -116,6 +116,10 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
 ### Fixed
 
+- **The number check names centuries.** An ordinal before *century* (`19th century`,
+  `19th-century ruins`) is still flagged, since Chicago spells centuries out, but the message now
+  says so ("Spell out centuries in prose, as in “the nineteenth century”.") instead of naming the
+  zero-through-100 limit, which read as wrong on a number like 19th.
 - **`apply_suggestions` (and so `Rules::correct`) no longer panics on overlapping suggestions.**
   It shifted each span by the length change of the replacements before it, which underflowed
   once two suggestions overlapped, as `EN_CONSISTENT_APOS` and another rule do on the same word.

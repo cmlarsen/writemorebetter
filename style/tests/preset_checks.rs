@@ -75,6 +75,23 @@ fn numbers_through_one_hundred_are_spelled_out() {
 }
 
 #[test]
+fn centuries_get_their_own_message() {
+    let text =
+        "The 19th-century ruins—“built in the 3rd century,” he said—outlived the 20th\u{2028}\
+                centuries’ ends… The 4th century-old door. The 5th time.";
+    let found = run(text, &numbers(100));
+    assert_eq!(texts(text, &found), ["19th", "3rd", "20th", "4th", "5th"]);
+    let century = "Spell out centuries in prose, as in “the nineteenth century”.";
+    assert!(found[..4].iter().all(|m| m.message == century));
+    assert_eq!(
+        found[4].message,
+        "Spell out whole numbers from zero through 100 in prose."
+    );
+    // News style spells out only one through nine, so the 19th century stays a numeral.
+    assert!(run("The 19th century.", &numbers(9)).is_empty());
+}
+
+#[test]
 fn news_numbers_spell_out_one_through_nine() {
     let text = "She waited 7 minutes, then 45 more and 10 after that.";
     let ap = PresetChecks::new().with_numbers(Some(NumberCheck::new(9).with_match_larger(false)));
