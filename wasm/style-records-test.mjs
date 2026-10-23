@@ -5,7 +5,7 @@ import { createRequire } from "node:module";
 export function checkStyleRecords(checker) {
   const declarations = readFileSync(new URL("./pkg/writemorebetter_wasm.d.ts", import.meta.url), "utf8");
   const interfaces = new Map([...declarations.matchAll(/export interface (\w+)(?:<[^>]+>)?\s*\{([^}]+)\}/g)]
-    .map(([, name, body]) => [name, [...body.matchAll(/(\w+):\s*([^;]+);/g)].map(([, key, type]) => [key, type.trim()])]));
+    .map(([, name, body]) => [name, [...body.matchAll(/(\w+)(\??):\s*([^;]+);/g)].map(([, key, optional, type]) => [key, type.trim(), optional === "?"])]));
   const aliases = new Map([...declarations.matchAll(/export type (\w+) = ([^;]+);/g)].map(([, name, type]) => [name, type]));
   const visited = new Set();
   function validate(value, type, path) {
@@ -28,9 +28,15 @@ export function checkStyleRecords(checker) {
     const fields = interfaces.get(name);
     assert(fields, `unknown declaration ${type}`);
     assert(value && typeof value === "object" && !Array.isArray(value), path);
-    assert.deepEqual(Object.keys(value).sort(), fields.map(([key]) => key).sort(), `${path} keys`);
+    const keys = Object.keys(value);
+    const required = fields.filter(([, , optional]) => !optional).map(([key]) => key);
+    assert(required.every(key => keys.includes(key)), `${path} keys`);
+    assert(keys.every(key => fields.some(([field]) => field === key)), `${path} keys`);
     visited.add(name);
-    for (const [key, fieldType] of fields) validate(value[key], split ? fieldType.replace(/\bT\b/g, split[1]) : fieldType, `${path}.${key}`);
+    for (const [key, fieldType, optional] of fields) {
+      if (optional && !(key in value)) continue;
+      validate(value[key], split ? fieldType.replace(/\bT\b/g, split[1]) : fieldType, `${path}.${key}`);
+    }
   }
   const text = readFileSync(new URL("../style/tests/fixtures/binding-records.txt", import.meta.url), "utf8");
   const document = checker.styleDocument(text);
@@ -94,8 +100,11 @@ export function checkStyleRecords(checker) {
     JSON.stringify({ markedSpans: [marked] }));
   results.push(["VoicesReport", voiceDocument.voices()]);
   voiceDocument.free();
+  const driftOptions = {person: "third", scenePersons: [{scene: 0, person: "third"}], narrator: {names: ["Anna"], pronoun: "she"},
+    cast: [{name: "Mara", pronoun: "she"}], minimumSubjects: 8, maximumSlips: 2, includeWitnessScenes: false};
+  validate(driftOptions, "PersonDriftOptions", "PersonDriftOptions"); // an input record: the call below sends it
   const driftDocument = checker.styleDocument("😀 He sat. He waited. … I crossed the room. She smiled. He nodded.");
-  results.push(["PersonDriftReport", driftDocument.personDrift('{"person":"third"}')]);
+  results.push(["PersonDriftReport", driftDocument.personDrift(JSON.stringify(driftOptions))]);
   driftDocument.free();
   const vagueDocument = checker.styleDocument("It was sort of cold. “Well, it’s a nice thing,” she said. She made a decision after the arrival of the train.");
   results.push(["VagueWordsReport", vagueDocument.vagueWords()]);
