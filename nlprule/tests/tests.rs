@@ -2856,11 +2856,20 @@ fn builtin_word_coherency_ignores_a_single_spelling() {
     assert!(builtin_word_coherency_flags("The advisor advised the advisors.").is_empty());
 }
 
+/// The rule remembers spellings across paragraphs, as LanguageTool 6.6 does on
+/// `I met an adviser on Monday.\n\nShe was an advisor to the king.` (`advisor` → `adviser`).
 #[test]
-fn builtin_word_coherency_ignores_variants_across_paragraphs() {
-    // Documented limitation: the engine checks one paragraph at a time, so
-    // variants used in different paragraphs are not compared.
-    assert!(builtin_word_coherency_flags("The advisor left.\n\nThe adviser arrived.").is_empty());
+fn builtin_word_coherency_flags_variants_across_paragraphs() {
+    assert_eq!(
+        builtin_word_coherency_flags("The advisor left.\n\nThe adviser arrived."),
+        vec![("adviser".to_string(), "advisor".to_string())]
+    );
+    assert_eq!(
+        builtin_word_coherency_flags(
+            "I met an adviser on Monday.\n\nShe was an advisor to the king.\n"
+        ),
+        vec![("advisor".to_string(), "adviser".to_string())]
+    );
 }
 
 #[test]
@@ -8173,8 +8182,12 @@ fn too_often_used_min_percent_is_per_rule_and_checked() {
     );
 }
 
+/// A match of another rule group that overlaps a `TOO_OFTEN_USED_*` match does not hide it: both
+/// are reported, as in LanguageTool 6.6 (`FREE_GIFT` on "free gift" and
+/// `TOO_OFTEN_USED_NOUN_EN` on its "gift", `-e TOO_OFTEN_USED_NOUN_EN`), and as the overlap
+/// policy of #178/#216 says.
 #[test]
-fn too_often_used_gives_way_to_overlapping_suggestions() {
+fn too_often_used_is_kept_beside_overlapping_suggestions() {
     let mut rules = WORD_STATISTICS_RULES.clone();
     for rule in rules.builtins_mut() {
         if rule.id() == "ENGLISH_WORD_REPEAT_RULE" {
@@ -8187,9 +8200,62 @@ fn too_often_used_gives_way_to_overlapping_suggestions() {
     assert!(flags
         .iter()
         .any(|(source, start, ..)| source == "ENGLISH_WORD_REPEAT_RULE" && *start == 10));
-    assert!(flags
+    let cats: Vec<usize> = flags
         .iter()
-        .all(|(source, start, ..)| source != "TOO_OFTEN_USED_NOUN_EN" || *start > 17));
+        .filter(|(source, ..)| source == "TOO_OFTEN_USED_NOUN_EN")
+        .map(|(_, start, ..)| *start)
+        .collect();
+    // LanguageTool 6.6 gives the same (`-eo -e TOO_OFTEN_USED_NOUN_EN,ENGLISH_WORD_REPEAT_RULE`):
+    // the second "cat" is not counted as a noun.
+    assert_eq!(&cats[..3], [10, 29, 44]);
+
+    // `apply_suggestions` skips the fix that overlaps one it already applied.
+    let suggestions = rules.suggest(&text, &TOKENIZER);
+    assert!(nlprule::rules::apply_suggestions(&text, &suggestions)
+        .starts_with("I saw the cat. I saw the cat."));
+}
+
+/// The LanguageTool 6.6 probe of the overlap policy: 98 `TOO_OFTEN_USED_NOUN_EN` matches on
+/// "gift", one inside `FREE_GIFT`'s "free gift", and `CLOSE_SCRUTINY` on "close proximity".
+#[test]
+fn too_often_used_overlaps_another_rule_as_in_languagetool() {
+    let nouns = [
+        "house", "tree", "river", "window", "table", "garden", "street", "mountain", "forest",
+        "kitchen",
+    ];
+    let mut sentences: Vec<String> = (0..40)
+        .map(|i| {
+            format!(
+                "The gift saw the {} near the {}.",
+                nouns[i % 10],
+                nouns[(i + 3) % 10]
+            )
+        })
+        .collect();
+    sentences.insert(5, "She got a free gift.".into());
+    sentences.insert(9, "It was in close proximity to the gift.".into());
+    let text = format!(
+        "{}\n\n{}\n",
+        sentences[..20].join(" "),
+        sentences[20..].join(" ")
+    );
+    let mut rules = RULES.clone();
+    rules
+        .enable_rules(&["BUILTIN/TOO_OFTEN_USED_NOUN_EN".to_owned()])
+        .unwrap();
+    let suggestions = rules.suggest(&text, &TOKENIZER);
+    let starts = |id: &str| -> Vec<usize> {
+        suggestions
+            .iter()
+            .filter(|s| s.source().contains(id))
+            .map(|s| s.span().char().start)
+            .collect()
+    };
+    let gifts = starts("TOO_OFTEN_USED_NOUN_EN");
+    assert_eq!(gifts.len(), 98);
+    assert!(gifts.contains(&216));
+    assert_eq!(starts("FREE_GIFT"), [211]);
+    assert_eq!(starts("CLOSE_SCRUTINY"), [357]);
 }
 
 #[test]

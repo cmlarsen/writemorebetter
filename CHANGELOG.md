@@ -48,8 +48,41 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   as in LanguageTool 6.6; enable it with `BUILTIN/EN_CONSISTENT_APOS`
   ([#228](https://github.com/cmlarsen/writemorebetter/issues/228)).
 
+- **`DocumentMatches::suggestions(paragraph, text, checked)`** merges a paragraph's whole-text
+  matches into the suggestions `check_paragraph` returned for it, `DocumentMatches::in_paragraph`
+  lists one paragraph's matches, and `Rules::resolve_document_bytes` resolves stored digest bytes,
+  listing the ones it cannot read (another `DIGEST_VERSION`, or not a digest) as stale.
+  `Suggestion::new` is public so bindings can rebuild suggestions from their own records
+  ([#234](https://github.com/cmlarsen/writemorebetter/issues/234)).
+
 ### Changed
 
+- **The word-statistics builtins count the whole document.** `EN_WORD_COHERENCY`,
+  `EN_REPEATEDWORDS` and `TOO_OFTEN_USED_*` are now whole-text rules: their counts come from
+  the paragraph digests, so `check_paragraph` + `resolve_document` give the same matches as
+  `Rules::suggest` on the joined text. `EN_WORD_COHERENCY` (on by default) now remembers a
+  spelling across paragraphs, as LanguageTool 6.6 does ("adviser", a blank line, then "advisor"
+  is flagged); it used to forget at each paragraph. `EN_REPEATEDWORDS` looks back 150 words across
+  paragraphs, and `TOO_OFTEN_USED_*` count every paragraph (direct speech left open at a
+  paragraph's end goes on into the next, as in LanguageTool). The digests store the lemmas as
+  strings, so they stay valid when the tagger data's word ids change: on `moby150k`, checked
+  paragraph by paragraph, the digests take 3,512 bytes per 1,000 words (784 before), and
+  resolving all of them from bytes takes about 5 ms. `DIGEST_VERSION` is 2, and
+  `ParagraphDigest::to_bytes` writes variable-length integers and relative offsets; digests of
+  version 1 are stale. A pure function of the paragraph's text, a digest does not depend on
+  which rules are on or their options (the minimum percentage, `DIRECT_SPEECH`)
+  ([#234](https://github.com/cmlarsen/writemorebetter/issues/234)).
+- **Overlapping matches of the word-statistics rules are kept.** A `TOO_OFTEN_USED_*` match that
+  overlaps a match of another rule group is no longer dropped, and an `EN_REPEATEDWORDS` or
+  `EN_WORD_COHERENCY` match no longer gives way to (or hides) one, as LanguageTool 6.6 reports
+  both (`FREE_GIFT` and `TOO_OFTEN_USED_NOUN_EN` on "free gift", `ENGLISH_WORD_REPEAT_RULE` and
+  `EN_REPEATEDWORDS_EXCELLENT` on "excellent excellent"). This is the overlap policy of
+  [#178](https://github.com/cmlarsen/writemorebetter/issues/178) and
+  [#216](https://github.com/cmlarsen/writemorebetter/issues/216) for these rules;
+  `apply_suggestions` skips a fix that overlaps one it already applied.
+- **`Rules::apply` and `Builtin::check_text` run the whole-text rules** on their sentences as
+  the whole text, so `EN_CONSISTENT_APOS` now also flags in `apply`, and `check_text` of a
+  whole-text rule returns its matches; `Builtin::check_paragraph` still returns none for them.
 - **`RULES_FORMAT_VERSION` is 37.** Version 33 added `SpellLangOptions::latin_script`, 34 the
   `ConsistentApostrophes` builtin, 35 stores the multitoken phrase list once instead of twice
   ([#212](https://github.com/cmlarsen/writemorebetter/issues/212)), 36 adds the speller

@@ -871,12 +871,10 @@ impl std::cmp::PartialEq for Suggestion {
 }
 
 impl Suggestion {
-    pub(crate) fn new(
-        source: String,
-        message: String,
-        span: Span,
-        replacements: Vec<String>,
-    ) -> Self {
+    /// Creates a suggestion. Bindings use it to turn their own records back into suggestions,
+    /// e.g. to merge whole-text suggestions into them
+    /// ([`DocumentMatches::suggestions`](crate::document::DocumentMatches::suggestions)).
+    pub fn new(source: String, message: String, span: Span, replacements: Vec<String>) -> Self {
         Suggestion {
             source,
             message,

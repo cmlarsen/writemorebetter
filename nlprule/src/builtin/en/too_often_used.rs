@@ -5,7 +5,10 @@
 //! `TOO_OFTEN_USED_NOUN_EN` and `TOO_OFTEN_USED_VERB_EN` rules, which are off
 //! by default.
 
-use crate::types::{DefaultHashMap, Sentence, Span, Suggestion, Token};
+use crate::document::{
+    ClassWords, CountedWord, DocumentFix, DocumentMatch, ParagraphDigest, TokenSpan,
+};
+use crate::types::{DefaultHashMap, Position, Sentence, Token};
 use crate::Error;
 use serde::{Deserialize, Serialize};
 
@@ -83,24 +86,16 @@ impl WordClass {
 ///
 /// # Scope
 ///
-/// The share is computed over the whole text of one
-/// [`Rules::suggest`](crate::Rules::suggest) call, so the matches are only
-/// known once the text has been read to its end. An app that checks a
-/// document piece by piece gets the shares of each piece.
+/// The share is computed over the whole text, so this is a whole-text rule (see
+/// [`crate::document`]): [`Rules::suggest`](crate::Rules::suggest) counts the text it is given,
+/// and an app that checks a document paragraph by paragraph gets the shares of the whole
+/// document from [`Rules::resolve_document`](crate::Rules::resolve_document). Direct speech that
+/// a paragraph leaves open continues into the next one, as in LanguageTool.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TooOftenUsed {
     class: WordClass,
     min_percent: usize,
     without_direct_speech: bool,
-}
-
-/// What [`TooOftenUsed`] collects from the sentences of one text.
-#[derive(Debug, Default)]
-pub(crate) struct TooOftenUsedState {
-    is_direct_speech: bool,
-    lemmas: DefaultHashMap<String, usize>,
-    counts: Vec<usize>,
-    words: Vec<(usize, Span)>,
 }
 
 impl TooOftenUsed {
@@ -158,55 +153,84 @@ impl TooOftenUsed {
         self.without_direct_speech = true;
     }
 
-    /// Counts the words of one sentence of a text.
-    pub(crate) fn count(&self, sentence: &Sentence, state: &mut TooOftenUsedState) {
+    /// The index of this rule's class in the word lists of a [`ParagraphDigest`].
+    pub(crate) fn class_index(&self) -> usize {
+        match self.class {
+            WordClass::Adjective => 0,
+            WordClass::Noun => 1,
+            WordClass::Verb => 2,
+        }
+    }
+
+    /// Adds the words of one sentence that this rule counts to `words`, those of a digest whose
+    /// text starts at `start`. Each word records whether it is in direct speech both for a text
+    /// that starts outside direct speech and for one that starts inside it, so the digest depends
+    /// neither on the text before it nor on [`TooOftenUsed::skip_direct_speech`].
+    pub(crate) fn digest(&self, sentence: &Sentence, start: Position, words: &mut ClassWords) {
         let tokens = sentence.tokens();
 
         for (index, token) in tokens.iter().enumerate() {
             let text = token.word().text().as_str();
-
-            if self.without_direct_speech
-                && !state.is_direct_speech
-                && matches!(text, "\"" | "“" | "„" | "»" | "«")
-                && tokens
-                    .get(index + 1)
-                    .is_some_and(|next| !next.has_space_before())
-            {
-                state.is_direct_speech = true;
-            } else if self.without_direct_speech
-                && state.is_direct_speech
-                && matches!(text, "\"" | "“" | "”" | "»" | "«")
-                && index > 0
-                && !token.has_space_before()
-            {
-                state.is_direct_speech = false;
-            } else if !state.is_direct_speech && !is_non_word(text) && self.is_counted(token) {
-                if let Some(lemma) = self.lemma(token) {
-                    let next = state.counts.len();
-                    let id = *state.lemmas.entry(lemma.to_owned()).or_insert(next);
-                    if id == next {
-                        state.counts.push(0);
+            // Quotes are not words, so they are never counted and only change the state.
+            if matches!(text, "\"" | "“" | "„" | "»" | "«" | "”") {
+                let opens = text != "”"
+                    && tokens
+                        .get(index + 1)
+                        .is_some_and(|next| !next.has_space_before());
+                let closes = text != "„" && index > 0 && !token.has_space_before();
+                for in_speech in words.speech_after.iter_mut() {
+                    if !*in_speech && opens {
+                        *in_speech = true;
+                    } else if *in_speech && closes {
+                        *in_speech = false;
                     }
-                    state.counts[id] += 1;
-                    state.words.push((id, token.span().clone()));
+                }
+            } else if !is_non_word(text) && self.is_counted(token) {
+                if let Some(lemma) = self.lemma(token) {
+                    let [outside, inside] = words.speech_after;
+                    words.words.push(CountedWord {
+                        span: TokenSpan::new(token.span(), start),
+                        lemma: lemma.to_owned(),
+                        speech: u8::from(outside) | u8::from(inside) << 1,
+                    });
                 }
             }
         }
     }
 
-    /// Reports the counted words that are used too often, once the whole text
-    /// has been counted.
-    pub(crate) fn finish(&self, state: &TooOftenUsedState) -> Vec<Suggestion> {
-        let total: usize = state.counts.iter().sum();
+    /// The matches in a document made of `digests` (the current ones, with their indices).
+    pub(crate) fn resolve<'a>(
+        &self,
+        digests: impl Iterator<Item = (usize, &'a ParagraphDigest)> + Clone,
+    ) -> Vec<DocumentMatch> {
+        let class = self.class_index();
+        let skip_speech = self.without_direct_speech;
+        // The counted words with their paragraphs: all of them, or those outside direct speech.
+        let words = || {
+            let mut in_speech = false;
+            digests.clone().flat_map(move |(paragraph, digest)| {
+                let words = &digest.too_often_used[class];
+                let starts_in_speech = in_speech;
+                in_speech = skip_speech && words.speech_after[usize::from(in_speech)];
+                words
+                    .words
+                    .iter()
+                    .filter(move |word| !skip_speech || !word.in_speech(starts_in_speech))
+                    .map(move |word| (paragraph, word))
+            })
+        };
+
+        let mut counts: DefaultHashMap<&str, usize> = DefaultHashMap::default();
+        for (_, word) in words() {
+            *counts.entry(word.lemma.as_str()).or_default() += 1;
+        }
+        let total: usize = counts.values().sum();
         if total < MIN_WORD_COUNT {
             return Vec::new();
         }
-
-        let too_often: Vec<bool> = state
-            .counts
-            .iter()
-            .map(|count| (*count as f64 * 100.0 / total as f64) as usize >= self.min_percent)
-            .collect();
+        let too_often = |lemma: &str| {
+            (counts[lemma] as f64 * 100.0 / total as f64) as usize >= self.min_percent
+        };
 
         let name = self.class.name();
         let message = format!(
@@ -214,17 +238,15 @@ impl TooOftenUsed {
              synonym.",
             name, self.min_percent, name
         );
-
-        state
-            .words
-            .iter()
-            .filter(|(id, _)| too_often[*id])
-            .map(|(_, span)| {
-                Suggestion::new(
+        words()
+            .filter(|(_, word)| too_often(&word.lemma))
+            .map(|(paragraph, word)| {
+                DocumentMatch::new(
+                    paragraph,
                     format!("BUILTIN/{}", self.id()),
                     message.clone(),
-                    span.clone(),
-                    Vec::new(),
+                    word.span.span(),
+                    DocumentFix::Nothing,
                 )
             })
             .collect()

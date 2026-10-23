@@ -1,7 +1,10 @@
 //! Rules that need the whole text: per-paragraph digests and the document resolver.
 //!
 //! A few LanguageTool rules decide from text outside the paragraph they report in, e.g.
-//! `EN_CONSISTENT_APOS` flags apostrophes only when the whole text mixes `'` and `’`. An app that
+//! `EN_CONSISTENT_APOS` flags apostrophes only when the whole text mixes `'` and `’`, and the
+//! word-statistics rules count words over the whole text: `TOO_OFTEN_USED_*` (each lemma's share
+//! of all adjectives, nouns or verbs), `EN_REPEATEDWORDS` (a word used up to 150 words earlier)
+//! and `EN_WORD_COHERENCY` (a spelling variant used anywhere earlier). An app that
 //! checks one paragraph per call can't run them on the paragraph alone, and re-checking the whole
 //! manuscript on every edit is too slow. Instead:
 //!
@@ -33,8 +36,10 @@
 //!
 //! # Versions
 //!
-//! Digests hold offsets and flags, never text. Their layout changes when a whole-text rule needs
-//! more from a paragraph; [`DIGEST_VERSION`] changes with it. [`ParagraphDigest::to_bytes`] and
+//! Digests hold offsets, flags and the lemmas the word-statistics rules count (as strings, so a
+//! digest does not depend on the tagger's word ids), never the paragraph's text itself. Their
+//! layout changes when a whole-text rule needs more from a paragraph; [`DIGEST_VERSION`] changes
+//! with it. [`ParagraphDigest::to_bytes`] and
 //! [`ParagraphDigest::from_bytes`] store a digest with its version and reject one from another
 //! version with [`Error::Format`]. A digest of another version that reaches
 //! [`Rules::resolve_document`] some other way (e.g. through serde with a self-describing format)
@@ -42,31 +47,44 @@
 //! paragraph again.
 //!
 //! [`DIGEST_VERSION`] covers the layout only. What a digest records also depends on the
-//! tokenizer and rules data (how a text is split into tokens, which tokens hold apostrophes), so
-//! rebuild all digests after updating the engine or its data binaries, even when the version is
-//! unchanged.
+//! tokenizer and rules data (how a text is split into tokens, which tokens hold apostrophes, the
+//! lemmas and tags of a word), so rebuild all digests after updating the engine or its data
+//! binaries, even when the version is unchanged.
+//!
+//! # Sentences
+//!
+//! The word-statistics rules also look at sentences: `EN_REPEATEDWORDS` only counts sentences that
+//! end in `.`, `!` or `?`, and a word's tags depend on the sentence around it. Split a document
+//! between sentences (at line breaks or paragraph ends) for the per-paragraph matches to equal
+//! those of the whole text; a piece that ends inside a sentence is analyzed as a sentence of its
+//! own.
 
 use crate::{
     builtin::{en, Builtin},
     types::{Position, Sentence, Span, Suggestion},
     Error, Rules, Tokenizer,
 };
+use bincode::Options;
 use serde::{Deserialize, Serialize};
 use std::ops::Range;
 
 /// The layout version of [`ParagraphDigest`]. Digests of another version contribute nothing to
 /// [`Rules::resolve_document`]; check their paragraphs again.
-pub const DIGEST_VERSION: u32 = 1;
+///
+/// Version 2: the word-statistics rules (`TOO_OFTEN_USED_*`, `EN_REPEATEDWORDS`,
+/// `EN_WORD_COHERENCY`), and [`ParagraphDigest::to_bytes`] writes variable-length integers and
+/// relative offsets.
+pub const DIGEST_VERSION: u32 = 2;
 
 /// A compact text position: byte and char offset relative to the start of a digest's text.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
-struct Offset {
+pub(crate) struct Offset {
     byte: u32,
     char: u32,
 }
 
 impl Offset {
-    fn new(position: Position) -> Self {
+    pub(crate) fn new(position: Position) -> Self {
         Offset {
             byte: position.byte as u32,
             char: position.char as u32,
@@ -93,13 +111,54 @@ impl Offset {
             char: self.char + by.char,
         }
     }
+
+    fn checked_add(self, by: Offset) -> Option<Self> {
+        Some(Offset {
+            byte: self.byte.checked_add(by.byte)?,
+            char: self.char.checked_add(by.char)?,
+        })
+    }
+
+    fn checked_sub(self, by: Offset) -> Option<Self> {
+        Some(Offset {
+            byte: self.byte.checked_sub(by.byte)?,
+            char: self.char.checked_sub(by.char)?,
+        })
+    }
+}
+
+/// The span of a token in a digest, relative to the start of the digest's text.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(crate) struct TokenSpan {
+    pub(crate) start: Offset,
+    pub(crate) end: Offset,
+}
+
+impl TokenSpan {
+    /// The span of `span`, a span in the checked text, in a digest whose text starts at `start`.
+    pub(crate) fn new(span: &Span, start: Position) -> Self {
+        TokenSpan {
+            start: Offset::new(span.start() - start),
+            end: Offset::new(span.end() - start),
+        }
+    }
+
+    pub(crate) fn span(&self) -> Span {
+        Span::from_positions(self.start.position(), self.end.position())
+    }
+
+    fn shift(self, by: Offset) -> Self {
+        TokenSpan {
+            start: self.start.shift(by),
+            end: self.end.shift(by),
+        }
+    }
 }
 
 /// A token that contains an apostrophe, as `EN_CONSISTENT_APOS` sees it.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Apostrophe {
-    start: Offset,
-    end: Offset,
+    span: TokenSpan,
     /// Whether the token's apostrophe is typographic (`’`) rather than typewriter (`'`).
     pub(crate) typographic: bool,
     /// The char index of the first apostrophe in the token (at most 255), which
@@ -109,19 +168,140 @@ pub(crate) struct Apostrophe {
 
 impl Apostrophe {
     pub(crate) fn span(&self) -> Span {
-        Span::from_positions(self.start.position(), self.end.position())
+        self.span.span()
     }
 }
 
-/// What the whole-text rules need to know about one paragraph: offsets and flags only, no text.
+/// A word one of the `TOO_OFTEN_USED_*` rules counts.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct CountedWord {
+    pub(crate) span: TokenSpan,
+    /// The lemma the word is counted under.
+    pub(crate) lemma: String,
+    /// Whether the word is in direct speech: bit 0 if the text starts outside direct speech, bit
+    /// 1 if it starts inside. Only the rules that skip direct speech read it.
+    pub(crate) speech: u8,
+}
+
+impl CountedWord {
+    /// Whether the word is in direct speech when the text starts inside it (`in_speech`) or not.
+    pub(crate) fn in_speech(&self, in_speech: bool) -> bool {
+        self.speech & (1 << u8::from(in_speech)) != 0
+    }
+}
+
+/// The words of one class (adjectives, nouns or verbs) that `TOO_OFTEN_USED_*` counts.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ClassWords {
+    pub(crate) words: Vec<CountedWord>,
+    /// Whether the text ends in direct speech if it starts outside it (`[0]`) or inside (`[1]`).
+    /// While the digest is built, the state after the last sentence so far.
+    pub(crate) speech_after: [bool; 2],
+}
+
+impl Default for ClassWords {
+    fn default() -> Self {
+        ClassWords {
+            words: Vec::new(),
+            speech_after: [false, true],
+        }
+    }
+}
+
+impl ClassWords {
+    /// Appends `other`, the words of the text right after this one's, shifted by `by`.
+    fn append(&mut self, other: ClassWords, by: Offset) {
+        let after = self.speech_after;
+        self.words.extend(other.words.into_iter().map(|word| {
+            // Express the state at `other`'s start through the state at this text's start.
+            let speech =
+                u8::from(word.in_speech(after[0])) | u8::from(word.in_speech(after[1])) << 1;
+            CountedWord {
+                span: word.span.shift(by),
+                speech,
+                ..word
+            }
+        }));
+        self.speech_after = [
+            other.speech_after[usize::from(after[0])],
+            other.speech_after[usize::from(after[1])],
+        ];
+    }
+}
+
+/// One reading of a word that `EN_REPEATEDWORDS` has synonyms for.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct RepeatedReading {
+    pub(crate) lemma: String,
+    /// The suggestions when this reading's tag and chunk allow a match, `None` otherwise.
+    pub(crate) replacements: Option<Vec<String>>,
+}
+
+/// A word that `EN_REPEATEDWORDS` remembers and may flag: one with a reading whose lemma has
+/// synonyms, in a sentence the rule checks, and not exempt (an antipattern, a proper noun, …).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct RepeatedWord {
+    pub(crate) span: TokenSpan,
+    /// The number of the word among the words the rule counts in the digest's text, from 1.
+    pub(crate) number: u32,
+    /// Whether it is the first such word of its sentence.
+    pub(crate) starts_sentence: bool,
+    /// The readings with synonyms, in the token's order.
+    pub(crate) readings: Vec<RepeatedReading>,
+}
+
+/// What `EN_REPEATEDWORDS` needs from a digest's text.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(crate) struct RepeatedWords {
+    /// The number of words the rule counts in the text.
+    pub(crate) count: u32,
+    pub(crate) words: Vec<RepeatedWord>,
+    /// The index in `words` of the first word of the text's last sentence, if that sentence is
+    /// one the rule skips when it ends the whole text (it ends with whitespace).
+    pub(crate) last_sentence: Option<u32>,
+}
+
+impl RepeatedWords {
+    fn append(&mut self, other: RepeatedWords, by: Offset) {
+        let (count, words) = (self.count, self.words.len() as u32);
+        self.words
+            .extend(other.words.into_iter().map(|word| RepeatedWord {
+                span: word.span.shift(by),
+                number: word.number + count,
+                ..word
+            }));
+        self.count += other.count;
+        self.last_sentence = other.last_sentence.map(|x| x + words);
+    }
+}
+
+/// A spelling that `EN_WORD_COHERENCY` knows a variant of.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct VariantCandidate {
+    /// The lemma (or the word, if it has none) the rule looks up.
+    pub(crate) word: String,
+    /// Bit `i` is set when the token can be rewritten with the `i`-th variant of `word`.
+    pub(crate) replaceable: u32,
+}
+
+/// A token whose lemma or text `EN_WORD_COHERENCY` knows a spelling variant of.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct VariantWord {
+    pub(crate) span: TokenSpan,
+    /// The candidates in the rule's order.
+    pub(crate) candidates: Vec<VariantCandidate>,
+}
+
+/// What the whole-text rules need to know about one paragraph: offsets, flags and the lemmas the
+/// word-statistics rules count, no text.
 ///
 /// Built while the paragraph is checked, from its already tokenized and tagged sentences
 /// ([`Rules::check_paragraph`]). Offsets are relative to the start of the paragraph's text.
 /// Serializable with serde; see the [module docs](self) for how versions are handled.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(into = "wire::Digest", try_from = "wire::Digest")]
 pub struct ParagraphDigest {
-    /// [`DIGEST_VERSION`] when the digest was made. First, so [`ParagraphDigest::from_bytes`] can
-    /// read it before the rest.
+    /// [`DIGEST_VERSION`] when the digest was made.
     version: u32,
     /// The length of the text this digest covers.
     len: Offset,
@@ -140,6 +320,12 @@ pub struct ParagraphDigest {
     paragraph_starts: Vec<u32>,
     /// The tokens with an apostrophe (`EN_CONSISTENT_APOS`), in text order.
     apostrophes: Vec<Apostrophe>,
+    /// The words `TOO_OFTEN_USED_ADJECTIVE_EN`, `_NOUN_EN` and `_VERB_EN` count, in that order.
+    pub(crate) too_often_used: [ClassWords; 3],
+    /// What `EN_REPEATEDWORDS` remembers and may flag.
+    pub(crate) repeated_words: RepeatedWords,
+    /// The tokens `EN_WORD_COHERENCY` looks up, in text order.
+    pub(crate) variants: Vec<VariantWord>,
 }
 
 impl Default for ParagraphDigest {
@@ -153,6 +339,9 @@ impl Default for ParagraphDigest {
             ends_paragraph: false,
             paragraph_starts: Vec::new(),
             apostrophes: Vec::new(),
+            too_often_used: Default::default(),
+            repeated_words: RepeatedWords::default(),
+            variants: Vec::new(),
         }
     }
 }
@@ -186,9 +375,21 @@ impl ParagraphDigest {
         self.version == DIGEST_VERSION
     }
 
-    /// Serializes this digest with bincode. The first four bytes are its version, little-endian.
+    /// The bincode options of [`ParagraphDigest::to_bytes`] after the version.
+    fn bincode() -> impl bincode::Options {
+        bincode::DefaultOptions::new()
+            .with_varint_encoding()
+            .allow_trailing_bytes()
+    }
+
+    /// Serializes this digest compactly: its version as four little-endian bytes, then the digest
+    /// with bincode's variable-length integers.
     pub fn to_bytes(&self) -> Vec<u8> {
-        bincode::serialize(self).expect("a digest always serializes")
+        let mut bytes = self.version.to_le_bytes().to_vec();
+        Self::bincode()
+            .serialize_into(&mut bytes, self)
+            .expect("a digest always serializes");
+        bytes
     }
 
     /// Deserializes a digest written by [`ParagraphDigest::to_bytes`].
@@ -208,13 +409,28 @@ impl ParagraphDigest {
                 version, DIGEST_VERSION
             )));
         }
-        let digest: ParagraphDigest = bincode::deserialize(bytes)?;
-        if bincode::serialized_size(&digest)? != bytes.len() as u64 {
+        let rest = &bytes[4..];
+        let digest: ParagraphDigest = Self::bincode().deserialize(rest)?;
+        if digest.version != version {
+            return Err(Error::Format(
+                "paragraph digest has two different versions".to_owned(),
+            ));
+        }
+        if Self::bincode().serialized_size(&digest)? != rest.len() as u64 {
             return Err(Error::Format(
                 "paragraph digest has trailing bytes".to_owned(),
             ));
         }
         Ok(digest)
+    }
+
+    /// A digest that is not [current](ParagraphDigest::is_current), standing in for bytes that
+    /// are not a digest of this version.
+    fn stale() -> Self {
+        ParagraphDigest {
+            version: 0,
+            ..ParagraphDigest::default()
+        }
     }
 
     /// The apostrophe tokens, or none for a digest of another version.
@@ -286,13 +502,355 @@ impl ParagraphDigest {
         self.paragraph_starts
             .extend(other.paragraph_starts.iter().map(|x| x + by.char));
         for apostrophe in other.apostrophes.iter_mut() {
-            apostrophe.start = apostrophe.start.shift(by);
-            apostrophe.end = apostrophe.end.shift(by);
+            apostrophe.span = apostrophe.span.shift(by);
         }
         self.apostrophes.append(&mut other.apostrophes);
+        for (class, other) in self.too_often_used.iter_mut().zip(other.too_often_used) {
+            class.append(other, by);
+        }
+        self.repeated_words.append(other.repeated_words, by);
+        self.variants
+            .extend(other.variants.into_iter().map(|word| VariantWord {
+                span: word.span.shift(by),
+                ..word
+            }));
         self.len = self.len.shift(other.len);
         self.ends_with_line_break = other.ends_with_line_break;
         self.ends_paragraph = other.ends_paragraph;
+    }
+}
+
+/// The serialized form of [`ParagraphDigest`]: lemmas are stored once per digest, and each span
+/// is stored relative to the start of the one before it in its list, so that the variable-length
+/// integers of [`ParagraphDigest::to_bytes`] are mostly one byte long.
+mod wire {
+    use super::Offset;
+    use crate::types::DefaultHashMap;
+    use serde::{Deserialize, Serialize};
+    use std::convert::TryFrom;
+
+    /// A span: its start relative to the start of the previous span in its list (or of the text),
+    /// and its length.
+    #[derive(Serialize, Deserialize)]
+    pub(super) struct Span {
+        gap: Offset,
+        len: Offset,
+    }
+
+    #[derive(Serialize, Deserialize)]
+    pub(super) struct Apostrophe {
+        span: Span,
+        typographic: bool,
+        first: u8,
+    }
+
+    /// The counted words, the longest list, flattened to save a few bytes each: per word the
+    /// char gap of its span, `char length << 3 | speech << 1 | b` and the lemma's index, where
+    /// `b` says that the byte gap and byte length follow because they differ from the char ones.
+    /// A word then mostly takes three bytes.
+    #[derive(Serialize, Deserialize)]
+    pub(super) struct ClassWords {
+        words: Vec<u32>,
+        speech_after: [bool; 2],
+    }
+
+    #[derive(Serialize, Deserialize)]
+    pub(super) struct RepeatedReading {
+        lemma: u32,
+        replacements: Option<Vec<String>>,
+    }
+
+    #[derive(Serialize, Deserialize)]
+    pub(super) struct RepeatedWord {
+        span: Span,
+        /// Relative to the number of the previous word in the list.
+        number: u32,
+        starts_sentence: bool,
+        readings: Vec<RepeatedReading>,
+    }
+
+    #[derive(Serialize, Deserialize)]
+    pub(super) struct VariantCandidate {
+        word: u32,
+        replaceable: u32,
+    }
+
+    #[derive(Serialize, Deserialize)]
+    pub(super) struct VariantWord {
+        span: Span,
+        candidates: Vec<VariantCandidate>,
+    }
+
+    #[derive(Serialize, Deserialize)]
+    pub(super) struct Digest {
+        version: u32,
+        len: Offset,
+        /// `starts_with_line_break`, `ends_with_line_break`, `starts_paragraph` and
+        /// `ends_paragraph` as bits 0 to 3.
+        flags: u8,
+        paragraph_starts: Vec<u32>,
+        apostrophes: Vec<Apostrophe>,
+        /// Every distinct lemma (or word) the lists below refer to by index.
+        lemmas: Vec<String>,
+        too_often_used: [ClassWords; 3],
+        repeated_count: u32,
+        repeated_words: Vec<RepeatedWord>,
+        repeated_last_sentence: Option<u32>,
+        variants: Vec<VariantWord>,
+    }
+
+    /// Writes spans relative to the previous one.
+    #[derive(Default)]
+    struct Spans(Offset);
+
+    impl Spans {
+        fn put(&mut self, span: super::TokenSpan) -> Span {
+            let gap = span.start.checked_sub(self.0).unwrap_or_default();
+            self.0 = span.start;
+            Span {
+                gap,
+                len: span.end.checked_sub(span.start).unwrap_or_default(),
+            }
+        }
+
+        fn get(&mut self, span: &Span) -> Result<super::TokenSpan, String> {
+            let overflow = || "paragraph digest span overflows".to_owned();
+            let start = self.0.checked_add(span.gap).ok_or_else(overflow)?;
+            let end = start.checked_add(span.len).ok_or_else(overflow)?;
+            self.0 = start;
+            Ok(super::TokenSpan { start, end })
+        }
+    }
+
+    #[derive(Default)]
+    struct Lemmas {
+        list: Vec<String>,
+        index: DefaultHashMap<String, u32>,
+    }
+
+    impl Lemmas {
+        fn put(&mut self, lemma: String) -> u32 {
+            let Lemmas { list, index } = self;
+            *index.entry(lemma).or_insert_with_key(|lemma| {
+                list.push(lemma.clone());
+                list.len() as u32 - 1
+            })
+        }
+    }
+
+    fn lemma(lemmas: &[String], index: u32) -> Result<String, String> {
+        lemmas
+            .get(index as usize)
+            .cloned()
+            .ok_or_else(|| "paragraph digest refers to a missing lemma".to_owned())
+    }
+
+    impl From<super::ParagraphDigest> for Digest {
+        fn from(digest: super::ParagraphDigest) -> Self {
+            let mut lemmas = Lemmas::default();
+            let mut spans = Spans::default();
+            let apostrophes = digest
+                .apostrophes
+                .into_iter()
+                .map(|x| Apostrophe {
+                    span: spans.put(x.span),
+                    typographic: x.typographic,
+                    first: x.first,
+                })
+                .collect();
+            let too_often_used = digest.too_often_used.map(|class| {
+                let mut spans = Spans::default();
+                let mut words = Vec::with_capacity(class.words.len() * 3);
+                for word in class.words {
+                    let span = spans.put(word.span);
+                    let bytes = span.gap.byte != span.gap.char || span.len.byte != span.len.char;
+                    words.extend([
+                        span.gap.char,
+                        span.len.char << 3 | u32::from(word.speech) << 1 | u32::from(bytes),
+                        lemmas.put(word.lemma),
+                    ]);
+                    if bytes {
+                        words.extend([span.gap.byte, span.len.byte]);
+                    }
+                }
+                ClassWords {
+                    words,
+                    speech_after: class.speech_after,
+                }
+            });
+            let mut spans = Spans::default();
+            let mut number = 0;
+            let repeated_words = digest
+                .repeated_words
+                .words
+                .into_iter()
+                .map(|word| {
+                    let relative = word.number.saturating_sub(number);
+                    number = word.number;
+                    RepeatedWord {
+                        span: spans.put(word.span),
+                        number: relative,
+                        starts_sentence: word.starts_sentence,
+                        readings: word
+                            .readings
+                            .into_iter()
+                            .map(|reading| RepeatedReading {
+                                lemma: lemmas.put(reading.lemma),
+                                replacements: reading.replacements,
+                            })
+                            .collect(),
+                    }
+                })
+                .collect();
+            let mut spans = Spans::default();
+            let variants = digest
+                .variants
+                .into_iter()
+                .map(|word| VariantWord {
+                    span: spans.put(word.span),
+                    candidates: word
+                        .candidates
+                        .into_iter()
+                        .map(|candidate| VariantCandidate {
+                            word: lemmas.put(candidate.word),
+                            replaceable: candidate.replaceable,
+                        })
+                        .collect(),
+                })
+                .collect();
+            Digest {
+                version: digest.version,
+                len: digest.len,
+                flags: u8::from(digest.starts_with_line_break)
+                    | u8::from(digest.ends_with_line_break) << 1
+                    | u8::from(digest.starts_paragraph) << 2
+                    | u8::from(digest.ends_paragraph) << 3,
+                paragraph_starts: digest.paragraph_starts,
+                apostrophes,
+                lemmas: lemmas.list,
+                too_often_used,
+                repeated_count: digest.repeated_words.count,
+                repeated_words,
+                repeated_last_sentence: digest.repeated_words.last_sentence,
+                variants,
+            }
+        }
+    }
+
+    impl TryFrom<Digest> for super::ParagraphDigest {
+        type Error = String;
+
+        fn try_from(digest: Digest) -> Result<Self, String> {
+            let lemmas = &digest.lemmas;
+            let mut spans = Spans::default();
+            let apostrophes = digest
+                .apostrophes
+                .into_iter()
+                .map(|x| {
+                    Ok(super::Apostrophe {
+                        span: spans.get(&x.span)?,
+                        typographic: x.typographic,
+                        first: x.first,
+                    })
+                })
+                .collect::<Result<_, String>>()?;
+            let mut too_often_used: [super::ClassWords; 3] = Default::default();
+            for (class, wire) in too_often_used.iter_mut().zip(digest.too_often_used) {
+                let mut spans = Spans::default();
+                let mut values = wire.words.into_iter();
+                let truncated = || "paragraph digest word list is truncated".to_owned();
+                while let Some(gap) = values.next() {
+                    let packed = values.next().ok_or_else(truncated)?;
+                    let len = packed >> 3;
+                    let lemma_index = values.next().ok_or_else(truncated)?;
+                    let (gap_byte, len_byte) = if packed & 1 != 0 {
+                        let gap = values.next().ok_or_else(truncated)?;
+                        (gap, values.next().ok_or_else(truncated)?)
+                    } else {
+                        (gap, len)
+                    };
+                    let span = Span {
+                        gap: Offset {
+                            byte: gap_byte,
+                            char: gap,
+                        },
+                        len: Offset {
+                            byte: len_byte,
+                            char: len,
+                        },
+                    };
+                    class.words.push(super::CountedWord {
+                        span: spans.get(&span)?,
+                        lemma: lemma(lemmas, lemma_index)?,
+                        speech: (packed >> 1 & 0b11) as u8,
+                    });
+                }
+                class.speech_after = wire.speech_after;
+            }
+            let mut spans = Spans::default();
+            let mut number = 0u32;
+            let words = digest
+                .repeated_words
+                .into_iter()
+                .map(|word| {
+                    number = number
+                        .checked_add(word.number)
+                        .ok_or_else(|| "paragraph digest word number overflows".to_owned())?;
+                    Ok(super::RepeatedWord {
+                        span: spans.get(&word.span)?,
+                        number,
+                        starts_sentence: word.starts_sentence,
+                        readings: word
+                            .readings
+                            .into_iter()
+                            .map(|reading| {
+                                Ok(super::RepeatedReading {
+                                    lemma: lemma(lemmas, reading.lemma)?,
+                                    replacements: reading.replacements,
+                                })
+                            })
+                            .collect::<Result<_, String>>()?,
+                    })
+                })
+                .collect::<Result<_, String>>()?;
+            let mut spans = Spans::default();
+            let variants = digest
+                .variants
+                .into_iter()
+                .map(|word| {
+                    Ok(super::VariantWord {
+                        span: spans.get(&word.span)?,
+                        candidates: word
+                            .candidates
+                            .into_iter()
+                            .map(|candidate| {
+                                Ok(super::VariantCandidate {
+                                    word: lemma(lemmas, candidate.word)?,
+                                    replaceable: candidate.replaceable,
+                                })
+                            })
+                            .collect::<Result<_, String>>()?,
+                    })
+                })
+                .collect::<Result<_, String>>()?;
+            Ok(super::ParagraphDigest {
+                version: digest.version,
+                len: digest.len,
+                starts_with_line_break: digest.flags & 1 != 0,
+                ends_with_line_break: digest.flags & 2 != 0,
+                starts_paragraph: digest.flags & 4 != 0,
+                ends_paragraph: digest.flags & 8 != 0,
+                paragraph_starts: digest.paragraph_starts,
+                apostrophes,
+                too_often_used,
+                repeated_words: super::RepeatedWords {
+                    count: digest.repeated_count,
+                    words,
+                    last_sentence: digest.repeated_last_sentence,
+                },
+                variants,
+            })
+        }
     }
 }
 
@@ -335,11 +893,17 @@ pub(crate) fn lt_paragraphs(digests: &[ParagraphDigest]) -> Vec<Range<usize>> {
 }
 
 /// How a [`DocumentMatch`] turns its paragraph's text into a replacement.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) enum DocumentFix {
     /// Replace every `'` with `’` (`to_typographic`) or every `’` with `'`. `first` is the char
     /// index of the first apostrophe in the token.
     SwapApostrophes { to_typographic: bool, first: u8 },
+    /// No replacement (`TOO_OFTEN_USED_*`).
+    Nothing,
+    /// These replacements (`EN_REPEATEDWORDS`'s synonyms).
+    Replacements(Vec<String>),
+    /// Replace `word`, the spelling the token holds, with `other` (`EN_WORD_COHERENCY`).
+    Variant { word: String, other: String },
 }
 
 /// The result of [`Rules::resolve_document`].
@@ -352,6 +916,33 @@ pub struct DocumentMatches {
     /// contributed nothing: check those paragraphs again and resolve again. While any are listed,
     /// `matches` can miss matches in every paragraph, not only in those.
     pub stale: Vec<usize>,
+}
+
+impl DocumentMatches {
+    /// The matches in paragraph `paragraph`, in position order.
+    pub fn in_paragraph(&self, paragraph: usize) -> &[DocumentMatch] {
+        let start = self.matches.partition_point(|x| x.paragraph < paragraph);
+        let end = self.matches.partition_point(|x| x.paragraph <= paragraph);
+        &self.matches[start..end]
+    }
+
+    /// The suggestions of paragraph `paragraph`, whose text is `text`: `checked`, the suggestions
+    /// [`Rules::check_paragraph`] returned for it, merged with the whole-text matches in it
+    /// ([`merge_document_suggestions`]). Spans are relative to `text`. A match whose span no
+    /// longer fits `text` ([`DocumentMatch::to_suggestion`]) is left out.
+    pub fn suggestions(
+        &self,
+        paragraph: usize,
+        text: &str,
+        checked: Vec<Suggestion>,
+    ) -> Vec<Suggestion> {
+        let document = self
+            .in_paragraph(paragraph)
+            .iter()
+            .filter_map(|x| x.to_suggestion(text))
+            .collect();
+        merge_document_suggestions(checked, document)
+    }
 }
 
 /// A match of a whole-text rule, from [`Rules::resolve_document`].
@@ -408,8 +999,8 @@ impl DocumentMatch {
     /// span still relative to the paragraph. `None` if `paragraph` visibly isn't that text: the
     /// span doesn't fit it (in bytes or chars), or doesn't hold a token like the one the match is
     /// about (for `EN_CONSISTENT_APOS`: the same apostrophe style, with the first apostrophe at
-    /// the same place). Replace a paragraph's digest whenever its text changes; this check is a
-    /// guard, not a substitute.
+    /// the same place; for `EN_WORD_COHERENCY`: a spelling it can replace). Replace a
+    /// paragraph's digest whenever its text changes; this check is a guard, not a substitute.
     pub fn to_suggestion(&self, paragraph: &str) -> Option<Suggestion> {
         let bytes = self.span.byte().clone();
         let original = paragraph.get(bytes.clone())?;
@@ -418,29 +1009,49 @@ impl DocumentMatch {
         {
             return None;
         }
-        let replacement = match self.fix {
+        self.suggestion_for(original)
+    }
+
+    /// The suggestion for this match, given `original`, the text of its span.
+    pub(crate) fn suggestion_for(&self, original: &str) -> Option<Suggestion> {
+        if original.is_empty() {
+            return None;
+        }
+        let replacements = match &self.fix {
             DocumentFix::SwapApostrophes {
                 to_typographic,
                 first,
             } => {
                 if en::apostrophe_style(original) != Some(!to_typographic)
-                    || first_apostrophe(original) != first
+                    || first_apostrophe(original) != *first
                 {
                     return None;
                 }
-                if to_typographic {
+                vec![if *to_typographic {
                     original.replace('\'', "\u{2019}")
                 } else {
                     original.replace('\u{2019}', "'")
-                }
+                }]
+            }
+            DocumentFix::Nothing => Vec::new(),
+            DocumentFix::Replacements(replacements) => replacements.clone(),
+            DocumentFix::Variant { word, other } => {
+                vec![en::word_coherency::replacement(original, word, other)?]
             }
         };
-        Some(Suggestion::new(
+        let suggestion = Suggestion::new(
             self.source.clone(),
             self.message.clone(),
             self.span.clone(),
-            vec![replacement],
-        ))
+            replacements,
+        );
+        Some(match self.fix {
+            // As other rules' suggestions in `Rules::suggest`.
+            DocumentFix::Replacements(_) | DocumentFix::Variant { .. } => {
+                suggestion.match_apostrophes(original)
+            }
+            _ => suggestion,
+        })
     }
 }
 
@@ -455,39 +1066,110 @@ pub(crate) fn first_apostrophe(token: &str) -> u8 {
 impl Builtin {
     /// Whether this rule needs the whole text and runs in [`Rules::resolve_document`].
     pub(crate) fn is_document_rule(&self) -> bool {
-        matches!(self, Builtin::ConsistentApostrophes(_))
+        matches!(
+            self,
+            Builtin::ConsistentApostrophes(_)
+                | Builtin::TooOftenUsed(_)
+                | Builtin::RepeatedWords(_)
+                | Builtin::WordCoherency(_)
+        )
     }
 
     /// Adds what this whole-text rule needs from `sentence` to `digest`, whose text starts at
     /// `start`.
-    fn digest_sentence(&self, sentence: &Sentence, start: Position, digest: &mut ParagraphDigest) {
-        if let Builtin::ConsistentApostrophes(_) = self {
-            let sentence_start = sentence.span().start().byte;
-            for token in sentence.tokens() {
-                let span = token.span();
-                // The token's original text: its word may hold the normalized form.
-                let original = sentence
-                    .text()
-                    .get(span.byte().start - sentence_start..span.byte().end - sentence_start);
-                if let Some(original) = original {
-                    if let Some(typographic) = en::apostrophe_style(original) {
-                        digest.apostrophes.push(Apostrophe {
-                            start: Offset::new(span.start() - start),
-                            end: Offset::new(span.end() - start),
-                            typographic,
-                            first: first_apostrophe(original),
-                        });
+    pub(crate) fn digest_sentence(
+        &self,
+        sentence: &Sentence,
+        start: Position,
+        digest: &mut ParagraphDigest,
+    ) {
+        match self {
+            Builtin::ConsistentApostrophes(_) => {
+                let sentence_start = sentence.span().start().byte;
+                for token in sentence.tokens() {
+                    let span = token.span();
+                    // The token's original text: its word may hold the normalized form.
+                    let original = sentence
+                        .text()
+                        .get(span.byte().start - sentence_start..span.byte().end - sentence_start);
+                    if let Some(original) = original {
+                        if let Some(typographic) = en::apostrophe_style(original) {
+                            digest.apostrophes.push(Apostrophe {
+                                span: TokenSpan::new(span, start),
+                                typographic,
+                                first: first_apostrophe(original),
+                            });
+                        }
                     }
                 }
             }
+            Builtin::TooOftenUsed(rule) => rule.digest(
+                sentence,
+                start,
+                &mut digest.too_often_used[rule.class_index()],
+            ),
+            Builtin::RepeatedWords(rule) => {
+                rule.digest(sentence, start, &mut digest.repeated_words)
+            }
+            Builtin::WordCoherency(rule) => rule.digest(sentence, start, &mut digest.variants),
+            _ => {}
         }
     }
 
-    fn resolve_document(&self, digests: &[ParagraphDigest]) -> Vec<DocumentMatch> {
+    /// The matches of this whole-text rule in the document made of `digests`, of which only the
+    /// current ones count.
+    pub(crate) fn resolve_document(&self, digests: &[ParagraphDigest]) -> Vec<DocumentMatch> {
+        let current = || {
+            digests
+                .iter()
+                .enumerate()
+                .filter(|(_, digest)| digest.is_current())
+        };
         match self {
             Builtin::ConsistentApostrophes(rule) => rule.resolve(digests),
+            Builtin::TooOftenUsed(rule) => rule.resolve(current()),
+            Builtin::RepeatedWords(rule) => {
+                // The last sentence of the document is skipped when it ends with whitespace.
+                let last = current()
+                    .rev()
+                    .find(|(_, d)| d.len.char > 0)
+                    .map(|(i, _)| i);
+                rule.resolve(current(), last)
+            }
+            Builtin::WordCoherency(rule) => rule.resolve(current()),
             _ => Vec::new(),
         }
+    }
+
+    /// The suggestions of this whole-text rule for `sentences`, taken as the whole text.
+    pub(crate) fn check_document(&self, sentences: &[Sentence]) -> Vec<Suggestion> {
+        let (Some(first), Some(last)) = (sentences.first(), sentences.last()) else {
+            return Vec::new();
+        };
+        let start = first.span().start();
+        let mut digest = ParagraphDigest::default();
+        for sentence in sentences {
+            self.digest_sentence(sentence, start, &mut digest);
+        }
+        digest.len = Offset::new(last.span().end() - start);
+
+        let document = self
+            .resolve_document(std::slice::from_ref(&digest))
+            .into_iter()
+            .filter_map(|x| {
+                let span = x.span().clone().rshift(start);
+                let sentence = sentences.iter().find(|sentence| {
+                    sentence.span().byte().start <= span.byte().start
+                        && span.byte().end <= sentence.span().byte().end
+                })?;
+                let offset = sentence.span().byte().start;
+                let original = sentence
+                    .text()
+                    .get(span.byte().start - offset..span.byte().end - offset)?;
+                Some(x.suggestion_for(original)?.rshift(start))
+            })
+            .collect();
+        merge_document_suggestions(Vec::new(), document)
     }
 }
 
@@ -525,7 +1207,8 @@ impl Rules {
     ///
     /// Turn each match into a suggestion with [`DocumentMatch::to_suggestion`] and merge those
     /// into the paragraph's suggestions with [`merge_document_suggestions`], which also drops a
-    /// match that touches another of the same rule, as LanguageTool does.
+    /// match that touches another of the same rule, as LanguageTool does;
+    /// [`DocumentMatches::suggestions`] does both for one paragraph.
     pub fn resolve_document(&self, digests: &[ParagraphDigest]) -> DocumentMatches {
         let mut matches: Vec<DocumentMatch> = self
             .builtins
@@ -543,6 +1226,21 @@ impl Rules {
         DocumentMatches { matches, stale }
     }
 
+    /// [`Rules::resolve_document`] over digests stored with [`ParagraphDigest::to_bytes`]. Bytes
+    /// that [`ParagraphDigest::from_bytes`] rejects (another [`DIGEST_VERSION`], or not a digest)
+    /// count as a digest that is not current: listed in [`DocumentMatches::stale`], so the app
+    /// checks those paragraphs again.
+    pub fn resolve_document_bytes<B: AsRef<[u8]>>(&self, digests: &[B]) -> DocumentMatches {
+        let digests: Vec<ParagraphDigest> = digests
+            .iter()
+            .map(|bytes| {
+                ParagraphDigest::from_bytes(bytes.as_ref())
+                    .unwrap_or_else(|_| ParagraphDigest::stale())
+            })
+            .collect();
+        self.resolve_document(&digests)
+    }
+
     /// Checks one paragraph of a larger document on its own and returns its suggestions, without
     /// those of the whole-text rules, and its digest. Spans are relative to `paragraph`.
     ///
@@ -553,9 +1251,10 @@ impl Rules {
     /// at a time.
     ///
     /// The digest covers every whole-text builtin, enabled or not, so it stays valid when rules
-    /// are toggled. Pass the digests of all paragraphs to [`Rules::resolve_document`]. The
-    /// whole-text matches equal those [`Rules::suggest`] finds in the joined text; the other
-    /// suggestions only see this paragraph.
+    /// are toggled or their options change. Pass the digests of all paragraphs to
+    /// [`Rules::resolve_document`]. The whole-text matches equal those [`Rules::suggest`] finds in
+    /// the joined text, when the pieces end between sentences (see the [module docs](self)); the
+    /// other suggestions only see this paragraph.
     pub fn check_paragraph(
         &self,
         paragraph: &str,
@@ -570,12 +1269,6 @@ impl Rules {
         }
         // The ends of `paragraph` decide these, also when it has no sentence (whitespace only)
         // or text after its last sentence.
-        let (paragraph_starts, apostrophes) = (digest.paragraph_starts, digest.apostrophes);
-        let mut digest = ParagraphDigest {
-            paragraph_starts,
-            apostrophes,
-            ..ParagraphDigest::default()
-        };
         digest.set_ends(paragraph);
         digest.ends_paragraph |= ends_paragraph;
         (suggestions, digest)
@@ -626,34 +1319,6 @@ impl Rules {
     }
 }
 
-/// Answers whether a span overlaps any suggestion of a list sorted by start, without assuming
-/// that ends grow with starts (overlapping suggestions are allowed).
-pub(crate) struct Overlaps {
-    starts: Vec<usize>,
-    /// The largest end among the suggestions up to each index.
-    max_ends: Vec<usize>,
-}
-
-impl Overlaps {
-    pub(crate) fn new(sorted: &[Suggestion]) -> Self {
-        let starts = sorted.iter().map(|x| x.span().char().start).collect();
-        let max_ends = sorted
-            .iter()
-            .scan(0, |max, x| {
-                *max = (*max).max(x.span().char().end);
-                Some(*max)
-            })
-            .collect();
-        Overlaps { starts, max_ends }
-    }
-
-    /// Whether `span` shares at least one char with a suggestion.
-    pub(crate) fn any(&self, span: &Range<usize>) -> bool {
-        let before_end = self.starts.partition_point(|start| *start < span.end);
-        before_end > 0 && self.max_ends[before_end - 1] > span.start
-    }
-}
-
 /// Merges whole-text suggestions into a text's other suggestions the way [`Rules::suggest`] does.
 ///
 /// Both lists must use the same coordinates (e.g. both relative to one paragraph). The result is
@@ -701,6 +1366,149 @@ mod tests {
         digest
     }
 
+    fn span(byte: Range<u32>, char: Range<u32>) -> TokenSpan {
+        TokenSpan {
+            start: Offset {
+                byte: byte.start,
+                char: char.start,
+            },
+            end: Offset {
+                byte: byte.end,
+                char: char.end,
+            },
+        }
+    }
+
+    fn counted(span: TokenSpan, lemma: &str, speech: u8) -> CountedWord {
+        CountedWord {
+            span,
+            lemma: lemma.into(),
+            speech,
+        }
+    }
+
+    /// A digest with something in every list, with a multi-byte char before its spans.
+    fn full_digest() -> ParagraphDigest {
+        let mut d = digest("\u{201c}Cat\u{2019}s cat\u{2014}cat\u{2026}\n");
+        d.paragraph_starts.push(3);
+        d.apostrophes.push(Apostrophe {
+            span: span(6..10, 4..6),
+            typographic: true,
+            first: 0,
+        });
+        d.too_often_used[1].words = vec![
+            counted(span(3..6, 1..4), "cat", 0b10),
+            counted(span(11..14, 7..10), "cat", 0b10),
+            counted(span(17..20, 11..14), "cat", 0),
+        ];
+        d.too_often_used[1].speech_after = [false, false];
+        d.repeated_words = RepeatedWords {
+            count: 4,
+            words: vec![RepeatedWord {
+                span: span(11..14, 7..10),
+                number: 3,
+                starts_sentence: true,
+                readings: vec![
+                    RepeatedReading {
+                        lemma: "cat".into(),
+                        replacements: None,
+                    },
+                    RepeatedReading {
+                        lemma: "cats".into(),
+                        replacements: Some(vec!["dog".into()]),
+                    },
+                ],
+            }],
+            last_sentence: Some(0),
+        };
+        d.variants.push(VariantWord {
+            span: span(17..20, 11..14),
+            candidates: vec![VariantCandidate {
+                word: "cat".into(),
+                replaceable: 0b101,
+            }],
+        });
+        d
+    }
+
+    #[test]
+    fn digests_round_trip_through_bytes() {
+        let d = full_digest();
+        let bytes = d.to_bytes();
+        assert_eq!(ParagraphDigest::from_bytes(&bytes).unwrap(), d);
+        // A lemma is stored once, so a longer one adds its length once.
+        let mut longer = d.clone();
+        for word in longer.too_often_used[1].words.iter_mut() {
+            word.lemma = "catamaran".into();
+        }
+        longer.repeated_words.words[0].readings[0].lemma = "catamaran".into();
+        longer.variants[0].candidates[0].word = "catamaran".into();
+        assert_eq!(longer.to_bytes().len(), bytes.len() + 6);
+        // Serde with another format sees the same digest.
+        let options = bincode::DefaultOptions::new();
+        let back: ParagraphDigest = options
+            .deserialize(&options.serialize(&d).unwrap())
+            .unwrap();
+        assert_eq!(back, d);
+    }
+
+    #[test]
+    fn malformed_digest_bytes_are_errors() {
+        let bytes = full_digest().to_bytes();
+        for end in 4..bytes.len() {
+            assert!(
+                ParagraphDigest::from_bytes(&bytes[..end]).is_err(),
+                "{}",
+                end
+            );
+        }
+        // Every one-byte change either fails or reads a digest; none panics.
+        for i in 4..bytes.len() {
+            for value in [0u8, 1, 0x7f, 0xfb, 0xff] {
+                let mut changed = bytes.clone();
+                changed[i] = value;
+                let _ = ParagraphDigest::from_bytes(&changed);
+            }
+        }
+    }
+
+    #[test]
+    fn appends_word_statistics() {
+        let mut a = digest("0123456789");
+        a.too_often_used[0].words = vec![counted(span(0..3, 0..3), "red", 0b10)];
+        // `a` opens direct speech and leaves it open.
+        a.too_often_used[0].speech_after = [true, true];
+        a.repeated_words = RepeatedWords {
+            count: 2,
+            words: Vec::new(),
+            last_sentence: Some(0),
+        };
+        let mut b = digest("0123");
+        // Outside speech if `b` starts outside it, inside if it starts inside.
+        b.too_often_used[0].words = vec![counted(span(0..3, 0..3), "red", 0b10)];
+        b.too_often_used[0].speech_after = [false, true];
+        b.repeated_words = RepeatedWords {
+            count: 3,
+            words: vec![RepeatedWord {
+                span: span(1..2, 1..2),
+                number: 1,
+                starts_sentence: true,
+                readings: Vec::new(),
+            }],
+            last_sentence: None,
+        };
+        a.append(b);
+        let words = &a.too_often_used[0];
+        assert_eq!(words.words[1].span, span(10..13, 10..13));
+        // Wherever `a` starts, `b`'s word is in speech now.
+        assert_eq!(words.words[1].speech, 0b11);
+        assert_eq!(words.speech_after, [true, true]);
+        assert_eq!(a.repeated_words.count, 5);
+        assert_eq!(a.repeated_words.words[0].number, 3);
+        assert_eq!(a.repeated_words.words[0].span, span(11..12, 11..12));
+        assert_eq!(a.repeated_words.last_sentence, None);
+    }
+
     #[test]
     fn groups_lt_paragraphs() {
         // A blank line ends the first paragraph, also with spaces before it; a single line break
@@ -727,15 +1535,13 @@ mod tests {
     fn appends_digests() {
         let mut a = digest("0123456789");
         a.apostrophes.push(Apostrophe {
-            start: Offset { byte: 1, char: 1 },
-            end: Offset { byte: 4, char: 3 },
+            span: span(1..4, 1..3),
             typographic: true,
             first: 0,
         });
         let mut b = digest("\n\n2345");
         b.apostrophes.push(Apostrophe {
-            start: Offset { byte: 2, char: 2 },
-            end: Offset { byte: 4, char: 4 },
+            span: span(2..4, 2..4),
             typographic: false,
             first: 0,
         });
@@ -773,8 +1579,7 @@ mod tests {
         let stale = ParagraphDigest {
             version: 0,
             apostrophes: vec![Apostrophe {
-                start: Offset::default(),
-                end: Offset { byte: 1, char: 1 },
+                span: span(0..1, 0..1),
                 typographic: false,
                 first: 0,
             }],
@@ -874,19 +1679,5 @@ mod tests {
                 (apos, 29..31)
             ]
         );
-    }
-
-    #[test]
-    fn overlap_index_allows_nested_spans() {
-        let sorted = [
-            suggestion("A", 0..20),
-            suggestion("B", 2..3),
-            suggestion("C", 30..31),
-        ];
-        let overlaps = Overlaps::new(&sorted);
-        assert!(overlaps.any(&(10..12)));
-        assert!(!overlaps.any(&(20..30)));
-        assert!(overlaps.any(&(29..31)));
-        assert!(!overlaps.any(&(31..40)));
     }
 }
