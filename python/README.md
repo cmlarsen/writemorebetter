@@ -106,6 +106,46 @@ a possessive. Changes apply to the next `check`; persisting the list is up to yo
 - `checker.set_mother_tongue("de")` runs the false-friend rules for that language;
   `checker.mother_tongues()` lists them.
 - `checker.apply_preset("chicago-fiction")` applies a style preset's grammar settings.
+- `checker.set_too_often_used_percent(8)` sets the share (1 to 100, default 5) from which the
+  `TOO_OFTEN_USED_*` rules flag a word.
+
+### Checking a document paragraph by paragraph
+
+A few rules need the whole document: `EN_CONSISTENT_APOS` (mixed `'` and `’`),
+`EN_WORD_COHERENCY` (two spellings of one word), `EN_REPEATEDWORDS` (a word repeated within 150
+words) and `TOO_OFTEN_USED_*` (a word's share of all nouns, verbs or adjectives). An editor that
+rechecks only the paragraph being edited keeps one digest per paragraph and resolves them:
+
+```python
+checks = [checker.check_paragraph(p) for p in paragraphs]   # once per paragraph
+resolution = checker.resolve_document([c.digest for c in checks])
+for i, p in enumerate(paragraphs):
+    shown = resolution.suggestions(i, p, checks[i].suggestions)
+
+# After an edit: recheck that paragraph only, then resolve all digests again.
+paragraphs[3] = new_text
+checks[3] = checker.check_paragraph(new_text)
+resolution = checker.resolve_document([c.digest for c in checks])
+```
+
+- `check_paragraph(text, ends_paragraph=True)` returns a `ParagraphCheck`: `suggestions`, the
+  paragraph's own (without the whole-document rules'), and `digest`, `bytes` to store with the
+  paragraph (about 3.5 KB per 1,000 words; no text, only offsets, flags and lemmas). Pass
+  `ends_paragraph=False` for slices of a document that keep their line breaks; a paragraph then
+  ends only at a blank line.
+- `resolve_document(digests)` takes the digests of all paragraphs in order and returns a
+  `DocumentResolution`. Resolve again after every edit: one change can add or remove matches in
+  paragraphs that did not change (the first straight apostrophe in a curly manuscript, a noun
+  crossing 5%).
+- `resolution.suggestions(i, text, checked)` merges paragraph `i`'s whole-document matches into
+  `checked` (its `check_paragraph` suggestions); a match whose span no longer fits `text` is left
+  out. `resolution.paragraphs` lists the paragraphs with matches.
+- `resolution.stale` lists digests from another engine version (or bytes that are not a digest):
+  check those paragraphs again and resolve again. Rebuild all digests after upgrading the package
+  or its data files.
+
+The whole-document matches equal those `check` finds on the joined document when the pieces end
+between sentences. The other rules see only the paragraph.
 
 ### Analysis and style reports
 

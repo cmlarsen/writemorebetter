@@ -318,3 +318,118 @@ def test_dictionary_edits_do_not_hold_the_gil(data_dir):
     worker.join()
     gaps = [b - a for a, b in zip(beats, beats[1:])]
     assert waited < 0.1 or max(gaps) < 0.5 * waited, (waited, max(gaps))
+
+
+# Incremental checking: curly quotes and apostrophes, an em dash, an ellipsis, U+2028, an emoji
+# (code points and UTF-16 units disagree after it), a single line break inside a paragraph, and
+# blank lines between paragraphs. Straight apostrophes in the last paragraph mix the styles.
+PARAGRAPHS = [
+    "“I’ll be the adviser—no one else,” she said… He nodded. "
+    "\U0001F600 She was definitely tired.\nThe dog’s bowl was empty.",
+    "It’s late. The advisor left. She definitely knew.",
+    "'Tis true, he said. It's done.",
+]
+WHOLE_DOCUMENT_RULES = ("EN_CONSISTENT_APOS", "EN_WORD_COHERENCY", "EN_REPEATEDWORDS")
+
+
+def whole_document(suggestions):
+    return [
+        (s.start, s.end, s.source, s.replacements)
+        for s in suggestions
+        if any(rule in s.source for rule in WHOLE_DOCUMENT_RULES)
+    ]
+
+
+def incremental(checker, paragraphs, checks=None):
+    """The suggestions of the paragraphs joined with blank lines, checked one at a time."""
+    checks = checks or [checker.check_paragraph(p) for p in paragraphs]
+    resolution = checker.resolve_document([c.digest for c in checks])
+    assert resolution.stale == []
+    out, start = [], 0
+    for i, (text, check) in enumerate(zip(paragraphs, checks)):
+        for s in resolution.suggestions(i, text, check.suggestions):
+            out.append(
+                Suggestion(s.start + start, s.end + start, s.source, s.message, s.replacements)
+            )
+        start += len(text) + 2
+    return out, resolution
+
+
+@pytest.fixture(scope="module")
+def words_checker(data_dir) -> Checker:
+    checker = Checker.from_dir(data_dir)
+    checker.enable_rules(["BUILTIN/EN_REPEATEDWORDS"])
+    return checker
+
+
+def test_check_paragraph_and_resolve_document_equal_check(words_checker):
+    document = "\n\n".join(PARAGRAPHS)
+    whole = whole_document(words_checker.check(document))
+    rules = {rule for rule in WHOLE_DOCUMENT_RULES for _, _, source, _ in whole if rule in source}
+    assert rules == set(WHOLE_DOCUMENT_RULES)
+    split, resolution = incremental(words_checker, PARAGRAPHS)
+    assert whole_document(split) == whole
+    assert resolution.paragraphs == [1, 2]
+    advisor = next(s for s in split if "COHERENCY" in s.source)
+    assert document[advisor.start : advisor.end] == "advisor"
+    assert advisor.replacements == ("adviser",)
+    # Each paragraph's own suggestions are relative to it, in code points.
+    check = words_checker.check_paragraph(PARAGRAPHS[0])
+    assert isinstance(check.digest, bytes) and check.digest
+    assert all(0 <= s.start <= s.end <= len(PARAGRAPHS[0]) for s in check.suggestions)
+
+
+def test_an_edit_rechecks_one_paragraph(words_checker):
+    paragraphs = list(PARAGRAPHS)
+    checks = [words_checker.check_paragraph(p) for p in paragraphs]
+    # Without "adviser" before it, "advisor" is no longer flagged in the unchanged paragraph.
+    paragraphs[0] = paragraphs[0].replace("adviser", "counselor")
+    checks[0] = words_checker.check_paragraph(paragraphs[0])
+    split, _ = incremental(words_checker, paragraphs, checks)
+    assert whole_document(split) == whole_document(words_checker.check("\n\n".join(paragraphs)))
+    assert not any("COHERENCY" in s.source for s in split)
+    # A paragraph edited after its digest was made: a match that no longer fits is left out.
+    resolution = words_checker.resolve_document([c.digest for c in checks])
+    edited = "It is late."
+    assert all(s.end <= len(edited) for s in resolution.suggestions(1, edited, []))
+
+
+def test_unreadable_digests_are_stale(words_checker):
+    digests = [words_checker.check_paragraph(p).digest for p in PARAGRAPHS]
+    digests[1] = b"\x01\x00\x00\x00rest"
+    resolution = words_checker.resolve_document(digests)
+    assert resolution.stale == [1]
+    with pytest.raises(ValueError):
+        resolution.suggestions(0, "short", [Suggestion(0, 10, "X", "", ())])
+
+
+def test_too_often_used_counts_the_whole_document(data_dir):
+    checker = Checker.from_dir(data_dir)
+    checker.enable_rules(["BUILTIN/TOO_OFTEN_USED_NOUN_EN"])
+    nouns = (
+        "dog tree river car book chair garden street city lamp bottle cup plate shirt horse "
+        "apple kitchen window door table house phone mountain forest island bridge castle "
+        "candle blanket pillow spoon fork knife basket ladder carpet curtain mirror wallet "
+        "pocket jacket helmet hammer engine wheel tunnel valley meadow village harbor lantern "
+        "barrel saddle anchor violin piano guitar trumpet tomato potato carrot onion banana "
+        "lemon cherry peach pear melon cabbage pepper garlic biscuit pastry sandwich elephant "
+        "giraffe monkey tiger rabbit turtle squirrel donkey camel dolphin parrot pigeon sparrow "
+        "eagle owl spider beetle ant wasp nephew niece uncle aunt cousin"
+    ).split()
+    sentences = [f"I saw the {noun}." for noun in nouns[:96]]
+    paragraphs = [" ".join(sentences[i : i + 24]) + " I saw the cat." for i in range(0, 96, 24)]
+    # The fiction profile leaves dialogue out of the counts: 6 "cat" of 102 nouns.
+    paragraphs.append(
+        "I saw the cat. I saw the cat again. “The cat’s here—the cat…”"
+    )
+    document = "\n\n".join(paragraphs)
+    whole = [s for s in checker.check(document) if "TOO_OFTEN_USED" in s.source]
+    split, _ = incremental(checker, paragraphs)
+    assert [s for s in split if "TOO_OFTEN_USED" in s.source] == whole
+    assert [document[s.start : s.end] for s in whole] == ["cat"] * 6
+    # No paragraph alone has the 100 nouns the rule needs.
+    assert not [s for s in checker.check(paragraphs[0]) if "TOO_OFTEN_USED" in s.source]
+    with pytest.raises(ValueError):
+        checker.set_too_often_used_percent(0)
+    checker.set_too_often_used_percent(100)
+    assert not [s for s in checker.check(document) if "TOO_OFTEN_USED" in s.source]

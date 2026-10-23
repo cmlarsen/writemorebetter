@@ -21,6 +21,7 @@ use nlprule::{Rules, Tokenizer};
 use pyo3::create_exception;
 use pyo3::exceptions::{PyException, PyValueError};
 use pyo3::prelude::*;
+use pyo3::types::PyBytes;
 use serde::Serialize;
 use writemorebetter_style::reports::{self, StyleResources};
 
@@ -341,16 +342,7 @@ impl Checker {
             self.read_rules()
                 .suggest(&text, &self.tokenizer)
                 .iter()
-                .map(|suggestion| {
-                    let span = suggestion.span().char();
-                    (
-                        span.start,
-                        span.end,
-                        suggestion.source().to_string(),
-                        suggestion.message().to_string(),
-                        suggestion.replacements().to_vec(),
-                    )
-                })
+                .map(suggestion_tuple)
                 .collect()
         })
     }
@@ -455,6 +447,109 @@ impl Checker {
             writemorebetter_style::preset::StylePreset::load(&preset).map_err(style_error)?;
         py.detach(|| preset.apply_to_rules(&mut self.write_rules()))
             .map_err(style_error)
+    }
+
+    fn set_too_often_used_percent(&self, py: Python<'_>, percent: usize) -> PyResult<()> {
+        py.detach(|| self.write_rules().set_too_often_used_percent(percent))
+            .map_err(|err| PyValueError::new_err(err.to_string()))
+    }
+
+    /// Checks one paragraph on its own: `(suggestions, digest)`, the suggestions without those of
+    /// the whole-text rules (code points into `text`) and the paragraph's digest as bytes.
+    #[pyo3(signature = (text, ends_paragraph=true))]
+    fn check_paragraph<'py>(
+        &self,
+        py: Python<'py>,
+        text: String,
+        ends_paragraph: bool,
+    ) -> (Vec<SuggestionTuple>, Bound<'py, PyBytes>) {
+        let (suggestions, digest) = py.detach(|| {
+            let (suggestions, digest) =
+                self.read_rules()
+                    .check_paragraph(&text, ends_paragraph, &self.tokenizer);
+            (
+                suggestions.iter().map(suggestion_tuple).collect::<Vec<_>>(),
+                digest.to_bytes(),
+            )
+        });
+        (suggestions, PyBytes::new(py, &digest))
+    }
+
+    /// Runs the whole-text rules over the stored digests of every paragraph, in order.
+    fn resolve_document(
+        &self,
+        py: Python<'_>,
+        digests: Vec<Bound<'_, PyBytes>>,
+    ) -> DocumentResolution {
+        let digests: Vec<Vec<u8>> = digests.iter().map(|x| x.as_bytes().to_vec()).collect();
+        let matches = py.detach(|| self.read_rules().resolve_document_bytes(&digests));
+        DocumentResolution { matches }
+    }
+}
+
+fn suggestion_tuple(suggestion: &nlprule::types::Suggestion) -> SuggestionTuple {
+    let span = suggestion.span().char();
+    (
+        span.start,
+        span.end,
+        suggestion.source().to_string(),
+        suggestion.message().to_string(),
+        suggestion.replacements().to_vec(),
+    )
+}
+
+/// The whole-text rules' matches over a document's digests, from `Checker.resolve_document`.
+#[pyclass(frozen, module = "writemorebetter._native")]
+struct DocumentResolution {
+    matches: nlprule::DocumentMatches,
+}
+
+#[pymethods]
+impl DocumentResolution {
+    /// The indices of the digests that are stale (another version, or not a digest).
+    fn stale(&self) -> Vec<usize> {
+        self.matches.stale.clone()
+    }
+
+    /// The indices of the paragraphs with whole-text matches, ascending.
+    fn paragraphs(&self) -> Vec<usize> {
+        let mut paragraphs: Vec<usize> =
+            self.matches.matches.iter().map(|x| x.paragraph()).collect();
+        paragraphs.dedup();
+        paragraphs
+    }
+
+    /// `checked`, the suggestions `check_paragraph` returned for paragraph `paragraph`, merged
+    /// with its whole-text matches; code points into `text`, the paragraph's text.
+    fn suggestions(
+        &self,
+        paragraph: usize,
+        text: String,
+        checked: Vec<SuggestionTuple>,
+    ) -> PyResult<Vec<SuggestionTuple>> {
+        let checked = checked
+            .into_iter()
+            .map(|(start, end, source, message, replacements)| {
+                let span =
+                    nlprule::types::Span::from_chars(&text, start..end).ok_or_else(|| {
+                        PyValueError::new_err(format!(
+                            "suggestion {start}..{end} is not in the paragraph's text"
+                        ))
+                    })?;
+                Ok(nlprule::types::Suggestion::new(
+                    source,
+                    message,
+                    span,
+                    replacements,
+                ))
+            })
+            .collect::<PyResult<Vec<_>>>()?;
+        Ok(self
+            .matches
+            .suggestions(paragraph, &text, checked)
+            .iter()
+            .map(suggestion_tuple)
+            .collect())
     }
 }
 
@@ -591,6 +686,7 @@ fn title_case_json(headings: Vec<String>, options_json: Option<String>) -> PyRes
 fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Checker>()?;
     m.add_class::<StyleDocument>()?;
+    m.add_class::<DocumentResolution>()?;
     m.add(
         "WriteMoreBetterError",
         m.py().get_type::<WriteMoreBetterError>(),
