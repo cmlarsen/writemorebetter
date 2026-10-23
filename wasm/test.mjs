@@ -689,6 +689,74 @@ houseDoc.free();
   eq(styleError(() => titleCase('"A"')).kind, "invalidOptions", "titleCase needs an array of headings");
 }
 
+// Incremental checking (#329): checkParagraph + resolveDocument give the whole-document rules'
+// matches of check() on the joined text, in char and UTF-16 offsets. Curly quotes and
+// apostrophes, an em dash, an ellipsis, U+2028, an emoji (char and UTF-16 offsets disagree after
+// it), a single line break and blank lines; straight apostrophes in the last paragraph.
+{
+  checker.enableRules(["BUILTIN/EN_REPEATEDWORDS", "BUILTIN/EN_CONSISTENT_APOS"]);
+  const wholeRules = ["EN_CONSISTENT_APOS", "EN_WORD_COHERENCY", "EN_REPEATEDWORDS"];
+  const whole = (items) => items
+    .filter((item) => wholeRules.some((rule) => item.source.includes(rule)))
+    .map((item) => [item.start, item.end, item.start16, item.end16, item.source, item.replacements]);
+  const incremental = (paragraphs, checks) => {
+    const resolution = checker.resolveDocument(checks.map((check) => check.digest));
+    eq([...resolution.stale], [], "fresh digests are not stale");
+    const out = [];
+    let chars = 0, units = 0;
+    paragraphs.forEach((text, i) => {
+      for (const item of JSON.parse(resolution.suggestions(i, text, checks[i].suggestions))) {
+        out.push({ ...item, start: item.start + chars, end: item.end + chars,
+          start16: item.start16 + units, end16: item.end16 + units });
+      }
+      chars += [...text].length + 2;
+      units += text.length + 2;
+    });
+    return [out, resolution];
+  };
+  const paragraphs = [
+    "“I’ll be the adviser—no one else,” she said… He nodded. \u{1F600} She was definitely tired.\nThe dog’s bowl was empty.",
+    "It’s late. \u{1F600} The advisor left. She definitely knew.",
+    "'Tis true, he said. It's done.",
+  ];
+  const document = paragraphs.join("\n\n");
+  const expected = whole(JSON.parse(checker.check(document)));
+  eq(wholeRules.filter((rule) => expected.some((item) => item[4].includes(rule))), wholeRules,
+    "the probe has matches of every whole-document rule");
+  const checks = paragraphs.map((text) => checker.checkParagraph(text));
+  check(checks.every((c) => c.digest instanceof Uint8Array && c.digest.length > 0), "digests are bytes");
+  const [split, resolution] = incremental(paragraphs, checks);
+  eq(whole(split), expected, "checkParagraph + resolveDocument equal check()");
+  // Without the fiction profile EN_CONSISTENT_APOS flags both styles, so every paragraph.
+  eq([...resolution.paragraphs], [0, 1, 2], "paragraphs with whole-document matches");
+  const advisor = split.find((item) => item.source.includes("COHERENCY"));
+  eq([document.slice(advisor.start16, advisor.end16), advisor.replacements], ["advisor", ["adviser"]],
+    "a whole-document match in UTF-16 offsets");
+
+  // An edit rechecks one paragraph; the match in an unchanged paragraph goes away.
+  const edited = [...paragraphs];
+  edited[0] = edited[0].replace("adviser", "counselor");
+  const rechecked = [...checks];
+  rechecked[0] = checker.checkParagraph(edited[0], true);
+  const [after] = incremental(edited, rechecked);
+  eq(whole(after), whole(JSON.parse(checker.check(edited.join("\n\n")))), "after an edit");
+  check(!after.some((item) => item.source.includes("COHERENCY")), "the variant is gone");
+
+  // Bytes that are not a digest are stale; a bad span in `checked` is an error.
+  const stale = checker.resolveDocument([checks[0].digest, new Uint8Array([1, 0, 0, 0, 9]), "x"]);
+  eq([...stale.stale], [1, 2], "unreadable digests are stale");
+  let threw = false;
+  try {
+    stale.suggestions(0, "short", JSON.stringify([{ start: 0, end: 10, source: "X" }]));
+  } catch {
+    threw = true;
+  }
+  check(threw, "a span outside the paragraph is an error");
+  [...checks, ...rechecked.slice(0, 1)].forEach((c) => c.free());
+  resolution.free();
+  stale.free();
+}
+
 checkStyleRecords(checker);
 const independent = checker.styleDocument("She ran.");
 checker.free();
