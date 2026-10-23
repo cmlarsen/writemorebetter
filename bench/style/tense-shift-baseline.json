@@ -1,0 +1,1822 @@
+{
+ "perturb": {
+  "seed": 355,
+  "scenes": 400,
+  "candidates": {
+   "single": 945,
+   "decoy": 801,
+   "run": 639
+  },
+  "groups": {
+   "decoy/default": {
+    "items": 500,
+    "leakage": 0.0,
+    "newFlags": 0,
+    "cleanFlagsLost": 0
+   },
+   "decoy/default/first": {
+    "items": 282,
+    "leakage": 0.0,
+    "newFlags": 0,
+    "cleanFlagsLost": 0
+   },
+   "decoy/default/third": {
+    "items": 218,
+    "leakage": 0.0,
+    "newFlags": 0,
+    "cleanFlagsLost": 0
+   },
+   "decoy/singles": {
+    "items": 500,
+    "leakage": 0.0,
+    "newFlags": 0,
+    "cleanFlagsLost": 0
+   },
+   "decoy/singles/first": {
+    "items": 282,
+    "leakage": 0.0,
+    "newFlags": 0,
+    "cleanFlagsLost": 0
+   },
+   "decoy/singles/third": {
+    "items": 218,
+    "leakage": 0.0,
+    "newFlags": 0,
+    "cleanFlagsLost": 0
+   },
+   "run/default": {
+    "items": 500,
+    "recall": 0.848,
+    "newFlags": 424,
+    "precision": 1.0,
+    "cleanFlagsLost": 24
+   },
+   "run/default/first": {
+    "items": 296,
+    "recall": 0.834,
+    "newFlags": 247,
+    "precision": 1.0,
+    "cleanFlagsLost": 21
+   },
+   "run/default/third": {
+    "items": 204,
+    "recall": 0.868,
+    "newFlags": 177,
+    "precision": 1.0,
+    "cleanFlagsLost": 3
+   },
+   "run/singles": {
+    "items": 500,
+    "recall": 0.948,
+    "newFlags": 474,
+    "precision": 1.0,
+    "cleanFlagsLost": 40
+   },
+   "run/singles/first": {
+    "items": 296,
+    "recall": 0.949,
+    "newFlags": 281,
+    "precision": 1.0,
+    "cleanFlagsLost": 35
+   },
+   "run/singles/third": {
+    "items": 204,
+    "recall": 0.946,
+    "newFlags": 193,
+    "precision": 1.0,
+    "cleanFlagsLost": 5
+   },
+   "single/default": {
+    "items": 500,
+    "recall": 0.028,
+    "newFlags": 14,
+    "precision": 1.0,
+    "cleanFlagsLost": 7
+   },
+   "single/default/first": {
+    "items": 274,
+    "recall": 0.033,
+    "newFlags": 9,
+    "precision": 1.0,
+    "cleanFlagsLost": 5
+   },
+   "single/default/third": {
+    "items": 226,
+    "recall": 0.022,
+    "newFlags": 5,
+    "precision": 1.0,
+    "cleanFlagsLost": 2
+   },
+   "single/singles": {
+    "items": 500,
+    "recall": 0.756,
+    "newFlags": 378,
+    "precision": 1.0,
+    "cleanFlagsLost": 16
+   },
+   "single/singles/first": {
+    "items": 274,
+    "recall": 0.766,
+    "newFlags": 210,
+    "precision": 1.0,
+    "cleanFlagsLost": 11
+   },
+   "single/singles/third": {
+    "items": 226,
+    "recall": 0.743,
+    "newFlags": 168,
+    "precision": 1.0,
+    "cleanFlagsLost": 5
+   },
+   "precision/default": {
+    "newFlags": 438,
+    "onTarget": 438,
+    "precision": 1.0
+   },
+   "precision/singles": {
+    "newFlags": 852,
+    "onTarget": 852,
+    "precision": 1.0
+   }
+  },
+  "reverse": {
+   "flippedScenes": 105,
+   "falseFlagsWithIncludeReverse": 0,
+   "falseFlagsPerScene": 0.0,
+   "revertedRuns": 103,
+   "recallWithIncludeReverse": 0.524,
+   "flagsAtDefaults": 0
+  },
+  "cleanFlags": 98
+ },
+ "rate": {
+  "story1": {
+   "documents": 1,
+   "narrationWords": 1922,
+   "shifts": 0,
+   "perThousandWords": 0.0,
+   "shiftsInPastScenes": 0,
+   "shiftsInPresentScenes": 0,
+   "scenes": 1,
+   "scenesBySource": {
+    "declared": 0,
+    "inferred": 1,
+    "inherited": 0,
+    "undetermined": 0
+   },
+   "scenesByTense": {
+    "past": 1,
+    "present": 0
+   },
+   "undeterminedSceneShare": 0.0,
+   "undeterminedWordShare": 0.0,
+   "exemptions": {
+    "ambiguous": 5,
+    "generic": 4,
+    "mixedSentence": 2,
+    "modal": 13,
+    "noSubject": 23,
+    "reported": 17,
+    "subordinate": 82
+   }
+  },
+  "story2": {
+   "documents": 1,
+   "narrationWords": 1776,
+   "shifts": 1,
+   "perThousandWords": 0.563,
+   "shiftsInPastScenes": 1,
+   "shiftsInPresentScenes": 0,
+   "scenes": 1,
+   "scenesBySource": {
+    "declared": 0,
+    "inferred": 1,
+    "inherited": 0,
+    "undetermined": 0
+   },
+   "scenesByTense": {
+    "past": 1,
+    "present": 0
+   },
+   "undeterminedSceneShare": 0.0,
+   "undeterminedWordShare": 0.0,
+   "exemptions": {
+    "ambiguous": 7,
+    "generic": 8,
+    "mixedSentence": 2,
+    "modal": 13,
+    "narratorFrame": 5,
+    "noSubject": 28,
+    "reported": 14,
+    "subordinate": 87
+   }
+  },
+  "story3": {
+   "documents": 1,
+   "narrationWords": 1740,
+   "shifts": 1,
+   "perThousandWords": 0.575,
+   "shiftsInPastScenes": 1,
+   "shiftsInPresentScenes": 0,
+   "scenes": 1,
+   "scenesBySource": {
+    "declared": 0,
+    "inferred": 1,
+    "inherited": 0,
+    "undetermined": 0
+   },
+   "scenesByTense": {
+    "past": 1,
+    "present": 0
+   },
+   "undeterminedSceneShare": 0.0,
+   "undeterminedWordShare": 0.0,
+   "exemptions": {
+    "ambiguous": 8,
+    "generic": 5,
+    "habitual": 6,
+    "mixedSentence": 1,
+    "modal": 11,
+    "narratorFrame": 2,
+    "noSubject": 29,
+    "reported": 16,
+    "subordinate": 61
+   }
+  },
+  "story4": {
+   "documents": 1,
+   "narrationWords": 1990,
+   "shifts": 2,
+   "perThousandWords": 1.005,
+   "shiftsInPastScenes": 2,
+   "shiftsInPresentScenes": 0,
+   "scenes": 1,
+   "scenesBySource": {
+    "declared": 0,
+    "inferred": 1,
+    "inherited": 0,
+    "undetermined": 0
+   },
+   "scenesByTense": {
+    "past": 1,
+    "present": 0
+   },
+   "undeterminedSceneShare": 0.0,
+   "undeterminedWordShare": 0.0,
+   "exemptions": {
+    "ambiguous": 10,
+    "generic": 9,
+    "habitual": 4,
+    "mixedSentence": 1,
+    "modal": 21,
+    "narratorFrame": 2,
+    "noSubject": 33,
+    "reported": 17,
+    "subordinate": 82
+   }
+  },
+  "story5": {
+   "documents": 1,
+   "narrationWords": 1638,
+   "shifts": 1,
+   "perThousandWords": 0.611,
+   "shiftsInPastScenes": 1,
+   "shiftsInPresentScenes": 0,
+   "scenes": 1,
+   "scenesBySource": {
+    "declared": 0,
+    "inferred": 1,
+    "inherited": 0,
+    "undetermined": 0
+   },
+   "scenesByTense": {
+    "past": 1,
+    "present": 0
+   },
+   "undeterminedSceneShare": 0.0,
+   "undeterminedWordShare": 0.0,
+   "exemptions": {
+    "ambiguous": 4,
+    "generic": 3,
+    "habitual": 5,
+    "mixedSentence": 1,
+    "modal": 13,
+    "narratorFrame": 3,
+    "noSubject": 21,
+    "reported": 21,
+    "subordinate": 67
+   }
+  },
+  "moby150k": {
+   "documents": 1,
+   "narrationWords": 17919,
+   "shifts": 5,
+   "perThousandWords": 0.279,
+   "shiftsInPastScenes": 5,
+   "shiftsInPresentScenes": 0,
+   "scenes": 69,
+   "scenesBySource": {
+    "declared": 0,
+    "inferred": 11,
+    "inherited": 0,
+    "undetermined": 58
+   },
+   "scenesByTense": {
+    "past": 9,
+    "present": 2
+   },
+   "undeterminedSceneShare": 0.841,
+   "undeterminedWordShare": 0.117,
+   "exemptions": {
+    "ambiguous": 46,
+    "generic": 44,
+    "habitual": 19,
+    "mixedSentence": 9,
+    "modal": 150,
+    "narratorFrame": 16,
+    "noSubject": 358,
+    "questionOrExclamation": 125,
+    "reported": 72,
+    "subordinate": 344
+   }
+  },
+  "pride": {
+   "documents": 61,
+   "narrationWords": 71345,
+   "shifts": 2,
+   "perThousandWords": 0.028,
+   "shiftsInPastScenes": 2,
+   "shiftsInPresentScenes": 0,
+   "scenes": 67,
+   "scenesBySource": {
+    "declared": 0,
+    "inferred": 65,
+    "inherited": 0,
+    "undetermined": 2
+   },
+   "scenesByTense": {
+    "past": 65,
+    "present": 0
+   },
+   "undeterminedSceneShare": 0.03,
+   "undeterminedWordShare": 0.002,
+   "exemptions": {
+    "ambiguous": 110,
+    "generic": 6,
+    "habitual": 7,
+    "mixedSentence": 8,
+    "modal": 811,
+    "noSubject": 1533,
+    "questionOrExclamation": 185,
+    "reported": 271,
+    "subordinate": 1630,
+    "unbalancedQuotes": 246
+   }
+  },
+  "moby": {
+   "documents": 135,
+   "narrationWords": 163627,
+   "shifts": 37,
+   "perThousandWords": 0.226,
+   "shiftsInPastScenes": 37,
+   "shiftsInPresentScenes": 0,
+   "scenes": 140,
+   "scenesBySource": {
+    "declared": 0,
+    "inferred": 102,
+    "inherited": 0,
+    "undetermined": 38
+   },
+   "scenesByTense": {
+    "past": 72,
+    "present": 30
+   },
+   "undeterminedSceneShare": 0.271,
+   "undeterminedWordShare": 0.184,
+   "exemptions": {
+    "ambiguous": 307,
+    "generic": 412,
+    "habitual": 217,
+    "mixedSentence": 97,
+    "modal": 1305,
+    "narratorFrame": 131,
+    "noSubject": 3028,
+    "questionOrExclamation": 1130,
+    "reported": 339,
+    "subordinate": 3096
+   }
+  },
+  "blue_castle": {
+   "documents": 45,
+   "narrationWords": 47429,
+   "shifts": 1,
+   "perThousandWords": 0.021,
+   "shiftsInPastScenes": 1,
+   "shiftsInPresentScenes": 0,
+   "scenes": 46,
+   "scenesBySource": {
+    "declared": 0,
+    "inferred": 44,
+    "inherited": 1,
+    "undetermined": 1
+   },
+   "scenesByTense": {
+    "past": 44,
+    "present": 1
+   },
+   "undeterminedSceneShare": 0.022,
+   "undeterminedWordShare": 0.0,
+   "exemptions": {
+    "ambiguous": 102,
+    "generic": 8,
+    "habitual": 7,
+    "mixedSentence": 3,
+    "modal": 570,
+    "narratorFrame": 7,
+    "noSubject": 1217,
+    "questionOrExclamation": 236,
+    "reported": 268,
+    "subordinate": 1149
+   }
+  },
+  "ackroyd": {
+   "documents": 27,
+   "narrationWords": 28042,
+   "shifts": 17,
+   "perThousandWords": 0.606,
+   "shiftsInPastScenes": 17,
+   "shiftsInPresentScenes": 0,
+   "scenes": 27,
+   "scenesBySource": {
+    "declared": 0,
+    "inferred": 26,
+    "inherited": 0,
+    "undetermined": 1
+   },
+   "scenesByTense": {
+    "past": 26,
+    "present": 0
+   },
+   "undeterminedSceneShare": 0.037,
+   "undeterminedWordShare": 0.029,
+   "exemptions": {
+    "ambiguous": 44,
+    "generic": 28,
+    "habitual": 26,
+    "mixedSentence": 7,
+    "modal": 157,
+    "narratorFrame": 48,
+    "noSubject": 912,
+    "questionOrExclamation": 89,
+    "reported": 132,
+    "subordinate": 507
+   }
+  },
+  "thirty_nine_steps": {
+   "documents": 10,
+   "narrationWords": 31803,
+   "shifts": 1,
+   "perThousandWords": 0.031,
+   "shiftsInPastScenes": 1,
+   "shiftsInPresentScenes": 0,
+   "scenes": 15,
+   "scenesBySource": {
+    "declared": 0,
+    "inferred": 14,
+    "inherited": 1,
+    "undetermined": 0
+   },
+   "scenesByTense": {
+    "past": 15,
+    "present": 0
+   },
+   "undeterminedSceneShare": 0.0,
+   "undeterminedWordShare": 0.0,
+   "exemptions": {
+    "ambiguous": 85,
+    "generic": 10,
+    "habitual": 4,
+    "mixedSentence": 13,
+    "modal": 338,
+    "narratorFrame": 19,
+    "noSubject": 603,
+    "questionOrExclamation": 39,
+    "reported": 195,
+    "subordinate": 825
+   }
+  },
+  "hound": {
+   "documents": 15,
+   "narrationWords": 24034,
+   "shifts": 4,
+   "perThousandWords": 0.166,
+   "shiftsInPastScenes": 4,
+   "shiftsInPresentScenes": 0,
+   "scenes": 16,
+   "scenesBySource": {
+    "declared": 0,
+    "inferred": 13,
+    "inherited": 0,
+    "undetermined": 3
+   },
+   "scenesByTense": {
+    "past": 13,
+    "present": 0
+   },
+   "undeterminedSceneShare": 0.188,
+   "undeterminedWordShare": 0.197,
+   "exemptions": {
+    "ambiguous": 39,
+    "generic": 16,
+    "habitual": 16,
+    "mixedSentence": 7,
+    "modal": 234,
+    "narratorFrame": 32,
+    "noSubject": 499,
+    "questionOrExclamation": 61,
+    "reported": 147,
+    "subordinate": 711
+   }
+  },
+  "age_of_innocence": {
+   "documents": 34,
+   "narrationWords": 75406,
+   "shifts": 1,
+   "perThousandWords": 0.013,
+   "shiftsInPastScenes": 1,
+   "shiftsInPresentScenes": 0,
+   "scenes": 60,
+   "scenesBySource": {
+    "declared": 0,
+    "inferred": 60,
+    "inherited": 0,
+    "undetermined": 0
+   },
+   "scenesByTense": {
+    "past": 60,
+    "present": 0
+   },
+   "undeterminedSceneShare": 0.0,
+   "undeterminedWordShare": 0.0,
+   "exemptions": {
+    "ambiguous": 72,
+    "generic": 5,
+    "habitual": 7,
+    "mixedSentence": 11,
+    "modal": 496,
+    "noSubject": 1225,
+    "questionOrExclamation": 355,
+    "reported": 343,
+    "subordinate": 2068
+   }
+  },
+  "silas_marner": {
+   "documents": 21,
+   "narrationWords": 47945,
+   "shifts": 2,
+   "perThousandWords": 0.042,
+   "shiftsInPastScenes": 2,
+   "shiftsInPresentScenes": 0,
+   "scenes": 21,
+   "scenesBySource": {
+    "declared": 0,
+    "inferred": 21,
+    "inherited": 0,
+    "undetermined": 0
+   },
+   "scenesByTense": {
+    "past": 21,
+    "present": 0
+   },
+   "undeterminedSceneShare": 0.0,
+   "undeterminedWordShare": 0.0,
+   "exemptions": {
+    "ambiguous": 93,
+    "generic": 27,
+    "habitual": 12,
+    "mixedSentence": 17,
+    "modal": 497,
+    "narratorFrame": 6,
+    "noSubject": 1154,
+    "questionOrExclamation": 264,
+    "reported": 170,
+    "subordinate": 1385,
+    "unbalancedQuotes": 2
+   }
+  },
+  "treasure_island": {
+   "documents": 34,
+   "narrationWords": 47786,
+   "shifts": 2,
+   "perThousandWords": 0.042,
+   "shiftsInPastScenes": 2,
+   "shiftsInPresentScenes": 0,
+   "scenes": 34,
+   "scenesBySource": {
+    "declared": 0,
+    "inferred": 34,
+    "inherited": 0,
+    "undetermined": 0
+   },
+   "scenesByTense": {
+    "past": 34,
+    "present": 0
+   },
+   "undeterminedSceneShare": 0.0,
+   "undeterminedWordShare": 0.0,
+   "exemptions": {
+    "ambiguous": 110,
+    "generic": 11,
+    "habitual": 13,
+    "mixedSentence": 8,
+    "modal": 385,
+    "narratorFrame": 58,
+    "noSubject": 1321,
+    "questionOrExclamation": 139,
+    "reported": 191,
+    "subordinate": 1190,
+    "unbalancedQuotes": 31
+   }
+  },
+  "styles_ch1": {
+   "documents": 1,
+   "narrationWords": 2306,
+   "shifts": 0,
+   "perThousandWords": 0.0,
+   "shiftsInPastScenes": 0,
+   "shiftsInPresentScenes": 0,
+   "scenes": 1,
+   "scenesBySource": {
+    "declared": 0,
+    "inferred": 1,
+    "inherited": 0,
+    "undetermined": 0
+   },
+   "scenesByTense": {
+    "past": 1,
+    "present": 0
+   },
+   "undeterminedSceneShare": 0.0,
+   "undeterminedWordShare": 0.0,
+   "exemptions": {
+    "ambiguous": 1,
+    "generic": 1,
+    "habitual": 4,
+    "modal": 11,
+    "narratorFrame": 2,
+    "noSubject": 55,
+    "questionOrExclamation": 4,
+    "reported": 3,
+    "subordinate": 50
+   }
+  },
+  "gatsby_ch1": {
+   "documents": 1,
+   "narrationWords": 4697,
+   "shifts": 0,
+   "perThousandWords": 0.0,
+   "shiftsInPastScenes": 0,
+   "shiftsInPresentScenes": 0,
+   "scenes": 3,
+   "scenesBySource": {
+    "declared": 0,
+    "inferred": 2,
+    "inherited": 0,
+    "undetermined": 1
+   },
+   "scenesByTense": {
+    "past": 2,
+    "present": 0
+   },
+   "undeterminedSceneShare": 0.333,
+   "undeterminedWordShare": 0.102,
+   "exemptions": {
+    "ambiguous": 3,
+    "generic": 4,
+    "habitual": 3,
+    "mixedSentence": 3,
+    "modal": 19,
+    "narratorFrame": 3,
+    "noSubject": 86,
+    "questionOrExclamation": 5,
+    "reported": 28,
+    "subordinate": 132
+   }
+  },
+  "sign_ch1": {
+   "documents": 1,
+   "narrationWords": 748,
+   "shifts": 0,
+   "perThousandWords": 0.0,
+   "shiftsInPastScenes": 0,
+   "shiftsInPresentScenes": 0,
+   "scenes": 1,
+   "scenesBySource": {
+    "declared": 0,
+    "inferred": 1,
+    "inherited": 0,
+    "undetermined": 0
+   },
+   "scenesByTense": {
+    "past": 1,
+    "present": 0
+   },
+   "undeterminedSceneShare": 0.0,
+   "undeterminedWordShare": 0.0,
+   "exemptions": {
+    "modal": 5,
+    "narratorFrame": 1,
+    "noSubject": 16,
+    "questionOrExclamation": 4,
+    "subordinate": 19
+   }
+  },
+  "avonlea_ch1": {
+   "documents": 1,
+   "narrationWords": 1668,
+   "shifts": 0,
+   "perThousandWords": 0.0,
+   "shiftsInPastScenes": 0,
+   "shiftsInPresentScenes": 0,
+   "scenes": 1,
+   "scenesBySource": {
+    "declared": 0,
+    "inferred": 1,
+    "inherited": 0,
+    "undetermined": 0
+   },
+   "scenesByTense": {
+    "past": 1,
+    "present": 0
+   },
+   "undeterminedSceneShare": 0.0,
+   "undeterminedWordShare": 0.0,
+   "exemptions": {
+    "ambiguous": 2,
+    "generic": 1,
+    "modal": 19,
+    "noSubject": 40,
+    "questionOrExclamation": 1,
+    "reported": 8,
+    "subordinate": 57
+   }
+  },
+  "bleak_house": {
+   "documents": 67,
+   "narrationWords": 216107,
+   "shifts": 7,
+   "perThousandWords": 0.032,
+   "shiftsInPastScenes": 7,
+   "shiftsInPresentScenes": 0,
+   "scenes": 71,
+   "scenesBySource": {
+    "declared": 0,
+    "inferred": 68,
+    "inherited": 2,
+    "undetermined": 1
+   },
+   "scenesByTense": {
+    "past": 36,
+    "present": 34
+   },
+   "undeterminedSceneShare": 0.014,
+   "undeterminedWordShare": 0.007,
+   "exemptions": {
+    "ambiguous": 261,
+    "generic": 278,
+    "habitual": 252,
+    "mixedSentence": 79,
+    "modal": 1776,
+    "narratorFrame": 153,
+    "noSubject": 5922,
+    "pastPerfect": 7,
+    "questionOrExclamation": 1702,
+    "reported": 1026,
+    "subordinate": 5486,
+    "unbalancedQuotes": 13
+   }
+  },
+  "jane_eyre": {
+   "documents": 38,
+   "narrationWords": 104742,
+   "shifts": 17,
+   "perThousandWords": 0.162,
+   "shiftsInPastScenes": 17,
+   "shiftsInPresentScenes": 0,
+   "scenes": 39,
+   "scenesBySource": {
+    "declared": 0,
+    "inferred": 39,
+    "inherited": 0,
+    "undetermined": 0
+   },
+   "scenesByTense": {
+    "past": 39,
+    "present": 0
+   },
+   "undeterminedSceneShare": 0.0,
+   "undeterminedWordShare": 0.0,
+   "exemptions": {
+    "ambiguous": 178,
+    "generic": 61,
+    "habitual": 39,
+    "mixedSentence": 52,
+    "modal": 901,
+    "narratorFrame": 96,
+    "noSubject": 2384,
+    "questionOrExclamation": 582,
+    "reported": 456,
+    "subordinate": 2375,
+    "unbalancedQuotes": 5
+   }
+  },
+  "david_copperfield": {
+   "documents": 64,
+   "narrationWords": 240033,
+   "shifts": 20,
+   "perThousandWords": 0.083,
+   "shiftsInPastScenes": 20,
+   "shiftsInPresentScenes": 0,
+   "scenes": 73,
+   "scenesBySource": {
+    "declared": 0,
+    "inferred": 66,
+    "inherited": 5,
+    "undetermined": 2
+   },
+   "scenesByTense": {
+    "past": 63,
+    "present": 8
+   },
+   "undeterminedSceneShare": 0.027,
+   "undeterminedWordShare": 0.001,
+   "exemptions": {
+    "ambiguous": 349,
+    "generic": 59,
+    "habitual": 204,
+    "mixedSentence": 79,
+    "modal": 2071,
+    "narratorFrame": 491,
+    "noSubject": 6689,
+    "questionOrExclamation": 1667,
+    "reported": 1300,
+    "subordinate": 6947,
+    "unbalancedQuotes": 172
+   }
+  },
+  "voyage_out": {
+   "documents": 27,
+   "narrationWords": 99486,
+   "shifts": 7,
+   "perThousandWords": 0.07,
+   "shiftsInPastScenes": 7,
+   "shiftsInPresentScenes": 0,
+   "scenes": 29,
+   "scenesBySource": {
+    "declared": 0,
+    "inferred": 29,
+    "inherited": 0,
+    "undetermined": 0
+   },
+   "scenesByTense": {
+    "past": 29,
+    "present": 0
+   },
+   "undeterminedSceneShare": 0.0,
+   "undeterminedWordShare": 0.0,
+   "exemptions": {
+    "ambiguous": 95,
+    "generic": 24,
+    "habitual": 11,
+    "mixedSentence": 22,
+    "modal": 763,
+    "noSubject": 2107,
+    "questionOrExclamation": 453,
+    "reported": 593,
+    "subordinate": 2981,
+    "unbalancedQuotes": 9
+   }
+  },
+  "night_and_day": {
+   "documents": 34,
+   "narrationWords": 129772,
+   "shifts": 4,
+   "perThousandWords": 0.031,
+   "shiftsInPastScenes": 4,
+   "shiftsInPresentScenes": 0,
+   "scenes": 39,
+   "scenesBySource": {
+    "declared": 0,
+    "inferred": 38,
+    "inherited": 1,
+    "undetermined": 0
+   },
+   "scenesByTense": {
+    "past": 39,
+    "present": 0
+   },
+   "undeterminedSceneShare": 0.0,
+   "undeterminedWordShare": 0.0,
+   "exemptions": {
+    "ambiguous": 160,
+    "generic": 37,
+    "habitual": 8,
+    "mixedSentence": 35,
+    "modal": 1049,
+    "narratorFrame": 3,
+    "noSubject": 2433,
+    "questionOrExclamation": 463,
+    "reported": 589,
+    "subordinate": 3780
+   }
+  },
+  "women_in_love": {
+   "documents": 31,
+   "narrationWords": 129683,
+   "shifts": 8,
+   "perThousandWords": 0.062,
+   "shiftsInPastScenes": 8,
+   "shiftsInPresentScenes": 0,
+   "scenes": 31,
+   "scenesBySource": {
+    "declared": 0,
+    "inferred": 31,
+    "inherited": 0,
+    "undetermined": 0
+   },
+   "scenesByTense": {
+    "past": 31,
+    "present": 0
+   },
+   "undeterminedSceneShare": 0.0,
+   "undeterminedWordShare": 0.0,
+   "exemptions": {
+    "ambiguous": 256,
+    "generic": 28,
+    "habitual": 3,
+    "mixedSentence": 26,
+    "modal": 906,
+    "narratorFrame": 4,
+    "noSubject": 3319,
+    "questionOrExclamation": 453,
+    "reported": 342,
+    "subordinate": 2144
+   }
+  },
+  "howards_end": {
+   "documents": 44,
+   "narrationWords": 62822,
+   "shifts": 30,
+   "perThousandWords": 0.478,
+   "shiftsInPastScenes": 30,
+   "shiftsInPresentScenes": 0,
+   "scenes": 44,
+   "scenesBySource": {
+    "declared": 0,
+    "inferred": 43,
+    "inherited": 0,
+    "undetermined": 1
+   },
+   "scenesByTense": {
+    "past": 42,
+    "present": 1
+   },
+   "undeterminedSceneShare": 0.023,
+   "undeterminedWordShare": 0.0,
+   "exemptions": {
+    "ambiguous": 105,
+    "generic": 71,
+    "habitual": 10,
+    "mixedSentence": 40,
+    "modal": 752,
+    "narratorFrame": 4,
+    "noSubject": 1666,
+    "pastPerfect": 1,
+    "questionOrExclamation": 371,
+    "reported": 250,
+    "subordinate": 1427,
+    "unbalancedQuotes": 35
+   }
+  },
+  "main_street": {
+   "documents": 39,
+   "narrationWords": 97215,
+   "shifts": 19,
+   "perThousandWords": 0.195,
+   "shiftsInPastScenes": 19,
+   "shiftsInPresentScenes": 0,
+   "scenes": 41,
+   "scenesBySource": {
+    "declared": 0,
+    "inferred": 40,
+    "inherited": 1,
+    "undetermined": 0
+   },
+   "scenesByTense": {
+    "past": 41,
+    "present": 0
+   },
+   "undeterminedSceneShare": 0.0,
+   "undeterminedWordShare": 0.0,
+   "exemptions": {
+    "ambiguous": 81,
+    "generic": 38,
+    "habitual": 6,
+    "mixedSentence": 24,
+    "modal": 558,
+    "narratorFrame": 5,
+    "noSubject": 1544,
+    "questionOrExclamation": 742,
+    "reported": 416,
+    "subordinate": 2257,
+    "unbalancedQuotes": 8
+   }
+  },
+  "this_side_of_paradise": {
+   "documents": 9,
+   "narrationWords": 50331,
+   "shifts": 8,
+   "perThousandWords": 0.159,
+   "shiftsInPastScenes": 8,
+   "shiftsInPresentScenes": 0,
+   "scenes": 25,
+   "scenesBySource": {
+    "declared": 0,
+    "inferred": 17,
+    "inherited": 7,
+    "undetermined": 1
+   },
+   "scenesByTense": {
+    "past": 24,
+    "present": 0
+   },
+   "undeterminedSceneShare": 0.04,
+   "undeterminedWordShare": 0.022,
+   "exemptions": {
+    "ambiguous": 69,
+    "generic": 45,
+    "habitual": 12,
+    "mixedSentence": 2,
+    "modal": 360,
+    "narratorFrame": 17,
+    "noSubject": 1147,
+    "questionOrExclamation": 115,
+    "reported": 238,
+    "subordinate": 1235,
+    "unbalancedQuotes": 42
+   }
+  },
+  "a_farewell_to_arms": {
+   "documents": 41,
+   "narrationWords": 53949,
+   "shifts": 9,
+   "perThousandWords": 0.167,
+   "shiftsInPastScenes": 9,
+   "shiftsInPresentScenes": 0,
+   "scenes": 61,
+   "scenesBySource": {
+    "declared": 0,
+    "inferred": 58,
+    "inherited": 2,
+    "undetermined": 1
+   },
+   "scenesByTense": {
+    "past": 60,
+    "present": 0
+   },
+   "undeterminedSceneShare": 0.016,
+   "undeterminedWordShare": 0.006,
+   "exemptions": {
+    "ambiguous": 136,
+    "generic": 18,
+    "habitual": 5,
+    "mixedSentence": 6,
+    "modal": 492,
+    "narratorFrame": 23,
+    "noSubject": 1363,
+    "questionOrExclamation": 104,
+    "reported": 274,
+    "subordinate": 1238
+   }
+  },
+  "pooled": {
+   "documents": 425,
+   "narrationWords": 953157,
+   "shifts": 79,
+   "perThousandWords": 0.083,
+   "shiftsInPastScenes": 79,
+   "shiftsInPresentScenes": 0,
+   "scenes": 480,
+   "scenesBySource": {
+    "declared": 0,
+    "inferred": 460,
+    "inherited": 9,
+    "undetermined": 11
+   },
+   "scenesByTense": {
+    "past": 426,
+    "present": 43
+   },
+   "undeterminedSceneShare": 0.023,
+   "undeterminedWordShare": 0.008,
+   "exemptions": {
+    "ambiguous": 1483,
+    "generic": 544,
+    "habitual": 609,
+    "mixedSentence": 294,
+    "modal": 8361,
+    "narratorFrame": 928,
+    "noSubject": 23790,
+    "pastPerfect": 7,
+    "questionOrExclamation": 5333,
+    "reported": 4623,
+    "subordinate": 24910,
+    "unbalancedQuotes": 469
+   },
+   "excludes": [
+    "moby",
+    "moby150k",
+    "voyage_out",
+    "night_and_day",
+    "women_in_love",
+    "howards_end",
+    "main_street",
+    "this_side_of_paradise",
+    "a_farewell_to_arms"
+   ]
+  },
+  "pooledHeldoutSources": {
+   "documents": 225,
+   "narrationWords": 623258,
+   "shifts": 85,
+   "perThousandWords": 0.136,
+   "shiftsInPastScenes": 85,
+   "shiftsInPresentScenes": 0,
+   "scenes": 270,
+   "scenesBySource": {
+    "declared": 0,
+    "inferred": 256,
+    "inherited": 11,
+    "undetermined": 3
+   },
+   "scenesByTense": {
+    "past": 266,
+    "present": 1
+   },
+   "undeterminedSceneShare": 0.011,
+   "undeterminedWordShare": 0.002,
+   "exemptions": {
+    "ambiguous": 902,
+    "generic": 261,
+    "habitual": 55,
+    "mixedSentence": 155,
+    "modal": 4880,
+    "narratorFrame": 56,
+    "noSubject": 13579,
+    "pastPerfect": 1,
+    "questionOrExclamation": 2701,
+    "reported": 2702,
+    "subordinate": 15062,
+    "unbalancedQuotes": 94
+   }
+  }
+ },
+ "flags": {
+  "default": 206,
+  "includeSingles+includeReverse": 572
+ },
+ "development": {
+  "all": {
+   "labeled": 100,
+   "kept": 82,
+   "precision": 0.317,
+   "wilsonLower": 0.226,
+   "shiftPrecision": 0.927,
+   "shiftWilsonLower": 0.849,
+   "dropped": 18,
+   "droppedSlipOrDevice": 1,
+   "kinds": {
+    "commentary": 36,
+    "device": 26,
+    "dialogue": 6,
+    "gnomic": 14
+   }
+  },
+  "expected/past": {
+   "labeled": 100,
+   "kept": 82,
+   "precision": 0.317,
+   "wilsonLower": 0.226,
+   "shiftPrecision": 0.927,
+   "shiftWilsonLower": 0.849,
+   "dropped": 18,
+   "droppedSlipOrDevice": 1
+  },
+  "options/default": {
+   "labeled": 100,
+   "kept": 82,
+   "precision": 0.317,
+   "wilsonLower": 0.226,
+   "shiftPrecision": 0.927,
+   "shiftWilsonLower": 0.849,
+   "dropped": 18,
+   "droppedSlipOrDevice": 1,
+   "kinds": {
+    "commentary": 36,
+    "device": 26,
+    "dialogue": 6,
+    "gnomic": 14
+   }
+  },
+  "source/ackroyd": {
+   "labeled": 15,
+   "kept": 13,
+   "precision": 0.0,
+   "wilsonLower": 0.0,
+   "shiftPrecision": 1.0,
+   "shiftWilsonLower": 0.772,
+   "dropped": 2,
+   "droppedSlipOrDevice": 0
+  },
+  "source/bleak_house": {
+   "labeled": 5,
+   "kept": 2,
+   "precision": 0.0,
+   "wilsonLower": 0.0,
+   "shiftPrecision": 0.5,
+   "shiftWilsonLower": 0.095,
+   "dropped": 3,
+   "droppedSlipOrDevice": 0
+  },
+  "source/blue_castle": {
+   "labeled": 1,
+   "kept": 0,
+   "precision": null,
+   "wilsonLower": null,
+   "shiftPrecision": null,
+   "shiftWilsonLower": null,
+   "dropped": 1,
+   "droppedSlipOrDevice": 0
+  },
+  "source/david_copperfield": {
+   "labeled": 23,
+   "kept": 14,
+   "precision": 0.286,
+   "wilsonLower": 0.117,
+   "shiftPrecision": 1.0,
+   "shiftWilsonLower": 0.785,
+   "dropped": 9,
+   "droppedSlipOrDevice": 0
+  },
+  "source/hound": {
+   "labeled": 4,
+   "kept": 4,
+   "precision": 0.0,
+   "wilsonLower": 0.0,
+   "shiftPrecision": 0.25,
+   "shiftWilsonLower": 0.046,
+   "dropped": 0,
+   "droppedSlipOrDevice": 0
+  },
+  "source/jane_eyre": {
+   "labeled": 16,
+   "kept": 14,
+   "precision": 0.857,
+   "wilsonLower": 0.601,
+   "shiftPrecision": 1.0,
+   "shiftWilsonLower": 0.785,
+   "dropped": 2,
+   "droppedSlipOrDevice": 1
+  },
+  "source/moby": {
+   "labeled": 24,
+   "kept": 23,
+   "precision": 0.13,
+   "wilsonLower": 0.045,
+   "shiftPrecision": 1.0,
+   "shiftWilsonLower": 0.857,
+   "dropped": 1,
+   "droppedSlipOrDevice": 0
+  },
+  "source/moby150k": {
+   "labeled": 3,
+   "kept": 3,
+   "precision": 0.333,
+   "wilsonLower": 0.061,
+   "shiftPrecision": 0.667,
+   "shiftWilsonLower": 0.208,
+   "dropped": 0,
+   "droppedSlipOrDevice": 0
+  },
+  "source/pride": {
+   "labeled": 2,
+   "kept": 2,
+   "precision": 0.0,
+   "wilsonLower": 0.0,
+   "shiftPrecision": 0.5,
+   "shiftWilsonLower": 0.095,
+   "dropped": 0,
+   "droppedSlipOrDevice": 0
+  },
+  "source/silas_marner": {
+   "labeled": 1,
+   "kept": 1,
+   "precision": 1.0,
+   "wilsonLower": 0.207,
+   "shiftPrecision": 1.0,
+   "shiftWilsonLower": 0.207,
+   "dropped": 0,
+   "droppedSlipOrDevice": 0
+  },
+  "source/story3": {
+   "labeled": 1,
+   "kept": 1,
+   "precision": 1.0,
+   "wilsonLower": 0.207,
+   "shiftPrecision": 1.0,
+   "shiftWilsonLower": 0.207,
+   "dropped": 0,
+   "droppedSlipOrDevice": 0
+  },
+  "source/story4": {
+   "labeled": 2,
+   "kept": 2,
+   "precision": 1.0,
+   "wilsonLower": 0.342,
+   "shiftPrecision": 1.0,
+   "shiftWilsonLower": 0.342,
+   "dropped": 0,
+   "droppedSlipOrDevice": 0
+  },
+  "source/thirty_nine_steps": {
+   "labeled": 1,
+   "kept": 1,
+   "precision": 0.0,
+   "wilsonLower": 0.0,
+   "shiftPrecision": 1.0,
+   "shiftWilsonLower": 0.207,
+   "dropped": 0,
+   "droppedSlipOrDevice": 0
+  },
+  "source/treasure_island": {
+   "labeled": 2,
+   "kept": 2,
+   "precision": 1.0,
+   "wilsonLower": 0.342,
+   "shiftPrecision": 1.0,
+   "shiftWilsonLower": 0.342,
+   "dropped": 0,
+   "droppedSlipOrDevice": 0
+  },
+  "strength/run": {
+   "labeled": 100,
+   "kept": 82,
+   "precision": 0.317,
+   "wilsonLower": 0.226,
+   "shiftPrecision": 0.927,
+   "shiftWilsonLower": 0.849,
+   "dropped": 18,
+   "droppedSlipOrDevice": 1
+  }
+ },
+ "heldout": {
+  "all": {
+   "labeled": 100,
+   "kept": 100,
+   "precision": 0.1,
+   "wilsonLower": 0.055,
+   "shiftPrecision": 0.64,
+   "shiftWilsonLower": 0.542,
+   "dropped": 0,
+   "droppedSlipOrDevice": 0,
+   "kinds": {
+    "commentary": 35,
+    "device": 10,
+    "dialogue": 22,
+    "gnomic": 19,
+    "reported": 6,
+    "tagger": 1,
+    "thought": 7
+   }
+  },
+  "expected/past": {
+   "labeled": 100,
+   "kept": 100,
+   "precision": 0.1,
+   "wilsonLower": 0.055,
+   "shiftPrecision": 0.64,
+   "shiftWilsonLower": 0.542,
+   "dropped": 0,
+   "droppedSlipOrDevice": 0
+  },
+  "options/default": {
+   "labeled": 100,
+   "kept": 100,
+   "precision": 0.1,
+   "wilsonLower": 0.055,
+   "shiftPrecision": 0.64,
+   "shiftWilsonLower": 0.542,
+   "dropped": 0,
+   "droppedSlipOrDevice": 0,
+   "kinds": {
+    "commentary": 35,
+    "device": 10,
+    "dialogue": 22,
+    "gnomic": 19,
+    "reported": 6,
+    "tagger": 1,
+    "thought": 7
+   }
+  },
+  "source/a_farewell_to_arms": {
+   "labeled": 7,
+   "kept": 7,
+   "precision": 0.0,
+   "wilsonLower": 0.0,
+   "shiftPrecision": 0.0,
+   "shiftWilsonLower": 0.0,
+   "dropped": 0,
+   "droppedSlipOrDevice": 0
+  },
+  "source/ackroyd": {
+   "labeled": 4,
+   "kept": 4,
+   "precision": 0.0,
+   "wilsonLower": 0.0,
+   "shiftPrecision": 1.0,
+   "shiftWilsonLower": 0.51,
+   "dropped": 0,
+   "droppedSlipOrDevice": 0
+  },
+  "source/age_of_innocence": {
+   "labeled": 1,
+   "kept": 1,
+   "precision": 0.0,
+   "wilsonLower": 0.0,
+   "shiftPrecision": 0.0,
+   "shiftWilsonLower": 0.0,
+   "dropped": 0,
+   "droppedSlipOrDevice": 0
+  },
+  "source/bleak_house": {
+   "labeled": 4,
+   "kept": 4,
+   "precision": 0.0,
+   "wilsonLower": 0.0,
+   "shiftPrecision": 0.5,
+   "shiftWilsonLower": 0.15,
+   "dropped": 0,
+   "droppedSlipOrDevice": 0
+  },
+  "source/blue_castle": {
+   "labeled": 1,
+   "kept": 1,
+   "precision": 0.0,
+   "wilsonLower": 0.0,
+   "shiftPrecision": 0.0,
+   "shiftWilsonLower": 0.0,
+   "dropped": 0,
+   "droppedSlipOrDevice": 0
+  },
+  "source/david_copperfield": {
+   "labeled": 2,
+   "kept": 2,
+   "precision": 1.0,
+   "wilsonLower": 0.342,
+   "shiftPrecision": 1.0,
+   "shiftWilsonLower": 0.342,
+   "dropped": 0,
+   "droppedSlipOrDevice": 0
+  },
+  "source/howards_end": {
+   "labeled": 23,
+   "kept": 23,
+   "precision": 0.0,
+   "wilsonLower": -0.0,
+   "shiftPrecision": 1.0,
+   "shiftWilsonLower": 0.857,
+   "dropped": 0,
+   "droppedSlipOrDevice": 0
+  },
+  "source/jane_eyre": {
+   "labeled": 2,
+   "kept": 2,
+   "precision": 0.5,
+   "wilsonLower": 0.095,
+   "shiftPrecision": 0.5,
+   "shiftWilsonLower": 0.095,
+   "dropped": 0,
+   "droppedSlipOrDevice": 0
+  },
+  "source/main_street": {
+   "labeled": 17,
+   "kept": 17,
+   "precision": 0.176,
+   "wilsonLower": 0.062,
+   "shiftPrecision": 0.529,
+   "shiftWilsonLower": 0.31,
+   "dropped": 0,
+   "droppedSlipOrDevice": 0
+  },
+  "source/moby": {
+   "labeled": 11,
+   "kept": 11,
+   "precision": 0.091,
+   "wilsonLower": 0.016,
+   "shiftPrecision": 0.909,
+   "shiftWilsonLower": 0.623,
+   "dropped": 0,
+   "droppedSlipOrDevice": 0
+  },
+  "source/moby150k": {
+   "labeled": 2,
+   "kept": 2,
+   "precision": 0.0,
+   "wilsonLower": 0.0,
+   "shiftPrecision": 1.0,
+   "shiftWilsonLower": 0.342,
+   "dropped": 0,
+   "droppedSlipOrDevice": 0
+  },
+  "source/night_and_day": {
+   "labeled": 4,
+   "kept": 4,
+   "precision": 0.0,
+   "wilsonLower": 0.0,
+   "shiftPrecision": 1.0,
+   "shiftWilsonLower": 0.51,
+   "dropped": 0,
+   "droppedSlipOrDevice": 0
+  },
+  "source/silas_marner": {
+   "labeled": 1,
+   "kept": 1,
+   "precision": 1.0,
+   "wilsonLower": 0.207,
+   "shiftPrecision": 1.0,
+   "shiftWilsonLower": 0.207,
+   "dropped": 0,
+   "droppedSlipOrDevice": 0
+  },
+  "source/story2": {
+   "labeled": 1,
+   "kept": 1,
+   "precision": 0.0,
+   "wilsonLower": 0.0,
+   "shiftPrecision": 1.0,
+   "shiftWilsonLower": 0.207,
+   "dropped": 0,
+   "droppedSlipOrDevice": 0
+  },
+  "source/story5": {
+   "labeled": 1,
+   "kept": 1,
+   "precision": 1.0,
+   "wilsonLower": 0.207,
+   "shiftPrecision": 1.0,
+   "shiftWilsonLower": 0.207,
+   "dropped": 0,
+   "droppedSlipOrDevice": 0
+  },
+  "source/this_side_of_paradise": {
+   "labeled": 6,
+   "kept": 6,
+   "precision": 0.167,
+   "wilsonLower": 0.03,
+   "shiftPrecision": 0.167,
+   "shiftWilsonLower": 0.03,
+   "dropped": 0,
+   "droppedSlipOrDevice": 0
+  },
+  "source/voyage_out": {
+   "labeled": 6,
+   "kept": 6,
+   "precision": 0.0,
+   "wilsonLower": 0.0,
+   "shiftPrecision": 0.333,
+   "shiftWilsonLower": 0.097,
+   "dropped": 0,
+   "droppedSlipOrDevice": 0
+  },
+  "source/women_in_love": {
+   "labeled": 7,
+   "kept": 7,
+   "precision": 0.0,
+   "wilsonLower": 0.0,
+   "shiftPrecision": 0.143,
+   "shiftWilsonLower": 0.026,
+   "dropped": 0,
+   "droppedSlipOrDevice": 0
+  },
+  "strength/run": {
+   "labeled": 100,
+   "kept": 100,
+   "precision": 0.1,
+   "wilsonLower": 0.055,
+   "shiftPrecision": 0.64,
+   "shiftWilsonLower": 0.542,
+   "dropped": 0,
+   "droppedSlipOrDevice": 0
+  }
+ },
+ "wide": {
+  "all": {
+   "labeled": 44,
+   "kept": 44,
+   "precision": 0.023,
+   "wilsonLower": 0.004,
+   "shiftPrecision": 0.705,
+   "shiftWilsonLower": 0.558,
+   "dropped": 0,
+   "droppedSlipOrDevice": 0,
+   "kinds": {
+    "commentary": 26,
+    "device": 1,
+    "dialogue": 4,
+    "gnomic": 4,
+    "reported": 1,
+    "tagger": 4,
+    "thought": 4
+   }
+  },
+  "expected/past": {
+   "labeled": 40,
+   "kept": 40,
+   "precision": 0.0,
+   "wilsonLower": -0.0,
+   "shiftPrecision": 0.675,
+   "shiftWilsonLower": 0.52,
+   "dropped": 0,
+   "droppedSlipOrDevice": 0
+  },
+  "expected/present": {
+   "labeled": 4,
+   "kept": 4,
+   "precision": 0.25,
+   "wilsonLower": 0.046,
+   "shiftPrecision": 1.0,
+   "shiftWilsonLower": 0.51,
+   "dropped": 0,
+   "droppedSlipOrDevice": 0
+  },
+  "options/includeSingles+includeReverse": {
+   "labeled": 44,
+   "kept": 44,
+   "precision": 0.023,
+   "wilsonLower": 0.004,
+   "shiftPrecision": 0.705,
+   "shiftWilsonLower": 0.558,
+   "dropped": 0,
+   "droppedSlipOrDevice": 0,
+   "kinds": {
+    "commentary": 26,
+    "device": 1,
+    "dialogue": 4,
+    "gnomic": 4,
+    "reported": 1,
+    "tagger": 4,
+    "thought": 4
+   }
+  },
+  "source/ackroyd": {
+   "labeled": 5,
+   "kept": 5,
+   "precision": 0.0,
+   "wilsonLower": -0.0,
+   "shiftPrecision": 1.0,
+   "shiftWilsonLower": 0.566,
+   "dropped": 0,
+   "droppedSlipOrDevice": 0
+  },
+  "source/bleak_house": {
+   "labeled": 2,
+   "kept": 2,
+   "precision": 0.0,
+   "wilsonLower": 0.0,
+   "shiftPrecision": 0.5,
+   "shiftWilsonLower": 0.095,
+   "dropped": 0,
+   "droppedSlipOrDevice": 0
+  },
+  "source/david_copperfield": {
+   "labeled": 8,
+   "kept": 8,
+   "precision": 0.0,
+   "wilsonLower": 0.0,
+   "shiftPrecision": 0.75,
+   "shiftWilsonLower": 0.409,
+   "dropped": 0,
+   "droppedSlipOrDevice": 0
+  },
+  "source/howards_end": {
+   "labeled": 6,
+   "kept": 6,
+   "precision": 0.0,
+   "wilsonLower": 0.0,
+   "shiftPrecision": 0.833,
+   "shiftWilsonLower": 0.436,
+   "dropped": 0,
+   "droppedSlipOrDevice": 0
+  },
+  "source/jane_eyre": {
+   "labeled": 3,
+   "kept": 3,
+   "precision": 0.0,
+   "wilsonLower": 0.0,
+   "shiftPrecision": 1.0,
+   "shiftWilsonLower": 0.438,
+   "dropped": 0,
+   "droppedSlipOrDevice": 0
+  },
+  "source/main_street": {
+   "labeled": 5,
+   "kept": 5,
+   "precision": 0.0,
+   "wilsonLower": -0.0,
+   "shiftPrecision": 0.2,
+   "shiftWilsonLower": 0.036,
+   "dropped": 0,
+   "droppedSlipOrDevice": 0
+  },
+  "source/moby": {
+   "labeled": 8,
+   "kept": 8,
+   "precision": 0.125,
+   "wilsonLower": 0.022,
+   "shiftPrecision": 0.875,
+   "shiftWilsonLower": 0.529,
+   "dropped": 0,
+   "droppedSlipOrDevice": 0
+  },
+  "source/moby150k": {
+   "labeled": 2,
+   "kept": 2,
+   "precision": 0.0,
+   "wilsonLower": 0.0,
+   "shiftPrecision": 0.0,
+   "shiftWilsonLower": 0.0,
+   "dropped": 0,
+   "droppedSlipOrDevice": 0
+  },
+  "source/silas_marner": {
+   "labeled": 2,
+   "kept": 2,
+   "precision": 0.0,
+   "wilsonLower": 0.0,
+   "shiftPrecision": 1.0,
+   "shiftWilsonLower": 0.342,
+   "dropped": 0,
+   "droppedSlipOrDevice": 0
+  },
+  "source/story3": {
+   "labeled": 1,
+   "kept": 1,
+   "precision": 0.0,
+   "wilsonLower": 0.0,
+   "shiftPrecision": 1.0,
+   "shiftWilsonLower": 0.207,
+   "dropped": 0,
+   "droppedSlipOrDevice": 0
+  },
+  "source/voyage_out": {
+   "labeled": 1,
+   "kept": 1,
+   "precision": 0.0,
+   "wilsonLower": 0.0,
+   "shiftPrecision": 0.0,
+   "shiftWilsonLower": 0.0,
+   "dropped": 0,
+   "droppedSlipOrDevice": 0
+  },
+  "source/women_in_love": {
+   "labeled": 1,
+   "kept": 1,
+   "precision": 0.0,
+   "wilsonLower": 0.0,
+   "shiftPrecision": 0.0,
+   "shiftWilsonLower": 0.0,
+   "dropped": 0,
+   "droppedSlipOrDevice": 0
+  },
+  "strength/run": {
+   "labeled": 4,
+   "kept": 4,
+   "precision": 0.25,
+   "wilsonLower": 0.046,
+   "shiftPrecision": 1.0,
+   "shiftWilsonLower": 0.51,
+   "dropped": 0,
+   "droppedSlipOrDevice": 0
+  },
+  "strength/single": {
+   "labeled": 40,
+   "kept": 40,
+   "precision": 0.0,
+   "wilsonLower": -0.0,
+   "shiftPrecision": 0.675,
+   "shiftWilsonLower": 0.52,
+   "dropped": 0,
+   "droppedSlipOrDevice": 0
+  }
+ }
+}
