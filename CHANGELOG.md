@@ -48,6 +48,18 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   as in LanguageTool 6.6; enable it with `BUILTIN/EN_CONSISTENT_APOS`
   ([#228](https://github.com/cmlarsen/writemorebetter/issues/228)).
 
+- **Incremental document checking in Swift, WASM and Python.** `checkParagraph` (Swift
+  `checker.checkParagraph(text:endsParagraph:)`, WASM `checker.checkParagraph(text,
+  endsParagraph)`, Python `checker.check_paragraph(text, ends_paragraph=True)`) returns a
+  paragraph's suggestions and its digest bytes (`Data`, `Uint8Array`, `bytes`) to store with the
+  paragraph; `resolveDocument` / `resolve_document` takes the digests of every paragraph and
+  returns a `DocumentResolution` whose `suggestions(paragraph, text, checked)` merges that
+  paragraph's whole-document matches into its own suggestions, and whose `stale` lists digests to
+  recompute. Offsets are in each binding's units (UTF-16 in Swift, chars and UTF-16 in WASM, code
+  points in Python), relative to the paragraph, and equal those of `check` on the joined text for
+  the whole-document rules. Python also gains `set_too_often_used_percent`
+  ([#234](https://github.com/cmlarsen/writemorebetter/issues/234),
+  [#329](https://github.com/cmlarsen/writemorebetter/issues/329)).
 - **`DocumentMatches::suggestions(paragraph, text, checked)`** merges a paragraph's whole-text
   matches into the suggestions `check_paragraph` returned for it, `DocumentMatches::in_paragraph`
   lists one paragraph's matches, and `Rules::resolve_document_bytes` resolves stored digest bytes,
