@@ -140,6 +140,31 @@ That snippet is [`nlprule/examples/check.rs`](nlprule/examples/check.rs), which 
 dictionary. `Rules::suggest` is parallel by default (rayon); set `NLPRULE_PARALLELISM=off` for one
 thread.
 
+### Checking a document paragraph by paragraph
+
+A few rules need the whole document: `EN_CONSISTENT_APOS` (mixed straight and curly apostrophes),
+`EN_WORD_COHERENCY` (two spellings of one word), `EN_REPEATEDWORDS` (a word repeated within 150
+words) and `TOO_OFTEN_USED_*` (a word's share of all its nouns, verbs or adjectives). An editor
+such as Subplot that rechecks only the edited paragraph does it in two steps:
+
+1. `checkParagraph` (Swift, WASM; `check_paragraph` in Python and Rust) checks one paragraph and
+   returns its suggestions, without those rules', and its **digest**: bytes the app stores with
+   the paragraph (about 3.5 KB per 1,000 words; offsets, flags and lemmas, never the text). A
+   digest depends only on the paragraph's text, so it is computed once per edit of that
+   paragraph.
+2. `resolveDocument` (`resolve_document`) takes the digests of all paragraphs in order (about 5 ms
+   for 25,000 words natively) and returns the whole-document matches;
+   `resolution.suggestions(paragraph, text, checked)` merges one paragraph's into the suggestions
+   `checkParagraph` gave for it. Resolve again after every edit: one change can add or remove
+   matches in paragraphs that did not change. Digests from another engine version are listed as
+   `stale`; check those paragraphs again.
+
+Offsets are in each binding's units (UTF-16 in Swift, UTF-16 and chars in WASM, code points in
+Python), relative to the paragraph. The whole-document matches equal those `check` finds on the
+joined text when the paragraphs end between sentences; the other rules see only the paragraph.
+See the binding READMEs for examples, and [`nlprule/src/document.rs`](nlprule/src/document.rs)
+for the Rust API.
+
 ### Tokenizer analysis
 
 `tokenizer.analyze(text)` returns owned sentences and tagged tokens with original surface text,

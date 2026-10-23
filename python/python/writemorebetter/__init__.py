@@ -24,6 +24,8 @@ from ._native import StyleError, WriteMoreBetterError
 
 __all__ = [
     "Checker",
+    "DocumentResolution",
+    "ParagraphCheck",
     "StyleDocument",
     "StyleError",
     "Suggestion",
@@ -204,6 +206,86 @@ class Checker:
         mapping. Returns how many rules went from off to on. Apply a preset to a new checker;
         profiles cannot be undone."""
         return self._native.apply_preset(_json_arg(preset))
+
+    def set_too_often_used_percent(self, percent: int) -> None:
+        """Sets the minimum share (1 to 100, default 5) of all the adjectives, nouns or verbs of
+        the document from which the ``TOO_OFTEN_USED_*`` rules flag a word. It does not enable
+        the rules, which are off by default. Out of range raises :class:`ValueError`, or
+        :class:`OverflowError` for a negative ``percent``."""
+        self._native.set_too_often_used_percent(percent)
+
+    # Incremental checking (#329)
+
+    def check_paragraph(self, text: str, *, ends_paragraph: bool = True) -> "ParagraphCheck":
+        """Checks one paragraph of a larger document on its own, for an editor that rechecks
+        only the paragraphs that changed.
+
+        Returns the paragraph's suggestions, without those of the rules that need the whole
+        document (``EN_CONSISTENT_APOS``, ``EN_WORD_COHERENCY``, ``EN_REPEATEDWORDS``,
+        ``TOO_OFTEN_USED_*``), and its digest: a few bytes per word that those rules need, a
+        pure function of ``text``. Keep the digest with the paragraph, replace both when the
+        paragraph changes, and pass the digests of all paragraphs to :meth:`resolve_document`.
+        ``ends_paragraph`` (the default) says the paragraph ends at the end of ``text``, for
+        paragraphs stored without the blank line after them; pass ``False`` for slices of a
+        document that keep their line breaks. Offsets are code points into ``text``.
+        """
+        suggestions, digest = self._native.check_paragraph(text, ends_paragraph)
+        return ParagraphCheck(
+            [Suggestion(s, e, src, msg, tuple(r)) for s, e, src, msg, r in suggestions], digest
+        )
+
+    def resolve_document(self, digests: Iterable[bytes]) -> "DocumentResolution":
+        """Runs the whole-document rules over the digests of every paragraph, in document
+        order. Run it again after any paragraph changes: one edit can add or remove matches in
+        paragraphs that did not change. Digests from another engine version, or bytes that are
+        not a digest, are listed in :attr:`DocumentResolution.stale`."""
+        return DocumentResolution(self._native.resolve_document(list(digests)))
+
+
+@dataclass(frozen=True)
+class ParagraphCheck:
+    """One paragraph checked by :meth:`Checker.check_paragraph`."""
+
+    #: The paragraph's suggestions without the whole-document rules', code points into it.
+    suggestions: List[Suggestion]
+    #: What the whole-document rules need from the paragraph; store it with the paragraph.
+    digest: bytes
+
+
+class DocumentResolution:
+    """The whole-document rules' matches over a document's digests, from
+    :meth:`Checker.resolve_document`. It replaces the previous resolution of the document."""
+
+    def __init__(self, native: "_native.DocumentResolution") -> None:
+        self._native = native
+
+    @property
+    def stale(self) -> List[int]:
+        """The indices of the digests that are from another engine version or not digests:
+        check those paragraphs again and resolve again. While any are listed, matches can be
+        missing in every paragraph."""
+        return self._native.stale()
+
+    @property
+    def paragraphs(self) -> List[int]:
+        """The indices of the paragraphs that have whole-document matches, ascending."""
+        return self._native.paragraphs()
+
+    def suggestions(
+        self, paragraph: int, text: str, checked: Iterable[Suggestion]
+    ) -> List[Suggestion]:
+        """The suggestions of paragraph ``paragraph``, whose text is ``text``: ``checked``, the
+        suggestions :meth:`Checker.check_paragraph` returned for it, merged with its
+        whole-document matches. A match whose span no longer fits ``text`` is left out, while a
+        ``checked`` suggestion whose span does not fit it raises :class:`ValueError` (the Swift
+        binding leaves such a suggestion out instead). Offsets are code points into ``text``;
+        the result equals what :meth:`Checker.check` reports for the whole-document rules on the
+        joined document."""
+        native = [(s.start, s.end, s.source, s.message, list(s.replacements)) for s in checked]
+        return [
+            Suggestion(s, e, src, msg, tuple(r))
+            for s, e, src, msg, r in self._native.suggestions(paragraph, text, native)
+        ]
 
 
 class StyleDocument:

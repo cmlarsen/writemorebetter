@@ -39,6 +39,46 @@ Once enabled, the `TOO_OFTEN_USED_ADJECTIVE_EN`, `TOO_OFTEN_USED_NOUN_EN` and
 verbs of the checked text. `checker.setTooOftenUsedPercent(10)` changes that share for all three
 (1–100); a value outside the range throws and changes nothing.
 
+### Checking a document paragraph by paragraph
+
+A few rules need the whole document: `EN_CONSISTENT_APOS` (mixed `'` and `’`),
+`EN_WORD_COHERENCY` (two spellings of one word), `EN_REPEATEDWORDS` (a word repeated within 150
+words) and `TOO_OFTEN_USED_*` (a word's share of all nouns, verbs or adjectives). An editor that
+rechecks only the paragraph being edited keeps one digest per paragraph and resolves them:
+
+```js
+const checks = paragraphs.map((text) => checker.checkParagraph(text)); // once per paragraph
+let resolution = checker.resolveDocument(checks.map((c) => c.digest));
+const shown = JSON.parse(resolution.suggestions(i, paragraphs[i], checks[i].suggestions));
+
+// After an edit: recheck that paragraph only, then resolve all digests again.
+checks[3].free();
+checks[3] = checker.checkParagraph(paragraphs[3]);
+resolution.free();
+resolution = checker.resolveDocument(checks.map((c) => c.digest));
+```
+
+- `checkParagraph(text, endsParagraph = true)` returns a `ParagraphCheck`: `suggestions`, the
+  paragraph's own as JSON in the shape of `check()` (without the whole-document rules'), and
+  `digest`, a `Uint8Array` to store with the paragraph (about 3.5 KB per 1,000 words; no text,
+  only offsets, flags and lemmas). Pass `endsParagraph = false` for slices of a document that keep
+  their line breaks; a paragraph then ends only at a blank line.
+- `resolveDocument(digests)` takes an array with the digests of all paragraphs in order and
+  returns a `DocumentResolution`. Resolve again after every edit: one change can add or remove
+  matches in paragraphs that did not change (the first straight apostrophe in a curly
+  manuscript, a noun crossing 5%).
+- `resolution.suggestions(i, text, checked)` merges paragraph `i`'s whole-document matches into
+  `checked` (its `checkParagraph` suggestions JSON, read by their `start`/`end` char offsets) and
+  returns JSON in the shape of `check()`, with `start16`/`end16` into `text`; a match whose span no
+  longer fits `text` is left out. `resolution.paragraphs` lists the paragraphs with matches.
+- `resolution.stale` lists digests from another engine version (or elements that are not
+  digests): check those paragraphs again and resolve again. Rebuild all digests after upgrading
+  the module or its data binaries.
+
+The whole-document matches equal those `check()` finds on the joined document when the pieces end
+between sentences; the other rules see only the paragraph. `ParagraphCheck` and
+`DocumentResolution` hold WASM memory: `free()` them when replaced.
+
 ### User dictionary
 
 Add words the app knows (character names, invented places, coinages) so the speller stops

@@ -365,21 +365,40 @@ impl Checker {
 
     /// Checks `text` and returns every flagged span. See [`Suggestion`] for the offset units.
     pub fn check(&self, text: String) -> Vec<Suggestion> {
-        let utf16 = Utf16Offsets::new(&text);
-        self.read_rules()
-            .suggest(&text, &self.tokenizer)
-            .iter()
-            .map(|suggestion| {
-                let span = suggestion.span().char();
-                Suggestion {
-                    start: utf16.at(span.start),
-                    end: utf16.at(span.end),
-                    source: suggestion.source().to_string(),
-                    message: suggestion.message().to_string(),
-                    replacements: suggestion.replacements().to_vec(),
-                }
-            })
-            .collect()
+        to_records(&text, &self.read_rules().suggest(&text, &self.tokenizer))
+    }
+
+    /// Checks one paragraph of a larger document on its own, for an editor that rechecks only
+    /// the paragraphs that changed.
+    ///
+    /// Returns the paragraph's suggestions (UTF-16 offsets into `text`) without those of the
+    /// rules that need the whole document (`EN_CONSISTENT_APOS`, `EN_WORD_COHERENCY`,
+    /// `EN_REPEATEDWORDS`, `TOO_OFTEN_USED_*`), and its digest: the bytes those rules need from
+    /// the paragraph, a pure function of `text`. Keep the digest with the paragraph, replace both
+    /// when the paragraph changes, and pass the digests of all paragraphs to `resolveDocument`.
+    ///
+    /// `endsParagraph` (the default) says the paragraph ends at the end of `text`, for an editor
+    /// that stores paragraphs without the blank line after them; pass `false` for slices that
+    /// keep their line breaks, where a paragraph ends only at a blank line.
+    #[uniffi::method(default(ends_paragraph = true))]
+    pub fn check_paragraph(&self, text: String, ends_paragraph: bool) -> ParagraphCheck {
+        let (suggestions, digest) =
+            self.read_rules()
+                .check_paragraph(&text, ends_paragraph, &self.tokenizer);
+        ParagraphCheck {
+            suggestions: to_records(&text, &suggestions),
+            digest: digest.to_bytes(),
+        }
+    }
+
+    /// Runs the whole-document rules over the stored digests of every paragraph, in document
+    /// order. Resolve again after every edit: one change can add or remove matches in paragraphs
+    /// that did not change. A digest from another engine version, or bytes that are not a
+    /// digest, are listed in `stale()`.
+    pub fn resolve_document(&self, digests: Vec<Vec<u8>>) -> Arc<DocumentResolution> {
+        Arc::new(DocumentResolution {
+            matches: self.read_rules().resolve_document_bytes(&digests),
+        })
     }
 
     /// Analyzes text with the loaded tokenizer, without grammar or spelling checks.
@@ -509,6 +528,92 @@ impl Checker {
     }
 }
 
+/// One paragraph checked by [`Checker::check_paragraph`].
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct ParagraphCheck {
+    /// The paragraph's suggestions without the whole-document rules', UTF-16 offsets into it.
+    pub suggestions: Vec<Suggestion>,
+    /// The paragraph's digest: no text, only offsets, flags and lemmas. Store it with the
+    /// paragraph.
+    pub digest: Vec<u8>,
+}
+
+/// The whole-document rules' matches over a document's digests, from
+/// [`Checker::resolve_document`]. It replaces the document's previous resolution.
+#[derive(uniffi::Object)]
+pub struct DocumentResolution {
+    matches: nlprule::DocumentMatches,
+}
+
+#[uniffi::export]
+impl DocumentResolution {
+    /// The indices of the digests that are from another engine version, or not digests: check
+    /// those paragraphs again and resolve again. While any are listed, matches can be missing in
+    /// every paragraph.
+    pub fn stale(&self) -> Vec<u32> {
+        self.matches.stale.iter().map(|x| *x as u32).collect()
+    }
+
+    /// The indices of the paragraphs that have whole-document matches, ascending.
+    pub fn paragraphs(&self) -> Vec<u32> {
+        let mut paragraphs: Vec<u32> = self
+            .matches
+            .matches
+            .iter()
+            .map(|x| x.paragraph() as u32)
+            .collect();
+        paragraphs.dedup();
+        paragraphs
+    }
+
+    /// The suggestions of paragraph `paragraph`, whose text is `text`: `checked`, the suggestions
+    /// `checkParagraph` returned for it, merged with its whole-document matches, in UTF-16
+    /// offsets into `text`. A match whose span no longer fits `text` is left out, and so is a
+    /// `checked` suggestion whose span does not.
+    pub fn suggestions(
+        &self,
+        paragraph: u32,
+        text: String,
+        checked: Vec<Suggestion>,
+    ) -> Vec<Suggestion> {
+        let utf16 = Utf16Offsets::new(&text);
+        let checked = checked
+            .into_iter()
+            .filter_map(|suggestion| {
+                let chars = utf16.char_at(suggestion.start)?..utf16.char_at(suggestion.end)?;
+                Some(nlprule::types::Suggestion::new(
+                    suggestion.source,
+                    suggestion.message,
+                    nlprule::types::Span::from_chars(&text, chars)?,
+                    suggestion.replacements,
+                ))
+            })
+            .collect();
+        to_records(
+            &text,
+            &self.matches.suggestions(paragraph as usize, &text, checked),
+        )
+    }
+}
+
+/// `suggestions` of `text` as records with UTF-16 offsets.
+fn to_records(text: &str, suggestions: &[nlprule::types::Suggestion]) -> Vec<Suggestion> {
+    let utf16 = Utf16Offsets::new(text);
+    suggestions
+        .iter()
+        .map(|suggestion| {
+            let span = suggestion.span().char();
+            Suggestion {
+                start: utf16.at(span.start),
+                end: utf16.at(span.end),
+                source: suggestion.source().to_string(),
+                message: suggestion.message().to_string(),
+                replacements: suggestion.replacements().to_vec(),
+            }
+        })
+        .collect()
+}
+
 /// Maps character indices in a string to UTF-16 code-unit indices.
 ///
 /// Rules report spans as Unicode scalar values; Swift's `NSRange` counts UTF-16 code units, so a
@@ -536,6 +641,12 @@ impl Utf16Offsets {
 
     fn at(&self, char_index: usize) -> u32 {
         self.starts.get(char_index).copied().unwrap_or(self.total)
+    }
+
+    /// The character index at UTF-16 offset `utf16`, or `None` if it is past the end or inside
+    /// a surrogate pair.
+    fn char_at(&self, utf16: u32) -> Option<usize> {
+        self.starts.binary_search(&utf16).ok()
     }
 }
 
@@ -719,6 +830,128 @@ mod tests {
     fn offsets_clamp_past_the_end() {
         let offsets = Utf16Offsets::new("\u{1F600}");
         assert_eq!(offsets.at(99), 2);
+    }
+
+    #[test]
+    fn utf16_offsets_map_back_to_chars() {
+        let offsets = Utf16Offsets::new("a\u{1F600}b");
+        assert_eq!(offsets.char_at(0), Some(0));
+        assert_eq!(offsets.char_at(1), Some(1));
+        assert_eq!(offsets.char_at(2), None);
+        assert_eq!(offsets.char_at(3), Some(2));
+        assert_eq!(offsets.char_at(4), Some(3));
+        assert_eq!(offsets.char_at(5), None);
+    }
+
+    /// Paragraphs with curly quotes and apostrophes, an em dash, an ellipsis, U+2028, an emoji
+    /// (chars and UTF-16 units disagree after it) and a single line break; straight apostrophes
+    /// in the last one mix the styles.
+    const PARAGRAPHS: [&str; 3] = [
+        "\u{201c}I\u{2019}ll be the adviser\u{2014}no one else,\u{201d} she said\u{2026}\u{2028}He \
+         nodded. \u{1F600} She was definitely tired.\nThe dog\u{2019}s bowl was empty.",
+        "It\u{2019}s late. \u{1F600} The advisor left. She definitely knew.",
+        "'Tis true, he said. It's done.",
+    ];
+
+    fn is_whole_document(suggestion: &super::Suggestion) -> bool {
+        [
+            "EN_CONSISTENT_APOS",
+            "EN_WORD_COHERENCY",
+            "EN_REPEATEDWORDS",
+        ]
+        .iter()
+        .any(|rule| suggestion.source.contains(rule))
+    }
+
+    fn incremental(checker: &Checker, paragraphs: &[&str]) -> Vec<super::Suggestion> {
+        let checks: Vec<_> = paragraphs
+            .iter()
+            .map(|text| checker.check_paragraph(text.to_string(), true))
+            .collect();
+        let resolution =
+            checker.resolve_document(checks.iter().map(|check| check.digest.clone()).collect());
+        assert!(resolution.stale().is_empty());
+        let mut out = Vec::new();
+        let mut start = 0;
+        for (i, (text, check)) in paragraphs.iter().zip(checks).enumerate() {
+            for mut suggestion in
+                resolution.suggestions(i as u32, text.to_string(), check.suggestions)
+            {
+                suggestion.start += start;
+                suggestion.end += start;
+                out.push(suggestion);
+            }
+            start += text.encode_utf16().count() as u32 + 2;
+        }
+        out
+    }
+
+    #[test]
+    fn check_paragraph_and_resolve_document_equal_check() {
+        let checker = checker();
+        checker
+            .enable_rules(vec!["BUILTIN/EN_REPEATEDWORDS".to_string()])
+            .unwrap();
+        let document = PARAGRAPHS.join("\n\n");
+        let whole: Vec<_> = checker
+            .check(document.clone())
+            .into_iter()
+            .filter(is_whole_document)
+            .collect();
+        let split: Vec<_> = incremental(&checker, &PARAGRAPHS)
+            .into_iter()
+            .filter(is_whole_document)
+            .collect();
+        assert_eq!(split, whole);
+        let units: Vec<u16> = document.encode_utf16().collect();
+        let flagged = |source: &str| -> Vec<String> {
+            whole
+                .iter()
+                .filter(|s| s.source.contains(source))
+                .map(|s| String::from_utf16(&units[s.start as usize..s.end as usize]).unwrap())
+                .collect()
+        };
+        assert_eq!(flagged("EN_WORD_COHERENCY"), ["advisor"]);
+        assert_eq!(flagged("EN_REPEATEDWORDS"), ["definitely"]);
+        // The fiction profile flags only the rarer style.
+        assert_eq!(flagged("EN_CONSISTENT_APOS"), ["'", "'s"]);
+
+        // An edit rechecks one paragraph; the variant in an unchanged paragraph goes away.
+        let edited = PARAGRAPHS[0].replace("adviser", "counselor");
+        let paragraphs = [edited.as_str(), PARAGRAPHS[1], PARAGRAPHS[2]];
+        let whole: Vec<_> = checker
+            .check(paragraphs.join("\n\n"))
+            .into_iter()
+            .filter(is_whole_document)
+            .collect();
+        let split: Vec<_> = incremental(&checker, &paragraphs)
+            .into_iter()
+            .filter(is_whole_document)
+            .collect();
+        assert_eq!(split, whole);
+        assert!(split
+            .iter()
+            .all(|s| !s.source.contains("EN_WORD_COHERENCY")));
+    }
+
+    #[test]
+    fn unreadable_digests_are_stale() {
+        let checker = checker();
+        let check = checker.check_paragraph(PARAGRAPHS[1].to_string(), true);
+        assert_eq!(check.digest[..4], [2, 0, 0, 0]);
+        let resolution = checker.resolve_document(vec![check.digest, vec![1, 0, 0, 0, 7], vec![]]);
+        assert_eq!(resolution.stale(), [1, 2]);
+        // A checked span inside a surrogate pair is left out rather than misplaced.
+        let bad = super::Suggestion {
+            start: 1,
+            end: 2,
+            source: "X".into(),
+            message: String::new(),
+            replacements: Vec::new(),
+        };
+        assert!(resolution
+            .suggestions(0, "\u{1F600}".to_string(), vec![bad])
+            .is_empty());
     }
 }
 

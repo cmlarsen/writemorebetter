@@ -5,7 +5,11 @@
 //! tagged `picky` and therefore off by default.
 
 use crate::{
-    types::{DefaultHashMap, Sentence, Suggestion, Token},
+    document::{
+        DocumentFix, DocumentMatch, ParagraphDigest, RepeatedReading, RepeatedWord,
+        RepeatedWords as RepeatedDigest, TokenSpan,
+    },
+    types::{DefaultHashMap, Position, Sentence, Token},
     utils::regex::Regex,
 };
 use lazy_static::lazy_static;
@@ -58,9 +62,11 @@ struct PatternToken {
 ///
 /// # Scope
 ///
-/// The rule remembers words across sentences and paragraphs within one
-/// [`Rules::suggest`](crate::Rules::suggest) call and starts from zero on
-/// every call.
+/// The rule remembers words across sentences and paragraphs of the whole text, so it is a
+/// whole-text rule (see [`crate::document`]): [`Rules::suggest`](crate::Rules::suggest) looks back
+/// within the text it is given, and an app that checks a document paragraph by paragraph gets
+/// the look-back across paragraphs from
+/// [`Rules::resolve_document`](crate::Rules::resolve_document).
 ///
 /// For whole-document echoes with a configurable window, lemma matching and
 /// caller-supplied names, see the `writemorebetter-style` echoes report; how
@@ -70,13 +76,6 @@ pub struct RepeatedWords {
     #[serde(serialize_with = "crate::types::sorted::map")]
     words: DefaultHashMap<String, Synonyms>,
     antipatterns: Vec<Vec<PatternToken>>,
-}
-
-/// What [`RepeatedWords`] remembers between the sentences of one text.
-#[derive(Debug, Default)]
-pub(crate) struct RepeatedWordsState {
-    word_number: usize,
-    last_seen: DefaultHashMap<String, usize>,
 }
 
 impl RepeatedWords {
@@ -107,37 +106,37 @@ impl RepeatedWords {
         ID
     }
 
-    /// Checks one sentence of a text, given what `state` remembers of the
-    /// sentences before it. `ends_text` tells whether no sentence follows.
-    pub(crate) fn check(
-        &self,
-        sentence: &Sentence,
-        ends_text: bool,
-        state: &mut RepeatedWordsState,
-    ) -> Vec<Suggestion> {
+    /// Adds what this rule needs from one sentence to `digest`, that of a text which starts at
+    /// `start`: the words it counts, and the words it may flag with their readings that have
+    /// synonyms. Whether a word is flagged depends on the words before it, so
+    /// [`RepeatedWords::resolve`] decides that.
+    pub(crate) fn digest(&self, sentence: &Sentence, start: Position, digest: &mut RepeatedDigest) {
+        // Only the last sentence of a text decides `last_sentence` and `trailing_whitespace`.
+        digest.trailing_whitespace = sentence.text().ends_with(is_trailing_token);
+        digest.last_sentence = None;
         if self.words.is_empty() {
-            return Vec::new();
+            return;
         }
 
         let mut tokens: Vec<&Token> = vec![Token::sent_start()];
         tokens.extend(sentence.tokens());
 
-        let ends_with_whitespace = sentence.text().ends_with(is_trailing_token);
         let last = tokens[tokens.len() - 1].word().text().as_str();
-        if (ends_text && ends_with_whitespace) || !matches!(last, "." | "!" | "?") {
-            return Vec::new();
+        if !matches!(last, "." | "!" | "?") {
+            return;
         }
+        // Skipped when it ends the whole text with whitespace, as in LanguageTool.
+        digest.last_sentence = Some(digest.words.len() as u32);
 
         let immunized = self.immunized(&tokens);
-        let mut suggestions = Vec::new();
         let mut sent_start = true;
-        let mut lemmas_in_sentence: Vec<&str> = Vec::new();
+        let mut starts_sentence = true;
 
         let kept = tokens.iter().zip(&immunized).filter(|(_, x)| !**x);
         for (i, (token, _)) in kept.enumerate() {
             let text = token.word().text().as_str();
             if !text.is_empty() {
-                state.word_number += 1;
+                digest.count += 1;
             }
 
             let capitalized = is_capitalized_word(text);
@@ -154,50 +153,109 @@ impl RepeatedWords {
                 continue;
             }
 
-            let mut lemmas = Vec::new();
-            for reading in token.word().tags() {
-                let lemma = reading.lemma().as_str();
-                lemmas.push(lemma);
-
-                let Some(seen) = state.last_seen.get(lemma) else {
-                    continue;
-                };
-                if lemmas_in_sentence.contains(&lemma)
-                    || state.word_number - seen > MAX_WORDS_DISTANCE
-                {
-                    continue;
-                }
-
-                let synonyms = &self.words[lemma];
-                let pos_matches = synonyms
-                    .pos
-                    .as_ref()
-                    .is_none_or(|pos| pos.is_match(reading.pos().as_str()));
-                let chunk_matches = synonyms
-                    .chunk
-                    .as_ref()
-                    .is_none_or(|chunk| token.chunks().iter().any(|tag| chunk.is_match(tag)));
-
-                if pos_matches && chunk_matches {
-                    suggestions.push(Suggestion::new(
-                        format!("BUILTIN/{}_{}", ID, to_id(lemma)),
-                        MESSAGE.to_owned(),
-                        token.span().clone(),
-                        self.replacements(sentence, synonyms, reading.pos().as_str(), capitalized),
-                    ));
-                    break;
-                }
-            }
-
-            for lemma in lemmas {
-                if self.words.contains_key(lemma) {
-                    state.last_seen.insert(lemma.to_owned(), state.word_number);
-                    lemmas_in_sentence.push(lemma);
-                }
+            // The readings whose lemma has synonyms: the others are never seen nor flagged.
+            let readings: Vec<RepeatedReading> = token
+                .word()
+                .tags()
+                .iter()
+                .filter_map(|reading| {
+                    let lemma = reading.lemma().as_str();
+                    let synonyms = self.words.get(lemma)?;
+                    let pos_matches = synonyms
+                        .pos
+                        .as_ref()
+                        .is_none_or(|pos| pos.is_match(reading.pos().as_str()));
+                    let chunk_matches = synonyms
+                        .chunk
+                        .as_ref()
+                        .is_none_or(|chunk| token.chunks().iter().any(|tag| chunk.is_match(tag)));
+                    Some(RepeatedReading {
+                        lemma: lemma.to_owned(),
+                        replacements: (pos_matches && chunk_matches).then(|| {
+                            self.replacements(
+                                sentence,
+                                synonyms,
+                                reading.pos().as_str(),
+                                capitalized,
+                            )
+                        }),
+                    })
+                })
+                .collect();
+            if !readings.is_empty() {
+                digest.words.push(RepeatedWord {
+                    span: TokenSpan::new(token.span(), start),
+                    number: digest.count,
+                    starts_sentence,
+                    readings,
+                });
+                starts_sentence = false;
             }
         }
+    }
 
-        suggestions
+    /// The matches in a document made of `digests` (the current ones, with their indices).
+    /// `skipped` is the index of the one whose last sentence ends the document with whitespace
+    /// after it, which LanguageTool skips.
+    pub(crate) fn resolve<'a>(
+        &self,
+        digests: impl Iterator<Item = (usize, &'a ParagraphDigest)>,
+        skipped: Option<usize>,
+    ) -> Vec<DocumentMatch> {
+        let mut matches = Vec::new();
+        // The number of the word that each lemma was last seen as.
+        let mut last_seen: DefaultHashMap<&str, usize> = DefaultHashMap::default();
+        let mut lemmas_in_sentence: Vec<&str> = Vec::new();
+        let mut before = 0usize;
+
+        for (paragraph, digest) in digests {
+            let digest = &digest.repeated_words;
+            let words = match digest.last_sentence {
+                Some(end) if Some(paragraph) == skipped => {
+                    digest.words.get(..end as usize).unwrap_or(&digest.words)
+                }
+                _ => &digest.words[..],
+            };
+            for word in words {
+                if word.starts_sentence {
+                    lemmas_in_sentence.clear();
+                }
+                let number = before.saturating_add(word.number as usize);
+
+                let mut seen = word.readings.len();
+                for (i, reading) in word.readings.iter().enumerate() {
+                    let lemma = reading.lemma.as_str();
+                    let Some(previous) = last_seen.get(lemma) else {
+                        continue;
+                    };
+                    if lemmas_in_sentence.contains(&lemma)
+                        || number.saturating_sub(*previous) > MAX_WORDS_DISTANCE
+                    {
+                        continue;
+                    }
+                    if let Some(replacements) = &reading.replacements {
+                        matches.push(DocumentMatch::new(
+                            paragraph,
+                            format!("BUILTIN/{}_{}", ID, to_id(lemma)),
+                            MESSAGE.to_owned(),
+                            word.span.span(),
+                            DocumentFix::Replacements(replacements.clone()),
+                        ));
+                        // The readings after the flagged one are not remembered.
+                        seen = i + 1;
+                        break;
+                    }
+                }
+
+                for reading in &word.readings[..seen] {
+                    last_seen.insert(&reading.lemma, number);
+                    lemmas_in_sentence.push(&reading.lemma);
+                }
+            }
+            before = before.saturating_add(digest.count as usize);
+        }
+
+        matches
     }
 
     fn replacements(

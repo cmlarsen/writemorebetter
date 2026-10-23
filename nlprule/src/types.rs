@@ -782,6 +782,24 @@ impl Span {
         Span { byte, char }
     }
 
+    /// The span of the chars `chars` of `text`, or `None` if they are not in `text` or the range
+    /// is reversed.
+    pub fn from_chars(text: &str, chars: Range<usize>) -> Option<Self> {
+        if chars.start > chars.end {
+            return None;
+        }
+        // The byte offset of the `n`-th char of `text`, or of its end.
+        let byte = |text: &str, n: usize| {
+            text.char_indices()
+                .map(|(byte, _)| byte)
+                .chain(std::iter::once(text.len()))
+                .nth(n)
+        };
+        let start = byte(text, chars.start)?;
+        let end = start + byte(&text[start..], chars.end - chars.start)?;
+        Some(Span::new(start..end, chars))
+    }
+
     /// Gets the start position.
     pub fn start(&self) -> Position {
         Position {
@@ -871,12 +889,10 @@ impl std::cmp::PartialEq for Suggestion {
 }
 
 impl Suggestion {
-    pub(crate) fn new(
-        source: String,
-        message: String,
-        span: Span,
-        replacements: Vec<String>,
-    ) -> Self {
+    /// Creates a suggestion. Bindings use it to turn their own records back into suggestions,
+    /// e.g. to merge whole-text suggestions into them
+    /// ([`DocumentMatches::suggestions`](crate::document::DocumentMatches::suggestions)).
+    pub fn new(source: String, message: String, span: Span, replacements: Vec<String>) -> Self {
         Suggestion {
             source,
             message,
@@ -947,6 +963,27 @@ mod tests {
             Span::default(),
             replacements.iter().map(|x| x.to_string()).collect(),
         )
+    }
+
+    #[test]
+    fn spans_from_chars() {
+        let text = "\u{201c}It\u{2019}s\u{2014}fine\u{2026}\u{201d}\u{2028}\u{1F600}!";
+        assert_eq!(Span::from_chars(text, 1..5), Some(Span::new(3..9, 1..5)));
+        assert_eq!(
+            Span::from_chars(text, 11..12),
+            Some(Span::new(19..22, 11..12))
+        );
+        assert_eq!(
+            Span::from_chars(text, 13..14),
+            Some(Span::new(25..29, 13..14))
+        );
+        assert_eq!(
+            Span::from_chars(text, 15..15),
+            Some(Span::new(30..30, 15..15))
+        );
+        assert_eq!(Span::from_chars(text, 15..16), None);
+        assert_eq!(Span::from_chars(text, 3..2), None);
+        assert_eq!(Span::from_chars("", 0..0), Some(Span::new(0..0, 0..0)));
     }
 
     #[derive(Serialize, Deserialize, PartialEq, Debug)]

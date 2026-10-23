@@ -1,6 +1,9 @@
 //! Flags a word whose spelling variant differs from one used earlier in the text.
 
-use crate::types::{DefaultHashMap, Sentence, Suggestion, Token};
+use crate::document::{
+    DocumentFix, DocumentMatch, ParagraphDigest, TokenSpan, VariantCandidate, VariantWord,
+};
+use crate::types::{DefaultHashMap, Position, Sentence, Token};
 use serde::{Deserialize, Serialize};
 
 /// The identifier of the LanguageTool rule this builtin reimplements.
@@ -19,10 +22,11 @@ const ID: &str = "EN_WORD_COHERENCY";
 /// # Scope
 ///
 /// The corresponding LanguageTool rule runs over a whole document: it remembers
-/// the spelling of a word across all paragraphs. This builtin only sees the
-/// sentences of a single paragraph at a time, so a variant used in one paragraph
-/// is not remembered in the next one and mixing variants across paragraphs is
-/// not reported. Within one paragraph the behavior matches LanguageTool.
+/// the spelling of a word across all paragraphs. So this is a whole-text rule (see
+/// [`crate::document`]): [`Rules::suggest`](crate::Rules::suggest) remembers
+/// spellings across the text it is given, and an app that checks a document
+/// paragraph by paragraph gets the variants used in other paragraphs from
+/// [`Rules::resolve_document`](crate::Rules::resolve_document).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WordCoherency {
     /// Maps each admitted spelling to the other spellings of the same word.
@@ -46,52 +50,102 @@ impl WordCoherency {
         ID
     }
 
-    /// Checks all sentences of one paragraph and returns the resulting
-    /// suggestions.
-    pub fn check_text(&self, sentences: &[Sentence]) -> Vec<Suggestion> {
+    /// Adds the tokens of one sentence that have a spelling variant to `words`, those of a
+    /// digest whose text starts at `start`. Which of them is flagged depends on the spellings
+    /// used before, so [`WordCoherency::resolve`] decides that.
+    pub(crate) fn digest(
+        &self,
+        sentence: &Sentence,
+        start: Position,
+        words: &mut Vec<VariantWord>,
+    ) {
         if self.variants.is_empty() {
-            return Vec::new();
+            return;
         }
+        let sentence_start = sentence.span().start().byte;
+        for token in sentence.tokens() {
+            let span = token.span();
+            // The original text, which `DocumentMatch::to_suggestion` sees.
+            let Some(original) = sentence
+                .text()
+                .get(span.byte().start - sentence_start..span.byte().end - sentence_start)
+            else {
+                continue;
+            };
+            // Candidates without variants are never flagged and register nothing.
+            let candidates: Vec<VariantCandidate> = candidates(token)
+                .into_iter()
+                .filter_map(|word| {
+                    let others = self.variants.get(&word)?;
+                    // Past 32 variants a match is assumed to have a replacement; the
+                    // suggestion then checks it.
+                    let replaceable = others
+                        .iter()
+                        .enumerate()
+                        .map(|(i, other)| {
+                            let ok = i >= 32 || replacement(original, &word, other).is_some();
+                            u32::from(ok) << i.min(31)
+                        })
+                        .fold(0, |mask, bit| mask | bit);
+                    Some(VariantCandidate { word, replaceable })
+                })
+                .collect();
+            if !candidates.is_empty() {
+                words.push(VariantWord {
+                    span: TokenSpan::new(span, start),
+                    candidates,
+                });
+            }
+        }
+    }
 
+    /// The matches in a document made of `digests` (the current ones, with their indices).
+    pub(crate) fn resolve<'a>(
+        &self,
+        digests: impl Iterator<Item = (usize, &'a ParagraphDigest)>,
+    ) -> Vec<DocumentMatch> {
         // Other spelling that should not appear -> the spelling already seen.
-        let mut should_not_appear: DefaultHashMap<String, String> = DefaultHashMap::default();
-        let mut suggestions = Vec::new();
+        let mut should_not_appear: DefaultHashMap<&str, &str> = DefaultHashMap::default();
+        let mut matches = Vec::new();
 
-        for sentence in sentences {
-            for token in sentence.tokens() {
-                let surface = token.word().text().as_str();
-
-                for candidate in candidates(token) {
-                    // A spelling seen earlier in the paragraph is reported and
-                    // no variant of it is registered, matching the rule the
-                    // builtin reimplements.
-                    if let Some(other_spelling) = should_not_appear.get(candidate.as_str()) {
-                        if let Some(replacement) = replacement(surface, &candidate, other_spelling)
-                        {
-                            suggestions.push(Suggestion::new(
+        for (paragraph, digest) in digests {
+            for word in &digest.variants {
+                for candidate in &word.candidates {
+                    let Some(others) = self.variants.get_key_value(candidate.word.as_str()) else {
+                        continue;
+                    };
+                    // A spelling seen earlier in the text is reported and no variant of it is
+                    // registered, matching the rule the builtin reimplements.
+                    if let Some(other) = should_not_appear.get(candidate.word.as_str()) {
+                        let i = others.1.iter().position(|x| x == other).unwrap_or(0);
+                        if i >= 32 || candidate.replaceable & (1 << i) != 0 {
+                            matches.push(DocumentMatch::new(
+                                paragraph,
                                 format!("BUILTIN/{}", ID),
                                 format!(
                                     "Do not mix variants of the same word ('{}' and '{}') \
                                      within a single text.",
-                                    candidate, other_spelling
+                                    candidate.word, other
                                 ),
-                                token.span().clone(),
-                                vec![replacement],
+                                word.span.span(),
+                                DocumentFix::Variant {
+                                    word: candidate.word.clone(),
+                                    other: (*other).to_owned(),
+                                },
                             ));
                         }
                         break;
                     }
 
-                    if let Some(others) = self.variants.get(candidate.as_str()) {
-                        for other in others {
-                            should_not_appear.insert(other.clone(), candidate.clone());
-                        }
+                    let (spelling, others) = others;
+                    for other in others {
+                        should_not_appear.insert(other, spelling);
                     }
                 }
             }
         }
 
-        suggestions
+        matches
     }
 }
 
@@ -128,13 +182,13 @@ fn candidates(token: &Token) -> Vec<String> {
 /// occur in `surface` or when the result would only differ in its capitalization,
 /// i.e. exactly the cases in which the rule the builtin reimplements emits no
 /// suggestion.
-fn replacement(surface: &str, word: &str, other: &str) -> Option<String> {
-    let start = find_case_insensitive(surface, word)?;
+pub(crate) fn replacement(surface: &str, word: &str, other: &str) -> Option<String> {
+    let found = find_case_insensitive(surface, word)?;
 
     let mut replacement = String::with_capacity(surface.len() + other.len());
-    replacement.push_str(&surface[..start]);
+    replacement.push_str(&surface[..found.start]);
     replacement.push_str(other);
-    replacement.push_str(&surface[start + word.len()..]);
+    replacement.push_str(&surface[found.end..]);
 
     if replacement.eq_ignore_ascii_case(surface) {
         return None;
@@ -147,12 +201,13 @@ fn replacement(surface: &str, word: &str, other: &str) -> Option<String> {
     Some(replacement)
 }
 
-/// Returns the byte offset of the first case-insensitive occurrence of `needle`
-/// in `haystack`. Only whole character comparisons are made, so the returned
-/// offset is always a character boundary.
-fn find_case_insensitive(haystack: &str, needle: &str) -> Option<usize> {
+/// Returns the byte range of the first case-insensitive occurrence of `needle`
+/// in `haystack`. Only whole character comparisons are made, so the range
+/// always falls on character boundaries, also where a character and its
+/// lowercase form have different lengths.
+fn find_case_insensitive(haystack: &str, needle: &str) -> Option<std::ops::Range<usize>> {
     if needle.is_empty() {
-        return Some(0);
+        return Some(0..0);
     }
 
     let haystack: Vec<char> = haystack.chars().collect();
@@ -167,7 +222,9 @@ fn find_case_insensitive(haystack: &str, needle: &str) -> Option<usize> {
             .zip(&needle)
             .all(|(a, b)| a.to_lowercase().eq(b.to_lowercase()));
         if matches {
-            return Some(haystack[..start].iter().map(|c| c.len_utf8()).sum());
+            let bytes = |chars: &[char]| chars.iter().map(|c| c.len_utf8()).sum::<usize>();
+            let start_byte = bytes(&haystack[..start]);
+            return Some(start_byte..start_byte + bytes(&haystack[start..start + needle.len()]));
         }
     }
 

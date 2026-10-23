@@ -1,5 +1,6 @@
 //! Whole-text rules: paragraph digests, the document resolver, and `EN_CONSISTENT_APOS`.
 
+use bincode::Options;
 use lazy_static::lazy_static;
 use nlprule::{
     document::{merge_document_suggestions, DIGEST_VERSION},
@@ -449,12 +450,28 @@ fn digests_round_trip_with_their_version() {
         APOS.resolve_document(&[fresh.clone(), other]).matches.len(),
         2
     );
+    // The version is also the first (one-byte) integer of the serialized digest after the four
+    // version bytes; a digest of another version could reach the resolver through serde.
     let mut bytes = old.to_bytes();
-    bytes[..4].copy_from_slice(&(DIGEST_VERSION + 1).to_le_bytes());
-    old = bincode::deserialize(&bytes).unwrap();
-    let resolved = APOS.resolve_document(&[fresh, old]);
+    assert_eq!(bytes[4] as u32, DIGEST_VERSION);
+    bytes[4] += 1;
+    old = bincode::DefaultOptions::new()
+        .with_varint_encoding()
+        .deserialize(&bytes[4..])
+        .unwrap();
+    let resolved = APOS.resolve_document(&[fresh.clone(), old]);
     assert!(resolved.matches.is_empty());
     assert_eq!(resolved.stale, [1]);
+
+    // Stored digests that cannot be read are stale too.
+    let resolved = APOS.resolve_document_bytes(&[fresh.to_bytes(), bytes, vec![1, 2]]);
+    assert!(resolved.matches.is_empty());
+    assert_eq!(resolved.stale, [1, 2]);
+    let (_, other) = APOS.check_paragraph("We'll go.", true, &TOKENIZER);
+    assert_eq!(
+        APOS.resolve_document_bytes(&[fresh.to_bytes(), other.to_bytes()]),
+        APOS.resolve_document(&[fresh, other])
+    );
 
     // A digest from another version is rejected with a format error, not misread.
     let mut bytes = digest.to_bytes();

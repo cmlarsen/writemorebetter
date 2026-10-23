@@ -11,7 +11,7 @@ use std::io::Cursor;
 use std::sync::Arc;
 
 use nlprule::{Rules, Tokenizer};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 use writemorebetter_style::reports::{self, StyleResources};
 
@@ -282,37 +282,197 @@ impl Checker {
     /// additive `start16`/`end16` count UTF-16 code units and match `analyze()` and
     /// `String.prototype.slice`.
     pub fn check(&self, text: &str) -> Result<String, JsValue> {
-        let suggestions = self.rules.suggest(text, &self.tokenizer);
-        let (utf16, total16) = utf16_offsets(
-            text,
-            suggestions
-                .iter()
-                .flat_map(|suggestion| {
-                    let span = suggestion.span().char();
-                    [span.start, span.end]
-                })
-                .collect(),
-        );
-        let items: Vec<Item> = suggestions
-            .iter()
-            .map(|suggestion| {
-                let span = suggestion.span().char();
-                Item {
-                    start: span.start,
-                    end: span.end,
-                    start16: utf16.get(&span.start).copied().unwrap_or(total16),
-                    end16: utf16.get(&span.end).copied().unwrap_or(total16),
-                    source: suggestion.source().to_string(),
-                    message: suggestion.message().to_string(),
-                    replacements: suggestion.replacements().to_vec(),
-                }
-            })
-            .collect();
-
-        serde_json::to_string(&items)
-            .map_err(|err| JsValue::from_str(&format!("failed to serialize suggestions: {err}")))
+        suggestions_json(text, &self.rules.suggest(text, &self.tokenizer))
     }
 
+    /// Checks one paragraph of a larger document on its own, for an editor that rechecks only
+    /// the paragraphs that changed. Returns a [`ParagraphCheck`]: the paragraph's suggestions
+    /// (JSON as from `check`, offsets into `text`) without those of the rules that need the whole
+    /// document (`EN_CONSISTENT_APOS`, `EN_WORD_COHERENCY`, `EN_REPEATEDWORDS`,
+    /// `TOO_OFTEN_USED_*`), and its digest, the bytes those rules need from it. Keep the digest
+    /// with the paragraph, replace both when it changes, and pass all digests to
+    /// `resolveDocument`.
+    ///
+    /// `endsParagraph` (default `true`) says the paragraph ends at the end of `text`, for an
+    /// editor that stores paragraphs without the blank line after them; pass `false` for slices
+    /// that keep their line breaks, where a paragraph ends only at a blank line.
+    #[wasm_bindgen(js_name = checkParagraph)]
+    pub fn check_paragraph(
+        &self,
+        text: &str,
+        ends_paragraph: Option<bool>,
+    ) -> Result<ParagraphCheck, JsValue> {
+        let (suggestions, digest) =
+            self.rules
+                .check_paragraph(text, ends_paragraph.unwrap_or(true), &self.tokenizer);
+        Ok(ParagraphCheck {
+            suggestions: suggestions_json(text, &suggestions)?,
+            digest: digest.to_bytes(),
+        })
+    }
+
+    /// Runs the whole-document rules over `digests`, an array with the `Uint8Array` digest of
+    /// every paragraph in document order. Resolve again after every edit: one change can add or
+    /// remove matches in paragraphs that did not change. A digest from another engine version,
+    /// or an element that is not a digest, is listed in `stale`.
+    #[wasm_bindgen(js_name = resolveDocument)]
+    pub fn resolve_document(&self, digests: js_sys::Array) -> DocumentResolution {
+        let digests: Vec<Vec<u8>> = digests
+            .iter()
+            .map(|digest| {
+                digest
+                    .dyn_into::<js_sys::Uint8Array>()
+                    .map(|bytes| bytes.to_vec())
+                    .unwrap_or_default()
+            })
+            .collect();
+        DocumentResolution {
+            matches: self.rules.resolve_document_bytes(&digests),
+        }
+    }
+}
+
+/// One paragraph checked by `checkParagraph`.
+#[wasm_bindgen]
+pub struct ParagraphCheck {
+    suggestions: String,
+    digest: Vec<u8>,
+}
+
+#[wasm_bindgen]
+impl ParagraphCheck {
+    /// The paragraph's suggestions without the whole-document rules', as JSON in the shape of
+    /// `check` (offsets into the paragraph).
+    #[wasm_bindgen(getter)]
+    pub fn suggestions(&self) -> String {
+        self.suggestions.clone()
+    }
+
+    /// The paragraph's digest: no text, only offsets, flags and lemmas. Store it with the
+    /// paragraph.
+    #[wasm_bindgen(getter)]
+    pub fn digest(&self) -> Vec<u8> {
+        self.digest.clone()
+    }
+}
+
+/// The whole-document rules' matches over a document's digests, from `resolveDocument`. It
+/// replaces the document's previous resolution.
+#[wasm_bindgen]
+pub struct DocumentResolution {
+    matches: nlprule::DocumentMatches,
+}
+
+/// A suggestion as `check` returns it; only the fields `DocumentResolution.suggestions` reads.
+#[derive(Deserialize)]
+struct CheckedItem {
+    start: usize,
+    end: usize,
+    source: String,
+    #[serde(default)]
+    message: String,
+    #[serde(default)]
+    replacements: Vec<String>,
+}
+
+#[wasm_bindgen]
+impl DocumentResolution {
+    /// The indices of the digests that are from another engine version, or not digests: check
+    /// those paragraphs again and resolve again. While any are listed, matches can be missing in
+    /// every paragraph.
+    #[wasm_bindgen(getter)]
+    pub fn stale(&self) -> Vec<u32> {
+        self.matches.stale.iter().map(|x| *x as u32).collect()
+    }
+
+    /// The indices of the paragraphs that have whole-document matches, ascending.
+    #[wasm_bindgen(getter)]
+    pub fn paragraphs(&self) -> Vec<u32> {
+        let mut paragraphs: Vec<u32> = self
+            .matches
+            .matches
+            .iter()
+            .map(|x| x.paragraph() as u32)
+            .collect();
+        paragraphs.dedup();
+        paragraphs
+    }
+
+    /// The suggestions of paragraph `paragraph`, whose text is `text`: `checked`, the
+    /// `suggestions` JSON `checkParagraph` returned for it, merged with its whole-document
+    /// matches, as JSON in the shape of `check`. A match whose span no longer fits `text` is
+    /// left out. `checked` is read by its `start`/`end` char offsets; one that does not fit
+    /// `text` throws (the Swift binding leaves it out instead).
+    pub fn suggestions(
+        &self,
+        paragraph: u32,
+        text: &str,
+        checked: &str,
+    ) -> Result<String, JsValue> {
+        let checked: Vec<CheckedItem> = serde_json::from_str(checked)
+            .map_err(|err| JsValue::from_str(&format!("invalid suggestions JSON: {err}")))?;
+        let checked = checked
+            .into_iter()
+            .map(|item| {
+                let span = nlprule::types::Span::from_chars(text, item.start..item.end)
+                    .ok_or_else(|| {
+                        JsValue::from_str(&format!(
+                            "suggestion {}..{} is not in the paragraph's text",
+                            item.start, item.end
+                        ))
+                    })?;
+                Ok(nlprule::types::Suggestion::new(
+                    item.source,
+                    item.message,
+                    span,
+                    item.replacements,
+                ))
+            })
+            .collect::<Result<Vec<_>, JsValue>>()?;
+        suggestions_json(
+            text,
+            &self.matches.suggestions(paragraph as usize, text, checked),
+        )
+    }
+}
+
+/// `suggestions` of `text` as the JSON array `check` returns.
+fn suggestions_json(
+    text: &str,
+    suggestions: &[nlprule::types::Suggestion],
+) -> Result<String, JsValue> {
+    let (utf16, total16) = utf16_offsets(
+        text,
+        suggestions
+            .iter()
+            .flat_map(|suggestion| {
+                let span = suggestion.span().char();
+                [span.start, span.end]
+            })
+            .collect(),
+    );
+    let items: Vec<Item> = suggestions
+        .iter()
+        .map(|suggestion| {
+            let span = suggestion.span().char();
+            Item {
+                start: span.start,
+                end: span.end,
+                start16: utf16.get(&span.start).copied().unwrap_or(total16),
+                end16: utf16.get(&span.end).copied().unwrap_or(total16),
+                source: suggestion.source().to_string(),
+                message: suggestion.message().to_string(),
+                replacements: suggestion.replacements().to_vec(),
+            }
+        })
+        .collect();
+
+    serde_json::to_string(&items)
+        .map_err(|err| JsValue::from_str(&format!("failed to serialize suggestions: {err}")))
+}
+
+#[wasm_bindgen]
+impl Checker {
     /// Returns JSON sentences and tagged tokens, including whitespace, from one analysis pass.
     /// Surface text is preserved. `start` and exclusive `end` count UTF-16 code units in
     /// the original input, suitable for `text.slice(start, end)`.

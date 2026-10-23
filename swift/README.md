@@ -43,6 +43,41 @@ Failures throw `CheckError`: `TokenizerFile`/`RulesFile` (read from disk), `Toke
 `UnknownProfile`, `UnknownSpellVariant`, and from the setters `UnknownSelectors` and `InvalidOption`. Nothing panics across the boundary; a Rust panic surfaces as a Swift
 error.
 
+## Checking a document paragraph by paragraph
+
+A few rules need the whole document: `EN_CONSISTENT_APOS` (mixed `'` and `’`; on in the fiction profile, which
+flags only the rarer style), `EN_WORD_COHERENCY` (two spellings of one word), `EN_REPEATEDWORDS` (a word repeated
+within 150 words) and `TOO_OFTEN_USED_*` (a word's share of all nouns, verbs or adjectives). An editor that
+rechecks only the paragraph being edited keeps one digest per paragraph and resolves them:
+
+```swift
+var checks = paragraphs.map { checker.checkParagraph(text: $0) }      // once per paragraph
+var resolution = checker.resolveDocument(digests: checks.map(\.digest))
+let shown = resolution.suggestions(paragraph: 3, text: paragraphs[3], checked: checks[3].suggestions)
+
+// After an edit: recheck that paragraph only, then resolve all digests again.
+checks[3] = checker.checkParagraph(text: paragraphs[3])
+resolution = checker.resolveDocument(digests: checks.map(\.digest))
+```
+
+- `checkParagraph(text:endsParagraph:)` returns a `ParagraphCheck`: `suggestions`, the paragraph's own (without
+  the whole-document rules'), and `digest`, `Data` to store with the paragraph (about 3.5 KB per 1,000 words; no
+  text, only offsets, flags and lemmas). `endsParagraph` defaults to `true`, for paragraphs stored without the
+  blank line after them; pass `false` for slices of a document that keep their line breaks, where a paragraph
+  ends only at a blank line.
+- `resolveDocument(digests:)` takes the digests of all paragraphs in order and returns a `DocumentResolution`.
+  Resolve again after every edit: one change can add or remove matches in paragraphs that did not change (the
+  first straight apostrophe in a curly manuscript, a noun crossing 5%). It reads only the digests (about 5 ms
+  for 25,000 words on an M-series Mac), so it can run after each paragraph check.
+- `resolution.suggestions(paragraph:text:checked:)` merges one paragraph's whole-document matches into
+  `checked` (its `checkParagraph` suggestions), with UTF-16 offsets into `text`; a match whose span no longer
+  fits `text` is left out. `resolution.paragraphs()` lists the paragraphs that have matches.
+- `resolution.stale()` lists digests from another engine version (or `Data` that is not a digest): check those
+  paragraphs again and resolve again. Rebuild all digests after updating the package or its data binaries.
+
+The whole-document matches equal those `check` finds on the joined document when the pieces end between
+sentences; the other rules see only the paragraph.
+
 ## User dictionary
 
 Add the words the app knows — character names, invented places, coinages — so the speller stops flagging them.

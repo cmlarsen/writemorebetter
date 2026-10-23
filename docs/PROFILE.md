@@ -108,14 +108,17 @@ Surfaces:
 ### Word-frequency threshold
 
 The `TOO_OFTEN_USED_*_EN` builtins flag a word that makes up at least 5% of the
-adjectives, nouns or verbs of a text. LanguageTool lets a user set this minimum
+adjectives, nouns or verbs of a text: the whole document, also when it is checked paragraph by
+paragraph (`check_paragraph` + `resolve_document`). LanguageTool lets a user set this minimum
 percentage per rule (a `RuleOption` from 1 to 100). `Rules::set_too_often_used_percent(percent)`
 sets it for all three rules, and `TooOftenUsed::set_min_percent`, reached through
 `Rules::builtins_mut` and `BuiltinRule::builtin_mut`, sets it for one. A value outside
 1–100 is `Error::OptionOutOfRange` and changes nothing. Setting it does not enable the
 rules. Swift has `checker.setTooOftenUsedPercent(percent:)`, which throws
-`CheckError.InvalidOption(message:)`, and WASM has `checker.setTooOftenUsedPercent(n)`,
-which throws a string.
+`CheckError.InvalidOption(message:)`, WASM has `checker.setTooOftenUsedPercent(n)`,
+which throws a string, and Python has `checker.set_too_often_used_percent(n)`, which raises
+`ValueError`. A paragraph's digest does not depend on the percentage, so changing it needs no
+recheck, only a new `resolve_document`.
 
 ## The fiction profile
 

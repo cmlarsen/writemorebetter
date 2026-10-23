@@ -47,7 +47,8 @@ pub enum Builtin {
     UnpairedBrackets(en::UnpairedBrackets),
     /// Flags quotation marks that are never paired within a paragraph.
     UnpairedQuotes(en::UnpairedQuotes),
-    /// Flags a word whose spelling variant was already used earlier in the text.
+    /// Flags a word whose spelling variant was already used earlier in the text. A whole-text
+    /// rule.
     WordCoherency(en::WordCoherency),
     /// Flags two consecutive dots or commas, e.g. `"He left.."`.
     DoublePunctuation(en::DoublePunctuation),
@@ -63,9 +64,11 @@ pub enum Builtin {
     LongParagraph(en::LongParagraph),
     /// Flags successive sentences that begin with the same word.
     WordRepeatBeginning(en::WordRepeatBeginning),
-    /// Flags a word that was already used in a preceding sentence and suggests synonyms.
+    /// Flags a word that was already used in a preceding sentence and suggests synonyms. A
+    /// whole-text rule.
     RepeatedWords(en::RepeatedWords),
     /// Flags an adjective, noun or verb that makes up too large a share of its kind in a text.
+    /// A whole-text rule.
     TooOftenUsed(en::TooOftenUsed),
     /// Flags a multi-word proper noun with the wrong capitalization, e.g.
     /// `"Harry potter"`.
@@ -120,26 +123,17 @@ impl Builtin {
 
     /// Runs this rule on consecutive sentences of one paragraph. Rules that need context beyond one sentence
     /// (e.g. quotes spanning sentences) see all of them; sentence-level rules check each one separately.
-    /// The rules that count words across a text (`EN_REPEATEDWORDS`, `TOO_OFTEN_USED_*`) take
-    /// `sentences` as the whole text. Rules that check their suggestions against the speller
-    /// (`EN_COMPOUNDS`) use `speller`; pass [`Spell::speller`](crate::spell::Spell::speller) of
-    /// the [`Rules`](crate::Rules) to get the suggestions [`Rules::suggest`](crate::Rules::suggest)
-    /// reports. Without one they keep every suggestion.
+    /// The whole-text rules (`EN_CONSISTENT_APOS`, `EN_REPEATEDWORDS`, `EN_WORD_COHERENCY`,
+    /// `TOO_OFTEN_USED_*`; see [`crate::document`]) take `sentences` as the whole text. Rules that
+    /// check their suggestions against the speller (`EN_COMPOUNDS`) use `speller`; pass
+    /// [`Spell::speller`](crate::spell::Spell::speller) of the [`Rules`](crate::Rules) to get the
+    /// suggestions [`Rules::suggest`](crate::Rules::suggest) reports. Without one they keep every
+    /// suggestion.
     pub fn check_text(&self, sentences: &[Sentence], speller: Option<&Speller>) -> Vec<Suggestion> {
-        match self {
-            Builtin::RepeatedWords(_) | Builtin::TooOftenUsed(_) => {
-                let mut state = RuleState::default();
-                let mut suggestions: Vec<Suggestion> = sentences
-                    .iter()
-                    .enumerate()
-                    .flat_map(|(i, sentence)| {
-                        self.check_in_text(sentence, i + 1 == sentences.len(), &mut state)
-                    })
-                    .collect();
-                suggestions.extend(self.finish_text(&state));
-                suggestions
-            }
-            _ => self.check_paragraph(sentences, &[], true, speller),
+        if self.is_document_rule() {
+            self.check_document(sentences)
+        } else {
+            self.check_paragraph(sentences, &[], true, speller)
         }
     }
 
@@ -151,8 +145,8 @@ impl Builtin {
     /// rules that look at the end of the text (`EMPTY_LINE`,
     /// `TOO_LONG_PARAGRAPH`, `ENGLISH_WORD_REPEAT_BEGINNING_RULE`) use
     /// `ends_text`. `speller` is used as by [`Builtin::check_text`].
-    /// The rules that count words across a text return nothing here:
-    /// [`Rules::suggest`](crate::Rules::suggest) runs them on the whole text.
+    /// The whole-text rules return nothing here: [`Rules::suggest`](crate::Rules::suggest) and
+    /// [`Rules::resolve_document`](crate::Rules::resolve_document) run them on the whole text.
     pub fn check_paragraph(
         &self,
         sentences: &[Sentence],
@@ -178,7 +172,6 @@ impl Builtin {
             ),
             Builtin::UnpairedBrackets(rule) => rule.check(sentences),
             Builtin::UnpairedQuotes(rule) => rule.check(sentences),
-            Builtin::WordCoherency(rule) => rule.check_text(sentences),
             Builtin::LongSentence(rule) => sentences.iter().flat_map(|x| rule.check(x)).collect(),
             Builtin::LongParagraph(rule) => {
                 rule.check_with_previous(sentences, previous, ends_text)
@@ -196,7 +189,6 @@ impl Builtin {
                 rule.check_with_previous(sentences, previous.last())
             }
             Builtin::EmptyLine(rule) => rule.check_text(sentences, ends_text),
-            Builtin::RepeatedWords(_) | Builtin::TooOftenUsed(_) => Vec::new(),
             Builtin::SpecificCase(rule) => sentences.iter().flat_map(|x| rule.check(x)).collect(),
             Builtin::Dash(rule) => sentences.iter().flat_map(|x| rule.check(x)).collect(),
             Builtin::Compounds(rule) => sentences
@@ -206,79 +198,12 @@ impl Builtin {
             Builtin::HarperConfusion(rule) => {
                 sentences.iter().flat_map(|x| rule.check(x)).collect()
             }
-            // Runs in `Rules::resolve_document` instead.
-            Builtin::ConsistentApostrophes(_) => Vec::new(),
+            // Whole-text rules run in `Rules::resolve_document` instead.
+            Builtin::ConsistentApostrophes(_)
+            | Builtin::WordCoherency(_)
+            | Builtin::RepeatedWords(_)
+            | Builtin::TooOftenUsed(_) => Vec::new(),
         }
-    }
-
-    /// Runs the rules that look at a whole text on one sentence of it, in text order. `state`
-    /// keeps what this rule remembers of the earlier sentences, and `ends_text` tells whether no
-    /// sentence follows.
-    fn check_in_text(
-        &self,
-        sentence: &Sentence,
-        ends_text: bool,
-        state: &mut RuleState,
-    ) -> Vec<Suggestion> {
-        match self {
-            Builtin::RepeatedWords(rule) => {
-                rule.check(sentence, ends_text, &mut state.repeated_words)
-            }
-            Builtin::TooOftenUsed(rule) => {
-                rule.count(sentence, &mut state.too_often_used);
-                Vec::new()
-            }
-            _ => Vec::new(),
-        }
-    }
-
-    /// The suggestions of the rules that need to read a whole text before they can report.
-    fn finish_text(&self, state: &RuleState) -> Vec<Suggestion> {
-        match self {
-            Builtin::TooOftenUsed(rule) => rule.finish(&state.too_often_used),
-            _ => Vec::new(),
-        }
-    }
-}
-
-#[derive(Debug, Default)]
-struct RuleState {
-    repeated_words: en::RepeatedWordsState,
-    too_often_used: en::TooOftenUsedState,
-}
-
-/// What the builtins that count words across a text (`EN_REPEATEDWORDS`, `TOO_OFTEN_USED_*`)
-/// remember during one check. It starts empty for every text.
-#[derive(Debug, Default)]
-pub(crate) struct TextState {
-    rules: Vec<RuleState>,
-}
-
-impl TextState {
-    /// Checks the next sentence of the text with every enabled rule of `rules`.
-    pub(crate) fn check_sentence(
-        &mut self,
-        rules: &[BuiltinRule],
-        sentence: &Sentence,
-        ends_text: bool,
-    ) -> Vec<Suggestion> {
-        self.rules.resize_with(rules.len(), RuleState::default);
-        rules
-            .iter()
-            .zip(self.rules.iter_mut())
-            .filter(|(rule, _)| rule.enabled())
-            .flat_map(|(rule, state)| rule.builtin().check_in_text(sentence, ends_text, state))
-            .collect()
-    }
-
-    /// The suggestions that are only known once every sentence of the text was checked.
-    pub(crate) fn finish(&self, rules: &[BuiltinRule]) -> Vec<Suggestion> {
-        rules
-            .iter()
-            .zip(self.rules.iter())
-            .filter(|(rule, _)| rule.enabled())
-            .flat_map(|(rule, state)| rule.builtin().finish_text(state))
-            .collect()
     }
 }
 

@@ -191,8 +191,8 @@ Run document analysis off the UI thread. Spelling dictionary additions do not su
 
 ## Shared statistics
 
-This implements #234 option 1: rebuild owned statistics on save/idle, avoiding incremental invalidation.
-Future `TOO_OFTEN_USED_*` integration can read `lemma_index[lemma].len()` and `word_count`, inspect POS
-readings through `TokenPosition`, and return token spans. Its existing 100-word minimum, POS and
-ambiguity conventions must be applied explicitly. Builtins and `suggest()` behavior remain unchanged.
-No reports or replacement prose are added here.
+These statistics are rebuilt from the whole text on save/idle, avoiding incremental invalidation.
+The grammar builtins that count words over a document (`TOO_OFTEN_USED_*`, `EN_REPEATEDWORDS`,
+`EN_WORD_COHERENCY`) do not read them: they count through the engine's per-paragraph digests
+(`Rules::check_paragraph` and `Rules::resolve_document`, #234 and #329), so an editor rechecks only
+the edited paragraph. No reports or replacement prose are added here.

@@ -3,8 +3,8 @@
 use crate::types::*;
 use crate::utils::parallelism::MaybeParallelRefIterator;
 use crate::{
-    builtin::{Builtin, BuiltinRule, TextState},
-    document::{Overlaps, ParagraphDigest},
+    builtin::{Builtin, BuiltinRule},
+    document::{merge_document_suggestions, ParagraphDigest},
     rule::id::{Group, Selector},
     rule::MatchSentence,
     rule::Rule,
@@ -275,7 +275,8 @@ impl Rules {
 
     /// Compute the suggestions for the given sentence by checking all rules.
     /// Builtin rules that look across sentences only see this sentence, and those that need the
-    /// whole text (`EN_CONSISTENT_APOS`) don't run; use [Rules::suggest] for full context.
+    /// whole text (`EN_CONSISTENT_APOS`, `EN_WORD_COHERENCY`, `EN_REPEATEDWORDS`,
+    /// `TOO_OFTEN_USED_*`) take it as the whole text; use [Rules::suggest] for full context.
     /// A rule with LanguageTool's `raw_pos` matches [Sentence::raw]; on a sentence that did not keep
     /// it such a rule matches the disambiguated tokens instead. Get the sentences from
     /// [Tokenizer::pipe_with_raw] with [Rules::needs_raw] to match it as [Rules::suggest] does.
@@ -294,8 +295,24 @@ impl Rules {
             self.builtin_suggestions(std::slice::from_ref(sentence), &[], true);
         let matches = self.sentence_matches(sentence, builtin_suggestions, true);
         let mut repetitions = Repetitions::default();
-        let suggestions = self.resolve(sentence, matches, &mut repetitions, true);
-        self.finish(suggestions, &repetitions)
+        let suggestions = self.resolve(sentence, matches, &mut repetitions);
+        if !self.document_rules_enabled() {
+            return suggestions;
+        }
+        let start = sentence.span().start();
+        let digest = self.digest(
+            sentence.text(),
+            std::slice::from_ref(sentence),
+            start,
+            false,
+        );
+        let document = self
+            .resolve_document(&[digest])
+            .matches
+            .into_iter()
+            .filter_map(|x| Some(x.to_suggestion(sentence.text())?.rshift(start)))
+            .collect();
+        merge_document_suggestions(suggestions, document)
     }
 
     fn builtin_suggestions(
@@ -404,7 +421,6 @@ impl Rules {
         sentence: &Sentence,
         matches: SentenceMatches,
         repetitions: &mut Repetitions,
-        ends_text: bool,
     ) -> Vec<Suggestion> {
         let SentenceMatches {
             mut output,
@@ -412,13 +428,6 @@ impl Rules {
             picky,
         } = matches;
         repetitions.admit(&self.rules, sentence, repeated, &mut output);
-        output.extend(
-            repetitions
-                .builtins
-                .check_sentence(&self.builtins, sentence, ends_text)
-                .into_iter()
-                .map(|x| (None, x)),
-        );
 
         // At one start, a later rule group wins over an earlier one (the order nlprule has always
         // used across groups), and within a group the earliest subrule wins, as LanguageTool's
@@ -469,14 +478,13 @@ impl Rules {
     /// within `text` and start from zero on every call, so an app that checks text incrementally
     /// should pass the surrounding paragraphs it wants those rules to see.
     ///
-    /// The same holds for the builtins that count words across a text: `EN_REPEATEDWORDS` sees
-    /// words used up to 150 words earlier in `text`, and the `TOO_OFTEN_USED_*` rules compute each
-    /// word's share of `text` and report only after reading all of it. Their matches give way to
-    /// any other suggestion they overlap.
-    ///
-    /// The builtins that need the whole text (`EN_CONSISTENT_APOS`) run on `text` as the whole
-    /// document, through the digests of [`crate::document`]. Their suggestions are kept when they
-    /// overlap one of another rule, as in LanguageTool. Without one enabled, no digest is built.
+    /// The builtins that need the whole text (`EN_CONSISTENT_APOS`, and the word statistics:
+    /// `EN_WORD_COHERENCY` remembers spellings, `EN_REPEATEDWORDS` sees words used up to 150 words
+    /// earlier, `TOO_OFTEN_USED_*` compute each word's share) run on `text` as the whole document,
+    /// through the digests of [`crate::document`]; [`Rules::check_paragraph`] and
+    /// [`Rules::resolve_document`] give the same matches for a document checked paragraph by
+    /// paragraph. Their suggestions are kept when they overlap one of another rule, as in
+    /// LanguageTool. Without one enabled, no digest is built.
     pub fn suggest(&self, text: &str, tokenizer: &Tokenizer) -> Vec<Suggestion> {
         if !self.document_rules_enabled() {
             return self.suggest_paragraphs(text, tokenizer, None);
@@ -523,15 +531,14 @@ impl Rules {
                 self.push_digest(text, &paragraph, &mut digests);
                 self.extend_paragraph(&mut paragraph, &mut previous, ends_text, &mut batch);
                 if batch.len() >= self.batch_size.unwrap_or(PARALLEL_BATCH) {
-                    self.flush_batch(&mut batch, &mut repetitions, &mut suggestions, ends_text);
+                    self.flush_batch(&mut batch, &mut repetitions, &mut suggestions);
                 }
             }
         }
         self.push_digest(text, &paragraph, &mut digests);
         self.extend_paragraph(&mut paragraph, &mut previous, true, &mut batch);
-        self.flush_batch(&mut batch, &mut repetitions, &mut suggestions, true);
-
-        self.finish(suggestions, &repetitions)
+        self.flush_batch(&mut batch, &mut repetitions, &mut suggestions);
+        suggestions
     }
 
     /// Pushes the digest of an engine paragraph, which starts where the last one ended.
@@ -556,28 +563,6 @@ impl Rules {
             );
             digests.push((start, digest));
         }
-    }
-
-    /// Adds the suggestions of the builtins that report only after reading the whole text,
-    /// leaving out any that overlaps a suggestion already made.
-    fn finish(
-        &self,
-        mut suggestions: Vec<Suggestion>,
-        repetitions: &Repetitions,
-    ) -> Vec<Suggestion> {
-        let overlaps = Overlaps::new(&suggestions);
-        let finished: Vec<Suggestion> = repetitions
-            .builtins
-            .finish(&self.builtins)
-            .into_iter()
-            .filter(|suggestion| !overlaps.any(suggestion.span().char()))
-            .collect();
-
-        if !finished.is_empty() {
-            suggestions.extend(finished);
-            suggestions.sort_by_key(|suggestion| suggestion.span().char().start);
-        }
-        suggestions
     }
 
     /// Adds one paragraph's `(sentence, builtin suggestions)` pairs to the pending batch. `previous`
@@ -609,14 +594,12 @@ impl Rules {
     }
 
     /// Runs the pending batch in parallel (rules serial within a sentence) and appends the
-    /// per-sentence results to `out` in order. `ends_text` tells whether the batch's last sentence
-    /// is the last of the text.
+    /// per-sentence results to `out` in order.
     fn flush_batch<'t>(
         &self,
         batch: &mut Vec<(Sentence<'t>, Vec<Suggestion>)>,
         repetitions: &mut Repetitions,
         out: &mut Vec<Suggestion>,
-        ends_text: bool,
     ) {
         if batch.is_empty() {
             return;
@@ -627,9 +610,8 @@ impl Rules {
             .map(|(sentence, builtin)| self.sentence_matches(sentence, builtin.clone(), false))
             .collect();
 
-        let last = batch.len() - 1;
-        for (i, ((sentence, _), matches)) in batch.iter().zip(results).enumerate() {
-            out.extend(self.resolve(sentence, matches, repetitions, ends_text && i == last));
+        for ((sentence, _), matches) in batch.iter().zip(results) {
+            out.extend(self.resolve(sentence, matches, repetitions));
         }
         batch.clear();
     }
@@ -666,7 +648,6 @@ struct SentenceMatches {
 struct Repetitions {
     tokens: usize,
     history: HashMap<Group, Vec<usize>>,
-    builtins: TextState,
 }
 
 impl Repetitions {

@@ -548,6 +548,24 @@ fileprivate struct FfiConverterString: FfiConverter {
     }
 }
 
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterData: FfiConverterRustBuffer {
+    typealias SwiftType = Data
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Data {
+        let len: Int32 = try readInt(&buf)
+        return Data(try readBytes(&buf, count: Int(len)))
+    }
+
+    public static func write(_ value: Data, into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        writeBytes(&buf, value)
+    }
+}
+
 
 
 
@@ -601,6 +619,22 @@ public protocol CheckerProtocol: AnyObject, Sendable {
     func check(text: String)  -> [Suggestion]
     
     /**
+     * Checks one paragraph of a larger document on its own, for an editor that rechecks only
+     * the paragraphs that changed.
+     *
+     * Returns the paragraph's suggestions (UTF-16 offsets into `text`) without those of the
+     * rules that need the whole document (`EN_CONSISTENT_APOS`, `EN_WORD_COHERENCY`,
+     * `EN_REPEATEDWORDS`, `TOO_OFTEN_USED_*`), and its digest: the bytes those rules need from
+     * the paragraph, a pure function of `text`. Keep the digest with the paragraph, replace both
+     * when the paragraph changes, and pass the digests of all paragraphs to `resolveDocument`.
+     *
+     * `endsParagraph` (the default) says the paragraph ends at the end of `text`, for an editor
+     * that stores paragraphs without the blank line after them; pass `false` for slices that
+     * keep their line breaks, where a paragraph ends only at a blank line.
+     */
+    func checkParagraph(text: String, endsParagraph: Bool)  -> ParagraphCheck
+    
+    /**
      * Removes every word from the user dictionary.
      */
     func clearWords() 
@@ -625,6 +659,14 @@ public protocol CheckerProtocol: AnyObject, Sendable {
      * Removes words from the user dictionary and returns how many were present.
      */
     func removeWords(words: [String])  -> UInt32
+    
+    /**
+     * Runs the whole-document rules over the stored digests of every paragraph, in document
+     * order. Resolve again after every edit: one change can add or remove matches in paragraphs
+     * that did not change. A digest from another engine version, or bytes that are not a
+     * digest, are listed in `stale()`.
+     */
+    func resolveDocument(digests: [Data])  -> DocumentResolution
     
     /**
      * Selects the writer's mother tongue (e.g. `"de"`) so the false-friend rules for speakers of
@@ -820,6 +862,31 @@ open func check(text: String) -> [Suggestion]  {
 }
     
     /**
+     * Checks one paragraph of a larger document on its own, for an editor that rechecks only
+     * the paragraphs that changed.
+     *
+     * Returns the paragraph's suggestions (UTF-16 offsets into `text`) without those of the
+     * rules that need the whole document (`EN_CONSISTENT_APOS`, `EN_WORD_COHERENCY`,
+     * `EN_REPEATEDWORDS`, `TOO_OFTEN_USED_*`), and its digest: the bytes those rules need from
+     * the paragraph, a pure function of `text`. Keep the digest with the paragraph, replace both
+     * when the paragraph changes, and pass the digests of all paragraphs to `resolveDocument`.
+     *
+     * `endsParagraph` (the default) says the paragraph ends at the end of `text`, for an editor
+     * that stores paragraphs without the blank line after them; pass `false` for slices that
+     * keep their line breaks, where a paragraph ends only at a blank line.
+     */
+open func checkParagraph(text: String, endsParagraph: Bool = true) -> ParagraphCheck  {
+    return try!  FfiConverterTypeParagraphCheck_lift(try! rustCall() {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_method_checker_check_paragraph(
+            self.uniffiCloneHandle(),
+        FfiConverterString.lower(text),
+        FfiConverterBool.lower(endsParagraph),uniffiCallStatus
+    )
+})
+}
+    
+    /**
      * Removes every word from the user dictionary.
      */
 open func clearWords()  {try! rustCall() {
@@ -870,6 +937,22 @@ open func removeWords(words: [String]) -> UInt32  {
     uniffi_writemorebetter_swift_fn_method_checker_remove_words(
             self.uniffiCloneHandle(),
         FfiConverterSequenceString.lower(words),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * Runs the whole-document rules over the stored digests of every paragraph, in document
+     * order. Resolve again after every edit: one change can add or remove matches in paragraphs
+     * that did not change. A digest from another engine version, or bytes that are not a
+     * digest, are listed in `stale()`.
+     */
+open func resolveDocument(digests: [Data]) -> DocumentResolution  {
+    return try!  FfiConverterTypeDocumentResolution_lift(try! rustCall() {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_method_checker_resolve_document(
+            self.uniffiCloneHandle(),
+        FfiConverterSequenceData.lower(digests),uniffiCallStatus
     )
 })
 }
@@ -986,6 +1069,184 @@ public func FfiConverterTypeChecker_lift(_ handle: UInt64) throws -> Checker {
 #endif
 public func FfiConverterTypeChecker_lower(_ value: Checker) -> UInt64 {
     return FfiConverterTypeChecker.lower(value)
+}
+
+
+
+
+
+
+/**
+ * The whole-document rules' matches over a document's digests, from
+ * [`Checker::resolve_document`]. It replaces the document's previous resolution.
+ */
+public protocol DocumentResolutionProtocol: AnyObject, Sendable {
+    
+    /**
+     * The indices of the paragraphs that have whole-document matches, ascending.
+     */
+    func paragraphs()  -> [UInt32]
+    
+    /**
+     * The indices of the digests that are from another engine version, or not digests: check
+     * those paragraphs again and resolve again. While any are listed, matches can be missing in
+     * every paragraph.
+     */
+    func stale()  -> [UInt32]
+    
+    /**
+     * The suggestions of paragraph `paragraph`, whose text is `text`: `checked`, the suggestions
+     * `checkParagraph` returned for it, merged with its whole-document matches, in UTF-16
+     * offsets into `text`. A match whose span no longer fits `text` is left out, and so is a
+     * `checked` suggestion whose span does not.
+     */
+    func suggestions(paragraph: UInt32, text: String, checked: [Suggestion])  -> [Suggestion]
+    
+}
+/**
+ * The whole-document rules' matches over a document's digests, from
+ * [`Checker::resolve_document`]. It replaces the document's previous resolution.
+ */
+open class DocumentResolution: DocumentResolutionProtocol, @unchecked Sendable {
+    fileprivate let handle: UInt64
+
+    /// Used to instantiate a [FFIObject] without an actual handle, for fakes in tests, mostly.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public struct NoHandle {
+        public init() {}
+    }
+
+    // TODO: We'd like this to be `private` but for Swifty reasons,
+    // we can't implement `FfiConverter` without making this `required` and we can't
+    // make it `required` without making it `public`.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    required public init(unsafeFromHandle handle: UInt64) {
+        self.handle = handle
+    }
+
+    // This constructor can be used to instantiate a fake object.
+    // - Parameter noHandle: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    //
+    // - Warning:
+    //     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing handle the FFI lower functions will crash.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public init(noHandle: NoHandle) {
+        self.handle = 0
+    }
+
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public func uniffiCloneHandle() -> UInt64 {
+        return try! rustCall { uniffi_writemorebetter_swift_fn_clone_documentresolution(self.handle, $0) }
+    }
+    // No primary constructor declared for this class.
+
+    deinit {
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
+        try! rustCall { uniffi_writemorebetter_swift_fn_free_documentresolution(handle, $0) }
+    }
+
+    
+
+    
+    /**
+     * The indices of the paragraphs that have whole-document matches, ascending.
+     */
+open func paragraphs() -> [UInt32]  {
+    return try!  FfiConverterSequenceUInt32.lift(try! rustCall() {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_method_documentresolution_paragraphs(
+            self.uniffiCloneHandle(),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * The indices of the digests that are from another engine version, or not digests: check
+     * those paragraphs again and resolve again. While any are listed, matches can be missing in
+     * every paragraph.
+     */
+open func stale() -> [UInt32]  {
+    return try!  FfiConverterSequenceUInt32.lift(try! rustCall() {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_method_documentresolution_stale(
+            self.uniffiCloneHandle(),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * The suggestions of paragraph `paragraph`, whose text is `text`: `checked`, the suggestions
+     * `checkParagraph` returned for it, merged with its whole-document matches, in UTF-16
+     * offsets into `text`. A match whose span no longer fits `text` is left out, and so is a
+     * `checked` suggestion whose span does not.
+     */
+open func suggestions(paragraph: UInt32, text: String, checked: [Suggestion]) -> [Suggestion]  {
+    return try!  FfiConverterSequenceTypeSuggestion.lift(try! rustCall() {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_method_documentresolution_suggestions(
+            self.uniffiCloneHandle(),
+        FfiConverterUInt32.lower(paragraph),
+        FfiConverterString.lower(text),
+        FfiConverterSequenceTypeSuggestion.lower(checked),uniffiCallStatus
+    )
+})
+}
+    
+
+    
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeDocumentResolution: FfiConverter {
+    typealias FfiType = UInt64
+    typealias SwiftType = DocumentResolution
+
+    public static func lift(_ handle: UInt64) throws -> DocumentResolution {
+        return DocumentResolution(unsafeFromHandle: handle)
+    }
+
+    public static func lower(_ value: DocumentResolution) -> UInt64 {
+        return value.uniffiCloneHandle()
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> DocumentResolution {
+        let handle: UInt64 = try readInt(&buf)
+        return try lift(handle)
+    }
+
+    public static func write(_ value: DocumentResolution, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(value))
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeDocumentResolution_lift(_ handle: UInt64) throws -> DocumentResolution {
+    return try FfiConverterTypeDocumentResolution.lift(handle)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeDocumentResolution_lower(_ value: DocumentResolution) -> UInt64 {
+    return FfiConverterTypeDocumentResolution.lower(value)
 }
 
 
@@ -2173,6 +2434,77 @@ public func FfiConverterTypeDocumentToken_lower(_ value: DocumentToken) -> RustB
 
 
 /**
+ * One paragraph checked by [`Checker::check_paragraph`].
+ */
+public struct ParagraphCheck: Equatable, Hashable {
+    /**
+     * The paragraph's suggestions without the whole-document rules', UTF-16 offsets into it.
+     */
+    public var suggestions: [Suggestion]
+    /**
+     * The paragraph's digest: no text, only offsets, flags and lemmas. Store it with the
+     * paragraph.
+     */
+    public var digest: Data
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * The paragraph's suggestions without the whole-document rules', UTF-16 offsets into it.
+         */suggestions: [Suggestion], 
+        /**
+         * The paragraph's digest: no text, only offsets, flags and lemmas. Store it with the
+         * paragraph.
+         */digest: Data) {
+        self.suggestions = suggestions
+        self.digest = digest
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension ParagraphCheck: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeParagraphCheck: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ParagraphCheck {
+        return
+            try ParagraphCheck(
+                suggestions: FfiConverterSequenceTypeSuggestion.read(from: &buf), 
+                digest: FfiConverterData.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: ParagraphCheck, into buf: inout [UInt8]) {
+        FfiConverterSequenceTypeSuggestion.write(value.suggestions, into: &buf)
+        FfiConverterData.write(value.digest, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeParagraphCheck_lift(_ buf: RustBuffer) throws -> ParagraphCheck {
+    return try FfiConverterTypeParagraphCheck.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeParagraphCheck_lower(_ value: ParagraphCheck) -> RustBuffer {
+    return FfiConverterTypeParagraphCheck.lower(value)
+}
+
+
+/**
  * A single flagged span.
  *
  * `start` and `end` are UTF-16 offsets into the checked string, so they can be used as an
@@ -2566,6 +2898,31 @@ fileprivate struct FfiConverterOptionTypeDocumentOptions: FfiConverterRustBuffer
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterSequenceUInt32: FfiConverterRustBuffer {
+    typealias SwiftType = [UInt32]
+
+    public static func write(_ value: [UInt32], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterUInt32.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [UInt32] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [UInt32]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterUInt32.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterSequenceString: FfiConverterRustBuffer {
     typealias SwiftType = [String]
 
@@ -2583,6 +2940,31 @@ fileprivate struct FfiConverterSequenceString: FfiConverterRustBuffer {
         seq.reserveCapacity(Int(len))
         for _ in 0 ..< len {
             seq.append(try FfiConverterString.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceData: FfiConverterRustBuffer {
+    typealias SwiftType = [Data]
+
+    public static func write(_ value: [Data], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterData.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [Data] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [Data]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterData.read(from: &buf))
         }
         return seq
     }
@@ -2927,6 +3309,9 @@ private let initializationResult: InitializationResult = {
     if (uniffi_writemorebetter_swift_checksum_method_checker_check() != 47217) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_writemorebetter_swift_checksum_method_checker_check_paragraph() != 21915) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_writemorebetter_swift_checksum_method_checker_clear_words() != 32061) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -2937,6 +3322,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_method_checker_remove_words() != 27495) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_writemorebetter_swift_checksum_method_checker_resolve_document() != 21356) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_method_checker_set_mother_tongue() != 22149) {
@@ -2952,6 +3340,15 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_method_checker_words() != 61704) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_writemorebetter_swift_checksum_method_documentresolution_paragraphs() != 47275) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_writemorebetter_swift_checksum_method_documentresolution_stale() != 11530) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_writemorebetter_swift_checksum_method_documentresolution_suggestions() != 17053) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_method_styledocument_adverbs_json() != 23195) {
