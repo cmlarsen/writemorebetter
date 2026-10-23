@@ -4,8 +4,10 @@
 //! Each sentence is classified past, present, mixed or unclassified by its main-clause finite
 //! chains with explicit subjects (`narrative::sentence_tense`). A scene's tense is declared,
 //! inferred from its own votes, or inherited from a strongly one-tense document. Two or more
-//! consecutive minority-tense sentences are a run; a single sentence is flagged only with
-//! `includeSingles`, and past in a present scene only with `includeReverse`.
+//! consecutive minority-tense sentences are a run (bridging at most two neutral sentences); a
+//! single sentence is flagged only with `includeSingles`, and past in a present scene only with
+//! `includeReverse`. A present run that ends a past scene beside *now* or *still* is the
+//! narrator's coda and is counted, not flagged.
 
 use std::collections::BTreeMap;
 use std::ops::Range;
@@ -27,6 +29,10 @@ const INHERIT_PERCENT: f64 = 90.0;
 const INHERIT_SENTENCES: usize = 30;
 /// A reverse run (past in a present scene) needs at least this many sentences.
 const REVERSE_RUN: usize = 3;
+/// A run bridges at most this many neutral sentences (unclassified sentences, dialogue tags in
+/// the scene tense, backstory past perfect) between two minority sentences. A longer gap, such
+/// as an exchange of tagged dialogue, splits it.
+const MAX_GAP: usize = 2;
 
 /// A declared tense for one scene, by its index in the report's `scenes`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -149,7 +155,7 @@ impl TenseShiftOptions {
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub enum TenseShiftStrength {
-    /// `minimumRun` or more consecutive minority-tense sentences.
+    /// `minimumRun` or more minority-tense sentences, at most two neutral sentences apart.
     Run,
     /// One sentence, with `includeSingles`.
     Single,
@@ -290,11 +296,27 @@ impl Flagger<'_> {
         }
     }
 
-    fn close(&self, run: &[usize], votes: &[(usize, SentenceVote)], shifts: &mut Vec<TenseShift>) {
+    /// `last_end` is the scene's last sentence in its own tense (`Step::End`): a forward run after
+    /// it ends the scene.
+    fn close(
+        &self,
+        run: &[usize],
+        votes: &[(usize, SentenceVote)],
+        last_end: Option<usize>,
+        exemptions: &mut BTreeMap<TenseExemption, usize>,
+        shifts: &mut Vec<TenseShift>,
+    ) {
         let (Some(&first), Some(&last)) = (run.first(), run.last()) else {
             return;
         };
         let reverse = self.tense == NarrativeTense::Present;
+        // The present-day coda of a retrospective past narrative (*The motel is still here. So
+        // are we.*): a present run after the scene's last past sentence, beside *now* or *still*.
+        let trailing = last_end.is_some_and(|end| first > end);
+        if !reverse && trailing && run.iter().any(|&k| votes[k].1.narrator_now) {
+            *exemptions.entry(TenseExemption::Coda).or_default() += run.len();
+            return;
+        }
         let strength = if reverse {
             let anchored = run
                 .iter()
@@ -310,6 +332,9 @@ impl Flagger<'_> {
             TenseShiftStrength::Run
         } else if run.len() >= self.options.minimum_run {
             TenseShiftStrength::Run
+        } else if run.len() > 1 {
+            // Shorter than `minimumRun` but more than one sentence: neither a run nor a single.
+            return;
         } else {
             let vote = &votes[first].1;
             let anchored = votes[..first]
@@ -349,18 +374,32 @@ impl Flagger<'_> {
         exemptions: &mut BTreeMap<TenseExemption, usize>,
         shifts: &mut Vec<TenseShift>,
     ) {
+        let steps: Vec<Step> = votes
+            .iter()
+            .map(|(_, vote)| self.step(vote, exemptions))
+            .collect();
+        let last_end = steps.iter().rposition(|step| *step == Step::End);
         let mut run: Vec<usize> = Vec::new();
-        for (k, (_, vote)) in votes.iter().enumerate() {
-            match self.step(vote, exemptions) {
-                Step::Minority => run.push(k),
-                Step::Neutral => {}
+        let mut gap = 0;
+        for (k, step) in steps.iter().enumerate() {
+            match step {
+                Step::Minority => {
+                    if gap > MAX_GAP {
+                        self.close(&run, votes, last_end, exemptions, shifts);
+                        run.clear();
+                    }
+                    run.push(k);
+                    gap = 0;
+                }
+                Step::Neutral => gap += 1,
                 Step::End => {
-                    self.close(&run, votes, shifts);
+                    self.close(&run, votes, last_end, exemptions, shifts);
                     run.clear();
+                    gap = 0;
                 }
             }
         }
-        self.close(&run, votes, shifts);
+        self.close(&run, votes, last_end, exemptions, shifts);
     }
 }
 

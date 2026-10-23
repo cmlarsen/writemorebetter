@@ -13,20 +13,22 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 - **Tense shift lens (#355).** An opt-in, narration-only `tenseShift` report flags runs of
   narration sentences that leave their scene's tense (*She opened the door. The room is dark. The
   air smells of smoke.*). Each sentence is classified from its main-clause finite chains with an
-  explicit subject; modal, past-perfect, subordinate, reported, generic, habitual, narrator-frame
-  and question/exclamation clauses never vote, and quotes, thought and caller-marked spans are not
-  narration (#353). A scene's tense is declared (`tense`, `sceneTenses`), inferred (defaults: 6
+  explicit subject; modal, past-perfect, subordinate, reported, generic, habitual, narrator-frame,
+  comment-clause (*it turns out*) and question/exclamation clauses never vote, and quotes, thought
+  and caller-marked spans are not narration (#353). A run bridges at most two neutral sentences,
+  and a present run with *now* or *still* after a past scene's last past sentence is counted as
+  the narrator's coda, not flagged. A scene's tense is declared (`tense`, `sceneTenses`), inferred (defaults: 6
   classified sentences, 70%) or inherited; undetermined scenes are never flagged. Defaults:
   `minimumRun` 2, `includeSingles` false, `includeReverse` false, `inheritDocumentTense` true.
   Surfaces: `tense_shift::report` and `StyleDocument::tense_shift` in Rust, `tenseShift()` in WASM
   (UTF-16), `tenseShift(optionsJson:)` / `tenseShiftJson` in Swift and `tense_shift` in Python
   (code points). `narrative` gains `sentence_tense`, `scene_tense`, `TenseThresholds`,
   `display_colon_lead_in` and the public `TenseExemption`, shared with person drift (#354); pacing
-  exposes its cognition lemmas. Measured on CC0 public-domain fiction: synthetic run recall 0.848
-  with precision 1.000 and no decoy leakage; 0.083 flags per 1,000 narration words; model-judged
-  slip-or-device precision 0.317 (development) and 0.100 (held-out), below the issue's 0.85 target
-  because published fiction's present-tense passages are deliberate; shift precision 0.927 and
-  0.640. WASM +115,906 bytes (+22,438 gzipped). See
+  exposes its cognition lemmas. Measured on CC0 public-domain fiction: synthetic run recall 0.772
+  with precision 1.000 and no decoy leakage; 0.102 flags per 1,000 narration words; model-judged
+  slip-or-device precision 0.243 (development) and 0.104 (held-out), below the issue's 0.85 target
+  because published fiction's present-tense passages are deliberate; shift precision 0.959 and
+  0.646. WASM +126,733 bytes (+24,838 gzipped). See
   [`docs/STYLE-TENSE-SHIFT.md`](docs/STYLE-TENSE-SHIFT.md).
 
 - **Voices and the `voices` report (#353).** The style document resolves every byte to a

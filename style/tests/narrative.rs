@@ -186,6 +186,10 @@ fn quote_balance() {
     assert!(paragraph_quotes_balanced(&document, 0));
     assert!(!paragraph_quotes_balanced(&document, 1));
     assert!(paragraph_quotes_balanced(&document, 2));
+    // A quotation that runs on into the next paragraph, with nested speech inside it.
+    let document = analyze("“He reads—“Jack, he’s robbed a widow;” or so…\n“And then.”");
+    assert!(!paragraph_quotes_balanced(&document, 0));
+    assert!(paragraph_quotes_balanced(&document, 1));
 }
 
 // Tense votes (#355), shared with person drift (#354).
@@ -254,6 +258,13 @@ fn sentence_tense_classes_and_exemptions() {
             vec![],
         ),
         ("I suppose so.", Unclassified, vec![NarratorFrame], vec![]),
+        (
+            "The fog, it turns out, rolled in.",
+            Past,
+            vec![Parenthetical],
+            vec!["rolled"],
+        ),
+        ("He yells, “Get out!”", Present, vec![], vec!["yells"]),
         (
             "I told him, and June is a liar.",
             Mixed,

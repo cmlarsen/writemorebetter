@@ -1092,8 +1092,8 @@ public enum TenseSource: String, Codable, Sendable { case declared, inferred, in
 
 /// Why a chain or sentence did not vote.
 public enum TenseExemption: String, Codable, Sendable {
-    case modal, pastPerfect, subordinate, reported, generic, habitual, narratorFrame
-    case questionOrExclamation, noSubject, ambiguous, mixedSentence, unbalancedQuotes
+    case modal, pastPerfect, subordinate, reported, generic, habitual, narratorFrame, parenthetical
+    case questionOrExclamation, noSubject, ambiguous, mixedSentence, unbalancedQuotes, coda
 }
 
 /// Sentences per class in one scene.

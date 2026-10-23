@@ -453,13 +453,20 @@ fn opening_quote(text: &str, byte: usize, ch: char) -> bool {
     }
 }
 
-/// False when the paragraph has an opening quote outside every dialogue span: an unclosed quote
-/// that dialogue detection could not pair, so voice and mode there are unreliable.
+/// False when the paragraph has an opening quote outside every dialogue span, an unclosed quote
+/// that dialogue detection could not pair, or more opening than closing double quotes (a
+/// multi-paragraph quotation, whose span ends at the first nested closing quote: Father Mapple's
+/// sermon in Moby-Dick quotes *“Jack, he’s robbed a widow;”* inside it). Voice and mode there are
+/// unreliable.
 #[doc(hidden)]
 pub fn paragraph_quotes_balanced(document: &Document, paragraph: usize) -> bool {
     let Some(paragraph) = document.paragraphs.get(paragraph) else {
         return true;
     };
+    let count = |quote: char| paragraph.text.chars().filter(|&ch| ch == quote).count();
+    if count('“') > count('”') || count('"') % 2 == 1 {
+        return false;
+    }
     let base = paragraph.span.byte.start;
     paragraph.text.char_indices().all(|(local, ch)| {
         if !opening_quote(&paragraph.text, local, ch) {
@@ -494,10 +501,12 @@ pub enum TenseExemption {
     Reported,
     /// A generic subject: *you*, *one*, *nobody*, a bare plural, *a man*, *that is*, *it is … to*.
     Generic,
-    /// A habitual marker: *always*, *never*, *every Sunday*, *whenever*.
+    /// A habitual marker in the chain's clause: *always*, *often*, *every Sunday*, *whenever*.
     Habitual,
     /// A first-person narrator frame: *I remember*, *I suppose*.
     NarratorFrame,
+    /// A comment clause set off by punctuation: *it turns out*, *it seems*, *the truth is*.
+    Parenthetical,
     /// A question or exclamation: every chain in it.
     QuestionOrExclamation,
     /// No explicit subject: imperatives, inversions, subjectless coordinated verb phrases.
@@ -508,6 +517,9 @@ pub enum TenseExemption {
     MixedSentence,
     /// A sentence in a paragraph with an unpaired quote.
     UnbalancedQuotes,
+    /// A sentence of a present run that ends a past scene beside *now* or *still*: the narrator's
+    /// present after the story (*The motel is still here.*). Counted per sentence.
+    Coda,
 }
 
 #[doc(hidden)]
@@ -553,6 +565,9 @@ pub struct SentenceVote {
     /// A backstory anchor in the narration: *ago*, *last*, *once*, *years*, *back then*, *used
     /// to*, *when she was*, or a *remember*/*recall* verb.
     pub backstory: bool,
+    /// *now* or *still* in the narration: with a run that ends a past scene, the narrator's
+    /// present (`TenseExemption::Coda`).
+    pub narrator_now: bool,
     /// Every chain in the sentence's narration, voting or not, in order.
     pub chains: Vec<VoteChain>,
 }
@@ -646,15 +661,15 @@ const INDEFINITE: [&str; 22] = [
     "noone",
 ];
 const DEMONSTRATIVES: [&str; 4] = ["this", "that", "these", "those"];
-const HABITUAL: [&str; 9] = [
+/// *never* and *ever* are left out: a negated one-off action is narration (*He never looks at
+/// her.* in a past scene is a slip), and *never* also reads as negation in `negation`.
+const HABITUAL: [&str; 7] = [
     "always",
-    "never",
     "often",
     "usually",
     "sometimes",
     "seldom",
     "rarely",
-    "ever",
     "whenever",
 ];
 const TIME_NOUNS: [&str; 24] = [
@@ -683,11 +698,25 @@ const TIME_NOUNS: [&str; 24] = [
     "weekend",
     "season",
 ];
-const FRAME: [&str; 20] = [
+/// *say* and *tell* are scene verbs as often as frames (*I tell him to hurry*, *We say goodbye*);
+/// they are frames only in `speech_frame`'s shapes (*I tell you*, *I say,*, *I must say that*).
+const FRAME: [&str; 18] = [
     "remember", "recall", "think", "know", "suppose", "wonder", "believe", "guess", "imagine",
-    "admit", "confess", "mean", "hope", "doubt", "suspect", "say", "tell", "swear", "grant",
-    "expect",
+    "admit", "confess", "mean", "hope", "doubt", "suspect", "swear", "grant", "expect",
 ];
+/// Participles whose first-person present perfect is the narrator's experience up to now (*I have
+/// known a lot of losses*, *we have heard no more*); others are scene actions (*I have counted
+/// every boat*) unless an experiential adverb comes with them (*I have never forgotten it*).
+const PERFECT_FRAME: [&str; 10] = [
+    "know", "hear", "see", "be", "learn", "wonder", "think", "forget", "remember", "meet",
+];
+const PERFECT_ADVERBS: [&str; 7] = [
+    "never", "ever", "often", "always", "since", "seldom", "rarely",
+];
+/// Comment clauses set off by punctuation: *The fog, it turns out, rolled in.* *But, the truth
+/// is, the boats were empty.* The head lemma, with *it* or with *the* + noun as subject.
+const PARENTHETICAL_IT: [&str; 4] = ["seem", "appear", "turn", "happen"];
+const PARENTHETICAL_NOUNS: [&str; 4] = ["truth", "fact", "point", "trouble"];
 /// Narrator-frame verbs beyond the issue's list, added from the #355 development labels: a first-
 /// person narrator recollecting or judging in the present (*I recollect the wet housetops*, *I
 /// picture my small self*, *I fear to approach it*). *feel*, *find* and *seem* are left out: they
@@ -1000,15 +1029,110 @@ fn generic(tokens: &[&Token], chain: &Chain, subject: usize, np: usize) -> bool 
     bare
 }
 
-fn habitual(tokens: &[&Token]) -> bool {
-    tokens.iter().enumerate().any(|(i, token)| {
-        let word = normalized(token);
-        HABITUAL.contains(&word.as_str())
-            || (matches!(word.as_str(), "every" | "each")
-                && tokens
-                    .get(i + 1)
-                    .is_some_and(|next| TIME_NOUNS.contains(&normalized(next).as_str())))
-    })
+fn habitual_marker(tokens: &[&Token], i: usize) -> bool {
+    let word = normalized(tokens[i]);
+    HABITUAL.contains(&word.as_str())
+        || (matches!(word.as_str(), "every" | "each")
+            && tokens
+                .get(i + 1)
+                .is_some_and(|next| TIME_NOUNS.contains(&normalized(next).as_str())))
+}
+
+/// A habitual marker in the chain's own clause (*She always walks home*), or in a clause with no
+/// finite chain next to it (*Every Sunday, she goes to church*), or a *whenever* clause anywhere in
+/// the run. A marker inside another finite clause belongs to that clause: *He walks down the pier,
+/// the way he did every morning* is a slip.
+fn habitual(tokens: &[&Token], starts: &[usize], found: &[Chain], chain: &Chain) -> bool {
+    let clause_range = |c: usize| starts[c]..starts.get(c + 1).copied().unwrap_or(tokens.len());
+    let marked = |c: usize| clause_range(c).any(|i| habitual_marker(tokens, i));
+    let finite = |c: usize| found.iter().any(|other| other.clause == c);
+    if marked(chain.clause) || tokens.iter().any(|token| normalized(token) == "whenever") {
+        return true;
+    }
+    let before = (0..chain.clause).rev();
+    let after = chain.clause + 1..starts.len();
+    for neighbours in [before.collect::<Vec<_>>(), after.collect()] {
+        for c in neighbours {
+            if finite(c) {
+                break;
+            }
+            if marked(c) {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+/// *say* and *tell* as narrator frames: *I tell you, …*, *I tell you that …*, *I say, …*, *I say
+/// that …*. An object or a clause end makes them scene actions (*I tell him to hurry*, *I say
+/// nothing*).
+fn speech_frame(tokens: &[&Token], chain: &Chain) -> bool {
+    let verbs = &tokens[chain.head..chain.end];
+    let open = |index: usize| {
+        tokens.get(index).is_none_or(|token| {
+            boundary(token) || matches!(normalized(token).as_str(), "that" | "so")
+        })
+    };
+    if verbs
+        .iter()
+        .any(|token| has_verb_lemma(token, |lemma| lemma == "say"))
+    {
+        return open(chain.end);
+    }
+    if verbs
+        .iter()
+        .any(|token| has_verb_lemma(token, |lemma| lemma == "tell"))
+    {
+        return tokens
+            .get(chain.end)
+            .is_some_and(|next| normalized(next) == "you")
+            && (open(chain.end + 1)
+                || tokens.get(chain.end + 1).is_some_and(|after| {
+                    matches!(normalized(after).as_str(), "what" | "how" | "this")
+                }));
+    }
+    false
+}
+
+/// A comment clause set off by punctuation (*The fog, it turns out, is thick*; *But, the truth
+/// is, nobody came*): the indexes of its opening boundary, when there is one, and its closing
+/// boundary.
+fn parenthetical(
+    tokens: &[&Token],
+    chain: &Chain,
+    subject: usize,
+    np: usize,
+) -> Option<(Option<usize>, usize)> {
+    let word = normalized(tokens[subject]);
+    let head = tokens[chain.head];
+    let comment = (word == "it"
+        && np == subject
+        && has_verb_lemma(head, |lemma| PARENTHETICAL_IT.contains(&lemma)))
+        || (np + 1 == subject
+            && normalized(tokens[np]) == "the"
+            && PARENTHETICAL_NOUNS.contains(&word.as_str())
+            && head_is_be(head));
+    if !comment {
+        return None;
+    }
+    let open = match np.checked_sub(1) {
+        None => None,
+        Some(previous) if boundary(tokens[previous]) => Some(previous),
+        Some(previous) if previous == 0 && coordinator(tokens[previous]) => None,
+        Some(_) => return None,
+    };
+    let mut close = chain.end;
+    while tokens
+        .get(close)
+        .is_some_and(|token| matches!(normalized(token).as_str(), "out" | "so"))
+    {
+        close += 1;
+    }
+    let closes = tokens
+        .get(close)
+        .is_some_and(|token| matches!(token.text.as_str(), "," | "—" | "–" | ")" | ";"));
+    closes.then_some((open, close))
 }
 
 fn narrator_frame(tokens: &[&Token], chain: &Chain, subject: usize) -> bool {
@@ -1019,13 +1143,22 @@ fn narrator_frame(tokens: &[&Token], chain: &Chain, subject: usize) -> bool {
             has_verb_lemma(token, |lemma| {
                 FRAME.contains(&lemma) || FRAME_EXTRA.contains(&lemma)
             })
-        }) {
+        }) || speech_frame(tokens, chain)
+        {
             return true;
         }
-        // A first-person present perfect ties the past to the narrator's now (*I have known a
-        // lot of losses*, *Of Silver we have heard no more*).
+        // A first-person present perfect of experience ties the past to the narrator's now (*I
+        // have known a lot of losses*, *Of Silver we have heard no more*, *I have never forgotten
+        // it*). Other perfects are scene actions (*I have counted every boat*).
         let perfect = has_verb_lemma(tokens[chain.head], |lemma| lemma == "have")
-            && verbs[1..].iter().any(|token| has_pos(token, "VBN"));
+            && verbs[1..].iter().any(|token| has_pos(token, "VBN"))
+            && (verbs[1..]
+                .iter()
+                .any(|token| readings(token, "VBN").any(|lemma| PERFECT_FRAME.contains(&lemma)))
+                || tokens[chain.head..]
+                    .iter()
+                    .take_while(|token| !boundary(token))
+                    .any(|token| PERFECT_ADVERBS.contains(&normalized(token).as_str())));
         if perfect {
             return true;
         }
@@ -1039,8 +1172,9 @@ fn narrator_frame(tokens: &[&Token], chain: &Chain, subject: usize) -> bool {
             return true;
         }
     }
-    // *now*, *still* or *nowadays* in the same narration, or *to this day*, *these days* or *at
-    // present*. Deictics never vote; here they only take a present vote away.
+    // *nowadays*, *to this day*, *these days* or *at present* in the same narration (*now* and
+    // *still* are left out; see `NARRATOR_NOW`). Deictics never vote; here they only take a
+    // present vote away.
     tokens.iter().enumerate().any(|(i, token)| {
         let word = normalized(token);
         let next = tokens.get(i + 1).map(|t| normalized(t)).unwrap_or_default();
@@ -1102,8 +1236,10 @@ fn backstory_anchor(tokens: &[&Token]) -> bool {
     })
 }
 
-/// The sentence's last punctuation that is not a quote mark is `?` or `!`.
-fn question_or_exclamation(sentence: &crate::Sentence) -> bool {
+/// The sentence's last punctuation that is not a quote mark is `?` or `!`, in narration: the
+/// narrator's own question (*Where is he?*), not quoted speech ending the sentence (*He yells,
+/// “Get out!”*).
+fn question_or_exclamation(document: &Document, sentence: &crate::Sentence) -> bool {
     sentence
         .tokens
         .iter()
@@ -1116,7 +1252,9 @@ fn question_or_exclamation(sentence: &crate::Sentence) -> bool {
                 .all(|c| matches!(c, '“' | '”' | '"' | '‘' | '’' | '\'' | '«' | '»' | ')'))
         })
         .is_some_and(|token| {
-            token.is_punctuation && (token.text.contains('?') || token.text.contains('!'))
+            token.is_punctuation
+                && (token.text.contains('?') || token.text.contains('!'))
+                && document.is_narration_at(token.span.byte.start)
         })
 }
 
@@ -1137,7 +1275,7 @@ pub fn sentence_tense(
         vote.exemptions.push(UnbalancedQuotes);
         return vote;
     }
-    let question = question_or_exclamation(sentence);
+    let question = question_or_exclamation(document, sentence);
     let voiced = sentence
         .tokens
         .iter()
@@ -1154,9 +1292,37 @@ pub fn sentence_tense(
             .map(|&index| &sentence.tokens[index])
             .collect();
         let starts = clause_starts(&tokens);
-        let found = chains(&tokens);
+        let mut found = chains(&tokens);
         vote.backstory |= backstory_anchor(&tokens);
-        let habitual = habitual(&tokens);
+        vote.narrator_now |= tokens
+            .iter()
+            .any(|token| matches!(normalized(token).as_str(), "now" | "still"));
+        // Comment clauses do not vote, and the verb after one takes the subject before it (*The
+        // fog, it turns out, is thick*: *fog* is the subject of *is*).
+        let mut comments = Vec::new();
+        for (n, chain) in found.iter().enumerate() {
+            let Some(subject) = chain.subject else {
+                continue;
+            };
+            let np = noun_phrase_start(&tokens, subject);
+            if let Some((open, close)) = parenthetical(&tokens, chain, subject, np) {
+                comments.push((n, open, close));
+            }
+        }
+        for &(_, open, close) in &comments {
+            let Some(open) = open else {
+                continue;
+            };
+            if let Some(next) = found
+                .iter_mut()
+                .find(|chain| chain.head == close + 1 && chain.subject.is_none())
+            {
+                if let Some(subject) = subject_of(&tokens, open) {
+                    next.subject = Some(subject);
+                    next.class = class(&tokens, next.head, next.end, Some(subject));
+                }
+            }
+        }
         for (n, chain) in found.iter().enumerate() {
             let reason = if question {
                 Some(QuestionOrExclamation)
@@ -1165,6 +1331,7 @@ pub fn sentence_tense(
                     (ChainClass::Modal { .. }, _) => Some(Modal),
                     (ChainClass::Ambiguous, _) => Some(Ambiguous),
                     (_, None) => Some(NoSubject),
+                    (_, Some(_)) if comments.iter().any(|&(c, _, _)| c == n) => Some(Parenthetical),
                     (_, Some(subject)) => {
                         let np = noun_phrase_start(&tokens, subject);
                         if reported(&tokens, &found, n, np) {
@@ -1178,7 +1345,9 @@ pub fn sentence_tense(
                             && generic(&tokens, chain, subject, np)
                         {
                             Some(Generic)
-                        } else if chain.class == ChainClass::Present && habitual {
+                        } else if chain.class == ChainClass::Present
+                            && habitual(&tokens, &starts, &found, chain)
+                        {
                             Some(Habitual)
                         } else if chain.class == ChainClass::Present
                             && narrator_frame(&tokens, chain, subject)

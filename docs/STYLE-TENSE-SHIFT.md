@@ -25,7 +25,7 @@ camelCase JSON with snake_case aliases. Unknown keys and unknown tense strings a
 | `sceneTenses` | `[]` | `[{"scene": 1, "tense": "present"}]`: per-scene declarations by index in `scenes`; they beat `tense`. An index past the last scene is `invalidOptions`. |
 | `minimumSceneSentences` | 6 | Classified (past or present) sentences a scene needs before its tense is inferred. Must be positive. |
 | `minimumMajorityPercent` | 70 | The share one tense needs among them. Must be above 50 and at most 100. |
-| `minimumRun` | 2 | Consecutive minority-tense sentences that make a `run`. Must be at least 2. |
+| `minimumRun` | 2 | Minority-tense sentences that make a `run` (see [Flags](#flags) for what may sit between them). Must be at least 2. A shorter run of two or more is dropped, never reported as a `single`. |
 | `includeSingles` | `false` | Also flag one sentence (`single`) when stricter checks hold. Measured 0 / 40 slip-or-device on published fiction, so it stays off. |
 | `includeReverse` | `false` | Also flag past runs in a present scene. |
 | `inheritDocumentTense` | `true` | Let a short scene take the document's tense when the whole document is at least 90% one tense over at least 30 classified sentences. |
@@ -59,7 +59,10 @@ camelCase JSON with snake_case aliases. Unknown keys and unknown tense strings a
 Only narration votes. `Document::is_narration_at` (#353) takes out every quoted span, quoted and
 tagged unquoted thought, tagged unquoted speech and caller-marked spans, token by token, so a tag
 inside a quote's sentence still votes (*“Fine,” she says.* is present). A paragraph whose quotes
-don't balance never votes (`unbalancedQuotes`).
+don't balance never votes (`unbalancedQuotes`): an opening quote outside every dialogue span, more
+opening than closing curly double quotes, or an odd number of straight ones. The count catches a
+quotation that runs on into the next paragraph with nested speech inside it (Father Mapple's sermon
+in *Moby-Dick*), whose dialogue span ends at the first nested closing quote.
 
 Each sentence's narration runs are cut into finite verb chains (`narrative::chains`), each `past`,
 `pastPerfect`, `present`, `modal` or `ambiguous` with its subject. A chain votes only when it is a
@@ -73,11 +76,13 @@ main clause with an explicit subject and none of these holds:
 | `subordinate` | A subordinator between the clause start and the subject (B-SBAR, WDT/WP/WRB, *that if whether because while as though although since unless until when where than like once*), a relative after a noun, *, which …*, *as if / as though*, *the way*, a contact relative | *the house where she lives*, *the way you learn a scar* |
 | `reported` | Within one clause of a speech, cognition or thought verb, or *see hear notice learn tell explain promise warn*, with an optional *that/if/whether*; text after a display colon (*said read wrote thought ran stated announced*, *sign note letter notice label message text card inscription headline*) | *She said the train leaves at six.* *The sign read: Rooms To Let.* |
 | `generic` | Present chains only: *you*, *one*, indefinite pronouns, bare plural or mass subjects, *a/an* + noun, a demonstrative pronoun before a copula, expletive *it* + copula + complement + *to/that/how* | *People are strange.* *A man needs a job.* |
-| `habitual` | Present chains only: *always never often usually sometimes seldom rarely ever*, *every/each* + time noun, *whenever* | *He goes every Sunday.* |
-| `narratorFrame` | Present chains with *I/we* and a frame verb (*remember recall think know suppose wonder believe guess imagine admit confess mean hope doubt suspect say tell swear grant expect*, plus *recollect picture fear trust own fancy assure beg declare acknowledge regret venture presume*), a first-person present perfect, *I am glad/sorry/afraid/thankful/sure/…*; or *nowadays*, *to this day*, *these days*, *at present* in the sentence | *I remember the summer we met.* *I have known a lot of losses.* *Nowadays we have revues.* |
-| `questionOrExclamation` | The last non-quote punctuation is `?` or `!`: every chain is neutral | *Where is he? Why is it always me!* |
+| `habitual` | Present chains only: *always often usually sometimes seldom rarely*, *every/each* + time noun in the chain's own clause or a verbless clause next to it; *whenever* anywhere in the narration. *never* and *ever* are not markers (*He never looks at her.* is narration), and a marker inside another finite clause belongs to that clause (*He walks down the pier, the way he did every morning.* votes present) | *He goes every Sunday.* *Every Sunday, he goes to church.* |
+| `narratorFrame` | Present chains with *I/we* and a frame verb (*remember recall think know suppose wonder believe guess imagine admit confess mean hope doubt suspect swear grant expect*, plus *recollect picture fear trust own fancy assure beg declare acknowledge regret venture presume*); *say* only before a comma, clause end, *that* or *so*, and *tell* only as *tell you* before one of those or *what/how/this* (*I tell him to hurry* and *I say nothing* vote); a first-person present perfect of experience (participle *known heard seen been learned wondered thought forgotten remembered met*, or *never ever often always since seldom rarely* in the clause; *I have counted every boat* votes); *I am glad/sorry/afraid/thankful/sure/…*; or *nowadays*, *to this day*, *these days*, *at present* in the sentence | *I remember the summer we met.* *I tell you, it was cold.* *I have known a lot of losses.* *Nowadays we have revues.* |
+| `parenthetical` | A comment clause set off by punctuation: *it* + *seem/appear/turn (out)/happen*, or *the truth/fact/point/trouble is*, with a comma, dash, parenthesis or semicolon after it and a boundary or the sentence start before it. The verb after it takes the subject before it (*The fog, it turns out, rolled in*: *fog … rolled* votes past) | *The boats, it seems, were empty.* *But, the truth is, nobody came.* |
+| `questionOrExclamation` | The last non-quote punctuation is `?` or `!` and is narration, not inside quoted speech: every chain is neutral. *He opens the door and yells, “Get out!”* still votes | *Where is he? Why is it always me!* |
 | `mixedSentence` | Past and present votes in one sentence: counted, never flagged | *I told him he could visit, but June is a liar.* |
 | `pastPerfect` | Counts as past for inference, never flagged, and never a minority signal in a present scene | *She’d gone before.* |
+| `coda` | Not a chain rule: the sentences of a present run in a past scene that comes after the scene's last past sentence and has *now* or *still* in its narration. The narrator's present after the story ends, counted per sentence and not flagged | *The motel is still here. So are we.* at the end of a past story |
 
 Deictics (*now, today, tomorrow, here, ago*) never vote. A sentence is **past** with at least one
 past or past-perfect vote and no present vote, **present** the other way round, **mixed** with
@@ -89,9 +94,10 @@ Two rules differ from the issue text, from the development labels and the pertur
   habitual marker is narration (*A package came.*, *She always walked home.*) and votes past.
   Exempting it left past scenes with holes, so runs spanned past sentences they should have ended
   at.
-- The narrator-frame extensions above. *now*, *still*, *feel*, *find* and *seem* were tried and
-  dropped: they cost 9 points of synthetic run recall (0.834 → 0.744) for no slip-or-device
-  precision.
+- The narrator-frame extensions above. *now*, *still*, *feel*, *find* and *seem* were tried as
+  frame words and dropped: they cost 9 points of synthetic run recall (0.834 → 0.744) for no
+  slip-or-device precision. *now* and *still* are used only by the positional `coda` rule.
+- The issue lists *never* as habitual; it is not one here (review of #355).
 
 ## Scenes
 
@@ -109,10 +115,17 @@ start), the same indexing as #354. A scene's tense is:
 
 ## Flags
 
-A **run** is a maximal sequence of minority-tense sentences in a scene. Unclassified sentences
-inside it don't break it, and neither does a dialogue tag in the scene tense (*The room is dark.
-“Hello?” she called. The air is cold.*); a sentence in the scene tense or a mixed sentence ends
-it. A run of `minimumRun` or more is `run`.
+A **run** is a sequence of minority-tense sentences in a scene. Up to two **neutral** sentences
+between two minority sentences don't break it: unclassified sentences, dialogue tags in the scene
+tense (*The room is dark. “Hello?” she called. The air is cold.*) and, in a present scene,
+past-perfect backstory. A third neutral sentence in a row splits it, so two asides with a dialogue
+exchange between them are two singles, not one run spanning the exchange. A sentence in the scene
+tense or a mixed sentence ends it. A run of `minimumRun` or more is `run`; a shorter run of two or
+more is dropped.
+
+A present run in a past scene that comes after the scene's last past sentence and has *now* or
+*still* in its narration is the narrator's coda (`coda`), counted and not flagged. A coda followed
+by more past narration is still flagged.
 
 A run of one is `single` only with `includeSingles`, when every voting chain has a specific subject
 (a personal pronoun, a name, or a *the*/possessive/demonstrative noun phrase), it is not a gnomic
@@ -149,14 +162,19 @@ flags overlapping the flipped sentences over all new flags.
 
 | | Default options | `includeSingles` |
 |---|---:|---:|
-| Run recall | **0.848** (first person 0.834, third 0.868) | 0.948 |
-| Single recall | 0.028 (only where a flip joins an existing present sentence) | 0.756 (first 0.766, third 0.743) |
-| Precision of new flags | **1.000** (438 / 438) | 1.000 (852 / 852) |
-| Decoy leakage | **0 / 500** | 0 / 500 |
+| Run recall | **0.772** (first person 0.767, third 0.779) | 0.978 |
+| Single recall | 0.022 (only where a flip joins an existing present sentence) | 0.814 |
+| Precision of new flags | **1.000** (400 / 400) | 0.999 (970 / 971) |
+| Decoy leakage | **0 / 500** | 1 / 500 |
 
-**Reverse.** 105 whole past scenes flipped to the present (past perfect left alone) gave no flags
+The suite's runs are consecutive *classified* sentences, so unclassified sentences and whole
+dialogue exchanges can sit between the flipped ones. The two-sentence gap limit splits those into
+singles: without it, run recall on the same code is 0.878; with a limit of four it is 0.804; the
+`coda` rule costs another 0.004. Before the review fixes it was 0.848.
+
+**Reverse.** 102 whole past scenes flipped to the present (past perfect left alone) gave no flags
 with `includeReverse` (0 false flags). Putting 3 consecutive sentences back into the past was
-found in 54 of 103 (0.524) with `includeReverse` and never at the defaults.
+found in 53 of 100 (0.530) with `includeReverse` and never at the defaults.
 
 The gate (`perturb --gate`): run recall ≥ 0.70, precision ≥ 0.90, decoy leakage ≤ 0.05, the
 issue's thresholds, recorded 2026-10-23. Synthetic re-inflection favours common verbs and clean
@@ -168,16 +186,22 @@ Default options, narration words under the voice mask:
 
 | Sources | Narration words | Shifts | Per 1,000 | Undetermined scenes |
 |---|---:|---:|---:|---:|
-| Pooled (stories, pacing books, the three new texts; Moby-Dick out) | 953,157 | 79 | **0.083** | 2.3% (0.8% of words) |
-| Held-out-only novels (seven) | 623,258 | 85 | 0.136 | 1.1% |
-| *Moby-Dick* (stress test) | 163,627 | 37 | 0.226 | 27% |
-| `bench/public/moby150k.txt` (hard-wrapped) | 17,919 | 5 | 0.279 | 84% |
+| Pooled (stories, pacing books, the three new texts; Moby-Dick out) | 953,157 | 97 | **0.102** | 2.5% (1.0% of words) |
+| Held-out-only novels (seven) | 623,258 | 91 | 0.146 | 1.1% |
+| *Moby-Dick* (stress test) | 163,627 | 40 | 0.244 | 25% |
+| `bench/public/moby150k.txt` (hard-wrapped) | 17,919 | 2 | 0.112 | 84% |
+| `bench/public` stories 1–5 | 9,066 | 5 | 0.552 | 0% |
+
+On `bench/public` the five story flags are the narrators' present-day reflections near the end
+(story2 105–106, story3 118–119, story4 107–111 and 119–122, story5 109–112), none a slip. The
+`coda` rule takes out story3's closing *The motel is still here* run; the others are followed by
+more past narration, so they are not codas by this rule.
 
 The highest rates are first-person retrospective narrators (*The Murder of Roger Ackroyd* 0.61,
-*Howards End* 0.48) and essayistic omniscience. Pooled exemption counts: subordinate 24,910,
-no subject 23,790, modal 8,361, question or exclamation 5,333, reported 4,623, ambiguous 1,483,
-narrator frame 928, habitual 609, generic 544, unbalanced quotes 469, mixed sentence 294, past
-perfect 7.
+*Howards End* 0.48) and essayistic omniscience. Pooled exemption counts: subordinate 25,295,
+no subject 24,768, modal 8,461, reported 4,698, question or exclamation 2,922, ambiguous 1,500,
+unbalanced quotes 1,392, narrator frame 991, generic 552, mixed sentence 367, habitual 155,
+parenthetical 25, coda 10, past perfect 7.
 
 ### Precision on published fiction (2026-10-23)
 
@@ -189,18 +213,27 @@ directory holding only the guidelines and the items (id, expected, found, contex
 `gnomic`, `thought`, `dialogue`, `reported`, `tagger`, `scene` or `other`
 ([guidelines](../bench/style/labels/TENSE-GUIDELINES.md)). The implementer adjudicated every item
 where they differed on `shift` or on slip-or-device. These are **model labels**, not human labels.
+The DeepSeek labels came through OpenCode Go, whose terms the owner has still to confirm for
+benchmark labels ([STYLE-DATA-LICENSES.md](STYLE-DATA-LICENSES.md#tense-shift-355)).
 The issue's precision is `shift` and a kind of `slip` or `device`; `shiftPrecision` counts every
 real tense change in narration.
 
 | Set | Rules | Kept | Slip or device | Shift | Agreement (slip-or-device) |
 |---|---|---:|---:|---:|---:|
-| Development, 100 default flags (seed 355) | drawn at `7448fbf`, scored at the freeze | 82 | **26 / 82 = 0.317** (Wilson lower 0.226) | 76 / 82 = 0.927 | 84 / 100, κ 0.46 |
-| Held-out, 100 default flags (seed 356) | drawn after the freeze at `17bdcbc` | 100 | **10 / 100 = 0.100** (lower 0.055) | 64 / 100 = 0.640 | 95 / 100, κ 0.68 |
+| Development, 100 default flags (seed 355) | drawn at `7448fbf`, scored after the review fixes | 74 | **18 / 74 = 0.243** (Wilson lower 0.160) | 71 / 74 = 0.959 | 84 / 100, κ 0.46 |
+| Held-out, 100 default flags (seed 356) | drawn after the freeze at `17bdcbc`, scored after the review fixes | 96 | **10 / 96 = 0.104** (lower 0.058) | 62 / 96 = 0.646 | 95 / 100, κ 0.68 |
 | Singles (`includeSingles`, seed 357) | `17bdcbc` | 40 | **0 / 40** | 27 / 40 = 0.675 | |
-| Reverse runs (`includeReverse`, all 4) | `17bdcbc` | 4 | 1 / 4 | 4 / 4 | |
+| Reverse runs (`includeReverse`, all 4) | `17bdcbc` | 2 | 0 / 2 | 2 / 2 | |
 
-Kinds on the held-out set: commentary 35, dialogue 22, gnomic 19, device 10, thought 7, reported
-6, tagger 1, slip 0. On the development set: commentary 36, device 26, gnomic 14, dialogue 6.
+At the freeze (before the review fixes) the rows were 26 / 82 = 0.317 and 76 / 82 shift
+(development), 10 / 100 and 64 / 100 (held-out), and 1 / 4 reverse. The fixes dropped 26
+development flags, 9 of them devices (deliberate present passages that the gap limit now splits),
+and 4 held-out flags, none slip or device. Kept counts only cover labeled flags: the review fixes
+also add flags nobody has judged (206 default flags across all sources became 230).
+
+Kinds on the kept held-out flags: commentary 33, dialogue 20, gnomic 19, device 10, thought 7,
+reported 6, tagger 1, slip 0. On the development set: commentary 40, device 18, gnomic 13,
+dialogue 3.
 Before the guards, the development set was 27 / 100 slip or device and 93 / 100 shift; the guards
 removed 18 rows, 1 of them a device.
 
@@ -219,15 +252,19 @@ they are 0 / 40, so it is off.
 
 ### What the numbers mean for a writer
 
-On published fiction the lens raises about one flag per 12,000 narration words, nearly all of
-them intended. On a draft, a run of slipped sentences in a past scene is found 85% of the time in
-the synthetic suite, and nothing else in a clean scene is flagged. The lens is opt-in for that
+On published fiction the lens raises about one flag per 10,000 narration words, nearly all of
+them intended. On a draft, a run of slipped sentences in a past scene is found 77% of the time in
+the synthetic suite (98% as a run or a single with `includeSingles`), and nothing else in a clean scene is flagged. The lens is opt-in for that
 reason, and its flags read as "this passage is in the other tense", not "this is an error".
 
 ## Known limits
 
 - Narrator commentary and definite-subject generic statements (*The river is wide.*) look like
-  slips; only the guards above take some out.
+  slips; only the guards above take some out. A present-day reflection that is followed by more
+  past narration is not a `coda` and is flagged.
+- Coordinated present clauses after a habitual clause vote (*Sometimes they stop, and either way
+  the light is on.*): the marker belongs to its own clause.
+- A present slip that ends a past scene beside *now* or *still* is taken for a coda.
 - Untagged direct thought, unquoted dialogue without tags and unmarked letters are narration to
   #353, so they vote. The question/exclamation exemption absorbs some thought.
 - POS and chunk errors (VBD/VBN/JJ, missing verb chunks) fail toward neutral by design.
@@ -239,6 +276,6 @@ reason, and its flags read as "this passage is in the other tense", not "this is
 ## Size
 
 `writemorebetter_wasm_bg.wasm` (release, wasm-bindgen 0.2.129, macOS, Rust's wasm32 target, no
-`wasm-opt`) grows from 7,692,477 to 7,808,383 bytes (+115,906, +1.5%) over #353, and from
-1,916,974 to 1,939,412 with `gzip -9` (+22,438). The lens ships no data file; its word lists are
+`wasm-opt`) grows from 7,692,477 to 7,819,210 bytes (+126,733, +1.6%) over #353, and from
+1,916,974 to 1,941,812 with `gzip -9` (+24,838), measured after the review fixes. The lens ships no data file; its word lists are
 short MIT/Apache-2.0 constants.

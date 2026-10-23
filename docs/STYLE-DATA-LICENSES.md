@@ -589,3 +589,17 @@ reviewed inclusion and exclusion lists. Every lemma comes from WordNet. Details:
   the pacing labels (#251). The concreteness section above records that OpenCode Go's terms bar
   output that ships in the library; these labels are benchmark data in `bench/`, not shipped
   data, but the owner should confirm that the same reading covers them.
+
+## Tense shift (#355)
+
+- **Code.** The lens's word lists (habitual markers, narrator-frame verbs, comment-clause heads)
+  are short constants in `style/src/narrative.rs`, written for this project, MIT OR Apache-2.0.
+  The lens ships no data file.
+- **Bench data.** `bench/style/labels/tense-shift.jsonl`, `tense-shift-heldout.jsonl` and
+  `tense-shift-wide.jsonl` (244 labeled rows plus meta rows) hold short context windows of
+  public-domain Standard Ebooks texts (CC0 dedication) and the CC0 `bench/public` texts. The
+  labels were produced by Codex `gpt-6-sol` and DeepSeek V4 Pro (`opencode-go/deepseek-v4-pro`)
+  through OpenCode Go, the same route as the #353 thought labels. The same caveat applies: the
+  concreteness section above records that OpenCode Go's terms bar programmatic extraction and
+  output used for a third party. These labels are benchmark data in `bench/`, not shipped data, but
+  the owner should confirm that reading covers them before the PR merges.

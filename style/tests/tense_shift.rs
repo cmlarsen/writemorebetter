@@ -642,3 +642,167 @@ fn indefinite_and_habitual_past_chains_vote_past() {
     );
     assert_eq!(report.scenes[0].votes.past, 10);
 }
+
+// Review fixes for #355.
+
+#[test]
+fn a_dialogue_exchange_splits_a_run() {
+    // Two present asides with six tagged lines between them are two singles, not one run.
+    let exchange = "“Out,” he said.\n“Fine,” she said.\n“Out,” he said.\n“Fine,” she said.\n\
+“Out,” he said.\n“Fine,” she said.";
+    let text = format!("{FRAME}\nThe kettle is on.\n{exchange}\nThe clock is loud.");
+    assert!(
+        found(&text, &defaults()).is_empty(),
+        "{:?}",
+        found(&text, &defaults())
+    );
+    let shifts = found(&text, &singles());
+    assert_eq!(shifts.len(), 2, "{shifts:?}");
+    assert!(shifts
+        .iter()
+        .all(|shift| shift.1 == TenseShiftStrength::Single));
+    // One tag in the gap still bridges (`a_run_spanning_dialogue`), and so do two.
+    one_run(
+        "The room is dark. “Hello?” she called. “Anyone?” he called. The air is cold…",
+        "The room is dark. “Hello?” she called. “Anyone?” he called. The air is cold…",
+        &["is", "is"],
+    );
+}
+
+#[test]
+fn a_run_shorter_than_minimum_run_is_not_a_single() {
+    let text = framed("The room is dark. The air is cold—colder than outside. She sat down.");
+    let options = singles().with_minimum_run(3);
+    assert!(
+        found(&text, &options).is_empty(),
+        "{:?}",
+        found(&text, &options)
+    );
+    let options = defaults().with_minimum_run(3);
+    assert!(found(&text, &options).is_empty());
+}
+
+#[test]
+fn quoted_exclamations_do_not_silence_narration() {
+    let text = framed("He opens the door and yells, “Get out!” She runs to the car.");
+    let shifts = found(&text, &defaults());
+    assert_eq!(shifts.len(), 1, "{shifts:?}");
+    assert_eq!(shifts[0].3, ["opens", "runs"]);
+    // The narrator's own question is still neutral.
+    clean("Where is he? Why is it always me!");
+}
+
+#[test]
+fn a_present_coda_after_the_story_is_not_flagged() {
+    let coda = "The motel is still here. So are we. The desert is still patient…";
+    let text = format!("{FRAME}\n\n{coda}");
+    let report = run(&text, &defaults());
+    assert!(report.shifts.is_empty(), "{:?}", found(&text, &defaults()));
+    assert!(report
+        .exemptions
+        .iter()
+        .any(|count| count.reason == TenseExemption::Coda));
+    // Without *now* or *still*, or with past narration after it, it is a run.
+    assert_eq!(
+        found(
+            &format!("{FRAME}\n\nThe motel is empty. The desert is patient."),
+            &defaults()
+        )
+        .len(),
+        1
+    );
+    let middle = format!("{FRAME}\n\n{coda}\n\nShe left the station. He followed her.");
+    assert_eq!(found(&middle, &defaults()).len(), 1);
+}
+
+#[test]
+fn comment_clauses_do_not_vote() {
+    // Past narration with comment clauses is clean, and the main verbs vote past.
+    clean("The fog, it turns out, rolled in at noon. The boats, it seems, were empty.");
+    clean("But, the truth is, the boats were empty. The fact is, nobody came.");
+    let text = framed("The fog, it turns out, rolled in at noon.");
+    let report = run(&text, &singles());
+    assert_eq!(report.scenes[0].votes.past, 9);
+    assert!(report
+        .exemptions
+        .iter()
+        .any(|count| count.reason == TenseExemption::Parenthetical));
+    // In present, the real verbs vote, not the comment heads.
+    one_run(
+        "The fog, it turns out, is thicker than it looks. The boats, it seems, are empty.",
+        "The fog, it turns out, is thicker than it looks. The boats, it seems, are empty.",
+        &["is", "are"],
+    );
+}
+
+#[test]
+fn habitual_markers_belong_to_their_clause() {
+    one_run(
+        "He walks down the pier, the way he did every morning. He carries a lantern, as he always did. He stops beside her.",
+        "He walks down the pier, the way he did every morning. He carries a lantern, as he always did. He stops beside her.",
+        &["walks", "carries", "stops"],
+    );
+    clean(
+        "Every Sunday, he goes to church. She always walks home. Whenever it rains, she stays in.",
+    );
+}
+
+#[test]
+fn never_is_not_habitual() {
+    one_run(
+        "He walks down the pier. He never looks at her. She never asks why.",
+        "He walks down the pier. He never looks at her. She never asks why.",
+        &["walks", "looks", "asks"],
+    );
+    one_run(
+        "He is not coming. He is never coming.",
+        "He is not coming. He is never coming.",
+        &["is", "is"],
+    );
+}
+
+const FIRST_PERSON: &str =
+    "I walked to the station at dawn. I didn’t look back—not once. ‘Ticket,’ \
+the porter said, and I’d shown him one. The sign said “No Smoking.” The rain fell on the tracks… \
+The train came late.\u{2028}I found a seat by the window. I waved at the boy across the aisle 😀.";
+
+#[test]
+fn first_person_say_tell_and_perfects_are_scene_actions() {
+    for (target, verbs) in [
+        (
+            "I tell him to hurry. I say nothing else. I know he is lying.",
+            vec!["tell", "say"],
+        ),
+        (
+            "I’ve waited long enough. I have counted every boat.",
+            vec!["’ve", "have"],
+        ),
+    ] {
+        let text = format!("{FIRST_PERSON} {target}");
+        let shifts = found(&text, &defaults());
+        assert_eq!(shifts.len(), 1, "{target}: {shifts:?}");
+        assert_eq!(shifts[0].3, verbs, "{target}");
+    }
+    // The narrator's frames are still exempt.
+    for target in [
+        "I tell you, it was cold. I must say I liked him.",
+        "I have known a lot of losses. I have never forgotten it.",
+    ] {
+        let text = format!("{FIRST_PERSON} {target}");
+        assert!(found(&text, &singles()).is_empty(), "{target}");
+    }
+}
+
+#[test]
+fn a_multi_paragraph_quote_with_nested_speech_never_votes() {
+    let text = format!(
+        "{FRAME}\n“He reads the bill—“Jack, he’s robbed a widow;” or, “Joe, he’s a thief.” He descends \
+into the cabin. He sleeps…\n“And then the storm comes.”"
+    );
+    let report = run(&text, &singles());
+    assert!(report.shifts.is_empty(), "{:?}", found(&text, &singles()));
+    assert!(report
+        .exemptions
+        .iter()
+        .any(|count| count.reason == TenseExemption::UnbalancedQuotes));
+}

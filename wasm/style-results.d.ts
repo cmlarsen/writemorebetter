@@ -901,7 +901,7 @@ export type NarrativeTense = "past" | "present";
 export type TenseShiftStrength = "run" | "single";
 export type TenseSource = "declared" | "inferred" | "inherited" | "undetermined";
 /** Why a chain or sentence did not vote. */
-export type TenseExemption = "modal" | "pastPerfect" | "subordinate" | "reported" | "generic" | "habitual" | "narratorFrame" | "questionOrExclamation" | "noSubject" | "ambiguous" | "mixedSentence" | "unbalancedQuotes";
+export type TenseExemption = "modal" | "pastPerfect" | "subordinate" | "reported" | "generic" | "habitual" | "narratorFrame" | "parenthetical" | "questionOrExclamation" | "noSubject" | "ambiguous" | "mixedSentence" | "unbalancedQuotes" | "coda";
 
 /** Sentences per class in one scene. */
 export interface TenseShiftVotes {
