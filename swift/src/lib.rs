@@ -526,6 +526,20 @@ impl Checker {
                 message: err.to_string(),
             })
     }
+
+    /// Sets the level of the `READABILITY_RULE_SIMPLE` and `READABILITY_RULE_DIFFICULT` rules,
+    /// from 0 (very difficult) to 6 (very easy): `READABILITY_RULE_SIMPLE` flags a paragraph whose
+    /// Flesch reading level is above it, `READABILITY_RULE_DIFFICULT` one whose level is below
+    /// it. The default is 3. A value above 6 throws and nothing changes. It does not enable the
+    /// rules, which are off by default; turn them on with `enableRules`. Changes apply to the next
+    /// `check` and `resolveDocument`.
+    pub fn set_readability_level(&self, level: u32) -> Result<(), CheckError> {
+        self.write_rules()
+            .set_readability_level(level as usize)
+            .map_err(|err| CheckError::InvalidOption {
+                message: err.to_string(),
+            })
+    }
 }
 
 /// One paragraph checked by [`Checker::check_paragraph`].
@@ -747,6 +761,51 @@ mod tests {
             other => panic!("unexpected result: {other:?}"),
         }
         assert_eq!(checker.enable_rules(Vec::new()).unwrap(), 0);
+    }
+
+    #[test]
+    fn readability_level_sets_both_rules() {
+        let checker = checker();
+        checker
+            .enable_rules(vec![
+                "BUILTIN/READABILITY_RULE_SIMPLE".into(),
+                "BUILTIN/READABILITY_RULE_DIFFICULT".into(),
+            ])
+            .unwrap();
+        // Two easy paragraphs (level 5) with curly quotes and apostrophes, an em dash, an
+        // ellipsis and a line separator.
+        let paragraph = "\u{201c}She walked to the store\u{2014}and bought some bread for her \
+                         family\u{2019}s table,\u{201d} he said\u{2026}\u{2028}It was before \
+                         the evening came.";
+        let text = format!("{paragraph}\n\n{paragraph}");
+        let flags = || {
+            checker
+                .check(text.clone())
+                .into_iter()
+                .filter(|s| s.source.starts_with("BUILTIN/READABILITY_RULE_"))
+                .map(|s| (s.source.trim_start_matches("BUILTIN/").to_owned(), s.start))
+                .collect::<Vec<_>>()
+        };
+        // The UTF-16 start of the second paragraph's opening quote.
+        let second = paragraph.encode_utf16().count() as u32 + 2;
+        let simple = "READABILITY_RULE_SIMPLE".to_owned();
+        let difficult = "READABILITY_RULE_DIFFICULT".to_owned();
+        assert_eq!(flags(), [(simple.clone(), 0), (simple.clone(), second)]);
+        checker.set_readability_level(5).unwrap();
+        assert!(flags().is_empty());
+        checker.set_readability_level(6).unwrap();
+        assert_eq!(flags(), [(difficult.clone(), 0), (difficult, second)]);
+        for level in [7, u32::MAX] {
+            match checker.set_readability_level(level) {
+                Err(super::CheckError::InvalidOption { message }) => {
+                    assert!(message.contains("between 0 and 6"), "{message}")
+                }
+                other => panic!("unexpected result: {other:?}"),
+            }
+        }
+        assert_eq!(flags().len(), 2, "an out-of-range level changes nothing");
+        checker.set_readability_level(0).unwrap();
+        assert_eq!(flags(), [(simple.clone(), 0), (simple, second)]);
     }
 
     #[test]

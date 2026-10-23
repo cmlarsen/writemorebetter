@@ -81,16 +81,23 @@ impl Readability {
     /// # Errors
     /// [`Error::OptionOutOfRange`] if `level` is above 6; the rule keeps its previous value.
     pub fn set_level(&mut self, level: usize) -> Result<(), Error> {
-        if !LEVEL_RANGE.contains(&level) {
-            return Err(Error::OptionOutOfRange {
+        Self::check_level(level)?;
+        self.level = level;
+        Ok(())
+    }
+
+    /// Checks that `level` is a level [`Readability::set_level`] accepts.
+    pub(crate) fn check_level(level: usize) -> Result<(), Error> {
+        if LEVEL_RANGE.contains(&level) {
+            Ok(())
+        } else {
+            Err(Error::OptionOutOfRange {
                 option: "readability level",
                 value: level,
                 min: *LEVEL_RANGE.start(),
                 max: *LEVEL_RANGE.end(),
-            });
+            })
         }
-        self.level = level;
-        Ok(())
     }
 
     fn flags(&self, level: usize) -> bool {

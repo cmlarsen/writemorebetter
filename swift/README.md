@@ -35,6 +35,11 @@ flag a word that makes up at least 5% of the adjectives, nouns or verbs of the c
 `try checker.setTooOftenUsedPercent(percent: 10)` changes that share for all three (1–100); a value outside the
 range throws `CheckError.InvalidOption` and changes nothing.
 
+Once enabled, `READABILITY_RULE_SIMPLE` flags a paragraph whose Flesch reading level is above 3 (0 very
+difficult to 6 very easy) and `READABILITY_RULE_DIFFICULT` one whose level is below it.
+`try checker.setReadabilityLevel(level: 5)` changes that level for both (0–6); a value above 6 throws
+`CheckError.InvalidOption` and changes nothing.
+
 Loading deserializes both binaries (about 100 ms and 90 MB of resident memory); `Checker` is `Send + Sync`, so
 load one instance at startup off the main thread and share it. `check` and every other call are safe from any
 thread, but are not free (~110 ms per 1000 words on an M-series Mac), so run them off the main thread too.

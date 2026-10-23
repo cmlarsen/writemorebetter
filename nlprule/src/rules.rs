@@ -118,6 +118,27 @@ impl Rules {
         Ok(())
     }
 
+    /// Sets the level of the `READABILITY_RULE_SIMPLE` and `READABILITY_RULE_DIFFICULT` builtins,
+    /// from 0 (very difficult) to 6 (very easy): `READABILITY_RULE_SIMPLE` flags a paragraph whose
+    /// Flesch reading level is above it, `READABILITY_RULE_DIFFICULT` one whose level is below it.
+    /// The default is 3, as in LanguageTool. It does not enable the rules, which are off by
+    /// default. To set one rule only, use
+    /// [`Readability::set_level`][crate::builtin::en::Readability::set_level] through
+    /// [Rules::builtins_mut].
+    ///
+    /// # Errors
+    /// [Error::OptionOutOfRange] if `level` is above 6; no rule changes.
+    pub fn set_readability_level(&mut self, level: usize) -> Result<(), Error> {
+        // Validate up front so the result does not depend on which builtins this rule set has.
+        crate::builtin::en::Readability::check_level(level)?;
+        for rule in &mut self.builtins {
+            if let Builtin::Readability(rule) = rule.builtin_mut() {
+                rule.set_level(level)?;
+            }
+        }
+        Ok(())
+    }
+
     /// The mother tongue selected with [Rules::set_mother_tongue].
     pub fn mother_tongue(&self) -> Option<&str> {
         self.mother_tongue.as_deref()

@@ -591,6 +591,43 @@ fn readability_level_option() {
     assert!(flags_with(&rules, &text).is_empty());
 }
 
+/// `Rules::set_readability_level` sets the level of both readability rules, and an
+/// out-of-range level changes neither.
+#[test]
+fn readability_level_for_both_rules() {
+    // Level 5 (easy), with curly quotes and apostrophes, an em dash, an ellipsis and a
+    // line separator.
+    let easy = "\u{201c}She walked to the store\u{2014}and bought some bread for her \
+                       family\u{2019}s table,\u{201d} he said\u{2026}\u{2028}It was before the \
+                       evening came.";
+    let text = format!("{0}\n\n{0}", easy);
+    let mut rules = Rules::new(RULES_PATH).unwrap();
+    rules
+        .enable_rules(&[
+            format!("BUILTIN/{}", SIMPLE),
+            format!("BUILTIN/{}", DIFFICULT),
+        ])
+        .unwrap();
+    let ids = |rules: &Rules| -> Vec<String> {
+        flags_with(rules, &text)
+            .into_iter()
+            .map(|(id, _)| id)
+            .collect()
+    };
+    assert_eq!(ids(&rules), [SIMPLE; 2]);
+    rules.set_readability_level(5).unwrap();
+    assert!(ids(&rules).is_empty());
+    rules.set_readability_level(6).unwrap();
+    assert_eq!(ids(&rules), [DIFFICULT; 2]);
+    assert!(matches!(
+        rules.set_readability_level(7),
+        Err(nlprule::Error::OptionOutOfRange { value: 7, .. })
+    ));
+    assert_eq!(ids(&rules), [DIFFICULT; 2]);
+    rules.set_readability_level(0).unwrap();
+    assert_eq!(ids(&rules), [SIMPLE; 2]);
+}
+
 /// Checks `parts` one by one with `check_paragraph`, resolves the digests and merges the document
 /// matches into each part's suggestions, shifted to the coordinates of the text made of the parts
 /// joined with `gap`.

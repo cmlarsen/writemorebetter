@@ -108,6 +108,10 @@ a possessive. Changes apply to the next `check`; persisting the list is up to yo
 - `checker.apply_preset("chicago-fiction")` applies a style preset's grammar settings.
 - `checker.set_too_often_used_percent(8)` sets the share (1 to 100, default 5) from which the
   `TOO_OFTEN_USED_*` rules flag a word.
+- `checker.set_readability_level(5)` sets the Flesch reading level (0 very difficult to 6 very
+  easy, default 3) that `READABILITY_RULE_SIMPLE` flags paragraphs above and
+  `READABILITY_RULE_DIFFICULT` flags paragraphs below. Above 6 raises `ValueError`, a negative
+  level `OverflowError`; nothing changes.
 
 ### Checking a document paragraph by paragraph
 

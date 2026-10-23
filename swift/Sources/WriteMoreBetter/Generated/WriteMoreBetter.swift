@@ -676,6 +676,16 @@ public protocol CheckerProtocol: AnyObject, Sendable {
     func setMotherTongue(motherTongue: String?) 
     
     /**
+     * Sets the level of the `READABILITY_RULE_SIMPLE` and `READABILITY_RULE_DIFFICULT` rules,
+     * from 0 (very difficult) to 6 (very easy): `READABILITY_RULE_SIMPLE` flags a paragraph whose
+     * Flesch reading level is above it, `READABILITY_RULE_DIFFICULT` one whose level is below
+     * it. The default is 3. A value above 6 throws and nothing changes. It does not enable the
+     * rules, which are off by default; turn them on with `enableRules`. Changes apply to the next
+     * `check` and `resolveDocument`.
+     */
+    func setReadabilityLevel(level: UInt32) throws 
+    
+    /**
      * Sets the minimum percentage of the `TOO_OFTEN_USED_ADJECTIVE_EN`, `TOO_OFTEN_USED_NOUN_EN`
      * and `TOO_OFTEN_USED_VERB_EN` rules: a word is flagged once it makes up at least `percent`
      * of all the adjectives, nouns or verbs of the checked text. The default is 5. A value
@@ -967,6 +977,23 @@ open func setMotherTongue(motherTongue: String?)  {try! rustCall() {
     uniffi_writemorebetter_swift_fn_method_checker_set_mother_tongue(
             self.uniffiCloneHandle(),
         FfiConverterOptionString.lower(motherTongue),uniffiCallStatus
+    )
+}
+}
+    
+    /**
+     * Sets the level of the `READABILITY_RULE_SIMPLE` and `READABILITY_RULE_DIFFICULT` rules,
+     * from 0 (very difficult) to 6 (very easy): `READABILITY_RULE_SIMPLE` flags a paragraph whose
+     * Flesch reading level is above it, `READABILITY_RULE_DIFFICULT` one whose level is below
+     * it. The default is 3. A value above 6 throws and nothing changes. It does not enable the
+     * rules, which are off by default; turn them on with `enableRules`. Changes apply to the next
+     * `check` and `resolveDocument`.
+     */
+open func setReadabilityLevel(level: UInt32)throws   {try rustCallWithError(FfiConverterTypeCheckError_lift) {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_method_checker_set_readability_level(
+            self.uniffiCloneHandle(),
+        FfiConverterUInt32.lower(level),uniffiCallStatus
     )
 }
 }
@@ -3328,6 +3355,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_method_checker_set_mother_tongue() != 22149) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_writemorebetter_swift_checksum_method_checker_set_readability_level() != 50642) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_method_checker_set_too_often_used_percent() != 42588) {

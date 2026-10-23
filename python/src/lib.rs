@@ -454,6 +454,11 @@ impl Checker {
             .map_err(|err| PyValueError::new_err(err.to_string()))
     }
 
+    fn set_readability_level(&self, py: Python<'_>, level: usize) -> PyResult<()> {
+        py.detach(|| self.write_rules().set_readability_level(level))
+            .map_err(|err| PyValueError::new_err(err.to_string()))
+    }
+
     /// Checks one paragraph on its own: `(suggestions, digest)`, the suggestions without those of
     /// the whole-text rules (code points into `text`) and the paragraph's digest as bytes.
     #[pyo3(signature = (text, ends_paragraph=true))]
