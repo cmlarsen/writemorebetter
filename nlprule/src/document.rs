@@ -256,9 +256,15 @@ pub(crate) struct RepeatedWords {
     /// The number of words the rule counts in the text.
     pub(crate) count: u32,
     pub(crate) words: Vec<RepeatedWord>,
-    /// The index in `words` of the first word of the text's last sentence, if that sentence is
-    /// one the rule skips when it ends the whole text (it ends with whitespace).
+    /// The index in `words` of the first word of the text's last sentence, if the rule counts
+    /// that sentence (it ends in `.`, `!` or `?`). The rule skips it when it ends the whole text
+    /// and whitespace follows it.
     pub(crate) last_sentence: Option<u32>,
+    /// Whether whitespace follows the last sentence within the text.
+    pub(crate) trailing_whitespace: bool,
+    /// Whether the text is only line breaks, which LanguageTool adds to the sentence before them.
+    /// Other whitespace after a blank line, by contrast, makes a sentence of its own.
+    pub(crate) line_breaks_only: bool,
 }
 
 impl RepeatedWords {
@@ -271,7 +277,13 @@ impl RepeatedWords {
                 ..word
             }));
         self.count += other.count;
-        self.last_sentence = other.last_sentence.map(|x| x + words);
+        if other.line_breaks_only {
+            self.trailing_whitespace = true;
+        } else {
+            self.last_sentence = other.last_sentence.map(|x| x + words);
+            self.trailing_whitespace = other.trailing_whitespace;
+        }
+        self.line_breaks_only &= other.line_breaks_only;
     }
 }
 
@@ -452,6 +464,8 @@ impl ParagraphDigest {
         self.ends_with_line_break = text.ends_with('\n');
         self.starts_paragraph = has_blank_line(leading);
         self.ends_paragraph = has_blank_line(trailing);
+        self.repeated_words.line_breaks_only =
+            !text.is_empty() && text.chars().all(|c| c == '\n' || c == '\r');
     }
 
     /// Builds the digest of `text`, which starts at `start` in the checked text and holds
@@ -585,8 +599,9 @@ mod wire {
     pub(super) struct Digest {
         version: u32,
         len: Offset,
-        /// `starts_with_line_break`, `ends_with_line_break`, `starts_paragraph` and
-        /// `ends_paragraph` as bits 0 to 3.
+        /// `starts_with_line_break`, `ends_with_line_break`, `starts_paragraph`,
+        /// `ends_paragraph`, and `repeated_words.trailing_whitespace` and `.line_breaks_only`, as
+        /// bits 0 to 5.
         flags: u8,
         paragraph_starts: Vec<u32>,
         apostrophes: Vec<Apostrophe>,
@@ -614,12 +629,21 @@ mod wire {
         }
 
         fn get(&mut self, span: &Span) -> Result<super::TokenSpan, String> {
+            if !valid_offset(span.gap) || !valid_offset(span.len) {
+                return Err("paragraph digest span is not a span of UTF-8 text".to_owned());
+            }
             let overflow = || "paragraph digest span overflows".to_owned();
             let start = self.0.checked_add(span.gap).ok_or_else(overflow)?;
             let end = start.checked_add(span.len).ok_or_else(overflow)?;
             self.0 = start;
             Ok(super::TokenSpan { start, end })
         }
+    }
+
+    /// Whether `offset` can be the length of UTF-8 text: each char takes one to four bytes. The
+    /// resolver relies on this, e.g. to order positions.
+    fn valid_offset(offset: Offset) -> bool {
+        offset.char <= offset.byte && u64::from(offset.byte) <= u64::from(offset.char) * 4
     }
 
     #[derive(Default)]
@@ -724,7 +748,9 @@ mod wire {
                 flags: u8::from(digest.starts_with_line_break)
                     | u8::from(digest.ends_with_line_break) << 1
                     | u8::from(digest.starts_paragraph) << 2
-                    | u8::from(digest.ends_paragraph) << 3,
+                    | u8::from(digest.ends_paragraph) << 3
+                    | u8::from(digest.repeated_words.trailing_whitespace) << 4
+                    | u8::from(digest.repeated_words.line_breaks_only) << 5,
                 paragraph_starts: digest.paragraph_starts,
                 apostrophes,
                 lemmas: lemmas.list,
@@ -741,6 +767,9 @@ mod wire {
         type Error = String;
 
         fn try_from(digest: Digest) -> Result<Self, String> {
+            if !valid_offset(digest.len) {
+                return Err("paragraph digest length is not that of UTF-8 text".to_owned());
+            }
             let lemmas = &digest.lemmas;
             let mut spans = Spans::default();
             let apostrophes = digest
@@ -789,13 +818,16 @@ mod wire {
             }
             let mut spans = Spans::default();
             let mut number = 0u32;
+            let count = digest.repeated_count;
+            let last_sentence = digest.repeated_last_sentence;
             let words = digest
                 .repeated_words
                 .into_iter()
                 .map(|word| {
                     number = number
                         .checked_add(word.number)
-                        .ok_or_else(|| "paragraph digest word number overflows".to_owned())?;
+                        .filter(|&x| x <= count)
+                        .ok_or_else(|| "paragraph digest word number is out of range".to_owned())?;
                     Ok(super::RepeatedWord {
                         span: spans.get(&word.span)?,
                         number,
@@ -812,7 +844,10 @@ mod wire {
                             .collect::<Result<_, String>>()?,
                     })
                 })
-                .collect::<Result<_, String>>()?;
+                .collect::<Result<Vec<_>, String>>()?;
+            if last_sentence.is_some_and(|x| x as usize > words.len()) {
+                return Err("paragraph digest sentence start is out of range".to_owned());
+            }
             let mut spans = Spans::default();
             let variants = digest
                 .variants
@@ -847,6 +882,8 @@ mod wire {
                     count: digest.repeated_count,
                     words,
                     last_sentence: digest.repeated_last_sentence,
+                    trailing_whitespace: digest.flags & 16 != 0,
+                    line_breaks_only: digest.flags & 32 != 0,
                 },
                 variants,
             })
@@ -1129,12 +1166,21 @@ impl Builtin {
             Builtin::ConsistentApostrophes(rule) => rule.resolve(digests),
             Builtin::TooOftenUsed(rule) => rule.resolve(current()),
             Builtin::RepeatedWords(rule) => {
-                // The last sentence of the document is skipped when it ends with whitespace.
-                let last = current()
-                    .rev()
-                    .find(|(_, d)| d.len.char > 0)
-                    .map(|(i, _)| i);
-                rule.resolve(current(), last)
+                // The last sentence of the document is skipped when whitespace follows it: inside
+                // its digest's text, in line breaks after it, or as the separator after a text
+                // that ends a paragraph and is not the last.
+                let current: Vec<_> = current().collect();
+                let skipped = current
+                    .iter()
+                    .rposition(|(_, d)| d.len.char > 0 && !d.repeated_words.line_breaks_only)
+                    .filter(|&last| {
+                        let (rest, after) = (&current[last..], &current[last + 1..]);
+                        rest[0].1.repeated_words.trailing_whitespace
+                            || after.iter().any(|(_, d)| d.len.char > 0)
+                            || rest[..rest.len() - 1].iter().any(|(_, d)| d.ends_paragraph)
+                    })
+                    .map(|last| current[last].0);
+                rule.resolve(current.into_iter(), skipped)
             }
             Builtin::WordCoherency(rule) => rule.resolve(current()),
             _ => Vec::new(),
@@ -1420,6 +1466,8 @@ mod tests {
                 ],
             }],
             last_sentence: Some(0),
+            trailing_whitespace: true,
+            line_breaks_only: false,
         };
         d.variants.push(VariantWord {
             span: span(17..20, 11..14),
@@ -1473,6 +1521,24 @@ mod tests {
     }
 
     #[test]
+    fn inconsistent_digests_are_errors() {
+        let fails = |change: &dyn Fn(&mut ParagraphDigest)| {
+            let mut d = full_digest();
+            change(&mut d);
+            ParagraphDigest::from_bytes(&d.to_bytes()).is_err()
+        };
+        assert!(!fails(&|_| {}));
+        // Bytes without chars, or more than four bytes a char: not a span of UTF-8 text.
+        assert!(fails(&|d| d.apostrophes[0].span = span(1..4, 1..1)));
+        assert!(fails(&|d| d.variants[0].span = span(17..30, 11..13)));
+        assert!(fails(&|d| d.len = Offset { byte: 3, char: 0 }));
+        // A sentence start past the words, a word numbered past the count.
+        assert!(fails(&|d| d.repeated_words.last_sentence = Some(2)));
+        assert!(!fails(&|d| d.repeated_words.last_sentence = Some(1)));
+        assert!(fails(&|d| d.repeated_words.words[0].number = 5));
+    }
+
+    #[test]
     fn appends_word_statistics() {
         let mut a = digest("0123456789");
         a.too_often_used[0].words = vec![counted(span(0..3, 0..3), "red", 0b10)];
@@ -1482,6 +1548,8 @@ mod tests {
             count: 2,
             words: Vec::new(),
             last_sentence: Some(0),
+            trailing_whitespace: true,
+            line_breaks_only: false,
         };
         let mut b = digest("0123");
         // Outside speech if `b` starts outside it, inside if it starts inside.
@@ -1496,6 +1564,8 @@ mod tests {
                 readings: Vec::new(),
             }],
             last_sentence: None,
+            trailing_whitespace: false,
+            line_breaks_only: false,
         };
         a.append(b);
         let words = &a.too_often_used[0];
@@ -1506,6 +1576,15 @@ mod tests {
         assert_eq!(a.repeated_words.count, 5);
         assert_eq!(a.repeated_words.words[0].number, 3);
         assert_eq!(a.repeated_words.words[0].span, span(11..12, 11..12));
+        assert_eq!(a.repeated_words.last_sentence, None);
+        assert!(!a.repeated_words.trailing_whitespace);
+        // Line breaks join the last sentence; other whitespace ends it.
+        a.repeated_words.last_sentence = Some(1);
+        a.append(digest("\n\r\n"));
+        assert!(a.repeated_words.trailing_whitespace);
+        assert_eq!(a.repeated_words.last_sentence, Some(1));
+        assert!(!a.repeated_words.line_breaks_only);
+        a.append(digest("\n "));
         assert_eq!(a.repeated_words.last_sentence, None);
     }
 

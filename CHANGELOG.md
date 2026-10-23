@@ -63,7 +63,8 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 - **`DocumentMatches::suggestions(paragraph, text, checked)`** merges a paragraph's whole-text
   matches into the suggestions `check_paragraph` returned for it, `DocumentMatches::in_paragraph`
   lists one paragraph's matches, and `Rules::resolve_document_bytes` resolves stored digest bytes,
-  listing the ones it cannot read (another `DIGEST_VERSION`, or not a digest) as stale.
+  listing the ones it cannot read (another `DIGEST_VERSION`, not a digest, or values no text
+  could give, such as a span with bytes but no chars) as stale.
   `Suggestion::new` is public so bindings can rebuild suggestions from their own records
   ([#234](https://github.com/cmlarsen/writemorebetter/issues/234)).
 
@@ -76,10 +77,12 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   spelling across paragraphs, as LanguageTool 6.6 does ("adviser", a blank line, then "advisor"
   is flagged); it used to forget at each paragraph. `EN_REPEATEDWORDS` looks back 150 words across
   paragraphs, and `TOO_OFTEN_USED_*` count every paragraph (direct speech left open at a
-  paragraph's end goes on into the next, as in LanguageTool). The digests store the lemmas as
-  strings, so they stay valid when the tagger data's word ids change: on `moby150k`, checked
-  paragraph by paragraph, the digests take 3,512 bytes per 1,000 words (784 before), and
-  resolving all of them from bytes takes about 5 ms. `DIGEST_VERSION` is 2, and
+  paragraph's end goes on into the next, as in LanguageTool). Like LanguageTool,
+  `EN_REPEATEDWORDS` skips the document's last sentence when whitespace follows it; an empty last
+  paragraph (an editor's document after Enter at its end) counts as that whitespace. The digests
+  store the lemmas as strings, so they stay valid when the tagger data's word ids change: on
+  `moby150k`, checked paragraph by paragraph, the digests take 3,528 bytes per 1,000 words (784
+  before), and resolving all of them from bytes takes about 5 ms. `DIGEST_VERSION` is 2, and
   `ParagraphDigest::to_bytes` writes variable-length integers and relative offsets; digests of
   version 1 are stale. A pure function of the paragraph's text, a digest does not depend on
   which rules are on or their options (the minimum percentage, `DIRECT_SPEECH`)

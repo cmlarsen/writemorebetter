@@ -210,7 +210,8 @@ class Checker:
     def set_too_often_used_percent(self, percent: int) -> None:
         """Sets the minimum share (1 to 100, default 5) of all the adjectives, nouns or verbs of
         the document from which the ``TOO_OFTEN_USED_*`` rules flag a word. It does not enable
-        the rules, which are off by default. Out of range raises :class:`ValueError`."""
+        the rules, which are off by default. Out of range raises :class:`ValueError`, or
+        :class:`OverflowError` for a negative ``percent``."""
         self._native.set_too_often_used_percent(percent)
 
     # Incremental checking (#329)
@@ -275,9 +276,11 @@ class DocumentResolution:
     ) -> List[Suggestion]:
         """The suggestions of paragraph ``paragraph``, whose text is ``text``: ``checked``, the
         suggestions :meth:`Checker.check_paragraph` returned for it, merged with its
-        whole-document matches. A match whose span no longer fits ``text`` is left out.
-        Offsets are code points into ``text``; the result equals what :meth:`Checker.check`
-        reports for the whole-document rules on the joined document."""
+        whole-document matches. A match whose span no longer fits ``text`` is left out, while a
+        ``checked`` suggestion whose span does not fit it raises :class:`ValueError` (the Swift
+        binding leaves such a suggestion out instead). Offsets are code points into ``text``;
+        the result equals what :meth:`Checker.check` reports for the whole-document rules on the
+        joined document."""
         native = [(s.start, s.end, s.source, s.message, list(s.replacements)) for s in checked]
         return [
             Suggestion(s, e, src, msg, tuple(r))

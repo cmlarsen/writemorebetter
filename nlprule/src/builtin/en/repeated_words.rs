@@ -111,7 +111,8 @@ impl RepeatedWords {
     /// synonyms. Whether a word is flagged depends on the words before it, so
     /// [`RepeatedWords::resolve`] decides that.
     pub(crate) fn digest(&self, sentence: &Sentence, start: Position, digest: &mut RepeatedDigest) {
-        // Only the last sentence of a text decides `last_sentence`.
+        // Only the last sentence of a text decides `last_sentence` and `trailing_whitespace`.
+        digest.trailing_whitespace = sentence.text().ends_with(is_trailing_token);
         digest.last_sentence = None;
         if self.words.is_empty() {
             return;
@@ -125,9 +126,7 @@ impl RepeatedWords {
             return;
         }
         // Skipped when it ends the whole text with whitespace, as in LanguageTool.
-        if sentence.text().ends_with(is_trailing_token) {
-            digest.last_sentence = Some(digest.words.len() as u32);
-        }
+        digest.last_sentence = Some(digest.words.len() as u32);
 
         let immunized = self.immunized(&tokens);
         let mut sent_start = true;
@@ -196,29 +195,32 @@ impl RepeatedWords {
     }
 
     /// The matches in a document made of `digests` (the current ones, with their indices).
-    /// `last` is the index of the last one with text, whose last sentence ends the document.
+    /// `skipped` is the index of the one whose last sentence ends the document with whitespace
+    /// after it, which LanguageTool skips.
     pub(crate) fn resolve<'a>(
         &self,
         digests: impl Iterator<Item = (usize, &'a ParagraphDigest)>,
-        last: Option<usize>,
+        skipped: Option<usize>,
     ) -> Vec<DocumentMatch> {
         let mut matches = Vec::new();
         // The number of the word that each lemma was last seen as.
         let mut last_seen: DefaultHashMap<&str, usize> = DefaultHashMap::default();
         let mut lemmas_in_sentence: Vec<&str> = Vec::new();
-        let mut before = 0;
+        let mut before = 0usize;
 
         for (paragraph, digest) in digests {
             let digest = &digest.repeated_words;
             let words = match digest.last_sentence {
-                Some(end) if Some(paragraph) == last => &digest.words[..end as usize],
+                Some(end) if Some(paragraph) == skipped => {
+                    digest.words.get(..end as usize).unwrap_or(&digest.words)
+                }
                 _ => &digest.words[..],
             };
             for word in words {
                 if word.starts_sentence {
                     lemmas_in_sentence.clear();
                 }
-                let number = before + word.number as usize;
+                let number = before.saturating_add(word.number as usize);
 
                 let mut seen = word.readings.len();
                 for (i, reading) in word.readings.iter().enumerate() {
@@ -226,7 +228,8 @@ impl RepeatedWords {
                     let Some(previous) = last_seen.get(lemma) else {
                         continue;
                     };
-                    if lemmas_in_sentence.contains(&lemma) || number - previous > MAX_WORDS_DISTANCE
+                    if lemmas_in_sentence.contains(&lemma)
+                        || number.saturating_sub(*previous) > MAX_WORDS_DISTANCE
                     {
                         continue;
                     }
@@ -249,7 +252,7 @@ impl RepeatedWords {
                     lemmas_in_sentence.push(&reading.lemma);
                 }
             }
-            before += digest.count as usize;
+            before = before.saturating_add(digest.count as usize);
         }
 
         matches

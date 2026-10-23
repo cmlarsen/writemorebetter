@@ -303,6 +303,11 @@ fn texts() -> Vec<String> {
         // The text ends in whitespace after a sentence, which EN_REPEATEDWORDS then skips.
         "He definitely ran.\n\nShe definitely left. ".to_owned(),
         "He definitely ran.\n\nShe definitely left.".to_owned(),
+        // An editor's document after Enter at its end: an empty last paragraph.
+        "\u{1f600} It was weird.\n\nIt was a weird day and weird.\n\n".to_owned(),
+        "It was weird.\u{2028}It was a weird day. It was weird.\n".to_owned(),
+        // Spaces after a blank line are a sentence of their own, which ends the text instead.
+        "It was weird. It was a weird day\u{2026} It was weird.\n\n  ".to_owned(),
     ]
 }
 
@@ -324,6 +329,16 @@ fn whole_text_equals_paragraphs() {
                         separator
                     );
                 }
+                // Without the separators, kept by the editor between its paragraphs, also when
+                // the last paragraph is empty.
+                let parts: Vec<&str> = text.split(separator).collect();
+                assert_eq!(
+                    whole,
+                    keys(&incremental(rules, &parts, separator, true)),
+                    "{:?} split at {:?}",
+                    text,
+                    separator
+                );
                 // Without the separators, the pieces do not hold the whitespace that ends the
                 // text, after which `EN_REPEATEDWORDS` skips the last sentence (as LanguageTool
                 // does): the editor's document ends with its last paragraph.
@@ -520,4 +535,29 @@ fn word_digest_size_per_thousand_words() {
         bytes as f64 * 1000.0 / words as f64,
         elapsed.as_secs_f64() * 1000.0
     );
+}
+
+/// Changed digest bytes count as stale or resolve to some matches, and never panic: the resolver
+/// trusts the spans, word numbers and sentence starts that `ParagraphDigest::from_bytes` lets
+/// through.
+#[test]
+fn changed_digest_bytes_never_panic() {
+    let texts = [
+        "\u{1f600} It was weird. It\u{2019}s a weird problem\u{2014}she said \u{201c}weird\u{201d}\u{2026}\n\n",
+        "The advisor\u{2019}s problem was weird.\u{2028}The adviser came. ",
+        "Problem.",
+    ];
+    let digests: Vec<Vec<u8>> = texts
+        .iter()
+        .map(|text| WORDS.check_paragraph(text, true, &TOKENIZER).1.to_bytes())
+        .collect();
+    for which in 0..digests.len() {
+        for i in 4..digests[which].len() {
+            for value in [0u8, 1, 2, 3, 9, 0x7f, 0x80, 0xfb, 0xff] {
+                let mut changed = digests.clone();
+                changed[which][i] = value;
+                WORDS.resolve_document_bytes(&changed);
+            }
+        }
+    }
 }

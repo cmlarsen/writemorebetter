@@ -281,7 +281,7 @@ What moved since 2026-10-11 (LT 6.6 column):
   digests, so `EN_WORD_COHERENCY` now remembers a spelling across paragraphs as LanguageTool does.
   `bench/tools/gates.sh`: conformance 6,085/6,085, public 60/60, private 50/50 with 214 flags
   (+0 −0), goldens unchanged; none of these texts mixes spelling variants across paragraphs. The
-  digests store lemmas as strings: 3,512 bytes per 1,000 words on `moby150k.txt` (784 with only
+  digests store lemmas as strings: 3,528 bytes per 1,000 words on `moby150k.txt` (784 with only
   `EN_CONSISTENT_APOS`), mostly the lemmas (46 KB of 89 KB: nearly every counted lemma is distinct
   within its paragraph). Check time and peak RSS are unchanged (single thread, 7 interleaved runs:
   6.04 → 6.06 s CPU, 85.0 → 84.4 MiB).

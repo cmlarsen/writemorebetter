@@ -401,7 +401,8 @@ impl DocumentResolution {
     /// The suggestions of paragraph `paragraph`, whose text is `text`: `checked`, the
     /// `suggestions` JSON `checkParagraph` returned for it, merged with its whole-document
     /// matches, as JSON in the shape of `check`. A match whose span no longer fits `text` is
-    /// left out. `checked` is read by its `start`/`end` char offsets.
+    /// left out. `checked` is read by its `start`/`end` char offsets; one that does not fit
+    /// `text` throws (the Swift binding leaves it out instead).
     pub fn suggestions(
         &self,
         paragraph: u32,
