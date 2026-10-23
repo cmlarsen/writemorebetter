@@ -197,7 +197,7 @@ def test_style_reports_use_code_point_spans(checker):
         "sentence_starts", "transitions", "pronoun_starts", "sensory_balance", "pacing",
         "diction", "overused_words", "consistency", "readability", "passive", "clarity",
         "regional_spelling", "emotion_tells", "preset_checks", "preset", "alliteration",
-        "vague_words", "hidden_verbs", "voices",
+        "vague_words", "hidden_verbs", "voices", "person_drift",
     ]:
         assert isinstance(getattr(document, name)(), dict), name
     assert isinstance(document.dialogue_tags(baseline="none"), dict)
@@ -343,3 +343,21 @@ def test_voices_use_code_point_marked_spans(checker):
         checker.style_document(text, {"markedSpans": [{"start": 0, "end": 1, "voice": "quoted"}]})
     with pytest.raises(StyleError):
         document.voices({"typo": 1})
+
+
+def test_person_drift_uses_code_point_spans(checker):
+    text = "😀 He sat. He waited. … I crossed the room."
+    document = checker.style_document(text)
+    report = document.person_drift({"person": "third"})
+    found = [(text[d["span"]["start"] : d["span"]["end"]], d["kind"], d["word"], d["expected"]) for d in report["drifts"]]
+    assert found == [("I", "firstInThird", "i", "third")]
+    assert report["drifts"][0]["span"]["start"] == text.index("I crossed")
+    assert [(s["person"], s["source"]) for s in report["scenes"]] == [("third", "declared")]
+    assert document.person_drift()["drifts"] == []
+    with pytest.raises(StyleError) as error:
+        document.person_drift({"person": "mixed"})
+    assert error.value.kind == "invalidOptions"
+    compact = checker.style_document(text, {"includeTokenDetails": False})
+    with pytest.raises(StyleError) as error:
+        compact.person_drift()
+    assert error.value.kind == "needsTokenDetails"

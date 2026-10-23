@@ -199,8 +199,19 @@ const emotions = JSON.parse(document.emotionTells()); // '{"includeDialogue":tru
 const vague = JSON.parse(document.vagueWords()); // '{"fillers":false}' skips the bundled filler list
 const hidden = JSON.parse(document.hiddenVerbs()); // '{"ofPhrases":false}' keeps light verbs only
 const voices = JSON.parse(document.voices()); // speech, thought, quoted and caller-marked spans
+const drift = JSON.parse(document.personDrift('{"person":"third"}')); // opt-in person slips per scene
 document.free();
 ```
+
+### Person drift
+
+`personDrift(optionsJSON?)` (opt-in, #354) gives each scene a grammatical person, declared or
+inferred from narration subjects, and flags isolated slips: `firstInThird` (*I*, *me*, *my* in a
+third-person scene) and, with a declared `narrator`, `thirdInFirst` (the narrator's *she*/*he*)
+and `narratorName` in a first-person scene. Spans are UTF-16. Options: `person`, `scenePersons`
+(`[{scene, person}]`, indexes into `scenes`), `narrator` (`{names, pronoun}`), `cast`
+(`[{name, pronoun}]`), `minimumSubjects` (8), `maximumSlips` (2), `includeWitnessScenes`
+(false). See [`docs/STYLE-PERSON-DRIFT.md`](../docs/STYLE-PERSON-DRIFT.md).
 
 ### Voices
 

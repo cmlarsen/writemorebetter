@@ -535,7 +535,7 @@ pub struct SceneTenseThresholds {
 impl Default for SceneTenseThresholds {
     fn default() -> Self {
         Self {
-            minimum_chains: 5,
+            minimum_chains: 3,
             minimum_share: 0.7,
         }
     }

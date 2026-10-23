@@ -1073,6 +1073,13 @@ public protocol StyleDocumentProtocol: AnyObject, Sendable {
     func passiveJson(optionsJson: String?, baselineJson: String?) throws  -> String
     
     /**
+     * Returns the opt-in person-drift lens (#354): each scene's grammatical person and isolated
+     * slips (*I* in a third-person scene, the declared narrator's pronoun or name in a
+     * first-person one). Narration only; needs token details.
+     */
+    func personDriftJson(optionsJson: String?) throws  -> String
+    
+    /**
      * Runs the built-in preset checks; options are `PresetChecks` JSON (every check off by default).
      */
     func presetChecksJson(optionsJson: String?) throws  -> String
@@ -1386,6 +1393,21 @@ open func passiveJson(optionsJson: String? = nil, baselineJson: String? = nil)th
             self.uniffiCloneHandle(),
         FfiConverterOptionString.lower(optionsJson),
         FfiConverterOptionString.lower(baselineJson),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * Returns the opt-in person-drift lens (#354): each scene's grammatical person and isolated
+     * slips (*I* in a third-person scene, the declared narrator's pronoun or name in a
+     * first-person one). Narration only; needs token details.
+     */
+open func personDriftJson(optionsJson: String? = nil)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_method_styledocument_person_drift_json(
+            self.uniffiCloneHandle(),
+        FfiConverterOptionString.lower(optionsJson),uniffiCallStatus
     )
 })
 }
@@ -3228,6 +3250,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_method_styledocument_passive_json() != 30217) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_writemorebetter_swift_checksum_method_styledocument_person_drift_json() != 3818) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_method_styledocument_preset_checks_json() != 25905) {

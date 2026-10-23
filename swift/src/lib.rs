@@ -1178,4 +1178,17 @@ impl StyleDocument {
                 message: error.to_string(),
             })
     }
+
+    /// Returns the opt-in person-drift lens (#354): each scene's grammatical person and isolated
+    /// slips (*I* in a third-person scene, the declared narrator's pronoun or name in a
+    /// first-person one). Narration only; needs token details.
+    #[uniffi::method(default(options_json = None))]
+    pub fn person_drift_json(&self, options_json: Option<String>) -> Result<String, CheckError> {
+        self.inner
+            .person_drift(options_json.as_deref())
+            .map(|report| writemorebetter_style::reports::to_utf16_json(&report))
+            .map_err(|error| CheckError::ReportInput {
+                message: error.to_string(),
+            })
+    }
 }

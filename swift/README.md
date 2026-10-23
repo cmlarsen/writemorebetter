@@ -208,7 +208,13 @@ let emotions: EmotionTellsReport = try document.emotionTells()
 let vague: VagueWordsReport = try document.vagueWords()
 let hidden: HiddenVerbsReport = try document.hiddenVerbs()
 let voices: VoicesReport = try document.voices()
+let drift: PersonDriftReport = try document.personDrift(options: PersonDriftOptions(person: .third))
 ```
+
+`personDrift` (opt-in, #354) flags isolated slips in grammatical person per scene: *I* in a
+third-person scene, or the declared narrator's pronoun or name in a first-person one
+(`PersonDriftOptions(narrator: Narrator(names: ["Anna"], pronoun: .she))`). It reads narration
+only and diagnoses without suggesting text. See [`docs/STYLE-PERSON-DRIFT.md`](../docs/STYLE-PERSON-DRIFT.md).
 
 `voices()` lists speech, quoted and tagged unquoted thought, quoted terms and spans you mark with
 `DocumentOptions(markedSpans: [MarkedSpan(start:end:voice:)])`, in UTF-16 offsets like

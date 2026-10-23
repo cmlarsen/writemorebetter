@@ -324,6 +324,13 @@ class StyleDocument:
         (``markedSpanUnits``: ``"char"``). Works on compact documents."""
         return self._report("voices", options)
 
+    def person_drift(self, options: Options = None) -> dict:
+        """Isolated slips in grammatical person per scene (#354): *I* in a third-person scene, or
+        the declared ``narrator``'s pronoun or name in a first-person one. Opt-in and
+        narration-only; needs token details. Options: ``person``, ``scenePersons``, ``narrator``,
+        ``cast``, ``minimumSubjects``, ``maximumSlips``, ``includeWitnessScenes``."""
+        return self._report("person_drift", options)
+
 
 def style_preset_names() -> List[str]:
     """The built-in style presets' names; the first, ``"chicago-fiction"``, is the default."""

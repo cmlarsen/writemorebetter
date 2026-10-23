@@ -712,4 +712,24 @@ final class CheckerTests: XCTestCase {
         XCTAssertEqual(try compact.voices().spans, report.spans)
         XCTAssertThrowsError(try document.voices(optionsJson: "{\"typo\":true}"))
     }
+
+    func testPersonDriftLens() throws {
+        let text = "😀 He sat. He waited. … I crossed the room. She smiled. He nodded."
+        let ns = text as NSString
+        let document = try checker().styleDocument(text: text)
+        let report = try document.personDrift(options: PersonDriftOptions(person: .third))
+        XCTAssertEqual(report.drifts.map { ns.substring(with: $0.span.nsRange) }, ["I"])
+        XCTAssertEqual(report.drifts.map(\.kind), [.firstInThird])
+        XCTAssertEqual(report.drifts.first?.expected, .third)
+        XCTAssertEqual(report.drifts.first?.span.start, ns.range(of: "I crossed").location)
+        XCTAssertEqual(report.scenes.map(\.source), [.declared])
+        XCTAssertEqual(report.scenes.first?.tense, .past)
+        let roundTrip = try JSONDecoder().decode(PersonDriftReport.self, from: Data(document.personDriftJson(optionsJson: "{\"person\":\"third\"}").utf8))
+        XCTAssertEqual(roundTrip, report)
+        XCTAssertEqual(try document.personDrift().drifts, [])
+        XCTAssertThrowsError(try document.personDrift(optionsJson: "{\"person\":\"mixed\"}"))
+        XCTAssertThrowsError(try document.personDrift(optionsJson: "{\"typo\":true}"))
+        let compact = try checker().styleDocument(text: text, options: DocumentOptions(includeTokenDetails: false))
+        XCTAssertThrowsError(try compact.personDrift())
+    }
 }

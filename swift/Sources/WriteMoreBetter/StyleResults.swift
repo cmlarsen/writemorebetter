@@ -1082,3 +1082,118 @@ public extension StyleDocument {
         try decodeStyle(voicesJson(optionsJson: optionsJson))
     }
 }
+
+/// The grammatical person of a scene's narration (#354).
+public enum NarrativePerson: String, Codable, Sendable { case first, second, third }
+
+public enum NarrativeTense: String, Codable, Sendable { case past, present }
+
+public enum PersonPronoun: String, Codable, Sendable { case she, he, they }
+
+public enum PersonSource: String, Codable, Sendable { case declared, inferred, mixed, undetermined }
+
+public enum PersonDriftKind: String, Codable, Sendable { case firstInThird, thirdInFirst, narratorName }
+
+public enum PersonSuppression: String, Codable, Sendable { case witnessNarrator, tooManySlips, noNarrator, undeterminedTense }
+
+/// A per-scene declaration; `scene` indexes `PersonDriftReport.scenes`.
+public struct ScenePerson: Codable, Equatable, Sendable {
+    public var scene: Int
+    public var person: NarrativePerson
+    public init(scene: Int, person: NarrativePerson) {
+        self.scene = scene
+        self.person = person
+    }
+}
+
+/// The first-person narrator's names and the pronoun a third-person slip would use.
+public struct Narrator: Codable, Equatable, Sendable {
+    public var names: [String]
+    public var pronoun: PersonPronoun?
+    public init(names: [String] = [], pronoun: PersonPronoun? = nil) {
+        self.names = names
+        self.pronoun = pronoun
+    }
+}
+
+public struct CastMember: Codable, Equatable, Sendable {
+    public var name: String
+    public var pronoun: PersonPronoun
+    public init(name: String, pronoun: PersonPronoun) {
+        self.name = name
+        self.pronoun = pronoun
+    }
+}
+
+/// Options for `personDrift`; encode with `JSONEncoder` and pass as `optionsJson`. Unset fields
+/// keep the lens defaults.
+public struct PersonDriftOptions: Codable, Equatable, Sendable {
+    public var person: NarrativePerson?
+    public var scenePersons: [ScenePerson]?
+    public var narrator: Narrator?
+    public var cast: [CastMember]?
+    public var minimumSubjects: Int?
+    public var maximumSlips: Int?
+    public var includeWitnessScenes: Bool?
+    public init(person: NarrativePerson? = nil, scenePersons: [ScenePerson]? = nil, narrator: Narrator? = nil,
+                cast: [CastMember]? = nil, minimumSubjects: Int? = nil, maximumSlips: Int? = nil,
+                includeWitnessScenes: Bool? = nil) {
+        self.person = person
+        self.scenePersons = scenePersons
+        self.narrator = narrator
+        self.cast = cast
+        self.minimumSubjects = minimumSubjects
+        self.maximumSlips = maximumSlips
+        self.includeWitnessScenes = includeWitnessScenes
+    }
+}
+
+public struct PersonSubjects: Codable, Equatable, Sendable {
+    public let first: Int
+    public let second: Int
+    public let third: Int
+}
+
+public struct PersonScene: Codable, Equatable, Sendable {
+    public let scene: Int
+    public let span: Span
+    public let paragraphs: SentenceRange
+    public let sentences: SentenceRange
+    public let person: NarrativePerson?
+    public let source: PersonSource
+    public let tense: NarrativeTense?
+    public let subjects: PersonSubjects
+    public let narrationWords: Int
+    public let suppressed: PersonSuppression?
+}
+
+public struct PersonDrift: Codable, Equatable, Sendable {
+    public let span: Span
+    public let sentenceSpan: Span
+    public let sentence: Int
+    public let scene: Int
+    public let kind: PersonDriftKind
+    /// The folded surface (`i`, `my`, `she`), or the declared narrator name that matched.
+    public let word: String
+    public let expected: NarrativePerson
+}
+
+public struct PersonDriftReport: Codable, Equatable, Sendable {
+    public let scenes: [PersonScene]
+    public let drifts: [PersonDrift]
+    public let narrationWords: Int
+    public let perThousandWords: Double?
+}
+
+public extension StyleDocument {
+    /// Isolated slips in grammatical person per scene (#354); narration only, needs token details.
+    func personDrift(optionsJson: String? = nil) throws -> PersonDriftReport {
+        try decodeStyle(personDriftJson(optionsJson: optionsJson))
+    }
+
+    /// Typed options: encodes `options` and runs `personDrift(optionsJson:)`.
+    func personDrift(options: PersonDriftOptions) throws -> PersonDriftReport {
+        let json = String(decoding: try JSONEncoder().encode(options), as: UTF8.self)
+        return try personDrift(optionsJson: json)
+    }
+}
