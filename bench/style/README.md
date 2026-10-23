@@ -1083,6 +1083,7 @@ window mean concreteness and sentence means, the full percentile sets at both sc
 | `labels/transitions.jsonl` | 62 development examples; no ~300-sentence judgment set | Original hand-written development examples from #247, including known misses | A ~300-sentence public-domain judgment set with two independent labelers and owner adjudication |
 | `labels/pacing/*.jsonl`, `labels/pacing-consensus.jsonl` | 305 paragraphs in 40 passages | Five independent, blind model labelers (2026-10-16, owner's choice): DeepSeek V4 Pro and Muse Spark 1.3 via OpenCode Go, Codex gpt-6.1-sol, Claude Opus 5.5 (`claude-opus-5-5`) and Claude Fable 5.1 (`claude-fable-5-1`). Each saw only the packet built from the committed item file (`itemsSha256` in the consensus meta row) and guidelines version 1. Where each labeler ran was not recorded. Merged by 5-way majority with no coordinator adjudication. Guidelines version 1 is [`labels/PACING-GUIDELINES-v1.md`](labels/PACING-GUIDELINES-v1.md), sha256 `d7eaa315…db6`, the wording first committed as `bf832a2`; the consensus meta row records it as `guidelines` | Owner acceptance; independent human labels. The set is not held out (the threshold sweep tunes on it) |
 | `labels/thought-spans*.jsonl`, `labels/thought-misses.jsonl` | 150 development, 100 + 100 held-out spans, 100 miss sentences | Two blind model labelers from different families, 2026-10-22: Codex `gpt-6-sol` (OpenAI, Codex CLI 0.163.0, reasoning medium) and DeepSeek V4 Pro (`opencode-go/deepseek-v4-pro`, OpenCode 2.1.2), each run on the coordinator machine in an empty directory holding only the guidelines and items; coordinator (`claude-opus-5-5`, the implementer) adjudicated 6 disagreements. Meta rows record models, rules commit, guidelines sha256 and itemsSha256. Guidelines: [`labels/THOUGHT-GUIDELINES.md`](labels/THOUGHT-GUIDELINES.md) | Owner acceptance; human labels; confirming OpenCode Go's terms allow benchmark labels (see STYLE-DATA-LICENSES.md) |
+| `labels/tense-shift*.jsonl` | 100 development, 100 held-out, 44 singles and reverse runs | Two blind model labelers from different families, 2026-10-23: Codex `gpt-6-sol` (OpenAI, Codex CLI 0.163.0, reasoning medium) and DeepSeek V4 Pro (`opencode-go/deepseek-v4-pro`, OpenCode 2.1.2), each run on the coordinator machine in an empty directory holding only the guidelines and items; coordinator (`claude-opus-5-5`, the implementer) adjudicated 23 + 20 disagreements. Meta rows record models, rules commit, seed, guidelines sha256 and itemsSha256. Guidelines: [`labels/TENSE-GUIDELINES.md`](labels/TENSE-GUIDELINES.md) | Owner acceptance; human labels; a draft-fiction slip set, since published fiction has none |
 | Overused words, sensory balance, diction | No hand-labeled natural-text set | Deterministic generated answer keys; diction's bundled-table usefulness review had one judge, not blind (STYLE-NORMS) | Optional owner usefulness review; injections do not substitute for editorial judgments. Published flag rates: #291 (overused, sensory) and the 2026-10-20 diction run |
 
 The small `labels/example.jsonl` (3 records), `documents.jsonl` and `excerpt.txt` demonstrate the
@@ -1335,6 +1336,39 @@ options}` in, `{voices, stats, moved}` out) and runs:
 sets (unlabeled); `packet LABELS OUT` writes a blind labeler packet (`id`, `voice`, marked
 `context` only) and `merge LABELS A B --adjudicate FILE --meta JSON` folds two labelers' answers
 in. Results and the gate's reasoning are in [STYLE-VOICES.md](../../docs/STYLE-VOICES.md#evaluation).
+
+## Tense shift (#355)
+
+`python3 bench/style/tense_shift.py` builds two probes in `bench/tools/wmb-document`:
+`tense_shift` (JSONL `{text, hardWrapped, documentOptions, options}` in; the report plus every
+sentence's vote and chains, with subject readings, out) and `tense_forms` (accepts a re-inflected
+verb only when the tagger reads it as the requested lemma and POS). Subcommands:
+
+- **`perturb [--gate]`** (seed 355): 400 scenes inferred past on the clean run; 500 single, 500
+  run (2–4 sentences) and 500 decoy (exempt chains only) re-inflections, each scored against the
+  clean scene's flags at the default options and with `includeSingles`, split by first- and
+  third-person scenes; plus the reverse experiment (whole scenes flipped to present, then
+  3-sentence runs put back). The gate needs run recall ≥ 0.70, precision of new flags ≥ 0.90 and
+  decoy leakage ≤ 0.05.
+- **`rate`**: shifts per 1,000 narration words, scene sources and undetermined share, and exemption
+  counts per source; pooled over the spec sources without Moby-Dick (`moby`, `moby150k`), which is
+  reported as a stress test, and separately over the seven held-out-only novels.
+- **`sample`** (development, seed 355, spec sources only), **`heldout`** (seed 356, every source,
+  no overlap with the development rows) and **`wide`** (seed 357: 40 singles and the reverse runs
+  from an `includeSingles` + `includeReverse` run) write unlabeled sets; each row holds a context
+  of up to two sentences either side, the flag in `⟦ ⟧`.
+- **`packet LABELS OUT`** writes the blind packet (`id`, `expected`, `found`, `context`), and
+  **`merge LABELS A B --adjudicate FILE --meta JSON`** folds two labelers' `{shift, kind}` answers in
+  with agreement, kappa, `itemsSha256` and the guidelines' sha256.
+- **`score [--gate] [--write]`**: all of the above; `--write` updates `tense-shift-baseline.json`.
+  The judged gate is `shiftPrecision` ≥ 0.90 (development) and ≥ 0.60 (held-out), regression floors;
+  the issue's slip-or-device precision target of 0.85 is reported but not met (0.317 and 0.100).
+
+Sources are the CC0 stories and `moby150k.txt` in `bench/public`, the books pacing uses, and
+Standard Ebooks' *Bleak House*, *Jane Eyre* and *David Copperfield* (pinned in `sources.json`),
+with seven more Standard Ebooks novels for the held-out draw. Nothing from `bench/corpus` is read.
+Labels are **model labels** ([TENSE-GUIDELINES.md](labels/TENSE-GUIDELINES.md)); results are in
+[STYLE-TENSE-SHIFT.md](../../docs/STYLE-TENSE-SHIFT.md#evaluation).
 
 ## Vague words and hidden verbs (#307)
 
