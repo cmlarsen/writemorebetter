@@ -876,7 +876,9 @@ fn subordinate(tokens: &[&Token], found: &[Chain], n: usize, start: usize, np: u
     if wh && !demonstrative {
         return true;
     }
-    let opener = tokens[start..np].iter().any(|token| {
+    // The subject's noun phrase can open before the clause start the chunker gave (*those rites
+    // and ceremonies which are instituted*); then nothing lies between them.
+    let opener = tokens.get(start..np).unwrap_or_default().iter().any(|token| {
         token.is_word
             && (chunk(token, "B-SBAR")
                 || has_pos(token, "WDT")
@@ -1093,9 +1095,14 @@ pub fn sentence_tense(
                             Some(Reported)
                         } else if subordinate(&tokens, &found, n, starts[chain.clause], np) {
                             Some(Subordinate)
-                        } else if generic(&tokens, chain, subject, np) {
+                        // Generic and habitual readings are present-tense commentary (*People
+                        // are strange.*). A past chain with such a subject or marker is still
+                        // narration (*A package came.*, *She always walked.*) and votes past.
+                        } else if chain.class == ChainClass::Present
+                            && generic(&tokens, chain, subject, np)
+                        {
                             Some(Generic)
-                        } else if habitual {
+                        } else if chain.class == ChainClass::Present && habitual {
                             Some(Habitual)
                         } else if chain.class == ChainClass::Present
                             && narrator_frame(&tokens, chain, subject)

@@ -805,6 +805,16 @@ impl StyleDocument {
             .map(|report| reports::to_utf16_json(&report))
             .map_err(style_error)
     }
+
+    #[wasm_bindgen(js_name = tenseShift)]
+    /// Returns the opt-in tense-shift lens (#355) on the retained analysis: narration sentences
+    /// that leave their scene's declared or inferred tense. Narration only; never rewrites.
+    pub fn tense_shift(&self, options_json: Option<String>) -> Result<String, JsValue> {
+        self.inner
+            .tense_shift(options_json.as_deref())
+            .map(|report| reports::to_utf16_json(&report))
+            .map_err(style_error)
+    }
 }
 
 /// JavaScript offsets are UTF-16 code units, so caller spans default to them.

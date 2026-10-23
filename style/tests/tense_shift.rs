@@ -601,3 +601,17 @@ fn bindings_fixture() {
     assert_eq!(json["shifts"][0]["verbs"].as_array().unwrap().len(), 2);
     assert_eq!(json["scenes"][0]["source"], "declared");
 }
+
+#[test]
+fn a_subject_phrase_before_its_clause_start_does_not_panic() {
+    // Pride and Prejudice, chapter 13 (public domain): the noun phrase of *which are instituted*
+    // opens before the clause start, which once sliced a token range backwards.
+    let text = "My mind however is now made up on the subject, for having received ordination at \
+Easter, I have been so fortunate as to be distinguished by the patronage of the Right Honourable \
+Lady Catherine de Bourgh, widow of Sir Lewis de Bourgh, whose bounty and beneficence has preferred \
+me to the valuable rectory of this parish, where it shall be my earnest endeavour to demean myself \
+with grateful respect towards her Ladyship, and be ever ready to perform those rites and \
+ceremonies which are instituted by the Church of England.";
+    let report = run(text, &TenseShiftOptions::new());
+    assert!(report.shifts.is_empty());
+}

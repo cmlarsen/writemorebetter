@@ -895,3 +895,60 @@ export interface VoicesReport {
   sentences: number;
   ignoredMarkedSpans: Array<number>;
 }
+
+/** A scene's narrative tense (#353, #355). */
+export type NarrativeTense = "past" | "present";
+export type TenseShiftStrength = "run" | "single";
+export type TenseSource = "declared" | "inferred" | "inherited" | "undetermined";
+/** Why a chain or sentence did not vote. */
+export type TenseExemption = "modal" | "pastPerfect" | "subordinate" | "reported" | "generic" | "habitual" | "narratorFrame" | "questionOrExclamation" | "noSubject" | "ambiguous" | "mixedSentence" | "unbalancedQuotes";
+
+/** Sentences per class in one scene. */
+export interface TenseShiftVotes {
+  past: number;
+  present: number;
+  mixed: number;
+  unclassified: number;
+}
+
+export interface TenseShiftScene {
+  scene: number;
+  span: Span;
+  paragraphs: PacingParagraphRange;
+  /** Global sentence indexes. */
+  sentences: SentenceRange;
+  /** `null` when undetermined. */
+  tense: NarrativeTense | null;
+  source: TenseSource;
+  votes: TenseShiftVotes;
+  narrationWords: number;
+}
+
+export interface TenseShift {
+  /** From the first to the last minority sentence. */
+  span: Span;
+  /** Global sentence indexes. */
+  sentences: SentenceRange;
+  /** The voting verb heads. */
+  verbs: Array<Span>;
+  scene: number;
+  expected: NarrativeTense;
+  found: NarrativeTense;
+  strength: TenseShiftStrength;
+}
+
+export interface TenseShiftExemptionCount {
+  reason: TenseExemption;
+  count: number;
+}
+
+/** The opt-in tense-shift lens (#355). Narration only; it never rewrites. */
+export interface TenseShiftReport {
+  scenes: Array<TenseShiftScene>;
+  shifts: Array<TenseShift>;
+  narrationWords: number;
+  /** Shifts per 1,000 narration words; `null` without narration. */
+  perThousandWords: number | null;
+  /** Zero counts are left out. */
+  exemptions: Array<TenseShiftExemptionCount>;
+}

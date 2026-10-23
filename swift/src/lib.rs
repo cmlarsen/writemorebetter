@@ -1178,4 +1178,16 @@ impl StyleDocument {
                 message: error.to_string(),
             })
     }
+
+    /// Returns the opt-in tense-shift lens (#355): narration sentences that leave their scene's
+    /// declared or inferred tense. Needs token details; narration only; never rewrites.
+    #[uniffi::method(default(options_json = None))]
+    pub fn tense_shift_json(&self, options_json: Option<String>) -> Result<String, CheckError> {
+        self.inner
+            .tense_shift(options_json.as_deref())
+            .map(|report| writemorebetter_style::reports::to_utf16_json(&report))
+            .map_err(|error| CheckError::ReportInput {
+                message: error.to_string(),
+            })
+    }
 }

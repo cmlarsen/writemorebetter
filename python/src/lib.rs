@@ -545,6 +545,7 @@ impl StyleDocument {
             "vague_words" => no_extra(name).and_then(|_| run!(doc.vague_words(options))),
             "hidden_verbs" => no_extra(name).and_then(|_| run!(doc.hidden_verbs(options))),
             "voices" => no_extra(name).and_then(|_| run!(doc.voices(options))),
+            "tense_shift" => no_extra(name).and_then(|_| run!(doc.tense_shift(options))),
             _ => Err(new_style_error(
                 "unknownReport",
                 None,

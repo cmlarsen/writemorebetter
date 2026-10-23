@@ -199,6 +199,7 @@ const emotions = JSON.parse(document.emotionTells()); // '{"includeDialogue":tru
 const vague = JSON.parse(document.vagueWords()); // '{"fillers":false}' skips the bundled filler list
 const hidden = JSON.parse(document.hiddenVerbs()); // '{"ofPhrases":false}' keeps light verbs only
 const voices = JSON.parse(document.voices()); // speech, thought, quoted and caller-marked spans
+const tense = JSON.parse(document.tenseShift()); // '{"tense":"past"}' declares the tense instead of inferring it
 document.free();
 ```
 
@@ -221,6 +222,17 @@ const {spans, counts} = JSON.parse(document.voices());
 ```
 
 See [`docs/STYLE-VOICES.md`](../docs/STYLE-VOICES.md).
+
+### Tense shift
+
+`tenseShift()` (#355, opt-in) flags runs of narration sentences that leave their scene's tense:
+*The room is dark. The air smells of smoke.* in a past-tense scene. Each scene's tense is declared
+(`tense`, or `sceneTenses: [{scene, tense}]`) or inferred from at least six classified sentences
+with a 70% majority; otherwise the scene is `undetermined` and never flagged. Quotes, thought and
+caller-marked spans never vote, and neither do modal, subordinate, reported, generic, habitual,
+narrator-frame or question clauses. `includeSingles` adds lone sentences and `includeReverse` adds
+past runs in a present scene. Spans are UTF-16. See
+[`docs/STYLE-TENSE-SHIFT.md`](../docs/STYLE-TENSE-SHIFT.md).
 
 `houseStyle` takes caller-supplied Vale-format rules (YAML or JSON text) as its second argument
 and throws an `invalidRules` StyleError without them or when a rule is invalid; see

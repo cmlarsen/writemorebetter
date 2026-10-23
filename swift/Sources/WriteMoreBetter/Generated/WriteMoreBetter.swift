@@ -1126,6 +1126,12 @@ public protocol StyleDocumentProtocol: AnyObject, Sendable {
     func statsJson()  -> String
     
     /**
+     * Returns the opt-in tense-shift lens (#355): narration sentences that leave their scene's
+     * declared or inferred tense. Needs token details; narration only; never rewrites.
+     */
+    func tenseShiftJson(optionsJson: String?) throws  -> String
+    
+    /**
      * Returns this report on the retained analysis; options default when omitted.
      */
     func transitionsJson(optionsJson: String?) throws  -> String
@@ -1520,6 +1526,20 @@ open func statsJson() -> String  {
         uniffiCallStatus in
     uniffi_writemorebetter_swift_fn_method_styledocument_stats_json(
             self.uniffiCloneHandle(),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * Returns the opt-in tense-shift lens (#355): narration sentences that leave their scene's
+     * declared or inferred tense. Needs token details; narration only; never rewrites.
+     */
+open func tenseShiftJson(optionsJson: String? = nil)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_method_styledocument_tense_shift_json(
+            self.uniffiCloneHandle(),
+        FfiConverterOptionString.lower(optionsJson),uniffiCallStatus
     )
 })
 }
@@ -3258,6 +3278,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_method_styledocument_stats_json() != 3996) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_writemorebetter_swift_checksum_method_styledocument_tense_shift_json() != 29994) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_method_styledocument_transitions_json() != 58172) {

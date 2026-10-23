@@ -208,6 +208,7 @@ let emotions: EmotionTellsReport = try document.emotionTells()
 let vague: VagueWordsReport = try document.vagueWords()
 let hidden: HiddenVerbsReport = try document.hiddenVerbs()
 let voices: VoicesReport = try document.voices()
+let tense: TenseShiftReport = try document.tenseShift(optionsJson: "{\"tense\":\"past\"}")
 ```
 
 `voices()` lists speech, quoted and tagged unquoted thought, quoted terms and spans you mark with
@@ -215,6 +216,11 @@ let voices: VoicesReport = try document.voices()
 `NSRange`. Invalid spans (empty, past the end, or splitting a surrogate pair) are skipped and
 listed in `ignoredMarkedSpans`; `detectThought` and `detectUnquotedSpeech` turn the detectors off.
 See [`docs/STYLE-VOICES.md`](../docs/STYLE-VOICES.md).
+
+`tenseShift()` (opt-in) flags runs of narration sentences that leave their scene's declared or
+inferred tense; scenes below six classified sentences or a 70% majority are `undetermined`.
+`includeSingles` and `includeReverse` widen it. See
+[`docs/STYLE-TENSE-SHIFT.md`](../docs/STYLE-TENSE-SHIFT.md).
 
 Every result is `Codable`, `Equatable` and `Sendable`. Each method takes optional `optionsJson`;
 baseline-aware methods take `baseline: StyleBaseline` (`.bundled`, `.none`, or `.custom(json)`),

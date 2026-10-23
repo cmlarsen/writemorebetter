@@ -94,6 +94,10 @@ export function checkStyleRecords(checker) {
     JSON.stringify({ markedSpans: [marked] }));
   results.push(["VoicesReport", voiceDocument.voices()]);
   voiceDocument.free();
+  const tenseDocument = checker.styleDocument("😀 She opened the door.\u2028The room is dark. The air is cold. “Hi,” she said. She knew that he lies.");
+  results.push(["TenseShiftReport", tenseDocument.tenseShift('{"tense":"past"}')]);
+  assert.equal(JSON.parse(tenseDocument.tenseShift('{"tense":"past"}')).shifts.length, 1);
+  tenseDocument.free();
   const vagueDocument = checker.styleDocument("It was sort of cold. “Well, it’s a nice thing,” she said. She made a decision after the arrival of the train.");
   results.push(["VagueWordsReport", vagueDocument.vagueWords()]);
   results.push(["HiddenVerbsReport", vagueDocument.hiddenVerbs()]);

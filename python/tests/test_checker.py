@@ -197,7 +197,7 @@ def test_style_reports_use_code_point_spans(checker):
         "sentence_starts", "transitions", "pronoun_starts", "sensory_balance", "pacing",
         "diction", "overused_words", "consistency", "readability", "passive", "clarity",
         "regional_spelling", "emotion_tells", "preset_checks", "preset", "alliteration",
-        "vague_words", "hidden_verbs", "voices",
+        "vague_words", "hidden_verbs", "voices", "tense_shift",
     ]:
         assert isinstance(getattr(document, name)(), dict), name
     assert isinstance(document.dialogue_tags(baseline="none"), dict)
@@ -343,3 +343,23 @@ def test_voices_use_code_point_marked_spans(checker):
         checker.style_document(text, {"markedSpans": [{"start": 0, "end": 1, "voice": "quoted"}]})
     with pytest.raises(StyleError):
         document.voices({"typo": 1})
+
+
+def test_tense_shift_uses_code_point_spans(checker):
+    text = "😀 She opened the door.\u2028The room is dark. The air is cold. “Hi,” she said."
+    document = checker.style_document(text)
+    undetermined = document.tense_shift({"minimumSceneSentences": 1})
+    assert undetermined["scenes"][0]["source"] == "undetermined"
+    assert undetermined["shifts"] == []
+    report = document.tense_shift({"tense": "past"})
+    assert report["scenes"][0]["source"] == "declared"
+    [shift] = report["shifts"]
+    span = shift["span"]
+    assert text[span["start"] : span["end"]] == "The room is dark. The air is cold."
+    assert [text[v["start"] : v["end"]] for v in shift["verbs"]] == ["is", "is"]
+    assert (shift["expected"], shift["found"], shift["strength"]) == ("past", "present", "run")
+    assert shift["sentences"] == {"start": 1, "end": 3}
+    with pytest.raises(StyleError):
+        document.tense_shift({"typo": 1})
+    with pytest.raises(StyleError):
+        document.tense_shift({"minimumRun": 1})

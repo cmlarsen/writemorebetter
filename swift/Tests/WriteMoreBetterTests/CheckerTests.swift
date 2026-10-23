@@ -712,4 +712,26 @@ final class CheckerTests: XCTestCase {
         XCTAssertEqual(try compact.voices().spans, report.spans)
         XCTAssertThrowsError(try document.voices(optionsJson: "{\"typo\":true}"))
     }
+
+    func testTenseShiftLens() throws {
+        let text = "😀 She opened the door.\u{2028}The room is dark. The air is cold. “Hi,” she said."
+        let ns = text as NSString
+        let document = try checker().styleDocument(text: text)
+        let undetermined = try document.tenseShift(optionsJson: "{\"minimumSceneSentences\":1}")
+        XCTAssertEqual(undetermined.scenes.map(\.source), [.undetermined])
+        XCTAssertEqual(undetermined.shifts, [])
+        let report = try document.tenseShift(optionsJson: "{\"tense\":\"past\"}")
+        XCTAssertEqual(report.scenes.map(\.source), [.declared])
+        XCTAssertEqual(report.shifts.map { ns.substring(with: $0.span.nsRange) }, ["The room is dark. The air is cold."])
+        XCTAssertEqual(report.shifts[0].verbs.map { ns.substring(with: $0.nsRange) }, ["is", "is"])
+        XCTAssertEqual(report.shifts[0].expected, .past)
+        XCTAssertEqual(report.shifts[0].found, .present)
+        XCTAssertEqual(report.shifts[0].strength, .run)
+        let roundTrip = try JSONDecoder().decode(TenseShiftReport.self, from: Data(document.tenseShiftJson(optionsJson: "{\"tense\":\"past\"}").utf8))
+        XCTAssertEqual(roundTrip, report)
+        XCTAssertThrowsError(try document.tenseShift(optionsJson: "{\"typo\":true}"))
+        XCTAssertThrowsError(try document.tenseShift(optionsJson: "{\"minimumRun\":1}"))
+        let compact = try checker().styleDocument(text: text, options: DocumentOptions(includeTokenDetails: false))
+        XCTAssertThrowsError(try compact.tenseShift())
+    }
 }

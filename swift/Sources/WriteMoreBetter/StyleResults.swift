@@ -1082,3 +1082,74 @@ public extension StyleDocument {
         try decodeStyle(voicesJson(optionsJson: optionsJson))
     }
 }
+
+/// A scene's narrative tense (#353, #355).
+public enum NarrativeTense: String, Codable, Sendable { case past, present }
+
+public enum TenseShiftStrength: String, Codable, Sendable { case run, single }
+
+public enum TenseSource: String, Codable, Sendable { case declared, inferred, inherited, undetermined }
+
+/// Why a chain or sentence did not vote.
+public enum TenseExemption: String, Codable, Sendable {
+    case modal, pastPerfect, subordinate, reported, generic, habitual, narratorFrame
+    case questionOrExclamation, noSubject, ambiguous, mixedSentence, unbalancedQuotes
+}
+
+/// Sentences per class in one scene.
+public struct TenseShiftVotes: Codable, Equatable, Sendable {
+    public let past: Int
+    public let present: Int
+    public let mixed: Int
+    public let unclassified: Int
+}
+
+public struct TenseShiftScene: Codable, Equatable, Sendable {
+    public let scene: Int
+    public let span: Span
+    public let paragraphs: PacingParagraphRange
+    /// Global sentence indexes.
+    public let sentences: SentenceRange
+    /// `nil` when undetermined.
+    public let tense: NarrativeTense?
+    public let source: TenseSource
+    public let votes: TenseShiftVotes
+    public let narrationWords: Int
+}
+
+public struct TenseShift: Codable, Equatable, Sendable {
+    /// From the first to the last minority sentence.
+    public let span: Span
+    /// Global sentence indexes.
+    public let sentences: SentenceRange
+    /// The voting verb heads.
+    public let verbs: [Span]
+    public let scene: Int
+    public let expected: NarrativeTense
+    public let found: NarrativeTense
+    public let strength: TenseShiftStrength
+}
+
+public struct TenseShiftExemptionCount: Codable, Equatable, Sendable {
+    public let reason: TenseExemption
+    public let count: Int
+}
+
+/// The opt-in tense-shift lens (#355). Narration only; it never rewrites.
+public struct TenseShiftReport: Codable, Equatable, Sendable {
+    public let scenes: [TenseShiftScene]
+    public let shifts: [TenseShift]
+    public let narrationWords: Int
+    /// Shifts per 1,000 narration words; `nil` without narration.
+    public let perThousandWords: Double?
+    /// Zero counts are left out.
+    public let exemptions: [TenseShiftExemptionCount]
+}
+
+public extension StyleDocument {
+    /// Narration sentences that leave their scene's declared or inferred tense; needs token
+    /// details. Options JSON: `tense`, `sceneTenses`, `includeSingles`, `includeReverse`, ….
+    func tenseShift(optionsJson: String? = nil) throws -> TenseShiftReport {
+        try decodeStyle(tenseShiftJson(optionsJson: optionsJson))
+    }
+}

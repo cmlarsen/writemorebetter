@@ -393,7 +393,7 @@ check(typeof lengthReport.groups.all.meanDifference === "number", "bundled basel
 eq(JSON.parse(retained.sentenceLength(options, "none")).groups.all.meanDifference, null, "baseline disabled per call");
 const custom = JSON.parse(retained.sentenceLength(options, '{"mean":1}'));
 eq(custom.groups.all.meanDifference, custom.groups.all.mean - 1, "custom baseline per call");
-const calls = ["echoes", "repeatedPhrases", "cliches", "dialogueTags", "adverbs", "sentenceLength", "sentenceStarts", "sensoryBalance", "pacing", "overusedWords", "transitions", "pronounStarts", "emotionTells", "voices", "stats"];
+const calls = ["echoes", "repeatedPhrases", "cliches", "dialogueTags", "adverbs", "sentenceLength", "sentenceStarts", "sensoryBalance", "pacing", "overusedWords", "transitions", "pronounStarts", "emotionTells", "voices", "tenseShift", "stats"];
 for (const method of calls) {
   const fresh = checker.styleDocument(reportText);
   eq(JSON.parse(retained[method]()), JSON.parse(fresh[method]()), `shared analysis matches fresh ${method}`);
@@ -422,7 +422,7 @@ eq(invalid.kind, "invalidBaseline", "invalid baseline rejected");
 eq(invalid.report, "sentenceStarts", "error names report");
 eq(styleError(() => checker.styleDocument("text", '{"typo":true}')).kind, "invalidOptions", "document options validated");
 const compactStyle = checker.styleDocument(reportText, '{"includeTokenDetails":false}');
-for (const method of ["echoes", "repeatedPhrases", "dialogueTags", "adverbs", "sentenceStarts", "sensoryBalance", "pacing", "overusedWords", "pronounStarts", "emotionTells"]) {
+for (const method of ["echoes", "repeatedPhrases", "dialogueTags", "adverbs", "sentenceStarts", "sensoryBalance", "pacing", "overusedWords", "pronounStarts", "emotionTells", "tenseShift"]) {
   eq(styleError(() => compactStyle[method]()).kind, "needsTokenDetails", `compact rejects ${method}`);
 }
 eq(styleError(() => compactStyle.diction(undefined, '{"hope":1.5}')).kind, "needsTokenDetails", "compact rejects diction");
@@ -469,6 +469,17 @@ eq(voices.counts.thought, {spans: 1, words: 5}, "thought counts");
 eq(voices.narrationWords + Object.values(voices.counts).reduce((sum, count) => sum + count.words, 0), JSON.parse(voiceDocument.stats()).words.all, "voice words add up");
 eq(styleError(() => voiceDocument.voices('{"typo":1}')).kind, "invalidOptions", "voices reject unknown options");
 voiceDocument.free();
+const tenseText = "😀 She opened the door.\u2028The room is dark. The air is cold. “Hi,” she said.";
+const tenseDocument = checker.styleDocument(tenseText);
+const undetermined = JSON.parse(tenseDocument.tenseShift('{"minimumSceneSentences":1}'));
+eq([undetermined.scenes[0].source, undetermined.shifts], ["undetermined", []], "tense shift: a 50/50 scene is undetermined");
+const tense = JSON.parse(tenseDocument.tenseShift('{"tense":"past"}'));
+eq(tense.shifts.map(s => [tenseText.slice(s.span.start, s.span.end), s.expected, s.found, s.strength]), [["The room is dark. The air is cold.", "past", "present", "run"]], "UTF-16 tense-shift span after emoji and U+2028");
+eq(tense.shifts[0].verbs.map(v => tenseText.slice(v.start, v.end)), ["is", "is"], "tense-shift verbs");
+eq(tense.scenes[0].source, "declared", "declared scene tense");
+eq(styleError(() => tenseDocument.tenseShift('{"typo":1}')).kind, "invalidOptions", "tense shift rejects unknown options");
+eq(styleError(() => tenseDocument.tenseShift('{"minimumRun":1}')).kind, "invalidOptions", "tense shift validates minimumRun");
+tenseDocument.free();
 const quiet = checker.styleDocument(voiceText, '{"detectThought":false,"detectUnquotedSpeech":false}');
 eq(JSON.parse(quiet.voices()).spans, [], "detection off");
 quiet.free();

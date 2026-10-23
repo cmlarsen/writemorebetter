@@ -324,6 +324,13 @@ class StyleDocument:
         (``markedSpanUnits``: ``"char"``). Works on compact documents."""
         return self._report("voices", options)
 
+    def tense_shift(self, options: Options = None) -> dict:
+        """Narration sentences that leave their scene's declared or inferred tense (#355). Opt-in;
+        needs token details. Options: ``tense``, ``sceneTenses``, ``minimumSceneSentences``,
+        ``minimumMajorityPercent``, ``minimumRun``, ``includeSingles``, ``includeReverse``,
+        ``inheritDocumentTense``. Spans are code points."""
+        return self._report("tense_shift", options)
+
 
 def style_preset_names() -> List[str]:
     """The built-in style presets' names; the first, ``"chicago-fiction"``, is the default."""

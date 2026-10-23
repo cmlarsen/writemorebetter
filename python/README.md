@@ -125,10 +125,12 @@ The reports are `echoes`, `repeated_phrases`, `cliches`, `dialogue_tags`, `sente
 `sentence_starts`, `transitions`, `pronoun_starts`, `adverbs`, `sensory_balance`, `pacing`,
 `diction`, `overused_words`, `consistency`, `readability`, `passive`, `clarity`, `house_style`,
 `regional_spelling`, `emotion_tells`, `preset_checks`, `preset`, `alliteration`, `vague_words`,
-`hidden_verbs` and `voices`. `voices` lists quoted and tagged unquoted speech and thought, quoted
+`hidden_verbs`, `voices` and `tense_shift`. `voices` lists quoted and tagged unquoted speech and thought, quoted
 terms and spans you mark with the document option `markedSpans`, whose offsets default to code
 points in Python (`markedSpanUnits`: `"char"`; `"utf16"` and `"byte"` also work); invalid spans
-are skipped and listed in `ignoredMarkedSpans`. Module functions: `style_preset_names()`, `load_style_preset(name)`,
+are skipped and listed in `ignoredMarkedSpans`. `tense_shift` (opt-in, narration only) flags
+runs of narration sentences that leave their scene's tense; pass `{"tense": "past"}` to declare
+it instead of inferring it. Module functions: `style_preset_names()`, `load_style_preset(name)`,
 `parse_style_preset(json)` and `title_case(headings)`. See
 [`docs/STYLE-REPORTS.md`](https://github.com/cmlarsen/writemorebetter/blob/main/docs/STYLE-REPORTS.md).
 
