@@ -102,7 +102,7 @@ fn has_line_break(sentence: &Sentence) -> bool {
 }
 
 /// Whether a token is a single punctuation mark, which is not counted as a word.
-fn is_non_word(text: &str) -> bool {
+pub(crate) fn is_non_word(text: &str) -> bool {
     let mut chars = text.chars();
     match (chars.next(), chars.next()) {
         (Some(c), None) => matches!(

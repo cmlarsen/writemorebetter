@@ -132,6 +132,11 @@ pub(crate) fn for_language(
                 WordClass::Adjective,
             ))),
             BuiltinRule::new_disabled(Builtin::ConsistentApostrophes(ConsistentApostrophes::new())),
+            BuiltinRule::new_disabled(Builtin::Readability(Readability::new(true))),
+            BuiltinRule::new_disabled(Builtin::Readability(Readability::new(false))),
+            BuiltinRule::new_disabled(Builtin::ParagraphRepeatBeginning(
+                ParagraphRepeatBeginning::new(),
+            )),
         ]),
         _ => Ok(Vec::new()),
     }

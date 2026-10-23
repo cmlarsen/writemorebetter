@@ -625,6 +625,9 @@ fn apply_profile_reports_unmatched_selectors() {
         "PROFANITY",
         "EN_REPEATEDWORDS",
         "EN_CONSISTENT_APOS",
+        "READABILITY_RULE_SIMPLE",
+        "READABILITY_RULE_DIFFICULT",
+        "PARAGRAPH_REPEAT_BEGINNING_RULE",
     ];
     assert!(rules.builtins().iter().all(|rule| rule.enabled()
         || off_by_default.contains(&rule.id())
