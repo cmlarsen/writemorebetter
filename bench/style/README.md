@@ -1325,11 +1325,13 @@ options}` in, `{voices, stats, moved}` out) and runs:
   `labels/thought-spans-heldout-2.jsonl` (100, seed 3532, from `FRESH` only, drawn after freezing at
   `33b7f15`). The gate needs held-out-2 precision ≥ 0.90 per voice and a Wilson lower bound ≥ 0.82
   pooled and for each voice with 30 or more rows.
+- **quoted thought**: `labels/quote-thought.jsonl`, 60 quotes relabelled as thought (seed
+  3533), labelled by the implementer, not blind. The gate needs precision ≥ 0.90.
 - **misses** (informational): `labels/thought-misses.jsonl`, 100 unflagged narration sentences
   with a thought-verb form.
 - **narration delta** per source.
 
-`--write` updates `voices-baseline.json`. `sample`, `heldout`, `heldout2` and `misses` redraw the
+`--write` updates `voices-baseline.json`. `sample`, `heldout`, `heldout2`, `quotes` and `misses` redraw the
 sets (unlabeled); `packet LABELS OUT` writes a blind labeler packet (`id`, `voice`, marked
 `context` only) and `merge LABELS A B --adjudicate FILE --meta JSON` folds two labelers' answers
 in. Results and the gate's reasoning are in [STYLE-VOICES.md](../../docs/STYLE-VOICES.md#evaluation).

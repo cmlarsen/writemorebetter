@@ -110,6 +110,16 @@
       "She walks to the door. She is tired, she thinks. She opens it.",
       "He waits by the window. The bus is late, he decides. He sits down again.",
       "I walk to the door. It’s late, I think. I open it."
+    ],
+    "firstPersonSplice": [
+      "I walked to the end of the pier and back, the gulls cried.",
+      "I couldn’t sleep—the wind howled.",
+      "I opened the door — the dog barked.",
+      "My heart pounded, the crowd roared.",
+      "I handed him the letter, he read.",
+      "I said nothing, he continued.",
+      "I stepped back, the branch snapped.",
+      "I killed the engine and let the old boat drift, the wind howled."
     ]
   },
   "guardSentence": "The room is dark."

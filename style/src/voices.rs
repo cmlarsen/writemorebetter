@@ -2,8 +2,8 @@
 //! and speech, resolved into `Document::voices`. See docs/STYLE-VOICES.md.
 //!
 //! Detection is precision-first. A tag (*she thought*, *he said*) must be attached by position,
-//! its subject must be a person, its verb must be in a small list, and the clause it tags must
-//! disagree with it in person or tense. Free indirect discourse and indirect thought stay
+//! its subject must be a pronoun, a name or a determiner and noun, its verb must be in a small
+//! list, and the clause it tags must disagree with it in person or tense. Free indirect discourse and indirect thought stay
 //! narration.
 
 use std::collections::{BTreeMap, BTreeSet, HashSet};
@@ -19,6 +19,11 @@ use crate::{
 
 const THOUGHT_VERBS: &str = include_str!("../data/thought/thought-verbs.txt");
 const REFLEXIVE_VERBS: &str = include_str!("../data/thought/reflexive-verbs.txt");
+const UNQUOTED_SPEECH_VERBS: &str = include_str!("../data/thought/unquoted-speech-verbs.txt");
+/// The thought verbs that relabel a quote as thought. *Conclude*, *muse*, *decide*, *ponder* and the
+/// rest mostly tag spoken lines after a quote (*“I’ll leave you,” he concluded.*), so only these and
+/// the reflexive forms (*said to herself*) do.
+const QUOTE_THOUGHT_VERBS: [&str; 2] = ["think", "wonder"];
 
 /// At most this many neighbouring sentences join an anchored thought.
 const MAX_EXPANSION: usize = 2;
@@ -69,12 +74,27 @@ pub(crate) fn reflexive_verbs() -> &'static HashSet<&'static str> {
     LIST.get_or_init(|| parse_list(REFLEXIVE_VERBS))
 }
 
-/// Speech verbs that tag unquoted speech: dialogue tags' list less the thought verbs, which win.
+/// Speech verbs that tag unquoted speech: a reporting-verb subset of the dialogue tags' speech
+/// list, less the thought verbs, which win. Sound and action verbs (*the gulls cried*, *he read*)
+/// are left out: without quote marks they tag a first-person splice, not speech.
 fn unquoted_speech_verbs() -> &'static HashSet<&'static str> {
     static LIST: OnceLock<HashSet<&'static str>> = OnceLock::new();
     LIST.get_or_init(|| {
+        parse_list(UNQUOTED_SPEECH_VERBS)
+            .into_iter()
+            .filter(|verb| !thought_verbs().contains(verb))
+            .collect()
+    })
+}
+
+/// Speech verbs for a paragraph that opens with a dialogue dash (Joyce's *―Come along, the
+/// professor cried.*): the dash marks the paragraph as speech, so the whole single-word dialogue-tag
+/// list applies, less the thought verbs and *call*, which names more often than it speaks (*the
+/// sailor, called the mincer*).
+fn dash_speech_verbs() -> &'static HashSet<&'static str> {
+    static LIST: OnceLock<HashSet<&'static str>> = OnceLock::new();
+    LIST.get_or_init(|| {
         crate::reports::dialogue_tags::speech_verbs()
-            // *call* names more often than it speaks: *the sailor, called the mincer*.
             .filter(|verb| {
                 !verb.contains(' ') && !thought_verbs().contains(verb) && *verb != "call"
             })
@@ -85,6 +105,9 @@ fn unquoted_speech_verbs() -> &'static HashSet<&'static str> {
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Lexicon {
     Thought,
+    /// The tag after a quote that relabels it as thought: `QUOTE_THOUGHT_VERBS` and the reflexive
+    /// verbs.
+    QuotedThought,
     Speech,
 }
 
@@ -117,6 +140,9 @@ struct Tag {
     person: NarrativePerson,
     tense: Tense,
     gender: Gender,
+    /// The subject is a determiner and noun before the verb (*the old man whispered*), which can
+    /// as well be a thing (*the wind whispered*).
+    noun_subject: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -316,18 +342,43 @@ impl Detector {
         let parser = Parser {
             items: &items,
             tokenizer,
+            dash_dialogue: matches!(items[0].token.text.as_str(), "―" | "—" | "–"),
         };
         if self.thought {
-            for (index, span) in &quotes {
-                let after =
+            for (position, (index, span)) in quotes.iter().enumerate() {
+                if span.byte.end > range.end {
+                    continue;
+                }
+                let mut after =
                     items.partition_point(|item| item.token.span.byte.start < span.byte.end);
-                if after < items.len()
-                    && span.byte.end <= range.end
-                    && parser
-                        .tag(after, Lexicon::Thought, Position::Trailing)
-                        .is_some_and(|tag| parser.tag_ends(&tag, Position::Trailing))
-                {
+                // Punctuation outside the quote: *“Damn”, she thought.*, *“Where is he”? she
+                // wondered.*
+                if items.get(after).is_some_and(|item| {
+                    !item.blocked && matches!(item.token.text.as_str(), "," | "?" | "!" | "—" | "–")
+                }) {
+                    after += 1;
+                }
+                if after >= items.len() {
+                    continue;
+                }
+                let Some(tag) = parser.tag(after, Lexicon::QuotedThought, Position::Trailing)
+                else {
+                    continue;
+                };
+                // A split quote: *“Oh,” she thought, “it has come to this.”* The second half is
+                // the same thought.
+                let next = quotes.get(position + 1).filter(|(_, next)| {
+                    items.get(tag.range.end).is_some_and(|item| {
+                        !item.blocked && matches!(item.token.text.as_str(), "," | "—" | "–" | ":")
+                    }) && items.get(tag.range.end + 1).is_some_and(|item| {
+                        item.blocked && overlaps(&next.byte, &item.token.span.byte)
+                    })
+                });
+                if next.is_some() || parser.tag_ends(&tag, Position::Trailing) {
                     self.quoted_thought.insert(*index);
+                    if let Some((next, _)) = next {
+                        self.quoted_thought.insert(*next);
+                    }
                 }
             }
         }
@@ -352,6 +403,8 @@ impl Detector {
 struct Parser<'a, 'b> {
     items: &'b [Item<'a>],
     tokenizer: &'b nlprule::Tokenizer,
+    /// The paragraph opens with a dialogue dash, so `dash_speech_verbs` tag its speech.
+    dash_dialogue: bool,
 }
 
 impl<'a> Parser<'a, '_> {
@@ -370,6 +423,45 @@ impl<'a> Parser<'a, '_> {
 
     fn blocked(&self, range: &Range<usize>) -> bool {
         self.items[range.clone()].iter().any(|item| item.blocked)
+    }
+
+    /// Whether items `a` and `b` are adjacent `.` tokens with nothing between them.
+    fn dots(&self, a: usize, b: usize) -> bool {
+        let (a, b) = (&self.items[a], &self.items[b]);
+        a.token.text == "."
+            && b.token.text == "."
+            && a.token.span.byte.end == b.token.span.byte.start
+    }
+
+    /// Whether item `index` is a `.` in a run of three or more, an ASCII *...* the tokenizer split.
+    fn in_ellipsis(&self, index: usize) -> bool {
+        if self.items[index].token.text != "." {
+            return false;
+        }
+        let mut start = index;
+        while start > 0 && self.dots(start - 1, start) {
+            start -= 1;
+        }
+        let mut end = index;
+        while end + 1 < self.items.len() && self.dots(end, end + 1) {
+            end += 1;
+        }
+        end - start >= 2
+    }
+
+    /// Whether item `index` is the last dot of an ASCII *...*.
+    fn ellipsis_end(&self, index: usize) -> bool {
+        self.in_ellipsis(index) && !(index + 1 < self.items.len() && self.dots(index, index + 1))
+    }
+
+    /// Whether the range ends, before any of `closing`, in `?` `!` `…` or an ASCII *...*.
+    fn trails_off(&self, range: &Range<usize>, closing: &[&str]) -> bool {
+        (range.start..range.end)
+            .rev()
+            .find(|&index| !closing.contains(&self.items[index].token.text.as_str()))
+            .is_some_and(|index| {
+                self.items[index].token.text.contains(['?', '!', '…']) || self.in_ellipsis(index)
+            })
     }
 
     /// Subject candidates starting at `at`: (end, person, gender).
@@ -481,10 +573,15 @@ impl<'a> Parser<'a, '_> {
                     // *reflect* tags thought only after its clause.
                     (lemma != "reflect" || position == Position::Trailing).then_some(false)
                 }
-                Lexicon::Thought => reflexive_verbs().contains(lemma.as_str()).then_some(true),
-                Lexicon::Speech => unquoted_speech_verbs()
-                    .contains(lemma.as_str())
-                    .then_some(false),
+                Lexicon::QuotedThought if QUOTE_THOUGHT_VERBS.contains(&lemma.as_str()) => {
+                    Some(false)
+                }
+                Lexicon::Thought | Lexicon::QuotedThought => {
+                    reflexive_verbs().contains(lemma.as_str()).then_some(true)
+                }
+                Lexicon::Speech => (unquoted_speech_verbs().contains(lemma.as_str())
+                    || (self.dash_dialogue && dash_speech_verbs().contains(lemma.as_str())))
+                .then_some(false),
             };
             if let Some(reflexive) = listed {
                 // Prefer the past reading of *thought*/*read*-like forms.
@@ -532,6 +629,7 @@ impl<'a> Parser<'a, '_> {
                         person,
                         tense: Tense::Past,
                         gender,
+                        noun_subject: false,
                     };
                     return (!reflexive).then(|| self.extend(tag)).flatten();
                 }
@@ -555,6 +653,7 @@ impl<'a> Parser<'a, '_> {
             person,
             tense,
             gender,
+            noun_subject: is_determiner(items[at].token) && !has_pos(items[at].token, "PRP"),
         })
     }
 
@@ -669,6 +768,18 @@ impl<'a> Parser<'a, '_> {
         }
     }
 
+    /// Whether a shift anchors in this lexicon. Outside a dialogue-dash paragraph, unquoted speech
+    /// tagged by a determiner and noun needs a tense shift: a past first-person clause before
+    /// *the branch snapped* or *the wind whispered* is a first-person narration splice, and the
+    /// noun need not be a person. Pronoun and name subjects keep the person shift, which carries
+    /// most unquoted dialogue in Faulkner and Hemingway (*I aint going down there, Luster said.*).
+    fn anchors_as(&self, lexicon: Lexicon, tag: &Tag, shift: VoiceShift) -> bool {
+        lexicon != Lexicon::Speech
+            || self.dash_dialogue
+            || !tag.noun_subject
+            || shift != VoiceShift::Person
+    }
+
     /// `imperative_start`, plus a capitalized verb the tagger read only as a name after a tag
     /// (*She thought, Stay calm.*): its lowercase form must have a bare-verb reading in the
     /// lexicon, and the chunker must have opened a verb phrase on it.
@@ -746,11 +857,7 @@ impl<'a> Parser<'a, '_> {
     /// Thought evidence for expansion: ends in ? ! …, has a first-person pronoun, or is an order.
     fn evidence(&self, range: &Range<usize>) -> bool {
         let tokens = self.tokens(range);
-        let ends = tokens
-            .iter()
-            .rev()
-            .find(|token| !matches!(token.text.as_str(), "”" | "’" | "\"" | "'" | ")"))
-            .is_some_and(|token| token.text.contains(['?', '!', '…']));
+        let ends = self.trails_off(range, &["”", "’", "\"", "'", ")"]);
         ends || self.imperative(range)
             || (0..tokens.len()).any(|index| {
                 pronoun_person(&tokens, index).map(|(person, _)| person)
@@ -772,7 +879,10 @@ impl<'a> Parser<'a, '_> {
             let stop = item.blocked
                 || matches!(text, ";" | ":" | "—" | "–")
                 || (text == "(" && depth == 0)
-                || (matches!(text, "." | "!" | "?") && index + 1 < separator && !honorific);
+                || (matches!(text, "." | "!" | "?")
+                    && index + 1 < separator
+                    && !honorific
+                    && !self.in_ellipsis(index));
             if stop {
                 return index + 1;
             }
@@ -845,7 +955,7 @@ impl<'a> Parser<'a, '_> {
         found.push(Detected {
             span,
             voice: match lexicon {
-                Lexicon::Thought => Voice::Thought,
+                Lexicon::Thought | Lexicon::QuotedThought => Voice::Thought,
                 Lexicon::Speech => Voice::Speech,
             },
             tag: tag_span,
@@ -899,11 +1009,7 @@ impl<'a> Parser<'a, '_> {
                                     && items[rest].iter().all(|item| !is_word(item)))
                         })
                 {
-                    let ends = items[previous.clone()]
-                        .iter()
-                        .rev()
-                        .find(|item| !matches!(item.token.text.as_str(), "”" | "’" | "\"" | "'"))
-                        .is_some_and(|item| item.token.text.contains(['?', '!', '…']));
+                    let ends = self.trails_off(&previous, &["”", "’", "\"", "'"]);
                     if ends && !previous.is_empty() {
                         let start = self.clause_before(&previous, previous.end);
                         let clause = start..previous.end;
@@ -951,7 +1057,10 @@ impl<'a> Parser<'a, '_> {
                                     .is_some()
                             })
                     });
-                if let Some(shift) = self.shift(&clause, &tag).filter(|_| !continued) {
+                if let Some(shift) = self
+                    .shift(&clause, &tag)
+                    .filter(|&shift| !continued && self.anchors_as(lexicon, &tag, shift))
+                {
                     let mut end = end;
                     if thought && end == bounds.end {
                         let edge = self.expand(sentence, &tag, shift, false);
@@ -979,6 +1088,8 @@ impl<'a> Parser<'a, '_> {
                 let separates = match item.token.text.as_str() {
                     "," | "—" | "–" => true,
                     "?" | "!" | "…" | "..." => thought,
+                    // The last dot of an ASCII *...*, which the tokenizer splits into three.
+                    "." => thought && self.ellipsis_end(separator),
                     _ => false,
                 };
                 if !separates || item.blocked {
@@ -998,7 +1109,10 @@ impl<'a> Parser<'a, '_> {
                 floor = tag.range.end;
                 let keep = !matches!(item.token.text.as_str(), "," | "—" | "–");
                 let clause = start..separator + usize::from(keep);
-                let Some(shift) = self.shift(&clause, &tag) else {
+                let Some(shift) = self
+                    .shift(&clause, &tag)
+                    .filter(|&shift| self.anchors_as(lexicon, &tag, shift))
+                else {
                     continue;
                 };
                 let mut first = start;
@@ -1025,16 +1139,22 @@ impl<'a> Parser<'a, '_> {
                         })
                         .unwrap_or(bounds.end);
                     let second = second_start..second_end;
-                    // A lowercase continuation that is not a coordinator or a participle or
-                    // past predicate of the tag's subject (*she thought, ladling out soup*).
-                    let opens = items[second.clone()]
-                        .iter()
-                        .find(|item| is_word(item))
-                        .is_some_and(|item| {
-                            !capitalized(item)
-                                && !COORDINATORS.contains(&word(item).as_str())
-                                && !predicate_opening(item.token)
-                        });
+                    // A lowercase (or first-person *I*) continuation that is not a coordinator or a
+                    // participle or past predicate of the tag's subject (*she thought, ladling out
+                    // soup*).
+                    let tokens = self.tokens(&second);
+                    let opens =
+                        tokens
+                            .iter()
+                            .position(|token| token.is_word)
+                            .is_some_and(|offset| {
+                                let token = tokens[offset];
+                                let first_person = pronoun_person(&tokens, offset)
+                                    .is_some_and(|(person, _)| person == NarrativePerson::First);
+                                (!capitalized_word(token) || first_person)
+                                    && !COORDINATORS.contains(&lower(token).as_str())
+                                    && !predicate_opening(token)
+                            });
                     if opens && self.continues(&second, &tag, shift) {
                         floor = second.end;
                         self.push(found, second, &tag, shift, lexicon);

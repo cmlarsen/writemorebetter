@@ -14,7 +14,8 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   `Voice`: narration, speech, thought, a quoted term, or a caller-marked embedded text, quotation
   or excluded span. Unquoted direct thought (*I’m done with this, she thought.*) and tagged
   unquoted speech (*Get out, he said.*) are detected from a tag whose clause disagrees with it in
-  person or tense; quoted speech with a thought tag becomes thought; free indirect discourse stays
+  person or tense; quoted speech tagged by *think*, *wonder* or a reflexive verb (*said to
+  herself*) becomes thought, both halves of a split quote included; free indirect discourse stays
   narration. `DocumentOptions` gains `marked_spans` (`markedSpans`), `marked_span_units`
   (`markedSpanUnits`: byte, char or UTF-16; WASM and Swift default to UTF-16, Python to code
   points), `detect_thought` and `detect_unquoted_speech`. `Document` gains `voices`,

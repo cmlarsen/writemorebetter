@@ -570,19 +570,22 @@ reviewed inclusion and exclusion lists. Every lemma comes from WordNet. Details:
 
 ## Thought verbs (#353)
 
-- **Files.** `style/data/thought/thought-verbs.txt` (15 lemmas) and
-  `style/data/thought/reflexive-verbs.txt` (12 lemmas) were written by this project's
-  contributors and are MIT OR Apache-2.0, like the engine code. They are not LanguageTool data and
+- **Files.** `style/data/thought/thought-verbs.txt` (15 lemmas),
+  `style/data/thought/reflexive-verbs.txt` (12 lemmas) and
+  `style/data/thought/unquoted-speech-verbs.txt` (41 lemmas, a subset of
+  `style/data/dialogue/speech-verbs.txt`) were written by this project's contributors and are MIT OR Apache-2.0, like the engine code. They are not LanguageTool data and
   are not LGPL.
 - **WordNet.** Princeton WordNet 3.0 verb synsets and hypernyms of *think* were consulted for
   candidates only. No WordNet file, gloss, sense key or derived table is copied, so no WordNet
   notice is needed for these files.
-- **Speech verbs.** Unquoted speech reuses `style/data/dialogue/speech-verbs.txt` and
-  `showy-verbs.txt` (#249), already project-authored.
+- **Speech verbs.** Unquoted speech in a dialogue-dash paragraph reuses
+  `style/data/dialogue/speech-verbs.txt` and `showy-verbs.txt` (#249), already project-authored.
 - **Bench data.** `bench/style/thought-templates.json` is CC0, written for this repository. The
-  voice labels in `bench/style/labels/thought-*.jsonl` hold short context windows of
-  public-domain Standard Ebooks texts (CC0 dedication) and the CC0 `bench/public` stories, and
-  were produced by Codex `gpt-6-sol` and DeepSeek V4 Pro through OpenCode Go, the same route as
+  voice labels in `bench/style/labels/thought-*.jsonl` and `quote-thought.jsonl` hold short
+  context windows of public-domain Standard Ebooks texts (CC0 dedication) and the CC0
+  `bench/public` stories. `quote-thought.jsonl` was labelled by the implementer (Claude); the
+  `thought-*.jsonl` labels were produced by Codex `gpt-6-sol` and DeepSeek V4 Pro through OpenCode
+  Go, the same route as
   the pacing labels (#251). The concreteness section above records that OpenCode Go's terms bar
   output that ships in the library; these labels are benchmark data in `bench/`, not shipped
   data, but the owner should confirm that the same reading covers them.

@@ -811,3 +811,234 @@ fn guards_from_published_prose_shapes() {
         ["So it ends then", "so it ends"]
     );
 }
+
+#[test]
+fn ascii_ellipsis_separates_like_u2026() {
+    // The tokenizer splits "..." into three "." tokens.
+    assert_eq!(
+        found("Maybe it isn’t too late... she thought."),
+        [thought(
+            "Maybe it isn’t too late...",
+            "she thought",
+            VoiceShift::Tense
+        )]
+    );
+    assert_eq!(
+        found("Is he late... She wondered."),
+        [thought("Is he late...", "She wondered", VoiceShift::Tense)]
+    );
+    assert_eq!(
+        found("Is he late...\u{2028}I wondered."),
+        [thought("Is he late...", "I wondered", VoiceShift::Tense)]
+    );
+    // An ellipsis inside the clause is not a missed sentence end.
+    assert_eq!(
+        found("I can’t... I won’t, she thought."),
+        [thought(
+            "I can’t... I won’t",
+            "she thought",
+            VoiceShift::Both
+        )]
+    );
+    // A trailing-off sentence counts as thought evidence for expansion, as … does.
+    assert_eq!(
+        found("Is he late... Why doesn’t he call? I wondered."),
+        [thought(
+            "Is he late... Why doesn’t he call?",
+            "I wondered",
+            VoiceShift::Tense
+        )]
+    );
+    // A sentence end is still a sentence end.
+    assert_eq!(found("He left. she thought."), []);
+}
+
+#[test]
+fn split_tag_continues_with_first_person_i() {
+    for (text, second) in [
+        ("I can’t do this, she thought, I won’t.", "I won’t."),
+        ("I can’t do this—she thought—I won’t.", "I won’t."),
+        ("I can’t do this, she thought, I’m leaving.", "I’m leaving."),
+        ("I can’t do this, she thought, we won’t.", "we won’t."),
+    ] {
+        let found = found(text);
+        assert_eq!(
+            found.iter().map(|f| f.text.as_str()).collect::<Vec<_>>(),
+            ["I can’t do this", second],
+            "{text}"
+        );
+        assert!(found.iter().all(|f| f.voice == Voice::Thought), "{text}");
+    }
+    // Any other capitalized word still starts new narration.
+    assert_eq!(
+        found("I can’t do this, she thought, Mara won’t.")
+            .iter()
+            .map(|f| f.text.as_str())
+            .collect::<Vec<_>>(),
+        ["I can’t do this"]
+    );
+}
+
+fn quote_voices(text: &str) -> Vec<(String, Voice)> {
+    found(text)
+        .into_iter()
+        .map(|found| {
+            assert_eq!(found.source, VoiceSource::Quote, "{text}");
+            (found.text, found.voice)
+        })
+        .collect()
+}
+
+#[test]
+fn quoted_thought_with_punctuation_outside_the_quote() {
+    assert_eq!(
+        quote_voices("“Damn”, she thought."),
+        [("“Damn”".to_owned(), Voice::Thought)]
+    );
+    assert_eq!(
+        quote_voices("“Where is he”? she wondered."),
+        [("“Where is he”".to_owned(), Voice::Thought)]
+    );
+    assert_eq!(
+        quote_voices("“Damn”— she thought."),
+        [("“Damn”".to_owned(), Voice::Thought)]
+    );
+    assert_eq!(
+        quote_voices("“Damn”, she said."),
+        [("“Damn”".to_owned(), Voice::Speech)]
+    );
+}
+
+#[test]
+fn split_quoted_thought_relabels_both_halves() {
+    for (text, first, second) in [
+        (
+            "“Oh,” she thought to herself, “it has come to this.”",
+            "“Oh,”",
+            "“it has come to this.”",
+        ),
+        (
+            "“It’s to show me,” he thought, “what would happen to me.”",
+            "“It’s to show me,”",
+            "“what would happen to me.”",
+        ),
+        (
+            "“By Jove!” he thought, “we must be nearly there!” and he stuck his head out…",
+            "“By Jove!”",
+            "“we must be nearly there!”",
+        ),
+        (
+            "“I wonder…” she thought—“where he went.”\u{2028}The door shut.",
+            "“I wonder…”",
+            "“where he went.”",
+        ),
+    ] {
+        assert_eq!(
+            quote_voices(text),
+            [
+                (first.to_owned(), Voice::Thought),
+                (second.to_owned(), Voice::Thought)
+            ],
+            "{text}"
+        );
+    }
+    assert_eq!(
+        quote_voices("“Fine,” he said, “we can go.”"),
+        [
+            ("“Fine,”".to_owned(), Voice::Speech),
+            ("“we can go.”".to_owned(), Voice::Speech)
+        ]
+    );
+}
+
+#[test]
+fn quotes_tagged_by_ambiguous_thought_verbs_stay_speech() {
+    // *conclude*, *muse*, *decide*, *ponder* and *reflect* mostly tag spoken lines after a quote.
+    for text in [
+        "“There’s nothing like it,” she concluded. “Do tell me about the Ambroses.”",
+        "“Come along,” he decided, and started off.",
+        "“A fragment of a handkerchief?” he mused. “Perhaps you are right.”",
+        "“It’s not exactly Gibbon,” Helen pondered.",
+        "“I’ve no right to interfere,” he reflected.",
+    ] {
+        assert!(
+            quote_voices(text)
+                .iter()
+                .all(|(_, voice)| *voice == Voice::Speech),
+            "{text}"
+        );
+    }
+    // *think*, *wonder* and the reflexive forms still relabel.
+    for text in [
+        "“Where is he?” she wondered.",
+        "“Not again,” he said to himself.",
+        "“Fine,” Mara thought.",
+    ] {
+        assert_eq!(
+            quote_voices(text)
+                .iter()
+                .map(|(_, voice)| *voice)
+                .collect::<Vec<_>>(),
+            [Voice::Thought],
+            "{text}"
+        );
+    }
+}
+
+#[test]
+fn first_person_splices_are_not_unquoted_speech() {
+    for text in [
+        "I walked the length of the pier and back, the gulls cried.",
+        "I killed the engine and let the old boat drift, the wind howled.",
+        "I looked away, the baby cried.",
+        "I opened the door — the dog barked.",
+        "I couldn’t sleep—the wind howled.",
+        "My heart pounded, the crowd roared.",
+        "I handed him the letter, he read.",
+        "I said nothing, he continued.",
+        "I kept walking, the voices echoed.",
+        "I stepped back, the branch snapped…",
+        "I couldn’t sleep—the wind whispered.",
+    ] {
+        assert_eq!(found(text), [], "{text}");
+    }
+    // A pronoun or name subject with a reporting verb keeps the person shift: unquoted dialogue
+    // in that shape (*I aint going down there, Luster said.*) outnumbers the splice.
+    assert_eq!(
+        found("I looked away, he said.\u{2028}Then he left."),
+        [tagged(
+            "I looked away",
+            Voice::Speech,
+            "he said",
+            VoiceShift::Person
+        )]
+    );
+    // A tense shift still anchors speech, and a dialogue-dash paragraph keeps the full list.
+    assert_eq!(
+        found("Come here, the old man whispered."),
+        [tagged(
+            "Come here",
+            Voice::Speech,
+            "the old man whispered",
+            VoiceShift::Tense
+        )]
+    );
+    assert_eq!(
+        found("―Come along, the professor cried."),
+        [tagged(
+            "―Come along",
+            Voice::Speech,
+            "the professor cried",
+            VoiceShift::Tense
+        )]
+    );
+    assert_eq!(
+        found("—I did it, he said."),
+        [tagged(
+            "I did it",
+            Voice::Speech,
+            "he said",
+            VoiceShift::Person
+        )]
+    );
+}

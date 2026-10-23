@@ -1,12 +1,12 @@
 {
  "synthetic": {
   "seed": 353,
-  "items": 624,
+  "items": 633,
   "hosts": 60,
   "falsePositives": 0,
   "groups": {
    "negative": {
-    "items": 42,
+    "items": 51,
     "falsePositives": 0
    },
    "speech/apostrophe/curly": {
@@ -172,30 +172,30 @@
   }
  },
  "natural": {
-  "flags": 807,
+  "flags": 808,
   "flagsByVoice": {
    "thought": 72,
-   "speech": 735
+   "speech": 736
   },
   "flagsByAnchor": {
    "thought/trailing": 61,
-   "speech/trailing": 634,
+   "speech/trailing": 625,
    "speech/leading": 7,
    "thought/mid": 10,
    "thought/leading": 1,
-   "speech/mid": 94
+   "speech/mid": 104
   },
   "flagsBySource": {
    "story2": 1,
    "moby": 2,
-   "to_the_lighthouse": 57,
+   "to_the_lighthouse": 56,
    "jacobs_room": 7,
-   "portrait": 234,
+   "portrait": 237,
    "ulysses": 405,
    "voyage_out": 1,
    "this_side_of_paradise": 1,
    "main_street": 2,
-   "orlando": 10,
+   "orlando": 9,
    "sound_and_the_fury": 64,
    "as_i_lay_dying": 4,
    "a_farewell_to_arms": 19
@@ -203,10 +203,10 @@
   "development": {
    "all": {
     "labeled": 150,
-    "kept": 148,
+    "kept": 147,
     "precision": 0.993,
-    "wilsonLower": 0.963,
-    "droppedTrue": 2,
+    "wilsonLower": 0.962,
+    "droppedTrue": 3,
     "droppedFalse": 0
    },
    "lemma/decide": {
@@ -235,10 +235,10 @@
    },
    "speech": {
     "labeled": 121,
-    "kept": 119,
+    "kept": 118,
     "precision": 0.992,
     "wilsonLower": 0.954,
-    "droppedTrue": 2,
+    "droppedTrue": 3,
     "droppedFalse": 0
    },
    "speech/leading": {
@@ -250,18 +250,18 @@
     "droppedFalse": 0
    },
    "speech/mid": {
-    "labeled": 49,
+    "labeled": 50,
     "kept": 49,
     "precision": 1.0,
     "wilsonLower": 0.927,
-    "droppedTrue": 0,
+    "droppedTrue": 1,
     "droppedFalse": 0
    },
    "speech/trailing": {
-    "labeled": 67,
-    "kept": 67,
+    "labeled": 66,
+    "kept": 66,
     "precision": 1.0,
-    "wilsonLower": 0.946,
+    "wilsonLower": 0.945,
     "droppedTrue": 0,
     "droppedFalse": 0
    },
@@ -301,10 +301,10 @@
   "heldout": {
    "all": {
     "labeled": 100,
-    "kept": 94,
-    "precision": 0.979,
-    "wilsonLower": 0.926,
-    "droppedTrue": 3,
+    "kept": 93,
+    "precision": 0.978,
+    "wilsonLower": 0.925,
+    "droppedTrue": 4,
     "droppedFalse": 3
    },
    "lemma/conclude": {
@@ -333,10 +333,10 @@
    },
    "speech": {
     "labeled": 71,
-    "kept": 68,
+    "kept": 67,
     "precision": 1.0,
-    "wilsonLower": 0.947,
-    "droppedTrue": 3,
+    "wilsonLower": 0.946,
+    "droppedTrue": 4,
     "droppedFalse": 0
    },
    "speech/leading": {
@@ -349,10 +349,10 @@
    },
    "speech/mid": {
     "labeled": 32,
-    "kept": 29,
+    "kept": 28,
     "precision": 1.0,
-    "wilsonLower": 0.883,
-    "droppedTrue": 3,
+    "wilsonLower": 0.879,
+    "droppedTrue": 4,
     "droppedFalse": 0
    },
    "speech/trailing": {
@@ -466,6 +466,33 @@
     "kept": 9,
     "precision": 1.0,
     "wilsonLower": 0.701,
+    "droppedTrue": 0,
+    "droppedFalse": 0
+   }
+  },
+  "quoteThoughtFlags": 254,
+  "quoteThought": {
+   "all": {
+    "labeled": 60,
+    "kept": 60,
+    "precision": 0.983,
+    "wilsonLower": 0.911,
+    "droppedTrue": 0,
+    "droppedFalse": 0
+   },
+   "thought": {
+    "labeled": 60,
+    "kept": 60,
+    "precision": 0.983,
+    "wilsonLower": 0.911,
+    "droppedTrue": 0,
+    "droppedFalse": 0
+   },
+   "thought/quote": {
+    "labeled": 60,
+    "kept": 60,
+    "precision": 0.983,
+    "wilsonLower": 0.911,
     "droppedTrue": 0,
     "droppedFalse": 0
    }
@@ -668,15 +695,15 @@
   },
   "to_the_lighthouse": {
    "modeNarrationSentences": 3270,
-   "voiceNarrationSentences": 3213,
+   "voiceNarrationSentences": 3214,
    "wordsMovedFromNarration": {
     "thought": 0.00483,
-    "speech": 0.00138,
+    "speech": 0.00134,
     "quoted": 0.00311
    },
    "tagSpansPerThousandNarrationWords": {
     "thought": 0.633,
-    "speech": 0.206
+    "speech": 0.191
    }
   },
   "jacobs_room": {
@@ -697,16 +724,16 @@
    "voiceNarrationSentences": 5494,
    "wordsMovedFromNarration": {
     "thought": 0.00034,
-    "speech": 0.01796
+    "speech": 0.01838
    },
    "tagSpansPerThousandNarrationWords": {
     "thought": 0.047,
-    "speech": 2.69
+    "speech": 2.725
    }
   },
   "ulysses": {
    "modeNarrationSentences": 19134,
-   "voiceNarrationSentences": 18743,
+   "voiceNarrationSentences": 18745,
    "wordsMovedFromNarration": {
     "thought": 0.00034,
     "speech": 0.01042
@@ -798,15 +825,15 @@
   },
   "orlando": {
    "modeNarrationSentences": 2961,
-   "voiceNarrationSentences": 2948,
+   "voiceNarrationSentences": 2949,
    "wordsMovedFromNarration": {
     "thought": 0.00088,
-    "speech": 0.0005,
+    "speech": 0.00036,
     "quoted": 0.00514
    },
    "tagSpansPerThousandNarrationWords": {
     "thought": 0.094,
-    "speech": 0.04
+    "speech": 0.027
    }
   },
   "sound_and_the_fury": {

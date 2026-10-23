@@ -1,0 +1,47 @@
+# Verbs that tag unquoted direct speech ("I'm leaving, he said."). Project-authored for
+# writemorebetter (#353), MIT OR Apache-2.0. A subset of dialogue/speech-verbs.txt: only verbs that
+# report words. Sound and action verbs (cry, howl, bark, roar, sob, groan, moan, sing, echo, boom,
+# scream) and verbs that also name a non-speech act (read, continue, agree, admit, return, observe,
+# call) are left out, because without quote marks "I looked away, the baby cried." and "I said
+# nothing, he continued." read as narration. One lemma per line.
+add
+announce
+answer
+argue
+ask
+beg
+complain
+confess
+declare
+demand
+drawl
+enquire
+exclaim
+explain
+inquire
+insist
+interject
+mumble
+murmur
+mutter
+plead
+protest
+query
+reiterate
+rejoin
+remark
+repeat
+reply
+respond
+retort
+say
+shout
+snap
+stammer
+stutter
+suggest
+tell
+urge
+warn
+whisper
+yell

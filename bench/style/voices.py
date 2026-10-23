@@ -7,6 +7,8 @@ the narration delta for tag-anchored unquoted thought and speech.
                                                           flags not in the development sample (seed 3531)
   python3 bench/style/voices.py misses [--size 100]       write labels/thought-misses.jsonl: unflagged
                                                           narration sentences with a thought verb
+  python3 bench/style/voices.py quotes [--size 60]        write labels/quote-thought.jsonl: quotes
+                                                          relabelled as thought (seed 3533)
   python3 bench/style/voices.py packet LABELS OUT          blind labeler packet: items, no labels
   python3 bench/style/voices.py merge LABELS A B [--adjudicate FILE] [--meta JSON]
                                                           fold two labelers' answers into LABELS
@@ -34,6 +36,7 @@ LABELS = HERE / 'labels' / 'thought-spans.jsonl'
 HELDOUT = HERE / 'labels' / 'thought-spans-heldout.jsonl'
 HELDOUT2 = HERE / 'labels' / 'thought-spans-heldout-2.jsonl'
 MISSES = HERE / 'labels' / 'thought-misses.jsonl'
+QUOTES = HERE / 'labels' / 'quote-thought.jsonl'
 GUIDELINES = HERE / 'labels' / 'THOUGHT-GUIDELINES.md'
 BASELINE = HERE / 'voices-baseline.json'
 TEMPLATES = HERE / 'thought-templates.json'
@@ -46,6 +49,7 @@ SOURCES = tuple(PUBLIC) + BOOKS + MODERN + FRESH
 SEED = 353
 HELDOUT_SEED = 3531
 HELDOUT2_SEED = 3532
+QUOTES_SEED = 3533
 CONTEXT = 110
 TOOL = ROOT / 'bench/tools/wmb-document'
 THOUGHT_LEMMAS = ('think', 'wonder', 'muse', 'reason', 'realize', 'realise', 'decide', 'figure',
@@ -137,6 +141,34 @@ def flags():
                          'lemma': LEMMA_OF.get(verb.group(1)) if verb else None,
                          'context': marked(text, s, t)})
     return rows
+
+
+def quote_flags():
+    """Quoted speech relabelled as thought by the tag after it (source `quote`, voice `thought`)."""
+    docs, results = run_natural()
+    rows = []
+    for (source, name, text), result in zip(docs, results):
+        for span in result['voices']['spans']:
+            if span['source'] != 'quote' or span['voice'] != 'thought':
+                continue
+            s, e = char_range(span['span'])
+            context, left = window(text, s, e)
+            prefix = '…' if context.startswith('…') and left > 0 else ''
+            body = context[len(prefix):]
+            body = body[:e - left] + '⟧' + body[e - left:]
+            body = body[:s - left] + '⟦' + body[s - left:]
+            rows.append({'source': source, 'document': name, 'start': s, 'end': e, 'voice': 'thought',
+                         'anchor': 'quote', 'span': text[s:e], 'context': prefix + body})
+    return rows
+
+
+def quote_sample(size):
+    rows = quote_flags()
+    chosen = random.Random(QUOTES_SEED).sample(rows, min(size, len(rows)))
+    chosen.sort(key=key)
+    write_jsonl(QUOTES, [{**row, 'id': f'{QUOTES.stem}-{i:03d}', 'label': None, 'note': ''}
+                         for i, row in enumerate(chosen, 1)])
+    print(json.dumps({'flags': len(rows), 'sampled': len(chosen)}))
 
 
 def key(row):
@@ -512,6 +544,7 @@ def score(gate, write):
     synthetic_result, misses_found = synthetic()
     rows = flags()
     current = {key(row): row for row in rows}
+    quotes = quote_flags()
     result = {
         'synthetic': synthetic_result,
         'natural': {
@@ -522,6 +555,9 @@ def score(gate, write):
             'development': precision(LABELS, current) if LABELS.exists() else None,
             'heldout': precision(HELDOUT, current) if HELDOUT.exists() else None,
             'heldout2': precision(HELDOUT2, current) if HELDOUT2.exists() else None,
+            'quoteThoughtFlags': len(quotes),
+            'quoteThought': precision(QUOTES, {key(row): row for row in quotes})
+            if QUOTES.exists() else None,
         },
         'misses': miss_estimate() if MISSES.exists() else None,
         'narrationDelta': narration_delta(),
@@ -534,6 +570,9 @@ def score(gate, write):
         BASELINE.write_text(json.dumps(result, indent=1, ensure_ascii=False) + '\n', encoding='utf-8')
     if gate:
         failures = gate_synthetic(synthetic_result) + gate_natural(result['natural']['heldout2'] or {})
+        quote_thought = (result['natural']['quoteThought'] or {}).get('all')
+        if not quote_thought or (quote_thought['precision'] or 0) < 0.90:
+            failures.append(f'quote-thought precision {quote_thought} < 0.90')
         if failures:
             sys.exit('; '.join(failures))
 
@@ -572,6 +611,7 @@ def main():
     sub.add_parser('heldout').add_argument('--size', type=int, default=100)
     sub.add_parser('heldout2').add_argument('--size', type=int, default=100)
     sub.add_parser('misses').add_argument('--size', type=int, default=100)
+    sub.add_parser('quotes').add_argument('--size', type=int, default=60)
     packing = sub.add_parser('packet')
     packing.add_argument('labels')
     packing.add_argument('out')
@@ -599,6 +639,8 @@ def main():
         sample(args.size, HELDOUT2, HELDOUT2_SEED, sources=FRESH)
     elif args.command == 'misses':
         misses(args.size)
+    elif args.command == 'quotes':
+        quote_sample(args.size)
     elif args.command == 'packet':
         packet(args.labels, args.out)
     elif args.command == 'merge':

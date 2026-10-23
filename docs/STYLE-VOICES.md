@@ -33,11 +33,15 @@ person or tense lens should see it.
 ## Where spans come from
 
 1. **Quote detection** (the existing `dialogue` and `speech`): a speech span is `speech`, a
-   non-speech quoted span is `quoted`. A speech span whose following tag has a thought verb, or a
-   reflexive verb with a reflexive (*told herself*), becomes `thought`. `mode_at` still says
-   dialogue there, and `speech` is unchanged.
+   non-speech quoted span is `quoted`. A speech span whose following tag has *think* or *wonder*,
+   or a reflexive verb with a reflexive (*told herself*, *said to himself*), becomes `thought`.
+   The other thought verbs (*conclude, muse, decide, ponder, reflect*, …) do not relabel a quote:
+   after a quote they mostly tag spoken lines (*“I’ll leave you,” he concluded.*). One `,` `?` `!`
+   `—` `–` outside the closing quote is skipped (*“Damn”, she thought.*). When the tag is followed
+   by `,` `—` `–` or `:` and a second quote (*“Oh,” she thought, “it has come to this.”*), both
+   halves become `thought`. `mode_at` still says dialogue there, and `speech` is unchanged.
 2. **Unquoted thought**: a precision-first detector anchored on a tag (below).
-3. **Unquoted speech**: the same anchors with the dialogue-tag speech verbs, giving `speech` with
+3. **Unquoted speech**: the same anchors with a list of reporting verbs, giving `speech` with
    source `tag`. This replaces #354's planned local guard.
 4. **Caller spans**: `DocumentOptions::marked_spans`, in byte, char or UTF-16 units, with a
    caller-only `MarkedVoice` (no `quoted`, so `"quoted"` is a JSON error).
@@ -69,18 +73,29 @@ calculate, conclude, reckon*) and `reflexive-verbs.txt` (*ask, tell, remind, pro
 whisper, mutter, murmur, repeat, warn, assure, scold*, only with a reflexive or *to* plus a
 reflexive). *Knew, felt, believed, remembered, hoped* and similar verbs are left out: they mostly
 introduce indirect thought. *Reflect* counts only after its clause. Unquoted speech uses
-`dialogue_tags::speech_verbs()` less the thought verbs and *call* (which names more often than it
-speaks: *the sailor, called the mincer*).
+`unquoted-speech-verbs.txt`, 41 reporting verbs taken from the dialogue-tag speech list (*say, ask,
+reply, whisper, mutter, shout, insist, snap, add, …*). Sound and action verbs (*cry, howl, bark,
+roar, sob, groan, sing, echo, scream*) and verbs that also name a non-speech act (*read, continue,
+agree, admit, return, observe*) are left out: without quote marks, *I walked the pier, the gulls
+cried.* and *I said nothing, he continued.* are first-person narration, not speech. In a
+paragraph that opens with a dialogue dash (`―`, `—`, `–`, Joyce's *―Come along, the professor
+cried.*) the whole single-word dialogue-tag speech list applies, less the thought verbs and
+*call* (which names more often than it speaks: *the sailor, called the mincer*). Outside such a
+paragraph, a speech tag whose subject is a determiner and noun (*the old man whispered*, but
+also *the wind whispered*) anchors only on a tense shift, not on a person shift alone.
 
 **Anchors.**
 
-- A, trailing: *clause* + `,` `?` `!` `—` `–` `…` + *tag*.
-- B, bare after a split: a sentence ending in `?` `!` `…`, then a sentence that is only a tag
-  (*Where is he? I wondered.*). U+2028 between them is allowed; a newline, CRLF or U+2029 is a
+- A, trailing: *clause* + `,` `?` `!` `—` `–` `…` + *tag*. An ASCII `...`, which the tokenizer
+  splits into three `.` tokens, counts as `…` here, in B and in thought evidence, and is not a
+  missed sentence end inside a clause.
+- B, bare after a split: a sentence ending in `?` `!` `…` `...`, then a sentence that is only a
+  tag (*Where is he? I wondered.*). U+2028 between them is allowed; a newline, CRLF or U+2029 is a
   paragraph break and stops it.
 - C, leading: a sentence-initial tag + `,` `:` `—` + *clause* to the sentence end.
 - D, mid: *clause* + `,`/`—` + *tag* + `,`/`—` + *clause*. The second clause joins only when it
-  starts lowercase, is not a coordinator or a participle or past predicate (*she thought, ladling
+  starts lowercase or with first-person *I* (*I can’t do this, she thought, I won’t.*), is not a
+  coordinator or a participle or past predicate (*she thought, ladling
   out soup*), and carries the shift itself.
 
 Unquoted speech uses A (comma and dashes only), C and D, never B and never expansion.
@@ -198,13 +213,15 @@ second held-out sample. `bench/corpus/` is never opened. Commands and files are 
 
 **Synthetic** (`voices.py synthetic`, seed 353, CC0 templates in
 `bench/style/thought-templates.json`): 624 items inserted after 60 third-person past host
-paragraphs from the books, over all four positions, comma, dash, ellipsis, `?`, `!`, U+2028, curly
-and straight apostrophes, and pronoun, name and titled-name subjects. Thought recall: trailing
+paragraphs from the books (633 since the review fixes added nine first-person splice negatives),
+over all four positions, comma, dash, ellipsis, `?`, `!`, U+2028, curly and straight apostrophes,
+and pronoun, name and titled-name subjects. Thought recall: trailing
 0.963, bare 1.000, leading 0.938, mid 1.000, with the same exact-span rates; speech: trailing
 0.975, leading 0.938, mid 1.000. The person and tense swaps and the *The room is dark.* guard are
-all recalled exactly. False positives: 0, over 42 negatives (indirect forms, agreeing clauses,
+all recalled exactly. False positives: 0, over 51 negatives (indirect forms, agreeing clauses,
 untagged FID, excluded verbs, hedges, the noun *thought*, tags split by a paragraph break, present
-frames with agreeing tags) and every positive. The remaining misses are tagger limits: *Trust*
+frames with agreeing tags, first-person past splices with a sound or action verb such as *the
+gulls cried*) and every positive. The remaining misses are tagger limits: *Trust*
 has no verb reading, and a capitalized verb after a colon is sometimes read only as a name.
 
 **Natural precision**, labelled blind by two model families, Codex `gpt-6-sol` (OpenAI) and
@@ -235,6 +252,22 @@ books hold 72 tag-source thought spans in all, and 13 of 13 correct gives a lowe
 voice, a Wilson lower bound ≥ 0.82 pooled and for each voice with at least 30 rows, synthetic
 false positives = 0 and the synthetic recall targets.
 
+**Review fixes** (after `5c3192a`): the reporting-verb list for unquoted speech, the dash
+paragraph rule and the noun-subject tense requirement drop 3 of 121 development and 4 of 71
+held-out-1 speech rows that were correct (Joyce tags with *cried*, *pursued*, *interrupted*,
+*began* and *continued* outside a dash paragraph). No labelled false row was dropped, and
+held-out 2 is unchanged at 97 kept, 96 correct. Natural tag spans: 808 (72 thought, 736 speech)
+against 807 before.
+
+**Quoted thought** (`voices.py quotes`, `labels/quote-thought.jsonl`): before the review the
+quote relabel had no precision measurement, and *concluded*, *mused*, *reflected*, *decided* and
+*pondered* (84 of 261 relabelled quotes) mostly tagged spoken lines. With the narrower list and
+the split-quote and outside-punctuation rules, 254 quotes are relabelled across the public
+sources. A random sample of 60 (seed 3533), **labelled by the implementer and not blind**, has
+59 correct, precision 0.983, Wilson lower 0.911; the one error is *“Ecstasy! Where’s the post
+office?” she wondered.* right after *“Ecstasy!” she cried.* The gate requires this sample's
+precision ≥ 0.90. An independent blind labelling, like the tag-source sets, has not been done.
+
 **Misses** (informational): of 100 unflagged narration sentences with a thought-verb form, 6 hold
 direct thought (*it’s just as I thought, he’s a terrible bedfellow*, a verbless *Life: she
 thought*, a parenthetical *this cannot last, she thought*, fixed afterwards). Labeller agreement
@@ -260,6 +293,11 @@ alternating rounds, peak RSS 68–71 MB for both: the overhead is within run-to-
 - Natural tagged unquoted thought is rare in public-domain fiction, so the thought precision
   estimate rests on 72 spans; the held-out sample after the last freeze has 13.
 - *Conclude* tags speech in *Ulysses*; dash dialogue there sometimes reads as thought.
+- A first-person splice with a reporting verb and a pronoun or name subject (*I looked away, he
+  said.*) is still unquoted speech: in that shape unquoted dialogue (Faulkner, Hemingway) is the
+  commoner reading. *The wind whispered* and other non-person noun subjects anchor speech only on
+  a tense shift.
+- The quote-thought sample is implementer-labelled, not blind.
 - A capitalized imperative after a tag (*She thought, Stay calm.*) depends on a lexicon fallback;
   nouns the tagger never reads as verbs (*Trust the plan*) are missed.
 - Optional Lancaster SW&TP scoring (CC BY-NC-SA) was not run.
