@@ -77,7 +77,7 @@ pub(crate) fn reflexive_verbs() -> &'static HashSet<&'static str> {
 /// Speech verbs that tag unquoted speech: a reporting-verb subset of the dialogue tags' speech
 /// list, less the thought verbs, which win. Sound and action verbs (*the gulls cried*, *he read*)
 /// are left out: without quote marks they tag a first-person splice, not speech.
-fn unquoted_speech_verbs() -> &'static HashSet<&'static str> {
+pub(crate) fn unquoted_speech_verbs() -> &'static HashSet<&'static str> {
     static LIST: OnceLock<HashSet<&'static str>> = OnceLock::new();
     LIST.get_or_init(|| {
         parse_list(UNQUOTED_SPEECH_VERBS)

@@ -210,6 +210,11 @@ fn mine_the_noun() {
         "The book was mine.",
         "A friend of mine came.",
         "Mine was red.",
+        // After a verb, *mine* is the pronoun (#354 review).
+        "She took mine.",
+        "His eyes met mine.",
+        "Her hand found mine.",
+        "Her hand found mine—cold as ice…",
     ] {
         let document = analyze(text);
         let tokens = sentence_tokens(&document, 0);

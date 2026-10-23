@@ -13,9 +13,9 @@
     "recall": 0.797
    },
    "3in1a/narrator": {
-    "found": 12,
+    "found": 10,
     "total": 25,
-    "recall": 0.48
+    "recall": 0.4
    },
    "3in1b/narrator": {
     "found": 0,
@@ -29,9 +29,9 @@
    }
   },
   "precision": {
-   "true": 742,
-   "false": 4,
-   "precision": 0.995
+   "true": 740,
+   "false": 3,
+   "precision": 0.996
   },
   "traps": {
    "runs": 308,
@@ -318,9 +318,9 @@
     "perThousand": 0.0
    },
    "treasure_island": {
-    "drifts": 4,
+    "drifts": 3,
     "narrationWords": 47235,
-    "perThousand": 0.0847
+    "perThousand": 0.0635
    },
    "gatsby_ch1": {
     "drifts": 0,
@@ -383,9 +383,9 @@
     "perThousand": 0.0
    },
    "pooled": {
-    "drifts": 5,
+    "drifts": 4,
     "narrationWords": 539614,
-    "perThousand": 0.0093
+    "perThousand": 0.0074
    }
   },
   "extra": {
@@ -479,19 +479,19 @@
   },
   "groups": {
    "all": {
-    "kept": 7,
+    "kept": 6,
     "true": 0,
-    "false": 7,
+    "false": 6,
     "unlabeled": 0,
-    "dropped": 0,
+    "dropped": 1,
     "precision": 0.0
    },
    "declared": {
-    "kept": 5,
+    "kept": 4,
     "true": 0,
-    "false": 5,
+    "false": 4,
     "unlabeled": 0,
-    "dropped": 0,
+    "dropped": 1,
     "precision": 0.0
    },
    "declared/firstInThird": {
@@ -503,11 +503,11 @@
     "precision": 0.0
    },
    "declared/narratorName": {
-    "kept": 4,
+    "kept": 3,
     "true": 0,
-    "false": 4,
+    "false": 3,
     "unlabeled": 0,
-    "dropped": 0,
+    "dropped": 1,
     "precision": 0.0
    },
    "default": {

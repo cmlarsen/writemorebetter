@@ -378,8 +378,9 @@ fn first_person_i(tokens: &[&Token], index: usize) -> bool {
 }
 
 /// *mine* the noun (*the first mine*, *linking mine with mine*): a noun-only reading, or a noun
-/// reading after a determiner, adjective, number, possessive, noun or non-copular verb, or two
-/// words from another *mine* (*mine after mine*).
+/// reading after a determiner, adjective, number, possessive determiner or noun, or two words from
+/// another *mine* (*mine after mine*). A verb before it is not evidence: nlprule gives *mine* an
+/// NN reading everywhere, and *took mine*, *met mine* are the pronoun.
 fn noun_mine(tokens: &[&Token], index: usize) -> bool {
     let token = tokens[index];
     let noun = token
@@ -401,14 +402,9 @@ fn noun_mine(tokens: &[&Token], index: usize) -> bool {
     repeated
         || index.checked_sub(1).is_some_and(|previous| {
             let previous = tokens[previous];
-            let copula = previous
-                .readings
-                .iter()
-                .any(|reading| matches!(reading.lemma.as_str(), "be" | "seem" | "become"));
             ["DT", "JJ", "CD", "PRP$", "POS", "NN"]
                 .iter()
                 .any(|pos| has_pos(previous, pos))
-                || (has_pos(previous, "VB") && !copula)
         })
 }
 

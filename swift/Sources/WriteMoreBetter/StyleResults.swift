@@ -1088,16 +1088,16 @@ public enum NarrativePerson: String, Codable, Sendable { case first, second, thi
 
 public enum NarrativeTense: String, Codable, Sendable { case past, present }
 
-public enum PersonPronoun: String, Codable, Sendable { case she, he, they }
+public enum PersonDriftPronoun: String, Codable, Sendable { case she, he, they }
 
-public enum PersonSource: String, Codable, Sendable { case declared, inferred, mixed, undetermined }
+public enum PersonDriftSource: String, Codable, Sendable { case declared, inferred, mixed, undetermined }
 
 public enum PersonDriftKind: String, Codable, Sendable { case firstInThird, thirdInFirst, narratorName }
 
-public enum PersonSuppression: String, Codable, Sendable { case witnessNarrator, tooManySlips, noNarrator, undeterminedTense }
+public enum PersonDriftSuppression: String, Codable, Sendable { case witnessNarrator, tooManySlips, noNarrator, undeterminedTense }
 
 /// A per-scene declaration; `scene` indexes `PersonDriftReport.scenes`.
-public struct ScenePerson: Codable, Equatable, Sendable {
+public struct PersonDriftScenePerson: Codable, Equatable, Sendable {
     public var scene: Int
     public var person: NarrativePerson
     public init(scene: Int, person: NarrativePerson) {
@@ -1107,19 +1107,19 @@ public struct ScenePerson: Codable, Equatable, Sendable {
 }
 
 /// The first-person narrator's names and the pronoun a third-person slip would use.
-public struct Narrator: Codable, Equatable, Sendable {
+public struct PersonDriftNarrator: Codable, Equatable, Sendable {
     public var names: [String]
-    public var pronoun: PersonPronoun?
-    public init(names: [String] = [], pronoun: PersonPronoun? = nil) {
+    public var pronoun: PersonDriftPronoun?
+    public init(names: [String] = [], pronoun: PersonDriftPronoun? = nil) {
         self.names = names
         self.pronoun = pronoun
     }
 }
 
-public struct CastMember: Codable, Equatable, Sendable {
+public struct PersonDriftCastMember: Codable, Equatable, Sendable {
     public var name: String
-    public var pronoun: PersonPronoun
-    public init(name: String, pronoun: PersonPronoun) {
+    public var pronoun: PersonDriftPronoun
+    public init(name: String, pronoun: PersonDriftPronoun) {
         self.name = name
         self.pronoun = pronoun
     }
@@ -1129,14 +1129,14 @@ public struct CastMember: Codable, Equatable, Sendable {
 /// keep the lens defaults.
 public struct PersonDriftOptions: Codable, Equatable, Sendable {
     public var person: NarrativePerson?
-    public var scenePersons: [ScenePerson]?
-    public var narrator: Narrator?
-    public var cast: [CastMember]?
+    public var scenePersons: [PersonDriftScenePerson]?
+    public var narrator: PersonDriftNarrator?
+    public var cast: [PersonDriftCastMember]?
     public var minimumSubjects: Int?
     public var maximumSlips: Int?
     public var includeWitnessScenes: Bool?
-    public init(person: NarrativePerson? = nil, scenePersons: [ScenePerson]? = nil, narrator: Narrator? = nil,
-                cast: [CastMember]? = nil, minimumSubjects: Int? = nil, maximumSlips: Int? = nil,
+    public init(person: NarrativePerson? = nil, scenePersons: [PersonDriftScenePerson]? = nil, narrator: PersonDriftNarrator? = nil,
+                cast: [PersonDriftCastMember]? = nil, minimumSubjects: Int? = nil, maximumSlips: Int? = nil,
                 includeWitnessScenes: Bool? = nil) {
         self.person = person
         self.scenePersons = scenePersons
@@ -1148,23 +1148,23 @@ public struct PersonDriftOptions: Codable, Equatable, Sendable {
     }
 }
 
-public struct PersonSubjects: Codable, Equatable, Sendable {
+public struct PersonDriftSubjects: Codable, Equatable, Sendable {
     public let first: Int
     public let second: Int
     public let third: Int
 }
 
-public struct PersonScene: Codable, Equatable, Sendable {
+public struct PersonDriftScene: Codable, Equatable, Sendable {
     public let scene: Int
     public let span: Span
     public let paragraphs: SentenceRange
     public let sentences: SentenceRange
     public let person: NarrativePerson?
-    public let source: PersonSource
+    public let source: PersonDriftSource
     public let tense: NarrativeTense?
-    public let subjects: PersonSubjects
+    public let subjects: PersonDriftSubjects
     public let narrationWords: Int
-    public let suppressed: PersonSuppression?
+    public let suppressed: PersonDriftSuppression?
 }
 
 public struct PersonDrift: Codable, Equatable, Sendable {
@@ -1179,7 +1179,7 @@ public struct PersonDrift: Codable, Equatable, Sendable {
 }
 
 public struct PersonDriftReport: Codable, Equatable, Sendable {
-    public let scenes: [PersonScene]
+    public let scenes: [PersonDriftScene]
     public let drifts: [PersonDrift]
     public let narrationWords: Int
     public let perThousandWords: Double?

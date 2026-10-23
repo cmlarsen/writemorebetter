@@ -25,13 +25,13 @@ pub(crate) const REPORT: &str = "personDrift";
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
-pub enum PersonPronoun {
+pub enum PersonDriftPronoun {
     She,
     He,
     They,
 }
 
-impl PersonPronoun {
+impl PersonDriftPronoun {
     fn subject(self) -> Option<&'static str> {
         match self {
             Self::She => Some("she"),
@@ -61,13 +61,13 @@ impl PersonPronoun {
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields, rename_all = "camelCase")]
 #[non_exhaustive]
-pub struct Narrator {
+pub struct PersonDriftNarrator {
     pub names: Vec<String>,
-    pub pronoun: Option<PersonPronoun>,
+    pub pronoun: Option<PersonDriftPronoun>,
 }
 
-impl Narrator {
-    pub fn new(names: Vec<String>, pronoun: Option<PersonPronoun>) -> Self {
+impl PersonDriftNarrator {
+    pub fn new(names: Vec<String>, pronoun: Option<PersonDriftPronoun>) -> Self {
         Self { names, pronoun }
     }
 }
@@ -75,13 +75,13 @@ impl Narrator {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 #[non_exhaustive]
-pub struct CastMember {
+pub struct PersonDriftCastMember {
     pub name: String,
-    pub pronoun: PersonPronoun,
+    pub pronoun: PersonDriftPronoun,
 }
 
-impl CastMember {
-    pub fn new(name: impl Into<String>, pronoun: PersonPronoun) -> Self {
+impl PersonDriftCastMember {
+    pub fn new(name: impl Into<String>, pronoun: PersonDriftPronoun) -> Self {
         Self {
             name: name.into(),
             pronoun,
@@ -93,12 +93,12 @@ impl CastMember {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 #[non_exhaustive]
-pub struct ScenePerson {
+pub struct PersonDriftScenePerson {
     pub scene: usize,
     pub person: NarrativePerson,
 }
 
-impl ScenePerson {
+impl PersonDriftScenePerson {
     pub fn new(scene: usize, person: NarrativePerson) -> Self {
         Self { scene, person }
     }
@@ -111,10 +111,10 @@ pub struct PersonDriftOptions {
     /// The document's person. A `scene_persons` entry beats it.
     pub person: Option<NarrativePerson>,
     #[serde(alias = "scenePersons")]
-    pub scene_persons: Vec<ScenePerson>,
+    pub scene_persons: Vec<PersonDriftScenePerson>,
     /// Enables `thirdInFirst` and `narratorName`.
-    pub narrator: Option<Narrator>,
-    pub cast: Vec<CastMember>,
+    pub narrator: Option<PersonDriftNarrator>,
+    pub cast: Vec<PersonDriftCastMember>,
     /// Person-bearing subjects a scene needs before its person is inferred.
     #[serde(alias = "minimumSubjects")]
     pub minimum_subjects: usize,
@@ -148,15 +148,15 @@ impl PersonDriftOptions {
         self.person = person;
         self
     }
-    pub fn with_scene_persons(mut self, scenes: Vec<ScenePerson>) -> Self {
+    pub fn with_scene_persons(mut self, scenes: Vec<PersonDriftScenePerson>) -> Self {
         self.scene_persons = scenes;
         self
     }
-    pub fn with_narrator(mut self, narrator: Option<Narrator>) -> Self {
+    pub fn with_narrator(mut self, narrator: Option<PersonDriftNarrator>) -> Self {
         self.narrator = narrator;
         self
     }
-    pub fn with_cast(mut self, cast: Vec<CastMember>) -> Self {
+    pub fn with_cast(mut self, cast: Vec<PersonDriftCastMember>) -> Self {
         self.cast = cast;
         self
     }
@@ -177,7 +177,7 @@ impl PersonDriftOptions {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
-pub enum PersonSource {
+pub enum PersonDriftSource {
     Declared,
     Inferred,
     /// Enough subjects, but in the dead band between first and third person.
@@ -198,7 +198,7 @@ pub enum PersonDriftKind {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
-pub enum PersonSuppression {
+pub enum PersonDriftSuppression {
     /// An inferred third-person scene in a document with a first-person scene.
     WitnessNarrator,
     /// More than `maximum_slips` candidate sentences.
@@ -212,7 +212,7 @@ pub enum PersonSuppression {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
-pub struct PersonSubjects {
+pub struct PersonDriftSubjects {
     pub first: usize,
     pub second: usize,
     pub third: usize,
@@ -221,20 +221,20 @@ pub struct PersonSubjects {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
-pub struct PersonScene {
+pub struct PersonDriftScene {
     pub scene: usize,
     pub span: Span,
     pub paragraphs: Range<usize>,
     /// Global sentence indexes.
     pub sentences: Range<usize>,
     pub person: Option<NarrativePerson>,
-    pub source: PersonSource,
+    pub source: PersonDriftSource,
     /// The scene's narrative tense from the shared narrative helpers; tense declarations do not
     /// apply here.
     pub tense: Option<NarrativeTense>,
-    pub subjects: PersonSubjects,
+    pub subjects: PersonDriftSubjects,
     pub narration_words: usize,
-    pub suppressed: Option<PersonSuppression>,
+    pub suppressed: Option<PersonDriftSuppression>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -256,7 +256,7 @@ pub struct PersonDrift {
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct PersonDriftReport {
-    pub scenes: Vec<PersonScene>,
+    pub scenes: Vec<PersonDriftScene>,
     pub drifts: Vec<PersonDrift>,
     pub narration_words: usize,
     pub per_thousand_words: Option<f64>,
@@ -380,6 +380,108 @@ const MASCULINE_NOUNS: [&str; 48] = [
     "ram",
     "boar",
     "rooster",
+];
+
+/// Nouns for a person or animal of either gender: an antecedent for *she* or *he* (*The nurse
+/// came in. She checked the chart.*).
+const REFERENT_NOUNS: [&str; 70] = [
+    "nurse",
+    "teacher",
+    "doctor",
+    "child",
+    "baby",
+    "kid",
+    "infant",
+    "toddler",
+    "stranger",
+    "visitor",
+    "guest",
+    "neighbour",
+    "neighbor",
+    "friend",
+    "cousin",
+    "servant",
+    "cook",
+    "clerk",
+    "officer",
+    "soldier",
+    "captain",
+    "sergeant",
+    "guard",
+    "driver",
+    "pilot",
+    "student",
+    "pupil",
+    "patient",
+    "customer",
+    "owner",
+    "manager",
+    "secretary",
+    "lawyer",
+    "judge",
+    "minister",
+    "pastor",
+    "farmer",
+    "worker",
+    "shopkeeper",
+    "baker",
+    "butcher",
+    "partner",
+    "lover",
+    "spouse",
+    "twin",
+    "parent",
+    "relative",
+    "sibling",
+    "colleague",
+    "detective",
+    "inspector",
+    "constable",
+    "receptionist",
+    "someone",
+    "somebody",
+    "cat",
+    "dog",
+    "horse",
+    "pony",
+    "kitten",
+    "puppy",
+    "bird",
+    "mouse",
+    "rabbit",
+    "goat",
+    "pig",
+    "sheep",
+    "hound",
+    "animal",
+    "creature",
+];
+
+/// Kinship titles before a narrator name: a relative or namesake, not the narrator.
+const KINSHIP: [&str; 16] = [
+    "aunt",
+    "auntie",
+    "aunty",
+    "uncle",
+    "grandmother",
+    "grandfather",
+    "grandma",
+    "grandpa",
+    "granny",
+    "nana",
+    "cousin",
+    "sister",
+    "brother",
+    "mother",
+    "father",
+    "namesake",
+];
+
+/// Words that report another's words or belief before a narrator-name clause.
+const REPORT_WORDS: [&str; 22] = [
+    "say", "tell", "report", "news", "word", "rumour", "rumor", "believe", "think", "know", "hear",
+    "suppose", "swear", "declare", "announce", "insist", "claim", "fear", "message", "note",
+    "letter", "whisper",
 ];
 
 /// Frames in which a first-person narrator looks at an earlier self in third person.
@@ -506,29 +608,29 @@ fn name_words(name: &str) -> impl Iterator<Item = String> + '_ {
 
 /// The scene person from subject counts, per the dead-band rule.
 fn inferred(
-    subjects: PersonSubjects,
+    subjects: PersonDriftSubjects,
     we: usize,
     options: &PersonDriftOptions,
-) -> (Option<NarrativePerson>, PersonSource) {
-    let PersonSubjects {
+) -> (Option<NarrativePerson>, PersonDriftSource) {
+    let PersonDriftSubjects {
         first,
         second,
         third,
     } = subjects;
     let total = first + second + third;
     if total < options.minimum_subjects {
-        return (None, PersonSource::Undetermined);
+        return (None, PersonDriftSource::Undetermined);
     }
     if 2 * second >= total && second >= 4 {
-        return (Some(NarrativePerson::Second), PersonSource::Inferred);
+        return (Some(NarrativePerson::Second), PersonDriftSource::Inferred);
     }
     if first >= 3 && 4 * first >= first + third && we < first {
-        return (Some(NarrativePerson::First), PersonSource::Inferred);
+        return (Some(NarrativePerson::First), PersonDriftSource::Inferred);
     }
     if third >= options.minimum_subjects && first <= options.maximum_slips && 10 * first <= third {
-        return (Some(NarrativePerson::Third), PersonSource::Inferred);
+        return (Some(NarrativePerson::Third), PersonDriftSource::Inferred);
     }
-    (None, PersonSource::Mixed)
+    (None, PersonDriftSource::Mixed)
 }
 
 /// E2: a declarative sentence ending in a full stop, optionally inside a closing quote, with no
@@ -632,20 +734,30 @@ fn self_frame(paragraph: &str) -> bool {
     })
 }
 
-/// A capitalized mid-sentence word read only as a proper noun (or not read at all): a possible
-/// antecedent the lens cannot resolve.
-fn proper_name(token: &Token) -> bool {
+/// A capitalized word with a proper-noun reading (or not read at all): a possible antecedent the
+/// lens cannot resolve. A name that is also a common noun (*Mara*, *Rose*) counts. At the start of
+/// a sentence (`initial`), where every word is capitalized, it also needs no function-word or verb
+/// reading, so *Tom came in.* counts and *Low along the hills…* does not.
+fn proper_name(token: &Token, initial: bool) -> bool {
     let surface = token.text.replace('’', "'");
     if surface == "I" || surface.starts_with("I'") {
         return false;
     }
+    const NOT_A_NAME: [&str; 12] = [
+        "VB", "RB", "RP", "IN", "DT", "PRP", "CC", "MD", "WRB", "WP", "UH", "EX",
+    ];
     token.text.chars().next().is_some_and(char::is_uppercase)
         && (token.is_skipped
             || token.readings.is_empty()
-            || token
+            || (token
                 .readings
                 .iter()
-                .all(|reading| reading.pos.starts_with("NNP")))
+                .any(|reading| reading.pos.starts_with("NNP"))
+                && !(initial
+                    && token
+                        .readings
+                        .iter()
+                        .any(|reading| NOT_A_NAME.iter().any(|pos| reading.pos.starts_with(pos))))))
 }
 
 struct Context<'a> {
@@ -666,7 +778,16 @@ impl<'a> Context<'a> {
         let mut paragraph_starts = vec![0; document.paragraphs.len()];
         let mut display_from = vec![None; document.paragraphs.len()];
         let mut chained = vec![false; document.paragraphs.len()];
+        // First- and third-person narration subjects per paragraph.
+        let mut persons = vec![(0usize, 0usize); document.paragraphs.len()];
         for (index, line) in lines.iter().enumerate() {
+            for (person, _) in line.subjects() {
+                match person {
+                    NarrativePerson::First => persons[line.paragraph].0 += 1,
+                    NarrativePerson::Third => persons[line.paragraph].1 += 1,
+                    NarrativePerson::Second => {}
+                }
+            }
             if line.local == 0 {
                 paragraph_starts[line.paragraph] = index;
             }
@@ -679,18 +800,46 @@ impl<'a> Context<'a> {
                 });
             }
         }
-        let paragraph_exempt = document
-            .paragraphs
-            .iter()
-            .enumerate()
-            .map(|(index, paragraph)| {
-                let text = paragraph.text.trim_start();
-                let dash_dialogue = text.starts_with(['—', '–', '―']) || text.starts_with("--");
-                let words: usize = paragraph.sentences.iter().map(Sentence::word_count).sum();
-                let short_line = words <= 6 && !chained[index] && !paragraph_has_chain(paragraph);
-                dash_dialogue || short_line || !paragraph_quotes_balanced(document, index)
-            })
-            .collect();
+        let mut paragraph_exempt = Vec::with_capacity(document.paragraphs.len());
+        // E7 carried forward: after a salutation, a diary header or a paragraph that ends in a
+        // display colon, the following paragraphs are an embedded document while they read as
+        // one: first-person subjects outnumber third-person ones, with no opening quote, short
+        // line (a sign-off) or scene break in between.
+        let mut embedded = false;
+        for (index, paragraph) in document.paragraphs.iter().enumerate() {
+            let text = paragraph.text.trim_start();
+            let (first, third) = persons[index];
+            if paragraph.scene_break_before
+                || paragraph.chapter_start
+                || text.starts_with(['“', '"', '‘'])
+                || first <= third
+            {
+                embedded = false;
+            }
+            let dash_dialogue = text.starts_with(['—', '–', '―']) || text.starts_with("--");
+            let words: usize = paragraph.sentences.iter().map(Sentence::word_count).sum();
+            let short_line = words <= 6 && !chained[index] && !paragraph_has_chain(paragraph);
+            let exempt = dash_dialogue
+                || short_line
+                || embedded
+                || !paragraph_quotes_balanced(document, index);
+            paragraph_exempt.push(exempt);
+            let unchained = !chained[index] && !paragraph_has_chain(paragraph);
+            let opens = (words <= 12 && unchained && document_header(&paragraph.text))
+                || display_from[index].is_some_and(|from| {
+                    from.checked_sub(paragraph.span.byte.start)
+                        .and_then(|offset| paragraph.text.get(offset..))
+                        .is_some_and(|rest| {
+                            rest.trim_matches(|ch: char| ch.is_whitespace() || "”’\"'".contains(ch))
+                                .is_empty()
+                        })
+                });
+            if opens {
+                embedded = true;
+            } else if short_line {
+                embedded = false;
+            }
+        }
         let self_frames = document
             .paragraphs
             .iter()
@@ -718,7 +867,10 @@ impl<'a> Context<'a> {
         let line_ref = &self.lines[line];
         let sentence = line_ref.sentence;
         let byte = token.span.byte.start;
-        if !self.document.is_narration_at(byte) || self.document.in_voice_tag(byte) {
+        if !self.document.is_narration_at(byte)
+            || self.document.in_voice_tag(byte)
+            || trailing_tag(sentence).is_some_and(|comma| byte < comma || !display)
+        {
             return false;
         }
         if self.paragraph_exempt[line_ref.paragraph] || !declarative(&sentence.text) {
@@ -749,6 +901,134 @@ impl<'a> Context<'a> {
         }
         true
     }
+}
+
+/// Reporting verbs a trailing tag may use beyond the voice layer's thought and unquoted-speech
+/// lexicons: written, remembered and read-out reports.
+const TAG_VERBS: [&str; 12] = [
+    "say", "think", "write", "remember", "recall", "read", "note", "tell", "add", "type", "scrawl",
+    "scribble",
+];
+
+/// E1 for tags the voice layer leaves as narration: the byte offset of the comma opening a closing
+/// tag `, <subject> [had] <reporting verb>.` or `, <reporting verb> <subject>.` (*…, she wrote.*,
+/// *…, she had said.*, *…, the note said.*, *…, I thought.*). The subject is a pronoun, a
+/// capitalized name or a short noun phrase; at most an adverb or *to herself* may follow the verb.
+/// A word before the comma is reported. In a first-person scene the tag's own *she* or *he* is
+/// another character reporting, so it is exempt too; in a third-person scene the tag's *I* is not.
+fn trailing_tag(sentence: &Sentence) -> Option<usize> {
+    let tokens: Vec<&Token> = sentence
+        .tokens
+        .iter()
+        .filter(|token| !token.is_whitespace)
+        .collect();
+    let mut end = tokens.len();
+    while end > 0 && !tokens[end - 1].is_word {
+        end -= 1;
+    }
+    let comma = tokens[..end].iter().rposition(|token| token.text == ",")?;
+    let tag = &tokens[comma + 1..end];
+    if tag.is_empty() || tag.len() > 6 || !tag.iter().all(|token| token.is_word) {
+        return None;
+    }
+    let reporting = |token: &Token| {
+        token.readings.iter().any(|reading| {
+            reading.pos.starts_with("VB")
+                && (TAG_VERBS.contains(&reading.lemma.as_str())
+                    || crate::voices::thought_verbs().contains(reading.lemma.as_str())
+                    || crate::voices::unquoted_speech_verbs().contains(reading.lemma.as_str()))
+        })
+    };
+    let subject = |words: &[&Token]| -> bool {
+        match words {
+            [one] => {
+                matches!(
+                    fold(&one.text).as_str(),
+                    "i" | "he" | "she" | "we" | "they" | "you"
+                ) || one.text.chars().next().is_some_and(char::is_uppercase)
+            }
+            [] => false,
+            [first, ..] if words.len() <= 3 => {
+                let determiner = first
+                    .readings
+                    .iter()
+                    .any(|reading| reading.pos == "DT" || reading.pos.starts_with("PRP$"));
+                determiner
+                    || words
+                        .iter()
+                        .all(|word| word.text.chars().next().is_some_and(char::is_uppercase))
+            }
+            _ => false,
+        }
+    };
+    let verb = tag.iter().position(|token| reporting(token))?;
+    let mut before = &tag[..verb];
+    if let [rest @ .., auxiliary] = before {
+        if matches!(
+            fold(&auxiliary.text).as_str(),
+            "had" | "has" | "would" | "'d"
+        ) {
+            before = rest;
+        }
+    }
+    let after = &tag[verb + 1..];
+    let trailing = |words: &[&Token]| match words {
+        [] => true,
+        [adverb] => adverb
+            .readings
+            .iter()
+            .all(|reading| reading.pos.starts_with("RB")),
+        [to, object] => {
+            fold(&to.text) == "to"
+                && matches!(
+                    fold(&object.text).as_str(),
+                    "herself" | "himself" | "myself" | "themselves" | "her" | "him" | "me"
+                )
+        }
+        _ => false,
+    };
+    ((subject(before) && trailing(after)) || (before.is_empty() && subject(after)))
+        .then_some(tokens[comma].span.byte.start)
+}
+
+/// A short line that opens an embedded letter or diary entry: a salutation (*Dear Aunt
+/// Mildred,*), a diary or journal header, or a dated entry line (*June 3rd.*).
+fn document_header(text: &str) -> bool {
+    let line = fold(text.trim());
+    let salutation = ["dear ", "dearest ", "my dear ", "my dearest "]
+        .iter()
+        .any(|start| line.starts_with(start))
+        && line.ends_with([',', ':', '—', '!']);
+    let header = [
+        "from the diary",
+        "from the journal",
+        "from the notebook",
+        "diary of",
+        "journal of",
+        "diary entry",
+        "journal entry",
+    ]
+    .iter()
+    .any(|start| line.starts_with(start));
+    const MONTHS: [&str; 12] = [
+        "january",
+        "february",
+        "march",
+        "april",
+        "may",
+        "june",
+        "july",
+        "august",
+        "september",
+        "october",
+        "november",
+        "december",
+    ];
+    let dated = line.chars().any(|ch| ch.is_ascii_digit())
+        && line
+            .split(|ch: char| !ch.is_alphanumeric())
+            .any(|word| MONTHS.contains(&word));
+    salutation || header || dated
 }
 
 fn paragraph_has_chain(paragraph: &crate::Paragraph) -> bool {
@@ -844,9 +1124,9 @@ pub fn report(
     let context = Context::new(document, options, &lines);
 
     // Steps 1–3: subjects, person and tense per scene.
-    let mut records: Vec<PersonScene> = Vec::with_capacity(scene_list.len());
+    let mut records: Vec<PersonDriftScene> = Vec::with_capacity(scene_list.len());
     for scene in &scene_list {
-        let mut subjects = PersonSubjects::default();
+        let mut subjects = PersonDriftSubjects::default();
         let mut we = 0;
         let mut narration_words = 0;
         for line in &lines[scene.sentences.clone()] {
@@ -870,10 +1150,10 @@ pub fn report(
             .map(|entry| entry.person)
             .or(options.person);
         let (person, source) = match declared {
-            Some(person) => (Some(person), PersonSource::Declared),
+            Some(person) => (Some(person), PersonDriftSource::Declared),
             None => inferred(subjects, we, options),
         };
-        records.push(PersonScene {
+        records.push(PersonDriftScene {
             scene: scene.index,
             span: scene.span.clone(),
             paragraphs: scene.paragraphs.clone(),
@@ -896,12 +1176,12 @@ pub fn report(
     for record in &mut records {
         match record.person {
             Some(NarrativePerson::Third) => {
-                if witness && record.source == PersonSource::Inferred {
-                    record.suppressed = Some(PersonSuppression::WitnessNarrator);
+                if witness && record.source == PersonDriftSource::Inferred {
+                    record.suppressed = Some(PersonDriftSuppression::WitnessNarrator);
                     continue;
                 }
                 if record.tense.is_none() {
-                    record.suppressed = Some(PersonSuppression::UndeterminedTense);
+                    record.suppressed = Some(PersonDriftSuppression::UndeterminedTense);
                     continue;
                 }
                 first_in_third(&context, record, &mut drifts);
@@ -923,18 +1203,36 @@ pub fn report(
 }
 
 /// Step 5: first-person singular words in a third-person scene.
-fn first_in_third(context: &Context, record: &mut PersonScene, drifts: &mut Vec<PersonDrift>) {
+fn first_in_third(context: &Context, record: &mut PersonDriftScene, drifts: &mut Vec<PersonDrift>) {
     let document = context.document;
-    // One entry per sentence with candidates: its first candidate and the run words it sits in.
+    // One entry per sentence with candidates: its first first-person word that no word-level
+    // exemption (E4 brackets, E5 interjections, titles) covers. Exempt words neither hide a later
+    // slip in the sentence nor count toward the slip cap.
     let mut candidates: Vec<(usize, &Token)> = Vec::new();
     for index in record.sentences.clone() {
         let line = &context.lines[index];
+        let sentence = line.sentence;
         let found = line.runs.iter().find_map(|run| {
+            let words: Vec<String> = run
+                .iter()
+                .filter(|token| token.is_word)
+                .map(|token| fold(&token.text))
+                .collect();
+            let mut word = 0;
             (0..run.len()).find_map(|at| {
                 let token = run[at];
+                let word_at = word;
+                word += usize::from(token.is_word);
                 let first = matches!(pronoun_person(run, at), Some((NarrativePerson::First, _)))
                     && FIRST_SINGULAR.contains(&fold(&token.text).as_str());
-                (first && !document.in_voice_tag(token.span.byte.start)).then_some(token)
+                if !first || document.in_voice_tag(token.span.byte.start) {
+                    return None;
+                }
+                let offset = token.span.byte.start - sentence.span.byte.start;
+                let exempt = interjection(&words, word_at)
+                    || bracketed(&sentence.text, offset)
+                    || title_word(sentence, run, at);
+                (!exempt).then_some(token)
             })
         });
         if let Some(token) = found {
@@ -942,24 +1240,12 @@ fn first_in_third(context: &Context, record: &mut PersonScene, drifts: &mut Vec<
         }
     }
     if candidates.len() > context.options.maximum_slips {
-        record.suppressed = Some(PersonSuppression::TooManySlips);
+        record.suppressed = Some(PersonDriftSuppression::TooManySlips);
         return;
     }
     for (index, token) in candidates {
         let line = &context.lines[index];
-        let allowed = context.sentence_allows(index, token, record.tense, true)
-            && !line.runs.iter().any(|run| {
-                let words: Vec<String> = run
-                    .iter()
-                    .filter(|token| token.is_word)
-                    .map(|token| fold(&token.text))
-                    .collect();
-                run.iter()
-                    .filter(|token| token.is_word)
-                    .position(|other| std::ptr::eq(*other, token))
-                    .is_some_and(|at| interjection(&words, at))
-            });
-        if allowed {
+        if context.sentence_allows(index, token, record.tense, true) {
             drifts.push(PersonDrift {
                 span: token.span.clone(),
                 sentence_span: line.sentence.span.clone(),
@@ -973,8 +1259,51 @@ fn first_in_third(context: &Context, record: &mut PersonScene, drifts: &mut Vec<
     }
 }
 
+/// A capitalized *My* or an *I* before a capitalized word inside a sentence, outside a colon,
+/// quote, dash or bracket opening: a title (*My Fair Lady*, *I Capture the Castle*), not the
+/// pronoun.
+fn title_word(sentence: &Sentence, run: &[&Token], at: usize) -> bool {
+    let token = run[at];
+    let surface = token.text.as_str();
+    if surface != "My" && surface != "I" {
+        return false;
+    }
+    let Some(position) = sentence
+        .tokens
+        .iter()
+        .position(|other| std::ptr::eq(other, token))
+    else {
+        return false;
+    };
+    let previous = sentence.tokens[..position]
+        .iter()
+        .rev()
+        .find(|other| !other.is_whitespace);
+    let Some(previous) = previous else {
+        return false;
+    };
+    if !previous.is_word
+        && previous
+            .text
+            .chars()
+            .all(|ch| ":;“\"‘'—–―-([…".contains(ch))
+    {
+        return false;
+    }
+    if surface == "My" {
+        return true;
+    }
+    run.get(at + 1).is_some_and(|next| {
+        next.is_word
+            && next.text != "I"
+            && !next.text.starts_with("I'")
+            && !next.text.starts_with("I’")
+            && next.text.chars().next().is_some_and(char::is_uppercase)
+    })
+}
+
 /// Step 6: the narrator's third-person pronoun or name in a first-person scene.
-fn third_in_first(context: &Context, record: &mut PersonScene, drifts: &mut Vec<PersonDrift>) {
+fn third_in_first(context: &Context, record: &mut PersonDriftScene, drifts: &mut Vec<PersonDrift>) {
     let document = context.document;
     let options = context.options;
     let lines = &context.lines[record.sentences.clone()];
@@ -986,13 +1315,13 @@ fn third_in_first(context: &Context, record: &mut PersonScene, drifts: &mut Vec<
             })
         });
         if candidates {
-            record.suppressed = Some(PersonSuppression::NoNarrator);
+            record.suppressed = Some(PersonDriftSuppression::NoNarrator);
         }
         return;
     };
-    let pronoun = narrator.pronoun.and_then(PersonPronoun::subject);
+    let pronoun = narrator.pronoun.and_then(PersonDriftPronoun::subject);
     let gender = narrator.pronoun;
-    let cast_words: Vec<(String, PersonPronoun)> = options
+    let cast_words: Vec<(String, PersonDriftPronoun)> = options
         .cast
         .iter()
         .flat_map(|member| name_words(&member.name).map(move |word| (word, member.pronoun)))
@@ -1066,6 +1395,7 @@ fn third_in_first(context: &Context, record: &mut PersonScene, drifts: &mut Vec<
             }
             had_candidates = true;
             if naming_context(sentence, found.tokens.start)
+                || reported_complement(sentence, found.tokens.start)
                 || found
                     .name
                     .split_whitespace()
@@ -1099,12 +1429,24 @@ fn third_in_first(context: &Context, record: &mut PersonScene, drifts: &mut Vec<
                     let earlier = scene_words
                         .iter()
                         .take_while(|other| other.span.byte.start < byte);
-                    let gendered_noun = earlier.clone().any(|other| {
-                        gender.nouns().contains(&fold(&other.text).as_str())
+                    let noun_in = |list: &[&str], other: &Token| {
+                        list.contains(&fold(&other.text).as_str())
                             || other.readings.iter().any(|reading| {
                                 reading.pos.starts_with("NN")
-                                    && gender.nouns().contains(&reading.lemma.as_str())
+                                    && list.contains(&reading.lemma.as_str())
                             })
+                    };
+                    let gendered_noun = earlier.clone().any(|other| {
+                        noun_in(gender.nouns(), other) || noun_in(&REFERENT_NOUNS, other)
+                    });
+                    // A3 in narration: an object or possessive form of the narrator's pronoun
+                    // before the candidate (*I handed her the cup*, *Her hands shook*) names
+                    // someone else, since the narrator would be *me* or *my*.
+                    let narration_form = earlier.clone().any(|other| {
+                        let word = fold(&other.text);
+                        word != pronoun
+                            && gender.forms().contains(&word.as_str())
+                            && document.is_narration_at(other.span.byte.start)
                     });
                     let unknown_name = lines[..=offset].iter().any(|other| {
                         other
@@ -1112,11 +1454,11 @@ fn third_in_first(context: &Context, record: &mut PersonScene, drifts: &mut Vec<
                             .tokens
                             .iter()
                             .filter(|token| token.is_word)
-                            .skip(1)
-                            .filter(|other| other.span.byte.start < byte)
-                            .any(|other| {
+                            .enumerate()
+                            .filter(|(_, other)| other.span.byte.start < byte)
+                            .any(|(position, other)| {
                                 let word = fold(&other.text);
-                                proper_name(other)
+                                proper_name(other, position == 0)
                                     && !narrator_words.contains(&word)
                                     && !cast_words
                                         .iter()
@@ -1136,6 +1478,7 @@ fn third_in_first(context: &Context, record: &mut PersonScene, drifts: &mut Vec<
                     let allowed = same_subjects <= options.maximum_slips
                         && !same_cast_mentioned
                         && !voiced_pronoun
+                        && !narration_form
                         && !gendered_noun
                         && !unknown_name
                         && sandwich
@@ -1165,12 +1508,48 @@ fn third_in_first(context: &Context, record: &mut PersonScene, drifts: &mut Vec<
         }
     }
     if had_candidates && record.tense.is_none() {
-        record.suppressed = Some(PersonSuppression::UndeterminedTense);
+        record.suppressed = Some(PersonDriftSuppression::UndeterminedTense);
     }
 }
 
+/// A narrator name reported in someone else's words or belief: after *that* or a reporting verb,
+/// with a reporting word earlier in the sentence and no first-person word before the name (*The
+/// captain said that Anna…*, *the news that Anna…*, *Everyone believed Anna was mad*). *I knew
+/// that Anna…* still counts.
+fn reported_complement(sentence: &Sentence, start: usize) -> bool {
+    let before: Vec<&Token> = sentence.tokens[..start]
+        .iter()
+        .filter(|token| token.is_word)
+        .collect();
+    let Some(previous) = before.last() else {
+        return false;
+    };
+    let reporting = |token: &Token| {
+        REPORT_WORDS.contains(&fold(&token.text).as_str())
+            || token.readings.iter().any(|reading| {
+                (reading.pos.starts_with("VB") || reading.pos.starts_with("NN"))
+                    && REPORT_WORDS.contains(&reading.lemma.as_str())
+            })
+    };
+    let first_person = before.iter().any(|token| {
+        matches!(
+            fold(&token.text).as_str(),
+            "i" | "me" | "my" | "mine" | "myself" | "we" | "us" | "our"
+        )
+    });
+    if first_person {
+        return false;
+    }
+    let after_that =
+        fold(&previous.text) == "that" && before[..before.len() - 1].iter().any(|t| reporting(t));
+    let after_verb = previous.readings.iter().any(|reading| {
+        reading.pos.starts_with("VB") && REPORT_WORDS.contains(&reading.lemma.as_str())
+    });
+    after_that || after_verb
+}
+
 /// Naming contexts before a narrator name: *named Anna*, *Dear Anna*, *my name is Anna*,
-/// *I, Anna,*, and an honorific the narrator's names do not list (*Mrs. Reyes* when only
+/// *I, Anna,*, a kinship title (*Aunt Anna*, *my grandmother Anna*, a namesake), and an honorific the narrator's names do not list (*Mrs. Reyes* when only
 /// *Anna Reyes* is declared; a listed form matches from the honorific).
 fn naming_context(sentence: &Sentence, start: usize) -> bool {
     let previous: Vec<&Token> = sentence.tokens[..start]
@@ -1188,6 +1567,9 @@ fn naming_context(sentence: &Sentence, start: usize) -> bool {
         return true;
     }
     if first.as_deref() == Some(",") && previous.get(1).is_some_and(|token| token.text == "I") {
+        return true;
+    }
+    if first.as_deref().is_some_and(|word| KINSHIP.contains(&word)) {
         return true;
     }
     let honorific_before = previous

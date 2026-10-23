@@ -4,8 +4,9 @@ use nlprule::Tokenizer;
 use std::sync::{Arc, OnceLock};
 use writemorebetter_style::narrative::NarrativePerson;
 use writemorebetter_style::reports::person_drift::{
-    self, CastMember, Narrator, PersonDrift, PersonDriftKind, PersonDriftOptions,
-    PersonDriftReport, PersonPronoun, PersonSource, PersonSuppression, ScenePerson,
+    self, PersonDrift, PersonDriftCastMember, PersonDriftKind, PersonDriftNarrator,
+    PersonDriftOptions, PersonDriftPronoun, PersonDriftReport, PersonDriftScenePerson,
+    PersonDriftSource, PersonDriftSuppression,
 };
 use writemorebetter_style::reports::{to_utf16_json, StyleResources};
 use writemorebetter_style::{
@@ -50,14 +51,14 @@ fn found(text: &str) -> Vec<(String, PersonDriftKind, String)> {
     found_with(text, &PersonDriftOptions::new())
 }
 
-fn scenes(text: &str) -> Vec<(Option<NarrativePerson>, PersonSource)> {
+fn scenes(text: &str) -> Vec<(Option<NarrativePerson>, PersonDriftSource)> {
     scenes_with(text, &PersonDriftOptions::new())
 }
 
 fn scenes_with(
     text: &str,
     options: &PersonDriftOptions,
-) -> Vec<(Option<NarrativePerson>, PersonSource)> {
+) -> Vec<(Option<NarrativePerson>, PersonDriftSource)> {
     run(text, options)
         .scenes
         .iter()
@@ -125,9 +126,9 @@ fn in_third(middle: &str) -> String {
 }
 
 fn anna() -> PersonDriftOptions {
-    PersonDriftOptions::new().with_narrator(Some(Narrator::new(
+    PersonDriftOptions::new().with_narrator(Some(PersonDriftNarrator::new(
         vec!["Anna".to_owned()],
-        Some(PersonPronoun::She),
+        Some(PersonDriftPronoun::She),
     )))
 }
 
@@ -157,7 +158,7 @@ fn first_person_slips_in_a_third_person_scene() {
         let report = run(&text, &PersonDriftOptions::new());
         assert_eq!(
             (report.scenes[0].person, report.scenes[0].source),
-            (Some(NarrativePerson::Third), PersonSource::Inferred)
+            (Some(NarrativePerson::Third), PersonDriftSource::Inferred)
         );
         let drift = &report.drifts[0];
         assert_eq!(drift.expected, NarrativePerson::Third);
@@ -200,12 +201,12 @@ fn third_person_slips_in_a_first_person_scene() {
     assert_eq!(quiet.drifts, vec![]);
     assert_eq!(
         quiet.scenes[0].suppressed,
-        Some(PersonSuppression::NoNarrator)
+        Some(PersonDriftSuppression::NoNarrator)
     );
     // A *they* narrator gets name flags only.
-    let they = PersonDriftOptions::new().with_narrator(Some(Narrator::new(
+    let they = PersonDriftOptions::new().with_narrator(Some(PersonDriftNarrator::new(
         vec!["Anna".to_owned()],
-        Some(PersonPronoun::They),
+        Some(PersonDriftPronoun::They),
     )));
     assert_eq!(
         found_with(
@@ -350,7 +351,7 @@ fn caller_embedded_spans_are_not_counted() {
     // Unmarked, the letter's five first-person subjects make the scene first person.
     assert_eq!(
         scenes(&text),
-        vec![(Some(NarrativePerson::First), PersonSource::Inferred)]
+        vec![(Some(NarrativePerson::First), PersonDriftSource::Inferred)]
     );
 }
 
@@ -463,32 +464,32 @@ fn scene_inference() {
                 They argued. They laughed. They rested.";
     let report_they = run(they, &PersonDriftOptions::new());
     assert_eq!(report_they.scenes[0].subjects.third, 0);
-    assert_eq!(scenes(they), vec![(None, PersonSource::Undetermined)]);
+    assert_eq!(scenes(they), vec![(None, PersonDriftSource::Undetermined)]);
     // A second-person scene is reported, never flagged.
     let second = "You walk home. You sit down. You wait. You sleep. You eat. You leave. \
                   You argue. You laugh. I crossed the room.";
     assert_eq!(
         scenes(second),
-        vec![(Some(NarrativePerson::Second), PersonSource::Inferred)]
+        vec![(Some(NarrativePerson::Second), PersonDriftSource::Inferred)]
     );
     assert_eq!(found(second), vec![]);
     // A *we*-only scene is never first person.
     let we = "We walked home. We sat down. We waited. We slept. We ate. We left. We argued. \
               We laughed. We rested.";
-    assert_eq!(scenes(we), vec![(None, PersonSource::Mixed)]);
+    assert_eq!(scenes(we), vec![(None, PersonDriftSource::Mixed)]);
     // Below the evidence floor.
     assert_eq!(
         scenes(&in_third_short()),
-        vec![(None, PersonSource::Undetermined)]
+        vec![(None, PersonDriftSource::Undetermined)]
     );
     assert_eq!(found(&in_third_short()), vec![]);
     // The dead band: two first-person subjects against eight third-person ones.
     let mixed = format!("{} I walked home. I sat down.", third_scene(8));
-    assert_eq!(scenes(&mixed), vec![(None, PersonSource::Mixed)]);
+    assert_eq!(scenes(&mixed), vec![(None, PersonDriftSource::Mixed)]);
     assert_eq!(found(&mixed), vec![]);
     assert_eq!(
         scenes(&first_scene(8)),
-        vec![(Some(NarrativePerson::First), PersonSource::Inferred)]
+        vec![(Some(NarrativePerson::First), PersonDriftSource::Inferred)]
     );
 }
 
@@ -509,7 +510,7 @@ fn too_many_slips_and_undetermined_tense() {
     assert_eq!(result.drifts, vec![]);
     assert_eq!(
         result.scenes[0].suppressed,
-        Some(PersonSuppression::TooManySlips)
+        Some(PersonDriftSuppression::TooManySlips)
     );
     // Two slips are within the default cap.
     let text = format!(
@@ -520,7 +521,7 @@ fn too_many_slips_and_undetermined_tense() {
     assert_eq!(run(&text, &options).drifts.len(), 2);
     assert_eq!(
         run(&text, &options.clone().with_maximum_slips(1)).scenes[0].suppressed,
-        Some(PersonSuppression::TooManySlips)
+        Some(PersonDriftSuppression::TooManySlips)
     );
     // No chains to decide a tense: nothing is flagged.
     let text = "The hall. The door. A lamp. I crossed the room.";
@@ -528,7 +529,7 @@ fn too_many_slips_and_undetermined_tense() {
     assert_eq!(result.scenes[0].tense, None);
     assert_eq!(
         result.scenes[0].suppressed,
-        Some(PersonSuppression::UndeterminedTense)
+        Some(PersonDriftSuppression::UndeterminedTense)
     );
     assert_eq!(result.drifts, vec![]);
 }
@@ -536,9 +537,10 @@ fn too_many_slips_and_undetermined_tense() {
 #[test]
 fn antecedents_block_third_in_first() {
     let narrator = anna();
-    let cast = narrator
-        .clone()
-        .with_cast(vec![CastMember::new("Mara", PersonPronoun::She)]);
+    let cast = narrator.clone().with_cast(vec![PersonDriftCastMember::new(
+        "Mara",
+        PersonDriftPronoun::She,
+    )]);
     let candidate = "I crossed the room. She picked up the knife. I waited.";
     for (before, options) in [
         ("Mara came in.", &cast),
@@ -550,9 +552,10 @@ fn antecedents_block_third_in_first() {
         assert_eq!(found_with(&text, options), vec![], "{before}");
     }
     // A cast member with a different pronoun is not an antecedent.
-    let tom = narrator
-        .clone()
-        .with_cast(vec![CastMember::new("Tom", PersonPronoun::He)]);
+    let tom = narrator.clone().with_cast(vec![PersonDriftCastMember::new(
+        "Tom",
+        PersonDriftPronoun::He,
+    )]);
     let text = format!(
         "{} I saw Tom at the gate. {candidate} {}",
         first_scene(8),
@@ -605,11 +608,14 @@ fn narrator_name_contexts() {
     }
     // A name shared with a cast member is ambiguous.
     let shared = PersonDriftOptions::new()
-        .with_narrator(Some(Narrator::new(
+        .with_narrator(Some(PersonDriftNarrator::new(
             vec!["Anna Reyes".to_owned(), "Anna".to_owned()],
-            Some(PersonPronoun::She),
+            Some(PersonDriftPronoun::She),
         )))
-        .with_cast(vec![CastMember::new("Anna Lee", PersonPronoun::She)]);
+        .with_cast(vec![PersonDriftCastMember::new(
+            "Anna Lee",
+            PersonDriftPronoun::She,
+        )]);
     assert_eq!(
         found_with(
             &in_first("I crossed the room. Anna picked up the knife. I waited."),
@@ -618,9 +624,9 @@ fn narrator_name_contexts() {
         vec![]
     );
     // Multi-word names match whole; a prefix of a longer word does not.
-    let full = PersonDriftOptions::new().with_narrator(Some(Narrator::new(
+    let full = PersonDriftOptions::new().with_narrator(Some(PersonDriftNarrator::new(
         vec!["Anna Reyes".to_owned()],
-        Some(PersonPronoun::She),
+        Some(PersonDriftPronoun::She),
     )));
     assert_eq!(
         found_with(
@@ -651,7 +657,7 @@ fn declarations() {
     assert_eq!(found_with(short, &third), first_in_third("I", "i"));
     assert_eq!(
         scenes_with(short, &third),
-        vec![(Some(NarrativePerson::Third), PersonSource::Declared)]
+        vec![(Some(NarrativePerson::Third), PersonDriftSource::Declared)]
     );
     // A scene declaration beats the document person and inference.
     let text = format!(
@@ -661,12 +667,12 @@ fn declarations() {
     );
     let options = PersonDriftOptions::new()
         .with_person(Some(NarrativePerson::First))
-        .with_scene_persons(vec![ScenePerson::new(1, NarrativePerson::Third)]);
+        .with_scene_persons(vec![PersonDriftScenePerson::new(1, NarrativePerson::Third)]);
     assert_eq!(
         scenes_with(&text, &options),
         vec![
-            (Some(NarrativePerson::First), PersonSource::Declared),
-            (Some(NarrativePerson::Third), PersonSource::Declared)
+            (Some(NarrativePerson::First), PersonDriftSource::Declared),
+            (Some(NarrativePerson::Third), PersonDriftSource::Declared)
         ]
     );
     // A declared third-person scene bypasses the witness guard.
@@ -674,7 +680,7 @@ fn declarations() {
     // Out of range.
     let document = analyze_document(tokenizer(), &text, &DocumentOptions::new());
     let bad = PersonDriftOptions::new()
-        .with_scene_persons(vec![ScenePerson::new(2, NarrativePerson::Third)]);
+        .with_scene_persons(vec![PersonDriftScenePerson::new(2, NarrativePerson::Third)]);
     assert!(matches!(
         person_drift::report(&document, &bad),
         Err(StyleError::InvalidOptions { .. })
@@ -685,8 +691,10 @@ fn declarations() {
         Err(StyleError::InvalidOptions { .. })
     ));
     for bad in [
-        PersonDriftOptions::new().with_narrator(Some(Narrator::new(vec![" ".to_owned()], None))),
-        PersonDriftOptions::new().with_cast(vec![CastMember::new("", PersonPronoun::He)]),
+        PersonDriftOptions::new()
+            .with_narrator(Some(PersonDriftNarrator::new(vec![" ".to_owned()], None))),
+        PersonDriftOptions::new()
+            .with_cast(vec![PersonDriftCastMember::new("", PersonDriftPronoun::He)]),
     ] {
         assert!(matches!(
             person_drift::report(&document, &bad),
@@ -748,14 +756,14 @@ fn scene_independence_and_the_witness_guard() {
             .map(|scene| (scene.person, scene.source))
             .collect::<Vec<_>>(),
         vec![
-            (Some(NarrativePerson::First), PersonSource::Inferred),
-            (Some(NarrativePerson::Third), PersonSource::Inferred)
+            (Some(NarrativePerson::First), PersonDriftSource::Inferred),
+            (Some(NarrativePerson::Third), PersonDriftSource::Inferred)
         ]
     );
     assert_eq!(result.drifts, vec![]);
     assert_eq!(
         result.scenes[1].suppressed,
-        Some(PersonSuppression::WitnessNarrator)
+        Some(PersonDriftSuppression::WitnessNarrator)
     );
     let include = PersonDriftOptions::new().with_include_witness_scenes(true);
     let drifts: Vec<PersonDrift> = run(&text, &include).drifts;
@@ -829,4 +837,195 @@ fn binding_fixture() {
         Some(writemorebetter_style::narrative::NarrativeTense::Past)
     );
     assert_eq!(run(text, &PersonDriftOptions::new()).drifts, vec![]);
+}
+
+/// *mine* after a verb is the pronoun, so the slip is flagged (#354 review).
+#[test]
+fn mine_after_a_verb() {
+    for middle in [
+        "Her hand found mine.",
+        "His eyes met mine.",
+        "She took mine.",
+    ] {
+        assert_eq!(
+            found(&in_third(middle)),
+            first_in_third("mine", "mine"),
+            "{middle}"
+        );
+    }
+}
+
+/// An exempt first-person word does not hide a later slip in the same sentence, and exempt words
+/// do not use up the slip budget (#354 review).
+#[test]
+fn exempt_words_do_not_hide_slips() {
+    for middle in [
+        "My God, I had forgotten the key.",
+        "Oh my, I had forgotten the key.",
+        "My goodness, the rain was cold, and I walked faster.",
+        "The rain was cold—my God, how cold—and I walked faster.",
+        "The rain was cold (my coat was thin) and I walked faster.",
+    ] {
+        assert_eq!(
+            found(&in_third(middle)),
+            first_in_third("I", "i"),
+            "{middle}"
+        );
+    }
+    let text = format!(
+        "{}\n\nOh my God! What had she done?\n\nMy God, the cold!\n\nOh my goodness, the mud!\n\nI walked to the gate.\n\n{}",
+        third_scene(6),
+        third_scene(6)
+    );
+    let report = run(&text, &PersonDriftOptions::new());
+    assert_eq!(report.scenes[0].suppressed, None);
+    assert_eq!(found(&text), first_in_third("I", "i"));
+}
+
+/// Titles with a capital *My* or *I* mid-sentence are not the pronoun (#354 review).
+#[test]
+fn titles_are_not_slips() {
+    for middle in [
+        "They had seen My Fair Lady at the Regent the week before.",
+        "She had read I Capture the Castle twice that summer.",
+        "Somewhere a radio was playing I Walked the Line.",
+    ] {
+        assert_eq!(found(&in_third(middle)), vec![], "{middle}");
+    }
+}
+
+/// Trailing tags the voice layer leaves as narration still report the clause (#354 review).
+#[test]
+fn trailing_reporting_tags() {
+    for middle in [
+        "I went to the station at noon, she wrote.",
+        "I went to the station at noon, she remembered.",
+        "I went to the station at noon, she recalled.",
+        "I went to the station at noon, she had said.",
+        "I went to the station at noon, Valancy wrote.",
+        "I was here first, the note said.",
+        "I saw you, the message read.",
+        "I’d gone to the station at noon, she’d written.",
+    ] {
+        assert_eq!(found(&in_third(middle)), vec![], "{middle}");
+    }
+    for middle in [
+        "Anna was a fool, she thought.",
+        "Anna was a fool, I thought.",
+        "Anna was late again, I said.",
+        "I crossed the room. She was a fool, I thought. I waited.",
+    ] {
+        assert_eq!(found_with(&in_first(middle), &anna()), vec![], "{middle}");
+    }
+    // A slip before a comma that is not a tag is still flagged.
+    assert_eq!(
+        found(&in_third("I went to the station, and the train was late.")),
+        first_in_third("I", "i")
+    );
+}
+
+/// Another woman enters the scene by name, by narration *her*, or as an occupation or animal
+/// (#354 review).
+#[test]
+fn more_antecedents_block_third_in_first() {
+    for middle in [
+        "I opened the door. Mara stood on the step. She was soaked through. I let her in.",
+        "I handed her the cup. She drank it slowly. I waited.",
+        "Her hands were shaking when I opened the door. She came in. I shut it.",
+        "The nurse came in at six. I sat up. She checked the chart. I waited.",
+        "I fed the cat. She purred against my ankles. I smiled.",
+    ] {
+        assert_eq!(found_with(&in_first(middle), &anna()), vec![], "{middle}");
+    }
+    let ben = PersonDriftOptions::new().with_narrator(Some(PersonDriftNarrator::new(
+        vec!["Ben".to_owned()],
+        Some(PersonDriftPronoun::He),
+    )));
+    for middle in [
+        "I waited. Tom came in and he sat down. I nodded.",
+        "I waited. Tom came in. He sat down. I nodded.",
+    ] {
+        let text = format!("{} {middle} I sat by the fire.", first_scene(8));
+        assert_eq!(found_with(&text, &ben), vec![], "{middle}");
+    }
+    // The deliberate slip is still flagged.
+    assert_eq!(
+        found_with(
+            &in_first("I crossed the room. She picked up the knife. I waited."),
+            &anna()
+        )
+        .len(),
+        1
+    );
+}
+
+/// The narrator's name in someone else's report or after a kinship title (#354 review).
+#[test]
+fn narrator_name_in_reports_and_kinship() {
+    let narrator = PersonDriftOptions::new().with_narrator(Some(PersonDriftNarrator::new(
+        vec!["Anna".to_owned(), "Anna Reyes".to_owned()],
+        Some(PersonDriftPronoun::She),
+    )));
+    for middle in [
+        "The captain said that Anna was to stay behind.",
+        "Then Tom came running with the news that Anna had gone into the woods.",
+        "Word came down from the house that Anna was wanted in the kitchen.",
+        "Everyone in town believed Anna was mad.",
+        "Aunt Anna had died the winter before I was born.",
+        "My grandmother Anna had planted the hedge.",
+        "My grandmother Anna’s hedge had grown wild.",
+    ] {
+        assert_eq!(found_with(&in_first(middle), &narrator), vec![], "{middle}");
+    }
+    // The narrator's own report of her name is still a slip.
+    assert_eq!(
+        found_with(&in_first("I knew that Anna was tired."), &narrator).len(),
+        1
+    );
+}
+
+/// The body of an unmarked letter or diary entry after its salutation or header (#354 review).
+#[test]
+fn embedded_letters_and_diaries() {
+    for (header, body) in [
+        (
+            "Dear Aunt Mildred,",
+            "I went to the station on Monday and waited until dark.",
+        ),
+        (
+            "From the diary of Valancy Stirling, June 3rd.",
+            "I walked to the gate and back.",
+        ),
+        (
+            "She unfolded the note. It said:",
+            "I walked to the gate and back.",
+        ),
+        ("Dearest Tom—", "I’d walked to the gate and back twice."),
+    ] {
+        let text = format!(
+            "{}\n\n{header}\n\n{body}\n\n{}",
+            third_scene(6),
+            third_scene(6)
+        );
+        assert_eq!(found(&text), vec![], "{header}");
+        // Without the header the body is narration and its *I* is a slip.
+        let bare = format!("{}\n\n{body}\n\n{}", third_scene(6), third_scene(6));
+        assert_eq!(found(&bare).len(), 1, "{body}");
+    }
+    // Narration resumes once third-person subjects return.
+    let text = format!(
+        "{}\n\nDear Aunt Mildred,\n\nI went to the station on Monday.\n\n{} I crossed the room. {}",
+        third_scene(10),
+        third_scene(6),
+        third_scene(6)
+    );
+    assert_eq!(found(&text), first_in_third("I", "i"));
+    // A sign-off closes the letter; the narration after it is checked again.
+    let text = format!(
+        "{}\n\nDear Aunt Mildred,\n\nI went to the station on Monday.\n\nYours, Valancy\n\n{}\u{2028}I crossed the room. {}",
+        third_scene(10),
+        third_scene(6),
+        third_scene(6)
+    );
+    assert_eq!(found(&text), first_in_third("I", "i"));
 }

@@ -2,7 +2,8 @@
 //! out, spans with byte, char and UTF-16 ranges.
 //!
 //! In:  {"text": "...", "hardWrapped": false, "documentOptions": {...}, "options": {...}}
-//! Out: PersonDriftReport, or {"error": "..."} when the options are invalid.
+//! Out: PersonDriftReport, or {"error": "..."} when the options are invalid (unparseable or
+//! failing validation). A malformed line or document options still stop the probe.
 use std::io::{self, BufRead, Write};
 
 use serde::Deserialize;
@@ -17,8 +18,9 @@ struct Input {
     hard_wrapped: bool,
     #[serde(default)]
     document_options: Option<DocumentOptions>,
+    /// Parsed after the line so an options error becomes an `{"error"}` line.
     #[serde(default)]
-    options: PersonDriftOptions,
+    options: Option<serde_json::Value>,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -35,13 +37,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .unwrap_or_default()
             .with_hard_wrapped(input.hard_wrapped);
         let document = analyze_document(&tokenizer, &input.text, &options);
-        match person_drift::report(&document, &input.options) {
+        let parsed = match input.options {
+            Some(value) => serde_json::from_value::<PersonDriftOptions>(value)
+                .map_err(|error| format!("invalidOptions: personDrift: {error}")),
+            None => Ok(PersonDriftOptions::default()),
+        };
+        let result = parsed.and_then(|options| {
+            person_drift::report(&document, &options).map_err(|error| error.to_string())
+        });
+        match result {
             Ok(report) => writeln!(stdout, "{}", serde_json::to_string(&report)?)?,
-            Err(error) => writeln!(
-                stdout,
-                "{}",
-                serde_json::json!({"error": error.to_string()})
-            )?,
+            Err(error) => writeln!(stdout, "{}", serde_json::json!({"error": error}))?,
         }
         stdout.flush()?;
     }

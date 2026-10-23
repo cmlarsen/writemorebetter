@@ -213,7 +213,7 @@ let drift: PersonDriftReport = try document.personDrift(options: PersonDriftOpti
 
 `personDrift` (opt-in, #354) flags isolated slips in grammatical person per scene: *I* in a
 third-person scene, or the declared narrator's pronoun or name in a first-person one
-(`PersonDriftOptions(narrator: Narrator(names: ["Anna"], pronoun: .she))`). It reads narration
+(`PersonDriftOptions(narrator: PersonDriftNarrator(names: ["Anna"], pronoun: .she))`). It reads narration
 only and diagnoses without suggesting text. See [`docs/STYLE-PERSON-DRIFT.md`](../docs/STYLE-PERSON-DRIFT.md).
 
 `voices()` lists speech, quoted and tagged unquoted thought, quoted terms and spans you mark with

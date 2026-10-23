@@ -96,27 +96,37 @@ WASM `personDrift(optionsJSON?)`, Swift `personDriftJson(optionsJson:)` and the 
 
 **`firstInThird`** looks at narration tokens outside voice tags in third-person scenes: *I*,
 *me*, *my*, *mine*, *myself*. *we*, *us* and *our* are never flagged (authorial *we*), and neither
-are Roman-numeral or initial *I* (*Henry I*, *I.O.O.F.*) or the noun *mine*. Each sentence gives at
-most one drift. If more than `maximumSlips` sentences in the scene have candidates, none are
-flagged (`tooManySlips`). A sentence is flagged only when every check passes:
+are Roman-numeral or initial *I* (*Henry I*, *I.O.O.F.*), the noun *mine* (*the first mine*; after a
+verb, *took mine*, it is the pronoun), or a capitalized *My* or *I* inside a sentence before a
+capitalized word (*My Fair Lady*, *I Capture the Castle*). Each sentence's candidate is its first
+first-person word that E4, E5 and the title test do not exempt, so *My God, I had forgotten the
+key.* is checked on *I*. Each sentence gives at most one drift. If more than `maximumSlips`
+sentences in the scene have candidates, none are flagged (`tooManySlips`); interjections, asides
+and titles never count toward it, but questions and exclamations do, because a first-person
+*What had I done?* is still first-person voice. A sentence is flagged only when every check
+passes:
 
 | | Exemption |
 |---|---|
-| E1 | Not narration, or inside a thought or speech tag frame (*I’m leaving, he said.*). |
+| E1 | Not narration, or inside a thought or speech tag frame (*I’m leaving, he said.*), or before a closing reporting tag the voice layer leaves as narration: `, <subject> [had] <verb>.` or `, <verb> <subject>.` with a thought, unquoted-speech or writing verb (*…, she wrote.*, *…, she had said.*, *…, the note said.*, *…, I thought.*). In a first-person scene the tag's own *she*/*he* is exempt too. |
 | E2 | A question, exclamation or trailing-off sentence: any `?` or `!`, or an ending in `…`, `...`, `—` or `:`, including a clause the splitter left joined (*I crossed the room— He was gone.*). |
 | E3 | Tense disagreement: the sentence needs at least one narration chain, and every chain must match the scene tense. In a past scene only past and past-perfect chains qualify; any present, modal or ambiguous chain exempts the sentence. This covers unmarked thought (*I can’t do this.*) and authorial hedges (*I suppose*, *as I have said*). |
 | E4 | Inside a dash pair, parentheses or brackets, or after a single dash that runs to the end of the sentence. |
 | E5 | An interjection: *my God / Lord / goodness / word / dear / heavens / gosh*, *oh my*, *dear me*, *excuse me*, *God help me*, *bless me*. |
 | E6 | After a writing or display colon (*The note read:*, *She wrote:*) in the same paragraph (`narrative::display_colon_lead_in`). |
-| E7 | A dash-dialogue paragraph, or a line of six words or fewer with no verb chain (a salutation or signature). |
+| E7 | A dash-dialogue paragraph, or a line of six words or fewer with no verb chain (a salutation or signature). After a salutation (*Dear Aunt Mildred,*), a diary header or dated line (*From the diary of …, June 3rd.*) or a paragraph that ends in a display colon (*It said:*), the following paragraphs are an embedded document while first-person subjects outnumber third-person ones and no opening quote, short line or scene break intervenes. |
 | E8 | A paragraph with an unpaired quote (`narrative::paragraph_quotes_balanced`). |
 
 **`narratorName`** (first-person scenes, needs `narrator.names`) matches a declared name in
 narration as a chain subject or with *’s*/*'s*/*’*. Matching is case-sensitive, folds curly
 apostrophes and whitespace, and covers names in `skipNames`. A match is exempt after *named*,
 *called*, *name*, *signed*, *wrote* or *Dear*, in *my name is/was*, as an appositive after *I*
-(*I, Anna,*), after an honorific when the honorific form is not itself a listed name, and when a
-word of it is shared with a cast member. E1–E4, E7 and E8 apply.
+(*I, Anna,*), after an honorific when the honorific form is not itself a listed name, after a
+kinship title (*Aunt Anna*, *my grandmother Anna*: a relative or namesake), in someone else's
+report or belief (after *that* or a reporting verb, with a reporting word such as *said*, *news*,
+*word*, *believed* earlier in the sentence and no first-person word before the name: *The captain
+said that Anna…*, *Everyone believed Anna was mad*), and when a word of it is shared with a cast
+member. *I knew that Anna was tired.* is still flagged. E1–E4, E7 and E8 apply.
 
 **`thirdInFirst`** (first-person scenes, needs `narrator.pronoun` *she* or *he*) looks at chain
 subjects that match the narrator's pronoun. It needs every one of:
@@ -125,9 +135,9 @@ subjects that match the narrator's pronoun. It needs every one of:
 |---|---|
 | A1 | At most `maximumSlips` narration subjects with that pronoun in the scene: more is a character. |
 | A2 | No same-pronoun cast member mentioned anywhere in the scene. |
-| A3 | No same-gender pronoun in the scene's speech, quoted text or thought. |
-| A4 | No gendered noun of that gender earlier in the scene (*woman*, *mother*, *queen*; for *she* also *ship*, *boat*, *vessel*, *car*). |
-| A5 | No capitalized mid-sentence proper name earlier in the scene other than the narrator's or a different-pronoun cast member's. |
+| A3 | No same-gender pronoun in the scene's speech, quoted text or thought, and no object or possessive form of it (*her*, *his*, *him*) in narration before the candidate: the narrator would be *me* or *my* (*I handed her the cup.*). |
+| A4 | No gendered noun of that gender earlier in the scene (*woman*, *mother*, *queen*; for *she* also *ship*, *boat*, *vessel*, *car*), and no person or animal noun of either gender (*nurse*, *teacher*, *stranger*, *cat*, *dog*). |
+| A5 | No proper name earlier in the scene other than the narrator's or a different-pronoun cast member's: a capitalized word with a proper-noun reading (*Mara*, which is also a common noun, counts), or one that opens its sentence and has no verb or function-word reading (*Tom came in.*). |
 | A6 | The sandwich: the previous or next sentence in the paragraph has a first-person subject. |
 | A7 | No self-distancing frame in the paragraph (*the girl I had been*, *my younger self*, *that boy*). |
 
@@ -138,7 +148,7 @@ Without a declared narrator, a first-person scene that has *she*/*he* subjects r
 The gendered-noun, interjection and self-distancing lists are English and live in the English lens
 module (MIT OR Apache-2.0). The lens loads no data file.
 
-## Evaluation (2026-10-22)
+## Evaluation (2026-10-22, rerun 2026-10-23 after the review fixes)
 
 `python3 bench/style/person_drift.py score --gate` (seed 354). All text is public: the CC0
 `bench/public` stories and Standard Ebooks (CC0) books. Chapters are scored one document each,
@@ -159,11 +169,11 @@ only):
 |---|---|---|
 | P-1in3, undeclared | a sentence-initial *She*/*He* (the scene's main pronoun) before a past verb → *I*, in a third-person book | 239/300 = 0.797 |
 | P-1in3, declared `person: third` | the same | 242/300 = 0.807 |
-| P-3in1 (a) | *I* → the narrator's pronoun, in a window of up to eight paragraphs with no same-gender pronoun, quote or unknown name | 12/25 = 0.48 |
+| P-3in1 (a) | *I* → the narrator's pronoun, in a window of up to eight paragraphs with no same-gender pronoun, quote or unknown name | 10/25 = 0.40 |
 | P-3in1 (b) | the same in the full chapter, where same-gender characters are present | 0/150 = 0.00 |
 | P-name | *I* → the narrator's name | 249/300 = 0.83 |
 
-Precision over every flag on the perturbed copies: 742/746 = 0.995. The four false ones are
+Precision over every flag on the perturbed copies: 740/743 = 0.996. The three false ones are
 natural flags in the same chapters. There were 154 traps, each run with default and declared
 options (308 runs): a tagged thought, tagged unquoted speech, *God, I was a fool!*, a colon note,
 an em-dash aside, a present *I can’t do this.*, and *The man/woman by the window* before a
@@ -173,12 +183,16 @@ Most P-1in3 misses are E3 by design: the sentence also has a modal or present ch
 understood that his own eyes **must** be unbearable*). Most P-name misses are a modal elsewhere in
 the sentence or a chapter whose tense is undetermined. P-3in1 (a) has only 25 items because public
 first-person fiction rarely runs eight paragraphs without a same-gender pronoun. P-3in1 (b) is zero
-by design: A1, A4 and A5 stop it whenever another man or woman is in the scene.
+by design: A1, A3, A4 and A5 stop it whenever another man or woman is in the scene. P-3in1 (a)
+was 12/25 before the review fixes. The two items lost are windows where another man is present
+(*The servant with the bandage was being soundly rated*), which the window filter, looking only
+at pronouns and mid-sentence capitals, did not see; staying quiet there is the intended A4
+behaviour. Every other set is unchanged.
 
 **Natural flags** at default options: 2 in 539,614 narration words (0.0037 per 1,000), against a
-gate of 0.05. With declared persons and narrators: 5 (0.0093). On 15 more CC0 novels in
+gate of 0.05. With declared persons and narrators: 4 (0.0074; 5 before the review fixes). On 15 more CC0 novels in
 `sources.json` (1,339,803 narration words, the modernist and later sets voices uses): 0. Two blind
-labelers from different model families judged all 7 natural flags:
+labelers from different model families judged all 7 natural flags of the first run:
 
 - Codex `gpt-6-sol`, OpenAI, Codex CLI 0.163.0;
 - DeepSeek V4 Pro, OpenCode 2.1.2.
@@ -189,7 +203,7 @@ Ishmael's *my Queequeg* in chapters the lens infers as third person; one is Geor
 authorial *I once said*. Three are in *Treasure Island* chapters narrated by Dr. Livesey, flagged
 only because the book-level declaration names Jim. The fourth is Jim reporting the wording of a
 summons (*word was sent forward that Jim Hawkins was wanted in the cabin*): DeepSeek called it a
-slip and Codex did not. Published, edited fiction has almost no true person
+slip and Codex did not. The reported-complement exemption now drops it, so 6 flags remain. Published, edited fiction has almost no true person
 slips, so natural precision says little about drafts. The gate keeps natural noise near zero
 instead.
 
@@ -197,7 +211,7 @@ instead.
 1,000 narration words pooled at default options, and recall at or above the baseline per set.
 
 **Cost**: O(tokens) plus antecedent scans bounded by the scene; no data loaded, so no RSS change.
-WASM +30.2 KB gzipped (see CHANGELOG).
+WASM +33.8 KB gzipped (see CHANGELOG).
 
 ## Limitations
 
@@ -207,7 +221,11 @@ WASM +30.2 KB gzipped (see CHANGELOG).
 - **Witness and frame narrators** cost recall: a third-person chapter in a book with a
   first-person frame is suppressed unless it is declared or `includeWitnessScenes` is set.
 - **`thirdInFirst` recall is low by design**: it needs a declared narrator, the sandwich and no
-  possible antecedent.
+  possible antecedent the lens can see. It still misses antecedents it has no word for (an
+  occupation or animal off the list, a character named only in an earlier scene).
+- **Unmarked embedded documents** are recognised only after a salutation, diary header, dated
+  line or display colon; a letter body with none of these reads as narration. Mark it
+  `embedded` when the structure is known.
 - **Present-tense third-person scenes**: E3 cannot tell matching present-tense unmarked thought
   from a slip. No public present-tense third-person book was available to measure it; declare the
   person for such scenes and expect lower precision.
