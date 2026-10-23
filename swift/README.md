@@ -207,7 +207,14 @@ let adverbs: AdverbsReport = try document.adverbs()
 let emotions: EmotionTellsReport = try document.emotionTells()
 let vague: VagueWordsReport = try document.vagueWords()
 let hidden: HiddenVerbsReport = try document.hiddenVerbs()
+let voices: VoicesReport = try document.voices()
 ```
+
+`voices()` lists speech, quoted and tagged unquoted thought, quoted terms and spans you mark with
+`DocumentOptions(markedSpans: [MarkedSpan(start:end:voice:)])`, in UTF-16 offsets like
+`NSRange`. Invalid spans (empty, past the end, or splitting a surrogate pair) are skipped and
+listed in `ignoredMarkedSpans`; `detectThought` and `detectUnquotedSpeech` turn the detectors off.
+See [`docs/STYLE-VOICES.md`](../docs/STYLE-VOICES.md).
 
 Every result is `Codable`, `Equatable` and `Sendable`. Each method takes optional `optionsJson`;
 baseline-aware methods take `baseline: StyleBaseline` (`.bundled`, `.none`, or `.custom(json)`),

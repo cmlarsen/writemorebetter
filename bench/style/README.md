@@ -1082,6 +1082,7 @@ window mean concreteness and sentence means, the full percentile sets at both sc
 | `labels/dialogue-tags.jsonl` | 238 records over 186 quote spans (70 tags, 10 beats) | Two Claude sessions, coordinator adjudication; detector-marked quote worksheets | Owner acceptance; independent human labels. The set is not 238 independent sentences and not held out |
 | `labels/transitions.jsonl` | 62 development examples; no ~300-sentence judgment set | Original hand-written development examples from #247, including known misses | A ~300-sentence public-domain judgment set with two independent labelers and owner adjudication |
 | `labels/pacing/*.jsonl`, `labels/pacing-consensus.jsonl` | 305 paragraphs in 40 passages | Five independent, blind model labelers (2026-10-16, owner's choice): DeepSeek V4 Pro and Muse Spark 1.3 via OpenCode Go, Codex gpt-6.1-sol, Claude Opus 5.5 (`claude-opus-5-5`) and Claude Fable 5.1 (`claude-fable-5-1`). Each saw only the packet built from the committed item file (`itemsSha256` in the consensus meta row) and guidelines version 1. Where each labeler ran was not recorded. Merged by 5-way majority with no coordinator adjudication. Guidelines version 1 is [`labels/PACING-GUIDELINES-v1.md`](labels/PACING-GUIDELINES-v1.md), sha256 `d7eaa315…db6`, the wording first committed as `bf832a2`; the consensus meta row records it as `guidelines` | Owner acceptance; independent human labels. The set is not held out (the threshold sweep tunes on it) |
+| `labels/thought-spans*.jsonl`, `labels/thought-misses.jsonl` | 150 development, 100 + 100 held-out spans, 100 miss sentences | Two blind model labelers from different families, 2026-10-22: Codex `gpt-6-sol` (OpenAI, Codex CLI 0.163.0, reasoning medium) and DeepSeek V4 Pro (`opencode-go/deepseek-v4-pro`, OpenCode 2.1.2), each run on the coordinator machine in an empty directory holding only the guidelines and items; coordinator (`claude-opus-5-5`, the implementer) adjudicated 6 disagreements. Meta rows record models, rules commit, guidelines sha256 and itemsSha256. Guidelines: [`labels/THOUGHT-GUIDELINES.md`](labels/THOUGHT-GUIDELINES.md) | Owner acceptance; human labels; confirming OpenCode Go's terms allow benchmark labels (see STYLE-DATA-LICENSES.md) |
 | Overused words, sensory balance, diction | No hand-labeled natural-text set | Deterministic generated answer keys; diction's bundled-table usefulness review had one judge, not blind (STYLE-NORMS) | Optional owner usefulness review; injections do not substitute for editorial judgments. Published flag rates: #291 (overused, sensory) and the 2026-10-20 diction run |
 
 The small `labels/example.jsonl` (3 records), `documents.jsonl` and `excerpt.txt` demonstrate the
@@ -1305,6 +1306,33 @@ counts as dropped, not as a miss. The gate fails if either set's precision on ke
 below 0.85. `--write` updates `emotion-tells-baseline.json`. `sample` and `heldout` redraw the sets
 (unlabeled). Definitions, results and limitations are in
 [STYLE-EMOTION-TELLS.md](../../docs/STYLE-EMOTION-TELLS.md).
+
+## Voices (#353)
+
+`python3 bench/style/voices.py score --gate` builds the `voices` probe
+(`bench/tools/wmb-document/src/bin/voices.rs`: JSONL `{text, hardWrapped, documentOptions,
+options}` in, `{voices, stats, moved}` out) and runs:
+
+- **synthetic** (seed 353): CC0 thoughts and unquoted speech from `thought-templates.json`
+  inserted after 60 third-person past host paragraphs from the books, at all four anchor
+  positions with every separator, apostrophe style and subject kind, plus person and tense swaps,
+  negatives and the *The room is dark.* guard. The gate needs 0 false positives, thought recall
+  ≥ 0.90 and exact spans ≥ 0.85 per position, and speech recall ≥ 0.85.
+- **natural precision**: tag-source spans over the public stories, the books pacing uses, five
+  modernist novels (`MODERN`) and ten more added after the last freeze (`FRESH`).
+  `labels/thought-spans.jsonl` (150, seed 353, development), `labels/thought-spans-heldout.jsonl`
+  (100, seed 3531, drawn after freezing at `08fce42`, now development data) and
+  `labels/thought-spans-heldout-2.jsonl` (100, seed 3532, from `FRESH` only, drawn after freezing at
+  `33b7f15`). The gate needs held-out-2 precision ≥ 0.90 per voice and a Wilson lower bound ≥ 0.82
+  pooled and for each voice with 30 or more rows.
+- **misses** (informational): `labels/thought-misses.jsonl`, 100 unflagged narration sentences
+  with a thought-verb form.
+- **narration delta** per source.
+
+`--write` updates `voices-baseline.json`. `sample`, `heldout`, `heldout2` and `misses` redraw the
+sets (unlabeled); `packet LABELS OUT` writes a blind labeler packet (`id`, `voice`, marked
+`context` only) and `merge LABELS A B --adjudicate FILE --meta JSON` folds two labelers' answers
+in. Results and the gate's reasoning are in [STYLE-VOICES.md](../../docs/STYLE-VOICES.md#evaluation).
 
 ## Vague words and hidden verbs (#307)
 

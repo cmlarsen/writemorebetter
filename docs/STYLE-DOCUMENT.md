@@ -11,7 +11,8 @@ let document = analyze_document(&tokenizer, text, &options);
 ```
 
 Public Rust records are `#[non_exhaustive]`; construct options with `new()`/`default()` and the builders
-`with_skip_names`, `with_token_details`, and `with_hard_wrapped`. Reports take `&Document`.
+`with_skip_names`, `with_token_details`, `with_hard_wrapped`, `with_marked_spans`,
+`with_detect_thought` and `with_detect_unquoted_speech`. Reports take `&Document`.
 
 Besides paragraphs, `dialogue`, `lemma_index` and `word_count`, the document records how it was built
 and what every report needs to agree:
@@ -171,13 +172,35 @@ Echoes and repeated phrases ignore mode. The dialogue-tag report reads speech sp
 `style/tests/cross_report.rs` checks on shared passages that every report's word, sentence and
 dialogue counts agree with this definition.
 
+### Voices
+
+`Document::voices` (#353) refines the two modes for lenses that must read narration only. Each
+byte resolves to a `Voice`: `narration`, `speech` (quoted, or unquoted with a speech tag:
+*Get out, he said.*), `thought` (quoted with a thought tag, or unquoted with one: *I’m done with
+this, she thought.*), `quoted` (a non-speech quoted span: *pressed “Send”*), or the caller-only
+`embedded`, `quotation` and `excluded`. Callers mark spans with `marked_spans`
+(`markedSpans`) in `marked_span_units` (`markedSpanUnits`: `byte`, `char` or `utf16`; Rust
+defaults to bytes, WASM and Swift to UTF-16, Python to code points); invalid spans are listed in
+`ignored_marked_spans`. `detect_thought` and `detect_unquoted_speech` (both on) switch the
+detectors off. Voices are resolved before compact mode drops readings, so compact and full
+documents agree.
+
+Voices never change `mode_at`, `sentence_mode`, `speech` or `DocumentStats`. Query them with
+`voice_at`, `voice_span_at`, `is_narration_at` (false inside every quoted span, speech or not),
+`in_voice_tag`, `sentence_narration_words`, `narration_runs` and `sentence_is_narration`. The
+`voices` report lists the spans and their counts. Detection rules, exemptions, the shared
+`narrative` helpers and the evaluation are in [STYLE-VOICES.md](STYLE-VOICES.md).
+
 ## Bindings and memory
 
 Swift `Checker.analyzeDocument(text:options:)` and JavaScript `Checker.analyzeDocument(text, optionsJSON)`
 reuse the loaded tokenizer. Their `start`/exclusive `end` offsets count UTF-16 units, suitable for
 `NSRange`/JavaScript `slice`. Both options records default to including readings/chunks and line
 paragraphs. Swift options fields have defaults; WASM accepts snake_case or camelCase option names
-and rejects unknown keys instead of silently ignoring misspellings.
+and rejects unknown keys instead of silently ignoring misspellings. Both accept the voice options
+(`markedSpans`, `markedSpanUnits`, `detectThought`, `detectUnquotedSpeech`; Swift's
+`markedSpans` are always UTF-16 and it has no units field); the returned document is unchanged,
+and `StyleDocument.voices()` reports the resolved spans.
 
 Set `include_token_details: false` (`includeTokenDetails: false` in Swift/camelCase JSON) to discard
 per-token readings/chunks after constructing the index and classifying speech, paragraph by

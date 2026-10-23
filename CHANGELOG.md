@@ -10,6 +10,22 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
 ### Added
 
+- **Voices and the `voices` report (#353).** The style document resolves every byte to a
+  `Voice`: narration, speech, thought, a quoted term, or a caller-marked embedded text, quotation
+  or excluded span. Unquoted direct thought (*I’m done with this, she thought.*) and tagged
+  unquoted speech (*Get out, he said.*) are detected from a tag whose clause disagrees with it in
+  person or tense; quoted speech with a thought tag becomes thought; free indirect discourse stays
+  narration. `DocumentOptions` gains `marked_spans` (`markedSpans`), `marked_span_units`
+  (`markedSpanUnits`: byte, char or UTF-16; WASM and Swift default to UTF-16, Python to code
+  points), `detect_thought` and `detect_unquoted_speech`. `Document` gains `voices`,
+  `ignored_marked_spans` and the queries `voice_at`, `voice_span_at`, `is_narration_at`,
+  `in_voice_tag`, `sentence_narration_words`, `narration_runs` and `sentence_is_narration`. The
+  opt-in `voices` report is `StyleDocument::voices` in Rust, `voices()` in WASM, Swift (typed) and
+  Python. `Mode`, `speech`, `DocumentStats` and every existing report are unchanged. The new
+  `narrative` module holds the shared lens helpers for #354 and #355 and the public
+  `NarrativePerson` and `NarrativeTense`. The thought-verb lists are project-authored, MIT OR
+  Apache-2.0. See [`docs/STYLE-VOICES.md`](docs/STYLE-VOICES.md).
+
 - **The `TOO_OFTEN_USED_*` minimum percentage can be set.** `Rules::set_too_often_used_percent`
   (Rust), `Checker.setTooOftenUsedPercent(percent:)` (Swift) and `checker.setTooOftenUsedPercent`
   (WASM) set the share, 1 to 100 as in LanguageTool's rule option, from which the three
