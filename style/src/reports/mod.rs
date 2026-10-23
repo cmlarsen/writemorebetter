@@ -21,6 +21,7 @@ pub mod repeated_phrases;
 pub mod sensory_balance;
 pub mod sentence_length;
 pub mod sentence_starts;
+pub mod tense_shift;
 pub mod title_case;
 pub mod transitions;
 pub mod vague_words;

@@ -213,6 +213,14 @@ fn adverb(token: &Token) -> bool {
         && !(tag(token, "VBN") || tag(token, "VBG") || tag(token, "VBD"))
 }
 
+/// The cognition lemmas pacing counts, shared with the tense-shift lens's reported clauses (#355).
+pub(crate) fn cognition_lemmas() -> impl Iterator<Item = &'static str> {
+    COGNITION
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+}
+
 fn cognition(token: &Token) -> bool {
     token
         .readings

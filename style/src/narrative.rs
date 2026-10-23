@@ -475,3 +475,697 @@ pub fn paragraph_quotes_balanced(document: &Document, paragraph: usize) -> bool 
             .is_some_and(|span| span.byte.start <= byte)
     })
 }
+
+// Tense votes (#355). `sentence_tense` and `scene_tense` drive the tense-shift lens and person
+// drift's tense evidence (#354); a change here moves both lenses, so run both test suites.
+
+/// Why a finite chain, or a whole sentence, does not vote on the narrative tense.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub enum TenseExemption {
+    /// A modal-headed chain, present (*can*, *will*) or past (*would*, *could*).
+    Modal,
+    /// Past perfect in a present scene: backstory, never a minority signal.
+    PastPerfect,
+    /// A relative, adverbial or comparative clause: *the house where she lives*, *as if*.
+    Subordinate,
+    /// A clause reported by a speech, cognition or perception verb, or after a display colon.
+    Reported,
+    /// A generic subject: *you*, *one*, *nobody*, a bare plural, *a man*, *that is*, *it is … to*.
+    Generic,
+    /// A habitual marker: *always*, *never*, *every Sunday*, *whenever*.
+    Habitual,
+    /// A first-person narrator frame: *I remember*, *I suppose*.
+    NarratorFrame,
+    /// A question or exclamation: every chain in it.
+    QuestionOrExclamation,
+    /// No explicit subject: imperatives, inversions, subjectless coordinated verb phrases.
+    NoSubject,
+    /// A form that reads as past or present with no subject to decide it (*they set*).
+    Ambiguous,
+    /// A sentence with past and present main clauses, counted and never flagged.
+    MixedSentence,
+    /// A sentence in a paragraph with an unpaired quote.
+    UnbalancedQuotes,
+}
+
+#[doc(hidden)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SentenceTense {
+    Past,
+    Present,
+    Mixed,
+    #[default]
+    Unclassified,
+}
+
+#[doc(hidden)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct SentenceVote {
+    pub class: SentenceTense,
+    /// Indexes into `sentence.tokens` of the voting chain heads, in order.
+    pub voting: Vec<usize>,
+    /// One reason per chain that did not vote.
+    pub exemptions: Vec<TenseExemption>,
+    /// Every past vote is past perfect.
+    pub past_perfect_only: bool,
+    /// Every voting chain has a specific subject: a personal pronoun, a name, or a noun phrase
+    /// opened by *the*, a possessive or a demonstrative determiner.
+    pub specific: bool,
+    /// One present-simple dynamic verb with a definite inanimate subject (*The river runs east.*).
+    pub gnomic: bool,
+    /// The sentence holds a voice span and every voting head is a speech or thought verb: a tag.
+    pub tag_only: bool,
+    /// A backstory anchor in the narration: *ago*, *last*, *once*, *years*, *back then*, *used
+    /// to*, *when she was*, or a *remember*/*recall* verb.
+    pub backstory: bool,
+}
+
+/// What `sentence_tense` needs from outside the sentence.
+#[doc(hidden)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TenseContext {
+    /// `paragraph_quotes_balanced` for the sentence's paragraph.
+    pub balanced_quotes: bool,
+}
+
+impl Default for TenseContext {
+    fn default() -> Self {
+        Self {
+            balanced_quotes: true,
+        }
+    }
+}
+
+impl TenseContext {
+    pub fn new(document: &Document, paragraph: usize) -> Self {
+        Self {
+            balanced_quotes: paragraph_quotes_balanced(document, paragraph),
+        }
+    }
+}
+
+#[doc(hidden)]
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct TenseThresholds {
+    pub minimum_sentences: usize,
+    pub minimum_majority_percent: f64,
+}
+
+impl Default for TenseThresholds {
+    fn default() -> Self {
+        Self {
+            minimum_sentences: 6,
+            minimum_majority_percent: 70.0,
+        }
+    }
+}
+
+impl TenseThresholds {
+    /// The majority tense of `past` and `present` classified sentences, or `None` below the
+    /// sentence floor or the majority share.
+    pub fn infer(&self, past: usize, present: usize) -> Option<NarrativeTense> {
+        let total = past + present;
+        if total == 0 || total < self.minimum_sentences {
+            return None;
+        }
+        let (tense, majority) = if past >= present {
+            (NarrativeTense::Past, past)
+        } else {
+            (NarrativeTense::Present, present)
+        };
+        (100.0 * majority as f64 >= self.minimum_majority_percent * total as f64).then_some(tense)
+    }
+}
+
+const SUBORDINATORS: [&str; 16] = [
+    "that", "if", "whether", "because", "while", "as", "though", "although", "since", "unless",
+    "until", "when", "where", "than", "like", "once",
+];
+const EXTRA_REPORTING: [&str; 8] = [
+    "see", "hear", "notice", "learn", "tell", "explain", "promise", "warn",
+];
+const INDEFINITE: [&str; 22] = [
+    "nobody",
+    "somebody",
+    "someone",
+    "anyone",
+    "anybody",
+    "everyone",
+    "everybody",
+    "nothing",
+    "something",
+    "everything",
+    "anything",
+    "none",
+    "each",
+    "all",
+    "some",
+    "many",
+    "few",
+    "most",
+    "both",
+    "either",
+    "neither",
+    "noone",
+];
+const DEMONSTRATIVES: [&str; 4] = ["this", "that", "these", "those"];
+const HABITUAL: [&str; 9] = [
+    "always",
+    "never",
+    "often",
+    "usually",
+    "sometimes",
+    "seldom",
+    "rarely",
+    "ever",
+    "whenever",
+];
+const TIME_NOUNS: [&str; 24] = [
+    "day",
+    "night",
+    "morning",
+    "evening",
+    "afternoon",
+    "week",
+    "month",
+    "year",
+    "time",
+    "hour",
+    "summer",
+    "winter",
+    "spring",
+    "autumn",
+    "fall",
+    "monday",
+    "tuesday",
+    "wednesday",
+    "thursday",
+    "friday",
+    "saturday",
+    "sunday",
+    "weekend",
+    "season",
+];
+const FRAME: [&str; 20] = [
+    "remember", "recall", "think", "know", "suppose", "wonder", "believe", "guess", "imagine",
+    "admit", "confess", "mean", "hope", "doubt", "suspect", "say", "tell", "swear", "grant",
+    "expect",
+];
+const DISPLAY_VERBS: [&str; 7] = [
+    "said",
+    "read",
+    "wrote",
+    "thought",
+    "ran",
+    "stated",
+    "announced",
+];
+const DISPLAY_NOUNS: [&str; 10] = [
+    "sign",
+    "note",
+    "letter",
+    "notice",
+    "label",
+    "message",
+    "text",
+    "card",
+    "inscription",
+    "headline",
+];
+const STATIVE: [&str; 3] = ["be", "have", "do"];
+/// Animate heads a gnomic subject must not have: *The man walks in* is a slip, not an aphorism.
+const PERSON_NOUNS: [&str; 24] = [
+    "man", "woman", "boy", "girl", "child", "kid", "baby", "mother", "father", "mom", "dad",
+    "brother", "sister", "son", "daughter", "wife", "husband", "friend", "stranger", "doctor",
+    "officer", "driver", "dog", "cat",
+];
+const BOUNDARIES: [&str; 10] = [",", ";", ":", "—", "–", "…", "(", ")", ".", "-"];
+
+fn reporting_verbs() -> &'static std::collections::HashSet<&'static str> {
+    static LIST: std::sync::OnceLock<std::collections::HashSet<&'static str>> =
+        std::sync::OnceLock::new();
+    LIST.get_or_init(|| {
+        crate::reports::dialogue_tags::speech_verbs()
+            .chain(crate::reports::pacing::cognition_lemmas())
+            .chain(crate::voices::thought_verbs().iter().copied())
+            .chain(EXTRA_REPORTING)
+            .collect()
+    })
+}
+
+fn tag_verbs() -> &'static std::collections::HashSet<&'static str> {
+    static LIST: std::sync::OnceLock<std::collections::HashSet<&'static str>> =
+        std::sync::OnceLock::new();
+    LIST.get_or_init(|| {
+        crate::reports::dialogue_tags::speech_verbs()
+            .chain(crate::voices::thought_verbs().iter().copied())
+            .collect()
+    })
+}
+
+fn verb_lemmas(token: &Token) -> impl Iterator<Item = &str> {
+    token
+        .readings
+        .iter()
+        .filter(|reading| reading.pos.starts_with("VB"))
+        .map(|reading| reading.lemma.as_str())
+}
+
+fn has_verb_lemma(token: &Token, list: impl Fn(&str) -> bool) -> bool {
+    verb_lemmas(token).any(list)
+}
+
+fn boundary(token: &Token) -> bool {
+    BOUNDARIES.contains(&token.text.as_str())
+}
+
+fn coordinator(token: &Token) -> bool {
+    matches!(
+        normalized(token).as_str(),
+        "and" | "but" | "or" | "nor" | "yet" | "so" | "then"
+    )
+}
+
+/// A writing or display verb or noun before a colon: *The sign read:*, *a note: back soon*.
+#[doc(hidden)]
+pub fn display_colon_lead_in(tokens: &[&Token], i: usize) -> bool {
+    if tokens.get(i).is_none_or(|token| token.text != ":") {
+        return false;
+    }
+    let mut index = i;
+    let mut nearest = true;
+    while let Some(previous) = index.checked_sub(1) {
+        index = previous;
+        let token = tokens[index];
+        if !token.is_word {
+            if boundary(token) {
+                return false;
+            }
+            continue;
+        }
+        let word = normalized(token);
+        if nearest && DISPLAY_VERBS.contains(&word.as_str()) {
+            return true;
+        }
+        nearest = false;
+        let singular = word.strip_suffix('s').unwrap_or(&word);
+        if DISPLAY_NOUNS.contains(&word.as_str()) || DISPLAY_NOUNS.contains(&singular) {
+            return true;
+        }
+    }
+    false
+}
+
+/// The first token of the noun phrase that ends at `subject`.
+fn noun_phrase_start(tokens: &[&Token], subject: usize) -> usize {
+    let mut start = subject;
+    while !tokens[start].chunks.iter().any(|c| c.starts_with("B-NP")) && start > 0 {
+        let previous = tokens[start - 1];
+        let inside = previous.is_word
+            && previous
+                .chunks
+                .iter()
+                .any(|c| c.starts_with("B-NP") || c.starts_with("I-NP"));
+        if !inside {
+            break;
+        }
+        start -= 1;
+    }
+    start
+}
+
+fn head_is_be(token: &Token) -> bool {
+    has_verb_lemma(token, |lemma| lemma == "be")
+}
+
+fn reported(tokens: &[&Token], found: &[Chain], n: usize, np: usize) -> bool {
+    let chain = found[n];
+    // *or so she thinks*: *so* stands in for the reported clause.
+    if np > 0
+        && normalized(tokens[np - 1]) == "so"
+        && has_verb_lemma(tokens[chain.head], |lemma| {
+            reporting_verbs().contains(lemma)
+        })
+    {
+        return true;
+    }
+    if (0..np).any(|i| display_colon_lead_in(tokens, i)) {
+        return true;
+    }
+    // The nearest verb before the subject, with no boundary between: *She said the train leaves*,
+    // *She knew that he lies*, *He told her she is late*.
+    let mut index = np;
+    let mut clause_marks = 0;
+    while let Some(previous) = index.checked_sub(1) {
+        index = previous;
+        let token = tokens[index];
+        if !token.is_word {
+            if boundary(token) {
+                return false;
+            }
+            continue;
+        }
+        if coordinator(token) {
+            return false;
+        }
+        if matches!(normalized(token).as_str(), "that" | "if" | "whether") {
+            clause_marks += 1;
+            if clause_marks > 1 {
+                return false;
+            }
+            continue;
+        }
+        let verb = token.readings.iter().any(|r| r.pos.starts_with("VB"))
+            && token.chunks.iter().any(|c| c.ends_with("-VP"));
+        if verb {
+            return has_verb_lemma(token, |lemma| reporting_verbs().contains(lemma));
+        }
+    }
+    false
+}
+
+fn subordinate(tokens: &[&Token], found: &[Chain], n: usize, start: usize, np: usize) -> bool {
+    let chain = found[n];
+    let subject = chain.subject.unwrap_or(chain.head);
+    let word = normalized(tokens[subject]);
+    let wh = has_pos(tokens[subject], "WP") || has_pos(tokens[subject], "WDT");
+    // A demonstrative *that* opening a sentence or a coordinated or punctuated clause is a
+    // pronoun subject (*That is the trouble*); after a noun it is a relative (*a sign that said*).
+    let demonstrative = DEMONSTRATIVES.contains(&word.as_str())
+        && subject == start
+        && subject
+            .checked_sub(1)
+            .is_none_or(|previous| boundary(tokens[previous]) || coordinator(tokens[previous]));
+    if wh && !demonstrative {
+        return true;
+    }
+    let opener = tokens[start..np].iter().any(|token| {
+        token.is_word
+            && (chunk(token, "B-SBAR")
+                || has_pos(token, "WDT")
+                || has_pos(token, "WP")
+                || has_pos(token, "WRB")
+                || SUBORDINATORS.contains(&normalized(token).as_str()))
+    });
+    if opener {
+        return true;
+    }
+    // *the way you learn a scar*.
+    if np >= 2 && normalized(tokens[np - 1]) == "way" && normalized(tokens[np - 2]) == "the" {
+        return true;
+    }
+    // A finite chain earlier in the same clause with no coordinator before this subject: a
+    // contact relative or complement (*the summer we met*, *It seemed she is gone*).
+    found[..n].iter().any(|earlier| {
+        earlier.clause == chain.clause
+            && earlier.end <= np
+            && !tokens[earlier.end..np]
+                .iter()
+                .any(|token| coordinator(token) || boundary(token))
+    })
+}
+
+fn determiner(token: &Token) -> bool {
+    has_pos(token, "DT")
+        || has_pos(token, "PRP$")
+        || has_pos(token, "POS")
+        || has_pos(token, "CD")
+        || has_pos(token, "PDT")
+        || matches!(normalized(token).as_str(), "'s" | "'")
+}
+
+fn generic(tokens: &[&Token], chain: &Chain, subject: usize, np: usize) -> bool {
+    let word = normalized(tokens[subject]);
+    if matches!(word.as_str(), "you" | "one" | "ya" | "y'all")
+        || INDEFINITE.contains(&word.as_str())
+    {
+        return true;
+    }
+    if tokens[np..=subject].iter().any(|token| {
+        matches!(
+            normalized(token).as_str(),
+            "your" | "a" | "an" | "no" | "every"
+        )
+    }) {
+        return true;
+    }
+    let head = tokens[chain.head];
+    if DEMONSTRATIVES.contains(&word.as_str()) && np == subject && head_is_be(head) {
+        return true;
+    }
+    if word == "it" && head_is_be(head) {
+        let complement = tokens[chain.end..]
+            .iter()
+            .take_while(|token| !boundary(token))
+            .any(|token| matches!(normalized(token).as_str(), "to" | "that" | "how"));
+        if complement {
+            return true;
+        }
+    }
+    let token = tokens[subject];
+    let pronoun = SUBJECT_PRONOUNS.contains(&word.as_str());
+    let bare = !pronoun
+        && !token.is_skipped
+        && !has_pos(token, "NNP")
+        && token
+            .readings
+            .iter()
+            .any(|r| r.pos == "NNS" || r.pos == "NN:U")
+        && !tokens[np..subject].iter().any(|t| determiner(t))
+        && !tokens[np..subject]
+            .iter()
+            .any(|t| t.is_skipped || has_pos(t, "NNP"));
+    bare
+}
+
+fn habitual(tokens: &[&Token]) -> bool {
+    tokens.iter().enumerate().any(|(i, token)| {
+        let word = normalized(token);
+        HABITUAL.contains(&word.as_str())
+            || (matches!(word.as_str(), "every" | "each")
+                && tokens
+                    .get(i + 1)
+                    .is_some_and(|next| TIME_NOUNS.contains(&normalized(next).as_str())))
+    })
+}
+
+fn narrator_frame(tokens: &[&Token], chain: &Chain, subject: usize) -> bool {
+    let first = tokens[subject].text == "I" || normalized(tokens[subject]) == "we";
+    first
+        && tokens[chain.head..chain.end]
+            .iter()
+            .any(|token| has_verb_lemma(token, |lemma| FRAME.contains(&lemma)))
+}
+
+fn specific_subject(tokens: &[&Token], subject: usize, np: usize) -> bool {
+    let token = tokens[subject];
+    let word = normalized(token);
+    if matches!(word.as_str(), "i" | "he" | "she" | "it" | "we" | "they") {
+        return true;
+    }
+    if token.is_skipped || has_pos(token, "NNP") {
+        return true;
+    }
+    tokens[np..subject].iter().any(|t| {
+        let w = normalized(t);
+        w == "the"
+            || has_pos(t, "PRP$")
+            || matches!(w.as_str(), "'s" | "'")
+            || t.is_skipped
+            || has_pos(t, "NNP")
+            || DEMONSTRATIVES.contains(&w.as_str())
+    })
+}
+
+fn gnomic_chain(tokens: &[&Token], chain: &Chain, subject: usize, np: usize) -> bool {
+    let head = tokens[chain.head];
+    let token = tokens[subject];
+    let simple = tokens[chain.head + 1..chain.end]
+        .iter()
+        .all(|t| adverb_only(t) || negation(t));
+    let dynamic = !has_verb_lemma(head, |lemma| STATIVE.contains(&lemma));
+    let definite = normalized(tokens[np]) == "the";
+    let inanimate = common_noun(token)
+        && !token.is_skipped
+        && !SUBJECT_PRONOUNS.contains(&normalized(token).as_str())
+        && !PERSON_NOUNS.contains(&normalized(token).trim_end_matches('s'));
+    simple && dynamic && definite && inanimate
+}
+
+fn backstory_anchor(tokens: &[&Token]) -> bool {
+    tokens.iter().enumerate().any(|(i, token)| {
+        let word = normalized(token);
+        let next = tokens.get(i + 1).map(|t| normalized(t)).unwrap_or_default();
+        let after = tokens.get(i + 2).map(|t| normalized(t)).unwrap_or_default();
+        matches!(word.as_str(), "ago" | "last" | "once" | "years")
+            || (word == "back" && next == "then")
+            || (word == "used" && next == "to")
+            || (word == "when"
+                && matches!(next.as_str(), "i" | "he" | "she" | "we" | "they")
+                && matches!(after.as_str(), "was" | "were"))
+            || has_verb_lemma(token, |lemma| matches!(lemma, "remember" | "recall"))
+    })
+}
+
+/// The sentence's last punctuation that is not a quote mark is `?` or `!`.
+fn question_or_exclamation(sentence: &crate::Sentence) -> bool {
+    sentence
+        .tokens
+        .iter()
+        .rev()
+        .filter(|token| !token.is_whitespace)
+        .find(|token| {
+            !token
+                .text
+                .chars()
+                .all(|c| matches!(c, '“' | '”' | '"' | '‘' | '’' | '\'' | '«' | '»' | ')'))
+        })
+        .is_some_and(|token| {
+            token.is_punctuation && (token.text.contains('?') || token.text.contains('!'))
+        })
+}
+
+/// Classifies one sentence's narration by its main-clause finite chains with explicit subjects.
+/// Quoted, thought, tagged-speech and caller spans never vote (`Document::narration_runs`).
+#[doc(hidden)]
+pub fn sentence_tense(
+    document: &Document,
+    sentence: &crate::Sentence,
+    context: &TenseContext,
+) -> SentenceVote {
+    use TenseExemption::*;
+    let mut vote = SentenceVote {
+        specific: true,
+        ..SentenceVote::default()
+    };
+    if !context.balanced_quotes {
+        vote.exemptions.push(UnbalancedQuotes);
+        return vote;
+    }
+    let question = question_or_exclamation(sentence);
+    let voiced = sentence
+        .tokens
+        .iter()
+        .any(|token| token.is_word && !document.is_narration_at(token.span.byte.start));
+    let (mut past, mut perfect, mut present) = (0, 0, 0);
+    let mut tags = true;
+    let mut gnomic = 0;
+    for run in document.narration_runs(sentence) {
+        let indexes: Vec<usize> = run
+            .filter(|&index| !sentence.tokens[index].is_whitespace)
+            .collect();
+        let tokens: Vec<&Token> = indexes
+            .iter()
+            .map(|&index| &sentence.tokens[index])
+            .collect();
+        let starts = clause_starts(&tokens);
+        let found = chains(&tokens);
+        vote.backstory |= backstory_anchor(&tokens);
+        let habitual = habitual(&tokens);
+        for (n, chain) in found.iter().enumerate() {
+            let reason = if question {
+                Some(QuestionOrExclamation)
+            } else {
+                match (chain.class, chain.subject) {
+                    (ChainClass::Modal { .. }, _) => Some(Modal),
+                    (ChainClass::Ambiguous, _) => Some(Ambiguous),
+                    (_, None) => Some(NoSubject),
+                    (_, Some(subject)) => {
+                        let np = noun_phrase_start(&tokens, subject);
+                        if reported(&tokens, &found, n, np) {
+                            Some(Reported)
+                        } else if subordinate(&tokens, &found, n, starts[chain.clause], np) {
+                            Some(Subordinate)
+                        } else if generic(&tokens, chain, subject, np) {
+                            Some(Generic)
+                        } else if habitual {
+                            Some(Habitual)
+                        } else if chain.class == ChainClass::Present
+                            && narrator_frame(&tokens, chain, subject)
+                        {
+                            Some(NarratorFrame)
+                        } else {
+                            None
+                        }
+                    }
+                }
+            };
+            if let Some(reason) = reason {
+                vote.exemptions.push(reason);
+                continue;
+            }
+            let subject = chain.subject.expect("voting chains have subjects");
+            let np = noun_phrase_start(&tokens, subject);
+            vote.voting.push(indexes[chain.head]);
+            match chain.class {
+                ChainClass::Past => past += 1,
+                ChainClass::PastPerfect => perfect += 1,
+                _ => {
+                    present += 1;
+                    gnomic += usize::from(gnomic_chain(&tokens, chain, subject, np));
+                }
+            }
+            vote.specific &= specific_subject(&tokens, subject, np);
+            // A tag: a speech or thought verb in a sentence with a voice span, or inside a tag
+            // the voice layer split into its own sentence (*Where is he? she wondered.*).
+            tags &= (voiced || document.in_voice_tag(tokens[chain.head].span.byte.start))
+                && tokens[chain.head..chain.end]
+                    .iter()
+                    .any(|token| has_verb_lemma(token, |lemma| tag_verbs().contains(lemma)));
+        }
+    }
+    vote.class = match (past + perfect > 0, present > 0) {
+        (true, false) => SentenceTense::Past,
+        (false, true) => SentenceTense::Present,
+        (true, true) => {
+            vote.exemptions.push(MixedSentence);
+            SentenceTense::Mixed
+        }
+        (false, false) => SentenceTense::Unclassified,
+    };
+    vote.past_perfect_only = past == 0 && perfect > 0;
+    vote.gnomic = present == 1 && gnomic == 1 && past + perfect == 0;
+    vote.tag_only = !vote.voting.is_empty() && tags;
+    vote
+}
+
+/// Every sentence's vote in a scene, in order, with its global sentence index.
+#[doc(hidden)]
+pub fn scene_votes(document: &Document, scene: &Scene) -> Vec<(usize, SentenceVote)> {
+    let mut votes = Vec::new();
+    let mut index = scene.sentences.start;
+    for paragraph in scene.paragraphs.clone() {
+        let context = TenseContext::new(document, paragraph);
+        for sentence in &document.paragraphs[paragraph].sentences {
+            votes.push((index, sentence_tense(document, sentence, &context)));
+            index += 1;
+        }
+    }
+    votes
+}
+
+/// Past and present classified sentences in a list of votes. Past perfect counts as past.
+#[doc(hidden)]
+pub fn tense_tally(votes: &[(usize, SentenceVote)]) -> (usize, usize) {
+    votes
+        .iter()
+        .fold((0, 0), |(past, present), (_, vote)| match vote.class {
+            SentenceTense::Past => (past + 1, present),
+            SentenceTense::Present => (past, present + 1),
+            _ => (past, present),
+        })
+}
+
+/// The scene's inferred tense: at least `minimum_sentences` classified sentences and one tense
+/// holding `minimum_majority_percent` of them. Declarations are the lens's business.
+#[doc(hidden)]
+pub fn scene_tense(
+    document: &Document,
+    scene: &Scene,
+    thresholds: &TenseThresholds,
+) -> Option<NarrativeTense> {
+    let (past, present) = tense_tally(&scene_votes(document, scene));
+    thresholds.infer(past, present)
+}

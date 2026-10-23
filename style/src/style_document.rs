@@ -345,3 +345,13 @@ impl StyleDocument {
         crate::reports::voices::report(&self.document, &options(json)?)
     }
 }
+
+impl StyleDocument {
+    /// Runs the tense-shift lens (#355): narration sentences that leave the scene's tense.
+    pub fn tense_shift(
+        &self,
+        json: Option<&str>,
+    ) -> Result<crate::reports::tense_shift::TenseShiftReport, StyleError> {
+        crate::reports::tense_shift::report(&self.document, &options(json)?)
+    }
+}

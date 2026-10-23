@@ -187,3 +187,143 @@ fn quote_balance() {
     assert!(!paragraph_quotes_balanced(&document, 1));
     assert!(paragraph_quotes_balanced(&document, 2));
 }
+
+// Tense votes (#355), shared with person drift (#354).
+
+use writemorebetter_style::narrative::{
+    display_colon_lead_in, scene_tense, sentence_tense, NarrativeTense, SentenceTense,
+    TenseContext, TenseExemption, TenseThresholds,
+};
+use writemorebetter_style::reports::tense_shift::{self, TenseShiftOptions};
+
+fn vote_of(text: &str) -> (SentenceTense, Vec<TenseExemption>, Vec<String>) {
+    let document = analyze(text);
+    let sentence = document.sentences().next().unwrap();
+    let vote = sentence_tense(&document, sentence, &TenseContext::new(&document, 0));
+    let heads = vote
+        .voting
+        .iter()
+        .map(|&index| sentence.tokens[index].text.clone())
+        .collect();
+    (vote.class, vote.exemptions, heads)
+}
+
+#[test]
+fn sentence_tense_classes_and_exemptions() {
+    use SentenceTense::*;
+    use TenseExemption::*;
+    for (text, class, exemptions, heads) in [
+        ("She walked home.", Past, vec![], vec!["walked"]),
+        ("The room is dark.", Present, vec![], vec!["is"]),
+        (
+            "It’s cold—colder than outside…",
+            Present,
+            vec![],
+            vec!["’s"],
+        ),
+        ("She’d gone before.", Past, vec![], vec!["’d"]),
+        (
+            "She would sit by the window.",
+            Unclassified,
+            vec![Modal],
+            vec![],
+        ),
+        ("She can see it now.", Unclassified, vec![Modal], vec![]),
+        (
+            "Where is he?",
+            Unclassified,
+            vec![QuestionOrExclamation],
+            vec![],
+        ),
+        ("Let’s go.", Unclassified, vec![NoSubject], vec![]),
+        ("They set it down.", Unclassified, vec![Ambiguous], vec![]),
+        ("She knew that he lies.", Past, vec![Reported], vec!["knew"]),
+        (
+            "It was the house where she lives now.",
+            Past,
+            vec![Subordinate],
+            vec!["was"],
+        ),
+        ("People are strange.", Unclassified, vec![Generic], vec![]),
+        ("A man needs a job.", Unclassified, vec![Generic], vec![]),
+        ("It is hard to say.", Unclassified, vec![Generic], vec![]),
+        (
+            "She always walks home.",
+            Unclassified,
+            vec![Habitual],
+            vec![],
+        ),
+        ("I suppose so.", Unclassified, vec![NarratorFrame], vec![]),
+        (
+            "I told him, and June is a liar.",
+            Mixed,
+            vec![MixedSentence],
+            vec!["told", "is"],
+        ),
+    ] {
+        let heads: Vec<String> = heads.into_iter().map(str::to_owned).collect();
+        assert_eq!(vote_of(text), (class, exemptions, heads), "{text}");
+    }
+}
+
+#[test]
+fn sentence_tense_respects_voices_and_unbalanced_quotes() {
+    // Only the tag votes; the quote is not narration.
+    assert_eq!(
+        vote_of("“The room is dark,” she said."),
+        (SentenceTense::Past, vec![], vec!["said".to_owned()])
+    );
+    let document = analyze("“The room is dark. The air is cold.");
+    let sentence = document.sentences().next().unwrap();
+    let vote = sentence_tense(&document, sentence, &TenseContext::new(&document, 0));
+    assert_eq!(vote.class, SentenceTense::Unclassified);
+    assert_eq!(vote.exemptions, [TenseExemption::UnbalancedQuotes]);
+}
+
+#[test]
+fn display_colons_lead_in_reported_text() {
+    for (text, expected) in [
+        ("The sign read: Rooms To Let.", true),
+        ("The note on the door: back soon.", true),
+        ("She had one rule: never look back.", false),
+    ] {
+        let document = analyze(text);
+        let tokens = sentence_tokens(&document, 0);
+        let colon = tokens.iter().position(|token| token.text == ":").unwrap();
+        assert_eq!(display_colon_lead_in(&tokens, colon), expected, "{text}");
+    }
+}
+
+#[test]
+fn scene_tense_thresholds() {
+    let thresholds = TenseThresholds::default();
+    assert_eq!(thresholds.minimum_sentences, 6);
+    assert_eq!(thresholds.infer(6, 0), Some(NarrativeTense::Past));
+    assert_eq!(thresholds.infer(5, 0), None);
+    assert_eq!(thresholds.infer(7, 3), Some(NarrativeTense::Past));
+    assert_eq!(thresholds.infer(6, 4), None);
+    assert_eq!(thresholds.infer(1, 9), Some(NarrativeTense::Present));
+}
+
+#[test]
+fn scene_tense_agrees_with_the_tense_shift_lens() {
+    let text = "Mara walked home. She opened the gate. The dog barked twice. She fed him. The \
+kettle boiled. She drank her tea. The room is dark.\n\n* * *\n\nAna walks to the window. She opens \
+the shutters. The street is quiet. The baker sweeps his step. She watches him. He waves.\n\n* * \
+*\n\nShe woke. It is late.";
+    let document = analyze(text);
+    let report = tense_shift::report(&document, &TenseShiftOptions::new()).unwrap();
+    let found = scenes(&document);
+    assert_eq!(found.len(), 3);
+    for scene in &found {
+        let shared = scene_tense(&document, scene, &TenseThresholds::default());
+        assert_eq!(
+            shared, report.scenes[scene.index].tense,
+            "scene {}",
+            scene.index
+        );
+    }
+    assert_eq!(report.scenes[0].tense, Some(NarrativeTense::Past));
+    assert_eq!(report.scenes[1].tense, Some(NarrativeTense::Present));
+    assert_eq!(report.scenes[2].tense, None);
+}
