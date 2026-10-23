@@ -12,7 +12,7 @@
 33 | GRAMMAR/A_NNS/2 | "a boxes" -> ["a box", "boxes"] | The plural noun "boxes" cannot be used with the article "a". Did you mean a box or boxes?
 34 | TYPOS/PEAKED_THROUGH/0 | "peaked" -> ["peeked"] | Did you mean peeked (looked quickly)?
 40 | SPELLCHECK/SINGLE | "definately" -> ["definitely"] | Possibly misspelled word.
-41 | SPELLCHECK/SINGLE | "wierd" -> ["heard", "wear", "Ward", "ward", "wears", "beard", "wired", "weary", "weird", "wield"] | Possibly misspelled word.
-42 | SPELLCHECK/SINGLE | "beleive" -> ["believe", "behave"] | Possibly misspelled word.
+41 | SPELLCHECK/SINGLE | "wierd" -> ["weird"] | Possibly misspelled word.
+42 | SPELLCHECK/SINGLE | "beleive" -> ["believe"] | Possibly misspelled word.
 57 | PUNCTUATION/COMMA_COMPOUND_SENTENCE/0 | " and" -> [", and"] | Use a comma before 'and' if it connects two independent clauses (unless they are closely connected and short).
 90 | PUNCTUATION/COMMA_COMPOUND_SENTENCE/0 | " and" -> [", and"] | Use a comma before 'and' if it connects two independent clauses (unless they are closely connected and short).

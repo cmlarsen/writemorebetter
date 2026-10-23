@@ -50,11 +50,26 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
 ### Changed
 
-- **`RULES_FORMAT_VERSION` is 36.** Version 33 added `SpellLangOptions::latin_script`, 34 the
+- **`RULES_FORMAT_VERSION` is 37.** Version 33 added `SpellLangOptions::latin_script`, 34 the
   `ConsistentApostrophes` builtin, 35 stores the multitoken phrase list once instead of twice
-  ([#212](https://github.com/cmlarsen/writemorebetter/issues/212)), and 36 adds the speller
-  dictionaries' replacement pairs (#194), so 0.12.0's `en_rules.bin` no longer loads; use the
-  next release's data zip. The tokenizer format stays 18.
+  ([#212](https://github.com/cmlarsen/writemorebetter/issues/212)), 36 adds the speller
+  dictionaries' replacement pairs (#194), and 37 the curated spelling suggestions, so 0.12.0's
+  `en_rules.bin` no longer loads; use the next release's data zip. The tokenizer format stays 18.
+- **Common misspellings get LanguageTool's hand-written suggestions first.** "wierd" now gets
+  weird, "freind" friend and "cemetary" cemetery as the only suggestion; "tonite" gets tonight,
+  "alot" a lot and "ur" your before the speller's candidates; a word ending in "ys" gets its
+  "ies" form first when that is a word ("babys" gets babies). The lists come from LanguageTool's
+  `AbstractEnglishSpellerRule` and `MorfologikAmericanSpellerRule` (675 words, 77 patterns, 4
+  American-only words, with LanguageTool's later additions such as "forseeable"), extracted by
+  `build/extract_speller_suggestions.py` into a builtin data file (`speller_suggestions.txt`,
+  LGPL) compiled into `en_rules.bin`; the engine keeps only a generic table. The patterns are
+  case-sensitive as in LanguageTool, so "WIERD" still gets the speller's candidates. On 728
+  test words LanguageTool 6.6 flags, top-1 agreement goes from 199 to 708 and top-5 from 126
+  to 684.
+- **Suggestions for a sentence's first word are capitalized.** As in LanguageTool, the
+  lowercase suggestions for the first word of a sentence (after any opening punctuation such
+  as a quote or a dash) start with a capital ("“wierd thing…" gets Weird, "alot of"
+  gets A lot, Lot), unless the word is the sentence's last token.
 - **`Builtin::check` and `Builtin::check_text` take the speller.** Both take an
   `Option<&Speller>` as a new last argument, as `Builtin::check_paragraph` does. Pass
   `rules.spell().speller().as_ref()` to get the `EN_COMPOUNDS` suggestions `Rules::suggest`

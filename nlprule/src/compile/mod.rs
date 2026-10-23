@@ -14,9 +14,12 @@ use std::{
 
 use crate::{
     rules::Rules,
-    spell::{multitoken::MultitokenSpeller, split::SplitFilter, Spell},
+    spell::{
+        curated::CuratedSuggestions, multitoken::MultitokenSpeller, split::SplitFilter, Spell,
+    },
     tokenizer::{chunk::Chunker, multiword::MultiwordTagger, tag::Tagger, Tokenizer},
     types::DefaultHasher,
+    utils::regex::Regex,
 };
 use log::info;
 
@@ -272,6 +275,12 @@ pub fn compile(
         }
         spell.split_filter =
             SplitFilter::new(builtin::read_list(build_dir, "speller_split_filter"));
+        spell.curated = CuratedSuggestions::new(
+            builtin::read_list(build_dir, "speller_suggestions"),
+            |pattern| {
+                Regex::from_java_regex(pattern, true, true).map_err(|error| error.to_string())
+            },
+        );
         spell
     } else {
         info!(
