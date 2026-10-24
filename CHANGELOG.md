@@ -202,6 +202,11 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
 ### Fixed
 
+- **Overused words no longer counts nouns used as modifiers as adjectives or verbs.** *drill* in
+  *drill head*, *rock* in *rock wall* and *sample* in *sample kit* were flagged as overused at 25× to
+  340× because the tagger reads them as `JJ` or `VB`. A modifier now counts as a noun use, and is
+  left out with other nouns by default, when the document uses that word as a noun-phrase head at
+  least twice and at least as often as a predicative adjective.
 - **The number check names centuries.** An ordinal before *century* (`19th century`,
   `19th-century ruins`) is still flagged, since Chicago spells centuries out, but the message now
   says so ("Spell out centuries in prose, as in “the nineteenth century”.") instead of naming the

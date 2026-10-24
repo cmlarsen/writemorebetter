@@ -52,7 +52,13 @@ content lemma:
    *prise/prize*, *canoe/cane*, *timbre/timber*). The flag reports the spelling the document uses
    most.
 6. Nouns are left out unless `includeNouns` is true: a token whose chosen lemma has only noun readings
-   after step 3 is a noun use.
+   after step 3 is a noun use. A noun used as a modifier is a noun use too: a token inside a noun
+   phrase but not its head (*drill head*, *rock wall*, *sample kit*) whose lemma the document uses
+   as a noun-phrase head at least twice, on tokens with no adjective reading, and at least as often
+   as it uses that lemma as an adjective outside a noun phrase (*the sky was black*). A token that
+   also reads as an adjective with another lemma keeps its readings (*still stranger noises* is not
+   the noun *stranger*). The tagger gives these modifiers `JJ` or verb readings (*rock/JJ*,
+   *drill/VB*), so without this step they counted as adjectives and verbs.
 
 A lemma is flagged when its count is at least `minimumCount`, its reference rate is at least
 `minimumReferencePerMillion`, and
@@ -84,13 +90,17 @@ averages 2.9 per 10,000 words".
 The ratio uses the POS-collapsed reference (noun and verb *smile* share one rate), so excluding noun
 uses from the document count makes the default conservative for noun/verb homographs.
 
-Known gap: a noun used as a modifier that the tagger reads as an adjective still counts as a non-noun
-(*express* in *express car*, *express office*, flagged at 26× in *The Call of the Wild*). Ngram's
-own tags can't separate these. It tags *express* ADJ 304k and NOUN 238k times, but *tender* NOUN
-2.4M and ADJ 183k. A rule that dropped prenominal adjectives whose noun uses rival their adjective
-uses would remove *express*, but also *tender*, *tense*, *evil* and *secret* in *a tender smile*,
-which are the adjectives this lens exists for. On the 18 texts below it removed only *express*, so it
-was not adopted.
+Noun modifiers (#248 known gap, fixed 2026-10-24): before step 6 covered them, a noun used as a
+modifier counted as an adjective or verb (*express car*, flagged at 26× in *The Call of the Wild*;
+*drill steel*, *rock face* and *sample rack* in a mining and lab chapter, at 25× to 340×).
+Ngram's own tags can't separate these. It tags *express* ADJ 304k and NOUN 238k times, but *tender*
+NOUN 2.4M and ADJ 183k, so a rule keyed on the reference would also drop *a tender smile*. Step 6
+uses the document's own noun uses instead. On the public calibration texts below it removes only
+*sea* (*going to sea*, judged wrong). On 80 published chapter windows (aggregate only) it removed
+45 of 771 flags and added none. Most were topic nouns (*crew*, *dock*, *station*, *train*, *snow*,
+*human*, *local*). It also drops some adjectives in books that use the same word as a noun often:
+*black* in one of five windows (*dressed in black*), *flat* in three, *basic*, *current* and
+*physical* in one each. Keeping those would need Ngram's per-POS split in the bundled table.
 
 The document picks one lemma per token with the chunk restriction above; `echoes` groups words into
 families (`echo_families`) and keeps every family. The same token can therefore get a different
@@ -234,7 +244,8 @@ other wrong flag, with *sea* in *going to sea*.
   chapter); refrains (*run* for the ferry timetable, *pay attention*, *understand*); the Moby-Dick
   *Extracts* window, all nine flags of which come from quoted sources; sermon rhetoric (*seek*, *true*).
 - Wrong: *form* in *The Age of Innocence* counts the noun *“form”* and *sea* in *going to sea* is
-  counted as a non-noun; both are noun uses the chunk restriction missed.
+  counted as a non-noun; both are noun uses the chunk restriction missed. The noun-modifier step
+  (2026-10-24) removes the *sea* flag.
 
 Including nouns adds 152 flags, mostly setting and topic: *ferry*, *island*, *clock*, *bread*,
 *whale*-chapter *ship*, *sea*, *bed*, *landlord*. About ten are useful (*way* in the *the way you…*
