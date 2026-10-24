@@ -18,6 +18,12 @@ on:
       - "Cargo.toml"
       - ".github/workflows/fuzz.yml"
 
+# A new push to a PR cancels that PR's older runs. On main, runs never cancel each other;
+# a newer push replaces only a run that is still waiting.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 # Deterministic crash replay on stable Rust. A seeded generator produces a few
 # thousand boundary-heavy inputs and the committed crash corpus is replayed
 # through the same `suggest` + `apply_suggestions` path the app uses. The whole
