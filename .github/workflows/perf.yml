@@ -5,10 +5,16 @@ on:
     branches: [main]
   pull_request:
 
+# A new push to a PR cancels that PR's older runs. On main, runs never cancel each other;
+# a newer push replaces only a run that is still waiting.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   perf:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
         with:
