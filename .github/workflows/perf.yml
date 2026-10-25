@@ -45,6 +45,11 @@ jobs:
       - name: Build data (pinned LanguageTool 6.6)
         run: scripts/build-data.sh --out-dir storage/66
 
+      # The probe perf_ci.py measures as the head; building it also writes the lockfile the
+      # merge-base copy reuses.
+      - name: Build the probe
+        run: cargo build --release --manifest-path bench/tools/wmb-probe/Cargo.toml
+
       - name: Prepare merge-base engine with identical probe
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
