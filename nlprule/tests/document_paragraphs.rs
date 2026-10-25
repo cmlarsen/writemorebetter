@@ -18,6 +18,8 @@ const SIMPLE: &str = "READABILITY_RULE_SIMPLE";
 const DIFFICULT: &str = "READABILITY_RULE_DIFFICULT";
 const REPEAT: &str = "PARAGRAPH_REPEAT_BEGINNING_RULE";
 const IDS: [&str; 3] = [SIMPLE, DIFFICULT, REPEAT];
+/// writemorebetter's own paragraph rule, which no LanguageTool probe covers.
+const OPENER: &str = "PARAGRAPH_OPENER_REPEAT";
 
 lazy_static! {
     static ref TOKENIZER: Tokenizer = Tokenizer::new(TOKENIZER_PATH).unwrap();
@@ -1041,6 +1043,7 @@ lazy_static! {
                 "TOO_OFTEN_USED_ADJECTIVE_EN",
                 "TOO_OFTEN_USED_NOUN_EN",
                 "TOO_OFTEN_USED_VERB_EN",
+                OPENER,
             ])
             .map(|x| format!("BUILTIN/{}", x))
             .collect();
@@ -1060,6 +1063,7 @@ fn whole_text_keys(suggestions: &[Suggestion]) -> Vec<(String, usize, Option<usi
         SIMPLE,
         DIFFICULT,
         REPEAT,
+        OPENER,
     ];
     suggestions
         .iter()
@@ -1093,7 +1097,7 @@ fn all_whole_text_rules_share_the_digests() {
     );
     let whole = whole_text_keys(&ALL.suggest(&text, &TOKENIZER));
     let sources: Vec<&str> = whole.iter().map(|x| x.0.as_str()).collect();
-    for id in [REPEAT, "EN_WORD_COHERENCY", "EN_CONSISTENT_APOS"] {
+    for id in [REPEAT, OPENER, "EN_WORD_COHERENCY", "EN_CONSISTENT_APOS"] {
         assert!(
             sources.iter().any(|x| x.contains(id)),
             "{}: {:?}",
@@ -1135,4 +1139,104 @@ fn all_whole_text_rules_share_the_digests() {
             let _ = m.to_suggestion(blocks[m.paragraph()]);
         }
     }
+}
+
+lazy_static! {
+    static ref OPENER_ON: Rules = {
+        let mut rules = Rules::new(RULES_PATH).unwrap();
+        assert_eq!(
+            rules
+                .enable_rules(&[format!("BUILTIN/{}", OPENER)])
+                .unwrap(),
+            1
+        );
+        rules
+    };
+}
+
+/// The text each `PARAGRAPH_OPENER_REPEAT` match marks, with the index of its paragraph in
+/// `text` split at blank lines.
+fn opener_flags(rules: &Rules, text: &str) -> Vec<(usize, String)> {
+    rules
+        .suggest(text, &TOKENIZER)
+        .into_iter()
+        .filter(|s| s.source() == format!("BUILTIN/{}", OPENER))
+        .map(|s| {
+            let byte = s.span().byte().clone();
+            assert!(s.replacements().is_empty());
+            assert_eq!(s.message(), "Nearby paragraphs begin with the same word");
+            (
+                text[..byte.start].matches("\n\n").count(),
+                text[byte].to_owned(),
+            )
+        })
+        .collect()
+}
+
+fn owned(flags: &[(usize, &str)]) -> Vec<(usize, String)> {
+    flags.iter().map(|(i, x)| (*i, (*x).to_owned())).collect()
+}
+
+/// Each paragraph is compared with the three before it, and every paragraph of a match is
+/// marked once, from its first token to the repeated word.
+#[test]
+fn paragraph_opener_repeat_looks_three_paragraphs_back() {
+    let text = "I opened the door. \u{201c}Who\u{2019}s there?\u{201d} I asked.\n\n\
+                Shaking, I stepped inside\u{2014}slowly.\n\n\
+                I lit the lamp\u{2026} nothing moved.\n\n\
+                I sat down.\u{2028}The clock ticked.\n\n\
+                Okay, so it was empty.\n\n\
+                Before dawn, I heard it again.\n\n\
+                I stood up.";
+    assert_eq!(
+        opener_flags(&OPENER_ON, text),
+        owned(&[(0, "I"), (2, "I"), (3, "I"), (6, "I")])
+    );
+    // Four paragraphs apart is outside the window; LanguageTool's rule flags neither.
+    let far = "She ran.\n\nHe hid.\n\nThey waited.\n\nWe left.\n\nShe stopped.";
+    assert!(opener_flags(&OPENER_ON, far).is_empty());
+    let near = "She ran.\n\nHe hid.\n\nThey waited.\n\nShe stopped.";
+    assert_eq!(
+        opener_flags(&OPENER_ON, near),
+        owned(&[(0, "She"), (3, "She")])
+    );
+    // A line break inside a paragraph is not a paragraph break.
+    assert!(opener_flags(&OPENER_ON, "She ran.\nShe hid.").is_empty());
+}
+
+/// Beginnings compare as in LanguageTool's rule: a shared quote and a shared determiner are
+/// skipped, the word is case-sensitive, and a dash or ellipsis lead never matches.
+#[test]
+fn paragraph_opener_repeat_compares_like_languagetool() {
+    let cases: &[(&str, &[(usize, &str)])] = &[
+        (
+            "\u{201c}I\u{2019}m cold,\u{201d} she said.\n\nShe nodded.\n\n\u{201c}I know.\u{201d}",
+            &[(0, "\u{201c}I"), (2, "\u{201c}I")],
+        ),
+        ("\u{201c}I\u{2019}m cold.\u{201d}\n\nI know.", &[]),
+        ("The dog barked.\n\nThe cat hissed.", &[]),
+        (
+            "The dog barked.\n\nA bird sang.\n\nThe dog slept.",
+            &[(0, "The dog"), (2, "The dog")],
+        ),
+        ("\u{2014}She ran.\n\n\u{2014}She hid.", &[]),
+        ("\u{2026}and then.\n\n\u{2026}and again.", &[]),
+        ("i ran.\n\nI hid.", &[]),
+    ];
+    for (text, flags) in cases {
+        assert_eq!(opener_flags(&OPENER_ON, text), owned(flags), "{:?}", text);
+    }
+}
+
+/// Off by default, on in the fiction profile.
+#[test]
+fn paragraph_opener_repeat_is_on_in_fiction() {
+    let text = "She ran.\n\nHe hid.\n\nShe stopped.";
+    assert!(opener_flags(&RULES, text).is_empty());
+    let mut fiction = Rules::new(RULES_PATH).unwrap();
+    assert!(fiction.apply_profile(&Profile::fiction()).is_empty());
+    assert_eq!(
+        opener_flags(&fiction, text),
+        owned(&[(0, "She"), (2, "She")])
+    );
 }

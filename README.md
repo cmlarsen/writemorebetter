@@ -144,8 +144,9 @@ thread.
 
 A few rules need the whole document: `EN_CONSISTENT_APOS` (mixed straight and curly apostrophes),
 `EN_WORD_COHERENCY` (two spellings of one word), `EN_REPEATEDWORDS` (a word repeated within 150
-words) and `TOO_OFTEN_USED_*` (a word's share of all its nouns, verbs or adjectives). An editor
-such as Subplot that rechecks only the edited paragraph does it in two steps:
+words), `TOO_OFTEN_USED_*` (a word's share of all its nouns, verbs or adjectives) and
+`PARAGRAPH_OPENER_REPEAT` (paragraphs that begin with the same word as one of the three before
+them; on in the fiction profile). An editor such as Subplot that rechecks only the edited paragraph does it in two steps:
 
 1. `checkParagraph` (Swift, WASM; `check_paragraph` in Python and Rust) checks one paragraph and
    returns its suggestions, without those rules', and its **digest**: bytes the app stores with
@@ -192,7 +193,8 @@ CI and the release workflow both call it. See [`binaries/README.md`](binaries/RE
 turns off the rules that misfire on fiction voice — straight-to-curly quote and dash typography,
 dialogue informality ("gonna", "You okay?"), comma-before-"and" style, and redundancy advice. It
 also turns on `EN_CONSISTENT_APOS`, which flags the rarer style in a text that mixes straight and
-curly apostrophes. See
+curly apostrophes, and `PARAGRAPH_OPENER_REPEAT`, which marks paragraphs that open with the same
+word as one of the three before them. See
 [`docs/PROFILE.md`](docs/PROFILE.md).
 
 The user dictionary (`add_words` and friends) whitelists character names, invented places and

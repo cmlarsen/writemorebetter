@@ -67,7 +67,7 @@ impl Profile {
 
     /// The fiction profile: disables rules that are known to misfire on fiction drafts, and
     /// enables `EN_CONSISTENT_APOS`, which is off by default in LanguageTool, flagging only
-    /// the less common apostrophe style.
+    /// the less common apostrophe style, and `PARAGRAPH_OPENER_REPEAT`.
     ///
     /// The counts in the comments are how often each rule fired on the private draft
     /// corpus before tuning. This list is expected to change as the corpus grows; the
@@ -121,6 +121,10 @@ impl Profile {
                 // A manuscript that mixes straight and curly apostrophes, often from text
                 // pasted in from another editor. Lone curly quotes are not apostrophes to it.
                 "BUILTIN/EN_CONSISTENT_APOS",
+                // Paragraphs that open with the same word as one of the three before them
+                // (writemorebetter's rule; off in the default profile). First-person and
+                // close-third drafts trip it often, on purpose: the writer judges each one.
+                "BUILTIN/PARAGRAPH_OPENER_REPEAT",
             ]
             .iter()
             .map(|selector| (*selector).to_owned())

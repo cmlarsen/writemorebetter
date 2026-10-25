@@ -137,6 +137,7 @@ pub(crate) fn for_language(
             BuiltinRule::new_disabled(Builtin::ParagraphRepeatBeginning(
                 ParagraphRepeatBeginning::new(),
             )),
+            BuiltinRule::new_disabled(Builtin::ParagraphOpenerRepeat(ParagraphOpenerRepeat::new())),
         ]),
         _ => Ok(Vec::new()),
     }

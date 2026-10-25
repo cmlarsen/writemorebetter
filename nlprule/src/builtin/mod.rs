@@ -88,6 +88,9 @@ pub enum Builtin {
     /// Flags two successive paragraphs that begin with the same word. A whole-text rule: see
     /// [`crate::document`].
     ParagraphRepeatBeginning(en::ParagraphRepeatBeginning),
+    /// Flags paragraphs that begin with the same word as one of the few before them, a
+    /// writemorebetter rule. A whole-text rule: see [`crate::document`].
+    ParagraphOpenerRepeat(en::ParagraphOpenerRepeat),
 }
 
 impl Builtin {
@@ -120,6 +123,7 @@ impl Builtin {
             Builtin::ConsistentApostrophes(rule) => rule.id(),
             Builtin::Readability(rule) => rule.id(),
             Builtin::ParagraphRepeatBeginning(rule) => rule.id(),
+            Builtin::ParagraphOpenerRepeat(rule) => rule.id(),
         }
     }
 
@@ -132,7 +136,8 @@ impl Builtin {
     /// Runs this rule on consecutive sentences of one paragraph. Rules that need context beyond one sentence
     /// (e.g. quotes spanning sentences) see all of them; sentence-level rules check each one separately.
     /// The whole-text rules (`EN_CONSISTENT_APOS`, `EN_REPEATEDWORDS`, `EN_WORD_COHERENCY`,
-    /// `TOO_OFTEN_USED_*`, `READABILITY_RULE_*`, `PARAGRAPH_REPEAT_BEGINNING_RULE`; see
+    /// `TOO_OFTEN_USED_*`, `READABILITY_RULE_*`, `PARAGRAPH_REPEAT_BEGINNING_RULE`,
+    /// `PARAGRAPH_OPENER_REPEAT`; see
     /// [`crate::document`]) take `sentences` as the whole text. Rules that
     /// check their suggestions against the speller (`EN_COMPOUNDS`) use `speller`; pass
     /// [`Spell::speller`](crate::spell::Spell::speller) of the [`Rules`](crate::Rules) to get the
@@ -213,7 +218,8 @@ impl Builtin {
             | Builtin::RepeatedWords(_)
             | Builtin::TooOftenUsed(_)
             | Builtin::Readability(_)
-            | Builtin::ParagraphRepeatBeginning(_) => Vec::new(),
+            | Builtin::ParagraphRepeatBeginning(_)
+            | Builtin::ParagraphOpenerRepeat(_) => Vec::new(),
         }
     }
 }
