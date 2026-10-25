@@ -1749,7 +1749,9 @@ impl Builtin {
     pub(crate) fn is_paragraph_rule(&self) -> bool {
         matches!(
             self,
-            Builtin::Readability(_) | Builtin::ParagraphRepeatBeginning(_)
+            Builtin::Readability(_)
+                | Builtin::ParagraphRepeatBeginning(_)
+                | Builtin::ParagraphOpenerRepeat(_)
         )
     }
 
@@ -1839,6 +1841,9 @@ impl Builtin {
                 )
             }
             Builtin::ParagraphRepeatBeginning(rule) => {
+                rule.resolve(paragraphs.get_or_insert_with(|| document_paragraphs(digests, exact)))
+            }
+            Builtin::ParagraphOpenerRepeat(rule) => {
                 rule.resolve(paragraphs.get_or_insert_with(|| document_paragraphs(digests, exact)))
             }
             _ => Vec::new(),

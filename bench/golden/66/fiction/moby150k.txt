@@ -1,28 +1,165 @@
+15 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
 15 | SPELLCHECK/SINGLE | "Loomings" -> ["Looming", "Boomings", "Gloomings", "Lookings", "Loopings", "Lootings"] | Possibly misspelled word.
+17 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+19 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+21 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+23 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+25 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+27 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+29 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+31 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+33 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+35 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+37 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+39 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+41 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+43 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+45 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+47 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+49 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+51 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+53 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+55 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+57 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+59 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+61 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+63 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+65 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+67 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+69 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+71 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
 71 | SPELLCHECK/SINGLE | "Stubb" -> ["Stub", "Stubby", "Stubbs", "Stubs"] | Possibly misspelled word.
+73 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+75 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+77 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+79 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
 79 | SPELLCHECK/SINGLE | "Specksnyder" -> [] | Possibly misspelled word.
+81 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+83 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+85 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+87 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+89 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+91 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+93 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+95 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+97 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+99 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+101 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+103 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+105 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+107 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+109 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+111 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+113 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
 113 | SPELLCHECK/SINGLE | "Fedallah" -> ["Fellah", "Abdallah"] | Possibly misspelled word.
+115 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+117 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+119 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
 119 | SPELLCHECK/SINGLE | "Gam" -> ["GAM", "Game", "Gas", "Am", "Gap", "Sam", "Gym", "GMA", "RAM", "Dam"] | Possibly misspelled word.
+121 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+123 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+125 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+128 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+131 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+133 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+135 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+137 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
 137 | SPELLCHECK/SINGLE | "Stubb" -> ["Stub", "Stubby", "Stubbs", "Stubs"] | Possibly misspelled word.
+139 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+141 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+143 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
 143 | SPELLCHECK/SINGLE | "Stubb" -> ["Stub", "Stubby", "Stubbs", "Stubs"] | Possibly misspelled word.
+145 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+147 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+149 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+151 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+153 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+155 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
 155 | SPELLCHECK/SINGLE | "Sphynx" -> ["Sphinx"] | Possibly misspelled word.
+157 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+159 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+161 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
 161 | SPELLCHECK/SINGLE | "Stubb" -> ["Stub", "Stubby", "Stubbs", "Stubs"] | Possibly misspelled word.
+164 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+166 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+168 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+170 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
 170 | SPELLCHECK/SINGLE | "Heidelburgh" -> ["Heidelberg"] | Possibly misspelled word.
+172 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+174 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+176 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+178 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
 178 | SPELLCHECK/SINGLE | "Pequod" -> ["Pe quod"] | Possibly misspelled word.
+180 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+182 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+184 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
 184 | SPELLCHECK/SINGLE | "Pitchpoling" -> ["Pitch poling"] | Possibly misspelled word.
+186 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+188 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+190 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+192 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+194 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+196 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+198 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
 198 | SPELLCHECK/SINGLE | "Pequod" -> ["Pe quod"] | Possibly misspelled word.
+200 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+202 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+204 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+206 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+208 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+210 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+212 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+214 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+216 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+218 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+220 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
 220 | SPELLCHECK/SINGLE | "Arsacides" -> ["Arsenides"] | Possibly misspelled word.
+222 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+224 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+226 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+228 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+230 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+232 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+234 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
 234 | SPELLCHECK/SINGLE | "Starbuck" -> ["Starbucks", "Star buck"] | Possibly misspelled word.
+236 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
 236 | SPELLCHECK/SINGLE | "Queequeg" -> ["Queue", "Queues", "Queued", "Queening", "Queened", "Queering", "Queenie", "Queenies", "Queered", "Queerer"] | Possibly misspelled word.
+238 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+240 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+242 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+244 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+246 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
 246 | SPELLCHECK/SINGLE | "Pequod" -> ["Pe quod"] | Possibly misspelled word.
+248 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+250 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+252 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+254 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+256 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+258 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+260 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+262 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+264 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+266 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+268 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+270 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+272 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
 272 | SPELLCHECK/SINGLE | "Pequod" -> ["Pe quod"] | Possibly misspelled word.
+274 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+276 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+278 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
 278 | SPELLCHECK/SINGLE | "Pequod" -> ["Pe quod"] | Possibly misspelled word.
+280 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+282 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+284 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
+286 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "CHAPTER" -> [] | Nearby paragraphs begin with the same word
 295 | SPELLCHECK/SINGLE | "etexts" -> ["texts"] | Possibly misspelled word.
 298 | SPELLCHECK/SINGLE | "etext" -> ["text"] | Possibly misspelled word.
 318 | SPELLCHECK/SINGLE | "maketh" -> ["make", "makes", "market", "makeup", "markets", "maker", "makers", "math", "Gareth", "Macbeth"] | Possibly misspelled word.
 320 | SPELLCHECK/SINGLE | "Hackluyt" -> ["Hakluyt"] | Possibly misspelled word.
+322 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "“WHALE" -> [] | Nearby paragraphs begin with the same word
 322 | SPELLCHECK/SINGLE | "hval" -> ["Oval", "Heal", "HVAC", "Hal", "Val"] | Possibly misspelled word.
 323 | SPELLCHECK/SINGLE | "hvalt" -> ["Halt"] | Possibly misspelled word.
+326 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "“WHALE" -> [] | Nearby paragraphs begin with the same word
 326 | SPELLCHECK/SINGLE | "Dut" -> ["But", "Out", "Due", "Cut", "Put", "Duty", "Duo", "Duet", "Dust", "Dot"] | Possibly misspelled word.
 326 | BUILTIN/UPPERCASE_SENTENCE_START | "and" -> ["And"] | This sentence does not start with an uppercase letter.
 326 | SPELLCHECK/SINGLE | "Wallen" -> ["Fallen", "Allen", "Walled", "Walden", "Waller", "Wallet"] | Possibly misspelled word.
@@ -50,11 +187,13 @@
 342 | SPELLCHECK/SINGLE | "PEHEE-NUEE-NUEE" -> [] | Possibly misspelled word.
 342 | BUILTIN/WHITESPACE_RULE | "   " -> [" "] | Possible typo: repeated spaces
 342 | SPELLCHECK/SINGLE | "Erromangoan" -> [] | Possibly misspelled word.
+345 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "EXTRACTS" -> [] | Nearby paragraphs begin with the same word
 351 | SPELLCHECK/SINGLE | "Vaticans" -> ["Vatican"] | Possibly misspelled word.
 352 | STYLE/ANYWAYS/0 | "anyways" -> ["anyway"] | The word 'anyways' is informal American English. Did you mean anyway?
 353 | PUNCTUATION/SENT_START_CONJUNCTIVE_LINKING_ADVERB_COMMA/0 | "Therefore" -> ["Therefore,"] | A comma may be missing after the conjunctive/linking adverb 'Therefore'.
 363 | SPELLCHECK/SINGLE | "belongest" -> ["be longest"] | Possibly misspelled word.
 376 | SPELLCHECK/SINGLE | "unsplinterable" -> ["unsplittable"] | Possibly misspelled word.
+378 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "EXTRACTS" -> [] | Nearby paragraphs begin with the same word
 382 | SPELLCHECK/SINGLE | "maketh" -> ["make", "makes", "market", "makeup", "markets", "maker", "makers", "math", "Gareth", "Macbeth"] | Possibly misspelled word.
 396 | SPELLCHECK/SINGLE | "cometh" -> ["comet", "comets", "COMETA"] | Possibly misspelled word.
 398 | SPELLCHECK/SINGLE | "perisheth" -> ["perished", "perishes", "perisher", "perishers"] | Possibly misspelled word.
@@ -102,17 +241,22 @@
 532 | SPELLCHECK/SINGLE | "Sperma-ceti" -> ["Spermaceti"] | Possibly misspelled word.
 546 | SPELLCHECK/SINGLE | "Ulloa" -> ["Alloa"] | Possibly misspelled word.
 551 | SPELLCHECK/SINGLE | "Tho" -> ["The", "To", "Who", "Two", "Too", "Thou", "WHO", "Thor", "Thy", "THC"] | Possibly misspelled word.
+556 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "“If" -> [] | Nearby paragraphs begin with the same word
+561 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "“If" -> [] | Nearby paragraphs begin with the same word
 574 | SPELLCHECK/SINGLE | "Uno" -> ["UNO", "No", "Unto", "Juno", "UNC", "USO", "Una", "Undo", "Uni", "UNB"] | Possibly misspelled word.
 574 | SPELLCHECK/SINGLE | "Troil" -> ["Trail", "Troll", "Toil", "Broil", "Roil"] | Possibly misspelled word.
 577 | SPELLCHECK/SINGLE | "Spermacetti" -> ["Spermaceti"] | Possibly misspelled word.
 577 | SPELLCHECK/SINGLE | "Nantuckois" -> ["Nantucket"] | Possibly misspelled word.
 594 | SPELLCHECK/SINGLE | "Rodmond" -> ["Redmond"] | Possibly misspelled word.
 598 | BUILTIN/EN_COMPOUNDS_SELF_DRIVEN | "self\r\n  driven" -> ["self-driven"] | This word is normally spelled with a hyphen.
+619 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "“In" -> [] | Nearby paragraphs begin with the same word
 619 | SPELLCHECK/SINGLE | "Spermacetti" -> ["Spermaceti"] | Possibly misspelled word.
 621 | SPELLCHECK/SINGLE | "Colnett" -> ["Cornett"] | Possibly misspelled word.
+625 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "“In" -> [] | Nearby paragraphs begin with the same word
 626 | SPELLCHECK/SINGLE | "chace" -> ["chance", "chase", "Chase", "Chance", "chafe", "Chaco", "Cheyne", "chape", "ch ace"] | Possibly misspelled word.
 626 | SPELLCHECK/SINGLE | "colour" -> ["color", "col our"] | Possibly misspelled word.
 635 | BUILTIN/UPPERCASE_SENTENCE_START | "sing" -> ["Sing"] | This sentence does not start with an uppercase letter.
+642 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "“In" -> [] | Nearby paragraphs begin with the same word
 645 | SPELLCHECK/SINGLE | "Obed" -> ["Bed", "Obey", "Owed", "Lobed", "Robed", "Abed", "Orbed", "BED", "BEd", "OBE"] | Possibly misspelled word.
 653 | BUILTIN/EN_SPECIFIC_CASE | "Pacific ocean" -> ["Pacific Ocean"] | If the term is a proper noun, use initial capitals.
 658 | SPELLCHECK/SINGLE | "raal" -> ["real", "rail", "RAAF", "Baal", "Raul", "Aral", "Waal", "kraal", "AAAL", "AAL"] | Possibly misspelled word.
@@ -121,9 +265,11 @@
 667 | SPELLCHECK/SINGLE | "Chace" -> ["Chance", "Chase", "Chafe", "Chaco", "Cheyne", "Chape", "Ch ace"] | Possibly misspelled word.
 672 | SPELLCHECK/SINGLE | "phospher" -> ["phosphor"] | Possibly misspelled word.
 706 | SPELLCHECK/SINGLE | "Debell" -> [] | Possibly misspelled word.
+722 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "“Ay" -> [] | Nearby paragraphs begin with the same word
 722 | SPELLCHECK/SINGLE | "Ay" -> ["A", "As", "At", "By", "An", "Any", "Day", "May", "My", "Way"] | Possibly misspelled word.
 722 | SPELLCHECK/SINGLE | "ay" -> ["a", "as", "at", "by", "an", "any", "day", "may", "my", "way"] | Possibly misspelled word.
 725 | BUILTIN/UPPERCASE_SENTENCE_START | "sing" -> ["Sing"] | This sentence does not start with an uppercase letter.
+727 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "“Ay" -> [] | Nearby paragraphs begin with the same word
 727 | SPELLCHECK/SINGLE | "Ay" -> ["A", "As", "At", "By", "An", "Any", "Day", "May", "My", "Way"] | Possibly misspelled word.
 727 | SPELLCHECK/SINGLE | "Ay" -> ["A", "As", "At", "By", "An", "Any", "Day", "May", "My", "Way"] | Possibly misspelled word.
 727 | BUILTIN/UPPERCASE_SENTENCE_START | "there" -> ["There"] | This sentence does not start with an uppercase letter.
@@ -136,7 +282,10 @@
 759 | SPELLCHECK/SINGLE | "Whaleman" -> ["Whale man"] | Possibly misspelled word.
 761 | SPELLCHECK/SINGLE | "Cheever" -> ["Cheerer", "Che ever"] | Possibly misspelled word.
 775 | SPELLCHECK/SINGLE | "whalemen" -> ["whale men"] | Possibly misspelled word.
+778 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "“It" -> [] | Nearby paragraphs begin with the same word
+790 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "“It" -> [] | Nearby paragraphs begin with the same word
 793 | SPELLCHECK/SINGLE | "Hobomack" -> ["Hobo mack"] | Possibly misspelled word.
+795 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "“It" -> [] | Nearby paragraphs begin with the same word
 819 | SPELLCHECK/SINGLE | "harpooneer" -> ["harpooner"] | Possibly misspelled word.
 822 | COMPOUNDING/MID_HYPHEN/0 | "mid storm" -> ["mid-storm"] | This word is normally spelled with a hyphen.
 830 | SPELLCHECK/SINGLE | "Loomings" -> ["Looming", "Boomings", "Gloomings", "Lookings", "Loopings", "Lootings"] | Possibly misspelled word.
@@ -144,9 +293,11 @@
 856 | SPELLCHECK/SINGLE | "Corlears" -> ["Corsairs", "Colliers"] | Possibly misspelled word.
 857 | SPELLCHECK/SINGLE | "Coenties" -> ["Counties", "Coen ties"] | Possibly misspelled word.
 863 | BUILTIN/EN_COMPOUNDS_PENT_UP | "pent up" -> ["pent-up"] | This word is normally spelled with a hyphen.
+867 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "But" -> [] | Nearby paragraphs begin with the same word
 867 | BUILTIN/UPPERCASE_SENTENCE_START | "here" -> ["Here"] | This sentence does not start with an uppercase letter.
 872 | SPELLCHECK/SINGLE | "Inlanders" -> ["Islanders", "Inlander", "In landers"] | Possibly misspelled word.
 884 | GRAMMAR/PCT_SINGULAR_NOUN_PLURAL_VERB_AGREEMENT/0 | "happen" -> ["happens"] | "Caravan" is a singular noun. It appears that the verb form is incorrect.
+888 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "But" -> [] | Nearby paragraphs begin with the same word
 890 | SPELLCHECK/SINGLE | "Saco" -> ["Sack", "Sac", "Waco", "Sacs", "Paco", "SACD", "Sato", "Sago", "Sacco", "Seiko"] | Possibly misspelled word.
 945 | SPELLCHECK/SINGLE | "Rensselaers" -> ["Rensselaer"] | Possibly misspelled word.
 945 | SPELLCHECK/SINGLE | "Randolphs" -> ["Randolph"] | Possibly misspelled word.
@@ -168,7 +319,9 @@
 1085 | BUILTIN/UPPERCASE_SENTENCE_START | "blocks" -> ["Blocks"] | This sentence does not start with an uppercase letter.
 1086 | GRAMMAR/THERE_MISSING_VERB/2 | "there" -> ["there is"] | A verb may be missing.
 1092 | BUILTIN/UPPERCASE_SENTENCE_START | "thought" -> ["Thought"] | This sentence does not start with an uppercase letter.
+1099 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "It" -> [] | Nearby paragraphs begin with the same word
 1112 | SPELLCHECK/SINGLE | "connexion" -> ["connection", "connexional"] | Possibly misspelled word.
+1121 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "It" -> [] | Nearby paragraphs begin with the same word
 1128 | SPELLCHECK/SINGLE | "maketh" -> ["make", "makes", "market", "makeup", "markets", "maker", "makers", "math", "Gareth", "Macbeth"] | Possibly misspelled word.
 1128 | SPELLCHECK/SINGLE | "marvellous" -> ["marvelous"] | Possibly misspelled word.
 1129 | SPELLCHECK/SINGLE | "lookest" -> ["loosest", "lewdest"] | Possibly misspelled word.
@@ -176,13 +329,16 @@
 1133 | SPELLCHECK/SINGLE | "reasonest" -> [] | Possibly misspelled word.
 1137 | SPELLCHECK/SINGLE | "copestone" -> ["cope stone", "copes tone"] | Possibly misspelled word.
 1142 | BUILTIN/UPPERCASE_SENTENCE_START | "says" -> ["Says"] | This sentence does not start with an uppercase letter.
+1148 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "But" -> [] | Nearby paragraphs begin with the same word
 1149 | STYLE/SENT_START_ARE_NOT_ARENT_FORMAL/0 | "Would not" -> ["Wouldn't"] | Questions beginning with 'Would not' can sound very formal.
 1151 | BUILTIN/UPPERCASE_SENTENCE_START | "go" -> ["Go"] | This sentence does not start with an uppercase letter.
+1160 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "But" -> [] | Nearby paragraphs begin with the same word
 1162 | GRAMMAR/KIND_OF_A/0 | "sort of a" -> ["sort of"] | If 'sort' is a classification term, 'a' is not necessary. Use sort of. (The phrases 'kind of' and 'sort of' are informal if they mean 'to some extent'.)
 1170 | SPELLCHECK/SINGLE | "oilpainting" -> ["oil painting"] | Possibly misspelled word.
 1170 | SPELLCHECK/SINGLE | "besmoked" -> ["be smoked"] | Possibly misspelled word.
 1171 | SPELLCHECK/SINGLE | "crosslights" -> ["cross lights"] | Possibly misspelled word.
 1177 | SPELLCHECK/SINGLE | "ponderings" -> ["pondering", "wonderings"] | Possibly misspelled word.
+1182 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "But" -> [] | Nearby paragraphs begin with the same word
 1183 | SPELLCHECK/SINGLE | "centre" -> ["center", "Centrex", "CENTR", "centra"] | Possibly misspelled word.
 1185 | SPELLCHECK/SINGLE | "squitchy" -> ["squishy", "squelchy", "squinch"] | Possibly misspelled word.
 1189 | SPELLCHECK/SINGLE | "marvellous" -> ["marvelous"] | Possibly misspelled word.
@@ -193,9 +349,11 @@
 1253 | SPELLCHECK/SINGLE | "haint" -> ["paint", "saint", "faint", "haunt", "hint", "taint"] | Possibly misspelled word.
 1254 | SPELLCHECK/SINGLE | "harpooneer" -> ["harpooner"] | Possibly misspelled word.
 1255 | SPELLCHECK/SINGLE | "a-whalin" -> ["whaling", "Sakhalin", "Whalen", "al-Khalil", "al-Walid"] | Possibly misspelled word.
+1257 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "I" -> [] | Nearby paragraphs begin with the same word
 1258 | GRAMMAR/IN_WHO/0 | "who" -> ["whom"] | Did you mean whom?
 1258 | SPELLCHECK/SINGLE | "harpooneer" -> ["harpooner"] | Possibly misspelled word.
 1260 | SPELLCHECK/SINGLE | "harpooneer" -> ["harpooner"] | Possibly misspelled word.
+1267 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "I" -> [] | Nearby paragraphs begin with the same word
 1279 | BUILTIN/UPPERCASE_SENTENCE_START | "dumplings" -> ["Dumplings"] | This sentence does not start with an uppercase letter.
 1284 | SPELLCHECK/SINGLE | "sartainty" -> ["certainty"] | Possibly misspelled word.
 1286 | SPELLCHECK/SINGLE | "aint" -> ["ain't"] | Possibly misspelled word.
@@ -237,8 +395,12 @@
 1431 | GRAMMAR/KIND_OF_A/0 | "sort of a" -> ["sort of"] | If 'sort' is a classification term, 'a' is not necessary. Use sort of. (The phrases 'kind of' and 'sort of' are informal if they mean 'to some extent'.)
 1431 | SPELLCHECK/SINGLE | "bamboozingly" -> ["bamboozling"] | Possibly misspelled word.
 1433 | SPELLCHECK/SINGLE | "harpooneer" -> ["harpooner"] | Possibly misspelled word.
+1440 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "“With" -> [] | Nearby paragraphs begin with the same word
+1442 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "“With" -> [] | Nearby paragraphs begin with the same word
+1444 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "“I" -> [] | Nearby paragraphs begin with the same word
 1448 | SPELLCHECK/SINGLE | "rayther" -> ["rather", "Rather"] | Possibly misspelled word.
 1448 | SPELLCHECK/SINGLE | "harpooneer" -> ["harpooner"] | Possibly misspelled word.
+1451 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "“I" -> [] | Nearby paragraphs begin with the same word
 1458 | SPELLCHECK/SINGLE | "Sartain" -> ["Certain", "Parties", "Captain", "Martin", "Strain", "Sustain", "Attain", "Curtain", "Satan", "Bargain"] | Possibly misspelled word.
 1460 | SPELLCHECK/SINGLE | "Hecla" -> ["Hekla"] | Possibly misspelled word.
 1464 | SPELLCHECK/SINGLE | "harpooneer" -> ["harpooner"] | Possibly misspelled word.
@@ -281,12 +443,14 @@
 1626 | CONFUSED_WORDS/OTHER_OTHERS/0 | "other" -> ["others"] | It seems that the plural noun others fits better in this context.
 1626 | SPELLCHECK/SINGLE | "whaleman" -> ["whale man"] | Possibly misspelled word.
 1629 | BUILTIN/UPPERCASE_SENTENCE_START | "look" -> ["Look"] | This sentence does not start with an uppercase letter.
+1631 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "But" -> [] | Nearby paragraphs begin with the same word
 1633 | SPELLCHECK/SINGLE | "grego" -> ["Greg", "Greco", "Gregg", "Gregor", "gr ego"] | Possibly misspelled word.
 1633 | SPELLCHECK/SINGLE | "wrapall" -> ["wrap all"] | Possibly misspelled word.
 1634 | SPELLCHECK/SINGLE | "dreadnaught" -> ["dreadnought", "dread naught"] | Possibly misspelled word.
 1636 | SPELLCHECK/SINGLE | "colour" -> ["color", "col our"] | Possibly misspelled word.
 1650 | SPELLCHECK/SINGLE | "grego" -> ["Greg", "Greco", "Gregg", "Gregor", "gr ego"] | Possibly misspelled word.
 1663 | SPELLCHECK/SINGLE | "grego" -> ["Greg", "Greco", "Gregg", "Gregor", "gr ego"] | Possibly misspelled word.
+1672 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "But" -> [] | Nearby paragraphs begin with the same word
 1686 | SPELLCHECK/SINGLE | "debel" -> ["rebel", "Bebel"] | Possibly misspelled word.
 1691 | BUILTIN/UPPERCASE_SENTENCE_START | "save" -> ["Save"] | This sentence does not start with an uppercase letter.
 1693 | SPELLCHECK/SINGLE | "tell-ee" -> ["Teller", "Téllez", "Tellies"] | Possibly misspelled word.
@@ -345,6 +509,7 @@
 1965 | SPELLCHECK/SINGLE | "nondescripts" -> ["nondescript"] | Possibly misspelled word.
 1968 | SPELLCHECK/SINGLE | "Lascars" -> ["Las cars"] | Possibly misspelled word.
 1970 | SPELLCHECK/SINGLE | "Wapping" -> ["Mapping", "Rapping", "Swapping", "Tapping", "Wrapping", "Capping", "Warping", "Lapping", "Napping", "Sapping"] | Possibly misspelled word.
+1975 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "But" -> [] | Nearby paragraphs begin with the same word
 1975 | SPELLCHECK/SINGLE | "Feegeeans" -> ["Freegans"] | Possibly misspelled word.
 1975 | SPELLCHECK/SINGLE | "Tongatobooarrs" -> [] | Possibly misspelled word.
 1975 | SPELLCHECK/SINGLE | "Erromanggoans" -> [] | Possibly misspelled word.
@@ -354,21 +519,28 @@
 1984 | BUILTIN/UPPERCASE_SENTENCE_START | "that" -> ["That"] | This sentence does not start with an uppercase letter.
 1995 | SPELLCHECK/SINGLE | "trowsers" -> ["trousers", "browsers"] | Possibly misspelled word.
 1995 | BUILTIN/UPPERCASE_SENTENCE_START | "how" -> ["How"] | This sentence does not start with an uppercase letter.
+1999 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "But" -> [] | Nearby paragraphs begin with the same word
 1999 | SPELLCHECK/SINGLE | "harpooneers" -> ["harpooners"] | Possibly misspelled word.
 2001 | SPELLCHECK/SINGLE | "whalemen" -> ["whale men"] | Possibly misspelled word.
 2010 | BUILTIN/UPPERCASE_SENTENCE_START | "how" -> ["How"] | This sentence does not start with an uppercase letter.
 2010 | SPELLCHECK/SINGLE | "scoria" -> ["scotia"] | Possibly misspelled word.
+2019 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "In" -> [] | Nearby paragraphs begin with the same word
+2025 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "In" -> [] | Nearby paragraphs begin with the same word
 2029 | SPELLCHECK/SINGLE | "superinduced" -> ["super induced"] | Possibly misspelled word.
 2035 | PUNCTUATION/SENT_START_CONJUNCTIVE_LINKING_ADVERB_COMMA/0 | "Elsewhere" -> ["Elsewhere,"] | A comma may be missing after the conjunctive/linking adverb 'Elsewhere'.
 2037 | BUILTIN/EN_COMPOUNDS_OFF_SHORE | "off\r\nshore" -> ["offshore"] | This word is normally spelled as one.
 2039 | SPELLCHECK/SINGLE | "Puritanic" -> ["Puritan", "Puritans", "Puritanical", "Puritanism", "Puranic", "Ruritania", "Puritanize"] | Possibly misspelled word.
+2044 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "In" -> [] | Nearby paragraphs begin with the same word
 2044 | SPELLCHECK/SINGLE | "Whaleman" -> ["Whale man"] | Possibly misspelled word.
 2054 | SPELLCHECK/SINGLE | "worshipper" -> ["worshiper", "worship per"] | Possibly misspelled word.
 2058 | SPELLCHECK/SINGLE | "masoned" -> [] | Possibly misspelled word.
+2062 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "SACRED" -> [] | Nearby paragraphs begin with the same word
 2064 | SPELLCHECK/SINGLE | "st" -> ["St", "ST", "at", "it", "set", "so", "ft", "sat", "sit", "GT"] | Possibly misspelled word.
+2066 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "SACRED" -> [] | Nearby paragraphs begin with the same word
 2066 | SPELLCHECK/SINGLE | "ELLERY" -> ["EVERY", "ELDER", "GALLERY", "ELDERLY", "ELLEN", "ALLEY", "ELDERS", "SELLER", "SELLERS", "KELLER"] | Possibly misspelled word.
 2067 | SPELLCHECK/SINGLE | "GLEIG" -> ["GL EIG"] | Possibly misspelled word.
 2069 | SPELLCHECK/SINGLE | "st" -> ["St", "ST", "at", "it", "set", "so", "ft", "sat", "sit", "GT"] | Possibly misspelled word.
+2072 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "SACRED" -> [] | Nearby paragraphs begin with the same word
 2078 | SPELLCHECK/SINGLE | "Queequeg" -> ["Queue", "Queues", "Queued", "Queening", "Queened", "Queering", "Queenie", "Queenies", "Queered", "Queerer"] | Possibly misspelled word.
 2087 | SPELLCHECK/SINGLE | "unhealing" -> ["unsealing", "unhearing"] | Possibly misspelled word.
 2091 | BUILTIN/UPPERCASE_SENTENCE_START | "ye" -> ["Ye"] | This sentence does not start with an uppercase letter.
@@ -376,6 +548,7 @@
 2098 | SPELLCHECK/SINGLE | "Elephanta" -> ["Elephant", "Elephants", "Elephant a"] | Possibly misspelled word.
 2108 | SPELLCHECK/SINGLE | "unstirring" -> ["stirring", "untiring", "unstinting", "unsticking", "unstring", "bestirring", "unshirking", "unsmirking", "unstarting", "unstifling"] | Possibly misspelled word.
 2120 | SPELLCHECK/SINGLE | "whalemen" -> ["whale men"] | Possibly misspelled word.
+2138 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "I" -> [] | Nearby paragraphs begin with the same word
 2142 | SPELLCHECK/SINGLE | "Mapple" -> ["Apple", "Maple", "Marple", "Dapple", "M apple"] | Possibly misspelled word.
 2142 | SPELLCHECK/SINGLE | "whalemen" -> ["whale men"] | Possibly misspelled word.
 2143 | SPELLCHECK/SINGLE | "favourite" -> ["favorite"] | Possibly misspelled word.
@@ -389,6 +562,7 @@
 2169 | SPELLCHECK/SINGLE | "colour" -> ["color", "col our"] | Possibly misspelled word.
 2172 | SPELLCHECK/SINGLE | "Mapple" -> ["Apple", "Maple", "Marple", "Dapple", "M apple"] | Possibly misspelled word.
 2182 | SPELLCHECK/SINGLE | "Mapple" -> ["Apple", "Maple", "Marple", "Dapple", "M apple"] | Possibly misspelled word.
+2187 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "I" -> [] | Nearby paragraphs begin with the same word
 2188 | SPELLCHECK/SINGLE | "Mapple" -> ["Apple", "Maple", "Marple", "Dapple", "M apple"] | Possibly misspelled word.
 2194 | SPELLCHECK/SINGLE | "connexions" -> ["connections", "connexional"] | Possibly misspelled word.
 2196 | SPELLCHECK/SINGLE | "Ehrenbreitstein" -> [] | Possibly misspelled word.
@@ -414,6 +588,7 @@
 2390 | SPELLCHECK/SINGLE | "appals" -> ["appeals", "appall", "appalls", "ap pals"] | Possibly misspelled word.
 2391 | BUILTIN/UPPERCASE_SENTENCE_START | "so" -> ["So"] | This sentence does not start with an uppercase letter.
 2402 | SPELLCHECK/SINGLE | "wrestlings" -> ["wrestling", "wrest lings"] | Possibly misspelled word.
+2405 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "“And" -> [] | Nearby paragraphs begin with the same word
 2408 | BUILTIN/UPPERCASE_SENTENCE_START | "the" -> ["The"] | This sentence does not start with an uppercase letter.
 2415 | GRAMMAR/PRP_JJ/1 | "he the far" -> ["he is the far", "he was the far"] | A verb may be missing after "he". Please verify.
 2420 | BUILTIN/UPPERCASE_SENTENCE_START | "arise" -> ["Arise"] | This sentence does not start with an uppercase letter.
@@ -421,13 +596,16 @@
 2438 | BUILTIN/EN_CONSISTENT_APOS | "'" -> ["’"] | You used a typewriter-style apostrophe here, but a typographic apostrophe elsewhere in this text. Both are correct, but consider using the same type everywhere in your text.
 2447 | SPELLCHECK/SINGLE | "mightest" -> ["lightest", "mightiest", "tightest", "rightest"] | Possibly misspelled word.
 2455 | SPELLCHECK/SINGLE | "invokingly" -> ["invoking", "invitingly", "unjokingly"] | Possibly misspelled word.
+2458 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "“And" -> [] | Nearby paragraphs begin with the same word
 2507 | SPELLCHECK/SINGLE | "slantings" -> ["plantings", "slanting", "slangings", "slatings"] | Possibly misspelled word.
 2513 | SPELLCHECK/SINGLE | "engulphed" -> ["engulfed"] | Possibly misspelled word.
 2526 | SPELLCHECK/SINGLE | "appal" -> ["appeal", "papal", "appall", "ap pal"] | Possibly misspelled word.
+2532 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "He" -> [] | Nearby paragraphs begin with the same word
 2534 | BUILTIN/UPPERCASE_SENTENCE_START | "shipmates" -> ["Shipmates"] | This sentence does not start with an uppercase letter.
 2534 | BUILTIN/UPPERCASE_SENTENCE_START | "on" -> ["On"] | This sentence does not start with an uppercase letter.
 2536 | STYLE/SENT_START_ARE_NOT_ARENT_FORMAL/0 | "Is not" -> ["Isn't"] | Questions beginning with 'Is not' can sound very formal.
 2542 | GRAMMAR/HE_VERB_AGR/0 | "pluck" -> ["plucks", "plucked"] | The pronoun 'he' is usually used with a third-person or a past tense verb.
+2554 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "He" -> [] | Nearby paragraphs begin with the same word
 2561 | SPELLCHECK/SINGLE | "Queequeg" -> ["Queue", "Queues", "Queued", "Queening", "Queened", "Queering", "Queenie", "Queenies", "Queered", "Queerer"] | Possibly misspelled word.
 2562 | GRAMMAR/PRP_VBG/3 | "he having" -> ["he's having", "he is having", "he was having"] | An auxiliary verb seems to be missing from this progressive structure. Did you mean he's having, he is having, or he was having?
 2582 | SPELLCHECK/SINGLE | "tattooings" -> ["tattooing"] | Possibly misspelled word.
@@ -449,10 +627,12 @@
 2690 | SPELLCHECK/SINGLE | "salamed" -> ["salaamed"] | Possibly misspelled word.
 2698 | SPELLCHECK/SINGLE | "Queequeg" -> ["Queue", "Queues", "Queued", "Queening", "Queened", "Queering", "Queenie", "Queenies", "Queered", "Queerer"] | Possibly misspelled word.
 2698 | SPELLCHECK/SINGLE | "cosy" -> ["cost", "copy", "Cody", "Cory", "Cosby", "cozy", "rosy", "coy", "nosy", "posy"] | Possibly misspelled word.
+2703 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "We" -> [] | Nearby paragraphs begin with the same word
 2704 | SPELLCHECK/SINGLE | "Queequeg" -> ["Queue", "Queues", "Queued", "Queening", "Queened", "Queering", "Queenie", "Queenies", "Queered", "Queerer"] | Possibly misspelled word.
 2707 | SPELLCHECK/SINGLE | "nappishness" -> ["snappishness"] | Possibly misspelled word.
 2714 | SPELLCHECK/SINGLE | "kneepans" -> ["knee pans"] | Possibly misspelled word.
 2722 | SPELLCHECK/SINGLE | "Queequeg" -> ["Queue", "Queues", "Queued", "Queening", "Queened", "Queering", "Queenie", "Queenies", "Queered", "Queerer"] | Possibly misspelled word.
+2731 | BUILTIN/PARAGRAPH_OPENER_REPEAT | "We" -> [] | Nearby paragraphs begin with the same word
 2741 | SPELLCHECK/SINGLE | "Queequeg" -> ["Queue", "Queues", "Queued", "Queening", "Queened", "Queering", "Queenie", "Queenies", "Queered", "Queerer"] | Possibly misspelled word.
 2747 | SPELLCHECK/SINGLE | "Queequeg" -> ["Queue", "Queues", "Queued", "Queening", "Queened", "Queering", "Queenie", "Queenies", "Queered", "Queerer"] | Possibly misspelled word.
 2749 | TYPOS/I_IF/0 | "I" -> ["If", "I,"] | Did you mean If or is a comma missing (I,)?

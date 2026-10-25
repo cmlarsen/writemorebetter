@@ -628,6 +628,7 @@ fn apply_profile_reports_unmatched_selectors() {
         "READABILITY_RULE_SIMPLE",
         "READABILITY_RULE_DIFFICULT",
         "PARAGRAPH_REPEAT_BEGINNING_RULE",
+        "PARAGRAPH_OPENER_REPEAT",
     ];
     assert!(rules.builtins().iter().all(|rule| rule.enabled()
         || off_by_default.contains(&rule.id())

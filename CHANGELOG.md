@@ -8,6 +8,16 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
 # Unreleased
 
+### Added
+
+- **`PARAGRAPH_OPENER_REPEAT`, on in the fiction profile.** A writemorebetter builtin (not a
+  LanguageTool rule) that marks paragraphs beginning with the same word as one of the three
+  paragraphs before them: "Nearby paragraphs begin with the same word". It catches a first-person
+  draft whose paragraphs keep opening with *I*, where LanguageTool's
+  `PARAGRAPH_REPEAT_BEGINNING_RULE` (still off) only compares neighbors. Beginnings compare as in
+  that rule. It runs as a whole-text rule, so `check` and paragraph digests give the same marks.
+  Rules binaries are now format version 39.
+
 ### Removed
 
 - **The Release workflow no longer uploads to PyPI.** The upload was not set up and failed on

@@ -113,7 +113,7 @@ impl ParagraphRepeatBeginning {
 
 /// LanguageTool's `numCharEqualBeginning`: the index of the earlier sentence's token whose end
 /// ends both matches, if the sentences begin alike.
-fn equal_beginning(last: &Beginning<At>, next: &Beginning<At>) -> Option<usize> {
+pub(crate) fn equal_beginning(last: &Beginning<At>, next: &Beginning<At>) -> Option<usize> {
     let (a, b) = (&last.tokens, &next.tokens);
     if a.is_empty() || b.is_empty() {
         return None;

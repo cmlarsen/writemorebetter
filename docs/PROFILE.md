@@ -156,11 +156,12 @@ Disables exactly these:
 | `BUILTIN/TOO_OFTEN_USED_ADJECTIVE_EN/DIRECT_SPEECH`, `…_NOUN_EN/…`, `…_VERB_EN/…` | these word-frequency hints are off by default, as in LT. Once an author enables them, words inside dialogue are neither counted nor flagged (LT's `setWithoutDirectSpeech`): characters repeat words on purpose, and the narration is what the hint is for. |
 | `BUILTIN/EN_CONSISTENT_APOS/MAJORITY` | the rule (enabled below) flags only the less common apostrophe style, not every apostrophe as in LT: one stray straight `'` in a curly manuscript flags that one mark, not the hundreds of curly ones (267 → 1 flag on moby150k) |
 
-And enables this one, which is off by default in LanguageTool 6.6:
+And enables these two, which are off by default:
 
 | Selector | Why |
 |---|---|
 | `BUILTIN/EN_CONSISTENT_APOS` | a manuscript that mixes straight (`'`) and curly (`’`) apostrophes, often from text pasted in from another editor. Once the text has both, the fiction profile flags only the apostrophe tokens of the less common style, with the more common one as the suggestion (on a tie, the straight ones, as curly is the fiction norm); a text that uses one style throughout gets no flags. This is the `BUILTIN/EN_CONSISTENT_APOS/MAJORITY` entry in the disable list above: LanguageTool, and the rule outside this profile, flag the tokens of both styles. The counts cover the whole document (every current digest passed to `resolve_document`), so checking it whole or paragraph by paragraph flags the same tokens, and an edit in one paragraph can change which style is flagged in others. A lone `‘` or `’` (a single quotation mark, or a clipped `jus’` or plural `dogs’` the tokenizer splits the same way) is not an apostrophe to it, so curly-quoted dialogue does not trigger it. A lone straight `'` does count, as in LanguageTool: straight single quotation marks around dialogue in a curly-apostrophe text are flagged. |
+| `BUILTIN/PARAGRAPH_OPENER_REPEAT` | writemorebetter's own rule, not LanguageTool's: a paragraph that begins with the same word as one of the three paragraphs before it. Every paragraph of a match is marked once ("Nearby paragraphs begin with the same word"), from its first token to the repeated word. Beginnings compare as in `PARAGRAPH_REPEAT_BEGINNING_RULE` (a shared leading quote and a shared determiner are skipped, the word is case-sensitive, a dash or ellipsis lead never matches), so `“I…` dialogue paragraphs match each other but not narration that opens `I…`. A first-person draft whose paragraphs open `I…`, `Shaking, I…`, `I…`, `I…`, `Okay…`, `Before…`, `I…` gets paragraphs 1, 3, 4 and 7 marked; LanguageTool's rule marks only 3 and 4. It fires often on first-person and close-third narration, which is deliberate there as often as not: the owner chose (2026-10-24) to show it and let the writer judge each one. |
 
 `EN_REPEATEDWORDS` (synonyms for a word repeated within 150 words) needs no
 entry: it is off by default (`picky` in LT), and when enabled it already skips
@@ -169,7 +170,7 @@ that ends in a closing quote. Dialogue followed by a tag (`“Definitely,” she
 said.`) is still checked. Its word list is short (about 40 words such as
 "nice", "amazing", "definitely"), so an author who turns it on gets few flags.
 
-Applying it to the compiled English rules disables 172 rules, enables 1, and reports 0
+Applying it to the compiled English rules disables 172 rules, enables 2, and reports 0
 unmatched selectors.
 
 The fiction profile does not need to name rules that are off by default. Of the
@@ -188,7 +189,8 @@ lines of speech score as "very easy", and once the whole text does too, every su
 ten or more words is flagged (`READABILITY_RULE_DIFFICULT` rarely fires on fiction).
 `PARAGRAPH_REPEAT_BEGINNING_RULE` flags two successive paragraphs that open with the same word,
 which close-third narration ("She…", "He…") and runs of dialogue (`“I…` / `“I…`) do on
-purpose.
+purpose. The fiction profile enables `PARAGRAPH_OPENER_REPEAT` (above) instead, which looks
+three paragraphs back and marks each paragraph once.
 
 ### Rules found while searching `data/en/grammar.xml`
 

@@ -52,7 +52,9 @@ error.
 
 A few rules need the whole document: `EN_CONSISTENT_APOS` (mixed `'` and `’`; on in the fiction profile, which
 flags only the rarer style), `EN_WORD_COHERENCY` (two spellings of one word), `EN_REPEATEDWORDS` (a word repeated
-within 150 words) and `TOO_OFTEN_USED_*` (a word's share of all nouns, verbs or adjectives). An editor that
+within 150 words), `TOO_OFTEN_USED_*` (a word's share of all nouns, verbs or adjectives) and
+`PARAGRAPH_OPENER_REPEAT` (paragraphs that begin like one of the three before them; on in the fiction profile).
+An editor that
 rechecks only the paragraph being edited keeps one digest per paragraph and resolves them:
 
 ```swift

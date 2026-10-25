@@ -291,6 +291,14 @@ What moved since 2026-10-11 (LT 6.6 column):
   flags, goldens and chunker unchanged. One digest now carries both the word statistics and the
   paragraph rules' counts and first words (`DIGEST_VERSION` 3): 4,616 bytes per 1,000 words on
   `moby150k.txt`, up from 3,528.
+- **`PARAGRAPH_OPENER_REPEAT` on in fiction (2026-10-24): 180 new golden flags, recall unchanged.**
+  writemorebetter's own paragraph rule (each paragraph against the three before it), enabled by
+  the owner for first-person drafts that keep opening paragraphs with *I*. `bench/tools/gates.sh`:
+  conformance 6,085/6,085, public 60/60, private 50/50 with 222 flags (214 before; the 8 new ones
+  are this rule's), chunker unchanged. On `moby150k.txt` 135 of the 180 new flags are the table
+  of contents (*CHAPTER 1. Loomings.* and so on, one line each); the other 45 mark narration and
+  the *Extracts* (*But*, *In*, *I*, *It*), about 1.8 per 1,000 words. Rules format version 39;
+  the digest is unchanged, because the rule reads the first words the digest already holds.
 - **Grammar conformance 5,977 → 6,074 and disambiguation 1,012 → 1,016**: the 2026-10-14 wave of
   filter, matcher and builtin fixes (#181–#254; e.g. the speller-backed rule filters and the
   `min_prev_matches` repetition rules). #308–#322 did not change it; CI gates 6,074 and 1,016.
