@@ -2,8 +2,8 @@ name: Python
 
 # Builds the `writemorebetter` Python wheels (abi3, CPython 3.9+) for Linux, macOS and Windows
 # and the sdist, and smoke-tests each one against the LGPL data, which stays out of both.
-# Nothing here publishes: the Release workflow calls this one (workflow_call) and uploads the
-# same artifacts to PyPI from its publish-pypi job. See docs/RELEASING.md.
+# Nothing here publishes: the Release workflow calls this one (workflow_call) so a release whose
+# wheels fail is never tagged. PyPI upload is not set up yet. See docs/RELEASING.md.
 on:
   workflow_call:
   push:
