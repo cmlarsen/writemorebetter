@@ -9,6 +9,7 @@ on:
       - "nlprule/tests/**"
       - "nlprule/fuzz/**"
       - "Cargo.toml"
+      - ".github/actions/build-data/**"
       - ".github/workflows/fuzz.yml"
   pull_request:
     paths:
@@ -16,6 +17,7 @@ on:
       - "nlprule/tests/**"
       - "nlprule/fuzz/**"
       - "Cargo.toml"
+      - ".github/actions/build-data/**"
       - ".github/workflows/fuzz.yml"
 
 # A new push to a PR cancels that PR's older runs. On main, runs never cancel each other;
@@ -40,21 +42,11 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
-      - uses: actions/setup-python@v5
-        with:
-          # build/requirements.txt pins old packages (lxml 4.6.3); 3.9 is the newest
-          # interpreter with wheels for them.
-          python-version: '3.9'
-
-      # The data is built by the same pinned script as CI and the release workflow.
-      - name: Cache LanguageTool download, portable JRE and build venv
-        uses: actions/cache@v4
-        with:
-          path: data/cache
-          key: lt-data-${{ runner.os }}-${{ hashFiles('build/requirements.txt') }}
-
+      # The same pinned script as CI and the release workflow, cached on its inputs.
       - name: Build data (pinned LanguageTool 6.6)
-        run: scripts/build-data.sh --out-dir storage/66
+        uses: ./.github/actions/build-data
+        with:
+          out-dir: storage/66
 
       - name: Build the stress harness
         run: cargo build --release --manifest-path nlprule/fuzz/Cargo.toml --bin stress

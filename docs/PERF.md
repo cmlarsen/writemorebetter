@@ -671,7 +671,8 @@ tokenizer's live heap after load. nlprule exposes the pre-chunk stages behind th
 `bench/tools/chunker_golden.sh --check` compares, byte-for-byte in about two seconds, every
 token's chunk tags plus the chunk model's internal tokens/POS/chunk labels for
 `story1..5` + `moby150k` with the LT 6.6 rules (`bench/golden/chunker/66/`); the Performance
-workflow runs it on every PR and every push to `main`. `--golden=verify` checks that the harness
+workflow runs it on every push to `main` and on every PR that touches the engine, its data, the
+golden files or the probes (see the workflow's `paths`). `--golden=verify` checks that the harness
 path (`prepared_sentences` + `chunk_apply`) produces exactly the chunk tags of the real
 `Tokenizer::pipe` pipeline.
 

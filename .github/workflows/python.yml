@@ -9,8 +9,8 @@ on:
   push:
     branches:
       - main
-  # A PR pays for a data build here (~11 min), so only run when the binding or what it builds
-  # from changes. Every push to main still runs.
+  # Only run on a PR when the binding or what it builds from changes. Every push to main still
+  # runs.
   pull_request:
     paths:
       - 'python/**'
@@ -20,6 +20,8 @@ on:
       - 'build/**'
       - 'Cargo.toml'
       - 'scripts/build-data.sh'
+      - 'binaries/**'
+      - '.github/actions/build-data/**'
       - 'LICENSE-MIT'
       - 'LICENSE-APACHE'
       - 'NOTICE'
@@ -44,12 +46,6 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
-      - uses: actions/setup-python@v5
-        with:
-          # build/requirements.txt pins old packages (lxml 4.6.3); 3.9 is the newest
-          # interpreter with wheels for them.
-          python-version: '3.9'
-
       # maturin cannot package files outside python/, so the wheel's license files are copies.
       - name: Wheel license files match the repository's
         run: |
@@ -61,16 +57,11 @@ jobs:
       - name: Lint the binding with clippy
         run: cargo clippy -p writemorebetter-python
 
-      # The same pinned script as CI and the release workflow; only the downloads, the
-      # portable JRE and the build venv are cached.
-      - name: Cache LanguageTool download, portable JRE and build venv
-        uses: actions/cache@v4
-        with:
-          path: data/cache
-          key: lt-data-${{ runner.os }}-${{ hashFiles('build/requirements.txt') }}
-
+      # The same pinned script as CI and the release workflow, cached on its inputs. Called
+      # from the Release workflow too, where it can reuse a cache entry: the release's own data
+      # zip is always built from scratch by its build-data job.
       - name: Build data (pinned LanguageTool 6.6)
-        run: scripts/build-data.sh
+        uses: ./.github/actions/build-data
 
       # The release data zip's layout: the two binaries at the top level.
       - uses: actions/upload-artifact@v4

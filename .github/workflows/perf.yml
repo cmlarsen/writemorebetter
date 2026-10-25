@@ -3,7 +3,25 @@ name: Performance
 on:
   push:
     branches: [main]
+  # The golden files and the instruction counts only move with the engine, its data or the
+  # probes, so a PR that touches none of them (style crate, bindings, docs) skips this job.
+  # Every push to main still runs.
   pull_request:
+    paths:
+      - 'nlprule/**'
+      - 'srx/**'
+      - 'build/**'
+      - 'Cargo.toml'
+      - 'scripts/build-data.sh'
+      - 'bench/golden/**'
+      - 'bench/public/**'
+      - 'bench/tools/wmb-probe/**'
+      - 'bench/tools/wmb-chunkbench/**'
+      - 'bench/tools/perf*.py'
+      - 'bench/tools/perf*.sh'
+      - 'bench/tools/golden.sh'
+      - 'bench/tools/chunker_golden.sh'
+      - '.github/workflows/perf.yml'
 
 # A new push to a PR cancels that PR's older runs. On main, runs never cancel each other;
 # a newer push replaces only a run that is still waiting.

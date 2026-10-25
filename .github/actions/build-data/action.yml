@@ -1,0 +1,61 @@
+name: Build data
+description: >-
+  The data binaries (en_tokenizer.bin, en_rules.bin) from scripts/build-data.sh, cached on
+  everything the build reads. The script is byte-reproducible, so a cache hit is the same
+  output a fresh build would give; a PR that changes none of the inputs skips the ~9-minute
+  build. The Release workflow does not use this action: it always builds from scratch.
+
+inputs:
+  out-dir:
+    description: Where to put the binaries (and the script's README, license and SHA256SUMS)
+    default: dist/data
+
+outputs:
+  cache-hit:
+    description: Whether the binaries came from the cache
+    value: ${{ steps.data.outputs.cache-hit }}
+
+runs:
+  using: composite
+  steps:
+    # Every input of scripts/build-data.sh: the script (which pins the LanguageTool and en.zip
+    # downloads by sha256), the build-dir generator and LanguageTool rule fork in build/, the
+    # compiler and the serialized types in nlprule (whose crate version is in each binary's
+    # header), the sentence splitter, and the packaged README and license. Bump `v1` to force
+    # a rebuild.
+    - id: data
+      uses: actions/cache@v4
+      with:
+        path: dist/data
+        key: >-
+          wmb-data-v1-${{ runner.os }}-${{ hashFiles('scripts/build-data.sh', 'build/**',
+          'nlprule/src/**', 'nlprule/build.rs', 'nlprule/configs/**', 'nlprule/Cargo.toml',
+          'srx/**', 'Cargo.toml', 'binaries/**') }}
+
+    - if: steps.data.outputs.cache-hit != 'true'
+      uses: actions/setup-python@v5
+      with:
+        # build/requirements.txt pins old packages (lxml 4.6.3); 3.9 is the newest
+        # interpreter with wheels for them.
+        python-version: '3.9'
+
+    - if: steps.data.outputs.cache-hit != 'true'
+      name: Cache LanguageTool download, portable JRE and build venv
+      uses: actions/cache@v4
+      with:
+        path: data/cache
+        key: lt-data-${{ runner.os }}-${{ hashFiles('build/requirements.txt') }}
+
+    - if: steps.data.outputs.cache-hit != 'true'
+      name: Build data (pinned LanguageTool 6.6)
+      shell: bash
+      run: scripts/build-data.sh
+
+    - name: Copy to ${{ inputs.out-dir }}
+      if: inputs.out-dir != 'dist/data'
+      shell: bash
+      env:
+        OUT_DIR: ${{ inputs.out-dir }}
+      run: |
+        mkdir -p "$OUT_DIR"
+        cp dist/data/en_tokenizer.bin dist/data/en_rules.bin "$OUT_DIR/"
