@@ -207,8 +207,8 @@ the header-bearing input in the earlier headline measurements; use the new basel
 for relative comparisons, and repeat the original input locally when judging parity
 against the original 2.16/2.63 seconds and 78/100 MB targets. No private texts are used.
 
-The Performance workflow checks goldens and compares the PR with its merge base in one
-Ubuntu job. Each engine compiles its own data, with the same generated build inputs and
+The Performance workflow compares each push to `main` with its merge base in one Ubuntu job
+(the golden checks run in CI's English job on every PR). Each engine compiles its own data, with the same generated build inputs and
 dependency lockfiles; the current probe code measures both engines. Native check/load
 seconds and RSS use five-run medians; peak RSS is also measured by `/usr/bin/time -v`.
 Callgrind instruction totals and allocator-call counts cover one **whole process**
@@ -670,9 +670,8 @@ tokenizer's live heap after load. nlprule exposes the pre-chunk stages behind th
 
 `bench/tools/chunker_golden.sh --check` compares, byte-for-byte in about two seconds, every
 token's chunk tags plus the chunk model's internal tokens/POS/chunk labels for
-`story1..5` + `moby150k` with the LT 6.6 rules (`bench/golden/chunker/66/`); the Performance
-workflow runs it on every push to `main` and on every PR that touches the engine, its data, the
-golden files or the probes (see the workflow's `paths`). `--golden=verify` checks that the harness
+`story1..5` + `moby150k` with the LT 6.6 rules (`bench/golden/chunker/66/`); CI's English job
+runs it on every PR and every push to `main`. `--golden=verify` checks that the harness
 path (`prepared_sentences` + `chunk_apply`) produces exactly the chunk tags of the real
 `Tokenizer::pipe` pipeline.
 

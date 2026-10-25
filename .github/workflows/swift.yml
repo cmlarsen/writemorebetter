@@ -4,31 +4,23 @@ on:
   push:
     branches:
       - main
-  # A PR pays for a macOS XCFramework build here, so only run when the package or what it
-  # builds from changes. Every push to main still runs.
+  # A PR pays for a macOS XCFramework build here, so it runs only when the Swift package
+  # itself changes. CI's English job still compiles the swift crate on every PR (clippy and
+  # tests cover the workspace), so an engine change that breaks it fails there; one that only
+  # changes the generated bindings shows on the next push to main. Every push to main runs.
   pull_request:
     paths:
       - 'swift/**'
       - 'Package.swift'
-      - 'nlprule/**'
-      - 'style/**'
-      - 'srx/**'
-      - 'build/**'
-      - 'binaries/**'
-      - 'Cargo.toml'
-      - 'scripts/build-data.sh'
       - 'scripts/build-xcframework.sh'
-      - 'LICENSE-MIT'
-      - 'LICENSE-APACHE'
-      - 'NOTICE'
-      - '.github/actions/build-data/**'
+      - 'scripts/consumer-check.sh'
       - '.github/workflows/swift.yml'
 
-# A new push to a PR cancels that PR's older runs. On main, runs never cancel each other;
-# a newer push replaces only a run that is still waiting.
+# A newer push cancels older runs, on main as on a PR: while iterating, only the latest
+# commit's result matters, and stale main runs held runners that PRs were waiting for.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: true
 
 jobs:
   swift:
@@ -42,6 +34,8 @@ jobs:
           targets: aarch64-apple-darwin,x86_64-apple-darwin,aarch64-apple-ios,x86_64-apple-ios,aarch64-apple-ios-sim
 
       - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
       # The same pinned script as CI and the release workflow, cached on its inputs.
       - name: Build data (pinned LanguageTool 6.6)

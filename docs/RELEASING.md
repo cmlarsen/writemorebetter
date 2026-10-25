@@ -15,7 +15,6 @@ binary target URL.
 | `writemorebetter-data-<version>.zip` | `scripts/build-data.sh` on ubuntu-latest — the two LGPL-2.1 data binaries (`en_tokenizer.bin`, `en_rules.bin`) with `SHA256SUMS`, `README.md` and `LICENSE-LGPL-2.1.txt` |
 | `WriteMoreBetterFFI.xcframework.zip` | `scripts/build-xcframework.sh` on macos-15 — the SwiftPM binary target |
 | `SHA256SUMS` | sha256 of both zip archives |
-| `python-wheels-*` and `python-sdist` run artifacts (not on PyPI yet) | `.github/workflows/python.yml`, called by the Release workflow — abi3 wheels (CPython 3.9+) for Linux (manylinux x86_64), macOS (arm64) and Windows (x64), plus the sdist. Engine code only; no LGPL data |
 
 Both jobs use the same pinned Rust toolchain (`1.99.0`), which is an input to the
 reproducible artifacts. The data binaries are **not** inside the XCFramework zip: the
@@ -29,8 +28,7 @@ checker loads them from disk, so an app ships them as resources.
 2. Every workspace crate that ships together — `nlprule`, `build`, `swift`
    (`writemorebetter-swift`), `wasm` and `python` (`writemorebetter-python`, whose version is
    the Python package's) — must already be at `<version>` on `main`. (`srx` is versioned
-   independently.) The run fails on a mismatch. A Python wheel must be paired with the data zip
-   of the same version.
+   independently.) The run fails on a mismatch.
 3. The tag `<version>` must not exist yet. The run fails if it does.
 4. Dispatch from `main`. A real release refuses to run from any other ref, because the tag
    is placed on the exact commit that was built; a dry run may come from a branch (see
@@ -38,31 +36,23 @@ checker loads them from disk, so an app ships them as resources.
 
 ## Run it
 
-Dispatch the workflow from `main`, dry run first. From the command line:
-
-```sh
-gh workflow run release.yml --repo cmlarsen/writemorebetter --ref main \
-  -f version=0.7.0 -f dry_run=true
-gh run watch --repo cmlarsen/writemorebetter --exit-status
-```
-
-The dry run builds everything and uploads the two zip archives as workflow artifacts.
-It **never** commits, tags or publishes. Check, in the run log:
-
-- the artifact list (`writemorebetter-data-<version>`, `writemorebetter-xcframework-<version>`),
-- the `python-wheels-*` and `python-sdist` artifacts and the **Python** jobs, which install each
-  wheel and a wheel built from the sdist and run the binding's tests against the data,
-- the **Consumer check** job, which resolves the package as a git dependency the way an app does
-  and runs a tiny app that loads the data and calls `check`.
-
-A dry run may be dispatched from a branch (`--ref <branch>`) to rehearse before the workflow
-merges; only a real release refuses to run from anything but `main`. Then cut the real
-release by dispatching again with `dry_run=false` from `main`:
+Dispatch the workflow from `main` with `dry_run=false`:
 
 ```sh
 gh workflow run release.yml --repo cmlarsen/writemorebetter --ref main \
   -f version=0.7.0 -f dry_run=false
+gh run watch --repo cmlarsen/writemorebetter --exit-status
 ```
+
+The `publish` job waits for every other job: the data build, the XCFramework build and the
+**Consumer check**, which resolves the package as a git dependency the way an app does and runs
+a tiny app that loads the data and calls `check`. If any of them fails, nothing is committed,
+tagged or published; fix the cause and dispatch again.
+
+A dry run (`-f dry_run=true`) builds everything and uploads the two zip archives as workflow
+artifacts without committing, tagging or publishing. It is only needed to rehearse a change to
+`release.yml` itself, and may be dispatched from a branch (`--ref <branch>`); a real release
+refuses to run from anything but `main`.
 
 ## What the release run commits and tags
 
@@ -89,10 +79,10 @@ binary target.
 
 ## Python packages
 
-The Release workflow builds and tests the Python wheels and sdist, and a release is not tagged
-if they fail, but nothing is uploaded to PyPI yet: the upload job was removed after 0.13.0
-until PyPI publishing is set up. Download the wheels from the run's `python-wheels-*`
-artifacts.
+The Python package is not released yet: the Release workflow neither builds nor uploads it
+(the PyPI upload was removed after 0.13.0, the wheel build after 0.14.0), and CI does not build
+it on PRs or main. Run the **Python** workflow by hand (Actions → Python → Run workflow) for
+wheels and an sdist, as `python-wheels-*` and `python-sdist` artifacts.
 
 So a release is exactly one commit on `main` that points `Package.swift` at the new asset,
 plus the tag and the release pointing at it.

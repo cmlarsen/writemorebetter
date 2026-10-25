@@ -19,8 +19,9 @@ maturin build --release        # wheel in ../target/wheels/
 pip install ../target/wheels/writemorebetter-*.whl
 ```
 
-or `maturin develop --release` inside a virtualenv. CI also builds abi3 wheels (CPython 3.9+) for
-Linux, macOS and Windows on every PR; download them from the run's `python-wheels-*` artifacts.
+or `maturin develop --release` inside a virtualenv. The **Python** workflow (run by hand from
+GitHub Actions) builds abi3 wheels (CPython 3.9+) for Linux, macOS and Windows; download them from
+the run's `python-wheels-*` artifacts.
 
 ### Data files
 
