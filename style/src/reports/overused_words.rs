@@ -14,6 +14,8 @@ pub const FILLER_WORDS: [&str; 9] = [
     "actually", "just", "quite", "really", "simply", "somehow", "suddenly", "that", "very",
 ];
 
+const MODIFIER_HEADS: usize = 2;
+
 const CONTENT_TAGS: [&str; 4] = ["NN", "VB", "JJ", "RB"];
 
 pub const EXCLUDED_LEMMAS: [&str; 9] = [
@@ -551,10 +553,44 @@ fn candidates<'a>(
         .collect()
 }
 
+fn noun_heads(document: &Document) -> HashSet<String> {
+    let mut heads: HashMap<String, usize> = HashMap::new();
+    let mut adjectives: HashMap<String, usize> = HashMap::new();
+    let lemmas = |token: &Token, tag: &str| -> HashSet<String> {
+        token
+            .readings
+            .iter()
+            .filter(|r| r.pos.starts_with(tag) && !matches!(r.pos.as_str(), "NNP" | "NNPS"))
+            .map(|r| canonical_spelling(&fold(&r.lemma)).to_owned())
+            .collect()
+    };
+    for token in document.words() {
+        let adjective = lemmas(token, "JJ");
+        let chunk = |kind: &str| token.chunks.iter().any(|c| c.contains(kind));
+        if adjective.is_empty() && chunk("E-NP") {
+            for lemma in lemmas(token, "NN") {
+                *heads.entry(lemma).or_default() += 1;
+            }
+        } else if !chunk("-NP") {
+            for lemma in adjective {
+                *adjectives.entry(lemma).or_default() += 1;
+            }
+        }
+    }
+    heads
+        .into_iter()
+        .filter(|(lemma, count)| {
+            *count >= MODIFIER_HEADS && *count >= adjectives.get(lemma).copied().unwrap_or(0)
+        })
+        .map(|(lemma, _)| lemma)
+        .collect()
+}
+
 fn content_lemma(
     word: &Word,
     document: &Document,
     baseline: &OverusedWordsBaseline,
+    heads: &HashSet<String>,
 ) -> Option<(String, bool)> {
     let token = word.token;
     if token.readings.iter().any(|r| r.pos.starts_with("CD")) {
@@ -575,6 +611,22 @@ fn content_lemma(
     }
     let chunk = |kind: &str| token.chunks.iter().any(|c| c.contains(kind));
     let family = |tag: &str| content.iter().any(|(_, t)| *t == tag);
+    let rate = |lemma: &str| baseline.rate(lemma).unwrap_or(0.0);
+    if chunk("-NP") && !chunk("E-NP") {
+        let modifier = content
+            .iter()
+            .map(|(lemma, _)| lemma)
+            .filter(|lemma| heads.contains(canonical_spelling(lemma)))
+            .filter(|lemma| {
+                !content
+                    .iter()
+                    .any(|(other, t)| *t == "JJ" && other != *lemma)
+            })
+            .max_by(|a, b| rate(a).total_cmp(&rate(b)).then_with(|| b.cmp(a)));
+        if let Some(lemma) = modifier {
+            return Some((lemma.clone(), true));
+        }
+    }
     let content: Vec<(String, &str)> = if chunk("-VP") && family("VB") {
         content.into_iter().filter(|(_, t)| *t == "VB").collect()
     } else if chunk("E-NP") && family("NN") {
@@ -582,7 +634,6 @@ fn content_lemma(
     } else {
         content
     };
-    let rate = |lemma: &str| baseline.rate(lemma).unwrap_or(0.0);
     let lemma = content
         .iter()
         .map(|(lemma, _)| lemma)
@@ -626,12 +677,13 @@ pub fn report(
         .filter(|word| !word.initial && capitalized(word.token))
         .map(|word| word.token.text.as_str())
         .collect();
+    let heads = noun_heads(document);
     for word in words_with_position(document) {
         let token = word.token;
         if let Some(filler) = filler(&word) {
             fillers.entry(filler).or_default().push(token.span.clone());
         } else if let Some(baseline) = baseline.filter(|_| !proper(token, word.initial, &names)) {
-            match content_lemma(&word, document, baseline) {
+            match content_lemma(&word, document, baseline, &heads) {
                 Some((lemma, noun)) if options.include_nouns || !noun => {
                     let key = canonical_spelling(&lemma);
                     if !lemmas.contains_key(key) {

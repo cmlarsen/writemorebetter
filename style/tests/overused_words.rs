@@ -333,6 +333,28 @@ twenty-five men, a grey dog. The old-fashioned man sat cross-legged, blue-eyed a
 }
 
 #[test]
+fn noun_modifiers_count_as_nouns_when_the_text_uses_the_noun() {
+    let text = "She touched the rock wall—cold. “Rock dust,” he said… The rock face shone.\u{2028}\
+Ivy’s rock hammer slipped. Loose rocks fell, and a rock hit her boot. The rocks settled. \
+They drilled all night. The drill bit sang. She wore a black coat; the sky was black. \
+A black dog ran past a black gate.";
+    let found = |include_nouns| {
+        flags(text, &loose().with_include_nouns(include_nouns))
+            .into_iter()
+            .map(|(lemma, count, _)| (lemma, count))
+            .collect::<Vec<_>>()
+    };
+    let count =
+        |found: &[(String, usize)], name: &str| found.iter().find(|(l, _)| l == name).map(|f| f.1);
+    let without = found(false);
+    assert_eq!(count(&without, "rock"), None, "{without:?}");
+    assert_eq!(count(&without, "drill"), Some(1), "{without:?}");
+    assert_eq!(count(&without, "black"), Some(4), "{without:?}");
+    let with = found(true);
+    assert!(count(&with, "rock").is_some_and(|n| n >= 6), "{with:?}");
+}
+
+#[test]
 fn clause_final_pronoun_that_is_not_a_filler() {
     let d = document(
         "He said that. She knew that he lied. “I want that,” she said. It was so cold that we left.",
