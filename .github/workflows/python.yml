@@ -2,28 +2,11 @@ name: Python
 
 # Builds the `writemorebetter` Python wheels (abi3, CPython 3.9+) for Linux, macOS and Windows
 # and the sdist, and smoke-tests each one against the LGPL data, which stays out of both.
-# Nothing here publishes: the Release workflow calls this one (workflow_call) so a release whose
-# wheels fail is never tagged. PyPI upload is not set up yet. See docs/RELEASING.md.
+# Nothing here publishes, and nothing runs it automatically yet: the Python package is not
+# released, so neither PRs, main nor the Release workflow build it. Run it by hand (Actions →
+# Python → Run workflow) for wheels. See docs/RELEASING.md.
 on:
-  workflow_call:
-  push:
-    branches:
-      - main
-  # A PR pays for a data build here (~11 min), so only run when the binding or what it builds
-  # from changes. Every push to main still runs.
-  pull_request:
-    paths:
-      - 'python/**'
-      - 'style/**'
-      - 'nlprule/**'
-      - 'srx/**'
-      - 'build/**'
-      - 'Cargo.toml'
-      - 'scripts/build-data.sh'
-      - 'LICENSE-MIT'
-      - 'LICENSE-APACHE'
-      - 'NOTICE'
-      - '.github/workflows/python.yml'
+  workflow_dispatch:
 
 # A new push to a PR cancels that PR's older runs. On main, runs never cancel each other;
 # a newer push replaces only a run that is still waiting.
@@ -44,12 +27,6 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
-      - uses: actions/setup-python@v5
-        with:
-          # build/requirements.txt pins old packages (lxml 4.6.3); 3.9 is the newest
-          # interpreter with wheels for them.
-          python-version: '3.9'
-
       # maturin cannot package files outside python/, so the wheel's license files are copies.
       - name: Wheel license files match the repository's
         run: |
@@ -61,16 +38,9 @@ jobs:
       - name: Lint the binding with clippy
         run: cargo clippy -p writemorebetter-python
 
-      # The same pinned script as CI and the release workflow; only the downloads, the
-      # portable JRE and the build venv are cached.
-      - name: Cache LanguageTool download, portable JRE and build venv
-        uses: actions/cache@v4
-        with:
-          path: data/cache
-          key: lt-data-${{ runner.os }}-${{ hashFiles('build/requirements.txt') }}
-
+      # The same pinned script as CI and the release workflow, cached on its inputs.
       - name: Build data (pinned LanguageTool 6.6)
-        run: scripts/build-data.sh
+        uses: ./.github/actions/build-data
 
       # The release data zip's layout: the two binaries at the top level.
       - uses: actions/upload-artifact@v4

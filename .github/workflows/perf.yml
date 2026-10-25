@@ -1,15 +1,18 @@
 name: Performance
 
 on:
+  # Main only: the instruction, RSS and allocator comparison against the merge base reports
+  # regressions after merge rather than gating PRs. The golden-output gates that used to run
+  # here run in CI's English job on every PR.
   push:
     branches: [main]
-  pull_request:
+  workflow_dispatch:
 
-# A new push to a PR cancels that PR's older runs. On main, runs never cancel each other;
-# a newer push replaces only a run that is still waiting.
+# A newer push cancels older runs, on main as on a PR: while iterating, only the latest
+# commit's result matters, and stale main runs held runners that PRs were waiting for.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: true
 
 jobs:
   perf:
@@ -41,12 +44,6 @@ jobs:
 
       - name: Build data (pinned LanguageTool 6.6)
         run: scripts/build-data.sh --out-dir storage/66
-
-      - name: Golden output (default and fiction profiles)
-        run: bench/tools/golden.sh --check
-
-      - name: Chunker golden output
-        run: bench/tools/chunker_golden.sh --check
 
       - name: Prepare merge-base engine with identical probe
         env:

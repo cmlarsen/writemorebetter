@@ -230,8 +230,9 @@ caller owns persistence — the words are not written into a binary.
 Gates before review: `cargo fmt --check`, `cargo clippy --all-targets`, `cargo test`, the WASM build
 (`cargo build --target wasm32-unknown-unknown --no-default-features --features regex-fancy -p nlprule`),
 and `bench/tools/golden.sh --check` for the LT 6.6 output. CI also gates the LanguageTool conformance
-pass rate (its embedded rule examples) and public-corpus recall, runs the Swift, Python and fuzz jobs, and
-compares each PR's speed and memory against its merge base on the Performance workflow.
+pass rate (its embedded rule examples), public-corpus recall and the golden files on every PR, runs the
+style gates and the Swift package when they are affected, and on `main` runs the fuzz replay and compares
+speed and memory against the merge base on the Performance workflow.
 
 `bench/corpus/` holds private, unpublished fiction; it is git-ignored and absent from clones. Use
 `bench/public/` for anything that must be public. Releases are cut from `main` with the Release

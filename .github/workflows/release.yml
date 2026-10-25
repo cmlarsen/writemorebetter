@@ -7,8 +7,8 @@ name: Release
 # workflow rewrites those literals, tags that commit and creates the release itself. Run a dry
 # run first. See docs/RELEASING.md.
 #
-# Tags are plain `X.Y.Z` (no `v`), matching the tag style SwiftPM needs. The Python wheels and
-# sdist are built and tested here but not uploaded to PyPI yet; they stay as run artifacts.
+# Tags are plain `X.Y.Z` (no `v`), matching the tag style SwiftPM needs. The Python package is
+# not built here yet; run the Python workflow by hand for wheels.
 on:
   workflow_dispatch:
     inputs:
@@ -204,19 +204,11 @@ jobs:
       - name: Resolve and build the package as an app would
         run: scripts/consumer-check.sh --zip dist-artifacts/WriteMoreBetterFFI.xcframework.zip --data-dir data-consumer --version "${{ needs.validate.outputs.version }}"
 
-  # The Python wheels (Linux, macOS, Windows) and sdist, built and smoke-tested by the same
-  # workflow PRs run. Its artifacts (python-wheels-*, python-sdist) land in this run.
-  python:
-    name: Python
-    needs: validate
-    uses: ./.github/workflows/python.yml
-    permissions:
-      contents: read
-
   publish:
     name: Publish release
-    # python is here so a release whose wheels fail is never tagged half-done.
-    needs: [validate, build-data, build-xcframework, python]
+    # Every check runs before anything is committed, tagged or published, so a failed run
+    # leaves nothing to roll back and a dry run is only needed to rehearse workflow changes.
+    needs: [validate, build-data, build-xcframework, consumer-check]
     if: needs.validate.outputs.dry_run != 'true'
     runs-on: ubuntu-latest
     steps:
