@@ -7,8 +7,8 @@ name: Release
 # workflow rewrites those literals, tags that commit and creates the release itself. Run a dry
 # run first. See docs/RELEASING.md.
 #
-# Tags are plain `X.Y.Z` (no `v`), matching the tag style SwiftPM needs. A real release also
-# uploads the Python wheels and sdist to PyPI (publish-pypi) once the GitHub release exists.
+# Tags are plain `X.Y.Z` (no `v`), matching the tag style SwiftPM needs. The Python wheels and
+# sdist are built and tested here but not uploaded to PyPI yet; they stay as run artifacts.
 on:
   workflow_dispatch:
     inputs:
@@ -287,51 +287,3 @@ jobs:
             --repo "$REPOSITORY" \
             --title "writemorebetter $version" \
             --notes-file notes.md
-
-  # Uploads the wheels and sdist to PyPI with Trusted Publishing (OIDC): no API token, PyPI
-  # trusts this workflow file in the `pypi` environment. Runs only on a real release, after the
-  # GitHub release exists, so a PyPI version always has its tag and data zip. A PyPI upload
-  # cannot be replaced, which is why it goes last. See docs/RELEASING.md for the one-time setup.
-  publish-pypi:
-    name: Publish to PyPI
-    needs: [validate, python, publish]
-    if: needs.validate.outputs.dry_run != 'true'
-    runs-on: ubuntu-latest
-    environment:
-      name: pypi
-      url: https://pypi.org/project/writemorebetter/${{ needs.validate.outputs.version }}/
-    permissions:
-      id-token: write
-    steps:
-      - name: Download the wheels
-        uses: actions/download-artifact@v4
-        with:
-          pattern: python-wheels-*
-          merge-multiple: true
-          path: pypi-dist
-
-      - name: Download the sdist
-        uses: actions/download-artifact@v4
-        with:
-          name: python-sdist
-          path: pypi-dist
-
-      - name: Check every file is this version
-        env:
-          VERSION: ${{ needs.validate.outputs.version }}
-        run: |
-          set -euo pipefail
-          ls -l pypi-dist
-          ls pypi-dist/writemorebetter-"$VERSION".tar.gz
-          for file in pypi-dist/*; do
-            case "$(basename "$file")" in
-              writemorebetter-"$VERSION"-*.whl | writemorebetter-"$VERSION".tar.gz) ;;
-              *) echo "error: unexpected file $file for version $VERSION" >&2; exit 1 ;;
-            esac
-          done
-
-      - name: Publish to PyPI
-        # v1.14.2
-        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33
-        with:
-          packages-dir: pypi-dist

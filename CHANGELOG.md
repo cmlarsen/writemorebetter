@@ -6,6 +6,14 @@ inherited 0.6.4 track this project's own release line. Each version is a top-lev
 `# <version>` heading; the Release workflow copies that section verbatim into the GitHub
 release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
+# Unreleased
+
+### Removed
+
+- **The Release workflow no longer uploads to PyPI.** The upload was not set up and failed on
+  0.13.0, so 0.13.0 is not on PyPI. Releases still build and test the wheels and sdist and keep
+  them as run artifacts.
+
 # 0.13.0 (2026-10-24)
 
 ### Added
