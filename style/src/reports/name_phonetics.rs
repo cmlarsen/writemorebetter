@@ -87,8 +87,9 @@ impl NamePhonetics for EnglishNamePhonetics {
         if word.is_empty() {
             return result;
         }
+        // Philips' silent initial pairs; an initial vowel, as in *Aerin*, keeps its `A` key.
         let mut i = usize::from(
-            [b"GN", b"KN", b"PN", b"AE", b"WR"]
+            [b"GN", b"KN", b"PN", b"WR", b"PS"]
                 .iter()
                 .any(|p| at(&word, 0, *p)),
         );
@@ -128,7 +129,25 @@ impl NamePhonetics for EnglishNamePhonetics {
                                 .iter()
                                 .any(|p| at(&word, i, *p))
                             || i > 0 && (at(&word, i + 2, b"OR") || at(&word, i + 2, b"YM"));
-                        if greek || i > 0 && prev == Some(b'S') {
+                        // Philips' Germanic and Greek CH: before T or S, or at the start or
+                        // after A, O, U or E when a consonant or the word end follows
+                        // (*Christopher*, *Bach*).
+                        let hard = matches!(word.get(i + 2), Some(b'T' | b'S'))
+                            || (i == 0 || matches!(prev, Some(b'A' | b'O' | b'U' | b'E')))
+                                && matches!(
+                                    word.get(i + 2),
+                                    None | Some(
+                                        b'L' | b'R'
+                                            | b'N'
+                                            | b'M'
+                                            | b'B'
+                                            | b'H'
+                                            | b'F'
+                                            | b'V'
+                                            | b'W'
+                                    )
+                                );
+                        if greek || hard || i > 0 && prev == Some(b'S') {
                             put(&mut result, "K", "K");
                         } else {
                             put(&mut result, "X", "K");
@@ -426,6 +445,29 @@ mod tests {
             ("Arnow", "ARN", "ARNF"),
             ("Walker", "ALKR", "FLKR"),
             ("Filipowicz", "FLPT", "FLPF"),
+        ] {
+            let actual = encoder.codes(name);
+            assert_eq!(
+                (actual.primary.as_str(), actual.alternate.as_str()),
+                (primary, alternate),
+                "{name}"
+            );
+        }
+    }
+
+    // Philips skips only GN, KN, PN, WR and PS at the start, and codes CH as K before a
+    // consonant at the start (*Christopher*).
+    #[test]
+    fn initial_rules() {
+        let encoder = EnglishNamePhonetics;
+        for (name, primary, alternate) in [
+            ("Aerin", "ARN", "ARN"),
+            ("Erin", "ARN", "ARN"),
+            ("Psmith", "SM0", "SMT"),
+            ("Smith", "SM0", "XMT"),
+            ("Christopher", "KRST", "KRST"),
+            ("Chris", "KRS", "KRS"),
+            ("Bach", "PK", "PK"),
         ] {
             let actual = encoder.codes(name);
             assert_eq!(

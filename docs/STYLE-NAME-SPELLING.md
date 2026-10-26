@@ -35,6 +35,12 @@ It does not change skip matching or any other report's counts. An empty roster r
 report. A multi-word roster entry is one entry: list `Mara` separately if lone *Mara* should be
 recognized or skipped.
 
+The report normalizes each roster entry before matching: it trims the entry, collapses each inner
+run of whitespace to one space, and drops entries left empty. Duplicates are removed by the exact
+normalized string, keeping the first. The report's `names` hold the normalized strings, so
+`"Van  der Berg"` is reported, and matched, as `Van der Berg`. This normalization is the report's
+own; `skip_names_supplied` and the document's skip matching are unchanged.
+
 Use `Sentence.tokens` for word text and spans, `is_skipped` for listed occurrences, and
 `Document::mode_at` for narration/dialogue. Exact listed forms are never flags; count them under
 their roster entry without counting skipped honorifics or possessive clitics as names. Count every
@@ -73,8 +79,14 @@ Apply these comparisons in order:
    count as the listed name without a flag. These
    comparisons work for names shorter than four letters. Keep the
    existing document skip rules unchanged: NFC handling here must not alter other reports' counts.
-   Match up to three adjacent tokens, longest first, so *Van der Berg* and *Vanderberg* can meet
-   without absorbing an unrelated neighbor. The full matched run supplies the span.
+   Match runs of adjacent words, longest first, so *Van der Berg* and *Vanderberg* can meet
+   without absorbing an unrelated neighbor. The longest run tried is the longest roster entry,
+   counted in units: words split at whitespace and at hyphens (`-`, U+2010 and U+2011), so
+   *Anna Maria de Sousa* allows four and *Mary-Ann* two. A whole hyphenated token is also
+   tried, since syllabified dialogue can split a listed word into more parts (*Val-an-cy*). A run crosses only whitespace,
+   apostrophe punctuation, or one hyphen between two parts; the tokenizer splits U+2011 into its
+   own token, and a non-breaking *Mary‑Ann* counts as a listed *Mary-Ann*. The full matched run
+   supplies the span.
 2. **Tier 1, typed errors:** use Damerau's optimal string alignment (OSA) distance on Unicode
    scalar values. Both candidate and roster name must have at least four letters. Allow distance
    at most 1 for a listed name under 8 letters and at most 2 otherwise. Require a shared first
@@ -88,7 +100,8 @@ Apply these comparisons in order:
    those vowel and syllable differences relative to length. It does not count spellings the
    code already treats as one sound: *C*/*K*, *PH*/*F*, doubled letters, silent *GH*. This
    catches variants such as *Kathryn*/*Katherine*, *Catherine*/*Kathryn* and *Stephen*/*Steven*
-   beyond tier 1. The transcript is not part of Double Metaphone. The style crate implements the
+   beyond tier 1. The 0.85 Jaro-Winkler bound was chosen after looking at the books' flags, so
+   the books evaluation below is not held out for that choice. The transcript is not part of Double Metaphone. The style crate implements the
    contextual rules described in [Lawrence Philips' original article](https://jacobfilipp.com/DrDobbs/articles/CUJ/2000/0006/philips/philips.htm),
    without depending on `rphonetic` or copying a port.
    Put the phonetic operation behind a per-language seam; English supplies Double Metaphone, and
@@ -113,7 +126,11 @@ chapter at a time sees only that chapter's uses.
 
 Multi-word fuzzy matching
 checks a listed phrase when only one component differs and all others match; it does not infer
-standalone roster names from the phrase.
+standalone roster names from the phrase. Every compared word of a fuzzy multi-word candidate needs
+an initial capital, and a capitalized later word must not occur lowercase in the document. The one
+exception is a lowercase particle that is exactly the listed entry's own lowercase word at that
+place: *de* in *Anna Maria de Sousa*, *van* or *der*. So *Jane hurt* is not a near miss of
+*Jane Hart*, and *da Sousa* is not one of *de Sousa*.
 
 Possessive clitics (`'s`, `’s`, trailing apostrophes) stay outside the flag span. Hyphenated
 parts use the same UTF-8-safe subspan construction as regional spelling. Build multi-token spans
@@ -206,7 +223,7 @@ published phonetic-code fixtures also pass.
 | Nearby names both listed | Zero flags | 0/12 flags |
 | Unlisted real-name near misses | Expected flags | 12/12 one-off *Mary* → *Mara*; in the books, 29 flagged and 4 forms listed, below |
 | Natural-text hand review with real rosters | ≥80% useful | 5/6 (83.3%) on all 35 book flags; Wilson 95% interval 44–97%, so n is too small to show the gate is met |
-| Native release time, `moby150k`, 200-name roster | <10 ms | Median of 19 warm calls: 8.1 ms synthetic, 9.1 ms real capitalized forms (8.3 and 8.9 ms at the previous commit, same machine); first call in a process about 13 ms, of which 3.9 ms parses the bundled concreteness table (analysis excluded) |
+| Native release time, `moby150k`, 200-name roster | <10 ms | Median of 19 warm calls: 5.2 ms synthetic, 7.0 ms real capitalized forms, after computing each sentence's units once and deferring key allocation past the cheap rejections (7.9 and 8.8 ms before, same machine); first call in a process about 13 ms, of which 3.9 ms parses the bundled concreteness table (analysis excluded) |
 
 The correct-suggestion gate was stated against all planted items while recall was 100%. Missed
 phonetic pairs count against recall instead, and the gate checks every caught item.
@@ -246,9 +263,13 @@ Why the four pairs missed, and what changed:
 
 Stuart/Stewart was fixed in the previous round: Philips codes W only at a word start, in WR, in a
 final W after a vowel (alternate F) and in Polish -EWSKI and -WICZ (`w_rules`,
-`medial_w_is_silent_in_phonetic_codes`). The encoder codes initial *CHR* as `X`, not `K` as in
-the published rules for *Christopher*. The edit tier catches that pair, so this round leaves it
-unchanged; it is a follow-up.
+`medial_w_is_silent_in_phonetic_codes`). The encoder now follows Philips for two more initial
+rules (`initial_rules`): only *GN*, *KN*, *PN*, *WR* and *PS* skip their first letter, so *Aerin*
+keeps its initial vowel key and meets *Erin* (`ARN`); and *CH* codes `K` at the start or after
+*A*, *O*, *U* or *E* when a consonant or the word end follows, and before *T* or *S*
+(*Christopher* and *Chris* `KRST` and `KRS`, *Bach* `PK`). One known deviation remains: an initial
+*CH* otherwise has the alternate `K`, where Philips gives `X` alone. The held-out predictions and
+recall did not change.
 
 **Precision at scale.** `python3 bench/style/name_spelling_books.py --check` runs the release
 report over bench/public and the 13 public-domain books and chapters in `sources.json`, one

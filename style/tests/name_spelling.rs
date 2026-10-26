@@ -414,3 +414,83 @@ fn short_respellings_outside_the_bound_are_not_matched() {
     );
     assert!(report.flags.is_empty(), "{:?}", report.flags);
 }
+
+#[test]
+fn lowercase_words_in_phrases_must_be_listed_particles() {
+    let report = run("Then Jane hurt her hand on the door.", &["Jane Hart"], true);
+    assert!(report.flags.is_empty(), "{:?}", report.flags);
+    let report = run(
+        "Then Anna Maria de Souza came—“Anna Maria de Sousa”…\u{2028}",
+        &["Anna Maria de Sousa"],
+        true,
+    );
+    assert_eq!(forms(&report), ["Anna Maria de Souza"]);
+    assert_eq!(report.flags[0].reason, NameSpellingReason::Edit);
+    let report = run(
+        "Then Anna Maria da Sousa came.",
+        &["Anna Maria de Sousa"],
+        true,
+    );
+    assert!(report.flags.is_empty(), "{:?}", report.flags);
+}
+
+#[test]
+fn roster_entries_of_four_or_more_words_match() {
+    let report = run(
+        "Then Anna Maria de Souza came. Then Anna Maria de Sousa came.",
+        &["Anna Maria de Souza"],
+        true,
+    );
+    assert_eq!(report.names[0].counts.all, 1);
+    assert_eq!(forms(&report), ["Anna Maria de Sousa"]);
+    assert_eq!(report.flags[0].reason, NameSpellingReason::Edit);
+}
+
+#[test]
+fn roster_entries_are_normalized() {
+    let report = run("Then Mara came.", &["Mara "], true);
+    assert_eq!(report.names[0].name, "Mara");
+    assert_eq!(report.names[0].counts.all, 1);
+    assert!(report.flags.is_empty(), "{:?}", report.flags);
+    let report = run("Then Van der Berg came.", &["Van  der Berg"], true);
+    assert_eq!(report.names[0].name, "Van der Berg");
+    assert!(report.flags.is_empty(), "{:?}", report.flags);
+    let report = run("Then Mara came.", &["Mara", "Mara", " ", ""], true);
+    assert_eq!(report.names.len(), 1);
+    assert_eq!(report.names[0].counts.all, 1);
+}
+
+#[test]
+fn non_breaking_hyphens_join_names() {
+    let report = run(
+        "“Mary\u{2011}Ann’s”—then Mary\u{2011}Anne…\u{2028}",
+        &["Mary-Ann"],
+        true,
+    );
+    assert_eq!(report.names[0].counts.all, 1);
+    assert_eq!(forms(&report), ["Mary\u{2011}Anne"]);
+    let text = "“Mary\u{2011}Ann’s”—then Mary\u{2011}Anne…\u{2028}";
+    assert_eq!(
+        text.get(report.flags[0].span.byte.clone()),
+        Some("Mary\u{2011}Anne")
+    );
+}
+
+#[test]
+fn a_leading_hyphen_does_not_join_the_previous_name() {
+    for text in ["Then Jane '-Hart came.", "Then “Jane” ’-Hart came—"] {
+        let report = run(text, &["Jane Hart"], true);
+        assert!(report.flags.is_empty(), "{text}: {:?}", report.flags);
+    }
+}
+
+#[test]
+fn syllabified_names_longer_than_the_entry_are_spacing_variants() {
+    let report = run(
+        "“Val-an-cy!” she said—then left…\u{2028}",
+        &["Valancy"],
+        true,
+    );
+    assert_eq!(forms(&report), ["Val-an-cy"]);
+    assert_eq!(report.flags[0].reason, NameSpellingReason::Spacing);
+}

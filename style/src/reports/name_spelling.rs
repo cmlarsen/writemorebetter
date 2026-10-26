@@ -7,7 +7,7 @@ use unicode_normalization::{char::is_combining_mark, UnicodeNormalization};
 
 use super::diction::ConcretenessTable;
 use super::name_phonetics::{Codes, EnglishNamePhonetics, NamePhonetics};
-use super::Split;
+use super::{part_span, parts, Split, HYPHENS};
 use crate::pronunciation::initial_sound;
 use crate::{Document, Mode, Span, StyleError, Token};
 
@@ -145,58 +145,61 @@ struct Unit<'a> {
     join_next: bool,
 }
 
-fn subspan(span: &Span, text: &str, start: usize, part: &str) -> Span {
-    let before = text.get(..start).expect("char boundary from split");
-    let char_start = span.char.start + before.chars().count();
-    let utf16_start = span.utf16.start + before.encode_utf16().count();
-    Span {
-        byte: span.byte.start + start..span.byte.start + start + part.len(),
-        char: char_start..char_start + part.chars().count(),
-        utf16: utf16_start..utf16_start + part.encode_utf16().count(),
-    }
-}
-
+// A unit joins the next only when both are parts of one hyphenated token.
 fn units(sentence: &crate::Sentence) -> Vec<Unit<'_>> {
-    let mut out = Vec::new();
+    let mut out: Vec<Unit<'_>> = Vec::new();
     for token in &sentence.tokens {
         if !token.is_word {
             continue;
         }
-        let mut offset = 0;
-        for part in token.text.split(['-', '‐']) {
-            if !part.is_empty() {
-                let bare = part.trim_end_matches(['\'', '’']);
-                let bare = bare
-                    .strip_suffix("'s")
-                    .or_else(|| bare.strip_suffix("’s"))
-                    .unwrap_or(bare);
-                if !bare.is_empty() {
-                    out.push(Unit {
-                        text: bare,
-                        span: subspan(&token.span, &token.text, offset, bare),
-                        token,
-                        join_next: false,
-                    });
-                }
+        let first = out.len();
+        for (start, part) in parts(&token.text, &HYPHENS) {
+            let bare = part.trim_end_matches(['\'', '’']);
+            let bare = bare
+                .strip_suffix("'s")
+                .or_else(|| bare.strip_suffix("’s"))
+                .unwrap_or(bare);
+            if bare.is_empty() {
+                continue;
             }
-            offset += part.len();
-            if let Some(separator) = token.text.get(offset..).and_then(|s| s.chars().next()) {
-                offset += separator.len_utf8();
+            if out.len() > first {
                 if let Some(last) = out.last_mut() {
                     last.join_next = true;
                 }
             }
+            out.push(Unit {
+                text: bare,
+                span: part_span(&token.span, &token.text, start, bare),
+                token,
+                join_next: false,
+            });
         }
     }
     out
 }
 
+// NFC with every hyphen as '-', so *Mary\u{2011}Ann* is the listed *Mary-Ann*.
 fn nfc(value: &str) -> String {
-    value.nfc().collect()
+    value
+        .nfc()
+        .map(|c| if HYPHENS.contains(&c) { '-' } else { c })
+        .collect()
 }
 
 fn folded(value: &str) -> String {
     nfc(value).to_lowercase()
+}
+
+fn plain(folded: &str) -> String {
+    folded.nfd().filter(|c| !is_combining_mark(*c)).collect()
+}
+
+// The comparison key without spaces, apostrophes or hyphens (*Vanderberg*, *Mary Ann*).
+fn joined(plain: &str) -> String {
+    plain
+        .chars()
+        .filter(|c| !c.is_whitespace() && !matches!(c, '\'' | '’') && !HYPHENS.contains(c))
+        .collect()
 }
 
 fn letters(value: &str) -> usize {
@@ -292,11 +295,8 @@ impl Keys {
     fn new(value: &str) -> Self {
         let nfc = nfc(value);
         let folded = nfc.to_lowercase();
-        let plain: String = folded.nfd().filter(|c| !is_combining_mark(*c)).collect();
-        let joined = plain
-            .chars()
-            .filter(|c| !c.is_whitespace() && *c != '\'' && *c != '’' && *c != '-' && *c != '‐')
-            .collect();
+        let plain = plain(&folded);
+        let joined = joined(&plain);
         Self {
             nfc,
             folded,
@@ -307,6 +307,7 @@ impl Keys {
 }
 
 struct WordKey {
+    text: String,
     folded: String,
     letters: usize,
     sound: &'static str,
@@ -316,6 +317,7 @@ struct WordKey {
 impl WordKey {
     fn new(value: &str, phonetic: bool) -> Self {
         Self {
+            text: value.to_owned(),
             folded: folded(value),
             letters: letters(value),
             sound: initial_sound(value),
@@ -341,6 +343,17 @@ struct RosterIndex {
     stems: HashSet<String>,
     joined_prefixes: HashSet<String>,
     phrase_first_sounds: HashSet<&'static str>,
+    particles: HashSet<String>,
+    max_units: usize,
+}
+
+// A lowercase word in a candidate phrase must be the listed entry's own word at that place
+// (*de* in *Anna Maria de Sousa*); otherwise *Jane hurt* would be a near miss of *Jane Hart*.
+fn particles_match(candidate: &[WordKey], name: &[WordKey]) -> bool {
+    candidate
+        .iter()
+        .zip(name)
+        .all(|(a, b)| !a.text.chars().next().is_some_and(char::is_lowercase) || a.text == b.text)
 }
 
 impl RosterIndex {
@@ -392,6 +405,18 @@ impl RosterIndex {
             if name_words.len() > 1 {
                 index.phrase_first_sounds.insert(name_words[0].sound);
             }
+            index.particles.extend(
+                name_words
+                    .iter()
+                    .filter(|word| word.text.chars().next().is_some_and(char::is_lowercase))
+                    .map(|word| word.text.clone()),
+            );
+            let units = name
+                .name
+                .split(|c: char| c.is_whitespace() || HYPHENS.contains(&c))
+                .filter(|part| !part.is_empty())
+                .count();
+            index.max_units = index.max_units.max(units);
             index.words.push(name_words);
             index.lowercase_initial |= name.name.chars().next().is_some_and(char::is_lowercase);
         }
@@ -475,7 +500,7 @@ impl RosterIndex {
             };
             for &index in edit_indices {
                 let name = &self.words[index];
-                if candidate.len() != name.len() {
+                if candidate.len() != name.len() || !particles_match(&candidate, name) {
                     continue;
                 }
                 let mut differing = candidate
@@ -519,7 +544,7 @@ impl RosterIndex {
                 }
                 for index in plausible {
                     let name = &self.words[index];
-                    if candidate.len() != name.len() {
+                    if candidate.len() != name.len() || !particles_match(&candidate, name) {
                         continue;
                     }
                     let mut differing = candidate
@@ -602,11 +627,15 @@ pub fn report(
     document: &Document,
     options: &NameSpellingOptions,
 ) -> Result<NameSpellingReport, StyleError> {
+    // Entries are trimmed, inner whitespace runs collapse to one space, and duplicates keep the first.
+    let mut seen = HashSet::new();
     let mut names: Vec<NameSpellingName> = document
         .skip_names
         .iter()
+        .map(|name| name.split_whitespace().collect::<Vec<_>>().join(" "))
+        .filter(|name| !name.is_empty() && seen.insert(name.clone()))
         .map(|name| NameSpellingName {
-            name: name.clone(),
+            name,
             counts: Split::default(),
             variants: Vec::new(),
             possible_characters: Vec::new(),
@@ -618,63 +647,56 @@ pub fn report(
     }
     let index = RosterIndex::new(&names, options.phonetic);
     let sentences: Vec<_> = document.sentences().collect();
-    let lowercase_raw: HashSet<&str> = sentences
+    let sentence_units: Vec<Vec<Unit<'_>>> = sentences.iter().map(|s| units(s)).collect();
+    let lowercase_raw: HashSet<&str> = sentence_units
         .iter()
-        .flat_map(|s| units(s))
+        .flatten()
         .filter(|u| u.text.chars().next().is_some_and(char::is_lowercase))
         .map(|u| u.text)
         .collect();
     let lowercase: HashSet<String> = lowercase_raw.into_iter().map(folded).collect();
-    let mut cache: HashMap<(String, bool), Vec<Match>> = HashMap::new();
+    // Indexed by whether fuzzy matching was allowed.
+    let mut cache: [HashMap<String, Vec<Match>>; 2] = Default::default();
     let mut variants: Vec<BTreeMap<(String, u8), NameSpellingVariant>> =
         vec![BTreeMap::new(); names.len()];
-    for (sentence_index, sentence) in sentences.iter().enumerate() {
-        let units = units(sentence);
+    for ((sentence_index, sentence), units) in sentences.iter().enumerate().zip(&sentence_units) {
         let mut at = 0;
         while at < units.len() {
-            if !index.lowercase_initial
-                && !units[at]
-                    .text
-                    .chars()
-                    .next()
-                    .is_some_and(char::is_uppercase)
-            {
+            let first_upper = units[at]
+                .text
+                .chars()
+                .next()
+                .is_some_and(char::is_uppercase);
+            if !index.lowercase_initial && !first_upper {
                 at += 1;
                 continue;
             }
             let first_folded = folded(units[at].text);
             let first_lower_seen = lowercase.contains(&first_folded);
-            let allow_folded = units[at]
-                .text
-                .chars()
-                .next()
-                .is_some_and(char::is_uppercase)
-                && !first_lower_seen;
-            let first_fuzzy = name_like(&units[at], first_lower_seen, options);
+            let allow_folded = first_upper && !first_lower_seen;
+            // Without folded matches only exact forms count, so the fuzzy gates are not needed.
+            let first_fuzzy = allow_folded && name_like(&units[at], first_lower_seen, options);
             let first_ordinary_ok =
-                options.include_dictionary_words || !common_word(units[at].text);
-            let first_joined: String = first_folded
-                .nfd()
-                .filter(|c| {
-                    !is_combining_mark(*c)
-                        && !c.is_whitespace()
-                        && *c != '\''
-                        && *c != '’'
-                        && *c != '-'
-                        && *c != '‐'
-                })
-                .collect();
-            let may_join = index.joined_prefixes.contains(&first_joined)
-                || index
+                first_fuzzy && (options.include_dictionary_words || !common_word(units[at].text));
+            // Runs reach the longest roster entry, or a whole hyphenated token, which may split a
+            // listed word into more parts (*Val-an-cy*).
+            let token_parts = 1 + units[at..].iter().take_while(|u| u.join_next).count();
+            let longest = index.max_units.max(token_parts);
+            let may_join = longest > 1
+                && (index
                     .phrase_first_sounds
-                    .contains(initial_sound(units[at].text));
+                    .contains(initial_sound(units[at].text))
+                    || index
+                        .joined_prefixes
+                        .contains(&joined(&plain(&first_folded))));
             let mut selected = None;
-            for size in (1..=3.min(units.len() - at)).rev() {
+            for size in (1..=longest.min(units.len() - at)).rev() {
                 if size > 1 && !may_join {
                     continue;
                 }
                 let run = &units[at..at + size];
-                // A run crosses only whitespace, apostrophe punctuation, or a split hyphen.
+                // A run crosses only whitespace, apostrophe punctuation, or a split hyphen. The
+                // tokenizer splits U+2011 into its own token, so a lone hyphen gap joins too.
                 if run.windows(2).any(|pair| {
                     if pair[0].join_next {
                         return false;
@@ -682,39 +704,53 @@ pub fn report(
                     let from = pair[0].span.byte.end - sentence.span.byte.start;
                     let to = pair[1].span.byte.start - sentence.span.byte.start;
                     sentence.text.get(from..to).is_none_or(|gap| {
-                        !gap.chars()
-                            .all(|c| c.is_whitespace() || c == '\'' || c == '’')
+                        let mut chars = gap.chars();
+                        let lone_hyphen = chars.next().is_some_and(|c| HYPHENS.contains(&c))
+                            && chars.next().is_none();
+                        !lone_hyphen
+                            && !gap
+                                .chars()
+                                .all(|c| c.is_whitespace() || c == '\'' || c == '’')
                     })
                 }) {
                     continue;
                 }
                 let start = run[0].span.byte.start - sentence.span.byte.start;
                 let end = run[size - 1].span.byte.end - sentence.span.byte.start;
-                let Some(form) = sentence.text.get(start..end).map(str::to_owned) else {
+                let Some(form) = sentence.text.get(start..end) else {
                     continue;
                 };
-                let exact = index.correct(&form, at == 0);
+                let exact = index.correct(form, at == 0);
                 if let Some(index) = exact {
-                    selected = Some((size, form, Some(index), Vec::new()));
+                    selected = Some((size, form.to_owned(), Some(index), Vec::new()));
                     break;
                 }
-                let fuzzy = first_fuzzy
-                    && (size > 1 || first_ordinary_ok)
-                    && run.iter().skip(1).all(|u| {
-                        !lowercase.contains(&folded(u.text))
-                            || u.text.chars().next().is_some_and(char::is_lowercase)
-                    });
                 // Folded matches can include a lowercase component in a multiword name.
                 // The document's skip matcher accepts some case variants of a listed name.
                 // Their literal surface still belongs in this report's case tier.
                 if !allow_folded {
                     continue;
                 }
-                let matches = cache
-                    .entry((form.clone(), fuzzy))
-                    .or_insert_with(|| index.matches(&form, fuzzy, options.phonetic));
+                // Each later word needs a capital not used lowercase in the document, or must be
+                // a lowercase particle of a listed name (*de*, *van*), checked per entry.
+                let fuzzy = first_fuzzy
+                    && (size > 1 || first_ordinary_ok)
+                    && run.iter().skip(1).all(|u| {
+                        if u.text.chars().next().is_some_and(char::is_uppercase) {
+                            !lowercase.contains(&folded(u.text))
+                        } else {
+                            index.particles.contains(u.text)
+                        }
+                    });
+                let cache = &mut cache[usize::from(fuzzy)];
+                let matches = match cache.get(form) {
+                    Some(matches) => matches,
+                    None => cache
+                        .entry(form.to_owned())
+                        .or_insert_with(|| index.matches(form, fuzzy, options.phonetic)),
+                };
                 if !matches.is_empty() {
-                    selected = Some((size, form, None, matches.clone()));
+                    selected = Some((size, form.to_owned(), None, matches.clone()));
                     break;
                 }
             }

@@ -157,10 +157,7 @@ pub fn initial_sound_with<'a>(word: &str, lookup: &dyn Fn(&str) -> Option<&'a st
         .flat_map(char::to_lowercase)
         .collect();
     let key = key.trim_matches(|c: char| !c.is_alphanumeric());
-    let first = key
-        .split(['-', '\u{2010}', '\u{2011}'])
-        .next()
-        .unwrap_or(key);
+    let first = key.split(crate::reports::HYPHENS).next().unwrap_or(key);
     let stem = first.split('\'').next().unwrap_or(first);
     lookup(key)
         .or_else(|| lookup(first))
