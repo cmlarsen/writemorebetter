@@ -11,7 +11,7 @@ use super::Split;
 use crate::pronunciation::initial_sound;
 use crate::{Document, Mode, Span, StyleError, Token};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum NameSpellingReason {
     Edit,
@@ -28,6 +28,10 @@ pub struct NameSpellingOptions {
     #[serde(alias = "include_dictionary_words")]
     pub include_dictionary_words: bool,
     pub phonetic: bool,
+    /// An edit or phonetic near miss used at least this often in the document is listed under
+    /// its roster entry as a possible other character instead of flagged; 0 never lists one.
+    #[serde(alias = "other_character_minimum")]
+    pub other_character_minimum: usize,
 }
 
 impl Default for NameSpellingOptions {
@@ -35,6 +39,7 @@ impl Default for NameSpellingOptions {
         Self {
             include_dictionary_words: false,
             phonetic: true,
+            other_character_minimum: 3,
         }
     }
 }
@@ -51,6 +56,11 @@ impl NameSpellingOptions {
 
     pub fn with_phonetic(mut self, phonetic: bool) -> Self {
         self.phonetic = phonetic;
+        self
+    }
+
+    pub fn with_other_character_minimum(mut self, minimum: usize) -> Self {
+        self.other_character_minimum = minimum;
         self
     }
 }
@@ -85,7 +95,10 @@ pub struct NameSpellingVariant {
 pub struct NameSpellingName {
     pub name: String,
     pub counts: Split<usize>,
+    /// Flagged forms only.
     pub variants: Vec<NameSpellingVariant>,
+    /// Frequent edit or phonetic near misses, not flagged: possibly another character.
+    pub possible_characters: Vec<NameSpellingVariant>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -524,15 +537,18 @@ impl RosterIndex {
                     {
                         continue;
                     }
-                    if !b
+                    let Some(other) = b
                         .phonetic
                         .as_ref()
-                        .is_some_and(|other| candidate_codes[component].overlaps(other))
-                    {
+                        .filter(|other| candidate_codes[component].overlaps(other))
+                    else {
                         continue;
-                    }
-                    let distance = osa(&a.folded, &b.folded);
-                    if distance <= 3 || jaro_winkler(&a.folded, &b.folded) >= 0.85 {
+                    };
+                    // The second bound limits the vowel and syllable differences the keys drop,
+                    // relative to length; spellings of one sound (C/K, PH/F) don't count.
+                    let (a, b) = (&candidate_codes[component].transcript, &other.transcript);
+                    if jaro_winkler(a, b) >= 0.85 {
+                        let distance = osa(a, b);
                         found.push(Match {
                             index,
                             reason: NameSpellingReason::Phonetic,
@@ -593,6 +609,7 @@ pub fn report(
             name: name.clone(),
             counts: Split::default(),
             variants: Vec::new(),
+            possible_characters: Vec::new(),
         })
         .collect();
     let mut flags = Vec::new();
@@ -747,8 +764,26 @@ pub fn report(
             }
         }
     }
+    // A near miss used often is more likely another character than a slip. Case, diacritic
+    // and spacing variants are spellings of the listed name itself and stay flagged.
+    let mut listed = HashSet::new();
     for (name, variants) in names.iter_mut().zip(variants) {
-        name.variants = variants.into_values().collect();
+        for variant in variants.into_values() {
+            let near = matches!(
+                variant.reason,
+                NameSpellingReason::Edit | NameSpellingReason::Phonetic
+            );
+            if near
+                && options.other_character_minimum > 0
+                && variant.counts.all >= options.other_character_minimum
+            {
+                listed.insert((name.name.clone(), variant.form.clone(), variant.reason));
+                name.possible_characters.push(variant);
+            } else {
+                name.variants.push(variant);
+            }
+        }
     }
+    flags.retain(|flag| !listed.contains(&(flag.name.clone(), flag.form.clone(), flag.reason)));
     Ok(NameSpellingReport { flags, names })
 }

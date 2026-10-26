@@ -660,6 +660,7 @@ export interface NameSpellingName {
   name: string;
   counts: Split<number>;
   variants: Array<NameSpellingVariant>;
+  possibleCharacters: Array<NameSpellingVariant>;
 }
 
 export interface NameSpellingReport {

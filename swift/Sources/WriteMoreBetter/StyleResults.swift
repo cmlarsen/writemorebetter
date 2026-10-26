@@ -832,7 +832,10 @@ public struct NameSpellingVariant: Codable, Equatable, Sendable {
 public struct NameSpellingName: Codable, Equatable, Sendable {
     public let name: String
     public let counts: Split<Int>
+    /// Flagged forms only.
     public let variants: [NameSpellingVariant]
+    /// Frequent edit or phonetic near misses, listed instead of flagged: possibly another character.
+    public let possibleCharacters: [NameSpellingVariant]
 }
 
 public struct NameSpellingReport: Codable, Equatable, Sendable {

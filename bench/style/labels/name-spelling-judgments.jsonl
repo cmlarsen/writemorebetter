@@ -105,3 +105,6 @@
 {"source": "moby", "document": "src/epub/text/chapter-32.xhtml", "char": 13303, "form": "Ahaz", "name": "Ahab", "reason": "edit", "label": "unlisted name", "note": "the biblical king Ahaz"}
 {"source": "moby150k", "document": "moby150k.txt", "char": 0, "form": "MOBY-DICK", "name": "Moby Dick", "reason": "spacing", "label": "useful", "note": "hyphenated title form of the listed name"}
 {"source": "moby150k", "document": "moby150k.txt", "char": 16373, "form": "Nantuckois", "name": "Nantucket", "reason": "phonetic", "label": "not useful", "note": "French demonym in a quoted source"}
+{"source": "pride", "document": "src/epub/text/chapter-13.xhtml", "char": 3297, "form": "Lewis", "name": "Lizzy", "reason": "phonetic", "label": "unlisted name", "note": "Sir Lewis de Bourgh, another character"}
+{"source": "pride", "document": "src/epub/text/chapter-29.xhtml", "char": 2758, "form": "Lewis", "name": "Lizzy", "reason": "phonetic", "label": "unlisted name", "note": "Sir Lewis de Bourgh, another character"}
+{"source": "pride", "document": "src/epub/text/chapter-29.xhtml", "char": 8413, "form": "Lewis", "name": "Lizzy", "reason": "phonetic", "label": "unlisted name", "note": "Sir Lewis de Bourgh, another character"}

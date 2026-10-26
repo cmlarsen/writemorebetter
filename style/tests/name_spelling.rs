@@ -13,11 +13,24 @@ fn tokenizer() -> &'static Arc<Tokenizer> {
 }
 
 fn run(text: &str, names: &[&str], compact: bool) -> name_spelling::NameSpellingReport {
-    let options = DocumentOptions::new()
+    run_with(text, names, compact, &NameSpellingOptions::default())
+}
+
+fn run_with(
+    text: &str,
+    names: &[&str],
+    compact: bool,
+    options: &NameSpellingOptions,
+) -> name_spelling::NameSpellingReport {
+    let document_options = DocumentOptions::new()
         .with_skip_names(names.iter().map(|s| (*s).to_owned()).collect())
         .with_token_details(!compact);
-    let document = analyze_document(tokenizer(), text, &options);
-    name_spelling::report(&document, &NameSpellingOptions::default()).unwrap()
+    let document = analyze_document(tokenizer(), text, &document_options);
+    name_spelling::report(&document, options).unwrap()
+}
+
+fn forms(report: &name_spelling::NameSpellingReport) -> Vec<&str> {
+    report.flags.iter().map(|f| f.form.as_str()).collect()
 }
 
 #[test]
@@ -126,7 +139,12 @@ fn phonetic_matches_respellings_after_edit() {
 #[test]
 fn possessives_hyphens_and_unicode_spans() {
     let text = "🙂 “Marra’s—Marra's; Marra'… Mara-Lynn.”\u{2028}Zoe met Zoë and Zoe\u{308}.";
-    let report = run(text, &["Mara", "Zoë", "Mara-Lynn"], true);
+    let report = run_with(
+        text,
+        &["Mara", "Zoë", "Mara-Lynn"],
+        true,
+        &NameSpellingOptions::new().with_other_character_minimum(0),
+    );
     for flag in &report.flags {
         assert_eq!(text.get(flag.span.byte.clone()), Some(flag.form.as_str()));
         assert!(!flag.form.ends_with(['\'', '’']));
@@ -251,7 +269,7 @@ fn derived_forms_of_listed_names_are_not_variants() {
 #[test]
 fn capitalized_common_and_calendar_words_are_not_candidates() {
     let text = "🙂 “In June?”—the great Lady’s Cinque Port… Part 1.\u{2028}Jnae came.";
-    let names = ["Jane", "Lydia", "Perth"];
+    let names = ["Jane", "Laddy", "Perth"];
     let report = run(text, &names, true);
     assert_eq!(
         report
@@ -284,4 +302,115 @@ fn medial_w_is_silent_in_phonetic_codes() {
     assert_eq!(report.flags.len(), 1);
     assert_eq!(report.flags[0].form, "Stewart");
     assert_eq!(report.flags[0].reason, NameSpellingReason::Phonetic);
+}
+
+#[test]
+fn frequent_near_misses_are_listed_not_flagged() {
+    let two = "🙂 “Marra?” she asked—Marra’s coat… Mara.\u{2028}";
+    let report = run(two, &["Mara"], true);
+    assert_eq!(forms(&report), ["Marra", "Marra"]);
+    assert!(report.names[0].possible_characters.is_empty());
+    assert_eq!(report.names[0].variants[0].counts.all, 2);
+
+    // Possessives count toward the form; the listed spans exclude the clitic.
+    let three = "🙂 “Marra?” she asked—Marra’s coat… Marra's hat.\u{2028}Mara.";
+    let report = run(three, &["Mara"], true);
+    assert!(report.flags.is_empty(), "{:?}", report.flags);
+    let name = &report.names[0];
+    assert!(name.variants.is_empty());
+    assert_eq!(name.counts.all, 1);
+    let possible = &name.possible_characters[0];
+    assert_eq!(
+        (possible.form.as_str(), possible.reason),
+        ("Marra", NameSpellingReason::Edit)
+    );
+    assert_eq!(
+        (
+            possible.counts.all,
+            possible.counts.dialogue,
+            possible.spans.len()
+        ),
+        (3, 1, 3)
+    );
+    let utf16: Vec<u16> = three.encode_utf16().collect();
+    for span in &possible.spans {
+        assert_eq!(three.get(span.byte.clone()), Some("Marra"));
+        assert_eq!(
+            String::from_utf16(&utf16[span.utf16.clone()]).unwrap(),
+            "Marra"
+        );
+    }
+
+    let never = run_with(
+        three,
+        &["Mara"],
+        true,
+        &NameSpellingOptions::new().with_other_character_minimum(0),
+    );
+    assert_eq!(forms(&never), ["Marra", "Marra", "Marra"]);
+    assert!(never.names[0].possible_characters.is_empty());
+    let parsed: NameSpellingOptions =
+        serde_json::from_str(r#"{"other_character_minimum":0}"#).unwrap();
+    assert_eq!(
+        parsed,
+        NameSpellingOptions::new().with_other_character_minimum(0)
+    );
+    let parsed: NameSpellingOptions =
+        serde_json::from_str(r#"{"otherCharacterMinimum":2}"#).unwrap();
+    assert_eq!(parsed.other_character_minimum, 2);
+}
+
+#[test]
+fn other_character_count_is_per_form() {
+    // Two forms near one name do not add up; a phonetic form is listed like an edit.
+    let text = "🙂 “Marra—Marra… Marro?”\u{2028}Kathryn, Kathryn’s, Kathryn.";
+    let report = run(text, &["Mara", "Katherine"], true);
+    assert_eq!(forms(&report), ["Marra", "Marra", "Marro"]);
+    let listed = &report.names[1].possible_characters;
+    assert_eq!(listed.len(), 1);
+    assert_eq!(
+        (
+            listed[0].form.as_str(),
+            listed[0].reason,
+            listed[0].counts.all
+        ),
+        ("Kathryn", NameSpellingReason::Phonetic, 3)
+    );
+}
+
+#[test]
+fn case_diacritic_and_spacing_variants_stay_flagged() {
+    let text = "🙂 “Zoe—Zoe… Zoe?”\u{2028}MaRa, MaRa’s, MaRa. Vanderberg—Vanderberg… Vanderberg.";
+    let report = run(text, &["Zoë", "Mara", "Van der Berg"], true);
+    assert_eq!(report.flags.len(), 9, "{:?}", report.flags);
+    assert!(report
+        .names
+        .iter()
+        .all(|n| n.possible_characters.is_empty() && n.variants[0].counts.all == 3));
+}
+
+#[test]
+fn respellings_beyond_the_spelled_distance_match() {
+    // Doubled letters, PH/F, C/K, Y/I and silent GH are one sound to the code and the bound.
+    for (name, form) in [
+        ("Catherine", "Kathryn"),
+        ("Hailey", "Haleigh"),
+        ("Tiffany", "Tiphanie"),
+    ] {
+        let text = format!("🙂 “{form}?” she asked—then nodded…\u{2028}");
+        let report = run(&text, &[name], true);
+        assert_eq!(forms(&report), [form], "{name}");
+        assert_eq!(report.flags[0].reason, NameSpellingReason::Phonetic);
+    }
+}
+
+#[test]
+fn short_respellings_outside_the_bound_are_not_matched() {
+    // Sean and Shawn share no Double Metaphone key (SN, XN), and Louisa is as far from Lizzy.
+    let report = run(
+        "🙂 “Shawn?” Louisa asked—then nodded…\u{2028}",
+        &["Sean", "Lizzy"],
+        true,
+    );
+    assert!(report.flags.is_empty(), "{:?}", report.flags);
 }

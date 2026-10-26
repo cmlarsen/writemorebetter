@@ -218,6 +218,14 @@ def test_name_spelling(checker):
     phonetic = checker.style_document("Kathryn spoke.", {"skip_names": ["Katherine"]}).name_spelling()
     assert [(flag["name"], flag["reason"]) for flag in phonetic["flags"]] == [("Katherine", "phonetic")]
     assert checker.style_document("Kathryn spoke.", {"skip_names": ["Katherine"]}).name_spelling({"phonetic": False})["flags"] == []
+    other_text = "🙂 “Marra—Marra’s… Marra?”\u2028Mara."
+    other_document = checker.style_document(other_text, {"skip_names": ["Mara"]})
+    other = other_document.name_spelling()
+    assert other["flags"] == []
+    listed = other["names"][0]["possibleCharacters"]
+    assert [(item["form"], item["counts"]["all"]) for item in listed] == [("Marra", 3)]
+    assert [other_text[s["start"]:s["end"]] for s in listed[0]["spans"]] == ["Marra"] * 3
+    assert len(other_document.name_spelling({"other_character_minimum": 0})["flags"]) == 3
     with pytest.raises(StyleError) as error:
         checker.style_document(text).name_spelling({"notAnOption": True})
     assert error.value.kind == "invalidOptions"

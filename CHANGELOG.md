@@ -10,7 +10,7 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
 ### Added
 
-- Opt-in name spelling report for a supplied `skipNames` roster, with folded exact, typed-error and English phonetic matches across Rust, Swift, WASM, and Python.
+- Opt-in name spelling report for a supplied `skipNames` roster, with folded exact, typed-error and English phonetic matches across Rust, Swift, WASM, and Python. A near miss used at least `otherCharacterMinimum` times (default 3) is listed under its entry's `possibleCharacters` as possibly another character instead of flagged.
 
 # 0.14.0 (2026-10-24)
 

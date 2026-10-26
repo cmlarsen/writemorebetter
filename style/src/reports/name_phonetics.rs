@@ -5,6 +5,10 @@
 //! https://jacobfilipp.com/DrDobbs/articles/CUJ/2000/0006/philips/philips.htm
 //! It emits the usual four-symbol primary and alternate keys; `0` is the /th/ sound and `X`
 //! is /sh/. No rules or name lexicon from the grammar data are included here.
+//!
+//! `transcript` is not part of Double Metaphone: it is the whole primary code with each vowel
+//! letter kept in place, so a caller can measure the vowel and syllable differences the keys drop
+//! without counting spellings the keys treat as one sound (*C*/*K*, *PH*/*F*, doubled letters).
 
 use unicode_normalization::{char::is_combining_mark, UnicodeNormalization};
 
@@ -12,6 +16,7 @@ use unicode_normalization::{char::is_combining_mark, UnicodeNormalization};
 pub(crate) struct Codes {
     pub primary: String,
     pub alternate: String,
+    pub transcript: String,
 }
 
 impl Codes {
@@ -39,6 +44,7 @@ fn vowel(byte: Option<&u8>) -> bool {
 }
 
 fn put(codes: &mut Codes, primary: &str, alternate: &str) {
+    codes.transcript.push_str(primary);
     for (target, symbol) in [
         (&mut codes.primary, primary),
         (&mut codes.alternate, alternate),
@@ -76,6 +82,7 @@ impl NamePhonetics for EnglishNamePhonetics {
         let mut result = Codes {
             primary: String::new(),
             alternate: String::new(),
+            transcript: String::new(),
         };
         if word.is_empty() {
             return result;
@@ -89,7 +96,8 @@ impl NamePhonetics for EnglishNamePhonetics {
             put(&mut result, "S", "S");
             i = 1;
         }
-        while i < word.len() && (result.primary.len() < 4 || result.alternate.len() < 4) {
+        // The keys stop at four symbols; the transcript continues to the end of the word.
+        while i < word.len() {
             let c = word[i];
             let prev = i.checked_sub(1).and_then(|j| word.get(j)).copied();
             let next = word.get(i + 1).copied();
@@ -98,7 +106,9 @@ impl NamePhonetics for EnglishNamePhonetics {
                 b'A' | b'E' | b'I' | b'O' | b'U' | b'Y' => {
                     if i == 0 {
                         put(&mut result, "A", "A");
+                        result.transcript.pop();
                     }
+                    result.transcript.push(char::from(c));
                 }
                 b'B' => {
                     if !(prev == Some(b'P') || prev == Some(b'M') && i + 1 == word.len()) {
@@ -344,6 +354,12 @@ impl NamePhonetics for EnglishNamePhonetics {
                 }
                 _ => {}
             }
+            // A rule that consumes a following vowel (soft C and G, -TIO) keeps it here.
+            for &skipped in word.get(i + 1..i + step).unwrap_or_default() {
+                if vowel(Some(&skipped)) {
+                    result.transcript.push(char::from(skipped));
+                }
+            }
             i += step;
         }
         result
@@ -382,6 +398,22 @@ mod tests {
             }
         }
         assert!(errors.is_empty(), "{}", errors.join("; "));
+    }
+
+    // The transcript is the whole primary code with vowel letters in place.
+    #[test]
+    fn transcripts_keep_vowels() {
+        let encoder = EnglishNamePhonetics;
+        for (name, transcript) in [
+            ("Catherine", "KA0ERINE"),
+            ("Kathryn", "KA0RYN"),
+            ("Cecily", "SESILY"),
+            ("Haleigh", "HALEI"),
+            ("Tiphanie", "TIFANIE"),
+            ("Ellen", "ELEN"),
+        ] {
+            assert_eq!(encoder.codes(name).transcript, transcript, "{name}");
+        }
     }
 
     // Philips codes W only at a word start or in the Polish and final-W alternates.

@@ -1335,6 +1335,8 @@ the release report over bench/public and the 13 public-domain books and chapters
 one document per chapter, with the hand-written rosters in `name-spelling-rosters.json`. It prints
 flags per text and per 10,000 words. A seeded sample of at most 150 flags (seed 375) is matched against
 `labels/name-spelling-judgments.jsonl`, labeled `useful`, `not useful` or `unlisted name`.
-`--check` fails if a sampled flag lacks a judgment. All flags, the sample and their contexts are
+`--check` fails if a sampled flag lacks a judgment. It also counts the near misses listed as
+possible characters instead of flagged, and repeats the run with each book as one document, since
+that count is per document. All flags, the listed forms, the sample and their contexts are
 written under ignored `out/name-spelling/books/`. Gate measurements and scope are in
 [STYLE-NAME-SPELLING.md](../../docs/STYLE-NAME-SPELLING.md).

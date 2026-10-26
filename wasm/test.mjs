@@ -492,6 +492,14 @@ const phoneticDocument = checker.styleDocument("Kathryn spoke.", '{"skipNames":[
 eq(JSON.parse(phoneticDocument.nameSpelling()).flags.map(f => [f.name, f.reason]), [["Katherine", "phonetic"]], "phonetic name reason");
 eq(JSON.parse(phoneticDocument.nameSpelling('{"phonetic":false}')).flags, [], "phonetic option disables tier 2");
 phoneticDocument.free();
+const otherText = "😀 “Marra—Marra’s… Marra?”\u2028Mara.";
+const otherDocument = checker.styleDocument(otherText, '{"skipNames":["Mara"]}');
+const otherReport = JSON.parse(otherDocument.nameSpelling());
+eq(otherReport.flags, [], "frequent near miss is not flagged");
+eq(otherReport.names[0].possibleCharacters.map(p => [p.form, p.reason, p.counts.all, p.spans.map(s => otherText.slice(s.start, s.end))]), [["Marra", "edit", 3, ["Marra", "Marra", "Marra"]]], "frequent near miss is listed with UTF-16 spans");
+eq(JSON.parse(otherDocument.nameSpelling('{"otherCharacterMinimum":0}')).flags.length, 3, "otherCharacterMinimum 0 flags every near miss");
+eq(JSON.parse(otherDocument.nameSpelling('{"other_character_minimum":4}')).flags.length, 3, "snake_case otherCharacterMinimum alias");
+otherDocument.free();
 const senseText = "😀.\u2028The red lamp’s glow—a bell… “Perfume,” she said.";
 const senseDocument = checker.styleDocument(senseText);
 const sensory = JSON.parse(senseDocument.sensoryBalance('{"minimumSenseWords":1}'));

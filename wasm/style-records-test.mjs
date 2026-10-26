@@ -91,6 +91,11 @@ export function checkStyleRecords(checker) {
   assert.equal(JSON.parse(nameSpelling).names.length, 4);
   assert.deepEqual(JSON.parse(nameSpelling).flags.map(flag => [flag.form, flag.name, flag.reason]), [["Marra", "Mara", "edit"], ["Kathryn", "Katherine", "phonetic"]]);
   namesDocument.free();
+  const otherNamesDocument = checker.styleDocument("🙂 “Marra—Marra’s… Marra?” Mara.", '{"skipNames":["Mara"]}');
+  const otherNames = otherNamesDocument.nameSpelling();
+  results.push(["NameSpellingReport", otherNames]);
+  assert.deepEqual(JSON.parse(otherNames).names[0].possibleCharacters.map(item => [item.form, item.counts.all]), [["Marra", 3]]);
+  otherNamesDocument.free();
   const emotionDocument = checker.styleDocument("She was afraid. “I was so angry,” he said.");
   results.push(["EmotionTellsReport", emotionDocument.emotionTells('{"includeDialogue":true}')]);
   emotionDocument.free();
