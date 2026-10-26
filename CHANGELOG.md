@@ -15,6 +15,7 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 ### Fixed
 
 - Drafting cleanup now handles adjacent pauses, mixed punctuation, dictated marks beside pauses, and case-insensitive note vocabulary; spoken-command guards avoid ordinary prose uses.
+- Drafting edits preserve prose when a punctuation name is a noun, keep dictated commas beside pauses, and remove isolated pause sentences without doubling punctuation.
 
 # 0.14.0 (2026-10-24)
 

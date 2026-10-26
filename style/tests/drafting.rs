@@ -244,7 +244,11 @@ fn spoken_command_table() {
             "close quote",
         ),
         ("hello end quote she said", "hello” she said", "end quote"),
-        ("hello unquote she said", "hello” she said", "unquote"),
+        (
+            "open quote hello unquote she said",
+            "“hello” she said",
+            "unquote",
+        ),
         (
             "She said open single quote hello",
             "She said ‘hello",
@@ -298,22 +302,22 @@ fn spoken_command_table() {
             "next line",
         ),
         (
-            "She spoke scratch that then waited",
+            "She spoke scratch that, then waited",
             "She spoke then waited",
             "scratch that",
         ),
         (
-            "She spoke delete that then waited",
+            "She spoke delete that, then waited",
             "She spoke then waited",
             "delete that",
         ),
         (
-            "She spoke strike that then waited",
+            "She spoke strike that, then waited",
             "She spoke then waited",
             "strike that",
         ),
         (
-            "She spoke undo that then waited",
+            "She spoke undo that, then waited",
             "She spoke then waited",
             "undo that",
         ),
@@ -369,6 +373,7 @@ fn spoken_command_guards() {
         "Full stop.",
         "quote, unquote",
         "quote-unquote",
+        "hello unquote she said",
         "She typed “period” and waited.",
         "At that period, she left the room.",
         "She wrote a sentence. The period was missing.",
@@ -556,7 +561,7 @@ fn review_cleanup_regressions() {
         ("It was, um… fine", "It was… fine"),
         ("He was, um—thinking", "He was—thinking"),
         ("He said, um. Then", "He said. Then"),
-        ("He was—um, thinking", "He was, thinking"),
+        ("He was—um, thinking", "He was thinking"),
         ("He paused—um.", "He paused."),
         ("He left. Well, um, I was", "He left. Well, I was"),
         ("I, um, think", "I think"),
@@ -566,7 +571,7 @@ fn review_cleanup_regressions() {
         ),
         ("He said um--no", "He said no"),
         ("Um--the door", "The door"),
-        ("I was--um, thinking", "I was, thinking"),
+        ("I was--um, thinking", "I was thinking"),
         ("He said um--uh--no", "He said no"),
         ("I was - um - thinking", "I was thinking"),
         (
@@ -681,4 +686,198 @@ fn published_prose_command_guards() {
             "{source:?}"
         );
     }
+}
+
+/// Asserts the edited text, and silence when the text should come back unchanged.
+fn assert_cases(cases: &[(&str, &str)]) {
+    for (source, expected) in cases {
+        assert_eq!(
+            applied(source, DraftingOptions::new()),
+            *expected,
+            "{source:?}"
+        );
+        if source == expected {
+            let result = report(source, DraftingOptions::new());
+            assert!(
+                result.matches.is_empty(),
+                "{source:?}: {:?}",
+                result.matches
+            );
+        }
+    }
+}
+#[test]
+fn review_pause_before_command_words() {
+    assert_cases(&[
+        ("It was um period furniture.", "It was period furniture."),
+        (
+            "We had um no caps on the bottles.",
+            "We had no caps on the bottles.",
+        ),
+        ("She liked um dash and verve.", "She liked dash and verve."),
+        ("She waited... uh... period.", "She waited... period."),
+    ]);
+}
+#[test]
+fn review_noun_capitalization() {
+    assert_cases(&[
+        (
+            "It was a quiet period, um, and then it ended.",
+            "It was a quiet period, and then it ended.",
+        ),
+        (
+            "A question mark, uh, in the sand.",
+            "A question mark, in the sand.",
+        ),
+        (
+            "A full stop, um, near the gate.",
+            "A full stop, near the gate.",
+        ),
+        (
+            "It was a period—uh—before the turn.",
+            "It was a period before the turn.",
+        ),
+        (
+            "question mark, uh, in the sand",
+            "question mark, in the sand",
+        ),
+        ("full stop, um, near the gate", "full stop, near the gate"),
+        ("period—uh—before", "period before"),
+    ]);
+}
+#[test]
+fn review_single_word_commands() {
+    for text in [
+        "Coma patients rarely wake up.",
+        "Colon cancer ran in his family.",
+        "Ellipsis aside, the letter was fine.",
+        "Hyphen usage varies.",
+        "He walked colon slowly.",
+        "“Comma,” she said, “goes here.”",
+    ] {
+        assert_cases(&[(text, text)]);
+    }
+}
+#[test]
+fn review_adjective_noun_guards() {
+    for text in [
+        "They found a polyp in his sigmoid colon.",
+        "The doctor examined her inflamed colon.",
+        "She defended the Oxford comma.",
+        "He loves the serial comma.",
+        "Big colon, small colon.",
+        "He drew a big question mark on the board.",
+    ] {
+        assert_cases(&[(text, text)]);
+    }
+}
+#[test]
+fn review_emphasis_mark_guards() {
+    for text in [
+        "She was the best, period, and everyone knew it.",
+        "I read it aloud, period by period.",
+        "You are not going, period. End of discussion.",
+        "It ended—period—with no warning.",
+    ] {
+        assert_cases(&[(text, text)]);
+    }
+}
+#[test]
+fn review_discourse_commas() {
+    assert_cases(&[
+        ("He, uh, left.", "He left."),
+        ("She, um, went home.", "She went home."),
+        ("They, uh, never called.", "They never called."),
+        ("Nobody, um, came.", "Nobody came."),
+        ("Well, um, I was", "Well, I was"),
+    ]);
+}
+#[test]
+fn review_delete_command_objects() {
+    for text in [
+        "Please delete that file before Monday.",
+        "Don't delete that email.",
+        "Don’t delete that email.",
+        "Let me undo that knot for you.",
+        "She asked him to strike that match.",
+        "I went to the store scratch that the market",
+    ] {
+        assert_cases(&[(text, text)]);
+    }
+    assert_cases(&[(
+        "She spoke scratch that, then waited",
+        "She spoke then waited",
+    )]);
+}
+#[test]
+fn review_pause_command_edits() {
+    assert_cases(&[
+        ("I think um, comma, I left.", "I think, I left."),
+        ("Pause comma um comma then go.", "Pause, then go."),
+        ("I said uh question mark then left.", "I said? Then left."),
+        (
+            "She said uh open quote hello close quote and left.",
+            "She said “hello” and left.",
+        ),
+        ("I went home um scratch that.", "I went home."),
+        (
+            "Make this um all caps hello and go.",
+            "Make this all caps hello and go.",
+        ),
+    ]);
+    // Whatever subset of edits a host accepts, no dictated comma is dropped or doubled and no two
+    // words are joined.
+    for source in [
+        "I think um, comma, I left.",
+        "Pause comma um comma then go.",
+        "I said uh question mark then left.",
+        "She said uh open quote hello close quote and left.",
+        "I went home um scratch that.",
+        "Make this um all caps hello and go.",
+    ] {
+        let result = report(source, DraftingOptions::new());
+        let edits: Vec<_> = result
+            .matches
+            .iter()
+            .flat_map(|found| &found.edits)
+            .collect();
+        for mask in 0..(1 << edits.len()) {
+            let subset: Vec<_> = edits
+                .iter()
+                .enumerate()
+                .filter(|(index, _)| mask & (1 << index) != 0)
+                .map(|(_, edit)| *edit)
+                .collect();
+            let changed = drafting::apply(source, &subset);
+            assert!(!changed.contains(",,"), "{source:?}: {changed:?}");
+            assert!(!changed.contains(",."), "{source:?}: {changed:?}");
+            for joined in ["saidquestion", "said“", "homescratch", "thisall"] {
+                assert!(!changed.contains(joined), "{source:?}: {changed:?}");
+            }
+        }
+    }
+}
+#[test]
+fn review_dash_markup_and_urls() {
+    for text in [
+        "He said uh–huh and nodded.",
+        "He nodded. Uh–huh.",
+        "Visit um.edu today.",
+        "He said *um* twice.",
+    ] {
+        assert_cases(&[(text, text)]);
+    }
+}
+#[test]
+fn review_terminal_brackets_and_mixed_marks() {
+    assert_cases(&[
+        ("He paused. Um. Then he spoke.", "He paused. Then he spoke."),
+        ("He paused. Um, period. Then", "He paused. Period. Then"),
+        ("I was—um thinking.", "I was thinking."),
+        ("He was (um) late.", "He was late."),
+        ("I was--um, thinking", "I was thinking"),
+        ("He was—um, thinking", "He was thinking"),
+        ("He was, um—thinking", "He was—thinking"),
+        ("It was, um… fine", "It was… fine"),
+    ]);
 }

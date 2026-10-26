@@ -132,17 +132,25 @@ core) so the text reads as if they were never there:
 
    If the right context is a closing quote or closing punctuation, keep the first comma and don't
    absorb the second: `“I was, um,” she said` → `“I was,” she said`.
+   Keep the first comma before a continuation after a noun phrase:
+   `a quiet period, um, and then` → `a quiet period, and then`.
 3. **Dash pairs.** A dash before and after the core goes with it, and the replacement is one space:
    `I was—um—thinking` → `I was thinking`.
-   When different marks surround the pause, keep the right mark: `He was—um, thinking` →
-   `He was, thinking`, including when the left dash is written `--`. If terminal punctuation follows
-   the pause, drop the left mark: `He said, um. Then` → `He said. Then`.
+   A dash before the pause and a comma after it both go: `He was—um, thinking` →
+   `He was thinking`, including when the dash is written `--`. A trailing dash or ellipsis carries
+   the hesitation and stays: `He was, um—thinking` → `He was—thinking` and
+   `It was, um… fine` → `It was… fine`. If terminal punctuation follows the pause, drop the left
+   mark: `He said, um. Then` → `He said. Then`.
 4. **Whitespace.** Keep exactly one separator between the left and right context. Keep none when
    the right context starts with closing punctuation (`.,;:!?…”’)]`) or the left context is the
    paragraph start, an opening quote, `(` or `[`. If a collapsed whitespace run holds a U+2028,
    keep the U+2028 instead of a space.
 5. **Paragraphs.** Never delete across a paragraph boundary (`\n`, `\r`, U+2029).
 6. **Capitalization.** See below.
+
+A pause sentence after an existing terminal mark removes its own terminal mark too:
+`He paused. Um. Then` → `He paused. Then`. A parenthesized pause removes the parentheses, while
+dash-joined interjections (*uh–huh*), URLs and italic markup are left alone.
 
 | Input | Edit span → replacement | Result |
 |---|---|---|
@@ -173,6 +181,8 @@ Sentence start means after the paragraph start, terminal punctuation or an openi
 applies only when `char::to_uppercase` returns exactly one char; otherwise the letter is left alone.
 Without it, accepting the edit leaves a lowercase start that `UPPERCASE_SENTENCE_START` then flags.
 This is the only edit that touches the author's words, and it changes nothing but case.
+The drafting report recognizes capitalization after a dictated terminal command only when that
+command has passed its guards; an ordinary noun such as *period* does not trigger it.
 
 ## Spoken commands
 
@@ -209,10 +219,23 @@ and a duplicate mark after it are deleted.
   period of time*), or when it is the object of *made*, *took*, *put* or *used* (*made a dash*).
   *dash* is also skipped after *to* or a modal (*I have to dash*). *Period.* or *Full stop.* as its
   own sentence is emphasis, not a command.
-- **Positive cue.** *Period* and *dash* also need one of: the next word opens a clause (a
-  pronoun, determiner, proper noun, capitalized word, or *and*/*but*/*so* + pronoun), the command
-  ends the paragraph, or the paragraph has another command match. A lone *period* in a
-  well-punctuated paragraph is probably the noun.
+- **Positive cue.** Every single-word command needs evidence beyond its spelling: the next word
+  opens a clause (a pronoun, determiner, proper noun, capitalized word, or *and*/*but*/*so* plus a
+  clause), the words around a comma or colon form a list, a hyphen joins words, an apostrophe joins
+  a suffix, the command ends the paragraph, or the paragraph has another command match. A
+  single-word command at the start of a sentence is always ordinary prose. Multi-word commands
+  keep the noun guard. A lone *period* in a well-punctuated paragraph is probably the noun.
+- **Deletion command boundary.** *Scratch that*, *delete that*, *strike that* and *undo that* need
+  punctuation immediately after *that* or the end of the paragraph; when followed by an object,
+  they are ordinary prose. A subject or modal immediately before the phrase also blocks it.
+- **Pause beside a command.** A pause immediately beside a dictated comma and that comma share one
+  edit, and so does a pause whose edit touches any other command's edit (*I said uh question mark
+  then* → *I said? Then*). The pause's match carries the combined edit and the command's match keeps
+  only its separate edits, so a host that applies either alone gets the same text as applying both,
+  with no dropped or doubled mark and no joined words. A pause gives up its space only to a command
+  whose edit absorbs the space before it; an opening mark or a flag-only command leaves it.
+- **Caps flags.** *all caps* and *no caps* after *in* or *of* describe lettering (*printed in all
+  caps*); the command comes before the words it caps.
 - **Marks follow the document.** Quotes and ellipses follow the document's majority, counted as the
   consistency report counts them (`doubleQuotes`, `singleQuotes`, `ellipses`), and default to curly
   quotes and `…` on a tie or with none to count. Dashes are always a closed `—`.

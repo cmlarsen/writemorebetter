@@ -118,12 +118,12 @@
 {"id": "fx-118", "style": "apple", "category": "spokenCommand", "input": "the door opened new paragraph Outside the rain fell", "expected": "the door opened\nOutside the rain fell"}
 {"id": "fx-119", "style": "whisper", "category": "spokenCommand", "input": "The list ended there new line And the next one began.", "expected": "The list ended there\nAnd the next one began."}
 {"id": "fx-120", "style": "whisper", "category": "spokenCommand", "input": "we stopped next line They kept walking", "expected": "we stopped\nThey kept walking"}
-{"id": "fx-121", "style": "whisper", "category": "spokenCommand", "input": "I went to the store scratch that the market", "expected": "I went to the store the market"}
-{"id": "fx-122", "style": "whisper", "category": "spokenCommand", "input": "I turned left delete that right", "expected": "I turned left right"}
-{"id": "fx-123", "style": "whisper", "category": "spokenCommand", "input": "We met at noon strike that at one, comma, by the fountain.", "expected": "We met at noon at one, by the fountain."}
-{"id": "fx-124", "style": "whisper", "category": "spokenCommand", "input": "she chose blue undo that green", "expected": "she chose blue green"}
+{"id": "fx-121", "style": "whisper", "category": "spokenCommand", "input": "I went to the store scratch that the market", "expected": "I went to the store scratch that the market", "note": "A deletion command followed directly by another word has no clause boundary, so it is ordinary prose under the revised guard."}
+{"id": "fx-122", "style": "whisper", "category": "spokenCommand", "input": "I turned left delete that right", "expected": "I turned left delete that right", "note": "A deletion command followed directly by another word has no clause boundary, so it is ordinary prose under the revised guard."}
+{"id": "fx-123", "style": "whisper", "category": "spokenCommand", "input": "We met at noon strike that at one, comma, by the fountain.", "expected": "We met at noon strike that at one, comma, by the fountain.", "note": "A deletion command followed directly by another word has no clause boundary, so it is ordinary prose under the revised guard."}
+{"id": "fx-124", "style": "whisper", "category": "spokenCommand", "input": "she chose blue undo that green", "expected": "she chose blue undo that green", "note": "A deletion command followed directly by another word has no clause boundary, so it is ordinary prose under the revised guard."}
 {"id": "fx-125", "style": "apple", "category": "spokenCommand", "input": "make this loud caps on we are not quiet caps off now", "expected": "make this loud caps on we are not quiet caps off now", "flags": ["caps on", "caps off"]}
-{"id": "fx-126", "style": "apple", "category": "spokenCommand", "input": "write this in all caps and this in no caps", "expected": "write this in all caps and this in no caps", "flags": ["all caps", "no caps"]}
+{"id": "fx-126", "style": "apple", "category": "spokenCommand", "input": "write this in all caps and this in no caps", "expected": "write this in all caps and this in no caps", "note": "\"in all caps\" describes lettering, as in \"He wrote the warning in all caps.\" (neg-249); the command precedes the words it caps."}
 {"id": "fx-127", "style": "whisper", "category": "spokenCommand", "input": "She ran. She ran until dawn comma and then she stopped.", "expected": "She ran. She ran until dawn, and then she stopped."}
 {"id": "fx-128", "style": "whisper", "category": "spokenCommand", "input": "He walked to the car. He walked to the car again, comma, and drove off.", "expected": "He walked to the car. He walked to the car again, and drove off."}
 {"id": "fx-129", "style": "apple", "category": "spokenCommand", "input": "Every clause needs a comma before it.", "expected": "Every clause needs a comma before it."}
@@ -152,14 +152,14 @@
 {"id": "fx-152", "style": "whisper", "category": "filledPause", "input": "It was, um… fine", "expected": "It was… fine", "note": "A comma lead plus a trailing ellipsis: the ellipsis is the sentence mark, so keep it and drop the comma rather than leaving an orphan comma."}
 {"id": "fx-153", "style": "whisper", "category": "filledPause", "input": "He was, um—thinking", "expected": "He was—thinking", "note": "Same comma-plus-trailing-dash shape: the dash survives as the author’s mark and the comma before the removed pause goes."}
 {"id": "fx-154", "style": "apple", "category": "filledPause", "input": "He said, um. Then", "expected": "He said. Then", "note": "A period is never absorbed. The comma before the removed pause would be orphaned, so it goes too."}
-{"id": "fx-155", "style": "whisper", "category": "filledPause", "input": "He was—um, thinking", "expected": "He was, thinking", "note": "The doc only pairs a dash with a dash. With a comma after the pause, the comma is the surviving mark and the unmatched opening dash goes."}
+{"id": "fx-155", "style": "whisper", "category": "filledPause", "input": "He was—um, thinking", "expected": "He was thinking", "note": "A dash before a pause and a trailing comma both go under the revised mixed-mark rule."}
 {"id": "fx-156", "style": "apple", "category": "filledPause", "input": "He paused—um.", "expected": "He paused.", "note": "The unmatched opening dash goes with the pause; the period belongs to the sentence."}
 {"id": "fx-157", "style": "whisper", "category": "filledPause", "input": "He left. Well, um, I was", "expected": "He left. Well, I was", "note": "Well is a sentence-initial discourse word, so the first comma stays."}
 {"id": "fx-158", "style": "apple", "category": "filledPause", "input": "I, um, think", "expected": "I think", "note": "I is not a discourse word or vocative, so both commas in the pair go."}
 {"id": "fx-159", "style": "apple", "category": "filledPause", "input": "She said \"no\" um, then left.", "expected": "She said \"no\" then left.", "note": "The left context is a closing quote, so keep one space and drop the pause and its comma."}
 {"id": "fx-160", "style": "dragon", "category": "filledPause", "input": "He said um--no", "expected": "He said no", "note": "The trailing ASCII dash is one of the absorbed pause marks."}
 {"id": "fx-161", "style": "dragon", "category": "filledPause", "input": "Um--the door", "expected": "The door", "note": "The pause and trailing dash are removed at a paragraph start, and the next word is capitalized."}
-{"id": "fx-162", "style": "dragon", "category": "filledPause", "input": "I was--um, thinking", "expected": "I was, thinking", "note": "The mixed-mark rule keeps the comma after the pause; ASCII double dash follows the same rule as an em dash."}
+{"id": "fx-162", "style": "dragon", "category": "filledPause", "input": "I was--um, thinking", "expected": "I was thinking", "note": "A dash before a pause and its trailing comma both go; the earlier mixed-mark fixture expectation was incorrect."}
 {"id": "fx-163", "style": "dragon", "category": "filledPause", "input": "He said um--uh--no", "expected": "He said no", "note": "The ASCII dashes separate adjacent pauses and are absorbed with them; none survives."}
 {"id": "fx-164", "style": "whisper", "category": "filledPause", "input": "I was - um - thinking", "expected": "I was thinking", "note": "Spaced single hyphens are dictated dashes, so treat the pair as paired and leave one space."}
 {"id": "fx-165", "style": "apple", "category": "placeholder", "input": "[Name] arrived. [NAME] left.", "expected": "[Name] arrived. [NAME] left.", "flags": ["[Name]", "[NAME]"], "note": "Note vocabulary is case-insensitive; the term keeps the author’s surface case."}
@@ -195,3 +195,54 @@
 {"id": "fx-195", "style": "whisper", "category": "spokenCommand", "input": "He said period um Then left", "expected": "He said. Then left", "note": "After the period command, Um is sentence-initial, so its deletion leaves the already-capitalized Then."}
 {"id": "fx-196", "style": "apple", "category": "spokenCommand", "input": "It was dark um comma and cold", "expected": "It was dark, and cold", "note": "The command follows the pause; after the pause is deleted, the command still replaces its own leading space with the comma."}
 {"id": "fx-197", "style": "whisper", "category": "spokenCommand", "input": "It was dark comma um and cold", "expected": "It was dark, and cold", "note": "The command comes first; the pause after the comma is deleted with its leading space, leaving one space after the comma."}
+{"id": "fx-198", "style": "whisper", "category": "filledPause", "input": "It was um period furniture.", "expected": "It was period furniture."}
+{"id": "fx-199", "style": "whisper", "category": "filledPause", "input": "We had um no caps on the bottles.", "expected": "We had no caps on the bottles."}
+{"id": "fx-200", "style": "whisper", "category": "filledPause", "input": "She liked um dash and verve.", "expected": "She liked dash and verve."}
+{"id": "fx-201", "style": "whisper", "category": "filledPause", "input": "She waited... uh... period.", "expected": "She waited... period."}
+{"id": "fx-202", "style": "whisper", "category": "filledPause", "input": "It was a quiet period, um, and then it ended.", "expected": "It was a quiet period, and then it ended."}
+{"id": "fx-203", "style": "whisper", "category": "filledPause", "input": "A question mark, uh, in the sand.", "expected": "A question mark, in the sand."}
+{"id": "fx-204", "style": "whisper", "category": "filledPause", "input": "A full stop, um, near the gate.", "expected": "A full stop, near the gate."}
+{"id": "fx-205", "style": "whisper", "category": "filledPause", "input": "It was a period—uh—before the turn.", "expected": "It was a period before the turn."}
+{"id": "fx-206", "style": "whisper", "category": "filledPause", "input": "He, uh, left.", "expected": "He left."}
+{"id": "fx-207", "style": "whisper", "category": "filledPause", "input": "She, um, went home.", "expected": "She went home."}
+{"id": "fx-208", "style": "whisper", "category": "filledPause", "input": "They, uh, never called.", "expected": "They never called."}
+{"id": "fx-209", "style": "whisper", "category": "filledPause", "input": "Nobody, um, came.", "expected": "Nobody came."}
+{"id": "fx-210", "style": "whisper", "category": "filledPause", "input": "I think um, comma, I left.", "expected": "I think, I left."}
+{"id": "fx-211", "style": "whisper", "category": "filledPause", "input": "Pause comma um comma then go.", "expected": "Pause, then go."}
+{"id": "fx-212", "style": "whisper", "category": "filledPause", "input": "He paused. Um. Then he spoke.", "expected": "He paused. Then he spoke."}
+{"id": "fx-213", "style": "whisper", "category": "filledPause", "input": "He paused. Um, period. Then", "expected": "He paused. Period. Then", "note": "Period remains an emphasis word; only the pause is deleted, without doubling the sentence mark."}
+{"id": "fx-214", "style": "whisper", "category": "filledPause", "input": "I was—um thinking.", "expected": "I was thinking."}
+{"id": "fx-215", "style": "whisper", "category": "filledPause", "input": "He was (um) late.", "expected": "He was late."}
+{"id": "fx-216", "style": "whisper", "category": "filledPause", "input": "I was--um, thinking", "expected": "I was thinking"}
+{"id": "fx-217", "style": "whisper", "category": "filledPause", "input": "He was—um, thinking", "expected": "He was thinking"}
+{"id": "fx-218", "style": "whisper", "category": "filledPause", "input": "It was, um… fine", "expected": "It was… fine"}
+{"id": "fx-219", "style": "whisper", "category": "spokenCommand", "input": "Coma patients rarely wake up.", "expected": "Coma patients rarely wake up."}
+{"id": "fx-220", "style": "whisper", "category": "spokenCommand", "input": "Colon cancer ran in his family.", "expected": "Colon cancer ran in his family."}
+{"id": "fx-221", "style": "whisper", "category": "spokenCommand", "input": "Ellipsis aside, the letter was fine.", "expected": "Ellipsis aside, the letter was fine."}
+{"id": "fx-222", "style": "whisper", "category": "spokenCommand", "input": "Hyphen usage varies.", "expected": "Hyphen usage varies."}
+{"id": "fx-223", "style": "whisper", "category": "spokenCommand", "input": "He walked colon slowly.", "expected": "He walked colon slowly."}
+{"id": "fx-224", "style": "whisper", "category": "spokenCommand", "input": "They found a polyp in his sigmoid colon.", "expected": "They found a polyp in his sigmoid colon."}
+{"id": "fx-225", "style": "whisper", "category": "spokenCommand", "input": "The doctor examined her inflamed colon.", "expected": "The doctor examined her inflamed colon."}
+{"id": "fx-226", "style": "whisper", "category": "spokenCommand", "input": "She defended the Oxford comma.", "expected": "She defended the Oxford comma."}
+{"id": "fx-227", "style": "whisper", "category": "spokenCommand", "input": "He loves the serial comma.", "expected": "He loves the serial comma."}
+{"id": "fx-228", "style": "whisper", "category": "spokenCommand", "input": "Big colon, small colon.", "expected": "Big colon, small colon."}
+{"id": "fx-229", "style": "whisper", "category": "spokenCommand", "input": "She was the best, period, and everyone knew it.", "expected": "She was the best, period, and everyone knew it."}
+{"id": "fx-230", "style": "whisper", "category": "spokenCommand", "input": "I read it aloud, period by period.", "expected": "I read it aloud, period by period."}
+{"id": "fx-231", "style": "whisper", "category": "spokenCommand", "input": "You are not going, period. End of discussion.", "expected": "You are not going, period. End of discussion."}
+{"id": "fx-232", "style": "whisper", "category": "spokenCommand", "input": "Please delete that file before Monday.", "expected": "Please delete that file before Monday."}
+{"id": "fx-233", "style": "whisper", "category": "spokenCommand", "input": "Don’t delete that email.", "expected": "Don’t delete that email."}
+{"id": "fx-234", "style": "whisper", "category": "spokenCommand", "input": "Let me undo that knot for you.", "expected": "Let me undo that knot for you."}
+{"id": "fx-235", "style": "whisper", "category": "spokenCommand", "input": "She asked him to strike that match.", "expected": "She asked him to strike that match."}
+{"id": "fx-236", "style": "whisper", "category": "filledPause", "input": "He said uh–huh and nodded.", "expected": "He said uh–huh and nodded."}
+{"id": "fx-237", "style": "whisper", "category": "filledPause", "input": "He nodded. Uh–huh.", "expected": "He nodded. Uh–huh."}
+{"id": "fx-238", "style": "whisper", "category": "filledPause", "input": "Visit um.edu today.", "expected": "Visit um.edu today."}
+{"id": "fx-239", "style": "whisper", "category": "filledPause", "input": "He said *um* twice.", "expected": "He said *um* twice."}
+{"id": "fx-240", "style": "whisper", "category": "filledPause", "input": "question mark, uh, in the sand", "expected": "question mark, in the sand"}
+{"id": "fx-241", "style": "whisper", "category": "filledPause", "input": "full stop, um, near the gate", "expected": "full stop, near the gate"}
+{"id": "fx-242", "style": "whisper", "category": "filledPause", "input": "period—uh—before", "expected": "period before"}
+{"id": "fx-243", "style": "whisper", "category": "spokenCommand", "input": "Don't delete that email.", "expected": "Don't delete that email."}
+{"id": "fx-244", "style": "whisper", "category": "filledPause", "input": "I said uh question mark then left.", "expected": "I said? Then left.", "note": "A pause before a command shares one edit with it, so accepting either alone never joins words."}
+{"id": "fx-245", "style": "whisper", "category": "filledPause", "input": "She said uh open quote hello close quote and left.", "expected": "She said “hello” and left.", "note": "An opening mark keeps the space before it, so the pause keeps its space."}
+{"id": "fx-246", "style": "whisper", "category": "filledPause", "input": "Make this um all caps hello and go.", "expected": "Make this all caps hello and go.", "note": "A flag has no edit, so the pause keeps its space."}
+{"id": "fx-247", "style": "whisper", "category": "spokenCommand", "input": "He drew a big question mark on the board.", "expected": "He drew a big question mark on the board.", "note": "Adjective before a multi-word command: the noun."}
+{"id": "fx-248", "style": "whisper", "category": "spokenCommand", "input": "It ended—period—with no warning.", "expected": "It ended—period—with no warning.", "note": "A command word between typed dashes is emphasis."}
