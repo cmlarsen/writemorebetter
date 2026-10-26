@@ -1233,7 +1233,6 @@ fn review_d2k_pairs_typed_marks_and_tags() {
             "She said open quote I don’t know. Close quote.",
             "She said, “Open quote I don’t know close quote.”",
             "she said open quote hi, close quote, and left",
-            "He left. New paragraph The next day",
         ],
         spoken(),
     );
@@ -1265,7 +1264,8 @@ fn review_d2k_pairs_typed_marks_and_tags() {
                 "open quote I’m fine comma thanks close quote he said period",
                 "“I’m fine, thanks” he said.",
             ),
-            // Mark style counts apostrophes too: straight wins here, curly on a tie.
+            // Without double quotes in the document, apostrophes set the style: straight here,
+            // curly otherwise.
             (
                 "she said open quote I don't know close quote and left",
                 "she said \"I don't know\" and left",
@@ -1321,4 +1321,124 @@ fn review_d2k_pause_words_as_nouns() {
             result.matches
         );
     }
+}
+
+/// Review D2l: the edit builder alone decides whether a command absorbs a typed mark beside it,
+/// so nothing it can't absorb is ever doubled; line breaks after typed terminal punctuation; the
+/// dialogue-tag period before a break or another quote; pause-only pairs; restarts after a
+/// determiner and adjective; and mark style per kind.
+#[test]
+fn review_d2l_absorption_breaks_and_tags() {
+    assert_commands_flag_only(
+        &[
+            // Whitespace other than spaces and tabs before the command isn't consumed.
+            "She paused,\u{2028}comma and left.",
+            "She paused,\u{a0}comma and left.",
+            "It was late —\u{2028}dash she left.",
+            // A typed period after an ellipsis command isn't absorbed.
+            "I don't know dot dot dot.",
+            "He paused dot dot dot. Then he spoke.",
+            "She trailed off ellipsis.",
+            "She trailed off ellipsis…",
+            // A spaced dash would be closed on one side only.
+            "It was a long day — dash the longest.",
+            "She turned — dash and ran.",
+            // A pair with only pauses or commands between them.
+            "open paren uh close paren",
+            "open quote um comma close quote",
+            // A line break after a typed comma, or after U+2028.
+            "it was over, new paragraph the next day",
+        ],
+        spoken(),
+    );
+    assert_commands_flag_only(
+        &[
+            "She said open quote um close quote and left",
+            "open quote um comma close quote",
+        ],
+        dialogue(),
+    );
+    assert_cases(
+        &[
+            // The same mark typed right before still stands in for the command's.
+            ("She paused, comma and left.", "She paused, and left."),
+            ("It was late—dash she left.", "It was late—she left."),
+            // A line break after typed terminal punctuation or a closing quote keeps the mark.
+            ("He left. New paragraph The next day", "He left.\nThe next day"),
+            ("Why? New line She left.", "Why?\nShe left."),
+            ("Stop! next line He ran.", "Stop!\nHe ran."),
+            ("He left… new paragraph The next day", "He left…\nThe next day"),
+            ("He left… New paragraph The next day", "He left…\nThe next day"),
+            ("“Go.” New paragraph She left.", "“Go.”\nShe left."),
+            ("“Go,” she said. New paragraph She left.", "“Go,” she said.\nShe left."),
+            ("\"Go.\" New paragraph She left.", "\"Go.\"\nShe left."),
+            ("She’d gone. New paragraph The end", "She’d gone.\nThe end"),
+            // The dialogue-tag period before a break, at the end, or before another quote.
+            (
+                "open quote hi close quote he said period new paragraph open quote bye close quote she said period",
+                "“hi” he said.\n“bye” she said.",
+            ),
+            (
+                "open quote hi close quote he said period new line She nodded",
+                "“hi” he said.\nShe nodded",
+            ),
+            (
+                "“hello” she said period open quote hi close quote he said period",
+                "“hello” she said. “hi” he said.",
+            ),
+        ],
+        spoken(),
+    );
+    // A dialogue-tag period goes with the command after it: the break is flag only, so the
+    // period is too, and the quote pair is still edited.
+    assert_eq!(
+        applied(
+            "open quote hi close quote he said period new paragraph, the end",
+            spoken()
+        ),
+        "“hi” he said period new paragraph, the end"
+    );
+    // A restart after a determiner and adjective is a pause; a pause ending the clause there is
+    // their noun.
+    let restarts = [
+        (
+            "She grabbed the red um the blue one.",
+            "She grabbed the red the blue one.",
+        ),
+        (
+            "I want the big uh the small box.",
+            "I want the big the small box.",
+        ),
+        (
+            "It was a good um I mean a great day.",
+            "It was a good I mean a great day.",
+        ),
+    ];
+    assert_cases(&restarts, spoken());
+    for (text, _) in restarts {
+        assert_eq!(
+            report(text, DraftingOptions::new()).matches.len(),
+            1,
+            "{text:?}"
+        );
+    }
+    assert_silent(&["He let out a long uhhhh."], spoken());
+    // Each quote kind follows the document's own marks of that kind.
+    assert_cases(
+        &[
+            (
+                "“I can't,” she said. “I won't. It's late…” He said open quote fine close quote and left.",
+                "“I can't,” she said. “I won't. It's late…” He said “fine” and left.",
+            ),
+            (
+                "\"I can’t,\" she said. He said open quote fine close quote and left.",
+                "\"I can’t,\" she said. He said \"fine\" and left.",
+            ),
+            (
+                "It's late. He said open single quote fine close single quote and left.",
+                "It's late. He said 'fine' and left.",
+            ),
+        ],
+        spoken(),
+    );
 }

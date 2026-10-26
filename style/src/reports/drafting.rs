@@ -544,51 +544,50 @@ struct CommandCandidate {
     sentence: usize,
     first_word: usize,
     last_word: usize,
-    /// Reported with no edit: a mark outside a dictated pair, a typed mark beside it, or *full
-    /// stop* without a positive cue.
+    /// Reported with no edit: a mark outside a dictated pair, a mention after a verb of saying, or
+    /// *full stop* without a positive cue. A typed mark the edit can't absorb makes it flag only
+    /// later, in `command_edit`.
     flag_only: bool,
-    /// The dictated pair member this dialogue-tag mark goes with, as an index into the final
-    /// candidates: the opening after *said comma*, or the closing before *he said period*.
+    /// The other member of this command's pair from `mark_pairs`, as an index into the
+    /// candidates.
+    pair: Option<usize>,
+    /// The command this dialogue-tag mark goes with, as an index into the candidates: the opening
+    /// after *said comma*, the closing before *he said period* at the paragraph end, or the break
+    /// or opening right after *he said period*.
     tag_of: Option<usize>,
-    /// For a quote, paren or bracket command, where the next command phrase of its kind starts,
-    /// found before any guard runs.
+    /// For a quote, paren or bracket command, the index of the next command phrase of its kind,
+    /// found before any guard runs, or `None` once that phrase is dropped.
     next_same: Option<usize>,
 }
 struct Marks {
     double_open: &'static str,
     double_close: &'static str,
     single_open: &'static str,
+    /// The closing single quote, which is also the apostrophe.
     single_close: &'static str,
-    apostrophe: &'static str,
     ellipsis: &'static str,
 }
 
 fn marks(document: &Document) -> Marks {
     let report = consistency::report(document, &consistency::ConsistencyOptions::new())
         .expect("default consistency options");
-    // One style for every inserted quote and apostrophe, counted over all three, so a dictated
-    // quote never sits curly beside a straight apostrophe (*“I don't know”*).
-    let checks = [
-        &report.double_quotes,
-        &report.single_quotes,
-        &report.apostrophes,
-    ];
-    let count = |form: usize| -> usize {
-        checks
-            .iter()
-            .map(|check| check.variants[form].counts.all)
-            .sum()
+    // Each kind follows the document's own marks of that kind, and the apostrophes when it has
+    // none, so a dictated quote matches the typed dialogue beside it and never sits curly beside
+    // a straight apostrophe in a document without quotes (*"I don't know"*).
+    let curly = |check: &consistency::ConsistencyCheck| {
+        let [curly, straight] = [0, 1].map(|form| check.variants[form].counts.all);
+        (curly + straight > 0).then_some(curly >= straight)
     };
-    let curly = count(0) >= count(1);
-    let (double_curly, single_curly, apostrophe_curly) = (curly, curly, curly);
+    let fallback = curly(&report.apostrophes).unwrap_or(true);
+    let double = curly(&report.double_quotes).unwrap_or(fallback);
+    let single = curly(&report.single_quotes).unwrap_or(fallback);
     let character = report.ellipses.variants[0].counts.all
         >= report.ellipses.variants[1].counts.all + report.ellipses.variants[2].counts.all;
     Marks {
-        double_open: if double_curly { "“" } else { "\"" },
-        double_close: if double_curly { "”" } else { "\"" },
-        single_open: if single_curly { "‘" } else { "'" },
-        single_close: if single_curly { "’" } else { "'" },
-        apostrophe: if apostrophe_curly { "’" } else { "'" },
+        double_open: if double { "“" } else { "\"" },
+        double_close: if double { "”" } else { "\"" },
+        single_open: if single { "‘" } else { "'" },
+        single_close: if single { "’" } else { "'" },
         ellipsis: if character { "…" } else { "..." },
     }
 }
@@ -613,7 +612,7 @@ impl Marks {
             "closeParen" => Some(")"),
             "openBracket" => Some("["),
             "closeBracket" => Some("]"),
-            "apostrophe" => Some(self.apostrophe),
+            "apostrophe" => Some(self.single_close),
             "newline" => Some("\n"),
             _ => None,
         }
@@ -773,18 +772,19 @@ fn command_guard(
         }
     }
     {
-        let prior_typed_mark = match entry.mark {
-            "comma" => paragraph.text[..candidate.start].trim_end().ends_with(','),
-            "period" => paragraph.text[..candidate.start].trim_end().ends_with('.'),
-            "dash" => paragraph.text[..candidate.start].trim_end().ends_with('—'),
-            _ => false,
-        };
-        let prior_other_mark = paragraph.text[..candidate.start]
-            .trim_end_matches([' ', '\t'])
-            .chars()
-            .next_back()
-            .is_some_and(|ch| ",.;:!?—–".contains(ch));
-        if entry.words.len() == 1 && prior_other_mark && !prior_typed_mark {
+        // A single-word command after a different typed mark is prose (*No more, period.*). The
+        // same mark typed before it separates it from the word before, so the noun guard doesn't
+        // apply; whether the edit can absorb that mark is `command_edit`'s decision.
+        let typed_before = prev(
+            &paragraph.text,
+            paragraph.text[..candidate.start]
+                .trim_end_matches(horizontal)
+                .len(),
+        )
+        .map(|(_, ch)| ch)
+        .filter(|ch| typed_mark(*ch));
+        let prior_typed_mark = typed_before.is_some() && typed_before == sentence_mark(entry.mark);
+        if entry.words.len() == 1 && typed_before.is_some() && !prior_typed_mark {
             return false;
         }
         let preceding_verb = candidate.first_word >= 2
@@ -838,11 +838,13 @@ fn positive_cue(
     );
     // A command that starts a sentence, after any quotes, brackets or filled pauses, is ordinary
     // prose (*Full stop signs*, *Um comma the dog*), except one of a dictated pair of marks
-    // (*open quote … close quote*) and a line break before a capital.
+    // (*open quote … close quote*) and a line break before a capital, which may also follow a
+    // typed ellipsis or closing quote (*He left… New paragraph The*).
     if text[begin..candidate.start]
         .split(|ch: char| !ch.is_alphanumeric())
         .all(|lead| lead.is_empty() || filler(lead))
         || after_terminal(text, candidate.start)
+        || candidate.entry.mark == "newline" && break_after(text, candidate.start)
     {
         return match candidate.entry.mark {
             "newline" => words
@@ -961,7 +963,7 @@ fn evidence(
     let apostrophe = candidate.entry.mark == "apostrophe" && next_word.as_deref() == Some("s");
     // The dictation engine typed the mark on both sides too (*again, comma, and*).
     let doubled = candidate.entry.mark == "comma"
-        && text[..candidate.start].trim_end().ends_with(',')
+        && absorbed_before(text, candidate).is_some_and(|(_, typed)| typed)
         && text[candidate.end..].starts_with(',');
     clause
         || after_pause
@@ -1026,6 +1028,7 @@ fn command_candidates(paragraph: &Paragraph) -> Vec<CommandCandidate> {
                     first_word: at,
                     last_word: last,
                     flag_only: false,
+                    pair: None,
                     tag_of: None,
                     next_same: None,
                 });
@@ -1040,10 +1043,8 @@ fn command_candidates(paragraph: &Paragraph) -> Vec<CommandCandidate> {
     for index in 0..candidates.len() {
         let kind = mark_kind(candidates[index].entry.mark);
         candidates[index].next_same = kind.and_then(|kind| {
-            candidates[index + 1..]
-                .iter()
-                .find(|later| mark_kind(later.entry.mark) == Some(kind))
-                .map(|later| later.start)
+            (index + 1..candidates.len())
+                .find(|&later| mark_kind(candidates[later].entry.mark) == Some(kind))
         });
     }
     // A closing command right after an opening one may follow any word (*open paren see chapter
@@ -1058,96 +1059,140 @@ fn command_candidates(paragraph: &Paragraph) -> Vec<CommandCandidate> {
         .filter(|(candidate, kept)| **kept && candidate.entry.mark.starts_with("open"))
         .map(|(candidate, _)| (candidate.entry.mark, candidate.start))
         .collect();
-    let mut guarded = guarded.into_iter();
-    candidates.retain(|candidate| {
-        guarded.next().unwrap_or(false)
-            || candidate.entry.mark.starts_with("close")
-                && openings.iter().any(|(mark, start)| {
-                    *start < candidate.start
-                        && candidate.entry.mark.strip_prefix("close") == mark.strip_prefix("open")
-                })
-    });
-    let paired_opens: Vec<usize> = candidates
+    let keep: Vec<bool> = candidates
         .iter()
-        .filter(|candidate| candidate.entry.mark == "openDouble")
-        .map(|candidate| candidate.start)
+        .zip(&guarded)
+        .map(|(candidate, kept)| {
+            *kept
+                || candidate.entry.mark.starts_with("close")
+                    && openings.iter().any(|(mark, start)| {
+                        *start < candidate.start
+                            && candidate.entry.mark.strip_prefix("close")
+                                == mark.strip_prefix("open")
+                    })
+        })
         .collect();
-    candidates.retain(|candidate| {
-        candidate.entry.guard != "unquote"
-            || paired_opens.iter().any(|start| *start < candidate.start)
-    });
-    let paired = pair_members(&candidates);
+    let candidates = compact(candidates, &keep);
+    let keep: Vec<bool> = candidates
+        .iter()
+        .map(|candidate| {
+            candidate.entry.guard != "unquote"
+                || candidates
+                    .iter()
+                    .any(|open| open.entry.mark == "openDouble" && open.start < candidate.start)
+        })
+        .collect();
+    let mut candidates = compact(candidates, &keep);
+    mark_pairs(&mut candidates, &words);
     // The dictated dialogue tag: *said comma* before a paired opening command, and *he said
-    // period* at the paragraph end after a paired closing one (*open quote fine close quote he
-    // said period*).
-    let tag: Vec<bool> = (0..candidates.len())
-        .map(|index| dialogue_tag(paragraph, &candidates, &paired, index).is_some())
-        .collect();
+    // period* after a closing quote (*open quote fine close quote he said period*).
+    for index in 0..candidates.len() {
+        candidates[index].tag_of = dialogue_tag(paragraph, &candidates, index);
+    }
     // A mention isn't a command, so it isn't evidence for the others either.
-    let mut kept: Vec<(CommandCandidate, bool)> = candidates
-        .into_iter()
-        .zip(paired.iter().zip(tag))
-        .filter(|(candidate, (paired, tag))| *tag || !mention(candidate, &words, **paired))
-        .map(|(candidate, (paired, _))| (candidate, *paired))
-        .collect();
-    let count = kept.len();
-    kept.retain(|(candidate, paired)| {
-        positive_cue(candidate, &words, paragraph, count > 1, *paired)
-    });
-    let mut candidates: Vec<CommandCandidate> =
-        kept.into_iter().map(|(candidate, _)| candidate).collect();
-    // A quote, paren or bracket command outside a pair from `mark_pairs` would insert an
-    // unmatched mark, a mark the engine typed beside a command would meet the command's own
-    // (*late period, she*), and *full stop* is ordinary English (*I love you full stop.*) without
-    // other evidence: all flag only. A dialogue-tag mark goes with its pair.
-    let paired = pair_members(&candidates);
-    let count = candidates.len();
-    let decided: Vec<(bool, Option<usize>)> = candidates
+    let keep: Vec<bool> = candidates
         .iter()
-        .enumerate()
-        .map(|(index, candidate)| {
+        .map(|candidate| {
+            candidate.tag_of.is_some() || !mention(candidate, &words, candidate.pair.is_some())
+        })
+        .collect();
+    let mut candidates = compact(candidates, &keep);
+    let count = candidates.len();
+    let keep: Vec<bool> = candidates
+        .iter_mut()
+        .map(|candidate| {
+            let cue = positive_cue(
+                candidate,
+                &words,
+                paragraph,
+                count > 1,
+                candidate.pair.is_some(),
+            );
+            candidate.flag_only = !cue && before_typed_end(paragraph, candidate);
+            cue || candidate.flag_only
+        })
+        .collect();
+    let mut candidates = compact(candidates, &keep);
+    // A quote, paren or bracket command outside a pair from `mark_pairs` would insert an
+    // unmatched mark, and *full stop* is ordinary English (*I love you full stop.*) without other
+    // evidence: both flag only. A dialogue-tag mark goes with its pair. Where the edit can't
+    // absorb a typed mark beside a command, `command_edit` makes it flag only.
+    let count = candidates.len();
+    let flag_only: Vec<bool> = candidates
+        .iter()
+        .map(|candidate| {
             let mark = candidate.entry.mark;
             let unpaired =
-                (mark.starts_with("open") || mark.starts_with("close")) && !paired[index];
-            let tag_of = dialogue_tag(paragraph, &candidates, &paired, index);
-            let lone_tag = tag_of.is_none()
+                (mark.starts_with("open") || mark.starts_with("close")) && candidate.pair.is_none();
+            let lone_tag = candidate.tag_of.is_none()
                 && candidate
                     .first_word
                     .checked_sub(1)
                     .is_some_and(|before| reporting_verb(&word(&words[before].0.text)))
-                && mention(candidate, &words, paired[index]);
-            let flag_only = unpaired
+                && mention(candidate, &words, candidate.pair.is_some());
+            candidate.flag_only
+                || unpaired
                 || lone_tag
-                || typed_neighbor(&paragraph.text, candidate)
                 || candidate.entry.phrase == "full stop"
-                    && !evidence(candidate, &words, paragraph, count > 1);
-            (flag_only, tag_of)
+                    && !evidence(candidate, &words, paragraph, count > 1)
         })
         .collect();
-    for (candidate, (flag_only, tag_of)) in candidates.iter_mut().zip(decided) {
+    for (candidate, flag_only) in candidates.iter_mut().zip(flag_only) {
         candidate.flag_only = flag_only;
-        candidate.tag_of = tag_of;
     }
     candidates
 }
 
-/// Whether each candidate belongs to a pair from `mark_pairs`.
-fn pair_members(candidates: &[CommandCandidate]) -> Vec<bool> {
-    let mut paired = vec![false; candidates.len()];
-    for (open, close) in mark_pairs(candidates) {
-        paired[open] = true;
-        paired[close] = true;
-    }
-    paired
+/// *ellipsis* mid-sentence with nothing but typed terminal punctuation after it to the paragraph
+/// end (*She trailed off ellipsis.*): the engine typed the period of the sentence the spoken mark
+/// ends. Without a positive cue it is flag only, like *dot dot dot.*, whose edit can't absorb the
+/// typed period either.
+fn before_typed_end(paragraph: &Paragraph, candidate: &CommandCandidate) -> bool {
+    let text = &paragraph.text;
+    let rest = text[candidate.end..].trim();
+    candidate.entry.phrase == "ellipsis"
+        && text[candidate.start..].starts_with(char::is_lowercase)
+        && !after_terminal(text, candidate.start)
+        && !rest.is_empty()
+        && rest.chars().all(|ch| matches!(ch, '.' | '?' | '!' | '…'))
 }
 
-/// For a comma or period dictated as part of a dialogue tag, the pair member it goes with:
-/// *said comma* right before a paired opening quote command, or *said period* at the paragraph
-/// end after a paired closing one. After a verb of saying these are otherwise mentions.
+/// The candidates that `keep` marks, with the indexes they hold into each other renumbered. A
+/// link to a dropped candidate becomes `None`: its pair is broken, and a dropped next phrase of
+/// the same kind still leaves its opening unpaired.
+fn compact(candidates: Vec<CommandCandidate>, keep: &[bool]) -> Vec<CommandCandidate> {
+    let mut kept = 0;
+    let index: Vec<Option<usize>> = keep
+        .iter()
+        .map(|keep| {
+            keep.then(|| {
+                kept += 1;
+                kept - 1
+            })
+        })
+        .collect();
+    let renumber = |link: Option<usize>| link.and_then(|old| index[old]);
+    candidates
+        .into_iter()
+        .zip(keep)
+        .filter(|(_, keep)| **keep)
+        .map(|(mut candidate, _)| {
+            candidate.pair = renumber(candidate.pair);
+            candidate.tag_of = renumber(candidate.tag_of);
+            candidate.next_same = renumber(candidate.next_same);
+            candidate
+        })
+        .collect()
+}
+
+/// For a comma or period dictated as part of a dialogue tag, the command it goes with: *said
+/// comma* right before a paired opening quote command; *said period* at the paragraph end after a
+/// paired closing one; and *said period* right before a paragraph-break command or a paired
+/// opening quote command, after a closing quote command or a typed closing quote (*“hello” she
+/// said period open quote*). After a verb of saying these are otherwise mentions.
 fn dialogue_tag(
     paragraph: &Paragraph,
     candidates: &[CommandCandidate],
-    paired: &[bool],
     index: usize,
 ) -> Option<usize> {
     let candidate = &candidates[index];
@@ -1155,31 +1200,88 @@ fn dialogue_tag(
         mark.strip_prefix(side)
             .is_some_and(|kind| matches!(kind, "Double" | "Single"))
     };
+    let next = candidates
+        .get(index + 1)
+        .filter(|next| next.first_word == candidate.last_word + 1);
+    let opening = |next: &&CommandCandidate| next.pair.is_some() && quote(next.entry.mark, "open");
     match candidate.entry.phrase {
-        "comma" => candidates
-            .get(index + 1)
-            .filter(|next| {
-                paired[index + 1]
-                    && quote(next.entry.mark, "open")
-                    && next.first_word == candidate.last_word + 1
-            })
-            .map(|_| index + 1),
-        "period" if paragraph.text[candidate.end..].trim().is_empty() => (0..index)
-            .rev()
-            .find(|&before| paired[before] && quote(candidates[before].entry.mark, "close")),
+        "comma" => next.filter(opening).map(|_| index + 1),
+        "period" => {
+            let closed = (0..index).rev().find(|&before| {
+                candidates[before].pair.is_some() && quote(candidates[before].entry.mark, "close")
+            });
+            if paragraph.text[candidate.end..].trim().is_empty() {
+                return closed;
+            }
+            next.filter(|next| next.entry.mark == "newline" || opening(next))
+                .filter(|_| {
+                    closed.is_some() || typed_quote_before(&paragraph.text, candidate.start)
+                })
+                .map(|_| index + 1)
+        }
         _ => None,
     }
 }
 
-/// The dictation engine typed a mark right before or after a mark command, with only whitespace
-/// between (*late period, she*, *she left, full stop she*, *said, open quote, hi*), other than the
-/// same mark that the command's edit already absorbs (*said comma, he*, *milk, comma and*).
-fn typed_neighbor(text: &str, candidate: &CommandCandidate) -> bool {
-    let mark = candidate.entry.mark;
-    if matches!(mark, "delete" | "flag") {
-        return false;
+/// A typed closing double quote, then at most one word and a verb, before `at` (*“hello” she
+/// said*).
+fn typed_quote_before(text: &str, at: usize) -> bool {
+    let word = |lead: &str| -> usize {
+        lead.trim_end_matches(char::is_alphabetic)
+            .trim_end_matches(horizontal)
+            .len()
+    };
+    let verb = word(text[..at].trim_end_matches(horizontal));
+    [verb, word(&text[..verb])].into_iter().any(|end| {
+        prev(text, end).is_some_and(|(quote, ch)| {
+            ch == '”' || ch == '"' && !opening_straight_quote(text, quote)
+        })
+    })
+}
+
+/// The kind of a quote, paren or bracket mark (`Double` for `openDouble` and `closeDouble`).
+fn mark_kind(mark: &str) -> Option<&str> {
+    mark.strip_prefix("open")
+        .or_else(|| mark.strip_prefix("close"))
+}
+
+/// Pairs each opening command with its next command phrase of its kind, kept or not, when that
+/// is a closing command that is still a candidate, and stores each side's index in the other's
+/// `pair`. Another opening first (*open quote wait open quote stop close quote*) leaves the
+/// earlier one unpaired, and so does a pair with nothing but filled pauses and other commands
+/// between, which would leave empty or punctuation-only marks (*open paren uh close paren*). A
+/// pair is edited together or not at all.
+fn mark_pairs(candidates: &mut [CommandCandidate], words: &[(&Token, usize)]) {
+    for open in 0..candidates.len() {
+        let candidate = &candidates[open];
+        let Some(close) = candidate.next_same.filter(|&close| {
+            candidate.entry.mark.starts_with("open")
+                && candidates[close].entry.mark.starts_with("close")
+        }) else {
+            continue;
+        };
+        let inner = &candidates[open + 1..close];
+        let content = (candidate.last_word + 1..candidates[close].first_word).any(|at| {
+            !filler(&words[at].0.text)
+                && !inner
+                    .iter()
+                    .any(|command| (command.first_word..=command.last_word).contains(&at))
+        });
+        if content {
+            candidates[open].pair = Some(close);
+            candidates[close].pair = Some(open);
+        }
     }
-    let sentence_mark = match mark {
+}
+
+/// A mark the author or the engine typed: anything but a letter, digit or whitespace.
+fn typed_mark(ch: char) -> bool {
+    !ch.is_alphanumeric() && !ch.is_whitespace()
+}
+/// The single sentence mark a command inserts, which the same mark typed before it can stand in
+/// for.
+fn sentence_mark(mark: &str) -> Option<char> {
+    match mark {
         "comma" => Some(','),
         "period" => Some('.'),
         "question" => Some('?'),
@@ -1189,81 +1291,61 @@ fn typed_neighbor(text: &str, candidate: &CommandCandidate) -> bool {
         "dash" => Some('—'),
         "hyphen" => Some('-'),
         _ => None,
-    };
-    let same: &[char] = match mark {
-        "ellipsis" => &['…', '.'],
-        "openDouble" => &['“', '"'],
-        "closeDouble" => &['”', '"'],
-        "openSingle" => &['‘', '\''],
-        "closeSingle" | "apostrophe" => &['’', '\''],
-        "openParen" => &['('],
-        "closeParen" => &[')'],
-        "openBracket" => &['['],
-        "closeBracket" => &[']'],
-        _ => sentence_mark.as_slice(),
-    };
-    let typed = |ch: &char| !ch.is_alphanumeric() && !ch.is_whitespace();
-    // Before the command only a single-character sentence mark is absorbed, and after it only a
-    // mark typed with no space between.
-    let before = text[..candidate.start]
-        .trim_end()
-        .chars()
-        .next_back()
-        .filter(typed)
-        .is_some_and(|ch| sentence_mark != Some(ch));
-    let after = text[candidate.end..]
-        .trim_start()
-        .chars()
-        .next()
-        .filter(typed)
-        .is_some_and(|ch| !(same.contains(&ch) && text[candidate.end..].starts_with(ch)));
-    before || after
-}
-
-/// The kind of a quote, paren or bracket mark (`Double` for `openDouble` and `closeDouble`).
-fn mark_kind(mark: &str) -> Option<&str> {
-    mark.strip_prefix("open")
-        .or_else(|| mark.strip_prefix("close"))
-}
-
-/// Each opening command whose next command phrase of its kind, kept or not, is a closing command
-/// that is still a candidate, as indexes into `candidates`. Another opening first (*open quote
-/// wait open quote stop close quote*) leaves the earlier one unpaired, and so does a closing
-/// command right after the opening one, with no word to enclose. A pair is edited together or not
-/// at all.
-fn mark_pairs(candidates: &[CommandCandidate]) -> Vec<(usize, usize)> {
-    let mut pairs = Vec::new();
-    for (open, candidate) in candidates.iter().enumerate() {
-        if !candidate.entry.mark.starts_with("open") {
-            continue;
-        }
-        if let Some(close) = (open + 1..candidates.len()).find(|&close| {
-            candidates[close].entry.mark.starts_with("close")
-                && Some(candidates[close].start) == candidate.next_same
-                && candidates[close].first_word > candidate.last_word + 1
-        }) {
-            pairs.push((open, close));
-        }
     }
-    pairs
+}
+/// Typed terminal punctuation or a closing double quote before `at`, across spaces, which a
+/// dictated line break may follow (*He left. New paragraph The*).
+fn break_after(text: &str, at: usize) -> bool {
+    let lead = text[..at].trim_end_matches(horizontal).len();
+    prev(text, lead).is_some_and(|(quote, ch)| {
+        matches!(ch, '.' | '?' | '!' | '…' | '”')
+            || ch == '"' && !opening_straight_quote(text, quote)
+    })
 }
 
+/// Where a command's edit starts, and whether the same sentence mark typed right before it stands
+/// in for the command's own (*said, comma he*), or `None` where the edit can't absorb what is
+/// typed before it. An opening mark keeps the whitespace before it, so any typed mark across that
+/// whitespace would meet it (*said, open quote*). Any other mark consumes the spaces and tabs
+/// before it, so other whitespace stays (*paused,* U+2028 *comma*), and so does any other typed
+/// mark, except terminal punctuation or a closing quote before a line break. A spaced dash isn't
+/// absorbed either, because the edit would close it on one side only (*day — dash the*).
+fn absorbed_before(text: &str, candidate: &CommandCandidate) -> Option<(usize, bool)> {
+    let mark = candidate.entry.mark;
+    if mark.starts_with("open") {
+        let typed = text[..candidate.start]
+            .trim_end()
+            .chars()
+            .next_back()
+            .is_some_and(typed_mark);
+        return (!typed).then_some((candidate.start, false));
+    }
+    let start = text[..candidate.start].trim_end_matches(horizontal).len();
+    let Some((at, before)) = prev(text, start) else {
+        return Some((start, false));
+    };
+    if before.is_alphanumeric() || mark == "newline" && break_after(text, candidate.start) {
+        return Some((start, false));
+    }
+    let spaced_dash = before == '—' && prev(text, at).is_some_and(|(_, ch)| ch.is_whitespace());
+    (sentence_mark(mark) == Some(before) && !spaced_dash).then_some((start, true))
+}
+
+/// The edit for a command alone, or `None` where it can't absorb a mark typed beside it, which
+/// makes the command flag only, and its pair and dialogue tag with it. Before the command,
+/// `absorbed_before` decides; after it, only the command's own mark typed with no space between
+/// is absorbed (*late period. she*, *tired comma, and*).
 fn command_edit(
     paragraph: &Paragraph,
     candidate: &CommandCandidate,
     marks: &Marks,
-) -> Vec<DraftingEdit> {
+) -> Option<Vec<DraftingEdit>> {
     let mark = marks
         .replacement(candidate.entry.mark)
         .expect("command mark");
     let text = &paragraph.text;
+    let (start, paired_mark) = absorbed_before(text, candidate)?;
     let is_open_mark = candidate.entry.mark.starts_with("open");
-    let mut start = candidate.start;
-    if !is_open_mark {
-        while prev(text, start).is_some_and(|(_, ch)| ch == ' ' || ch == '\t') {
-            start = prev(text, start).unwrap().0;
-        }
-    }
     let mut end = candidate.end;
     let consume_after = is_open_mark
         || matches!(candidate.entry.mark, "apostrophe" | "dash" | "newline")
@@ -1290,8 +1372,9 @@ fn command_edit(
     } else {
         text[candidate.end..].starts_with(mark)
     };
-    let paired_mark = matches!(mark, "," | "." | "?" | "!" | ":" | ";" | "—" | "-")
-        && text[..start].ends_with(mark);
+    if !already && text[candidate.end..].trim_start().starts_with(typed_mark) {
+        return None;
+    }
     if paired_mark && already {
         end = candidate.end + mark.len();
     }
@@ -1335,19 +1418,21 @@ fn command_edit(
             });
         }
     }
-    edits
+    Some(edits)
 }
 
 fn dictated_speech(
     paragraph: &Paragraph,
     candidates: &[CommandCandidate],
 ) -> Vec<std::ops::Range<usize>> {
-    mark_pairs(candidates)
-        .into_iter()
-        .filter(|(open, _)| candidates[*open].entry.mark == "openDouble")
-        .map(|(open, close)| {
-            paragraph.span.byte.start + candidates[open].end
-                ..paragraph.span.byte.start + candidates[close].start
+    candidates
+        .iter()
+        .filter(|open| open.entry.mark == "openDouble")
+        .filter_map(|open| {
+            open.pair.map(|close| {
+                paragraph.span.byte.start + open.end
+                    ..paragraph.span.byte.start + candidates[close].start
+            })
         })
         .collect()
 }
@@ -1599,7 +1684,7 @@ fn cluster_edit(
     if let [only] = members {
         return match only.kind {
             LeftoverKind::Command(candidate) if candidate.entry.mark != "delete" => {
-                Some(command_edit(paragraph, candidate, marks?))
+                command_edit(paragraph, candidate, marks?)
             }
             _ => deletable(only).map(|edit| vec![edit]),
         };
@@ -1853,19 +1938,29 @@ fn pauses<'a>(
             .is_some_and(|token| {
                 has_pos(token, "NN") || token.readings.iter().any(|reading| reading.pos == "JJ")
             });
-        // A determiner and an adjective before the pause make it their noun too (*a long uhhhh*).
-        let adjective_word = tokens
-            .iter()
-            .rev()
-            .find(|token| token.is_word && token.span.byte.end <= paragraph.span.byte.start + start)
-            .is_some_and(|token| {
-                token.readings.iter().any(|reading| reading.pos == "JJ")
-                    && !before_word.is_empty()
-                    && determiner(&spaced_word_before(
-                        text,
-                        rel(paragraph, token.span.byte.start),
-                    ))
-            });
+        // A determiner and an adjective before the pause make it their noun too (*a long
+        // uhhhh.*), but only where the pause ends the clause, before punctuation or the paragraph
+        // end; otherwise it is a restart (*the red um the blue one*).
+        let clause_end = text[end..]
+            .trim_start_matches(horizontal)
+            .chars()
+            .next()
+            .is_none_or(|ch| !ch.is_alphanumeric());
+        let adjective_word = clause_end
+            && tokens
+                .iter()
+                .rev()
+                .find(|token| {
+                    token.is_word && token.span.byte.end <= paragraph.span.byte.start + start
+                })
+                .is_some_and(|token| {
+                    token.readings.iter().any(|reading| reading.pos == "JJ")
+                        && !before_word.is_empty()
+                        && determiner(&spaced_word_before(
+                            text,
+                            rel(paragraph, token.span.byte.start),
+                        ))
+                });
         if reported.is_some_and(|stop| stop < start && adjacent_pauses(&text[stop..start]))
             || reporting_verb(&before_word)
             || before_word == "an"
@@ -2093,14 +2188,18 @@ pub fn report(
                     })
                 })
             };
-            // A dialogue-tag mark goes with its pair member the same way.
-            let tags = candidates
+            // A dialogue-tag mark goes with its command the same way.
+            let pairs: Vec<(Option<usize>, Option<usize>)> = candidates
                 .iter()
                 .enumerate()
-                .filter_map(|(index, candidate)| candidate.tag_of.map(|other| (index, other)));
-            let pairs: Vec<(Option<usize>, Option<usize>)> = mark_pairs(&candidates)
-                .into_iter()
-                .chain(tags)
+                .flat_map(|(index, candidate)| {
+                    [
+                        candidate.pair.filter(|close| index < *close),
+                        candidate.tag_of,
+                    ]
+                    .map(|other| other.map(|other| (index, other)))
+                })
+                .flatten()
                 .map(|(open, close)| {
                     (
                         cluster_of(&candidates[open]),
