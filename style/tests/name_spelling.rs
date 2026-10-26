@@ -80,19 +80,12 @@ fn short_names_only_fold_and_unknown_options() {
         &["Zo"],
         true,
     );
-    assert!(report
-        .flags
-        .iter()
-        .any(|f| f.form == "ZO" && f.reason == NameSpellingReason::Case));
+    assert!(!report.flags.iter().any(|f| f.form == "ZO"));
+    assert_eq!(report.names[0].counts.all, 4);
     assert!(!report.flags.iter().any(|f| f.form == "Zoa"));
     let caps = run("MARA met MARRA.", &["Mara"], true);
-    assert_eq!(
-        caps.flags
-            .iter()
-            .map(|f| f.form.as_str())
-            .collect::<Vec<_>>(),
-        ["MARA"]
-    );
+    assert!(caps.flags.is_empty());
+    assert_eq!(caps.names[0].counts.all, 1);
     let retained = StyleDocument::new(
         tokenizer().clone(),
         Arc::new(StyleResources::default()),
@@ -100,8 +93,34 @@ fn short_names_only_fold_and_unknown_options() {
         &DocumentOptions::new(),
     );
     assert!(retained
-        .name_spelling(Some(r#"{"phonetic":true}"#))
+        .name_spelling(Some(r#"{"notAnOption":true}"#))
         .is_err());
+}
+
+#[test]
+fn phonetic_matches_respellings_after_edit() {
+    let text = "🙂 “Kathryn?” Stephen asked—then Steven replied…\u{2028}Katherine listened.";
+    let report = run(text, &["Katherine", "Steven"], true);
+    assert_eq!(
+        report
+            .flags
+            .iter()
+            .map(|f| (f.form.as_str(), f.reason))
+            .collect::<Vec<_>>(),
+        [
+            ("Kathryn", NameSpellingReason::Phonetic),
+            ("Stephen", NameSpellingReason::Phonetic)
+        ]
+    );
+    assert!(report.flags.iter().all(|f| f.distance.is_none()));
+    let document = analyze_document(
+        tokenizer(),
+        text,
+        &DocumentOptions::new().with_skip_names(vec!["Katherine".into(), "Steven".into()]),
+    );
+    let no_phonetic =
+        name_spelling::report(&document, &NameSpellingOptions::new().with_phonetic(false)).unwrap();
+    assert!(no_phonetic.flags.is_empty());
 }
 
 #[test]
@@ -114,9 +133,35 @@ fn possessives_hyphens_and_unicode_spans() {
     }
     assert_eq!(report.flags.iter().filter(|f| f.form == "Marra").count(), 3);
     assert!(report.flags.iter().any(|f| f.form == "Zoe"));
-    assert!(report.flags.iter().any(|f| f.form == "Zoe\u{308}"));
+    assert!(!report.flags.iter().any(|f| f.form == "Zoe\u{308}"));
+    assert_eq!(report.names[1].counts.all, 2);
     assert!(!report.flags.iter().any(|f| f.form == "Mara-Lynn"));
     assert_eq!(report.names[2].counts.all, 1);
+}
+
+#[test]
+fn correct_equivalents_count_without_flags() {
+    let report = run(
+        "🙂 “ZOË”—Zoe\u{308}… ZOË’s!\u{2028}VAN DER BERG spoke. De Luca answered—van Gogh…",
+        &["Zoë", "Van der Berg", "de Luca", "van Gogh"],
+        true,
+    );
+    assert!(report.flags.is_empty(), "{:?}", report.flags);
+    assert_eq!(
+        report
+            .names
+            .iter()
+            .map(|n| n.counts.all)
+            .collect::<Vec<_>>(),
+        [3, 1, 1, 1]
+    );
+}
+
+#[test]
+fn mixed_case_still_reports_a_visible_difference() {
+    let report = run("MaRa met Mara.", &["Mara"], true);
+    assert_eq!(report.flags.len(), 1);
+    assert_eq!(report.flags[0].reason, NameSpellingReason::Case);
 }
 
 #[test]

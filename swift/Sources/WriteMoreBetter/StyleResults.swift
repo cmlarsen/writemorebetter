@@ -807,7 +807,7 @@ public extension StyleDocument {
 }
 
 public enum NameSpellingReason: String, Codable, Sendable {
-    case edit, diacritics, spacing
+    case edit, phonetic, diacritics, spacing
     case `case`
 }
 

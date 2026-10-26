@@ -1316,3 +1316,16 @@ and rates per 1,000 words for narration and dialogue, plus each report's commone
 judging; the samples behind the precision figures were judged in review and are not stored. Results
 are in [STYLE-VAGUE-WORDS.md](../../docs/STYLE-VAGUE-WORDS.md) and
 [STYLE-HIDDEN-VERBS.md](../../docs/STYLE-HIDDEN-VERBS.md).
+
+## Name spelling (#375)
+
+`python3 bench/style/name_spelling.py --gate` builds the release `name_spelling_jsonl` probe and
+checks seeded injections into chunks of `bench/public/story1.txt` through `story5.txt`. The seed is
+375; even and odd chunks form development and held-out splits. The suite plants single deletions,
+insertions, substitutions and transpositions, English phonetic respellings, case, diacritic and
+spacing changes, plus a real-name near miss. Untouched suffixes and both-listed names are controls.
+Outputs under ignored `out/name-spelling/` hold exact byte and UTF-16 spans, predictions, natural
+flags and summary JSON. `name-spelling-baseline.json` freezes the held-out natural-text predictions
+by count and exact-span digest; `test_name_spelling.py` checks equality. A deliberate report change
+requires inspecting the flags before `--freeze` updates that baseline. Gate measurements and scope
+are in [STYLE-NAME-SPELLING.md](../../docs/STYLE-NAME-SPELLING.md).

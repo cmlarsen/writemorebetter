@@ -5,6 +5,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use serde::{Deserialize, Serialize};
 use unicode_normalization::{char::is_combining_mark, UnicodeNormalization};
 
+use super::name_phonetics::{Codes, EnglishNamePhonetics, NamePhonetics};
 use super::Split;
 use crate::pronunciation::initial_sound;
 use crate::{Document, Mode, Span, StyleError, Token};
@@ -13,17 +14,28 @@ use crate::{Document, Mode, Span, StyleError, Token};
 #[serde(rename_all = "camelCase")]
 pub enum NameSpellingReason {
     Edit,
+    Phonetic,
     Diacritics,
     Case,
     Spacing,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields, rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct NameSpellingOptions {
     #[serde(alias = "include_dictionary_words")]
     pub include_dictionary_words: bool,
+    pub phonetic: bool,
+}
+
+impl Default for NameSpellingOptions {
+    fn default() -> Self {
+        Self {
+            include_dictionary_words: false,
+            phonetic: true,
+        }
+    }
 }
 
 impl NameSpellingOptions {
@@ -33,6 +45,11 @@ impl NameSpellingOptions {
 
     pub fn with_include_dictionary_words(mut self, include: bool) -> Self {
         self.include_dictionary_words = include;
+        self
+    }
+
+    pub fn with_phonetic(mut self, phonetic: bool) -> Self {
+        self.phonetic = phonetic;
         self
     }
 }
@@ -168,6 +185,52 @@ fn osa(a: &str, b: &str) -> usize {
     d[a.len()][b.len()]
 }
 
+fn jaro_winkler(a: &str, b: &str) -> f64 {
+    let a: Vec<char> = a.chars().collect();
+    let b: Vec<char> = b.chars().collect();
+    if a.is_empty() || b.is_empty() {
+        return 0.0;
+    }
+    let window = (a.len().max(b.len()) / 2).saturating_sub(1);
+    let mut a_matches = vec![false; a.len()];
+    let mut b_matches = vec![false; b.len()];
+    let mut matches = 0;
+    for (i, &letter) in a.iter().enumerate() {
+        let start = i.saturating_sub(window);
+        let end = (i + window + 1).min(b.len());
+        for j in start..end {
+            if !b_matches[j] && b[j] == letter {
+                a_matches[i] = true;
+                b_matches[j] = true;
+                matches += 1;
+                break;
+            }
+        }
+    }
+    if matches == 0 {
+        return 0.0;
+    }
+    let mut transposed = 0;
+    let mut j = 0;
+    for (i, &matched) in a_matches.iter().enumerate() {
+        if matched {
+            while !b_matches[j] {
+                j += 1;
+            }
+            transposed += usize::from(a[i] != b[j]);
+            j += 1;
+        }
+    }
+    let m = matches as f64;
+    let jaro = (m / a.len() as f64 + m / b.len() as f64 + (m - transposed as f64 / 2.0) / m) / 3.0;
+    let prefix = a.iter().zip(&b).take(4).take_while(|(x, y)| x == y).count();
+    if jaro >= 0.7 {
+        jaro + 0.1 * prefix as f64 * (1.0 - jaro)
+    } else {
+        jaro
+    }
+}
+
 #[derive(Clone, Copy)]
 struct Match {
     index: usize,
@@ -205,14 +268,16 @@ struct WordKey {
     folded: String,
     letters: usize,
     sound: &'static str,
+    phonetic: Option<Codes>,
 }
 
 impl WordKey {
-    fn new(value: &str) -> Self {
+    fn new(value: &str, phonetic: bool) -> Self {
         Self {
             folded: folded(value),
             letters: letters(value),
             sound: initial_sound(value),
+            phonetic: phonetic.then(|| EnglishNamePhonetics.codes(value)),
         }
     }
 }
@@ -221,26 +286,63 @@ impl WordKey {
 struct RosterIndex {
     exact: HashMap<String, usize>,
     nfc: HashMap<String, Vec<usize>>,
+    all_caps: HashMap<String, usize>,
+    initial_caps: HashMap<String, usize>,
     folded: HashMap<String, Vec<usize>>,
     plain: HashMap<String, Vec<usize>>,
     joined: HashMap<String, Vec<usize>>,
     words: Vec<Vec<WordKey>>,
+    all_indices: Vec<usize>,
+    first_sound_indices: HashMap<&'static str, Vec<usize>>,
+    phonetic_index: HashMap<String, Vec<usize>>,
     lowercase_initial: bool,
     joined_prefixes: HashSet<String>,
     phrase_first_sounds: HashSet<&'static str>,
 }
 
 impl RosterIndex {
-    fn new(names: &[NameSpellingName]) -> Self {
+    fn new(names: &[NameSpellingName], phonetic: bool) -> Self {
         let mut index = Self::default();
         for (at, name) in names.iter().enumerate() {
             index.exact.entry(name.name.clone()).or_insert(at);
             let keys = Keys::new(&name.name);
+            index.all_caps.entry(keys.nfc.to_uppercase()).or_insert(at);
+            if let Some(first) = name.name.chars().next().filter(|c| c.is_lowercase()) {
+                let tail = name
+                    .name
+                    .get(first.len_utf8()..)
+                    .expect("first char boundary");
+                let capitalized = first.to_uppercase().collect::<String>() + tail;
+                index.initial_caps.entry(nfc(&capitalized)).or_insert(at);
+            }
             index.nfc.entry(keys.nfc).or_default().push(at);
             index.folded.entry(keys.folded).or_default().push(at);
             index.plain.entry(keys.plain).or_default().push(at);
             index.joined.entry(keys.joined).or_default().push(at);
-            let name_words: Vec<WordKey> = name.name.split_whitespace().map(WordKey::new).collect();
+            let name_words: Vec<WordKey> = name
+                .name
+                .split_whitespace()
+                .map(|word| WordKey::new(word, phonetic))
+                .collect();
+            index.all_indices.push(at);
+            if name_words.len() == 1 {
+                index
+                    .first_sound_indices
+                    .entry(name_words[0].sound)
+                    .or_default()
+                    .push(at);
+            }
+            for codes in name_words.iter().filter_map(|word| word.phonetic.as_ref()) {
+                for key in [&codes.primary, &codes.alternate] {
+                    if !key.is_empty() {
+                        index
+                            .phonetic_index
+                            .entry(key.clone())
+                            .or_default()
+                            .push(at);
+                    }
+                }
+            }
             if name_words.len() > 1 {
                 index.phrase_first_sounds.insert(name_words[0].sound);
             }
@@ -255,7 +357,33 @@ impl RosterIndex {
         index
     }
 
-    fn matches(&self, form: &str, fuzzy: bool) -> Vec<Match> {
+    fn correct(&self, form: &str, sentence_start: bool) -> Option<usize> {
+        if let Some(&at) = self.exact.get(form) {
+            return Some(at);
+        }
+        let normalized = nfc(form);
+        if let Some(&at) = self
+            .nfc
+            .get(&normalized)
+            .and_then(|indices| indices.first())
+        {
+            return Some(at);
+        }
+        let letters: Vec<char> = form.chars().filter(|c| c.is_alphabetic()).collect();
+        if letters.len() > 1 && letters.iter().all(|c| c.is_uppercase()) {
+            if let Some(&at) = self.all_caps.get(&normalized) {
+                return Some(at);
+            }
+        }
+        if sentence_start {
+            if let Some(&at) = self.initial_caps.get(&normalized) {
+                return Some(at);
+            }
+        }
+        None
+    }
+
+    fn matches(&self, form: &str, fuzzy: bool, phonetic: bool) -> Vec<Match> {
         let keys = Keys::new(form);
         let mut found = Vec::new();
         let mut seen = HashSet::new();
@@ -279,8 +407,20 @@ impl RosterIndex {
             }
         }
         if found.is_empty() && fuzzy {
-            let candidate: Vec<WordKey> = form.split_whitespace().map(WordKey::new).collect();
-            for (index, name) in self.words.iter().enumerate() {
+            let candidate: Vec<WordKey> = form
+                .split_whitespace()
+                .map(|word| WordKey::new(word, false))
+                .collect();
+            let edit_indices = if candidate.len() == 1 {
+                self.first_sound_indices
+                    .get(candidate[0].sound)
+                    .map(Vec::as_slice)
+                    .unwrap_or_default()
+            } else {
+                &self.all_indices
+            };
+            for &index in edit_indices {
+                let name = &self.words[index];
                 if candidate.len() != name.len() {
                     continue;
                 }
@@ -308,6 +448,57 @@ impl RosterIndex {
                         distance: Some(distance),
                         rank: (1, distance),
                     });
+                }
+            }
+            if found.is_empty() && phonetic {
+                let candidate_codes: Vec<Codes> = candidate
+                    .iter()
+                    .map(|word| EnglishNamePhonetics.codes(&word.folded))
+                    .collect();
+                let mut plausible = HashSet::new();
+                for codes in &candidate_codes {
+                    for key in [&codes.primary, &codes.alternate] {
+                        if let Some(indices) = self.phonetic_index.get(key) {
+                            plausible.extend(indices.iter().copied());
+                        }
+                    }
+                }
+                for index in plausible {
+                    let name = &self.words[index];
+                    if candidate.len() != name.len() {
+                        continue;
+                    }
+                    let mut differing = candidate
+                        .iter()
+                        .zip(name)
+                        .enumerate()
+                        .filter(|(_, (a, b))| a.folded != b.folded);
+                    let Some((component, (a, b))) = differing.next() else {
+                        continue;
+                    };
+                    if differing.next().is_some()
+                        || a.letters < 4
+                        || b.letters < 4
+                        || a.sound != b.sound
+                    {
+                        continue;
+                    }
+                    if !b
+                        .phonetic
+                        .as_ref()
+                        .is_some_and(|other| candidate_codes[component].overlaps(other))
+                    {
+                        continue;
+                    }
+                    let distance = osa(&a.folded, &b.folded);
+                    if distance <= 3 || jaro_winkler(&a.folded, &b.folded) >= 0.85 {
+                        found.push(Match {
+                            index,
+                            reason: NameSpellingReason::Phonetic,
+                            distance: None,
+                            rank: (2, distance),
+                        });
+                    }
                 }
             }
         }
@@ -357,7 +548,7 @@ pub fn report(
     if names.is_empty() {
         return Ok(NameSpellingReport { flags, names });
     }
-    let index = RosterIndex::new(&names);
+    let index = RosterIndex::new(&names, options.phonetic);
     let sentences: Vec<_> = document.sentences().collect();
     let lowercase_raw: HashSet<&str> = sentences
         .iter()
@@ -432,7 +623,7 @@ pub fn report(
                 let Some(form) = sentence.text.get(start..end).map(str::to_owned) else {
                     continue;
                 };
-                let exact = index.exact.get(&form).copied();
+                let exact = index.correct(&form, at == 0);
                 if let Some(index) = exact {
                     selected = Some((size, form, Some(index), Vec::new()));
                     break;
@@ -450,7 +641,7 @@ pub fn report(
                 }
                 let matches = cache
                     .entry((form.clone(), fuzzy))
-                    .or_insert_with(|| index.matches(&form, fuzzy));
+                    .or_insert_with(|| index.matches(&form, fuzzy, options.phonetic));
                 if !matches.is_empty() {
                     selected = Some((size, form, None, matches.clone()));
                     break;
@@ -480,6 +671,7 @@ pub fn report(
                     });
                     let reason_key = match best.reason {
                         NameSpellingReason::Edit => 0,
+                        NameSpellingReason::Phonetic => 4,
                         NameSpellingReason::Diacritics => 1,
                         NameSpellingReason::Case => 2,
                         NameSpellingReason::Spacing => 3,

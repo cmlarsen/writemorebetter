@@ -486,8 +486,12 @@ const nameDocument = checker.styleDocument(nameText, '{"skipNames":["Mara","Zoë
 const nameReport = JSON.parse(nameDocument.nameSpelling());
 eq(nameReport.flags.map(f => [nameText.slice(f.span.start, f.span.end), f.name]), [["Marra", "Mara"], ["Zoe", "Zoë"]], "name spans use UTF-16 and omit possessives");
 eq(nameReport.names.map(n => n.counts.all), [1, 0, 0], "names include zero-count entries");
-eq(styleError(() => nameDocument.nameSpelling('{"phonetic":true}')).kind, "invalidOptions", "name spelling rejects future option");
+eq(styleError(() => nameDocument.nameSpelling('{"notAnOption":true}')).kind, "invalidOptions", "name spelling rejects unknown option");
 nameDocument.free();
+const phoneticDocument = checker.styleDocument("Kathryn spoke.", '{"skipNames":["Katherine"]}');
+eq(JSON.parse(phoneticDocument.nameSpelling()).flags.map(f => [f.name, f.reason]), [["Katherine", "phonetic"]], "phonetic name reason");
+eq(JSON.parse(phoneticDocument.nameSpelling('{"phonetic":false}')).flags, [], "phonetic option disables tier 2");
+phoneticDocument.free();
 const senseText = "😀.\u2028The red lamp’s glow—a bell… “Perfume,” she said.";
 const senseDocument = checker.styleDocument(senseText);
 const sensory = JSON.parse(senseDocument.sensoryBalance('{"minimumSenseWords":1}'));

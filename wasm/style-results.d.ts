@@ -636,7 +636,7 @@ export interface RegionalSpellingReport {
   flags: Array<RegionalSpellingFlag>;
 }
 
-export type NameSpellingReason = "edit" | "diacritics" | "case" | "spacing";
+export type NameSpellingReason = "edit" | "phonetic" | "diacritics" | "case" | "spacing";
 
 export interface NameSpellingFlag {
   span: Span;

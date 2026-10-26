@@ -636,6 +636,11 @@ final class CheckerTests: XCTestCase {
         XCTAssertEqual(names.flags.map(\.form), ["Marra"])
         XCTAssertEqual(names.flags.first?.span.start, 3)
         XCTAssertEqual(names.names.last?.counts.all, 0)
+        let phoneticDocument = try checker().styleDocument(text: "Kathryn spoke.", options: DocumentOptions(skipNames: ["Katherine"]))
+        let phonetic = try phoneticDocument.nameSpelling()
+        XCTAssertEqual(phonetic.flags.map(\.reason), [.phonetic])
+        XCTAssertEqual(phonetic.flags.map(\.name), ["Katherine"])
+        XCTAssertTrue(try phoneticDocument.nameSpelling(optionsJson: "{\"phonetic\":false}").flags.isEmpty)
         let normText = try String(contentsOf: Self.repositoryRoot.appendingPathComponent("style/tests/fixtures/norm-records.txt"), encoding: .utf8)
         let normDocument = try checker().styleDocument(text: normText)
         let table = "{\"hope\": 1.5, \"idea\": 1.6, \"freedom\": 1.3, \"lamp\": 4.8}"

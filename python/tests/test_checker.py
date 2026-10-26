@@ -215,8 +215,11 @@ def test_name_spelling(checker):
     span = report["flags"][0]["span"]
     assert text[span["start"]:span["end"]] == "Marra"
     assert report["names"][1]["counts"]["all"] == 0
+    phonetic = checker.style_document("Kathryn spoke.", {"skip_names": ["Katherine"]}).name_spelling()
+    assert [(flag["name"], flag["reason"]) for flag in phonetic["flags"]] == [("Katherine", "phonetic")]
+    assert checker.style_document("Kathryn spoke.", {"skip_names": ["Katherine"]}).name_spelling({"phonetic": False})["flags"] == []
     with pytest.raises(StyleError) as error:
-        checker.style_document(text).name_spelling({"phonetic": True})
+        checker.style_document(text).name_spelling({"notAnOption": True})
     assert error.value.kind == "invalidOptions"
 
 

@@ -10,7 +10,7 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
 ### Added
 
-- Opt-in name spelling report for a supplied `skipNames` roster, with folded exact and typed-error matches across Rust, Swift, WASM, and Python. Tier 2 phonetic matching follows separately.
+- Opt-in name spelling report for a supplied `skipNames` roster, with folded exact, typed-error and English phonetic matches across Rust, Swift, WASM, and Python.
 
 # 0.14.0 (2026-10-24)
 
