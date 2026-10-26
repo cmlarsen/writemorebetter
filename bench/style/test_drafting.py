@@ -48,7 +48,7 @@ class FixtureTest(unittest.TestCase):
         self.assertGreaterEqual(len(self.rows), 120)
         self.assertEqual(len({row['id'] for row in self.rows}), len(self.rows))
         for row in self.rows:
-            self.assertEqual(set(row) - {'options', 'flags'},
+            self.assertEqual(set(row) - {'options', 'flags', 'note'},
                              {'id', 'style', 'category', 'input', 'expected'})
             self.assertIn(row['style'], STYLES)
             self.assertIn(row['category'], CATEGORIES)
@@ -62,6 +62,9 @@ class FixtureTest(unittest.TestCase):
                 self.assertEqual(row['expected'], row['input'])
             if row['category'] == 'placeholder' and 'flags' in row:
                 self.assertEqual(row['expected'], row['input'])
+            if 'note' in row:
+                self.assertIsInstance(row['note'], str)
+                self.assertTrue(row['note'])
 
     def test_negative_share_and_coverage(self):
         negatives = [row for row in self.rows
