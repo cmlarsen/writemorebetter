@@ -484,3 +484,6 @@ def test_drafting(checker):
     assert result["matches"][0]["span"] == {"start": 3, "end": 5}
     with pytest.raises(StyleError):
         document.drafting({"restarts": True})
+    spoken = checker.style_document("She said comma he left")
+    assert spoken.drafting()["matches"][0]["category"] == "spokenCommand"
+    assert spoken.drafting({"spokenCommands": False})["matches"] == []

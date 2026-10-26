@@ -775,6 +775,9 @@ final class CheckerTests: XCTestCase {
         let report = try document.drafting()
         XCTAssertEqual(report.matches.map { (text as NSString).substring(with: $0.span.nsRange) }, ["Um", "TK"])
         XCTAssertEqual(report.matches[0].edits[0].replacement, "T")
+        let spoken = try checker().styleDocument(text: "She said comma he left")
+        XCTAssertEqual(try spoken.drafting().matches[0].category, .spokenCommand)
+        XCTAssertTrue(try spoken.drafting(optionsJson: "{\"spokenCommands\":false}").matches.isEmpty)
         XCTAssertThrowsError(try document.drafting(optionsJson: "{\"restarts\":true}"))
     }
 

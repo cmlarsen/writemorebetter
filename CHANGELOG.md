@@ -10,7 +10,7 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
 ### Added
 
-- Opt-in drafting report for placeholders and filled pauses, with deletion and capitalization edits across Rust, WASM, Swift and Python.
+- Opt-in drafting report for placeholders, spoken commands and filled pauses, with deletion, punctuation, line-break and capitalization edits across Rust, WASM, Swift and Python. Dictated quote pairs count as speech.
 
 # 0.14.0 (2026-10-24)
 

@@ -181,3 +181,368 @@ fn typography_variants() {
         assert_eq!(applied(source, options.clone()), expected, "{source:?}");
     }
 }
+
+#[test]
+fn spoken_command_table() {
+    for (source, expected, term) in [
+        ("She said comma he left", "She said, he left", "comma"),
+        ("She said coma he left", "She said, he left", "coma"),
+        (
+            "She left period she returned",
+            "She left. She returned",
+            "period",
+        ),
+        (
+            "She left full stop she returned",
+            "She left. She returned",
+            "full stop",
+        ),
+        (
+            "She left question mark she returned",
+            "She left? She returned",
+            "question mark",
+        ),
+        (
+            "She left exclamation point she returned",
+            "She left! She returned",
+            "exclamation point",
+        ),
+        (
+            "She left exclamation mark she returned",
+            "She left! She returned",
+            "exclamation mark",
+        ),
+        ("She said colon He left", "She said: He left", "colon"),
+        (
+            "She said semicolon He left",
+            "She said; He left",
+            "semicolon",
+        ),
+        ("She stopped dash he ran", "She stopped—he ran", "dash"),
+        (
+            "She stopped em dash he ran",
+            "She stopped—he ran",
+            "em dash",
+        ),
+        ("She stopped m dash he ran", "She stopped—he ran", "m dash"),
+        ("She said hyphen He", "She said- He", "hyphen"),
+        ("She said ellipsis he left", "She said… he left", "ellipsis"),
+        (
+            "She said dot dot dot he left",
+            "She said… he left",
+            "dot dot dot",
+        ),
+        ("She said open quote hello", "She said“hello", "open quote"),
+        (
+            "She said begin quote hello",
+            "She said“hello",
+            "begin quote",
+        ),
+        (
+            "hello close quote she said",
+            "hello” she said",
+            "close quote",
+        ),
+        ("hello end quote she said", "hello” she said", "end quote"),
+        ("hello unquote she said", "hello” she said", "unquote"),
+        (
+            "She said open single quote hello",
+            "She said‘hello",
+            "open single quote",
+        ),
+        (
+            "hello close single quote she said",
+            "hello’ she said",
+            "close single quote",
+        ),
+        ("She said open paren hello", "She said(hello", "open paren"),
+        (
+            "She said open parenthesis hello",
+            "She said(hello",
+            "open parenthesis",
+        ),
+        (
+            "hello close paren she said",
+            "hello) she said",
+            "close paren",
+        ),
+        (
+            "hello close parenthesis she said",
+            "hello) she said",
+            "close parenthesis",
+        ),
+        (
+            "She said open bracket hello",
+            "She said[hello",
+            "open bracket",
+        ),
+        (
+            "hello close bracket she said",
+            "hello] she said",
+            "close bracket",
+        ),
+        ("She typed apostrophe", "She typed’", "apostrophe"),
+        (
+            "She left new paragraph He returned",
+            "She left\n He returned",
+            "new paragraph",
+        ),
+        (
+            "She left new line He returned",
+            "She left\n He returned",
+            "new line",
+        ),
+        (
+            "She left next line He returned",
+            "She left\n He returned",
+            "next line",
+        ),
+        (
+            "She spoke scratch that then waited",
+            "She spoke then waited",
+            "scratch that",
+        ),
+        (
+            "She spoke delete that then waited",
+            "She spoke then waited",
+            "delete that",
+        ),
+        (
+            "She spoke strike that then waited",
+            "She spoke then waited",
+            "strike that",
+        ),
+        (
+            "She spoke undo that then waited",
+            "She spoke then waited",
+            "undo that",
+        ),
+        (
+            "She said caps on then spoke",
+            "She said caps on then spoke",
+            "caps on",
+        ),
+        (
+            "She said caps off then spoke",
+            "She said caps off then spoke",
+            "caps off",
+        ),
+        (
+            "She said all caps then spoke",
+            "She said all caps then spoke",
+            "all caps",
+        ),
+        (
+            "She said no caps then spoke",
+            "She said no caps then spoke",
+            "no caps",
+        ),
+    ] {
+        let result = report(source, DraftingOptions::new());
+        assert!(
+            result
+                .matches
+                .iter()
+                .any(|m| m.category == DraftingCategory::SpokenCommand && m.term == term),
+            "{source:?}: {:?}",
+            result.matches
+        );
+        assert_eq!(
+            applied(source, DraftingOptions::new()),
+            expected,
+            "{source:?}"
+        );
+    }
+}
+
+#[test]
+fn spoken_command_guards() {
+    for text in [
+        "a comma",
+        "the Edo period",
+        "a dash of salt",
+        "a new line of work",
+        "a period of time",
+        "made a dash",
+        "I have to dash",
+        "Period.",
+        "Full stop.",
+        "quote, unquote",
+        "quote-unquote",
+        "She typed “period” and waited.",
+        "At that period, she left the room.",
+        "She wrote a sentence. The period was missing.",
+        "She marked the page period and folded it.",
+    ] {
+        assert!(
+            !report(text, DraftingOptions::new())
+                .matches
+                .iter()
+                .any(|m| m.category == DraftingCategory::SpokenCommand),
+            "{text:?}"
+        );
+    }
+}
+
+#[test]
+fn commands_marks_speech_and_overlap() {
+    assert_eq!(
+        applied("She said comma, he left", DraftingOptions::new()),
+        "She said, he left"
+    );
+    let dictated = "open quote I’m fine um close quote she said";
+    let default = report(dictated, DraftingOptions::new());
+    assert_eq!(
+        default
+            .matches
+            .iter()
+            .filter(|m| m.category == DraftingCategory::SpokenCommand)
+            .count(),
+        2
+    );
+    assert!(!default
+        .matches
+        .iter()
+        .any(|m| m.category == DraftingCategory::FilledPause));
+    let mut options = DraftingOptions::new();
+    options.include_dialogue = true;
+    let included = report(dictated, options);
+    assert!(included
+        .matches
+        .iter()
+        .any(|m| m.category == DraftingCategory::FilledPause
+            && m.mode == writemorebetter_style::Mode::Dialogue));
+    let text = "um comma";
+    let result = report(text, DraftingOptions::new());
+    let edits: Vec<_> = result.matches.iter().flat_map(|m| &m.edits).collect();
+    for pair in edits.windows(2) {
+        assert!(pair[0].span.byte.end <= pair[1].span.byte.start);
+    }
+    assert_eq!(drafting::apply(text, &edits), ",");
+}
+
+#[test]
+fn command_mark_majority_and_tie() {
+    for (source, term, replacement) in [
+        ("She said open quote hello", "open quote", "“"),
+        (
+            "“One,” she said. “Two,” he said. She said open quote hello",
+            "open quote",
+            "“",
+        ),
+        (
+            "\"One,\" she said. \"Two,\" he said. She said open quote hello",
+            "open quote",
+            "\"",
+        ),
+        (
+            "“One” and \"Two\". She said open quote hello",
+            "open quote",
+            "“",
+        ),
+        ("She said open single quote hello", "open single quote", "‘"),
+        (
+            "‘One,’ she said. ‘Two,’ he said. She said open single quote hello",
+            "open single quote",
+            "‘",
+        ),
+        (
+            "'One,' she said. 'Two,' he said. She said open single quote hello",
+            "open single quote",
+            "'",
+        ),
+        ("She paused ellipsis he left", "ellipsis", "…"),
+        (
+            "She paused… then... She paused ellipsis he left",
+            "ellipsis",
+            "…",
+        ),
+        (
+            "She paused… Then she paused... She paused... She paused ellipsis he left",
+            "ellipsis",
+            "...",
+        ),
+    ] {
+        let result = report(source, DraftingOptions::new());
+        let found = result
+            .matches
+            .iter()
+            .find(|m| m.category == DraftingCategory::SpokenCommand && m.term == term)
+            .unwrap_or_else(|| panic!("{source:?}"));
+        assert_eq!(found.edits[0].replacement, replacement, "{source:?}");
+    }
+}
+
+#[test]
+fn dictated_quote_pair_and_options() {
+    let paired = "open quote I’m fine um comma he left close quote she said";
+    let result = report(paired, DraftingOptions::new());
+    assert!(result.groups.dialogue.words > 0);
+    assert!(!result
+        .matches
+        .iter()
+        .any(|m| m.category == DraftingCategory::FilledPause));
+    assert!(result
+        .matches
+        .iter()
+        .any(|m| m.term == "comma" && m.mode == writemorebetter_style::Mode::Dialogue));
+    let mut options = DraftingOptions::new();
+    options.include_dialogue = true;
+    assert!(report(paired, options)
+        .matches
+        .iter()
+        .any(|m| m.category == DraftingCategory::FilledPause));
+    let unpaired = "open quote I’m fine um";
+    let unpaired_report = report(unpaired, DraftingOptions::new());
+    assert!(unpaired_report
+        .matches
+        .iter()
+        .any(|m| m.category == DraftingCategory::FilledPause));
+    assert!(unpaired_report
+        .matches
+        .iter()
+        .any(|m| m.term == "open quote" && !m.edits.is_empty()));
+    let mut disabled = DraftingOptions::new();
+    disabled.spoken_commands = false;
+    assert!(!report(paired, disabled)
+        .matches
+        .iter()
+        .any(|m| m.category == DraftingCategory::SpokenCommand));
+}
+
+#[test]
+fn spoken_commands_keep_utf8_context() {
+    for (source, expected) in [
+        ("😀 She said comma he left", "😀 She said, he left"),
+        (
+            "“I’m here,” she said comma he left",
+            "“I’m here,” she said, he left",
+        ),
+        (
+            "\"I'm here,\" she said comma he left",
+            "\"I'm here,\" she said, he left",
+        ),
+        (
+            "She waited—then said comma he left",
+            "She waited—then said, he left",
+        ),
+        (
+            "She waited... then said comma he left",
+            "She waited... then said, he left",
+        ),
+        (
+            "She waited… then said comma he left",
+            "She waited… then said, he left",
+        ),
+        (
+            "She waited\u{2028}then said comma he left",
+            "She waited\u{2028}then said, he left",
+        ),
+    ] {
+        assert_eq!(
+            applied(source, DraftingOptions::new()),
+            expected,
+            "{source:?}"
+        );
+    }
+}

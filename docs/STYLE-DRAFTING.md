@@ -314,10 +314,13 @@ rather staggered*), and `bench/public` has three.
 ## Data
 
 Four project-authored files in `style/data/drafting/`, MIT OR Apache-2.0 like the engine:
-`fillers.txt`, `commands.tsv` (`phrase<TAB>replacement<TAB>guard`), `placeholders.tsv` and
+`fillers.txt`, `commands.tsv` (`phrase<TAB>replacement key<TAB>guard`), `placeholders.tsv` and
 `self-corrections.tsv`. Command names are the ordinary English names of the marks. Apple, Microsoft,
 Nuance and Talon command lists were used to check coverage only. Nothing is vendored, so no NOTICE
 entry is needed.
+
+The command replacement key selects a fixed mark, the document-majority quote or ellipsis form,
+`newline`, `delete` or `flag`; it is resolved by the report rather than copied into an edit.
 
 ## Evaluation
 
