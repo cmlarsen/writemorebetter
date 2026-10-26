@@ -5,7 +5,8 @@ stream-of-consciousness writing leave behind: placeholders and notes to self (*T
 *(check this)*), spoken commands typed as words (*comma*, *new paragraph*, *open quote*), filled
 pauses (*um*, *uh*), phrase restarts (*he walked to the he walked to the car*) and self-corrections
 (*it was red I mean crimson*). Published fiction has almost none of these, so nearly every match is
-something the author meant to clean up.
+something the author meant to clean up. Spoken commands are opt-in: the host turns them on only for
+text it knows came from dictation (see the 2026-10-26 decision).
 
 Unlike the other reports, drafting may return **edits**: deletions, whitespace, punctuation from a
 fixed table, line breaks, and a case-only change to the first letter of the author's next word. It
@@ -38,8 +39,8 @@ and leaves a lowercase sentence start (`Um but I'll…` → `but I'll…`).
 | Version | Category | Edit | Modes |
 |---|---|---|---|
 | v1 | `placeholder` | none (flag only) | all |
-| v1 | `spokenCommand` | the mark, a line break, or a deletion | all |
-| v1 | `filledPause` | deletion | narration (`includeDialogue` opts in) |
+| v1 | `spokenCommand` | the mark, a line break, or a deletion | opt-in (`spokenCommands`), all modes |
+| v1 | `filledPause` | deletion in four unambiguous patterns, otherwise flag only | narration (`includeDialogue` opts in) |
 | v1.1 | `restart` | delete the first copy | narration (`includeDialogue` opts in) |
 | v1.2 | `selfCorrection` | none (flag only) | narration (`includeDialogue` opts in) |
 
@@ -59,8 +60,8 @@ isn't tuned for any one of them.
 | Option | Default | Meaning |
 |---|---|---|
 | `placeholders` | `true` | Report placeholders and notes to self. |
-| `spokenCommands` | `true` | Report spoken commands, with edits. |
-| `filledPauses` | `true` | Report filled pauses, with deletion edits. |
+| `spokenCommands` | `false` | Report spoken commands, with edits. The host turns this on only for text it knows came from dictation; typed prose is never edited for command words. When it's off, no command detection runs and dictated quote pairs aren't found. |
+| `filledPauses` | `true` | Report filled pauses, with deletion edits where the punctuation is unambiguous. |
 | `er` | `false` | Also report *er* as a filled pause (guarded; see below). |
 | `restarts` | `true` | Report restarts (from v1.1). |
 | `selfCorrections` | `true` | Report self-correction phrases, flag only (from v1.2). |
@@ -107,9 +108,11 @@ so the host applies it as is.
 - **A paragraph break is `"\n"`**, matching how the document splits paragraphs. A host whose editor
   models paragraphs as blocks maps a replacement containing `"\n"` to a block split.
 - **No overlaps.** Edits within one match never overlap, and edits of different matches never
-  overlap. Adjacent filled pauses separated only by punctuation and spaces form one match with one
-  cleanup edit, so accepting that match removes the whole run. The report resolves other collisions
-  before returning. A host can apply any subset in descending start order.
+  overlap. Adjacent filled pauses in one sentence, separated only by punctuation and spaces, form
+  one match. Pauses and accepted commands separated only by spaces and punctuation form one
+  **cluster**, and the cluster gets one edit, carried by its first match and computed from the
+  text on both sides of the cluster; the other matches in it are flag only. Clusters are separated
+  by words, so a host can apply any subset in descending start order.
 - **Spans come from tokens.** Byte offsets are taken from token spans and from scanning whole chars,
   so they are always char boundaries. Nothing slices text by arithmetic.
 - **`drafting::apply(text, edits)`** sorts edits by start, skips any that overlap an earlier one,
@@ -118,59 +121,70 @@ so the host applies it as is.
 
 ### Deletion cleanup
 
-Filled pauses, restarts and `scratch that` delete words. The edit widens the deleted words (the
-core) so the text reads as if they were never there:
+Filled pauses and `scratch that` delete words. The owner's 2026-10-26 decision makes this
+conservative: an edit is returned only where the punctuation around the pause leaves one obvious
+result. **Everywhere else the pause is flagged with no edit** (empty `edits`) and the author fixes
+it. A missed convenience is acceptable; a damaged sentence is not.
 
-1. **Trailing pause punctuation.** Absorb one `,`, an ellipsis (`…`, `...`) or a dash (`—`, `–`,
-   `--`) right after the core, with or without a space. Never absorb `.`, `?`, `!`, `;`, `:` or a
-   closing quote or bracket: those belong to the sentence.
-2. **Comma pairs.** When a comma comes right before the core and one was absorbed after it
-   (`X, um, Y`):
-   - after a sentence-initial discourse word or interjection (*Well*, *Oh*, *So*, *Yes*, *No*,
-     *Okay*) or a vocative name at the sentence start, keep the first comma: `Well, um, I` → `Well, I`;
-   - otherwise drop both: `I was, uh, thinking` → `I was thinking`.
+The edit patterns, where *word* means a letter or digit and spaces are spaces or tabs:
 
-   If the right context is a closing quote or closing punctuation, keep the first comma and don't
-   absorb the second: `“I was, um,” she said` → `“I was,” she said`.
-   Keep the first comma before a continuation after a noun phrase:
-   `a quiet period, um, and then` → `a quiet period, and then`.
-3. **Dash pairs.** A dash before and after the core goes with it, and the replacement is one space:
-   `I was—um—thinking` → `I was thinking`.
-   A dash before the pause and a comma after it both go: `He was—um, thinking` →
-   `He was thinking`, including when the dash is written `--`. A trailing dash or ellipsis carries
-   the hesitation and stays: `He was, um—thinking` → `He was—thinking` and
-   `It was, um… fine` → `It was… fine`. If terminal punctuation follows the pause, drop the left
-   mark: `He said, um. Then` → `He said. Then`.
-4. **Whitespace.** Keep exactly one separator between the left and right context. Keep none when
-   the right context starts with closing punctuation (`.,;:!?…”’)]`) or the left context is the
-   paragraph start, an opening quote, `(` or `[`. If a collapsed whitespace run holds a U+2028,
-   keep the U+2028 instead of a space.
-5. **Paragraphs.** Never delete across a paragraph boundary (`\n`, `\r`, U+2029).
-6. **Capitalization.** See below.
+- **(a) Spaces on both sides**, with a word on each side and no punctuation next to the pause:
+  `So um I was` → `So I was`. A pause right before terminal punctuation counts too:
+  `He left um.` → `He left.` A run of pauses separated only by spaces is deleted the same way
+  (`we walked um uh to the river`).
+- **(b) Sentence start**, then one comma, an ellipsis or nothing, then a word: `Um, the door`,
+  `Um… the door` and `Um the door` all become `The door`, with the capital below. Sentence start
+  means the paragraph start, terminal punctuation (and any closing quotes) plus a space, or right
+  after an opening quote, in dialogue with `includeDialogue`.
+- **(c) A comma pair after a sentence-initial discourse word** (*Well*, *Oh*, *So*, *Yes*, *Yeah*,
+  *No*, *Okay*, *OK*, *Now*, *Right*, *Sure*, *Look*, *Listen*) keeps the first comma:
+  `Well, um, I was` → `Well, I was`.
+- **(d) A comma pair elsewhere** drops both commas when the word before is not a noun or name and
+  the word after starts lowercase and is not a conjunction or preposition: `I was, uh, thinking` →
+  `I was thinking`, `He, uh, left.` → `He left.` In doubt, flag only: `bread, um, and milk`,
+  `The house, uh, in the woods` and `Mary, um, I was` are flag only, because the first comma may be
+  the author's.
 
-A pause sentence after an existing terminal mark removes its own terminal mark too:
-`He paused. Um. Then` → `He paused. Then`. A parenthesized pause removes the parentheses, while
-dash-joined interjections (*uh–huh*), URLs and italic markup are left alone.
+**Flag only:** any dash next to the pause, a bracket or parenthesis, a quote edge, a pause between
+two terminal marks (`He paused. Um. Then`), an ellipsis or comma on one side only, a pause at a
+paragraph end, U+2028 next to the pause, a run of pauses with punctuation between them
+(`The cat um, uh, sat`), and every other shape not listed above. The report never deletes across a
+paragraph boundary.
 
 | Input | Edit span → replacement | Result |
 |---|---|---|
-| `So um I was` | `um ` → `` | `So I was` |
+| `So um I was` | ` um` → `` | `So I was` |
 | `Well, um, I was` | `um, ` → `` | `Well, I was` |
 | `I was, uh, thinking` | `, uh,` → `` | `I was thinking` |
-| `I was—um—thinking` | `—um—` → ` ` | `I was thinking` |
-| `I was… um… thinking` | `um… ` → `` | `I was… thinking` |
+| `I was—um—thinking` | flag only | unchanged |
+| `I was… um… thinking` | flag only | unchanged |
 | `Um, the door` | `Um, t` → `T` | `The door` |
 | `Um… the door` | `Um… t` → `T` | `The door` |
 | `He left um.` | ` um` → `` | `He left.` |
-| `He left um”` (dialogue, `includeDialogue`) | ` um` → `` | `He left”` |
-| `“I was, um,” she said` (`includeDialogue`) | `, um` → `` | `“I was,” she said` |
+| `He left um”` (dialogue, `includeDialogue`) | flag only | unchanged |
+| `“I was, um,” she said` (`includeDialogue`) | flag only | unchanged |
 | `“Um, I don’t know.”` (`includeDialogue`) | `Um, ` → `` | `“I don’t know.”` |
-| `the um` U+2028 `next` | ` um` → `` | `the` U+2028 `next` |
-| `He waited um` ⏎ `Then` | ` um` → `` | `He waited` ⏎ `Then` |
+| `the um` U+2028 `next` | flag only | unchanged |
+| `He waited um` ⏎ `Then` | flag only | unchanged |
 | `“Um.”` | no match | unchanged |
 
-Tests repeat each case with straight and curly quotes, curly apostrophes, `—` and `--`, `…` and
-`...`, and U+2028, as AGENTS.md requires.
+Tests repeat each pattern with straight and curly quotes, curly apostrophes, `—` and `--`, `…` and
+`...`, and U+2028, and give a flag-only case for each excluded context, as AGENTS.md requires.
+
+### Clusters
+
+Pauses and accepted commands separated only by spaces and punctuation form one cluster with one
+edit:
+
+- A cluster of one is the pause's edit above or the command's own edit.
+- A larger cluster gets an edit only when its members are separated by plain spaces, every pause
+  in it would be deletable on its own, it sits between words or at the paragraph edge, and its
+  commands' marks can follow each other: repeats collapse (`comma um comma` gives one `,`), and two
+  sentence marks never meet (`left period um comma then` is flag only). The edit replaces the whole
+  stretch with the marks, each spaced as it would be alone: `milk um comma eggs` → `milk, eggs`,
+  `left period new paragraph the` → `left.` ⏎ `The`, `fine period close quote and` → `fine.” and`.
+- Otherwise every member of the cluster is flag only, so a flag-only pause never leaves its
+  neighbouring command's mark doubled or dropped.
 
 ### Capitalization
 
@@ -185,6 +199,11 @@ The drafting report recognizes capitalization after a dictated terminal command 
 command has passed its guards; an ordinary noun such as *period* does not trigger it.
 
 ## Spoken commands
+
+Spoken commands are **opt-in** (`spokenCommands: true`). A host turns them on only for text it
+knows came from dictation, such as a dictation session or an imported transcript; typed prose is
+never edited for command words. With the option off no command detection runs, no command edits
+are returned and dictated quote pairs aren't found.
 
 A command edit replaces the whitespace before the command and the command words with the mark.
 An opening mark keeps the whitespace before it and consumes the whitespace after it. Apostrophes,
@@ -222,18 +241,26 @@ and a duplicate mark after it are deleted.
 - **Positive cue.** Every single-word command needs evidence beyond its spelling: the next word
   opens a clause (a pronoun, determiner, proper noun, capitalized word, or *and*/*but*/*so* plus a
   clause), the words around a comma or colon form a list, a hyphen joins words, an apostrophe joins
-  a suffix, the command ends the paragraph, or the paragraph has another command match. A
-  single-word command at the start of a sentence is always ordinary prose. Multi-word commands
-  keep the noun guard. A lone *period* in a well-punctuated paragraph is probably the noun.
+  a suffix, the dictation engine typed the comma on both sides too (`again, comma, and`), the
+  command ends the paragraph, or the paragraph has another command match. A list or compound needs
+  a noun or adjective before the command that isn't the verb after a subject, so attributive uses
+  stay prose (*has colon cancer*, *Teachers mark comma errors*, *hated hyphen words*). Multi-word
+  commands keep the noun guard. A lone *period* in a well-punctuated paragraph is probably the noun.
+- **Sentence start.** A command at the start of a sentence, after any quotes, brackets or filled
+  pauses, is ordinary prose (*Full stop signs*, *Um comma the dog ran*), except one of a dictated
+  pair (an opening mark with a later closing command, or that closing command, as in
+  `fine. close quote`) and a line break before a capital (*New paragraph The next day*).
+  Mid-sentence, a capitalized command word is a name (*His brother Colon then left*).
 - **Deletion command boundary.** *Scratch that*, *delete that*, *strike that* and *undo that* need
   punctuation immediately after *that* or the end of the paragraph; when followed by an object,
-  they are ordinary prose. A subject or modal immediately before the phrase also blocks it.
-- **Pause beside a command.** A pause immediately beside a dictated comma and that comma share one
-  edit, and so does a pause whose edit touches any other command's edit (*I said uh question mark
-  then* → *I said? Then*). The pause's match carries the combined edit and the command's match keeps
-  only its separate edits, so a host that applies either alone gets the same text as applying both,
-  with no dropped or doubled mark and no joined words. A pause gives up its space only to a command
-  whose edit absorbs the space before it; an opening mark or a flag-only command leaves it.
+  they are ordinary prose. A subject or modal immediately before the phrase also blocks it, and so
+  do verb uses: after *to* or a conjunction (*likes to scratch that*, *and delete that*), before
+  `?` or `!`, or with *do*, *does*, *did* or a modal earlier in the sentence
+  (*Did Mary delete that?*). A deletion command is deleted with the filled-pause patterns, so
+  `spoke scratch that. Then` → `spoke. Then`, and other shapes are flag only.
+- **Pause beside a command.** A pause and a command next to each other form one cluster with
+  one edit (see [Clusters](#clusters)): `I said uh question mark then` → `I said? Then`. If the
+  pause is flag only, so is the command beside it.
 - **Caps flags.** *all caps* and *no caps* after *in* or *of* describe lettering (*printed in all
   caps*); the command comes before the words it caps.
 - **Marks follow the document.** Quotes and ellipses follow the document's majority, counted as the
@@ -246,11 +273,12 @@ and a duplicate mark after it are deleted.
 ### Dictated quotes are speech
 
 Raw dictation of dialogue has no quote marks (`open quote I’m fine um close quote she said`), so
-the document finds no speech span there. The report pairs *open quote* or *begin quote* with the
-next *close quote*, *end quote* or *unquote* in the same paragraph and treats the words between as
-speech: filled pauses, restarts and self-corrections inside are skipped unless `includeDialogue`,
-and matches inside have mode `dialogue`. The two commands are still reported, with their edits, in
-every mode. An unpaired command still gets its edit but marks no speech.
+the document finds no speech span there. With `spokenCommands` on, the report pairs *open quote*
+or *begin quote* with the next *close quote*, *end quote* or *unquote* in the same paragraph and
+treats the words between as speech: filled pauses, restarts and self-corrections inside are skipped
+unless `includeDialogue`, and matches inside have mode `dialogue`. The two commands are still
+reported, with their edits, in every mode. An unpaired command still gets its edit but marks no
+speech.
 
 The report inserts only what was dictated. A missing comma before a dialogue tag (`“I’m fine” she
 said`) is a separate problem the grammar rules cover.
@@ -264,7 +292,7 @@ author's reminder.
 |---|---|---|
 | `TK`, `TKTK`, `TKTKTK` | a whole token, case-sensitive | *Tkachenko*, *atkins*, *T.K.*, *tk* |
 | `TODO`, `FIXME`, `TBD`, `TBA`, `XXX` | a whole token, case-sensitive | *todo* in prose |
-| `XX`, `XXX`, `XXXX` | not a Roman numeral | *Chapter XX*, *Chapter XXX*, *Book XX*, *Part XX*, *Act XX*, *Pius XX*, *XX chromosome*, lowercase *xx* |
+| `XX`, `XXX`, `XXXX` | not a Roman numeral | *Chapter XX*, *Chapter XXX*, *Book XX*, *Part XX*, *Act XX*, *Pius XX*, *XXX* after a name (*Henry XXX*), *XX chromosome*, lowercase *xx* |
 | `[…]`, `{{…}}`, `<<…>>` notes | 1–5 words from the placeholder vocabulary (*name*, *place*, *city*, *date*, *something*, *X*, …), starting with *insert*, *add*, *check*, *fix*, *need*, *research* or *describe*, or ending in `?` | *[sic]*, *[redacted]*, *[inaudible]*, *[…]*, *[1]* |
 | `(…)` notes to self | 1–4 words starting with one of those verbs, or ending in `?`: *(check this)*, *(name?)*, *(?)*, *(TK)* | ordinary parentheticals |
 | prefix notes | a paragraph starting *Note:*, *NOTE:*, *Note to self:*, *NTS:* or *TODO:* | |
@@ -282,8 +310,8 @@ and `[NAME]` are equivalent. Standalone placeholder marks remain case-sensitive.
 ## Filled pauses
 
 The default list is *um*, *uh*, *uhm*, *erm*, *ehm* and their stretched forms, as whole word tokens
-matching `^u+m+$`, `^u+h+$`, `^u+h+m+$`, `^e+r+m+$`, `^e+h+m+$`. Each is a deletion with the cleanup
-above.
+matching `^u+m+$`, `^u+h+$`, `^u+h+m+$`, `^e+r+m+$`, `^e+h+m+$`. Each is deleted in the patterns
+above and flagged with no edit everywhere else.
 
 - **Not listed:** *ah*, *eh*, *ha*, *hm*, *hmm*, *mm*, *mmm*, *oh*. These are deliberate fiction
   interjections (*Ah, there you are*, *Hmm. She frowned.*).
@@ -356,14 +384,16 @@ The command replacement key selects a fixed mark, the document-majority quote or
 
 - **Precision on published fiction.** `python3 bench/style/drafting.py --precision` (modelled on
   `vague_hidden_verbs.py`) runs `bench/public` and the 13 public-domain books in
-  `bench/style/sources.json` and prints matches per 1,000 words per category and mode. Expect near
-  zero. The books are the adversarial set: *Chapter XX*, *er* in Victorian dialogue, *at that
-  period*, *made a dash for*. On story1–5 every flag must be judged correct. Hand-judge a held-out
+  `bench/style/sources.json` and prints matches, matches with edits, and matches per 1,000 words
+  per category and mode. Expect near zero, and zero matches with edits. The books are the
+  adversarial set: *Chapter XX*, *er* in Victorian dialogue, *at that period*, *made a dash for*.
+  On story1–5 every flag must be judged correct. Hand-judge a held-out
   `--sample 50` per category; a category that falls below 0.95 (restarts 0.9) ships off by default.
   The owner can add drafting to the tier 3 flag-rate sweep for published rates.
 - **Recall on fixtures.** `bench/style/drafting_fixtures.jsonl` holds self-written paragraphs as
-  `{id, style, category, input, expected}`, plus `flags` for flag-only categories, `options` where
-  `includeDialogue` is needed and a `note` where the doc is silent, covering each category in
+  `{id, style, category, input, expected}`, plus `flags` for flag-only matches, `options` where
+  `spokenCommands` or `includeDialogue` is needed (every command fixture sets `spokenCommands`)
+  and a `note` where the doc is silent, covering each category in
   narration and dialogue, in Dragon-, Apple- and Whisper-style output (misheard *coma*, lowercase
   after *period*, doubled marks, kept or dropped fillers), and every typographic variant above.
   Each guard has a negative twin (*a comma*, *the Edo period*, *Chapter XX*, *She ran. She ran*,
@@ -371,8 +401,10 @@ The command replacement key selects a fixed mark, the document-majority quote or
   these rules rather than from the current report: adjacent pauses, comma-plus-ellipsis and
   comma-plus-dash shapes, punctuation orphaned before a pause, discourse-word comma pairs,
   Apple/Whisper filler, U+2028 separators, case-insensitive `[Name]` notes, `Chapter XXX` as a
-  numeral, quoted mentions and commands next to pauses. Several are expected to fail until the
-  cleanup fixes merge; their `expected` text must not be changed to match current behavior. Scoring
+  numeral, quoted mentions and commands next to pauses. After the 2026-10-26 decision, fixtures
+  whose punctuation is no longer an edit pattern expect the input unchanged plus a `flags` entry,
+  with a note citing decision 2, and the inputs from the D2g review are fixtures too. An `expected`
+  value is derived from the rules here, never copied from the report's output. Scoring
   is exact equality of the text after `drafting::apply` per category and style, with no flags on a
   negative; this catches orphan commas and spacing bugs that span scores miss.
 - **Private draft, owner only.** `bench/corpus/` holds a partly dictated draft. The owner runs, on
@@ -383,9 +415,10 @@ The command replacement key selects a fixed mark, the document-majority quote or
   LLM. Only aggregate numbers (flags per category, judged precision) are published. Workers never
   read `bench/corpus/`.
 - **Gates.** `python3 bench/style/drafting.py --gate` enforces the per-category recall thresholds
-  and clean-control rate in `bench/style/drafting-baseline.json`. They are recorded at the current,
-  lower recall because the cleanup fixes and spoken commands are still on other branches, and rise
-  to the measured value when those merge. The report is style-only, so conformance and `recall.py`
+  and clean-control rate in `bench/style/drafting-baseline.json`, and requires every line of
+  `drafting_negatives.jsonl` unchanged with `spokenCommands` off and on. Every threshold is 1.0:
+  each fixture's expected text, including a flag-only `flags` entry, must match exactly. The
+  report is style-only, so conformance and `recall.py`
   should be unchanged; the PR confirms it with `bench/tools/gates.sh`. The tagger, speller and rule
   loading are untouched, so the RSS gate doesn't apply. Report check time on moby150k and the WASM
   size change.

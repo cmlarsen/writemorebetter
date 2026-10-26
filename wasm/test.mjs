@@ -519,8 +519,8 @@ eq(draft.matches.map(m => draftText.slice(m.span.start, m.span.end)), ["Um", "TK
 eq(draft.matches[0].edits[0].replacement, "T", "drafting case edit");
 eq(JSON.parse(draftDocument.drafting('{"spokenCommands":false}')).matches.length, draft.matches.length, "drafting commands option accepts false");
 const spokenDocument = checker.styleDocument("She said comma he left");
-eq(JSON.parse(spokenDocument.drafting()).matches[0].category, "spokenCommand", "spoken command binding");
-eq(JSON.parse(spokenDocument.drafting('{"spokenCommands":false}')).matches.length, 0, "spoken commands disabled");
+eq(JSON.parse(spokenDocument.drafting()).matches.length, 0, "spoken commands off by default");
+eq(JSON.parse(spokenDocument.drafting('{"spokenCommands":true}')).matches[0].category, "spokenCommand", "spoken command binding");
 spokenDocument.free();
 eq(styleError(() => draftDocument.drafting('{"restarts":true}')).kind, "invalidOptions", "future drafting key rejected");
 draftDocument.free();

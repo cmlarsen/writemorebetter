@@ -485,5 +485,6 @@ def test_drafting(checker):
     with pytest.raises(StyleError):
         document.drafting({"restarts": True})
     spoken = checker.style_document("She said comma he left")
-    assert spoken.drafting()["matches"][0]["category"] == "spokenCommand"
-    assert spoken.drafting({"spokenCommands": False})["matches"] == []
+    # Spoken commands are opt-in, for text the host knows came from dictation.
+    assert spoken.drafting()["matches"] == []
+    assert spoken.drafting({"spokenCommands": True})["matches"][0]["category"] == "spokenCommand"

@@ -10,7 +10,7 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
 ### Added
 
-- Opt-in drafting report for placeholders, spoken commands and filled pauses, with deletion, punctuation, line-break and capitalization edits across Rust, WASM, Swift and Python. Dictated quote pairs count as speech.
+- Opt-in drafting report for placeholders, spoken commands and filled pauses, with deletion, punctuation, line-break and capitalization edits across Rust, WASM, Swift and Python. Spoken commands are off by default (`spokenCommands`) and meant for text the host knows came from dictation; filled pauses get an edit only where the punctuation around them is unambiguous and are flagged otherwise. Dictated quote pairs count as speech.
 
 ### Fixed
 

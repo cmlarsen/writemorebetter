@@ -11,7 +11,7 @@ NEGATIVE_FILE = HERE / 'drafting_negatives.jsonl'
 BASELINE = HERE / 'drafting-baseline.json'
 CATEGORIES = {'placeholder', 'filledPause', 'spokenCommand'}
 STYLES = {'dragon', 'apple', 'whisper'}
-OPTIONS = {'placeholders', 'filledPauses', 'er', 'includeDialogue'}
+OPTIONS = {'placeholders', 'spokenCommands', 'filledPauses', 'er', 'includeDialogue'}
 # Every row of the spoken-command table in docs/STYLE-DRAFTING.md.
 COMMANDS = (
     'comma', 'coma', 'period', 'full stop', 'question mark', 'exclamation point',
@@ -22,7 +22,7 @@ COMMANDS = (
     'new paragraph', 'new line', 'next line', 'scratch that', 'delete that', 'strike that',
     'undo that', 'caps on', 'caps off', 'all caps', 'no caps',
 )
-# Every row of the deletion worked-case table, plus its documented no-match twin.
+# Every row of the deletion worked-case table (edits and flag-only rows), plus its no-match twin.
 DELETIONS = (
     'So um I was', 'Well, um, I was', 'I was, uh, thinking', 'I was—um—thinking',
     'I was… um… thinking', 'Um, the door', 'Um… the door', 'He left um.', 'He left um”',
@@ -102,6 +102,12 @@ class FixtureTest(unittest.TestCase):
         for mark in ('“', '”', '’', '—', '…', '\u2028', '--', '...', '"'):
             self.assertIn(mark, text, mark)
 
+    def test_spoken_commands_opt_in(self):
+        # Spoken commands are off by default, so every command fixture turns them on.
+        for row in self.rows:
+            if row['category'] == 'spokenCommand':
+                self.assertIs(row.get('options', {}).get('spokenCommands'), True, row['id'])
+
     def test_command_and_deletion_tables(self):
         inputs = {row['input'] for row in self.rows}
         for case in DELETIONS:
@@ -177,21 +183,10 @@ class BaselineTest(unittest.TestCase):
         result = subprocess.run([sys.executable, str(HERE / 'drafting.py'), '--gate'],
                                 cwd=HERE, capture_output=True, text=True)
         output = result.stdout + result.stderr
-        self.assertIn('| negatives |', output)
-        self.assertTrue('Failing negatives' in output
-                        or 'Every negative is unchanged.' in output, output)
-        if result.returncode == 0:
-            return
-        # The precision fix for the command guards is landing on another branch. Until it
-        # merges, a failing negative rate is the only gate failure this test tolerates;
-        # a drop in category recall or in the fixture controls still fails.
-        failure = next((line for line in output.splitlines()
-                        if line.startswith('Gate failed: ')), None)
-        self.assertIsNotNone(failure, output)
-        reasons = failure[len('Gate failed: '):].split('; ')
-        self.assertTrue(reasons, failure)
-        self.assertTrue(all(reason.startswith('negatives: ') for reason in reasons), failure)
-
+        self.assertIn('| negatives, commands off |', output)
+        self.assertIn('| negatives, commands on |', output)
+        self.assertIn('Every negative is unchanged in both modes.', output)
+        self.assertEqual(result.returncode, 0, output)
 
 if __name__ == '__main__':
     unittest.main()

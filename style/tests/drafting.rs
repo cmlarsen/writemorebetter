@@ -1,7 +1,7 @@
 use nlprule::Tokenizer;
 use std::sync::{Arc, OnceLock};
 use writemorebetter_style::reports::drafting::{self, DraftingCategory, DraftingOptions};
-use writemorebetter_style::{analyze_document, DocumentOptions};
+use writemorebetter_style::{analyze_document, DocumentOptions, Mode};
 
 fn tokenizer() -> &'static Arc<Tokenizer> {
     static TOKENIZER: OnceLock<Arc<Tokenizer>> = OnceLock::new();
@@ -22,59 +22,351 @@ fn applied(text: &str, options: DraftingOptions) -> String {
             .collect::<Vec<_>>(),
     )
 }
-#[test]
-fn deletion_worked_cases() {
-    for (source, expected, dialogue) in [
-        ("So um I was", "So I was", false),
-        ("Well, um, I was", "Well, I was", false),
-        ("I was, uh, thinking", "I was thinking", false),
-        ("I was—um—thinking", "I was thinking", false),
-        ("I was… um… thinking", "I was… thinking", false),
-        ("Um, the door", "The door", false),
-        ("Um… the door", "The door", false),
-        ("He left um.", "He left.", false),
-        ("He left um”", "He left”", true),
-        ("“I was, um,” she said", "“I was,” she said", true),
-        ("“Um, I don’t know.”", "“I don’t know.”", true),
-        ("the um\u{2028}next", "the\u{2028}next", false),
-        ("He waited um\nThen", "He waited\nThen", false),
-    ] {
-        let mut options = DraftingOptions::new();
-        options.include_dialogue = dialogue;
-        for quote in [false, true] {
-            for dash in [false, true] {
-                for ellipsis in [false, true] {
-                    for apostrophe in [false, true] {
-                        for separator in [false, true] {
-                            let variant = |value: &str| {
-                                let mut value = value.to_owned();
-                                if quote {
-                                    value = value.replace('“', "\"").replace('”', "\"");
-                                }
-                                if dash {
-                                    value = value.replace('—', "--");
-                                }
-                                if ellipsis {
-                                    value = value.replace('…', "...");
-                                }
-                                if apostrophe {
-                                    value = value.replace('’', "'");
-                                }
-                                if separator {
-                                    value.push('\u{2028}');
-                                }
-                                value
-                            };
-                            let source = variant(source);
-                            let expected = variant(expected);
-                            assert_eq!(applied(&source, options.clone()), expected, "{source:?}");
-                        }
-                    }
-                }
+fn spoken() -> DraftingOptions {
+    let mut options = DraftingOptions::new();
+    options.spoken_commands = true;
+    options
+}
+fn dialogue() -> DraftingOptions {
+    let mut options = DraftingOptions::new();
+    options.include_dialogue = true;
+    options
+}
+/// Every typographic variant AGENTS.md asks for: straight and curly quotes and apostrophes, `—`
+/// and `--`, `…` and `...`, and a trailing U+2028.
+fn variants(source: &str, expected: &str) -> Vec<(String, String)> {
+    let mut out = Vec::new();
+    for mask in 0..32 {
+        let variant = |value: &str| {
+            let mut value = value.to_owned();
+            if mask & 1 != 0 {
+                value = value.replace(['“', '”'], "\"");
             }
+            if mask & 2 != 0 {
+                value = value.replace('—', "--");
+            }
+            if mask & 4 != 0 {
+                value = value.replace('…', "...");
+            }
+            if mask & 8 != 0 {
+                value = value.replace(['‘', '’'], "'");
+            }
+            if mask & 16 != 0 {
+                value.push('\u{2028}');
+            }
+            value
+        };
+        out.push((variant(source), variant(expected)));
+    }
+    out
+}
+fn assert_edits(cases: &[(&str, &str)], options: DraftingOptions) {
+    for (source, expected) in cases {
+        for (source, expected) in variants(source, expected) {
+            assert_eq!(applied(&source, options.clone()), expected, "{source:?}");
         }
     }
 }
+/// The pause is reported with no edit, so the text comes back unchanged.
+fn assert_flag_only(cases: &[&str], options: DraftingOptions) {
+    for source in cases {
+        for (source, _) in variants(source, source) {
+            let result = report(&source, options.clone());
+            assert!(
+                result
+                    .matches
+                    .iter()
+                    .any(|m| m.category == DraftingCategory::FilledPause),
+                "{source:?}: {:?}",
+                result.matches
+            );
+            assert!(
+                result.matches.iter().all(|m| m.edits.is_empty()),
+                "{source:?}: {:?}",
+                result.matches
+            );
+        }
+    }
+}
+/// Asserts the edited text, and silence when the text should come back unchanged.
+fn assert_cases(cases: &[(&str, &str)], options: DraftingOptions) {
+    for (source, expected) in cases {
+        assert_eq!(applied(source, options.clone()), *expected, "{source:?}");
+        if source == expected {
+            let result = report(source, options.clone());
+            assert!(
+                result.matches.is_empty(),
+                "{source:?}: {:?}",
+                result.matches
+            );
+        }
+    }
+}
+
+#[test]
+fn pattern_a_spaces_on_both_sides() {
+    assert_edits(
+        &[
+            ("So um I was", "So I was"),
+            ("He’d left um.", "He’d left."),
+            (
+                "“Wait,” she said—so um I didn’t",
+                "“Wait,” she said—so I didn’t",
+            ),
+            ("It was late… so uh we left", "It was late… so we left"),
+            ("we walked um uh to the river", "we walked to the river"),
+            ("He left.\u{2028}So um I was", "He left.\u{2028}So I was"),
+        ],
+        DraftingOptions::new(),
+    );
+    assert_edits(
+        &[("“He left um!” she said", "“He left!” she said")],
+        dialogue(),
+    );
+    let result = report("So um I was", DraftingOptions::new());
+    assert_eq!(result.matches[0].edits.len(), 1);
+    assert_eq!(result.matches[0].edits[0].replacement, "");
+}
+
+#[test]
+fn pattern_b_sentence_start() {
+    assert_edits(
+        &[
+            ("Um, the door", "The door"),
+            ("Um… the door", "The door"),
+            ("Um the door", "The door"),
+            ("He’d left. Um, the door—", "He’d left. The door—"),
+            ("He left!” Um… the door", "He left!” The door"),
+            ("Um, I don’t know", "I don’t know"),
+            ("Um, ßeta", "ßeta"),
+        ],
+        DraftingOptions::new(),
+    );
+    assert_edits(
+        &[
+            ("“Um, I don’t know.”", "“I don’t know.”"),
+            (
+                "She stopped. “Um… we’re late,” she said.",
+                "She stopped. “We’re late,” she said.",
+            ),
+        ],
+        dialogue(),
+    );
+    let result = report("Um, the door", DraftingOptions::new());
+    assert_eq!(result.matches[0].edits[0].replacement, "T");
+}
+
+#[test]
+fn pattern_c_discourse_comma_pair() {
+    assert_edits(
+        &[
+            ("Well, um, I was", "Well, I was"),
+            (
+                "He’d gone. Okay, uh, let’s go…",
+                "He’d gone. Okay, let’s go…",
+            ),
+            ("Yes, um, I know—", "Yes, I know—"),
+        ],
+        DraftingOptions::new(),
+    );
+    assert_edits(
+        &[("“Oh, um, it’s you,” she said.", "“Oh, it’s you,” she said.")],
+        dialogue(),
+    );
+}
+
+#[test]
+fn pattern_d_comma_pair_elsewhere() {
+    assert_edits(
+        &[
+            ("I was, uh, thinking", "I was thinking"),
+            ("He, uh, left.", "He left."),
+            ("It wasn’t, um, his fault—", "It wasn’t his fault—"),
+            (
+                "She waited… and, uh, then left",
+                "She waited… and then left",
+            ),
+        ],
+        DraftingOptions::new(),
+    );
+    assert_edits(
+        &[(
+            "“I was, um, thinking,” she said.",
+            "“I was thinking,” she said.",
+        )],
+        dialogue(),
+    );
+    let mut options = dialogue();
+    options.er = true;
+    assert_edits(&[("He was, er, tired", "He was tired")], options);
+}
+
+#[test]
+fn flag_only_contexts() {
+    assert_flag_only(
+        &[
+            // Dashes.
+            "I was—um—thinking",
+            "I was – um – thinking",
+            "He reached for the knife—um the gun.",
+            "He was, um—thinking",
+            "Um—the door",
+            // Brackets and parentheses.
+            "He was (um) late.",
+            "He was [um] late.",
+            // Quote edges.
+            "“I was, um,” she said",
+            "He left um”",
+            "She said “no” um, then left.",
+            // Between terminal marks.
+            "He paused. Um. Then he spoke.",
+            "He left. Um?! Then",
+            "He left. Um. then",
+            // Ellipsis pairs and other mixed marks.
+            "I was… um… thinking",
+            "It was, um… fine",
+            "He said, um. Then",
+            "it was erm, cold",
+            // Chains that aren't all plain spaces.
+            "The cat um, uh, sat",
+            "um, uh, the door",
+            "He left. Uh. Um. Then",
+            // U+2028 and paragraph ends.
+            "the um\u{2028}next",
+            "He left.\u{2028}Um, the door",
+            "He was, um,\u{2028}thinking",
+            "He waited um\nThen",
+            // Comma pairs where the first comma may be the author's.
+            "She bought bread, um, and milk.",
+            "The house, uh, in the woods was empty.",
+            "Mary, um, I was thinking.",
+            "I Think, um, That",
+            "She paused, um, before she answered.",
+        ],
+        dialogue(),
+    );
+}
+
+#[test]
+fn spoken_commands_are_opt_in() {
+    assert!(!DraftingOptions::new().spoken_commands);
+    assert!(!DraftingOptions::default().spoken_commands);
+    for text in [
+        "She said comma he left",
+        "she left period new paragraph the next day",
+        "She spoke scratch that. Then she waited",
+    ] {
+        assert!(
+            report(text, DraftingOptions::new()).matches.is_empty(),
+            "{text:?}"
+        );
+        assert_eq!(applied(text, DraftingOptions::new()), text);
+        assert!(report(text, spoken())
+            .matches
+            .iter()
+            .any(|m| m.category == DraftingCategory::SpokenCommand));
+    }
+    // Without commands there is no dictated quote pair, so the pause is narration.
+    let dictated = "open quote I’m fine um close quote she said";
+    let off = report(dictated, DraftingOptions::new());
+    assert!(off
+        .matches
+        .iter()
+        .all(|m| m.category == DraftingCategory::FilledPause && m.mode == Mode::Narration));
+    assert_eq!(off.groups.dialogue.words, 0);
+    let on = report(dictated, spoken());
+    assert!(!on
+        .matches
+        .iter()
+        .any(|m| m.category == DraftingCategory::FilledPause));
+    assert!(on.groups.dialogue.words > 0);
+}
+
+#[test]
+fn cluster_subsets_apply_cleanly() {
+    for (source, expected) in [
+        ("We bought milk um comma eggs", "We bought milk, eggs"),
+        ("We bought milk comma um eggs", "We bought milk, eggs"),
+        ("He said um period Then left", "He said. Then left"),
+        ("I said uh question mark then left.", "I said? Then left."),
+        (
+            "she left period new paragraph the next day",
+            "she left.\nThe next day",
+        ),
+        (
+            "she said open quote I’m fine period close quote and left",
+            "she said “I’m fine.” and left",
+        ),
+        (
+            "She said uh open quote hello close quote and left.",
+            "She said “hello” and left.",
+        ),
+        ("it was red dash um dash blue", "it was red—blue"),
+        (
+            "I paused dot dot dot um then continued",
+            "I paused… then continued",
+        ),
+        ("Pause comma um comma then go.", "Pause, then go."),
+        ("I went home um scratch that.", "I went home."),
+        (
+            "Make this um all caps hello and go.",
+            "Make this all caps hello and go.",
+        ),
+        (
+            "we stopped um new line\u{2028}They left",
+            "we stopped um new line\u{2028}They left",
+        ),
+        // Flag only as a whole: a flag-only pause, punctuation between members, or two
+        // sentence marks meeting.
+        (
+            "I went home um— dash and then I slept.",
+            "I went home um— dash and then I slept.",
+        ),
+        (
+            "I went home um... period Then I slept.",
+            "I went home um... period Then I slept.",
+        ),
+        (
+            "He left period um comma then she came.",
+            "He left period um comma then she came.",
+        ),
+        (
+            "He left period, um, she came.",
+            "He left period, um, she came.",
+        ),
+        ("I think um, comma, I left.", "I think um, comma, I left."),
+    ] {
+        let result = report(source, spoken());
+        let edits: Vec<_> = result.matches.iter().flat_map(|m| &m.edits).collect();
+        for pair in edits.windows(2) {
+            assert!(
+                pair[0].span.byte.end <= pair[1].span.byte.start,
+                "{source:?}"
+            );
+        }
+        for mask in 0..(1 << edits.len()) {
+            let subset: Vec<_> = edits
+                .iter()
+                .enumerate()
+                .filter(|(index, _)| mask & (1 << index) != 0)
+                .map(|(_, edit)| *edit)
+                .collect();
+            let changed = drafting::apply(source, &subset);
+            for bad in [",,", ",.", ".,", "..,", "  ", " ,", " .", "——", "””", "“ "] {
+                assert!(!changed.contains(bad), "{source:?}: {changed:?}");
+            }
+        }
+        assert_eq!(drafting::apply(source, &edits), expected, "{source:?}");
+        // One edit per cluster, carried by its first match.
+        let clusters = result
+            .matches
+            .iter()
+            .filter(|m| !m.edits.is_empty())
+            .count();
+        assert!(clusters <= 2, "{source:?}: {:?}", result.matches);
+    }
+}
+
 #[test]
 fn guards_and_options() {
     for text in [
@@ -118,8 +410,7 @@ fn guards_and_options() {
     assert!(report("“Um, I went.”", DraftingOptions::new())
         .matches
         .is_empty());
-    let mut options = DraftingOptions::new();
-    options.include_dialogue = true;
+    let mut options = dialogue();
     assert!(report("“Um.”", options.clone()).matches.is_empty());
     assert_eq!(applied("“Um, I went.”", options.clone()), "“I went.”");
     assert!(!report("He was, er, tired", DraftingOptions::new())
@@ -130,56 +421,26 @@ fn guards_and_options() {
     assert!(report("He was er tired", options.clone())
         .matches
         .is_empty());
-    assert_eq!(
-        applied("He was, er, tired", options.clone()),
-        "He was tired"
-    );
-    assert_eq!(applied("He was—er—tired", options.clone()), "He was tired");
-    assert_eq!(applied("He was--er--tired", options), "He was tired");
+    assert_eq!(applied("He was—er—tired", options), "He was—er—tired");
 }
-#[test]
-fn adjacent_and_capitalization() {
-    let text = "um, uh, I";
-    let result = report(text, DraftingOptions::new());
-    let edits: Vec<_> = result.matches.iter().flat_map(|m| &m.edits).collect();
-    for pair in edits.windows(2) {
-        assert!(pair[0].span.byte.end <= pair[1].span.byte.start);
-    }
-    assert_eq!(drafting::apply(text, &edits), "I");
-    assert_eq!(applied("Um, ßeta", DraftingOptions::new()), "ßeta");
-}
+
 #[test]
 fn utf16_spans() {
-    let text = "😀 um, the";
+    let text = "😀. Um, the door";
     let result = report(text, DraftingOptions::new());
     let json: serde_json::Value =
         serde_json::from_str(&writemorebetter_style::reports::to_utf16_json(&result)).unwrap();
     assert_eq!(
         json["matches"][0]["span"],
-        serde_json::json!({"start": 3, "end": 5})
+        serde_json::json!({"start": 4, "end": 6})
+    );
+    assert_eq!(
+        json["matches"][0]["edits"][0]["span"],
+        serde_json::json!({"start": 4, "end": 9})
     );
     let mut invalid = result.matches[0].edits[0].clone();
     invalid.span.byte.start = 1; // inside the emoji
     assert_eq!(drafting::apply(text, &[&invalid]), text);
-}
-
-#[test]
-fn typography_variants() {
-    let mut options = DraftingOptions::new();
-    options.include_dialogue = true;
-    for (source, expected) in [
-        ("\"I was, um,\" she said", "\"I was,\" she said"),
-        ("“I was, um,” she said", "“I was,” she said"),
-        ("“Um, I don't know.”", "“I don't know.”"),
-        ("“Um, I don’t know.”", "“I don’t know.”"),
-        ("I was--um--thinking", "I was thinking"),
-        ("I was—um—thinking", "I was thinking"),
-        ("I was... um... thinking", "I was... thinking"),
-        ("I was… um… thinking", "I was… thinking"),
-        ("I was\u{2028}um, thinking", "I was\u{2028}thinking"),
-    ] {
-        assert_eq!(applied(source, options.clone()), expected, "{source:?}");
-    }
 }
 
 #[test]
@@ -302,23 +563,23 @@ fn spoken_command_table() {
             "next line",
         ),
         (
-            "She spoke scratch that, then waited",
-            "She spoke then waited",
+            "She spoke scratch that. Then she waited",
+            "She spoke. Then she waited",
             "scratch that",
         ),
         (
-            "She spoke delete that, then waited",
-            "She spoke then waited",
+            "She spoke delete that. Then she waited",
+            "She spoke. Then she waited",
             "delete that",
         ),
         (
-            "She spoke strike that, then waited",
-            "She spoke then waited",
+            "She spoke strike that. Then she waited",
+            "She spoke. Then she waited",
             "strike that",
         ),
         (
-            "She spoke undo that, then waited",
-            "She spoke then waited",
+            "She spoke undo that. Then she waited",
+            "She spoke. Then she waited",
             "undo that",
         ),
         (
@@ -342,7 +603,7 @@ fn spoken_command_table() {
             "no caps",
         ),
     ] {
-        let result = report(source, DraftingOptions::new());
+        let result = report(source, spoken());
         assert!(
             result
                 .matches
@@ -351,11 +612,7 @@ fn spoken_command_table() {
             "{source:?}: {:?}",
             result.matches
         );
-        assert_eq!(
-            applied(source, DraftingOptions::new()),
-            expected,
-            "{source:?}"
-        );
+        assert_eq!(applied(source, spoken()), expected, "{source:?}");
     }
 }
 
@@ -380,7 +637,7 @@ fn spoken_command_guards() {
         "She marked the page period and folded it.",
     ] {
         assert!(
-            !report(text, DraftingOptions::new())
+            !report(text, spoken())
                 .matches
                 .iter()
                 .any(|m| m.category == DraftingCategory::SpokenCommand),
@@ -390,40 +647,99 @@ fn spoken_command_guards() {
 }
 
 #[test]
+fn review_command_guards() {
+    fn unchanged(text: &str) -> (&str, &str) {
+        (text, text)
+    }
+    assert_cases(
+        &[
+            // Attributive nouns are not lists or compounds.
+            unchanged("She has colon cancer and lung disease."),
+            unchanged("He had colon surgery and chemo."),
+            unchanged("Writers overuse semicolon tricks and dashes."),
+            unchanged("Use comma splices sparingly."),
+            unchanged("Teachers mark comma errors in red."),
+            unchanged("She hated hyphen words."),
+            // Verb uses of the deletion commands.
+            unchanged("The dog likes to scratch that."),
+            unchanged("Did Mary delete that?"),
+            unchanged("Go ahead and delete that."),
+            unchanged("Why did the cat scratch that?"),
+            unchanged("Who did undo that?"),
+            unchanged("She leaned over to scratch that, then sighed."),
+            unchanged("Delete that."),
+            unchanged("Scratch that."),
+            // Commands at a sentence start, after a pause or not, and names.
+            unchanged("Full stop signs were everywhere."),
+            unchanged("Exclamation point tattoos were popular."),
+            unchanged("New line items appeared on the bill."),
+            unchanged("Open quote marks are curly."),
+            unchanged("His brother Colon then left."),
+            ("Um comma the dog ran.", "Comma the dog ran."),
+            ("He left. Um period She left.", "He left. Period She left."),
+            ("Uh dash she left.", "Dash she left."),
+            // Published prose.
+            unchanged("For a short period his patience held."),
+            unchanged("Dash it, we missed the train!"),
+            unchanged("The birds dash themselves against the glass."),
+            unchanged("Shall I strike that?"),
+            unchanged("I saw you strike that wooden post."),
+            unchanged("You cannot undo that."),
+            unchanged("There are no caps at sea."),
+            unchanged("Coma patients rarely wake up."),
+            unchanged("Hyphen usage varies."),
+            unchanged("“Comma,” she said, “goes here.”"),
+            unchanged("She defended the Oxford comma."),
+            unchanged("She was the best, period, and everyone knew it."),
+            unchanged("It ended—period—with no warning."),
+            unchanged("Please delete that file before Monday."),
+            unchanged("Don’t delete that email."),
+            unchanged("I went to the store scratch that the market"),
+        ],
+        spoken(),
+    );
+    // Commands that start a sentence and still apply.
+    assert_cases(
+        &[
+            ("Open quote hello close quote she said", "“hello” she said"),
+            (
+                "She said open quote I’m fine. close quote and left",
+                "She said “I’m fine.” and left",
+            ),
+            unchanged("Close quote marks are curly."),
+            (
+                "He left. New paragraph The next day",
+                "He left.\nThe next day",
+            ),
+        ],
+        spoken(),
+    );
+}
+
+#[test]
 fn commands_marks_speech_and_overlap() {
     assert_eq!(
-        applied("She said comma, he left", DraftingOptions::new()),
+        applied("She said comma, he left", spoken()),
         "She said, he left"
     );
+    assert_eq!(applied("milk, comma, and", spoken()), "milk, and");
     let dictated = "open quote I’m fine um close quote she said";
-    let default = report(dictated, DraftingOptions::new());
+    let commands = report(dictated, spoken());
     assert_eq!(
-        default
+        commands
             .matches
             .iter()
             .filter(|m| m.category == DraftingCategory::SpokenCommand)
             .count(),
         2
     );
-    assert!(!default
-        .matches
-        .iter()
-        .any(|m| m.category == DraftingCategory::FilledPause));
-    let mut options = DraftingOptions::new();
+    let mut options = spoken();
     options.include_dialogue = true;
     let included = report(dictated, options);
     assert!(included
         .matches
         .iter()
-        .any(|m| m.category == DraftingCategory::FilledPause
-            && m.mode == writemorebetter_style::Mode::Dialogue));
-    let text = "um comma";
-    let result = report(text, DraftingOptions::new());
-    let edits: Vec<_> = result.matches.iter().flat_map(|m| &m.edits).collect();
-    for pair in edits.windows(2) {
-        assert!(pair[0].span.byte.end <= pair[1].span.byte.start);
-    }
-    assert_eq!(drafting::apply(text, &edits), ",");
+        .any(|m| m.category == DraftingCategory::FilledPause && m.mode == Mode::Dialogue));
 }
 
 #[test]
@@ -468,7 +784,7 @@ fn command_mark_majority_and_tie() {
             "...",
         ),
     ] {
-        let result = report(source, DraftingOptions::new());
+        let result = report(source, spoken());
         let found = result
             .matches
             .iter()
@@ -481,7 +797,7 @@ fn command_mark_majority_and_tie() {
 #[test]
 fn dictated_quote_pair_and_options() {
     let paired = "open quote I’m fine um comma he left close quote she said";
-    let result = report(paired, DraftingOptions::new());
+    let result = report(paired, spoken());
     assert!(result.groups.dialogue.words > 0);
     assert!(!result
         .matches
@@ -490,15 +806,15 @@ fn dictated_quote_pair_and_options() {
     assert!(result
         .matches
         .iter()
-        .any(|m| m.term == "comma" && m.mode == writemorebetter_style::Mode::Dialogue));
-    let mut options = DraftingOptions::new();
+        .any(|m| m.term == "comma" && m.mode == Mode::Dialogue));
+    let mut options = spoken();
     options.include_dialogue = true;
     assert!(report(paired, options)
         .matches
         .iter()
         .any(|m| m.category == DraftingCategory::FilledPause));
-    let unpaired = "open quote I’m fine um";
-    let unpaired_report = report(unpaired, DraftingOptions::new());
+    let unpaired = "She said open quote I’m fine um";
+    let unpaired_report = report(unpaired, spoken());
     assert!(unpaired_report
         .matches
         .iter()
@@ -507,9 +823,7 @@ fn dictated_quote_pair_and_options() {
         .matches
         .iter()
         .any(|m| m.term == "open quote" && !m.edits.is_empty()));
-    let mut disabled = DraftingOptions::new();
-    disabled.spoken_commands = false;
-    assert!(!report(paired, disabled)
+    assert!(!report(paired, DraftingOptions::new())
         .matches
         .iter()
         .any(|m| m.category == DraftingCategory::SpokenCommand));
@@ -543,341 +857,29 @@ fn spoken_commands_keep_utf8_context() {
             "She waited\u{2028}then said comma he left",
             "She waited\u{2028}then said, he left",
         ),
+        (
+            "She waited\u{2028}then said um comma he left",
+            "She waited\u{2028}then said, he left",
+        ),
     ] {
-        assert_eq!(
-            applied(source, DraftingOptions::new()),
-            expected,
-            "{source:?}"
-        );
+        assert_eq!(applied(source, spoken()), expected, "{source:?}");
     }
 }
 
 #[test]
-fn review_cleanup_regressions() {
-    let cases = [
-        ("The cat um, uh, sat", "The cat sat"),
-        ("He left. Um, uh, the door", "He left. The door"),
-        ("um, uh, the door", "The door"),
-        ("It was, um… fine", "It was… fine"),
-        ("He was, um—thinking", "He was—thinking"),
-        ("He said, um. Then", "He said. Then"),
-        ("He was—um, thinking", "He was thinking"),
-        ("He paused—um.", "He paused."),
-        ("He left. Well, um, I was", "He left. Well, I was"),
-        ("I, um, think", "I think"),
-        (
-            "She said \"no\" um, then left.",
-            "She said \"no\" then left.",
-        ),
-        ("He said um--no", "He said no"),
-        ("Um--the door", "The door"),
-        ("I was--um, thinking", "I was thinking"),
-        ("He said um--uh--no", "He said no"),
-        ("I was - um - thinking", "I was thinking"),
-        (
-            "the light turned green period she drove on",
-            "the light turned green. She drove on",
-        ),
-        (
-            "are you coming question mark he asked",
-            "are you coming? He asked",
-        ),
-        (
-            "she listed the tools colon hammer saw and nails",
-            "she listed the tools: hammer saw and nails",
-        ),
-        (
-            "I reached for the handle dash and stopped",
-            "I reached for the handle—and stopped",
-        ),
-        (
-            "the road ran north hyphen south for miles comma then turned",
-            "the road ran north-south for miles, then turned",
-        ),
-        (
-            "I bought bread coma cheese and apples",
-            "I bought bread, cheese and apples",
-        ),
-        (
-            "she said open quote come in close quote and shut the door",
-            "she said “come in” and shut the door",
-        ),
-        (
-            "the door opened new paragraph Outside",
-            "the door opened\nOutside",
-        ),
-        ("milk, comma, and", "milk, and"),
-        ("left—then right, comma, and", "left—then right, and"),
-        ("it apostrophe s mine", "it’s mine"),
-    ];
-    for (source, expected) in cases {
-        assert_eq!(
-            applied(source, DraftingOptions::new()),
-            expected,
-            "{source:?}"
+fn pauses_beside_command_words() {
+    // With commands on, guards keep these words as prose and only the pause goes.
+    for options in [DraftingOptions::new(), spoken()] {
+        assert_cases(
+            &[
+                ("It was um period furniture.", "It was period furniture."),
+                (
+                    "We had um no caps on the bottles.",
+                    "We had no caps on the bottles.",
+                ),
+                ("She liked um dash and verve.", "She liked dash and verve."),
+            ],
+            options,
         );
     }
-    for source in [
-        "“Um,” she said.",
-        "\"Um,\" she said.",
-        "Um.",
-        "Put it on the next line of the form.",
-        "The em dash is my favorite mark.",
-        "Chapter XXX began",
-        "A lone period in a well-punctuated paragraph.",
-    ] {
-        assert_eq!(
-            applied(source, DraftingOptions::new()),
-            source,
-            "{source:?}"
-        );
-    }
-    for source in ["[Name]", "[NAME]"] {
-        assert!(report(source, DraftingOptions::new())
-            .matches
-            .iter()
-            .any(|found| found.category == DraftingCategory::Placeholder));
-    }
-    let mut dialogue = DraftingOptions::new();
-    dialogue.include_dialogue = true;
-    for source in ["“Um,” she said.", "\"Um,\" she said.", "Um."] {
-        assert_eq!(applied(source, dialogue.clone()), source);
-        assert!(!report(source, dialogue.clone())
-            .matches
-            .iter()
-            .any(|found| found.category == DraftingCategory::FilledPause));
-    }
-    assert_eq!(
-        applied("“Well, um, I was going.”", dialogue),
-        "“Well, I was going.”"
-    );
-    for source in [
-        "The cat um, uh, sat",
-        "He left. Um, uh, the door",
-        "um, uh, the door",
-    ] {
-        let found = report(source, DraftingOptions::new());
-        let edits: Vec<_> = found.matches.iter().flat_map(|item| &item.edits).collect();
-        assert_eq!(edits.len(), 1, "{source:?}");
-        assert_eq!(
-            drafting::apply(source, &edits),
-            applied(source, DraftingOptions::new())
-        );
-        assert_eq!(drafting::apply(source, &[]), source);
-    }
-}
-
-#[test]
-fn published_prose_command_guards() {
-    for source in [
-        "For a short period his patience held.",
-        "Dash it, we missed the train!",
-        "Dash the paint from the door.",
-        "The birds dash themselves against the glass.",
-        "But dash my luck!",
-        "Shall I strike that?",
-        "I saw you strike that wooden post.",
-        "You cannot undo that.",
-        "There are no caps at sea.",
-    ] {
-        assert_eq!(
-            applied(source, DraftingOptions::new()),
-            source,
-            "{source:?}"
-        );
-    }
-}
-
-/// Asserts the edited text, and silence when the text should come back unchanged.
-fn assert_cases(cases: &[(&str, &str)]) {
-    for (source, expected) in cases {
-        assert_eq!(
-            applied(source, DraftingOptions::new()),
-            *expected,
-            "{source:?}"
-        );
-        if source == expected {
-            let result = report(source, DraftingOptions::new());
-            assert!(
-                result.matches.is_empty(),
-                "{source:?}: {:?}",
-                result.matches
-            );
-        }
-    }
-}
-#[test]
-fn review_pause_before_command_words() {
-    assert_cases(&[
-        ("It was um period furniture.", "It was period furniture."),
-        (
-            "We had um no caps on the bottles.",
-            "We had no caps on the bottles.",
-        ),
-        ("She liked um dash and verve.", "She liked dash and verve."),
-        ("She waited... uh... period.", "She waited... period."),
-    ]);
-}
-#[test]
-fn review_noun_capitalization() {
-    assert_cases(&[
-        (
-            "It was a quiet period, um, and then it ended.",
-            "It was a quiet period, and then it ended.",
-        ),
-        (
-            "A question mark, uh, in the sand.",
-            "A question mark, in the sand.",
-        ),
-        (
-            "A full stop, um, near the gate.",
-            "A full stop, near the gate.",
-        ),
-        (
-            "It was a period—uh—before the turn.",
-            "It was a period before the turn.",
-        ),
-        (
-            "question mark, uh, in the sand",
-            "question mark, in the sand",
-        ),
-        ("full stop, um, near the gate", "full stop, near the gate"),
-        ("period—uh—before", "period before"),
-    ]);
-}
-#[test]
-fn review_single_word_commands() {
-    for text in [
-        "Coma patients rarely wake up.",
-        "Colon cancer ran in his family.",
-        "Ellipsis aside, the letter was fine.",
-        "Hyphen usage varies.",
-        "He walked colon slowly.",
-        "“Comma,” she said, “goes here.”",
-    ] {
-        assert_cases(&[(text, text)]);
-    }
-}
-#[test]
-fn review_adjective_noun_guards() {
-    for text in [
-        "They found a polyp in his sigmoid colon.",
-        "The doctor examined her inflamed colon.",
-        "She defended the Oxford comma.",
-        "He loves the serial comma.",
-        "Big colon, small colon.",
-        "He drew a big question mark on the board.",
-    ] {
-        assert_cases(&[(text, text)]);
-    }
-}
-#[test]
-fn review_emphasis_mark_guards() {
-    for text in [
-        "She was the best, period, and everyone knew it.",
-        "I read it aloud, period by period.",
-        "You are not going, period. End of discussion.",
-        "It ended—period—with no warning.",
-    ] {
-        assert_cases(&[(text, text)]);
-    }
-}
-#[test]
-fn review_discourse_commas() {
-    assert_cases(&[
-        ("He, uh, left.", "He left."),
-        ("She, um, went home.", "She went home."),
-        ("They, uh, never called.", "They never called."),
-        ("Nobody, um, came.", "Nobody came."),
-        ("Well, um, I was", "Well, I was"),
-    ]);
-}
-#[test]
-fn review_delete_command_objects() {
-    for text in [
-        "Please delete that file before Monday.",
-        "Don't delete that email.",
-        "Don’t delete that email.",
-        "Let me undo that knot for you.",
-        "She asked him to strike that match.",
-        "I went to the store scratch that the market",
-    ] {
-        assert_cases(&[(text, text)]);
-    }
-    assert_cases(&[(
-        "She spoke scratch that, then waited",
-        "She spoke then waited",
-    )]);
-}
-#[test]
-fn review_pause_command_edits() {
-    assert_cases(&[
-        ("I think um, comma, I left.", "I think, I left."),
-        ("Pause comma um comma then go.", "Pause, then go."),
-        ("I said uh question mark then left.", "I said? Then left."),
-        (
-            "She said uh open quote hello close quote and left.",
-            "She said “hello” and left.",
-        ),
-        ("I went home um scratch that.", "I went home."),
-        (
-            "Make this um all caps hello and go.",
-            "Make this all caps hello and go.",
-        ),
-    ]);
-    // Whatever subset of edits a host accepts, no dictated comma is dropped or doubled and no two
-    // words are joined.
-    for source in [
-        "I think um, comma, I left.",
-        "Pause comma um comma then go.",
-        "I said uh question mark then left.",
-        "She said uh open quote hello close quote and left.",
-        "I went home um scratch that.",
-        "Make this um all caps hello and go.",
-    ] {
-        let result = report(source, DraftingOptions::new());
-        let edits: Vec<_> = result
-            .matches
-            .iter()
-            .flat_map(|found| &found.edits)
-            .collect();
-        for mask in 0..(1 << edits.len()) {
-            let subset: Vec<_> = edits
-                .iter()
-                .enumerate()
-                .filter(|(index, _)| mask & (1 << index) != 0)
-                .map(|(_, edit)| *edit)
-                .collect();
-            let changed = drafting::apply(source, &subset);
-            assert!(!changed.contains(",,"), "{source:?}: {changed:?}");
-            assert!(!changed.contains(",."), "{source:?}: {changed:?}");
-            for joined in ["saidquestion", "said“", "homescratch", "thisall"] {
-                assert!(!changed.contains(joined), "{source:?}: {changed:?}");
-            }
-        }
-    }
-}
-#[test]
-fn review_dash_markup_and_urls() {
-    for text in [
-        "He said uh–huh and nodded.",
-        "He nodded. Uh–huh.",
-        "Visit um.edu today.",
-        "He said *um* twice.",
-    ] {
-        assert_cases(&[(text, text)]);
-    }
-}
-#[test]
-fn review_terminal_brackets_and_mixed_marks() {
-    assert_cases(&[
-        ("He paused. Um. Then he spoke.", "He paused. Then he spoke."),
-        ("He paused. Um, period. Then", "He paused. Period. Then"),
-        ("I was—um thinking.", "I was thinking."),
-        ("He was (um) late.", "He was late."),
-        ("I was--um, thinking", "I was thinking"),
-        ("He was—um, thinking", "He was thinking"),
-        ("He was, um—thinking", "He was—thinking"),
-        ("It was, um… fine", "It was… fine"),
-    ]);
 }

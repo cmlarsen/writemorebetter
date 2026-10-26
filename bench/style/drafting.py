@@ -12,8 +12,9 @@ mode reads the owner's drafts only when the owner names them and prints no text,
 
 `drafting_negatives.jsonl` holds ordinary prose that uses the command words as ordinary words
 (*Coma patients rarely wake up.*, *a dash of salt*), so the report must leave every line unchanged.
-Recall prints a `negatives` row and lists any line the report edits; `--gate` requires all of them
-clean.
+Spoken commands are opt-in, so the negatives run twice, with `spokenCommands` off (the default) and
+on. Recall prints a row per mode and lists any line the report edits; `--gate` requires every line
+clean in both modes.
 """
 import argparse
 from collections import Counter, defaultdict
@@ -83,39 +84,46 @@ def is_positive(fixture):
     return 'flags' in fixture or fixture['input'] != fixture['expected']
 
 
+NEGATIVE_MODES = (('commands off', {}), ('commands on', {'spokenCommands': True}))
+
+
 def negatives(probe):
     """Ordinary prose that uses a command word as an ordinary word must not be edited."""
     with NEGATIVES.open(encoding='utf-8') as stream:
         rows = [json.loads(line) for line in stream if line.strip()]
-    results = report(probe, [{'id': row['id'], 'text': row['input']} for row in rows])
-    scored = []
-    for row in rows:
-        result = results[row['id']]
-        scored.append({
-            'id': row['id'],
-            'word': row['word'],
-            'note': row['note'],
-            'input': row['input'],
-            'applied': result['applied'],
-            'clean': result['applied'] == row['input'],
-            'matches': len(result['report']['matches']),
-        })
-
-    total = len(scored)
-    clean = sum(row['clean'] for row in scored)
-    flagged = sum(row['matches'] > 0 for row in scored)
-    failures = [row for row in scored if not row['clean']]
     print('\n## Ordinary-prose negatives\n')
     print('| Set | Clean | Total | Rate | Flagged |')
     print('|---|---:|---:|---:|---:|')
-    print(f'| negatives | {clean} | {total} | '
-          f'{rank(clean / total if total else None)} | {flagged} |')
-    if failures:
-        print(f"\nFailing negatives ({len(failures)}): "
-              + ', '.join(row['id'] for row in failures))
-    else:
-        print('\nEvery negative is unchanged.')
-    return {'total': total, 'clean': clean, 'flagged': flagged, 'failures': failures}
+    modes = {}
+    for name, options in NEGATIVE_MODES:
+        results = report(probe, [{'id': row['id'], 'text': row['input'], 'options': options}
+                                 for row in rows])
+        scored = []
+        for row in rows:
+            result = results[row['id']]
+            scored.append({
+                'id': row['id'],
+                'word': row['word'],
+                'note': row['note'],
+                'input': row['input'],
+                'applied': result['applied'],
+                'clean': result['applied'] == row['input'],
+                'matches': len(result['report']['matches']),
+            })
+        total = len(scored)
+        clean = sum(row['clean'] for row in scored)
+        flagged = sum(row['matches'] > 0 for row in scored)
+        print(f'| negatives, {name} | {clean} | {total} | '
+              f'{rank(clean / total if total else None)} | {flagged} |')
+        modes[name] = {'total': total, 'clean': clean, 'flagged': flagged,
+                       'failures': [row for row in scored if not row['clean']]}
+    for name, found in modes.items():
+        if found['failures']:
+            print(f"\nFailing negatives, {name} ({len(found['failures'])}): "
+                  + ', '.join(row['id'] for row in found['failures']))
+    if not any(found['failures'] for found in modes.values()):
+        print('\nEvery negative is unchanged in both modes.')
+    return modes
 
 
 def recall(probe):
@@ -215,16 +223,16 @@ def check_gate(summary):
     minimum = baseline['minimumControlRate']
     if clean < minimum:
         failures.append(f'controls: {clean:.3f} < {minimum:.3f}')
-    found = summary.get('negatives') or {}
-    negative_rate = (found['clean'] / found['total']) if found.get('total') else 1.0
     negative_minimum = baseline.get('minimumNegativeRate', 1.0)
-    if negative_rate < negative_minimum:
-        failures.append(f"negatives: {found['clean']}/{found['total']} clean, "
-                        f'needs {negative_minimum:.3f}')
+    for name, found in (summary.get('negatives') or {}).items():
+        negative_rate = (found['clean'] / found['total']) if found.get('total') else 1.0
+        if negative_rate < negative_minimum:
+            failures.append(f"negatives, {name}: {found['clean']}/{found['total']} clean, "
+                            f'needs {negative_minimum:.3f}')
     if failures:
         print('\nGate failed: ' + '; '.join(failures))
         return 1
-    print('\nGate passed: category recall, controls and negatives meet '
+    print('\nGate passed: category recall, controls and negatives in both command modes meet '
           'drafting-baseline.json.')
     return 0
 
@@ -243,6 +251,7 @@ def precision(probe, books=True, sample_size=SAMPLE, seed=SEED):
     results = report(probe, [{'id': name, 'text': text} for name, text in documents])
 
     counts = {category: Counter() for category in CATEGORIES}
+    edited = {category: Counter() for category in CATEGORIES}
     sampled = defaultdict(list)
     words = Counter()
     samples = []
@@ -255,6 +264,9 @@ def precision(probe, books=True, sample_size=SAMPLE, seed=SEED):
             category, mode = match['category'], match['mode']
             counts[category][mode] += 1
             counts[category]['all'] += 1
+            if match['edits']:
+                edited[category][mode] += 1
+                edited[category]['all'] += 1
             start = match['span']['char']['start']
             end = match['span']['char']['end']
             sampled[category].append({
@@ -271,14 +283,17 @@ def precision(probe, books=True, sample_size=SAMPLE, seed=SEED):
 
     print('## Precision on published text\n')
     print(f'{len(documents)} documents, {words["all"]} words.')
-    print('\n| Category | Mode | Matches | Words | per 1,000 |')
-    print('|---|---|---:|---:|---:|')
+    print('\n| Category | Mode | Matches | With edits | Words | per 1,000 |')
+    print('|---|---|---:|---:|---:|---:|')
     for category in CATEGORIES:
         for mode in MODES:
             found = counts[category][mode]
             total = words[mode]
             rate = 1000 * found / total if total else None
-            print(f'| {category} | {mode} | {found} | {total} | {rank(rate)} |')
+            print(f'| {category} | {mode} | {found} | {edited[category][mode]} | {total} | '
+                  f'{rank(rate)} |')
+    edits = sum(edited[category]['all'] for category in CATEGORIES)
+    print(f'\n{edits} matches with edits in published text.')
 
     rng = random.Random(seed)
     pools = {category: list(sampled[category]) for category in CATEGORIES}
@@ -301,7 +316,8 @@ def precision(probe, books=True, sample_size=SAMPLE, seed=SEED):
         'words': dict(words),
         'categories': {
             category: {
-                mode: {'matches': counts[category][mode], 'words': words[mode],
+                mode: {'matches': counts[category][mode], 'edits': edited[category][mode],
+                       'words': words[mode],
                        'perThousandWords': (1000 * counts[category][mode] / words[mode]
                                             if words[mode] else None)}
                 for mode in MODES
@@ -382,9 +398,10 @@ def main():
         for row in summary['failures'][:args.failures]:
             print(f"{row['id']} {row['category']}: expected {row['expected']!r}, "
                   f"got {row['applied']!r}")
-        for row in summary['negatives']['failures'][:args.failures]:
-            print(f"{row['id']} negative ({row['word']}): expected {row['input']!r}, "
-                  f"got {row['applied']!r}")
+        for name, found in summary['negatives'].items():
+            for row in found['failures'][:args.failures]:
+                print(f"{row['id']} negative, {name} ({row['word']}): "
+                      f"expected {row['input']!r}, got {row['applied']!r}")
     if args.gate:
         return check_gate(summary)
     return 0
