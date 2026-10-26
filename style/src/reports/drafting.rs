@@ -27,16 +27,25 @@ pub enum DraftingCategory {
 #[non_exhaustive]
 pub struct DraftingOptions {
     pub placeholders: bool,
-    pub spoken_commands: bool,
+    /// The host knows the text came from speech-to-text. Edits are offered only then; typed text
+    /// is flag only.
+    pub dictated: bool,
+    /// Spoken commands, which follow `dictated` when unset. `Some(true)` without `dictated` is
+    /// `invalidOptions`, so `dictated` is the one way to turn edits on.
+    #[serde(alias = "spoken_commands", skip_serializing_if = "Option::is_none")]
+    pub spoken_commands: Option<bool>,
+    #[serde(alias = "filled_pauses")]
     pub filled_pauses: bool,
     pub er: bool,
+    #[serde(alias = "include_dialogue")]
     pub include_dialogue: bool,
 }
 impl Default for DraftingOptions {
     fn default() -> Self {
         Self {
             placeholders: true,
-            spoken_commands: false,
+            dictated: false,
+            spoken_commands: None,
             filled_pauses: true,
             er: false,
             include_dialogue: false,
@@ -46,6 +55,17 @@ impl Default for DraftingOptions {
 impl DraftingOptions {
     pub fn new() -> Self {
         Self::default()
+    }
+    /// Options for text the host knows came from dictation: edits and spoken commands on.
+    pub fn dictated() -> Self {
+        Self {
+            dictated: true,
+            ..Self::default()
+        }
+    }
+    /// Whether spoken commands are detected: `spokenCommands`, or `dictated` when it is unset.
+    pub fn commands(&self) -> bool {
+        self.spoken_commands.unwrap_or(self.dictated)
     }
 }
 
@@ -163,6 +183,123 @@ fn quoted_alone(text: &str, start: usize, end: usize) -> bool {
     }
     let after = text[end..].trim_start_matches(['.', '!', '?', ',']);
     matches!(after.chars().next(), Some('”' | '’' | '"' | '\''))
+}
+/// A verb that reports or quotes words (*She said um*, *I said question mark to myself*).
+fn reporting_verb(word: &str) -> bool {
+    matches!(
+        word,
+        "say"
+            | "says"
+            | "said"
+            | "saying"
+            | "answer"
+            | "answers"
+            | "answered"
+            | "reply"
+            | "replies"
+            | "replied"
+            | "went"
+            | "goes"
+            | "type"
+            | "types"
+            | "typed"
+            | "typing"
+            | "write"
+            | "writes"
+            | "wrote"
+            | "writing"
+            | "mutter"
+            | "muttered"
+            | "mumbled"
+            | "murmured"
+            | "whispered"
+            | "uttered"
+            | "repeated"
+            | "added"
+    )
+}
+/// An article or possessive determiner, whose noun a following pause word may be (*his um*,
+/// *an um*). Words that also stand alone are left out, because dictated pauses follow them too:
+/// *her* as an object (*I told her um the*), demonstratives and quantifiers as pronouns (*Make
+/// this um bold*, *I knew that um the*), and *no* as an answer (*No um I*).
+fn determiner(word: &str) -> bool {
+    matches!(
+        word,
+        "a" | "an"
+            | "the"
+            | "my"
+            | "your"
+            | "his"
+            | "its"
+            | "our"
+            | "their"
+            | "whose"
+            | "every"
+            | "each"
+            | "another"
+    ) || word.ends_with("'s")
+        || word.ends_with("’s")
+}
+/// The word ending right before `at` with only spaces or tabs between, folded to lower case, or
+/// empty when punctuation or nothing comes first.
+fn spaced_word_before(text: &str, at: usize) -> String {
+    let lead = text[..at].trim_end_matches(horizontal);
+    if lead.len() == at {
+        return String::new();
+    }
+    let start = lead
+        .trim_end_matches(|ch: char| ch.is_alphabetic() || matches!(ch, '\'' | '’'))
+        .len();
+    lead[start..].to_lowercase()
+}
+/// Closed quotes, speech or not, and the report's own speech: an opening double quote that never
+/// closes in the paragraph (to the paragraph end), and a paragraph that opens with an em dash
+/// before a word (dialogue set with dashes). Byte ranges in the paragraph.
+fn quoted(text: &str) -> (Vec<std::ops::Range<usize>>, Vec<std::ops::Range<usize>>) {
+    let mut closed = Vec::new();
+    let mut speech = Vec::new();
+    let mut double = None;
+    let mut single = None;
+    for (at, ch) in text.char_indices() {
+        let before = prev(text, at).map(|(_, ch)| ch);
+        let after = next(text, at + ch.len_utf8());
+        match ch {
+            '“' | '"' if double.is_none() && (ch == '“' || opening_straight_quote(text, at)) => {
+                double = Some(at);
+            }
+            '”' | '"' => {
+                if let Some(start) = double.take() {
+                    closed.push(start..at + ch.len_utf8());
+                }
+            }
+            '‘' | '\''
+                if single.is_none()
+                    && before.is_none_or(|ch| !ch.is_alphanumeric())
+                    && after.is_some_and(char::is_alphanumeric) =>
+            {
+                single = Some(at);
+            }
+            '’' | '\''
+                if before.is_some_and(|ch| ch.is_alphanumeric() || ".,!?…".contains(ch))
+                    && after.is_none_or(|ch| !ch.is_alphanumeric()) =>
+            {
+                if let Some(start) = single.take() {
+                    closed.push(start..at + ch.len_utf8());
+                }
+            }
+            _ => {}
+        }
+    }
+    if let Some(start) = double {
+        speech.push(start..text.len());
+    }
+    let body = text.trim_start();
+    if let Some(rest) = body.strip_prefix('—').or_else(|| body.strip_prefix("--")) {
+        if rest.trim_start().starts_with(char::is_alphabetic) {
+            speech.push(0..text.len());
+        }
+    }
+    (closed, speech)
 }
 struct PlaceholderLists {
     marks: HashSet<&'static str>,
@@ -407,6 +544,8 @@ struct CommandCandidate {
     sentence: usize,
     first_word: usize,
     last_word: usize,
+    /// Reported with no edit: a lone opening mark, or *full stop* without a positive cue.
+    flag_only: bool,
 }
 struct Marks {
     double_open: &'static str,
@@ -495,7 +634,11 @@ fn command_guard(
     } else {
         next_word.clone()
     };
-    if matches!(previous.as_deref(), Some("word" | "term")) {
+    // A mention of the command word (*the word comma*, *The words open quote appeared*).
+    if matches!(
+        previous.as_deref(),
+        Some("word" | "words" | "term" | "terms" | "phrase" | "phrases")
+    ) {
         return false;
     }
     if entry.words.len() == 1
@@ -699,9 +842,38 @@ fn positive_cue(
     if candidate.entry.words.len() != 1 {
         return true;
     }
+    evidence(candidate, words, paragraph, other)
+}
+
+/// After a verb of saying or writing, the command word is usually a mention (*I said question
+/// mark to myself*, *She typed new paragraph and hit enter*); only a following clause, a pause
+/// before one, or a dictated pair of marks makes it dictation (*she said comma he left*, *she said
+/// open quote come in close quote*).
+fn mention(candidate: &CommandCandidate, words: &[(&Token, usize)], paired: bool) -> bool {
+    if !candidate
+        .first_word
+        .checked_sub(1)
+        .is_some_and(|index| reporting_verb(&word(&words[index].0.text)))
+    {
+        return false;
+    }
+    let after_pause = words
+        .get(candidate.last_word + 1)
+        .is_some_and(|(token, _)| filler(&token.text))
+        && words
+            .get(candidate.last_word + 2)
+            .is_some_and(|(token, _)| {
+                has_pos(token, "PRP") || token.text.starts_with(char::is_uppercase)
+            });
+    !(paired || after_pause || opens_clause(candidate, words))
+}
+
+/// The words after the command open a clause: a pronoun, determiner, proper noun or capitalized
+/// word, or *and*/*but*/*so* plus a clause.
+fn opens_clause(candidate: &CommandCandidate, words: &[(&Token, usize)]) -> bool {
     let after = words.get(candidate.last_word + 1).map(|(token, _)| *token);
     let next_word = after.map(|token| word(&token.text));
-    let clause = after.is_some_and(|token| {
+    after.is_some_and(|token| {
         (has_pos(token, "PRP") && !has_pos(token, "PRP$"))
             || has_pos(token, "DT")
             || has_pos(token, "NNP")
@@ -715,7 +887,20 @@ fn positive_cue(
                         && (has_pos(token, "JJ") || has_pos(token, "DT"))
                     || candidate.entry.mark == "dash"
                         && (has_pos(token, "VB") || has_pos(token, "RB"))
-            });
+            })
+}
+
+/// Evidence beyond the spelling that a mid-sentence command was dictated.
+fn evidence(
+    candidate: &CommandCandidate,
+    words: &[(&Token, usize)],
+    paragraph: &Paragraph,
+    other: bool,
+) -> bool {
+    let text = &paragraph.text;
+    let after = words.get(candidate.last_word + 1).map(|(token, _)| *token);
+    let next_word = after.map(|token| word(&token.text));
+    let clause = opens_clause(candidate, words);
     let then_clause = matches!(next_word.as_deref(), Some("then"))
         && words
             .get(candidate.last_word + 2)
@@ -824,6 +1009,7 @@ fn command_candidates(paragraph: &Paragraph) -> Vec<CommandCandidate> {
                     sentence: words[at].1,
                     first_word: at,
                     last_word: last,
+                    flag_only: false,
                 });
             }
             at = last + 1;
@@ -854,14 +1040,13 @@ fn command_candidates(paragraph: &Paragraph) -> Vec<CommandCandidate> {
         candidate.entry.guard != "unquote"
             || paired_opens.iter().any(|start| *start < candidate.start)
     });
-    let count = candidates.len();
     let marks: Vec<(&str, usize)> = candidates
         .iter()
         .map(|candidate| (candidate.entry.mark, candidate.start))
         .collect();
-    candidates.retain(|candidate| {
-        // An opening mark with a later closing command, or a closing mark after an opening one.
-        let paired = marks.iter().any(|(mark, start)| {
+    // An opening mark with a later closing command, or a closing mark after an opening one.
+    let paired = |candidate: &CommandCandidate| {
+        marks.iter().any(|(mark, start)| {
             match (
                 candidate.entry.mark.strip_prefix("open"),
                 candidate.entry.mark.strip_prefix("close"),
@@ -874,10 +1059,65 @@ fn command_candidates(paragraph: &Paragraph) -> Vec<CommandCandidate> {
                 }
                 _ => false,
             }
-        });
-        positive_cue(candidate, &words, paragraph, count > 1, paired)
+        })
+    };
+    // A mention isn't a command, so it isn't evidence for the others either.
+    let paired: Vec<bool> = candidates.iter().map(paired).collect();
+    let mut kept: Vec<(CommandCandidate, bool)> = candidates
+        .into_iter()
+        .zip(paired)
+        .filter(|(candidate, paired)| !mention(candidate, &words, *paired))
+        .collect();
+    let count = kept.len();
+    kept.retain(|(candidate, paired)| {
+        positive_cue(candidate, &words, paragraph, count > 1, *paired)
     });
+    let mut candidates: Vec<CommandCandidate> =
+        kept.into_iter().map(|(candidate, _)| candidate).collect();
+    // An opening mark with no closing command after it would insert an unmatched mark, and *full
+    // stop* is ordinary English (*I love you full stop.*) without other evidence: both flag only.
+    let count = candidates.len();
+    let flag_only: Vec<bool> = candidates
+        .iter()
+        .enumerate()
+        .map(|(index, candidate)| {
+            let lone_open = candidate
+                .entry
+                .mark
+                .strip_prefix("open")
+                .is_some_and(|kind| {
+                    !candidates[index + 1..]
+                        .iter()
+                        .any(|later| later.entry.mark.strip_prefix("close") == Some(kind))
+                });
+            lone_open
+                || candidate.entry.phrase == "full stop"
+                    && !evidence(candidate, &words, paragraph, count > 1)
+        })
+        .collect();
+    for (candidate, flag_only) in candidates.iter_mut().zip(flag_only) {
+        candidate.flag_only = flag_only;
+    }
     candidates
+}
+
+/// Each opening command with the first unused closing command of its kind after it, as indexes
+/// into `candidates`. A pair is edited together or not at all.
+fn mark_pairs(candidates: &[CommandCandidate]) -> Vec<(usize, usize)> {
+    let mut used = vec![false; candidates.len()];
+    let mut pairs = Vec::new();
+    for (open, candidate) in candidates.iter().enumerate() {
+        let Some(kind) = candidate.entry.mark.strip_prefix("open") else {
+            continue;
+        };
+        if let Some(close) = (open + 1..candidates.len()).find(|&close| {
+            !used[close] && candidates[close].entry.mark.strip_prefix("close") == Some(kind)
+        }) {
+            used[close] = true;
+            pairs.push((open, close));
+        }
+    }
+    pairs
 }
 
 fn command_edit(
@@ -1040,8 +1280,18 @@ fn next_word(text: &str, at: usize) -> &str {
         .next()
         .unwrap_or("")
 }
-/// The upper case of the lowercase letter at `at` and its length, when it is exactly one char.
+/// A lowercase-initial word with a capital later in it (*iPhone*, *eBay*), which is never
+/// capitalized.
+fn camel(text: &str, at: usize) -> bool {
+    let word = next_word(text, at);
+    word.starts_with(char::is_lowercase) && word.chars().skip(1).any(char::is_uppercase)
+}
+/// The upper case of the lowercase letter at `at` and its length, when it is exactly one char
+/// and the word isn't camel-cased.
 fn capital(text: &str, at: usize) -> Option<(char, usize)> {
+    if camel(text, at) {
+        return None;
+    }
     let letter = next(text, at).filter(|ch| ch.is_lowercase())?;
     let mut upper = letter.to_uppercase();
     match (upper.next(), upper.next()) {
@@ -1080,10 +1330,13 @@ fn trimmed_edit(
     }
 }
 
-const DISCOURSE: &[&str] = &[
-    "Well", "Oh", "So", "Yes", "Yeah", "No", "Okay", "OK", "Ok", "Now", "Right", "Sure", "Look",
-    "Listen",
-];
+/// Sentence-initial words that are always discourse words before a comma pair: none of them can
+/// start the phrase after the pause.
+const INTERJECTIONS: &[&str] = &["Oh", "Yes", "Yeah", "Okay", "OK", "Ok"];
+/// Discourse words that can also start the next phrase (*No one*, *So much*, *Now is*, *Look
+/// at*, *Listen to*, *Right here*, *Well enough*, *Sure enough*). They count only when a subject
+/// pronoun or a capitalized word follows the pause, which that phrase can't continue with.
+const DISCOURSE: &[&str] = &["Well", "So", "No", "Now", "Right", "Sure", "Look", "Listen"];
 
 /// The edit that deletes the filled pause or `scratch that` at `start..end`, or `None` where the
 /// punctuation around it is ambiguous and the leftover is flag only. A `run` of several pauses
@@ -1124,12 +1377,27 @@ fn deletion(paragraph: &Paragraph, start: usize, end: usize, run: bool) -> Optio
     // (b) The first word of a tokenizer sentence, not after U+2028, then one comma, an ellipsis
     // or nothing, then a word to capitalize.
     if sentence_start(paragraph, start) && before != Some('\u{2028}') {
+        // After an unquoted ? or ! the tokenizer starts a sentence, but a lowercase pause there
+        // continues the author's sentence (*He yelled Fire! um and ran*, *Why? um, she wondered*).
+        let index = first_word(paragraph, start).unwrap_or(0);
+        if index > 0
+            && paragraph.sentences[index - 1]
+                .text
+                .trim_end()
+                .ends_with(['?', '!'])
+            && text[start..].starts_with(char::is_lowercase)
+        {
+            return None;
+        }
         let mark = [",", "…", "..."]
             .into_iter()
             .find(|mark| text[end..].starts_with(mark))
             .map_or(0, str::len);
         let word = text.len() - text[end + mark..].trim_start_matches(horizontal).len();
-        if (mark > 0 || word > end) && next(text, word).is_some_and(char::is_alphabetic) {
+        if (mark > 0 || word > end)
+            && next(text, word).is_some_and(char::is_alphabetic)
+            && !camel(text, word)
+        {
             let mut replacement = String::new();
             let mut stop = word;
             if !filler(next_word(text, word)) {
@@ -1158,8 +1426,16 @@ fn deletion(paragraph: &Paragraph, start: usize, end: usize, run: bool) -> Optio
     if first == comma {
         return None;
     }
-    (DISCOURSE.contains(&&text[first..comma]) && sentence_start(paragraph, first))
-        .then(|| trimmed_edit(paragraph, start, word, String::new()))
+    let lead = &text[first..comma];
+    let following = next_word(text, word);
+    let subject = following.starts_with(char::is_uppercase)
+        || matches!(
+            following.to_ascii_lowercase().as_str(),
+            "i" | "you" | "he" | "she" | "we" | "they" | "it"
+        );
+    ((INTERJECTIONS.contains(&lead) || DISCOURSE.contains(&lead) && subject)
+        && sentence_start(paragraph, first))
+    .then(|| trimmed_edit(paragraph, start, word, String::new()))
 }
 
 /// A filled-pause run or an accepted command, with the index of its match.
@@ -1168,6 +1444,8 @@ struct Leftover<'a> {
     end: usize,
     kind: LeftoverKind<'a>,
     found: usize,
+    /// Reported with no edit, which makes its whole cluster flag only.
+    flag_only: bool,
 }
 #[derive(Clone, Copy)]
 enum LeftoverKind<'a> {
@@ -1190,6 +1468,9 @@ fn cluster_edit(
     members: &[Leftover],
     marks: Option<&Marks>,
 ) -> Option<Vec<DraftingEdit>> {
+    if members.iter().any(|member| member.flag_only) {
+        return None;
+    }
     let deletable = |member: &Leftover| match member.kind {
         LeftoverKind::Pause { run } => deletion(paragraph, member.start, member.end, run),
         LeftoverKind::Command(_) => deletion(paragraph, member.start, member.end, false),
@@ -1309,6 +1590,15 @@ struct PauseCandidate {
     sentence: usize,
     mode: Mode,
     term: String,
+    verbatim: bool,
+}
+/// Where a paragraph's pauses count as speech or quoted words. `dictated` holds document byte
+/// ranges inside dictated quote pairs; `quotes` and `own` are paragraph byte ranges from
+/// `quoted`.
+struct Speech {
+    dictated: Vec<std::ops::Range<usize>>,
+    quotes: Vec<std::ops::Range<usize>>,
+    own: Vec<std::ops::Range<usize>>,
 }
 fn adjacent_pauses(text: &str) -> bool {
     !text.is_empty()
@@ -1321,7 +1611,7 @@ fn pauses<'a>(
     sentence_offset: usize,
     document: &Document,
     options: &DraftingOptions,
-    speech: &[std::ops::Range<usize>],
+    speech: &Speech,
     out: &mut Vec<DraftingMatch>,
     leftovers: &mut Vec<Leftover<'a>>,
 ) {
@@ -1333,6 +1623,7 @@ fn pauses<'a>(
         .iter()
         .flat_map(|sentence| &sentence.tokens)
         .collect();
+    let mut reported: Option<usize> = None;
     let mut candidates = Vec::new();
     for found in scan.find_iter(text) {
         let start = found.start();
@@ -1340,11 +1631,27 @@ fn pauses<'a>(
         let before = prev(text, start).map(|(_, ch)| ch);
         let after = next(text, end);
         let prior_word = previous_word(text, start);
-        let after_dash = text[end..]
-            .strip_prefix(['-', '–', '—'])
-            .is_some_and(|rest| {
-                rest.starts_with("huh") || rest.starts_with("hm") || rest.starts_with("Huh")
-            });
+        // Two-word interjections written with a space, comma or dash (*uh oh*, *Uh, oh*, *uh huh*,
+        // *um hm*, *uh—huh*) are words, not pauses.
+        let follow = text[end..]
+            .strip_prefix([',', '-', '–', '—'])
+            .unwrap_or(&text[end..])
+            .trim_start_matches(horizontal);
+        let partner = next_word(follow, 0).to_ascii_lowercase();
+        let lower = found.as_str().to_ascii_lowercase();
+        let uh = lower
+            .trim_start_matches('u')
+            .trim_start_matches('h')
+            .is_empty();
+        let um = lower
+            .trim_start_matches('u')
+            .trim_start_matches('m')
+            .is_empty();
+        let interjection = follow.len() < text.len() - end
+            && (text[end..].starts_with(['-', '–', '—'])
+                && matches!(partner.as_str(), "huh" | "hm")
+                || uh && matches!(partner.as_str(), "oh" | "huh")
+                || um && matches!(partner.as_str(), "hm" | "hmm"));
         let domain = text[end..].strip_prefix('.').is_some_and(|rest| {
             ["com", "edu", "org", "net", "gov"]
                 .iter()
@@ -1354,7 +1661,7 @@ fn pauses<'a>(
             || after.is_some_and(char::is_alphanumeric)
             || (before == Some('-') && !text[..start].ends_with("--"))
             || (after == Some('-') && !text[end..].starts_with("--"))
-            || after_dash
+            || interjection
             || domain
             || (before == Some('*') && after == Some('*'))
             || (before == Some('`') && after == Some('`'))
@@ -1366,14 +1673,40 @@ fn pauses<'a>(
         {
             continue;
         }
-        // A capitalized pause word mid-sentence is a name (*Umm Kulthum*, *Umm Qasr*), and so is
-        // *Umm* before another capitalized word at a sentence start.
+        // A pause word reported or used as a noun is a word (*She said um and looked away*, *with
+        // an um and a shrug*, *his um*), and so is every pause right after it, with only spaces
+        // and pause punctuation between (*The baby went uh uh uh*, *He said um--uh--no*). After a determiner other than *an*, the pause is still a pause when a
+        // noun or adjective follows it, because the determiner then has its own head
+        // (*to the um store*).
+        let before_word = spaced_word_before(text, start);
+        let head = tokens
+            .iter()
+            .find(|token| token.is_word && token.span.byte.start >= paragraph.span.byte.start + end)
+            .is_some_and(|token| {
+                has_pos(token, "NN") || token.readings.iter().any(|reading| reading.pos == "JJ")
+            });
+        if reported.is_some_and(|stop| stop < start && adjacent_pauses(&text[stop..start]))
+            || reporting_verb(&before_word)
+            || before_word == "an"
+            || determiner(&before_word) && !head
+        {
+            reported = Some(end);
+            continue;
+        }
+        // A capitalized pause word right before another capitalized word other than *I* is a
+        // name, whatever its spelling (*Um Kulthum*, *Umm Qasr*), and so is one mid-sentence
+        // unless it follows another pause (*Um, Umm, the door* is two pauses).
         let rest = text[end..].trim_start_matches(horizontal);
         let named = rest.len() < text.len() - end
             && rest.starts_with(char::is_uppercase)
             && next_word(rest, 0) != "I";
+        let lead = text[..start].trim_end_matches(|ch: char| {
+            horizontal(ch) || matches!(ch, ',' | '—' | '–' | '-' | '…' | '.')
+        });
+        let after_pause =
+            lead.len() < start && filler(&lead[lead.trim_end_matches(char::is_alphabetic).len()..]);
         if found.as_str().starts_with(char::is_uppercase)
-            && (first_word(paragraph, start).is_none() || found.as_str() == "Umm" && named)
+            && (named || first_word(paragraph, start).is_none() && !after_pause)
         {
             continue;
         }
@@ -1411,20 +1744,27 @@ fn pauses<'a>(
             .sentences
             .partition_point(|item| item.span.byte.start <= at)
             .saturating_sub(1);
-        let mode = if speech.iter().any(|range| range.contains(&at)) {
+        let paired = speech.dictated.iter().any(|range| range.contains(&at));
+        let own = speech.own.iter().any(|range| range.contains(&start));
+        let quoted = speech.quotes.iter().any(|range| range.contains(&start));
+        let mode = if paired || own {
             Mode::Dialogue
         } else {
             document.mode_at(at)
         };
-        if mode == Mode::Dialogue && !options.include_dialogue {
+        if (mode == Mode::Dialogue || quoted) && !options.include_dialogue {
             continue;
         }
+        // Quoted text other than detected speech is the author's verbatim wording (*They called
+        // it “the um thing”*), and the report's own speech rule is a heuristic: flag only.
+        let verbatim = (quoted || own) && !paired && document.mode_at(at) == Mode::Narration;
         candidates.push(PauseCandidate {
             start,
             end,
             sentence: sentence_offset + sentence,
             mode,
             term: term.to_owned(),
+            verbatim,
         });
     }
     let mut at = 0;
@@ -1444,6 +1784,7 @@ fn pauses<'a>(
             end,
             kind: LeftoverKind::Pause { run: last > at },
             found: out.len(),
+            flag_only: candidates[at..=last].iter().any(|item| item.verbatim),
         });
         out.push(DraftingMatch {
             span: span(paragraph, first.start, end),
@@ -1464,17 +1805,27 @@ pub fn report(
     if !document.token_details {
         return Err(StyleError::needs_token_details(REPORT));
     }
+    if options.spoken_commands == Some(true) && !options.dictated {
+        return Err(StyleError::options(
+            "spokenCommands needs dictated: true; edits are offered only for dictated text",
+        ));
+    }
     let mut matches = Vec::new();
     let mut sentence_offset = 0;
     let mut mark_style = None;
     let mut dictated = Vec::new();
     for paragraph in &document.paragraphs {
-        let candidates = if options.spoken_commands {
+        let candidates = if options.commands() {
             command_candidates(paragraph)
         } else {
             Vec::new()
         };
-        let speech = dictated_speech(paragraph, &candidates);
+        let (quotes, own) = quoted(&paragraph.text);
+        let speech = Speech {
+            dictated: dictated_speech(paragraph, &candidates),
+            quotes,
+            own,
+        };
         let style = if candidates.is_empty() {
             None
         } else {
@@ -1489,6 +1840,7 @@ pub fn report(
                     end: candidate.end,
                     kind: LeftoverKind::Command(candidate),
                     found: found.len(),
+                    flag_only: candidate.flag_only,
                 });
             }
             found.push(DraftingMatch {
@@ -1531,28 +1883,73 @@ pub fn report(
         }
         // Pauses and commands separated only by spaces, punctuation and U+2028 form one cluster
         // with one edit, computed from the text on both sides, so no two edits share a mark or a
-        // space.
-        leftovers.sort_by_key(|leftover| leftover.start);
-        let mut at = 0;
-        while at < leftovers.len() {
-            let mut last = at;
-            while last + 1 < leftovers.len()
-                && leftovers[last].end <= leftovers[last + 1].start
-                && joined(&paragraph.text[leftovers[last].end..leftovers[last + 1].start])
-            {
-                last += 1;
+        // space. Typed text gets no edits at all.
+        if options.dictated {
+            leftovers.sort_by_key(|leftover| leftover.start);
+            let mut clusters = Vec::new();
+            let mut at = 0;
+            while at < leftovers.len() {
+                let mut last = at;
+                while last + 1 < leftovers.len()
+                    && leftovers[last].end <= leftovers[last + 1].start
+                    && joined(&paragraph.text[leftovers[last].end..leftovers[last + 1].start])
+                {
+                    last += 1;
+                }
+                clusters.push((
+                    at..=last,
+                    cluster_edit(paragraph, &leftovers[at..=last], style),
+                ));
+                at = last + 1;
             }
-            if let Some(edits) = cluster_edit(paragraph, &leftovers[at..=last], style) {
-                let carrier = leftovers[at..=last]
-                    .iter()
-                    .find(|leftover| matches!(leftover.kind, LeftoverKind::Command(_)))
-                    .unwrap_or(&leftovers[at]);
-                found[carrier.found].edits = edits;
+            // A dictated pair of marks is edited together or not at all: if either side's cluster
+            // is flag only, so is the other's, until nothing changes.
+            let cluster_of = |candidate: &CommandCandidate| {
+                clusters.iter().position(|(members, _)| {
+                    leftovers[members.clone()].iter().any(|leftover| {
+                        matches!(leftover.kind, LeftoverKind::Command(item) if std::ptr::eq(item, candidate))
+                    })
+                })
+            };
+            let pairs: Vec<(Option<usize>, Option<usize>)> = mark_pairs(&candidates)
+                .into_iter()
+                .map(|(open, close)| {
+                    (
+                        cluster_of(&candidates[open]),
+                        cluster_of(&candidates[close]),
+                    )
+                })
+                .collect();
+            let mut changed = true;
+            while changed {
+                changed = false;
+                for (open, close) in &pairs {
+                    let (Some(open), Some(close)) = (*open, *close) else {
+                        continue;
+                    };
+                    if clusters[open].1.is_some() != clusters[close].1.is_some() {
+                        clusters[open].1 = None;
+                        clusters[close].1 = None;
+                        changed = true;
+                    }
+                }
             }
-            at = last + 1;
+            for (members, edits) in clusters {
+                if let Some(edits) = edits {
+                    let members = &leftovers[members];
+                    let carrier = members
+                        .iter()
+                        .find(|leftover| matches!(leftover.kind, LeftoverKind::Command(_)))
+                        .unwrap_or(&members[0]);
+                    found[carrier.found].edits = edits;
+                }
+            }
         }
         matches.extend(found);
-        dictated.extend(speech);
+        dictated.extend(speech.dictated);
+        dictated.extend(speech.own.iter().map(|range| {
+            paragraph.span.byte.start + range.start..paragraph.span.byte.start + range.end
+        }));
         sentence_offset += paragraph.sentences.len();
     }
     for found in &mut matches {

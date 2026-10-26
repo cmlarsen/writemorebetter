@@ -5,14 +5,15 @@ stream-of-consciousness writing leave behind: placeholders and notes to self (*T
 *(check this)*), spoken commands typed as words (*comma*, *new paragraph*, *open quote*), filled
 pauses (*um*, *uh*), phrase restarts (*he walked to the he walked to the car*) and self-corrections
 (*it was red I mean crimson*). Published fiction has almost none of these, so nearly every match is
-something the author meant to clean up. Spoken commands are opt-in: the host turns them on only for
-text it knows came from dictation (see the 2026-10-26 decision).
+something the author meant to clean up.
 
 Unlike the other reports, drafting may return **edits**: deletions, whitespace, punctuation from a
 fixed table, line breaks, and a case-only change to the first letter of the author's next word. It
 never generates prose. Every replacement is the empty string, one or more marks from the tables
 below, or the author's own letter in upper case. See the 2026-10-25 decision in
-[STYLE-REPORTS.md](STYLE-REPORTS.md#decisions).
+[STYLE-REPORTS.md](STYLE-REPORTS.md#decisions). **Edits are offered only when the host marks the
+text as dictated** (`dictated: true`, the 2026-10-26 decision); typed text is flag only, and spoken
+commands are detected only in dictated text. See [Edits only for dictated text](#edits-only-for-dictated-text).
 
 | Surface | Call |
 |---|---|
@@ -39,8 +40,8 @@ and leaves a lowercase sentence start (`Um but I'll…` → `but I'll…`).
 | Version | Category | Edit | Modes |
 |---|---|---|---|
 | v1 | `placeholder` | none (flag only) | all |
-| v1 | `spokenCommand` | the mark, a line break, or a deletion | opt-in (`spokenCommands`), all modes |
-| v1 | `filledPause` | deletion in four unambiguous patterns, otherwise flag only | narration (`includeDialogue` opts in) |
+| v1 | `spokenCommand` | the mark, a line break, or a deletion | dictated text only (`dictated`), all modes |
+| v1 | `filledPause` | deletion in three unambiguous patterns (dictated text only), otherwise flag only | narration (`includeDialogue` opts in) |
 | v1.1 | `restart` | delete the first copy | narration (`includeDialogue` opts in) |
 | v1.2 | `selfCorrection` | none (flag only) | narration (`includeDialogue` opts in) |
 
@@ -60,14 +61,33 @@ isn't tuned for any one of them.
 | Option | Default | Meaning |
 |---|---|---|
 | `placeholders` | `true` | Report placeholders and notes to self. |
-| `spokenCommands` | `false` | Report spoken commands, with edits. The host turns this on only for text it knows came from dictation; typed prose is never edited for command words. When it's off, no command detection runs and dictated quote pairs aren't found. |
-| `filledPauses` | `true` | Report filled pauses, with deletion edits where the punctuation is unambiguous. |
+| `dictated` | `false` | The host knows the text came from speech-to-text (a dictation session or an imported transcript). Only then are edits returned; with it off, every match has `edits: []`. It also turns on spoken commands. |
+| `spokenCommands` | follows `dictated` | Report spoken commands, with edits. Unset, it follows `dictated`; `false` turns commands off in dictated text. `true` without `dictated` is `invalidOptions`, so `dictated` is the one way to turn edits on. With commands off, no command detection runs and dictated quote pairs aren't found. |
+| `filledPauses` | `true` | Report filled pauses, with deletion edits in dictated text where the punctuation is unambiguous. |
 | `er` | `false` | Also report *er* as a filled pause (guarded; see below). |
 | `restarts` | `true` | Report restarts (from v1.1). |
 | `selfCorrections` | `true` | Report self-correction phrases, flag only (from v1.2). |
-| `includeDialogue` | `false` | Also report filled pauses, restarts and self-corrections inside speech. Hesitation in dialogue is usually characterization. It never affects commands or placeholders, which are reported in every mode. |
+| `includeDialogue` | `false` | Also report filled pauses, restarts and self-corrections inside speech and other quoted text. Hesitation in dialogue is usually characterization. It never affects commands or placeholders, which are reported in every mode. |
 
-An option for a category that hasn't shipped is an unknown key until it does.
+An option for a category that hasn't shipped is an unknown key until it does. The multi-word keys
+also accept snake case (`spoken_commands`, `filled_pauses`, `include_dialogue`).
+
+### Edits only for dictated text
+
+The owner's decision of 2026-10-26, after five review rounds in which even the simplest pause
+deletion damaged typed fiction (*She said um and looked away.* → *She said and looked away.*):
+
+- **Typed text (the default).** Every match has `edits: []`. Placeholders, filled pauses and
+  everything else are flags; spoken commands aren't detected and no dictated quote pair is found.
+  Accepting a suggestion can never change the author's text.
+- **`dictated: true`.** The host knows the text came from speech-to-text, where a filler really is
+  a filler. Filled-pause edits in patterns (a), (b) and (c) are offered, and spoken commands are
+  detected, with edits.
+
+In typed fiction a filler is usually the author's choice. The flag guards below apply in both
+modes: a false flag annoys the author, and in dictated text it would also come with an edit.
+`python3 bench/style/drafting.py --gate` checks that default mode returns no edit for any fixture or
+negative.
 
 ## Result
 
@@ -122,8 +142,8 @@ so the host applies it as is.
 
 ### Deletion cleanup
 
-Filled pauses and `scratch that` delete words. The owner's 2026-10-26 decision makes this
-conservative: an edit is returned only where the punctuation around the pause leaves one obvious
+Filled pauses and `scratch that` delete words, in dictated text only. The owner's 2026-10-26
+decision makes this conservative: an edit is returned only where the punctuation around the pause leaves one obvious
 result. **Everywhere else the pause is flagged with no edit** (empty `edits`) and the author fixes
 it. A missed convenience is acceptable; a damaged sentence is not.
 
@@ -142,12 +162,23 @@ scan for `.` or a closing quote:
   with `includeDialogue`, the first word inside an opening quote counts when the tokenizer starts
   a sentence there (`“Um, I don’t know.”`). A pause after U+2028, or at a sentence start that
   follows a sentence ending with a closing quote, is flag only: a lowercase dialogue tag may come
-  next (`“Why?” um, she asked.`).
-- **(c) A comma pair after a sentence-initial discourse word** (*Well*, *Oh*, *So*, *Yes*, *Yeah*,
-  *No*, *Okay*, *OK*, *Now*, *Right*, *Sure*, *Look*, *Listen*) keeps the first comma:
-  `Well, um, I was` → `Well, I was`. Every other comma pair is flag only, because the first comma
-  may be the author's: `I was, uh, thinking`, `She laughed, um, cried, and left.`,
-  `If you want, um, we can go.`, `bread, um, and milk`, `Mary, um, I was`.
+  next (`“Why?” um, she asked.`). So is a lowercase pause after an unquoted `?` or `!`, where the
+  tokenizer starts a sentence but the author's sentence goes on (`He yelled Fire! um and ran.`,
+  `Why? um, she wondered.`); a capitalized pause there starts the author's sentence
+  (`What now? Um, the door` → `What now? The door`). A camel-cased next word (`iPhone`, `eBay`) is
+  never capitalized, so `Um, iPhone sales` is flag only.
+- **(c) A comma pair after a sentence-initial discourse word** keeps the first comma:
+  `Well, um, I was` → `Well, I was`. The rule is that the discourse word must not belong to the
+  phrase after the pause, or deleting the pause leaves a misplaced comma or flips the meaning
+  (`No, um, one came` → `No, one came`). *Oh*, *Yes*, *Yeah*, *Okay*, *OK* and *Ok* can't start a
+  following phrase, so any word may follow. *Well*, *So*, *No*, *Now*, *Right*, *Sure*, *Look* and
+  *Listen* can (*well enough*, *so much*, *no one*, *now is*, *right here*, *sure enough*, *look
+  at*, *listen to*), so they count only when the word after the pause is a subject pronoun (*I*,
+  *you*, *he*, *she*, *we*, *they*, *it*) or capitalized, which none of those phrases continues
+  with: `So, um, she left` → `So, she left`, but `So, um, much for that` is flag only. Every other
+  comma pair is flag only, because the first comma may be the author's: `I was, uh, thinking`,
+  `She laughed, um, cried, and left.`, `If you want, um, we can go.`, `bread, um, and milk`,
+  `Mary, um, I was`.
 
 **Flag only:** any dash next to the pause, a bracket or parenthesis, a quote edge, a pause between
 two terminal marks (`He paused. Um. Then`), an ellipsis or comma on one side only, a comma pair
@@ -155,6 +186,8 @@ other than (c), a pause after a sentence that ends with a closing quote, a pause
 end, U+2028 next to the pause, a run of pauses with a comma, dash or ellipsis inside it
 (`The cat um, uh, sat`, `The cat um—uh sat`), and every other shape not listed above. The report
 never deletes across a paragraph boundary.
+
+Edits in this table are for dictated text; typed text gets the same matches, flag only.
 
 | Input | Edit span → replacement | Result |
 |---|---|---|
@@ -168,6 +201,10 @@ never deletes across a paragraph boundary.
 | `He left um.` | ` um` → `` | `He left.` |
 | `He left at 3 p.m. um the door` | ` um` → `` | `He left at 3 p.m. the door` |
 | `“Why?” um, she asked.` | flag only | unchanged |
+| `Why? um, she wondered.` | flag only | unchanged |
+| `What now? Um, the door was open.` | `Um, t` → `T` | `What now? The door was open.` |
+| `No, um, one came to the door.` | flag only | unchanged |
+| `Um, iPhone sales were down.` | flag only | unchanged |
 | `He left um”` (dialogue, `includeDialogue`) | flag only | unchanged |
 | `“I was, um,” she said` (`includeDialogue`) | flag only | unchanged |
 | `“Um, I don’t know.”` (`includeDialogue`) | `Um, ` → `` | `“I don’t know.”` |
@@ -196,6 +233,12 @@ command):
   `left period new paragraph the` → `left.` ⏎ `The`, `fine period close quote and` → `fine.” and`.
 - Otherwise every member of the cluster is flag only, so a flag-only pause never leaves its
   neighbouring command's mark doubled or dropped.
+- **A dictated pair of marks is edited together or not at all.** An opening command (*open quote*,
+  *open single quote*, *open paren*, *open bracket*) pairs with the first unused closing command of
+  its kind after it in the paragraph. If either side's cluster is flag only, both are
+  (`open quote fine period close quote comma he said` is flag only as a whole, because
+  `period close quote comma` would put two sentence marks together). An opening command with no
+  closing command after it is flag only, because its edit would insert an unmatched mark.
 
 ### Capitalization
 
@@ -206,16 +249,18 @@ After a deletion, sentence start means the first word of a tokenizer sentence th
 closing quote; after a dictated mark, the mark itself starts the sentence. Where the text already
 has the mark (`left period. she`), the tokenizer decides. The change applies only when `char::to_uppercase` returns exactly one char; otherwise the letter is left alone.
 Without it, accepting the edit leaves a lowercase start that `UPPERCASE_SENTENCE_START` then flags.
-This is the only edit that touches the author's words, and it changes nothing but case.
+This is the only edit that touches the author's words, and it changes nothing but case. A
+camel-cased word (a capital after its first letter, as in *iPhone* or *eBay*) is never capitalized.
 The drafting report recognizes capitalization after a dictated terminal command only when that
 command has passed its guards; an ordinary noun such as *period* does not trigger it.
 
 ## Spoken commands
 
-Spoken commands are **opt-in** (`spokenCommands: true`). A host turns them on only for text it
-knows came from dictation, such as a dictation session or an imported transcript; typed prose is
-never edited for command words. With the option off no command detection runs, no command edits
-are returned and dictated quote pairs aren't found.
+Spoken commands are detected only in **dictated text** (`dictated: true`, which turns
+`spokenCommands` on unless it is set to `false`). A host marks text as dictated only when it knows
+it came from speech-to-text, such as a dictation session or an imported transcript; typed prose is
+never edited for command words. With commands off no command detection runs, no command edits are
+returned and dictated quote pairs aren't found.
 
 A command edit replaces the whitespace before the command and the command words with the mark.
 An opening mark keeps the whitespace before it and consumes the whitespace after it. Apostrophes,
@@ -250,6 +295,15 @@ and a duplicate mark after it are deleted.
   period of time*), or when it is the object of *made*, *took*, *put* or *used* (*made a dash*).
   *dash* is also skipped after *to* or a modal (*I have to dash*). *Period.* or *Full stop.* as its
   own sentence is emphasis, not a command.
+- **Mentions.** A command word after *word*, *words*, *term*, *terms*, *phrase* or *phrases* is a
+  mention (*The words open quote appeared*). After a verb of saying or writing (*say*, *said*,
+  *says*, *saying*, *answered*, *replied*, *went*, *goes*, *typed*, *wrote*, *muttered*,
+  *whispered*, *added*, …), a command is a mention unless a clause follows it (a pronoun,
+  determiner, proper noun or capitalized word, or a pause before a pronoun or capitalized word) or
+  it is one of a dictated pair of marks: `She typed new paragraph and hit enter.` and
+  `I said question mark to myself.` are prose, `she said comma he left` and
+  `she said open quote come in close quote` are dictation. A mention is no match, and no evidence
+  for another command in the paragraph.
 - **Positive cue.** Every single-word command needs evidence beyond its spelling: the next word
   opens a clause (a pronoun, determiner, proper noun, capitalized word, or *and*/*but*/*so* plus a
   clause), the words around a comma or colon form a list, a hyphen joins words, an apostrophe joins
@@ -258,6 +312,8 @@ and a duplicate mark after it are deleted.
   a noun or adjective before the command that isn't the verb after a subject, so attributive uses
   stay prose (*has colon cancer*, *Teachers mark comma errors*, *hated hyphen words*). Multi-word
   commands keep the noun guard. A lone *period* in a well-punctuated paragraph is probably the noun.
+  *Full stop* is ordinary English too (*I love you full stop.*), so it needs the same evidence as a
+  single-word command; without it the match is flag only rather than dropped.
 - **Sentence start.** A command at the start of a sentence, after any quotes, brackets or filled
   pauses, is ordinary prose (*Full stop signs*, *Um comma the dog ran*), except one of a dictated
   pair (an opening mark with a later closing command, or that closing command, as in
@@ -290,8 +346,9 @@ the document finds no speech span there. With `spokenCommands` on, the report pa
 or *begin quote* with the next *close quote*, *end quote* or *unquote* in the same paragraph and
 treats the words between as speech: filled pauses, restarts and self-corrections inside are skipped
 unless `includeDialogue`, and matches inside have mode `dialogue`. The two commands are still
-reported, with their edits, in every mode. An unpaired command still gets its edit but marks no
-speech.
+reported, with their edits, in every mode, and are edited together or not at all
+([Clusters](#clusters)). An unpaired opening command is flag only and marks no speech; an unpaired
+closing command keeps its edit, since the author may have typed the opening mark.
 
 The report inserts only what was dictated. A missing comma before a dialogue tag (`“I’m fine” she
 said`) is a separate problem the grammar rules cover.
@@ -330,11 +387,26 @@ above and flagged with no edit everywhere else.
   interjections (*Ah, there you are*, *Hmm. She frowned.*).
 - ***er*** is off by default and behind the `er` option. Comic narration uses it on purpose (*He was,
   er, indisposed*). When on, it counts only between commas or dashes or before an ellipsis.
-- **Guards:** skip all-caps tokens (*UM*, *UH*, *ER* are names and abbreviations), a capitalized
-  pause word that isn't the first word of a tokenizer sentence (*Umm Kulthum*, *Umm Qasr* are
-  names), *Umm* before another capitalized word other than *I* at a sentence start
-  (*Umm Kulthum sang*), hyphenated forms
-  (*uh-huh*, *uh-oh*, *um-hm*), skipped names, and speech unless `includeDialogue`.
+- **Guards** (both modes): skip
+  - all-caps tokens (*UM*, *UH*, *ER* are names and abbreviations);
+  - **names**: a capitalized pause word directly before another capitalized word other than *I*,
+    whatever the spelling (*Um Kulthum sang*, *Umm Qasr*), and a capitalized pause word that isn't
+    the first word of a tokenizer sentence (*They listened to Umm Kulthum*), unless it follows
+    another pause with only spaces and pause punctuation between: `Um, Umm, the door.` is one
+    two-pause match (flag only, since the run has a comma inside);
+  - **interjections**: hyphenated forms (*uh-huh*, *uh-oh*, *um-hm*) and the same pairs written with
+    a space, comma or dash, in any case: *uh oh*, *uh huh*, *Uh, oh*, *um hm*, *um hmm*;
+  - **a pause word reported or used as a noun**: right after a verb of saying (the list under
+    *Mentions* in [Spoken commands](#spoken-commands): *She said um and looked away*, *Had he
+    really just said um?*, *The baby went uh uh uh*), after *an* (*with an um and a shrug*), and
+    after another article or possessive determiner (*a*, *the*, *my*, *your*, *his*, *its*, *our*,
+    *their*, *whose*, *every*, *each*, *another*, a word ending in *'s*) unless a noun or adjective
+    follows, which gives the determiner its own head (*his um more than his silence* is a noun; *to
+    the um store* is a pause). Every pause right after a reported one, with only spaces and pause
+    punctuation between, is reported too (*He said um--uh--no*). Words that also stand alone are
+    left out of the determiner list, because dictated pauses follow them: *her* (*I told her um
+    the*), *this*, *that*, *some*, *any* and *no*;
+  - skipped names, and speech or quoted text unless `includeDialogue` (see [Speech](#speech)).
 
 ## Restarts (v1.1)
 
@@ -371,6 +443,18 @@ rather staggered*), and `bench/public` has three.
 
 - Filled pauses, restarts and self-corrections are skipped where `Document::mode_at(start)` is
   dialogue, or inside a dictated quote pair, unless `includeDialogue`.
+- **Text inside any quotes**, speech or not (scare quotes, titles, written text, single quotes:
+  *They called it “the um thing”*, *He wrote “I was um going”*, *He said 'I was um going'*), is
+  skipped the same way, and with `includeDialogue` a pause there is flag only unless the document
+  detected the quote as speech: the quoted words are the author's verbatim wording.
+- **The report's own speech rule.** The document finds speech only between an opening and a closing
+  quote, so two more cases count as speech for drafting: the text from an opening double quote that
+  never closes in its paragraph to the paragraph end (`She said, “I was going home and um the door
+  was open.`, the first paragraph of a multi-paragraph speech, or a draft's last line), and a
+  paragraph that opens with an em dash (or `--`) before a word, which is dialogue set with dashes
+  (`—Um, I don't know, she said.`). The whole paragraph counts, tag included, which only costs
+  recall. Matches there have mode `dialogue`, and with `includeDialogue` they are flag only, because
+  the rule is a heuristic. The document's speech detection, shared with every report, is unchanged.
 - Commands and placeholders are reported in every mode.
 - **A quoted word on its own is never flagged.** When a quoted span, speech or not, holds only a
   listed word or command (*the word “um”*, *she typed “period”*, *‘TK’ is journalese*), it is a
@@ -408,7 +492,8 @@ The command replacement key selects a fixed mark, the document-majority quote or
   The owner can add drafting to the tier 3 flag-rate sweep for published rates.
 - **Recall on fixtures.** `bench/style/drafting_fixtures.jsonl` holds self-written paragraphs as
   `{id, style, category, input, expected}`, plus `flags` for flag-only matches, `options` where
-  `spokenCommands` or `includeDialogue` is needed (every command fixture sets `spokenCommands`)
+  `dictated` or `includeDialogue` is needed (every fixture with an edit, and every command fixture
+  with a match, sets `dictated`; default-mode fixtures expect the input unchanged, with `flags`)
   and a `note` where the doc is silent, covering each category in
   narration and dialogue, in Dragon-, Apple- and Whisper-style output (misheard *coma*, lowercase
   after *period*, doubled marks, kept or dropped fillers), and every typographic variant above.
@@ -421,7 +506,10 @@ The command replacement key selects a fixed mark, the document-majority quote or
   whose punctuation is no longer an edit pattern expect the input unchanged plus a `flags` entry,
   with a note citing decision 2, and the inputs from the D2g review are fixtures too. After the D2h
 review, the pattern (d) fixtures are flag only with a note citing that decision, and the D2h
-inputs are fixtures, or negatives where they are ordinary prose (*Umm Kulthum*). An `expected`
+inputs are fixtures, or negatives where they are ordinary prose (*Umm Kulthum*). After the D2j
+review, fixtures that changed under its guards carry a note citing it, and its inputs are fixtures
+in both modes, or negatives (*She said um and looked away.*, *Uh oh, he thought.*,
+*They called it “the um thing”*). An `expected`
   value is derived from the rules here, never copied from the report's output. Scoring
   is exact equality of the text after `drafting::apply` per category and style, with no flags on a
   negative; this catches orphan commas and spacing bugs that span scores miss.
@@ -433,8 +521,10 @@ inputs are fixtures, or negatives where they are ordinary prose (*Umm Kulthum*).
   LLM. Only aggregate numbers (flags per category, judged precision) are published. Workers never
   read `bench/corpus/`.
 - **Gates.** `python3 bench/style/drafting.py --gate` enforces the per-category recall thresholds
-  and clean-control rate in `bench/style/drafting-baseline.json`, and requires every line of
-  `drafting_negatives.jsonl` unchanged with `spokenCommands` off and on. Every threshold is 1.0:
+  and clean-control rate in `bench/style/drafting-baseline.json`, requires every line of
+  `drafting_negatives.jsonl` to produce no match at all in default mode and with `dictated`, and
+  requires default mode to return no edit for any fixture or negative. `--precision` runs the
+  published text in both modes. Every threshold is 1.0:
   each fixture's expected text, including a flag-only `flags` entry, must match exactly. The
   report is style-only, so conformance and `recall.py`
   should be unchanged; the PR confirms it with `bench/tools/gates.sh`. The tagger, speller and rule

@@ -12,8 +12,13 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
 - Opt-in drafting report for placeholders, spoken commands and filled pauses, with deletion, punctuation, line-break and capitalization edits across Rust, WASM, Swift and Python. Spoken commands are off by default (`spokenCommands`) and meant for text the host knows came from dictation; filled pauses get an edit only where the punctuation around them is unambiguous and are flagged otherwise. Dictated quote pairs count as speech.
 
+### Changed
+
+- The drafting report offers edits only for dictated text. A new `dictated` option (default `false`) marks text the host knows came from speech-to-text; without it every match is flag only and spoken commands aren't detected. `spokenCommands` now follows `dictated`, and `spokenCommands: true` without `dictated` is `invalidOptions`. A dictated quote (or paren, bracket) pair is edited together or not at all, and a lone opening command is flag only.
+
 ### Fixed
 
+- Drafting no longer flags pauses inside any quotes, unclosed opening quotes or em-dash dialogue lines (unless `includeDialogue`), interjections written with a space or comma (*uh oh*, *uh huh*, *um hm*), a pause word reported or used as a noun (*She said um*, *an um*, *his um*), or a capitalized pause before a capitalized word (*Um Kulthum*). Discourse-word comma pairs need a pronoun or capitalized word after words that can start the next phrase (*No, um, one came*); nothing is capitalized after a mid-sentence ? or ! or in a camel-cased word; command words after a reporting verb or *words* are mentions, and *full stop* needs a positive cue.
 - Drafting cleanup now handles adjacent pauses, mixed punctuation, dictated marks beside pauses, and case-insensitive note vocabulary; spoken-command guards avoid ordinary prose uses.
 - Drafting edits preserve prose when a punctuation name is a noun, keep dictated commas beside pauses, and remove isolated pause sentences without doubling punctuation.
 - Drafting edits take sentence starts from the tokenizer, so they no longer capitalize after an abbreviation or a closing quote; comma pairs other than after a discourse word, pause runs with punctuation inside, and command clusters that would double a sentence mark are flag only, and names such as *Umm Kulthum* are no longer pauses.

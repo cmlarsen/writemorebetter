@@ -284,3 +284,27 @@
 {"id": "neg-284", "word": "Umm", "input": "They listened to Umm Kulthum all night.", "note": "name with Umm mid-sentence (review D2h)"}
 {"id": "neg-285", "word": "Umm", "input": "The ship docked at Umm Qasr before dawn.", "note": "place name with Umm mid-sentence (review D2h)"}
 {"id": "neg-286", "word": "Umm", "input": "Umm Kulthum sang on the radio.", "note": "name with Umm at a sentence start, before a capitalized word (review D2h)"}
+{"id": "neg-287", "word": "um", "input": "She said um and looked away.", "note": "noun sense, review D2j (2026-10-26): a pause word after a reporting verb is the word reported"}
+{"id": "neg-288", "word": "um", "input": "Had he really just said um?", "note": "noun sense, review D2j (2026-10-26): reported word before terminal punctuation"}
+{"id": "neg-289", "word": "um", "input": "She never said um.", "note": "noun sense, review D2j (2026-10-26): reported word at the sentence end"}
+{"id": "neg-290", "word": "um", "input": "He answered with an um and a shrug.", "note": "noun sense, review D2j (2026-10-26): after an, the pause word is a noun"}
+{"id": "neg-291", "word": "um", "input": "She hated his um more than his silence.", "note": "noun sense, review D2j (2026-10-26): after a possessive with no noun of its own"}
+{"id": "neg-292", "word": "uh", "input": "The baby went uh uh uh and stopped.", "note": "noun sense, review D2j (2026-10-26): a run reported after went"}
+{"id": "neg-293", "word": "uh oh", "input": "Uh oh, he thought.", "note": "idiom, review D2j (2026-10-26): interjection written with a space, sentence start"}
+{"id": "neg-294", "word": "uh oh", "input": "It was an uh oh moment.", "note": "idiom, review D2j (2026-10-26): interjection used as a modifier"}
+{"id": "neg-295", "word": "uh huh", "input": "Uh huh. That was all he said.", "note": "idiom, review D2j (2026-10-26): interjection written with a space"}
+{"id": "neg-296", "word": "uh huh", "input": "He said uh huh and kept walking.", "note": "idiom, review D2j (2026-10-26): interjection after a reporting verb"}
+{"id": "neg-297", "word": "uh oh", "input": "Uh, oh. The door.", "note": "idiom, review D2j (2026-10-26): interjection written with a comma, before a comma"}
+{"id": "neg-298", "word": "um hm", "input": "Um hm, she said nothing.", "note": "idiom, review D2j (2026-10-26): agreement written with a space, before a comma"}
+{"id": "neg-299", "word": "um", "input": "They called it “the um thing” for years.", "note": "emphasis markup, review D2j (2026-10-26): scare quotes are the author’s verbatim wording"}
+{"id": "neg-300", "word": "um", "input": "He wrote “I was um going” on the wall.", "note": "emphasis markup, review D2j (2026-10-26): quoted written text, not speech"}
+{"id": "neg-301", "word": "um", "input": "He said 'I was um going' and left.", "note": "dialogue, review D2j (2026-10-26): straight single-quoted speech mid-sentence"}
+{"id": "neg-302", "word": "um", "input": "She said, “I was going home and um the door was open.", "note": "dialogue, review D2j (2026-10-26): an opening quote that never closes is speech to the paragraph end"}
+{"id": "neg-303", "word": "um", "input": "“It’s fine,” she said. “I was going home and um the door was open.", "note": "dialogue, review D2j (2026-10-26): unclosed second quote in the paragraph"}
+{"id": "neg-304", "word": "um", "input": "“I was going home and um the door was open.\n\nShe left.", "note": "dialogue, review D2j (2026-10-26): unclosed quote followed by a narration paragraph"}
+{"id": "neg-305", "word": "um", "input": "—Um, I don't know, she said.", "note": "dialogue, review D2j (2026-10-26): a paragraph opening with an em dash is dialogue"}
+{"id": "neg-306", "word": "um", "input": "--Um, the door was open, he said.", "note": "dialogue, review D2j (2026-10-26): em dash typed as two hyphens"}
+{"id": "neg-307", "word": "Um", "input": "Um Kulthum sang.", "note": "name with single-m Um at a sentence start, before a capitalized word (review D2j): the name rule holds for any pause spelling"}
+{"id": "neg-308", "word": "new paragraph", "input": "She typed new paragraph and hit enter.", "note": "verb sense, review D2j (2026-10-26): a command word after a writing verb is a mention"}
+{"id": "neg-309", "word": "question mark", "input": "I said question mark to myself.", "note": "verb sense, review D2j (2026-10-26): a command word after a reporting verb is a mention"}
+{"id": "neg-310", "word": "quote", "input": "The words open quote appeared on the screen.", "note": "noun sense, review D2j (2026-10-26): a command phrase after words is a mention"}

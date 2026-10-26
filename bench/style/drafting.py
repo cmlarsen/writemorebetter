@@ -10,11 +10,12 @@ The report is called through the release `drafting_jsonl` example, which also ap
 `drafting::apply`. Fixtures are self-written; nothing from bench/corpus is read. The `--local-dir`
 mode reads the owner's drafts only when the owner names them and prints no text, titles or paths.
 
-`drafting_negatives.jsonl` holds ordinary prose that uses the command words as ordinary words
-(*Coma patients rarely wake up.*, *a dash of salt*), so the report must leave every line unchanged.
-Spoken commands are opt-in, so the negatives run twice, with `spokenCommands` off (the default) and
-on. Recall prints a row per mode and lists any line the report edits; `--gate` requires every line
-clean in both modes.
+`drafting_negatives.jsonl` holds ordinary prose that uses the command words and pause words as
+ordinary words (*Coma patients rarely wake up.*, *a dash of salt*, *She said um and looked away.*),
+so the report must find nothing in any line. Edits and spoken commands are offered only for
+dictated text, so the negatives run twice, in default (typed) mode and with `dictated`. Recall
+prints a row per mode and lists any line with a match; `--gate` requires every line silent in both
+modes, and also that default mode returns no edits for any fixture or negative.
 """
 import argparse
 from collections import Counter, defaultdict
@@ -84,11 +85,17 @@ def is_positive(fixture):
     return 'flags' in fixture or fixture['input'] != fixture['expected']
 
 
-NEGATIVE_MODES = (('commands off', {}), ('commands on', {'spokenCommands': True}))
+NEGATIVE_MODES = (('default', {}), ('dictated', {'dictated': True}))
+
+
+def typed(options):
+    """The same options for typed text: no `dictated`, so no `spokenCommands` either."""
+    return {key: value for key, value in options.items()
+            if key not in ('dictated', 'spokenCommands')}
 
 
 def negatives(probe):
-    """Ordinary prose that uses a command word as an ordinary word must not be edited."""
+    """Ordinary prose that uses a command or pause word as an ordinary word must not match."""
     with NEGATIVES.open(encoding='utf-8') as stream:
         rows = [json.loads(line) for line in stream if line.strip()]
     print('\n## Ordinary-prose negatives\n')
@@ -107,8 +114,8 @@ def negatives(probe):
                 'note': row['note'],
                 'input': row['input'],
                 'applied': result['applied'],
-                'clean': result['applied'] == row['input'],
                 'matches': len(result['report']['matches']),
+                'clean': result['applied'] == row['input'] and not result['report']['matches'],
             })
         total = len(scored)
         clean = sum(row['clean'] for row in scored)
@@ -122,8 +129,26 @@ def negatives(probe):
             print(f"\nFailing negatives, {name} ({len(found['failures'])}): "
                   + ', '.join(row['id'] for row in found['failures']))
     if not any(found['failures'] for found in modes.values()):
-        print('\nEvery negative is unchanged in both modes.')
+        print('\nEvery negative is silent in both modes.')
     return modes
+
+
+def typed_edits(probe, fixtures):
+    """Default (typed) mode never offers an edit, on any fixture or negative."""
+    with NEGATIVES.open(encoding='utf-8') as stream:
+        rows = [json.loads(line) for line in stream if line.strip()]
+    items = [{'id': fixture['id'], 'text': fixture['input'],
+              'options': typed(fixture.get('options', {}))} for fixture in fixtures]
+    items += [{'id': row['id'], 'text': row['input'], 'options': {}} for row in rows]
+    results = report(probe, items)
+    edited = [item['id'] for item in items
+              if any(match['edits'] for match in results[item['id']]['report']['matches'])]
+    print('\n## Default mode\n')
+    print(f'{len(items)} fixtures and negatives without `dictated`: '
+          f'{len(edited)} with edits.')
+    if edited:
+        print('Edited in default mode: ' + ', '.join(edited))
+    return {'total': len(items), 'edited': edited}
 
 
 def recall(probe):
@@ -205,6 +230,7 @@ def recall(probe):
         print('Failing fixtures:', ', '.join(row['id'] for row in summary['failures']))
 
     summary['negatives'] = negatives(probe)
+    summary['typed'] = typed_edits(probe, fixtures)
 
     OUT.mkdir(parents=True, exist_ok=True)
     (OUT / 'recall.json').write_text(json.dumps(summary, indent=2) + '\n', encoding='utf-8')
@@ -229,11 +255,14 @@ def check_gate(summary):
         if negative_rate < negative_minimum:
             failures.append(f"negatives, {name}: {found['clean']}/{found['total']} clean, "
                             f'needs {negative_minimum:.3f}')
+    edited = (summary.get('typed') or {}).get('edited', [])
+    if edited:
+        failures.append(f'default mode: {len(edited)} inputs with edits')
     if failures:
         print('\nGate failed: ' + '; '.join(failures))
         return 1
-    print('\nGate passed: category recall, controls and negatives in both command modes meet '
-          'drafting-baseline.json.')
+    print('\nGate passed: category recall, controls, negatives in default and dictated mode, and '
+          'no edits in default mode meet drafting-baseline.json.')
     return 0
 
 
@@ -248,7 +277,20 @@ def precision(probe, books=True, sample_size=SAMPLE, seed=SEED):
     documents = list(published()) if books else [
         (name, (ROOT / 'bench/public' / f'{name}.txt').read_text(encoding='utf-8'))
         for name in PUBLIC]
-    results = report(probe, [{'id': name, 'text': text} for name, text in documents])
+    summary = {}
+    OUT.mkdir(parents=True, exist_ok=True)
+    for name, options in NEGATIVE_MODES:
+        print(f'## Precision on published text, {name} mode\n')
+        summary[name] = precision_mode(probe, documents, options, sample_size, seed,
+                                       sample=not options)
+        print()
+    (OUT / 'precision.json').write_text(json.dumps(summary, indent=2) + '\n', encoding='utf-8')
+    return summary
+
+
+def precision_mode(probe, documents, options, sample_size, seed, sample):
+    results = report(probe, [{'id': name, 'text': text, 'options': options}
+                             for name, text in documents])
 
     counts = {category: Counter() for category in CATEGORIES}
     edited = {category: Counter() for category in CATEGORIES}
@@ -281,7 +323,6 @@ def precision(probe, books=True, sample_size=SAMPLE, seed=SEED):
                 'span': match['span'],
             })
 
-    print('## Precision on published text\n')
     print(f'{len(documents)} documents, {words["all"]} words.')
     print('\n| Category | Mode | Matches | With edits | Words | per 1,000 |')
     print('|---|---|---:|---:|---:|---:|')
@@ -295,21 +336,23 @@ def precision(probe, books=True, sample_size=SAMPLE, seed=SEED):
     edits = sum(edited[category]['all'] for category in CATEGORIES)
     print(f'\n{edits} matches with edits in published text.')
 
-    rng = random.Random(seed)
-    pools = {category: list(sampled[category]) for category in CATEGORIES}
-    for pool in pools.values():
-        rng.shuffle(pool)
-    while len(samples) < sample_size and any(pools.values()):
-        for category in CATEGORIES:
-            if pools[category] and len(samples) < sample_size:
-                samples.append(pools[category].pop())
-    OUT.mkdir(parents=True, exist_ok=True)
-    write_jsonl(OUT / 'sample.jsonl', samples)
-    per_category = Counter(row['category'] for row in samples)
-    print(f"\nWrote {len(samples)} seeded matches (seed {seed}) to "
-          f"`bench/style/out/drafting/sample.jsonl` for hand judgment"
-          + (': ' + ', '.join(f'{category} {per_category[category]}' for category in CATEGORIES)
-             if samples else '.'))
+    per_category = Counter()
+    if sample:
+        rng = random.Random(seed)
+        pools = {category: list(sampled[category]) for category in CATEGORIES}
+        for pool in pools.values():
+            rng.shuffle(pool)
+        while len(samples) < sample_size and any(pools.values()):
+            for category in CATEGORIES:
+                if pools[category] and len(samples) < sample_size:
+                    samples.append(pools[category].pop())
+        OUT.mkdir(parents=True, exist_ok=True)
+        write_jsonl(OUT / 'sample.jsonl', samples)
+        per_category = Counter(row['category'] for row in samples)
+        print(f"\nWrote {len(samples)} seeded matches (seed {seed}) to "
+              f"`bench/style/out/drafting/sample.jsonl` for hand judgment"
+              + (': ' + ', '.join(f'{category} {per_category[category]}'
+                                  for category in CATEGORIES) if samples else '.'))
 
     summary = {
         'documents': len(documents),
@@ -324,8 +367,8 @@ def precision(probe, books=True, sample_size=SAMPLE, seed=SEED):
             } for category in CATEGORIES
         },
         'sample': {'seed': seed, 'size': len(samples), 'categories': dict(per_category)},
+        'edits': edits,
     }
-    (OUT / 'precision.json').write_text(json.dumps(summary, indent=2) + '\n', encoding='utf-8')
     return summary
 
 

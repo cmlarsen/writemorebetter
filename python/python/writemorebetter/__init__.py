@@ -401,6 +401,10 @@ class StyleDocument:
         return self._report("alliteration", options)
 
     def drafting(self, options: Options = None) -> dict:
+        """Drafting leftovers. Typed text is flag only; ``{"dictated": True}`` marks text the
+        host knows came from speech-to-text and turns on edits and spoken commands.
+        ``spokenCommands`` (or ``spoken_commands``) follows ``dictated`` when unset, and ``True``
+        without ``dictated`` raises ``StyleError``."""
         return self._report("drafting", options)
 
     def vague_words(self, options: Options = None) -> dict:

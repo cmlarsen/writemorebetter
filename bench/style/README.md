@@ -1321,79 +1321,70 @@ calls the actual report. The example also applies every returned edit with `draf
 harness compares the text a host would get, not just spans. It reads `storage/en_tokenizer.bin` and
 needs no Python packages beyond the standard library.
 
-`drafting_fixtures.jsonl` holds 197 project-authored sentences: each line is
+`drafting_fixtures.jsonl` holds 342 project-authored sentences: each line is
 `{id, style, category, input, expected}` with optional `flags`, `options` and `note`. `style` is
 `dragon` (kept filled pauses, inconsistent capitalization), `apple` (light punctuation, commands
 typed as words) or `whisper` (well punctuated, literal command words and deliberate repeats);
-`category` is `placeholder`, `filledPause` or `spokenCommand`. Placeholders and case commands are
-flag only, so their `expected` equals `input` and `flags` lists the expected terms. `options` carries
-`includeDialogue` where the deletion table needs it. A negative has `expected == input`, no `flags`,
-and must produce no matches at all. The set covers every row of the deletion worked-case table and
-the command table in [STYLE-DRAFTING.md](../../docs/STYLE-DRAFTING.md), the noun-guard negatives,
-dialogue skipping, and curly quotes/apostrophes, em dashes, ellipses and U+2028 (plus straight
-variants). Fifty-six of the 197 are negatives.
+`category` is `placeholder`, `filledPause` or `spokenCommand`. Edits are offered only for dictated
+text, so every fixture with an edit, and every command fixture with a match, sets
+`"options": {"dictated": true}` (172 of the 342); the rest run in default (typed) mode, where the
+expected text is the input and `flags` lists the expected terms. `options` also carries
+`includeDialogue` where needed. A fixture with `expected == input` and no `flags` must produce no
+matches at all. The set covers every row of the deletion worked-case table and the command table in
+[STYLE-DRAFTING.md](../../docs/STYLE-DRAFTING.md), the noun-guard negatives, dialogue skipping, each
+review round's inputs, and curly quotes/apostrophes, em dashes, ellipses and U+2028 (plus straight
+variants). Expected values are worked out from the rules, never copied from the report; a fixture
+whose expectation changed with a decision carries a `note` citing it and the old value.
 
-`drafting_negatives.jsonl` (283 rows) is a separate precision set: ordinary prose that merely
-contains a command word. Each line is `{id, word, input, note}`; `word` is the trigger, `input` is
-the sentence or short paragraph, and `note` records how the word is used (sentence start, dialogue,
-after an adjective, before a comma, medical sense, stage direction, Roman numeral, and so on). The
-report must return every `input` unchanged. The set covers each command in the table in
-[STYLE-DRAFTING.md](../../docs/STYLE-DRAFTING.md) at least eight times: comma, coma, period, full stop, colon, semicolon, dash, hyphen, ellipsis, apostrophe,
-question mark, quote, unquote, bracket, new line, next line, new paragraph, and
-scratch/delete/strike/undo that followed by an object noun. It also holds the exclamation marks,
-paren/parenthesis, caps and all caps, the interjection compounds (uh-huh, uh–huh, um-hm), `“Um.”` as
-a whole quoted line, `*um*` in emphasis markup, `um.edu`, TK inside names, XX inside sizes and
-karyotypes, XXX as a Roman numeral, bracketed stage directions, and the medical, typographic and
-idiomatic senses (sigmoid colon, Oxford comma, the Jurassic period, a dash of salt, made a dash for
-it, I have to dash). More than 30 rows use curly quotes and apostrophes, em dashes, ellipses or
-U+2028.
+`drafting_negatives.jsonl` (310 rows) is a separate precision set: ordinary prose that merely
+contains a command word or a pause word. Each line is `{id, word, input, note}`; `word` is the
+trigger, `input` is the sentence or short paragraph, and `note` records how the word is used
+(sentence start, dialogue, after an adjective, before a comma, medical sense, stage direction, Roman
+numeral, and so on). The report must find nothing in any `input`, in default mode and with
+`dictated`. The set covers each command in the table in
+[STYLE-DRAFTING.md](../../docs/STYLE-DRAFTING.md) at least eight times: comma, coma, period, full
+stop, colon, semicolon, dash, hyphen, ellipsis, apostrophe, question mark, quote, unquote, bracket,
+new line, next line, new paragraph, and scratch/delete/strike/undo that followed by an object noun.
+It also holds the exclamation marks, paren/parenthesis, caps and all caps, the interjection compounds
+(uh-huh, uh–huh, um-hm, uh oh, uh huh, um hm), `“Um.”` as a whole quoted line, `*um*` in emphasis
+markup, `um.edu`, pause words reported or used as nouns (*She said um*, *an um*), quoted and
+unclosed-quote and em-dash dialogue, names (*Um Kulthum*, *Umm Qasr*), command words after a
+reporting verb (*I said question mark to myself*), TK inside names, XX inside sizes and karyotypes,
+XXX as a Roman numeral, bracketed stage directions, and the medical, typographic and idiomatic
+senses (sigmoid colon, Oxford comma, the Jurassic period, a dash of salt, made a dash for it, I
+have to dash). More than 30 rows use curly quotes and apostrophes, em dashes, ellipses or U+2028.
 
-`drafting.py` prints an `ordinary-prose negatives` table with a `negatives` row (clean versus
-total, plus how many raised any match) and lists every failing id; `--failures N` also prints each
-failure's input and the text its edits produced. `--gate` requires all rows clean, through
-`minimumNegativeRate` 1.0 in `drafting-baseline.json`. Measured at this commit, 209 of 283 are clean
-and 74 fail: the report still turns `Comma placement obsessed him that winter.` into
-`, placement obsessed him that winter.`, edits `wanted to delete that sentence`, deletes `uh` from
-`uh–huh`, strips `um` out of `*um*` and `um.edu`, and so on. Those 74 are the precision bug the fix
-branch addresses; their `input` must not be changed to match current output. `test_drafting.py`
-checks the file's shape, word and sense coverage and typography, and tolerates a `--gate` failure
-only when the negative rate is the sole failing reason.
+`drafting.py` prints an `ordinary-prose negatives` table with a row per mode (`default`,
+`dictated`: silent versus total, plus how many raised any match) and lists every failing id, then a
+`Default mode` line counting fixtures and negatives that got any edit without `dictated`;
+`--failures N` also prints each failure's input and the text its edits produced. `--gate` requires
+every category's recall at its threshold in `drafting-baseline.json` (all 1.0), the clean-control
+rate, every negative silent in both modes (`minimumNegativeRate` 1.0), and no edit in default mode.
+`test_drafting.py` checks the files' shape, word and sense coverage, typography and options, and
+runs the gate.
 
-The first 148 fixtures were the original table coverage. The last 49 (added after the D4 review) are
-independent cleanup edge cases worked out from the deletion rules rather than from the current
-report: adjacent pauses, comma-plus-ellipsis and comma-plus-dash shapes, orphan punctuation before a
-pause, discourse-word comma pairs, Apple- and Whisper-style filler, curly/straight typography, U+2028
-separators, case-insensitive `[Name]` notes, `Chapter XXX` as a numeral, quoted mentions, and
-commands next to pauses (`um comma`, `comma um`). Where the doc does not settle a shape, the fixture
-carries a `note` giving the reasoning. Several are expected to fail until the cleanup fixes merge;
-their expected text must not be changed to match current behavior.
-
-The recall table is exact equality per category and style. Measured at this commit:
+Measured on 2026-10-26 (review D2j):
 
 | Category | Positives | Caught | Controls clean |
 |---|---:|---:|---:|
-| `placeholder` | 22 | 21 | 19 / 20 |
-| `filledPause` | 72 | 46 | 13 / 16 |
-| `spokenCommand` | 47 | 0 | 20 / 20 |
-| all | 141 | 67 | 52 / 56 |
+| `placeholder` | 22 | 22 | 21 / 21 |
+| `filledPause` | 160 | 160 | 24 / 24 |
+| `spokenCommand` | 51 | 51 | 64 / 64 |
+| all | 233 | 233 | 109 / 109 |
 
-`spokenCommand` is expected to fail until the spoken-command branch merges; its 47 positives and 20
-guards are already written. `drafting-baseline.json` records the currently lower gate thresholds
-(`placeholder` 0.95, `filledPause` 0.60, `spokenCommand` 0.0) and `minimumControlRate` 0.90, so the
-gate still catches regressions while the known cleanup bugs remain. Raise every threshold to the
-measured value after the cleanup fixes merge. `--gate` still prints the tables, then says `Gate
-passed` or lists the category that fell below its threshold. JSON summaries go to ignored
-`out/drafting/`.
+All 310 negatives are silent in both modes, and the 652 fixtures and negatives run without
+`dictated` return no edits. JSON summaries go to ignored `out/drafting/`.
 
-`--precision` runs defaults over `story1`–`story5`, `moby150k` and the 13 public-domain books and
-chapters in `sources.json` (the same loader pacing and vague/hidden verbs use), printing matches,
-words and matches per 1,000 words per category and mode. On 2026-10-26 that was 19 documents and
-871,778 words (581,826 narration, 289,952 dialogue) with **0 matches in every category** and
-therefore 0.000 per 1,000 words. That is the expected result for published fiction, but it also means
-the sample is empty: the seeded sample of 50 (`--sample 50`, `--seed 376`) is written to
-`out/drafting/sample.jsonl` whenever matches exist, with a short context window and the exact
-`match` text for hand judgment. Judging any hit on published fiction is therefore judging a false
-positive; a category below 0.95 precision should ship off by default, as the design doc requires.
+`--precision` runs `story1`–`story5`, `moby150k` and the 13 public-domain books and chapters in
+`sources.json` (the same loader pacing and vague/hidden verbs use) twice, in default mode and with
+`dictated`, printing matches, matches with edits, words and matches per 1,000 words per category
+and mode. On 2026-10-26 (review D2j) that was 19 documents and 871,778 words with **0 matches in
+every category in both modes**, so 0 matches with edits. That is the expected result for published
+fiction, but it also means the sample is empty: the seeded sample of 50 (`--sample 50`,
+`--seed 376`) from the default-mode run is written to `out/drafting/sample.jsonl` whenever matches
+exist, with a short context window and the exact `match` text for hand judgment. Judging any hit on
+published fiction is therefore judging a false positive; a category below 0.95 precision should ship
+off by default, as the design doc requires.
 
 ### Owner-only private draft
 

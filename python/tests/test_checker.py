@@ -482,9 +482,14 @@ def test_drafting(checker):
     result = document.drafting()
     assert [m["term"] for m in result["matches"]] == ["um", "TK"]
     assert result["matches"][0]["span"] == {"start": 3, "end": 5}
+    # Typed text is flag only; edits are offered only for dictated text.
+    assert all(m["edits"] == [] for m in result["matches"])
+    assert document.drafting({"dictated": True})["matches"][0]["edits"][0]["replacement"] == "T"
     with pytest.raises(StyleError):
         document.drafting({"restarts": True})
     spoken = checker.style_document("She said comma he left")
-    # Spoken commands are opt-in, for text the host knows came from dictation.
     assert spoken.drafting()["matches"] == []
-    assert spoken.drafting({"spokenCommands": True})["matches"][0]["category"] == "spokenCommand"
+    assert spoken.drafting({"dictated": True})["matches"][0]["category"] == "spokenCommand"
+    assert spoken.drafting({"dictated": True, "spoken_commands": False})["matches"] == []
+    with pytest.raises(StyleError):
+        spoken.drafting({"spokenCommands": True})

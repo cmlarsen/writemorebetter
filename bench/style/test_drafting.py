@@ -11,7 +11,7 @@ NEGATIVE_FILE = HERE / 'drafting_negatives.jsonl'
 BASELINE = HERE / 'drafting-baseline.json'
 CATEGORIES = {'placeholder', 'filledPause', 'spokenCommand'}
 STYLES = {'dragon', 'apple', 'whisper'}
-OPTIONS = {'placeholders', 'spokenCommands', 'filledPauses', 'er', 'includeDialogue'}
+OPTIONS = {'placeholders', 'dictated', 'spokenCommands', 'filledPauses', 'er', 'includeDialogue'}
 # Every row of the spoken-command table in docs/STYLE-DRAFTING.md.
 COMMANDS = (
     'comma', 'coma', 'period', 'full stop', 'question mark', 'exclamation point',
@@ -28,7 +28,8 @@ DELETIONS = (
     'I was… um… thinking', 'Um, the door', 'Um… the door', 'He left um.', 'He left um”',
     '“I was, um,” she said', '“Um, I don’t know.”', 'the um\u2028next',
     'He waited um\nThen', '“Um.”', 'He left at 3 p.m. um the door was open.',
-    '“Why?” um, she asked.',
+    '“Why?” um, she asked.', 'No, um, one came to the door.', 'Why? um, she wondered.',
+    'Um, iPhone sales were down.', 'What now? Um, the door was open.',
 )
 NEGATIVES = (
     'Chapter XX', 'The atkins diet is popular.', 'The ledger said [sic] in the margin.',
@@ -103,11 +104,17 @@ class FixtureTest(unittest.TestCase):
         for mark in ('“', '”', '’', '—', '…', '\u2028', '--', '...', '"'):
             self.assertIn(mark, text, mark)
 
-    def test_spoken_commands_opt_in(self):
-        # Spoken commands are off by default, so every command fixture turns them on.
+    def test_edits_only_for_dictated_text(self):
+        # Edits and spoken commands need `dictated`: every fixture with an edit, and every
+        # command fixture with a match, sets it; a default-mode fixture expects its input back.
         for row in self.rows:
-            if row['category'] == 'spokenCommand':
-                self.assertIs(row.get('options', {}).get('spokenCommands'), True, row['id'])
+            options = row.get('options', {})
+            self.assertNotIn('spokenCommands', options, row['id'])
+            if row['input'] != row['expected'] or (
+                    row['category'] == 'spokenCommand' and 'flags' in row):
+                self.assertIs(options.get('dictated'), True, row['id'])
+        typed = [row for row in self.rows if not row.get('options', {}).get('dictated')]
+        self.assertTrue(any('flags' in row and row['category'] == 'filledPause' for row in typed))
 
     def test_command_and_deletion_tables(self):
         inputs = {row['input'] for row in self.rows}
@@ -184,9 +191,10 @@ class BaselineTest(unittest.TestCase):
         result = subprocess.run([sys.executable, str(HERE / 'drafting.py'), '--gate'],
                                 cwd=HERE, capture_output=True, text=True)
         output = result.stdout + result.stderr
-        self.assertIn('| negatives, commands off |', output)
-        self.assertIn('| negatives, commands on |', output)
-        self.assertIn('Every negative is unchanged in both modes.', output)
+        self.assertIn('| negatives, default |', output)
+        self.assertIn('| negatives, dictated |', output)
+        self.assertIn('Every negative is silent in both modes.', output)
+        self.assertRegex(output, r'without `dictated`: 0 with edits\.')
         self.assertEqual(result.returncode, 0, output)
 
 if __name__ == '__main__':

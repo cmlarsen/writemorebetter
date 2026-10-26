@@ -7,8 +7,19 @@ fn tokenizer() -> &'static Arc<Tokenizer> {
     static TOKENIZER: OnceLock<Arc<Tokenizer>> = OnceLock::new();
     TOKENIZER.get_or_init(|| Arc::new(Tokenizer::new("../storage/en_tokenizer.bin").unwrap()))
 }
+/// The report for `text`, after checking that the same options for typed text (no `dictated`)
+/// return no edits at all.
 fn report(text: &str, options: DraftingOptions) -> drafting::DraftingReport {
     let document = analyze_document(tokenizer(), text, &DocumentOptions::new());
+    let mut typed = options.clone();
+    typed.dictated = false;
+    typed.spoken_commands = None;
+    let flags = drafting::report(&document, &typed).unwrap();
+    assert!(
+        flags.matches.iter().all(|m| m.edits.is_empty()),
+        "{text:?} typed: {:?}",
+        flags.matches
+    );
     drafting::report(&document, &options).unwrap()
 }
 fn applied(text: &str, options: DraftingOptions) -> String {
@@ -22,13 +33,12 @@ fn applied(text: &str, options: DraftingOptions) -> String {
             .collect::<Vec<_>>(),
     )
 }
+/// Text the host knows came from dictation: edits and spoken commands on.
 fn spoken() -> DraftingOptions {
-    let mut options = DraftingOptions::new();
-    options.spoken_commands = true;
-    options
+    DraftingOptions::dictated()
 }
 fn dialogue() -> DraftingOptions {
-    let mut options = DraftingOptions::new();
+    let mut options = DraftingOptions::dictated();
     options.include_dialogue = true;
     options
 }
@@ -117,13 +127,13 @@ fn pattern_a_spaces_on_both_sides() {
             ("we walked um uh to the river", "we walked to the river"),
             ("He left.\u{2028}So um I was", "He left.\u{2028}So I was"),
         ],
-        DraftingOptions::new(),
+        spoken(),
     );
     assert_edits(
         &[("“He left um!” she said", "“He left!” she said")],
         dialogue(),
     );
-    let result = report("So um I was", DraftingOptions::new());
+    let result = report("So um I was", spoken());
     assert_eq!(result.matches[0].edits.len(), 1);
     assert_eq!(result.matches[0].edits[0].replacement, "");
 }
@@ -139,7 +149,7 @@ fn pattern_b_sentence_start() {
             ("Um, I don’t know", "I don’t know"),
             ("Um, ßeta", "ßeta"),
         ],
-        DraftingOptions::new(),
+        spoken(),
     );
     assert_edits(
         &[
@@ -151,7 +161,7 @@ fn pattern_b_sentence_start() {
         ],
         dialogue(),
     );
-    let result = report("Um, the door", DraftingOptions::new());
+    let result = report("Um, the door", spoken());
     assert_eq!(result.matches[0].edits[0].replacement, "T");
 }
 
@@ -166,7 +176,7 @@ fn pattern_c_discourse_comma_pair() {
             ),
             ("Yes, um, I know—", "Yes, I know—"),
         ],
-        DraftingOptions::new(),
+        spoken(),
     );
     assert_edits(
         &[("“Oh, um, it’s you,” she said.", "“Oh, it’s you,” she said.")],
@@ -229,7 +239,7 @@ fn flag_only_contexts() {
             "The cat um, uh, sat",
             "The cat um, uh sat down.",
             "The cat um—uh sat down.",
-            "He said um… uh the door was open.",
+            "He paused um… uh the door was open.",
             "um, uh, the door",
             "He left. Uh. Um. Then",
             // U+2028 and paragraph ends.
@@ -249,9 +259,35 @@ fn flag_only_contexts() {
 }
 
 #[test]
-fn spoken_commands_are_opt_in() {
-    assert!(!DraftingOptions::new().spoken_commands);
-    assert!(!DraftingOptions::default().spoken_commands);
+fn edits_and_commands_only_for_dictated_text() {
+    assert!(!DraftingOptions::new().dictated);
+    assert!(!DraftingOptions::new().commands());
+    assert!(DraftingOptions::dictated().commands());
+    let mut off = DraftingOptions::dictated();
+    off.spoken_commands = Some(false);
+    assert!(!off.commands());
+    assert!(report("She said comma he left", off).matches.is_empty());
+    // Typed text: the pause is flagged with no edit.
+    let typed = report("So um I was", DraftingOptions::new());
+    assert_eq!(typed.matches.len(), 1);
+    assert!(typed.matches[0].edits.is_empty());
+    // `spokenCommands: true` without `dictated` is rejected: `dictated` is the one way to edits.
+    let document = analyze_document(
+        tokenizer(),
+        "She said comma he left",
+        &DocumentOptions::new(),
+    );
+    let mut invalid = DraftingOptions::new();
+    invalid.spoken_commands = Some(true);
+    assert!(matches!(
+        drafting::report(&document, &invalid),
+        Err(writemorebetter_style::StyleError::InvalidOptions { .. })
+    ));
+    let parsed: DraftingOptions = serde_json::from_str(r#"{"dictated":true}"#).unwrap();
+    assert!(parsed.dictated && parsed.commands());
+    let aliased: DraftingOptions =
+        serde_json::from_str(r#"{"dictated":true,"spoken_commands":false}"#).unwrap();
+    assert!(!aliased.commands());
     for text in [
         "She said comma he left",
         "she left period new paragraph the next day",
@@ -288,8 +324,11 @@ fn cluster_subsets_apply_cleanly() {
     for (source, expected) in [
         ("We bought milk um comma eggs", "We bought milk, eggs"),
         ("We bought milk comma um eggs", "We bought milk, eggs"),
-        ("He said um period Then left", "He said. Then left"),
-        ("I said uh question mark then left.", "I said? Then left."),
+        ("He paused um period Then left", "He paused. Then left"),
+        (
+            "I paused uh question mark then left.",
+            "I paused? Then left.",
+        ),
         (
             "she left period new paragraph the next day",
             "she left.\nThe next day",
@@ -299,8 +338,8 @@ fn cluster_subsets_apply_cleanly() {
             "she said “I’m fine.” and left",
         ),
         (
-            "She said uh open quote hello close quote and left.",
-            "She said “hello” and left.",
+            "She turned uh open quote hello close quote and left.",
+            "She turned “hello” and left.",
         ),
         ("it was red dash um dash blue", "it was red—blue"),
         (
@@ -428,7 +467,7 @@ fn guards_and_options() {
 #[test]
 fn utf16_spans() {
     let text = "😀. Um, the door";
-    let result = report(text, DraftingOptions::new());
+    let result = report(text, spoken());
     let json: serde_json::Value =
         serde_json::from_str(&writemorebetter_style::reports::to_utf16_json(&result)).unwrap();
     assert_eq!(
@@ -494,10 +533,15 @@ fn spoken_command_table() {
             "She said… he left",
             "dot dot dot",
         ),
-        ("She said open quote hello", "She said “hello", "open quote"),
+        // A lone opening mark is flag only, so each opening command closes too.
         (
-            "She said begin quote hello",
-            "She said “hello",
+            "She said open quote hello close quote",
+            "She said “hello”",
+            "open quote",
+        ),
+        (
+            "She said begin quote hello end quote",
+            "She said “hello”",
             "begin quote",
         ),
         (
@@ -512,8 +556,8 @@ fn spoken_command_table() {
             "unquote",
         ),
         (
-            "She said open single quote hello",
-            "She said ‘hello",
+            "She said open single quote hello close single quote",
+            "She said ‘hello’",
             "open single quote",
         ),
         (
@@ -521,10 +565,14 @@ fn spoken_command_table() {
             "hello’ she said",
             "close single quote",
         ),
-        ("She said open paren hello", "She said (hello", "open paren"),
         (
-            "She said open parenthesis hello",
-            "She said (hello",
+            "She said open paren hello close paren",
+            "She said (hello)",
+            "open paren",
+        ),
+        (
+            "She said open parenthesis hello close parenthesis",
+            "She said (hello)",
             "open parenthesis",
         ),
         (
@@ -538,8 +586,8 @@ fn spoken_command_table() {
             "close parenthesis",
         ),
         (
-            "She said open bracket hello",
-            "She said [hello",
+            "She said open bracket hello close bracket",
+            "She said [hello]",
             "open bracket",
         ),
         (
@@ -547,7 +595,7 @@ fn spoken_command_table() {
             "hello] she said",
             "close bracket",
         ),
-        ("She typed apostrophe", "She typed’", "apostrophe"),
+        ("She stopped apostrophe", "She stopped’", "apostrophe"),
         (
             "She left new paragraph He returned",
             "She left\nHe returned",
@@ -584,23 +632,23 @@ fn spoken_command_table() {
             "undo that",
         ),
         (
-            "She said caps on then spoke",
-            "She said caps on then spoke",
+            "She stopped caps on then spoke",
+            "She stopped caps on then spoke",
             "caps on",
         ),
         (
-            "She said caps off then spoke",
-            "She said caps off then spoke",
+            "She stopped caps off then spoke",
+            "She stopped caps off then spoke",
             "caps off",
         ),
         (
-            "She said all caps then spoke",
-            "She said all caps then spoke",
+            "She stopped all caps then spoke",
+            "She stopped all caps then spoke",
             "all caps",
         ),
         (
-            "She said no caps then spoke",
-            "She said no caps then spoke",
+            "She stopped no caps then spoke",
+            "She stopped no caps then spoke",
             "no caps",
         ),
     ] {
@@ -746,30 +794,34 @@ fn commands_marks_speech_and_overlap() {
 #[test]
 fn command_mark_majority_and_tie() {
     for (source, term, replacement) in [
-        ("She said open quote hello", "open quote", "“"),
+        ("She said open quote hello close quote", "open quote", "“"),
         (
-            "“One,” she said. “Two,” he said. She said open quote hello",
+            "“One,” she said. “Two,” he said. She said open quote hello close quote",
             "open quote",
             "“",
         ),
         (
-            "\"One,\" she said. \"Two,\" he said. She said open quote hello",
+            "\"One,\" she said. \"Two,\" he said. She said open quote hello close quote",
             "open quote",
             "\"",
         ),
         (
-            "“One” and \"Two\". She said open quote hello",
+            "“One” and \"Two\". She said open quote hello close quote",
             "open quote",
             "“",
         ),
-        ("She said open single quote hello", "open single quote", "‘"),
         (
-            "‘One,’ she said. ‘Two,’ he said. She said open single quote hello",
+            "She said open single quote hello close single quote",
             "open single quote",
             "‘",
         ),
         (
-            "'One,' she said. 'Two,' he said. She said open single quote hello",
+            "‘One,’ she said. ‘Two,’ he said. She said open single quote hello close single quote",
+            "open single quote",
+            "‘",
+        ),
+        (
+            "'One,' she said. 'Two,' he said. She said open single quote hello close single quote",
             "open single quote",
             "'",
         ),
@@ -820,10 +872,11 @@ fn dictated_quote_pair_and_options() {
         .matches
         .iter()
         .any(|m| m.category == DraftingCategory::FilledPause));
+    // A lone opening quote would insert an unmatched mark, so it is flag only.
     assert!(unpaired_report
         .matches
         .iter()
-        .any(|m| m.term == "open quote" && !m.edits.is_empty()));
+        .any(|m| m.term == "open quote" && m.edits.is_empty()));
     assert!(!report(paired, DraftingOptions::new())
         .matches
         .iter()
@@ -859,8 +912,8 @@ fn spoken_commands_keep_utf8_context() {
             "She waited\u{2028}then said, he left",
         ),
         (
-            "She waited\u{2028}then said um comma he left",
-            "She waited\u{2028}then said, he left",
+            "She waited\u{2028}then paused um comma he left",
+            "She waited\u{2028}then paused, he left",
         ),
     ] {
         assert_eq!(applied(source, spoken()), expected, "{source:?}");
@@ -869,20 +922,19 @@ fn spoken_commands_keep_utf8_context() {
 
 #[test]
 fn pauses_beside_command_words() {
-    // With commands on, guards keep these words as prose and only the pause goes.
-    for options in [DraftingOptions::new(), spoken()] {
-        assert_cases(
-            &[
-                ("It was um period furniture.", "It was period furniture."),
-                (
-                    "We had um no caps on the bottles.",
-                    "We had no caps on the bottles.",
-                ),
-                ("She liked um dash and verve.", "She liked dash and verve."),
-            ],
-            options,
-        );
-    }
+    // Guards keep these words as prose and only the pause goes. In typed text, `report` checks
+    // that nothing is edited.
+    assert_cases(
+        &[
+            ("It was um period furniture.", "It was period furniture."),
+            (
+                "We had um no caps on the bottles.",
+                "We had no caps on the bottles.",
+            ),
+            ("She liked um dash and verve.", "She liked dash and verve."),
+        ],
+        spoken(),
+    );
 }
 
 /// Review D2h: sentence starts come from the tokenizer, capitalized pause words mid-sentence are
@@ -942,22 +994,14 @@ fn review_d2h_sentence_starts_names_and_clusters() {
     flag_only("he left period close paren period then");
     flag_only("he left period\u{2028}period the door");
     flag_only("he left period\u{2028}um the door");
-    // Only the opening quote, a cluster of its own, keeps an edit.
-    let result = report("open quote fine period close quote comma he said", spoken());
-    assert_eq!(
-        result
-            .matches
-            .iter()
-            .filter(|m| !m.edits.is_empty())
-            .map(|m| m.term.as_str())
-            .collect::<Vec<_>>(),
-        ["open quote"]
-    );
+    // The close quote's cluster is flag only, so its opening quote is too (D2j): a pair is
+    // edited together or not at all.
+    flag_only("open quote fine period close quote comma he said");
     for (text, command, expected) in [
         (
-            "he said uh question mark then left",
+            "he paused uh question mark then left",
             "question mark",
-            "he said? Then left",
+            "he paused? Then left",
         ),
         ("milk um comma eggs", "comma", "milk, eggs"),
     ] {
@@ -972,4 +1016,166 @@ fn review_d2h_sentence_starts_names_and_clusters() {
         }
         assert_eq!(applied(text, spoken()), expected);
     }
+}
+
+/// No match at all, in every typographic variant.
+fn assert_silent(cases: &[&str], options: DraftingOptions) {
+    for source in cases {
+        for (source, _) in variants(source, source) {
+            let result = report(&source, options.clone());
+            assert!(
+                result.matches.is_empty(),
+                "{source:?}: {:?}",
+                result.matches
+            );
+        }
+    }
+}
+
+/// Review D2j: edits only for dictated text, quote pairs edited together, and the flag
+/// precision guards, which hold in both modes.
+#[test]
+fn review_d2j_flag_precision() {
+    let words = [
+        // Interjections written with a space or a comma.
+        "Uh oh, he thought.",
+        "It was an uh oh moment.",
+        "Uh huh. That was all he said.",
+        "He said uh huh and kept walking.",
+        "Uh, oh. The door.",
+        "UH OH, he thought.",
+        "Um hm, she said nothing.",
+        // Reported, or a noun after an article or possessive.
+        "She said um and looked away.",
+        "Had he really just said um?",
+        "She never said um.",
+        "He answered with an um and a shrug.",
+        "She hated his um more than his silence.",
+        "She hated Mary’s um more than her silence.",
+        "The baby went uh uh uh and stopped.",
+        "He said um—uh—no.",
+        // Names, whatever the pause spelling.
+        "Um Kulthum sang.",
+        "Umm Kulthum sang.",
+        // Quoted words, speech or not, and the report's own speech rule.
+        "They called it “the um thing” for years.",
+        "He wrote “I was um going” on the wall.",
+        "He said 'I was um going' and left.",
+        "She said, “I was going home and um the door was open.",
+        "“It’s fine,” she said. “I was going home and um the door was open.",
+        "“I was going home and um the door was open.\n\nShe left.",
+        "—Um, I don’t know, she said.",
+        "—um… I don’t know, she said.",
+    ];
+    for options in [DraftingOptions::new(), spoken()] {
+        assert_silent(&words, options);
+    }
+    // With includeDialogue, quoted and dash-dialogue pauses are reported, flag only.
+    assert_flag_only(
+        &[
+            "They called it “the um thing” for years.",
+            "She said, “I was going home and um the door was open.",
+            "—Um, I don’t know, she said.",
+        ],
+        dialogue(),
+    );
+    // Flag only in dictated text: discourse words that can start the next phrase, a lowercase
+    // pause after an unquoted ? or !, camel-cased words, and a pause after a pause.
+    assert_flag_only(
+        &[
+            "No, um, one came to the door.",
+            "So, um, much for that idea.",
+            "Now, um, is the time to act.",
+            "Look, um, at the time.",
+            "Listen, um, to me.",
+            "Right, um, here is where it starts.",
+            "Well, um, the door was open.",
+            "He yelled Fire! um and ran.",
+            "She thought, What now? um and sighed.",
+            "Why? um, she wondered.",
+            "Who cares? um she muttered.",
+            "Um, iPhone sales were down.",
+            "Um, eBay was the answer.",
+            "Um, Umm, the door.",
+        ],
+        spoken(),
+    );
+    let both = report("Um, Umm, the door.", spoken());
+    assert_eq!(both.matches.len(), 1);
+    assert_eq!(both.matches[0].span.char, 0..7);
+    assert_edits(
+        &[
+            ("So, um, she left.", "So, she left."),
+            ("No, um, I didn’t.", "No, I didn’t."),
+            ("Yeah, um, the door was open.", "Yeah, the door was open."),
+            (
+                "What now? Um, the door was open.",
+                "What now? The door was open.",
+            ),
+            ("I walked to the um store.", "I walked to the store."),
+            ("He left her um… then", "He left her um… then"),
+        ],
+        spoken(),
+    );
+    // Typed text: every one of these is a flag with no edit (`report` checks).
+    for text in [
+        "So, um, she left.",
+        "I walked to the um store.",
+        "Um, the door",
+    ] {
+        let result = report(text, DraftingOptions::new());
+        assert_eq!(result.matches.len(), 1, "{text:?}");
+    }
+}
+
+#[test]
+fn review_d2j_commands_and_pairs() {
+    for text in [
+        "She typed new paragraph and hit enter.",
+        "I said question mark to myself.",
+        "The words open quote appeared on the screen.",
+        "She wrote comma and then erased it.",
+    ] {
+        for (source, _) in variants(text, text) {
+            let result = report(&source, spoken());
+            assert!(
+                result.matches.is_empty(),
+                "{source:?}: {:?}",
+                result.matches
+            );
+        }
+    }
+    assert_cases(
+        &[
+            ("I love you full stop she said", "I love you. She said"),
+            ("She said comma he left", "She said, he left"),
+            (
+                "she said open quote come in close quote and shut the door",
+                "she said “come in” and shut the door",
+            ),
+        ],
+        spoken(),
+    );
+    // Flag only: *full stop* without a cue, a lone opening mark, and a pair whose other side
+    // is flag only.
+    for text in [
+        "I love you full stop.",
+        "he said open quote I’m fine",
+        "she left open paren quietly",
+        "open quote fine period close quote comma he said",
+        "she said open quote I’m fine comma close quote period then she left",
+    ] {
+        let result = report(text, spoken());
+        assert!(!result.matches.is_empty(), "{text:?}");
+        assert!(
+            result.matches.iter().all(|m| m.edits.is_empty()),
+            "{text:?}: {:?}",
+            result.matches
+        );
+    }
+    // A reported pause stays; the command beside it is still edited.
+    assert_eq!(
+        applied("I said uh question mark then left.", spoken()),
+        "I said uh? Then left."
+    );
 }

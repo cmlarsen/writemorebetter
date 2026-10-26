@@ -847,6 +847,19 @@ export interface HiddenVerbsReport {
   groups: Split<HiddenVerbsGroup>;
 }
 
+/**
+ * Options for `drafting`. Edits are offered only when `dictated` is true (the host knows the text
+ * came from speech-to-text); typed text is flag only. `spokenCommands` follows `dictated` when
+ * unset, and `true` without `dictated` is `invalidOptions`.
+ */
+export type DraftingOptions = {
+  placeholders?: boolean;
+  dictated?: boolean;
+  spokenCommands?: boolean;
+  filledPauses?: boolean;
+  er?: boolean;
+  includeDialogue?: boolean;
+};
 export type DraftingCategory = "placeholder" | "spokenCommand" | "filledPause" | "restart" | "selfCorrection";
 export interface DraftingEdit { span: Span; replacement: string; }
 export interface DraftingMatch { span: Span; sentence: number; category: DraftingCategory; term: string; mode: Mode; edits: Array<DraftingEdit>; }

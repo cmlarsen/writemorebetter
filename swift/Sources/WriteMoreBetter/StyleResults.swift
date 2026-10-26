@@ -1065,6 +1065,9 @@ public struct DraftingReport: Codable, Equatable, Sendable {
     public let groups: Split<DraftingGroup>
 }
 public extension StyleDocument {
+    /// Drafting leftovers. Typed text is flag only; pass `{"dictated":true}` when the host knows
+    /// the text came from speech-to-text, which turns on edits and spoken commands
+    /// (`"spokenCommands":false` turns commands back off; `true` without `dictated` throws).
     func drafting(optionsJson: String? = nil) throws -> DraftingReport {
         try decodeStyle(draftingJson(optionsJson: optionsJson))
     }

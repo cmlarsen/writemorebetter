@@ -774,10 +774,13 @@ final class CheckerTests: XCTestCase {
         let document = try checker().styleDocument(text: text)
         let report = try document.drafting()
         XCTAssertEqual(report.matches.map { (text as NSString).substring(with: $0.span.nsRange) }, ["Um", "TK"])
-        XCTAssertEqual(report.matches[0].edits[0].replacement, "T")
+        XCTAssertTrue(report.matches.allSatisfy { $0.edits.isEmpty })
+        let dictated = try document.drafting(optionsJson: "{\"dictated\":true}")
+        XCTAssertEqual(dictated.matches[0].edits[0].replacement, "T")
         let spoken = try checker().styleDocument(text: "She said comma he left")
         XCTAssertTrue(try spoken.drafting().matches.isEmpty)
-        XCTAssertEqual(try spoken.drafting(optionsJson: "{\"spokenCommands\":true}").matches[0].category, .spokenCommand)
+        XCTAssertEqual(try spoken.drafting(optionsJson: "{\"dictated\":true}").matches[0].category, .spokenCommand)
+        XCTAssertThrowsError(try spoken.drafting(optionsJson: "{\"spokenCommands\":true}"))
         XCTAssertThrowsError(try document.drafting(optionsJson: "{\"restarts\":true}"))
     }
 
