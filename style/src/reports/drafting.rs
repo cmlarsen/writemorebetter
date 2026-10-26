@@ -67,6 +67,30 @@ impl DraftingOptions {
     pub fn commands(&self) -> bool {
         self.spoken_commands.unwrap_or(self.dictated)
     }
+    pub fn with_placeholders(mut self, value: bool) -> Self {
+        self.placeholders = value;
+        self
+    }
+    pub fn with_dictated(mut self, value: bool) -> Self {
+        self.dictated = value;
+        self
+    }
+    pub fn with_spoken_commands(mut self, value: bool) -> Self {
+        self.spoken_commands = Some(value);
+        self
+    }
+    pub fn with_filled_pauses(mut self, value: bool) -> Self {
+        self.filled_pauses = value;
+        self
+    }
+    pub fn with_er(mut self, value: bool) -> Self {
+        self.er = value;
+        self
+    }
+    pub fn with_include_dialogue(mut self, value: bool) -> Self {
+        self.include_dialogue = value;
+        self
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -139,13 +163,40 @@ pub fn apply(text: &str, edits: &[&DraftingEdit]) -> String {
 }
 
 fn span(paragraph: &Paragraph, start: usize, end: usize) -> Span {
-    let text = &paragraph.text;
     Span {
         byte: paragraph.span.byte.start + start..paragraph.span.byte.start + end,
-        char: paragraph.span.char.start + text[..start].chars().count()
-            ..paragraph.span.char.start + text[..end].chars().count(),
-        utf16: paragraph.span.utf16.start + text[..start].encode_utf16().count()
-            ..paragraph.span.utf16.start + text[..end].encode_utf16().count(),
+        // Filled once per paragraph after all spans have been collected.
+        char: 0..0,
+        utf16: 0..0,
+    }
+}
+/// Resolve every span from a single scan of the paragraph, including zero-width edits.
+fn resolve_spans(paragraph: &Paragraph, matches: &mut [DraftingMatch]) {
+    let base = paragraph.span.byte.start;
+    let mut boundaries = Vec::new();
+    let mut chars = paragraph.span.char.start;
+    let mut utf16 = paragraph.span.utf16.start;
+    for (byte, ch) in paragraph.text.char_indices() {
+        boundaries.push((base + byte, chars, utf16));
+        chars += 1;
+        utf16 += ch.len_utf16();
+    }
+    boundaries.push((base + paragraph.text.len(), chars, utf16));
+    let resolve = |span: &mut Span| {
+        let start = boundaries
+            .binary_search_by_key(&span.byte.start, |item| item.0)
+            .unwrap();
+        let end = boundaries
+            .binary_search_by_key(&span.byte.end, |item| item.0)
+            .unwrap();
+        span.char = boundaries[start].1..boundaries[end].1;
+        span.utf16 = boundaries[start].2..boundaries[end].2;
+    };
+    for found in matches {
+        resolve(&mut found.span);
+        for edit in &mut found.edits {
+            resolve(&mut edit.span);
+        }
     }
 }
 fn rel(paragraph: &Paragraph, byte: usize) -> usize {
@@ -1979,9 +2030,10 @@ fn pauses<'a>(
         // noun or adjective follows it, because the determiner then has its own head
         // (*to the um store*).
         let before_word = spaced_word_before(text, start);
-        let head = tokens
+        let head = tokens[tokens
+            .partition_point(|token| token.span.byte.end <= paragraph.span.byte.start + end)..]
             .iter()
-            .find(|token| token.is_word && token.span.byte.start >= paragraph.span.byte.start + end)
+            .find(|token| token.is_word)
             .is_some_and(|token| {
                 has_pos(token, "NN") || token.readings.iter().any(|reading| reading.pos == "JJ")
             });
@@ -1989,10 +2041,11 @@ fn pauses<'a>(
         // and sat down*), and v1 treats a restart the same way (*the red um the blue one*). With a
         // noun or adjective after it, the pause may still be a noun (*a long um. Long enough.*),
         // so it is flag only.
-        let adjective_word = tokens
+        let adjective_word = tokens[..tokens
+            .partition_point(|token| token.span.byte.end <= paragraph.span.byte.start + start)]
             .iter()
             .rev()
-            .find(|token| token.is_word && token.span.byte.end <= paragraph.span.byte.start + start)
+            .find(|token| token.is_word)
             .is_some_and(|token| {
                 token.readings.iter().any(|reading| reading.pos == "JJ")
                     && !before_word.is_empty()
@@ -2132,6 +2185,7 @@ pub fn report(
     let mut mark_style = None;
     let mut dictated = Vec::new();
     for paragraph in &document.paragraphs {
+        let paragraph_match_start = matches.len();
         let candidates = if options.commands() {
             command_candidates(paragraph)
         } else {
@@ -2151,7 +2205,7 @@ pub fn report(
         let mut found = Vec::new();
         let mut leftovers = Vec::new();
         for candidate in &candidates {
-            if candidate.entry.mark != "flag" {
+            if !matches!(candidate.entry.mark, "flag" | "delete") {
                 leftovers.push(Leftover {
                     start: candidate.start,
                     end: candidate.end,
@@ -2228,6 +2282,7 @@ pub fn report(
                     })
                 })
             };
+            let candidate_clusters: Vec<_> = candidates.iter().map(cluster_of).collect();
             // A dialogue-tag mark goes with its command the same way.
             let pairs: Vec<(Option<usize>, Option<usize>)> = candidates
                 .iter()
@@ -2240,12 +2295,7 @@ pub fn report(
                     .map(|other| other.map(|other| (index, other)))
                 })
                 .flatten()
-                .map(|(open, close)| {
-                    (
-                        cluster_of(&candidates[open]),
-                        cluster_of(&candidates[close]),
-                    )
-                })
+                .map(|(open, close)| (candidate_clusters[open], candidate_clusters[close]))
                 .collect();
             let mut changed = true;
             while changed {
@@ -2261,18 +2311,43 @@ pub fn report(
                     }
                 }
             }
-            for (members, edits) in clusters {
+            let mut carriers = Vec::with_capacity(clusters.len());
+            for (members, edits) in &clusters {
+                let members = &leftovers[members.clone()];
+                let carrier = members
+                    .iter()
+                    .find(|leftover| matches!(leftover.kind, LeftoverKind::Command(_)))
+                    .unwrap_or(&members[0]);
+                carriers.push(carrier.found);
                 if let Some(edits) = edits {
-                    let members = &leftovers[members];
-                    let carrier = members
-                        .iter()
-                        .find(|leftover| matches!(leftover.kind, LeftoverKind::Command(_)))
-                        .unwrap_or(&members[0]);
-                    found[carrier.found].edits = edits;
+                    found[carrier.found].edits = edits.clone();
+                }
+            }
+            // A host accepts one match at a time. Keep both sides of each converted pair on
+            // the opening command's match; the closing command remains a flag-only match.
+            for (open, candidate) in candidates.iter().enumerate() {
+                let Some(close) = candidate.pair.filter(|close| open < *close) else {
+                    continue;
+                };
+                let (Some(open_cluster), Some(close_cluster)) =
+                    (candidate_clusters[open], candidate_clusters[close])
+                else {
+                    continue;
+                };
+                let opening = carriers[open_cluster];
+                let closing = carriers[close_cluster];
+                if opening != open {
+                    let opening_edits = std::mem::take(&mut found[opening].edits);
+                    found[open].edits.extend(opening_edits);
+                }
+                if closing != open {
+                    let closing_edits = std::mem::take(&mut found[closing].edits);
+                    found[open].edits.extend(closing_edits);
                 }
             }
         }
         matches.extend(found);
+        resolve_spans(paragraph, &mut matches[paragraph_match_start..]);
         dictated.extend(speech.dictated);
         dictated.extend(speech.own.iter().map(|range| {
             paragraph.span.byte.start + range.start..paragraph.span.byte.start + range.end
@@ -2290,15 +2365,38 @@ pub fn report(
     matches.sort_by_key(|m| (m.span.byte.start, m.span.byte.end));
     // Clusters are separated by words, so edits never overlap; this keeps the invariant if a
     // future change breaks that.
+    let mut ordered: Vec<_> = matches
+        .iter()
+        .enumerate()
+        .flat_map(|(match_index, found)| {
+            found
+                .edits
+                .iter()
+                .enumerate()
+                .map(move |(edit_index, edit)| {
+                    (
+                        edit.span.byte.start,
+                        edit.span.byte.end,
+                        match_index,
+                        edit_index,
+                    )
+                })
+        })
+        .collect();
+    ordered.sort_unstable();
+    let mut rejected = HashSet::new();
     let mut used = 0;
-    for found in &mut matches {
-        found.edits.retain(|edit| {
-            let keep = edit.span.byte.start >= used;
-            if keep {
-                used = edit.span.byte.end;
-            }
-            keep
-        });
+    for (start, end, match_index, _) in ordered {
+        if start < used {
+            rejected.insert(match_index);
+        } else {
+            used = end;
+        }
+    }
+    for (match_index, found) in matches.iter_mut().enumerate() {
+        if rejected.contains(&match_index) {
+            found.edits.clear();
+        }
     }
     let mut terms: BTreeMap<(DraftingCategory, String), DraftingTerm> = BTreeMap::new();
     let mut groups = word_split(document).map(|words| DraftingGroup {

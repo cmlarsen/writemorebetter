@@ -327,3 +327,6 @@
 {"id": "neg-327", "word": "next line", "input": "She read the first line aloud. Next line Tom read.", "note": "name, sentence start, review D2m (2026-10-26): a break before a name at a sentence start is prose."}
 {"id": "neg-328", "word": "new line", "input": "He said “New Line Cinema called.”", "note": "name, dialogue, review D2m (2026-10-26): title-cased New Line is a name."}
 {"id": "neg-329", "word": "new line", "input": "“Where?” New Line Cinema, he said.", "note": "name, dialogue, review D2m (2026-10-26): title-cased New Line is a name."}
+{"id": "neg-330", "word": "placeholder", "input": "“She’ll check the map—later…”", "note": "D2o: curly quotes and em dash without placeholder."}
+{"id": "neg-331", "word": "placeholder", "input": "“She’ll check the map—later…” Then she left.", "note": "D2o: U+2028 after curly typography without placeholder."}
+{"id": "neg-332", "word": "placeholder", "input": "The road—was closed “for repairs.”", "note": "D2o: em dash and U+2028 without placeholder."}

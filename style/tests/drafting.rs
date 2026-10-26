@@ -1,11 +1,33 @@
 use nlprule::Tokenizer;
 use std::sync::{Arc, OnceLock};
+use std::time::{Duration, Instant};
 use writemorebetter_style::reports::drafting::{self, DraftingCategory, DraftingOptions};
 use writemorebetter_style::{analyze_document, DocumentOptions, Mode};
 
 fn tokenizer() -> &'static Arc<Tokenizer> {
     static TOKENIZER: OnceLock<Arc<Tokenizer>> = OnceLock::new();
     TOKENIZER.get_or_init(|| Arc::new(Tokenizer::new("../storage/en_tokenizer.bin").unwrap()))
+}
+
+#[test]
+fn dense_pause_report_scales_linearly() {
+    fn best_of_three(text: &str, options: DraftingOptions) -> Duration {
+        let document = analyze_document(tokenizer(), text, &DocumentOptions::new());
+        (0..3)
+            .map(|_| {
+                let start = Instant::now();
+                let report = drafting::report(&document, &options).unwrap();
+                assert!(!report.matches.is_empty());
+                start.elapsed()
+            })
+            .min()
+            .unwrap()
+    }
+    for options in [DraftingOptions::new(), DraftingOptions::dictated()] {
+        let small = best_of_three(&"the um dog ".repeat(1_000), options.clone());
+        let large = best_of_three(&"the um dog ".repeat(8_000), options);
+        assert!(large < small * 12, "report scaling: {small:?} -> {large:?}");
+    }
 }
 /// The report for `text`, after checking that the same options for typed text (no `dictated`)
 /// return no edits at all.
@@ -260,6 +282,15 @@ fn flag_only_contexts() {
 
 #[test]
 fn edits_and_commands_only_for_dictated_text() {
+    let built = DraftingOptions::new()
+        .with_placeholders(false)
+        .with_dictated(true)
+        .with_spoken_commands(false)
+        .with_filled_pauses(false)
+        .with_er(true)
+        .with_include_dialogue(true);
+    assert!(!built.placeholders && built.dictated && !built.commands());
+    assert!(!built.filled_pauses && built.er && built.include_dialogue);
     assert!(!DraftingOptions::new().dictated);
     assert!(!DraftingOptions::new().commands());
     assert!(DraftingOptions::dictated().commands());
@@ -347,7 +378,8 @@ fn cluster_subsets_apply_cleanly() {
             "I paused… then continued",
         ),
         ("Pause comma um comma then go.", "Pause, then go."),
-        ("I went home um scratch that.", "I went home."),
+        // Review D2o: the command is flag only (was "I went home.").
+        ("I went home um scratch that.", "I went home scratch that."),
         (
             "Make this um all caps hello and go.",
             "Make this all caps hello and go.",
@@ -397,6 +429,7 @@ fn cluster_subsets_apply_cleanly() {
             }
         }
         assert_eq!(drafting::apply(source, &edits), expected, "{source:?}");
+        // Review D2o: scratch that is flag only; its former full edit produced "I went home.".
         // One edit per cluster, carried by its first match.
         let clusters = result
             .matches
@@ -447,6 +480,27 @@ fn guards_and_options() {
             .len()
             >= 3
     );
+    for (positive, negative) in variants(
+        "“She’ll check [name]—later…”",
+        "“She’ll check the map—later…”",
+    ) {
+        let found = report(&positive, DraftingOptions::new());
+        assert!(
+            found
+                .matches
+                .iter()
+                .any(|m| m.category == DraftingCategory::Placeholder && m.term == "[name]"),
+            "{positive:?}"
+        );
+        assert!(found.matches.iter().all(|m| m.edits.is_empty()));
+        assert!(
+            !report(&negative, DraftingOptions::new())
+                .matches
+                .iter()
+                .any(|m| m.category == DraftingCategory::Placeholder),
+            "{negative:?}"
+        );
+    }
     assert!(report("“Um, I went.”", DraftingOptions::new())
         .matches
         .is_empty());
@@ -617,23 +671,27 @@ fn spoken_command_table() {
             "next line",
         ),
         (
+            // D2o: was "She spoke. Then she waited" when the command was deleted.
             "She spoke scratch that. Then she waited",
-            "She spoke. Then she waited",
+            "She spoke scratch that. Then she waited",
             "scratch that",
         ),
         (
+            // D2o: was "She spoke. Then she waited" when the command was deleted.
             "She spoke delete that. Then she waited",
-            "She spoke. Then she waited",
+            "She spoke delete that. Then she waited",
             "delete that",
         ),
         (
+            // D2o: was "She spoke. Then she waited" when the command was deleted.
             "She spoke strike that. Then she waited",
-            "She spoke. Then she waited",
+            "She spoke strike that. Then she waited",
             "strike that",
         ),
         (
+            // D2o: was "She spoke. Then she waited" when the command was deleted.
             "She spoke undo that. Then she waited",
-            "She spoke. Then she waited",
+            "She spoke undo that. Then she waited",
             "undo that",
         ),
         (
@@ -849,6 +907,75 @@ fn command_mark_majority_and_tie() {
             .find(|m| m.category == DraftingCategory::SpokenCommand && m.term == term)
             .unwrap_or_else(|| panic!("{source:?}"));
         assert_eq!(found.edits[0].replacement, replacement, "{source:?}");
+    }
+}
+
+#[test]
+fn converted_pairs_are_atomic_per_match() {
+    for (text, opening, closing, open_mark, close_mark) in [
+        (
+            "She said open quote come in close quote and left.",
+            "open quote",
+            "close quote",
+            '“',
+            '”',
+        ),
+        (
+            "She said comma open quote come in close quote and left.",
+            "open quote",
+            "close quote",
+            '“',
+            '”',
+        ),
+        (
+            "She found open paren the brass key close paren under the mat.",
+            "open paren",
+            "close paren",
+            '(',
+            ')',
+        ),
+        (
+            "She found open bracket the brass key close bracket under the mat.",
+            "open bracket",
+            "close bracket",
+            '[',
+            ']',
+        ),
+    ] {
+        let result = report(text, spoken());
+        let open = result.matches.iter().find(|m| m.term == opening).unwrap();
+        let close = result.matches.iter().find(|m| m.term == closing).unwrap();
+        assert!(!open.edits.is_empty(), "{text:?}");
+        assert!(close.edits.is_empty(), "{text:?}");
+        for found in &result.matches {
+            let changed = drafting::apply(text, &found.edits.iter().collect::<Vec<_>>());
+            assert_eq!(
+                changed.matches(open_mark).count(),
+                changed.matches(close_mark).count(),
+                "{text:?}, {:?}",
+                found.term
+            );
+        }
+    }
+}
+
+#[test]
+fn retraction_commands_never_offer_edits() {
+    for text in [
+        "She watched him scratch that.",
+        "She watched him delete that.",
+        "The gate creaked scratch that. she heard a knock.",
+        "She spoke scratch that. Then she waited",
+        "She spoke strike that. Then she waited",
+        "She spoke undo that. Then she waited",
+    ] {
+        for options in [DraftingOptions::new(), spoken()] {
+            let result = report(text, options);
+            assert!(
+                result.matches.iter().all(|m| m.edits.is_empty()),
+                "{text:?}"
+            );
+        }
     }
 }
 

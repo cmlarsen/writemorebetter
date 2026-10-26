@@ -65,11 +65,10 @@ isn't tuned for any one of them.
 | `spokenCommands` | follows `dictated` | Report spoken commands, with edits. Unset, it follows `dictated`; `false` turns commands off in dictated text. `true` without `dictated` is `invalidOptions`, so `dictated` is the one way to turn edits on. With commands off, no command detection runs and dictated quote pairs aren't found. |
 | `filledPauses` | `true` | Report filled pauses, with deletion edits in dictated text where the punctuation is unambiguous. |
 | `er` | `false` | Also report *er* as a filled pause (guarded; see below). |
-| `restarts` | `true` | Report restarts (from v1.1). |
-| `selfCorrections` | `true` | Report self-correction phrases, flag only (from v1.2). |
 | `includeDialogue` | `false` | Also report filled pauses, restarts and self-corrections inside speech and other quoted text. Hesitation in dialogue is usually characterization. It never affects commands or placeholders, which are reported in every mode. |
 
-An option for a category that hasn't shipped is an unknown key until it does. The multi-word keys
+`restarts` and `selfCorrections` are reserved for later versions and are currently unknown keys.
+The multi-word keys
 also accept snake case (`spoken_commands`, `filled_pauses`, `include_dialogue`).
 
 ### Edits only for dictated text
@@ -107,9 +106,9 @@ DraftingCategory = "placeholder" | "spokenCommand" | "filledPause" | "restart" |
 - `term`: the list entry (`um`, `comma`, `open quote`, `TK`, `I mean`). Restarts use `restart`.
 - `sentence`: the global sentence index. `mode`: the document's speech mode at the match start
   (`Document::mode_at`), or `dialogue` inside a dictated quote pair (below).
-- `edits`: what to change if the author accepts. Empty means flag only. One match is one leftover,
-  so the UI accepts or ignores its edits together: a dictated quote pair is two matches, one per
-  command.
+- `edits`: what to change if the author accepts. Empty means flag only. A match's edits are
+  applied together. For a converted quote, parenthesis or bracket pair, the opening command's
+  match carries both mark edits and the closing command's match has `edits: []`.
 
 `terms` has one row per term found, most frequent first. `groups` counts matches, edits and words
 per mode, with `perThousandWords` null when there are no words. Without `includeDialogue`, dialogue
@@ -142,7 +141,7 @@ so the host applies it as is.
 
 ### Deletion cleanup
 
-Filled pauses and `scratch that` delete words, in dictated text only. The owner's 2026-10-26
+Filled pauses delete words, in dictated text only. The owner's 2026-10-26
 decision makes this conservative: an edit is returned only where the punctuation around the pause leaves one obvious
 result. **Everywhere else the pause is flagged with no edit** (empty `edits`) and the author fixes
 it. A missed convenience is acceptable; a damaged sentence is not.
@@ -343,7 +342,7 @@ period.`).
 | *open bracket*, *close bracket* | `[` / `]` | |
 | *apostrophe* | `’` or `'`, no spaces | noun |
 | *new paragraph*, *new line*, *next line* | `\n` | noun (*new line*) |
-| *scratch that*, *delete that*, *strike that*, *undo that* | `""` (the command only) | |
+| *scratch that*, *delete that*, *strike that*, *undo that* | none (flag only in every mode) | |
 | *caps on*, *caps off*, *all caps*, *no caps* | none (flag only) | |
 
 - **Noun guard.** Every command is skipped when the
@@ -404,8 +403,8 @@ period.`).
   they are ordinary prose. A subject or modal immediately before the phrase also blocks it, and so
   do verb uses: after *to* or a conjunction (*likes to scratch that*, *and delete that*), before
   `?` or `!`, or with *do*, *does*, *did* or a modal earlier in the sentence
-  (*Did Mary delete that?*). A deletion command is deleted with the filled-pause patterns, so
-  `spoke scratch that. Then` → `spoke. Then`, and other shapes are flag only.
+  (*Did Mary delete that?*). These commands are flag only in every mode because deleting the
+  command words leaves the retracted text in place and can remove ordinary prose.
 - **Pause beside a command.** A pause and a command next to each other form one cluster with
   one edit (see [Clusters](#clusters)), carried by the command match: `I said uh question mark
   then` → `I said? Then`, and the `uh` match has no edit. If the pause is flag only, so is the
@@ -422,8 +421,8 @@ period.`).
   and a dictated quote in text without quotes matches the engine's apostrophes: `she said open
   quote I don't know close quote and left` → `she said "I don't know" and left`. Ellipses follow
   the `ellipses` majority and default to `…`. Dashes are always a closed `—`.
-- **`scratch that`** deletes only the command. The words it refers to have no recoverable extent
-  in text, so the report never deletes them; the host's message can say so.
+- **`scratch that`** and its synonyms are flag only. The words they refer to have no recoverable
+  extent in text, so the report offers no edit; the host's message can say so.
 - **Case commands** can't become a fixed edit without re-casing words, so they are flag only.
 
 ### Dictated quotes are speech
@@ -577,9 +576,10 @@ rather staggered*), and `bench/public` has three.
 
 ## Data
 
-Four project-authored files in `style/data/drafting/`, MIT OR Apache-2.0 like the engine:
-`fillers.txt`, `commands.tsv` (`phrase<TAB>replacement key<TAB>guard`), `placeholders.tsv` and
-`self-corrections.tsv`. Command names are the ordinary English names of the marks. Apple, Microsoft,
+Three project-authored files ship in `style/data/drafting/`, MIT OR Apache-2.0 like the engine:
+`fillers.txt`, `commands.tsv` (`phrase<TAB>replacement key<TAB>guard`) and `placeholders.tsv`.
+Self-correction data is planned for v1.1 evaluation; no self-correction file ships in v1.
+Command names are the ordinary English names of the marks. Apple, Microsoft,
 Nuance and Talon command lists were used to check coverage only. Nothing is vendored, so no NOTICE
 entry is needed.
 

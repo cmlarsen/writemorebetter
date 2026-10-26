@@ -79,7 +79,7 @@ swift/, wasm/       one binding each, exposing check() + analyze() + analyzeDocu
 | [Title case](STYLE-TITLE-CASE.md) (chapter headings) | #307 | heading strings, not the document | none; style chosen by option or preset |
 | [Vague words](STYLE-VAGUE-WORDS.md) (fillers, hedges, vague quantities, nouns, adjectives) | #307 | POS readings, lemmas, speech spans, project list + expresso-backed fillers | none; per-1,000-word rates per mode, precision hand-judged on public text (2026-10-21) |
 | [Hidden verbs](STYLE-HIDDEN-VERBS.md) (nominalizations) | #307 | POS readings, lemmas, speech spans, WordNet-derived noun→verb table | none; per-1,000-word rates per mode, precision hand-judged on public text (2026-10-21) |
-| [Drafting](STYLE-DRAFTING.md) (placeholders, spoken commands, filled pauses, restarts, self-corrections; opt-in, with edits) | #376 | POS readings, speech spans, project lists | none; per-1,000-word rates per mode on public text, recall on self-written dictation fixtures (planned) |
+| [Drafting](STYLE-DRAFTING.md) (v1: placeholders, spoken commands, filled pauses; opt-in, with edits) | #376 | POS readings, speech spans, project lists | none; per-1,000-word rates per mode on public text, implemented recall gate on self-written dictation fixtures; restarts and self-corrections are planned for v1.1 and later |
 
 Sentence length and sentence starts are public modules under `style::reports`, with no flattened
 crate-root exports. [Sentence report definitions](STYLE-SENTENCES.md) specify word counting, Penn
@@ -219,7 +219,7 @@ measurements: single paragraphs that meet two thresholds are mostly in-scene noi
 | preset checks | `preset_checks::report(&Document, &PresetChecks)`; a whole preset: `StylePreset::report(&Document)` | `numbers`, `quotePunctuation`, `possessives`, `timeAbbreviations`, `familyTitles` | none | no |
 | vague words | `vague_words::report(&Document, &VagueWordsOptions)` | `fillers` | none (lists bundled) | yes |
 | hidden verbs | `hidden_verbs::report(&Document, &HiddenVerbsOptions)` | `ofPhrases` | none (table bundled) | yes |
-| drafting (designed, #376) | `drafting::report(&Document, &DraftingOptions)` | `placeholders`, `dictated` (edits only when true), `spokenCommands` (follows `dictated`), `filledPauses`, `er`, `restarts`, `selfCorrections`, `includeDialogue` | none (lists bundled) | yes |
+| drafting (v1, #376) | `drafting::report(&Document, &DraftingOptions)` | `placeholders`, `dictated` (edits only when true), `spokenCommands` (follows `dictated`), `filledPauses`, `er`, `includeDialogue`; `restarts` and `selfCorrections` are future options (v1.1 and later) | none (lists bundled) | yes |
 
 Every entry point returns `Result<_, StyleError>`. Type names are prefixed with their report
 (`SentenceLengthReport`, `ClicheMatch`, `DialogueTagVerbClass`, …) so they stay unique in Swift's
