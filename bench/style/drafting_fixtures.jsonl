@@ -1,0 +1,197 @@
+{"id": "fx-001", "style": "dragon", "category": "filledPause", "input": "so um I was", "expected": "so I was"}
+{"id": "fx-002", "style": "dragon", "category": "filledPause", "input": "So um I was", "expected": "So I was"}
+{"id": "fx-003", "style": "dragon", "category": "filledPause", "input": "Well, um, I was", "expected": "Well, I was"}
+{"id": "fx-004", "style": "dragon", "category": "filledPause", "input": "i was, uh, thinking", "expected": "i was thinking"}
+{"id": "fx-005", "style": "dragon", "category": "filledPause", "input": "I was, uh, thinking", "expected": "I was thinking"}
+{"id": "fx-006", "style": "dragon", "category": "filledPause", "input": "I was—um—thinking and then i stopped", "expected": "I was thinking and then i stopped"}
+{"id": "fx-007", "style": "dragon", "category": "filledPause", "input": "I was—um—thinking", "expected": "I was thinking"}
+{"id": "fx-008", "style": "dragon", "category": "filledPause", "input": "I Was… um… Thinking", "expected": "I Was… Thinking"}
+{"id": "fx-009", "style": "dragon", "category": "filledPause", "input": "I was… um… thinking", "expected": "I was… thinking"}
+{"id": "fx-010", "style": "dragon", "category": "filledPause", "input": "He left um.", "expected": "He left."}
+{"id": "fx-011", "style": "dragon", "category": "filledPause", "input": "he waited um\nthen he slept", "expected": "he waited\nthen he slept"}
+{"id": "fx-012", "style": "dragon", "category": "filledPause", "input": "Ummm i think so", "expected": "I think so"}
+{"id": "fx-013", "style": "dragon", "category": "filledPause", "input": "it was, uh, very late", "expected": "it was very late"}
+{"id": "fx-014", "style": "dragon", "category": "filledPause", "input": "um the plan changed", "expected": "The plan changed"}
+{"id": "fx-015", "style": "dragon", "category": "filledPause", "input": "Um, the door", "expected": "The door"}
+{"id": "fx-016", "style": "dragon", "category": "filledPause", "input": "Um… the door", "expected": "The door"}
+{"id": "fx-017", "style": "dragon", "category": "filledPause", "input": "he was, um, tired", "expected": "he was tired"}
+{"id": "fx-018", "style": "dragon", "category": "filledPause", "input": "Yes, um, I know", "expected": "Yes, I know"}
+{"id": "fx-019", "style": "dragon", "category": "filledPause", "input": "Okay, um, let’s go", "expected": "Okay, let’s go"}
+{"id": "fx-020", "style": "dragon", "category": "filledPause", "input": "So um i was saying", "expected": "So i was saying"}
+{"id": "fx-021", "style": "dragon", "category": "filledPause", "input": "I was--uh--thinking", "expected": "I was thinking"}
+{"id": "fx-022", "style": "dragon", "category": "filledPause", "input": "Was it... um... true", "expected": "Was it... true"}
+{"id": "fx-023", "style": "dragon", "category": "filledPause", "input": "Well um I was", "expected": "Well I was"}
+{"id": "fx-024", "style": "dragon", "category": "filledPause", "input": "The answer, uh, is no", "expected": "The answer is no"}
+{"id": "fx-025", "style": "dragon", "category": "filledPause", "input": "we stopped um then we ate", "expected": "we stopped then we ate"}
+{"id": "fx-026", "style": "dragon", "category": "filledPause", "input": "the um next", "expected": "the next"}
+{"id": "fx-027", "style": "dragon", "category": "filledPause", "input": "He waited um\nThen", "expected": "He waited\nThen"}
+{"id": "fx-028", "style": "dragon", "category": "filledPause", "input": "I was — um — thinking", "expected": "I was thinking"}
+{"id": "fx-029", "style": "dragon", "category": "filledPause", "input": "it was erm, cold", "expected": "it was cold"}
+{"id": "fx-030", "style": "dragon", "category": "filledPause", "input": "I Think, um, That...", "expected": "I Think That..."}
+{"id": "fx-031", "style": "dragon", "category": "filledPause", "input": "“I was, um, thinking,” she said.", "expected": "“I was, um, thinking,” she said."}
+{"id": "fx-032", "style": "dragon", "category": "filledPause", "input": "He said, \"uh, no,\" and left.", "expected": "He said, \"uh, no,\" and left."}
+{"id": "fx-033", "style": "dragon", "category": "filledPause", "input": "“Well, um, I was,” she said.", "expected": "“Well, um, I was,” she said."}
+{"id": "fx-034", "style": "dragon", "category": "filledPause", "input": "“I was, um,” she said", "expected": "“I was,” she said", "options": {"includeDialogue": true}}
+{"id": "fx-035", "style": "dragon", "category": "filledPause", "input": "“I was, um, thinking,” she said.", "expected": "“I was thinking,” she said.", "options": {"includeDialogue": true}}
+{"id": "fx-036", "style": "dragon", "category": "filledPause", "input": "“Um, I don’t know.”", "expected": "“I don’t know.”", "options": {"includeDialogue": true}}
+{"id": "fx-037", "style": "dragon", "category": "filledPause", "input": "\"I was, um,\" she said.", "expected": "\"I was,\" she said.", "options": {"includeDialogue": true}}
+{"id": "fx-038", "style": "dragon", "category": "filledPause", "input": "He left um”", "expected": "He left”", "options": {"includeDialogue": true}}
+{"id": "fx-039", "style": "dragon", "category": "filledPause", "input": "“Um.”", "expected": "“Um.”"}
+{"id": "fx-040", "style": "dragon", "category": "filledPause", "input": "UH, the door", "expected": "UH, the door"}
+{"id": "fx-041", "style": "dragon", "category": "filledPause", "input": "He said uh-huh and nodded.", "expected": "He said uh-huh and nodded."}
+{"id": "fx-042", "style": "dragon", "category": "filledPause", "input": "She replied uh-oh and stepped back.", "expected": "She replied uh-oh and stepped back."}
+{"id": "fx-043", "style": "dragon", "category": "filledPause", "input": "It was um-hm, not a word.", "expected": "It was um-hm, not a word."}
+{"id": "fx-044", "style": "dragon", "category": "filledPause", "input": "The word ‘um’ makes him wince.", "expected": "The word ‘um’ makes him wince."}
+{"id": "fx-045", "style": "dragon", "category": "filledPause", "input": "He was, er, indisposed.", "expected": "He was, er, indisposed."}
+{"id": "fx-046", "style": "dragon", "category": "filledPause", "input": "Ah, there you are.", "expected": "Ah, there you are."}
+{"id": "fx-047", "style": "dragon", "category": "filledPause", "input": "Hmm. She frowned.", "expected": "Hmm. She frowned."}
+{"id": "fx-048", "style": "dragon", "category": "filledPause", "input": "A humble umbrella stood by the door.", "expected": "A humble umbrella stood by the door."}
+{"id": "fx-049", "style": "dragon", "category": "placeholder", "input": "The body was found in TK harbor.", "expected": "The body was found in TK harbor.", "flags": ["TK"]}
+{"id": "fx-050", "style": "whisper", "category": "placeholder", "input": "TKTK the ending still needs work TODO", "expected": "TKTK the ending still needs work TODO", "flags": ["TKTK", "TODO"]}
+{"id": "fx-051", "style": "dragon", "category": "placeholder", "input": "FIXME the timeline slips here.", "expected": "FIXME the timeline slips here.", "flags": ["FIXME"]}
+{"id": "fx-052", "style": "dragon", "category": "placeholder", "input": "The reveal is TBD for now.", "expected": "The reveal is TBD for now.", "flags": ["TBD"]}
+{"id": "fx-053", "style": "whisper", "category": "placeholder", "input": "The innkeeper’s name is TBA.", "expected": "The innkeeper’s name is TBA.", "flags": ["TBA"]}
+{"id": "fx-054", "style": "dragon", "category": "placeholder", "input": "XXX the fight scene drags here", "expected": "XXX the fight scene drags here", "flags": ["XXX"]}
+{"id": "fx-055", "style": "dragon", "category": "placeholder", "input": "XX", "expected": "XX", "flags": ["XX"]}
+{"id": "fx-056", "style": "whisper", "category": "placeholder", "input": "He reached [name] before dawn.", "expected": "He reached [name] before dawn.", "flags": ["[name]"]}
+{"id": "fx-057", "style": "whisper", "category": "placeholder", "input": "They drove to [city] that night.", "expected": "They drove to [city] that night.", "flags": ["[city]"]}
+{"id": "fx-058", "style": "whisper", "category": "placeholder", "input": "The letter arrived on {{date}}.", "expected": "The letter arrived on {{date}}.", "flags": ["{{date}}"]}
+{"id": "fx-059", "style": "apple", "category": "placeholder", "input": "She buried <<something>> under the elm.", "expected": "She buried <<something>> under the elm.", "flags": ["<<something>>"]}
+{"id": "fx-060", "style": "apple", "category": "placeholder", "input": "He paused (check this) at the threshold.", "expected": "He paused (check this) at the threshold.", "flags": ["(check this)"]}
+{"id": "fx-061", "style": "apple", "category": "placeholder", "input": "The clerk was (name?) polite enough.", "expected": "The clerk was (name?) polite enough.", "flags": ["(name?)"]}
+{"id": "fx-062", "style": "apple", "category": "placeholder", "input": "The motive is (?) for now.", "expected": "The motive is (?) for now.", "flags": ["(?)"]}
+{"id": "fx-063", "style": "apple", "category": "placeholder", "input": "Note: the bell should ring twice.", "expected": "Note: the bell should ring twice.", "flags": ["Note:"]}
+{"id": "fx-064", "style": "apple", "category": "placeholder", "input": "Note to self: ask about the boat.", "expected": "Note to self: ask about the boat.", "flags": ["Note to self:"]}
+{"id": "fx-065", "style": "apple", "category": "placeholder", "input": "NTS: the brother knows too much.", "expected": "NTS: the brother knows too much.", "flags": ["NTS:"]}
+{"id": "fx-066", "style": "apple", "category": "placeholder", "input": "TODO: cut the second flashback.", "expected": "TODO: cut the second flashback.", "flags": ["TODO:"]}
+{"id": "fx-067", "style": "apple", "category": "placeholder", "input": "She looked back (TK).", "expected": "She looked back (TK).", "flags": ["(TK)"]}
+{"id": "fx-068", "style": "apple", "category": "placeholder", "input": "The letter named [insert name] twice.", "expected": "The letter named [insert name] twice.", "flags": ["[insert name]"]}
+{"id": "fx-069", "style": "apple", "category": "placeholder", "input": "He crossed [describe the room?] slowly.", "expected": "He crossed [describe the room?] slowly.", "flags": ["[describe the room?]"]}
+{"id": "fx-070", "style": "apple", "category": "placeholder", "input": "Where did the key go???", "expected": "Where did the key go???"}
+{"id": "fx-071", "style": "apple", "category": "placeholder", "input": "Chapter XX", "expected": "Chapter XX"}
+{"id": "fx-072", "style": "apple", "category": "placeholder", "input": "Book XX", "expected": "Book XX"}
+{"id": "fx-073", "style": "apple", "category": "placeholder", "input": "Part XX", "expected": "Part XX"}
+{"id": "fx-074", "style": "apple", "category": "placeholder", "input": "Pius XX", "expected": "Pius XX"}
+{"id": "fx-075", "style": "apple", "category": "placeholder", "input": "The XX chromosome pair was intact.", "expected": "The XX chromosome pair was intact."}
+{"id": "fx-076", "style": "dragon", "category": "placeholder", "input": "The atkins diet is popular.", "expected": "The atkins diet is popular."}
+{"id": "fx-077", "style": "dragon", "category": "placeholder", "input": "Tkachenko wrote the letter.", "expected": "Tkachenko wrote the letter."}
+{"id": "fx-078", "style": "dragon", "category": "placeholder", "input": "T.K. wrote the memo while tk was his shorthand.", "expected": "T.K. wrote the memo while tk was his shorthand."}
+{"id": "fx-079", "style": "dragon", "category": "placeholder", "input": "She kept a todo list on the fridge.", "expected": "She kept a todo list on the fridge."}
+{"id": "fx-080", "style": "dragon", "category": "placeholder", "input": "The ledger said [sic] in the margin.", "expected": "The ledger said [sic] in the margin."}
+{"id": "fx-081", "style": "apple", "category": "placeholder", "input": "The name was [redacted] in the report.", "expected": "The name was [redacted] in the report."}
+{"id": "fx-082", "style": "apple", "category": "placeholder", "input": "The tape held only [inaudible] and static.", "expected": "The tape held only [inaudible] and static."}
+{"id": "fx-083", "style": "whisper", "category": "placeholder", "input": "The note read […] and nothing else.", "expected": "The note read […] and nothing else."}
+{"id": "fx-084", "style": "whisper", "category": "placeholder", "input": "See the note at [1] below.", "expected": "See the note at [1] below."}
+{"id": "fx-085", "style": "whisper", "category": "placeholder", "input": "She spoke (quietly) to the clerk.", "expected": "She spoke (quietly) to the clerk."}
+{"id": "fx-086", "style": "apple", "category": "placeholder", "input": "What??? she demanded.", "expected": "What??? she demanded."}
+{"id": "fx-087", "style": "apple", "category": "placeholder", "input": "* * *", "expected": "* * *"}
+{"id": "fx-088", "style": "apple", "category": "placeholder", "input": "***", "expected": "***"}
+{"id": "fx-089", "style": "dragon", "category": "spokenCommand", "input": "I bought bread coma cheese and apples", "expected": "I bought bread, cheese and apples"}
+{"id": "fx-090", "style": "apple", "category": "spokenCommand", "input": "we bought bread comma cheese and apples", "expected": "we bought bread, cheese and apples"}
+{"id": "fx-091", "style": "whisper", "category": "spokenCommand", "input": "The list ended with milk, comma, and then the page turned.", "expected": "The list ended with milk, and then the page turned."}
+{"id": "fx-092", "style": "dragon", "category": "spokenCommand", "input": "the light turned green period she drove on", "expected": "the light turned green. She drove on"}
+{"id": "fx-093", "style": "dragon", "category": "spokenCommand", "input": "i waited period she left", "expected": "i waited. She left"}
+{"id": "fx-094", "style": "apple", "category": "spokenCommand", "input": "the rain stopped full stop we went outside", "expected": "the rain stopped. We went outside"}
+{"id": "fx-095", "style": "dragon", "category": "spokenCommand", "input": "are you coming question mark he asked", "expected": "are you coming? He asked"}
+{"id": "fx-096", "style": "dragon", "category": "spokenCommand", "input": "watch out exclamation point the step is loose", "expected": "watch out! The step is loose"}
+{"id": "fx-097", "style": "apple", "category": "spokenCommand", "input": "come here exclamation mark the boat is drifting", "expected": "come here! The boat is drifting"}
+{"id": "fx-098", "style": "whisper", "category": "spokenCommand", "input": "she listed the tools colon hammer saw and nails", "expected": "she listed the tools: hammer saw and nails"}
+{"id": "fx-099", "style": "whisper", "category": "spokenCommand", "input": "the wind rose semicolon the shutters rattled", "expected": "the wind rose; the shutters rattled"}
+{"id": "fx-100", "style": "whisper", "category": "spokenCommand", "input": "I reached for the handle dash and stopped", "expected": "I reached for the handle—and stopped"}
+{"id": "fx-101", "style": "whisper", "category": "spokenCommand", "input": "The road bent left em dash then right, comma, and we followed.", "expected": "The road bent left—then right, and we followed."}
+{"id": "fx-102", "style": "whisper", "category": "spokenCommand", "input": "the boat rocked m dash and then steadied", "expected": "the boat rocked—and then steadied"}
+{"id": "fx-103", "style": "whisper", "category": "spokenCommand", "input": "the road ran north hyphen south for miles comma then turned", "expected": "the road ran north-south for miles, then turned"}
+{"id": "fx-104", "style": "whisper", "category": "spokenCommand", "input": "I thought about it ellipsis then said yes comma and left", "expected": "I thought about it… then said yes, and left"}
+{"id": "fx-105", "style": "whisper", "category": "spokenCommand", "input": "I paused dot dot dot then continued comma slowly", "expected": "I paused… then continued, slowly"}
+{"id": "fx-106", "style": "whisper", "category": "spokenCommand", "input": "I paused... twice... then said ellipsis nothing comma and left", "expected": "I paused... twice... then said... nothing, and left"}
+{"id": "fx-107", "style": "whisper", "category": "spokenCommand", "input": "she said open quote come in close quote and shut the door", "expected": "she said “come in” and shut the door"}
+{"id": "fx-108", "style": "whisper", "category": "spokenCommand", "input": "he called out begin quote wait for me end quote across the yard.", "expected": "he called out “wait for me” across the yard."}
+{"id": "fx-109", "style": "whisper", "category": "spokenCommand", "input": "she whispered open quote sit still unquote and the room went quiet.", "expected": "she whispered “sit still” and the room went quiet."}
+{"id": "fx-110", "style": "whisper", "category": "spokenCommand", "input": "He said \"hello\" and then open quote sit down close quote to the dog.", "expected": "He said \"hello\" and then \"sit down\" to the dog."}
+{"id": "fx-111", "style": "whisper", "category": "spokenCommand", "input": "He said “hello” and then open quote sit down close quote to the dog.", "expected": "He said “hello” and then “sit down” to the dog."}
+{"id": "fx-112", "style": "whisper", "category": "spokenCommand", "input": "she called it open single quote the long way close single quote", "expected": "she called it ‘the long way’"}
+{"id": "fx-113", "style": "whisper", "category": "spokenCommand", "input": "she added open paren almost quietly close paren that she agreed", "expected": "she added (almost quietly) that she agreed"}
+{"id": "fx-114", "style": "whisper", "category": "spokenCommand", "input": "he muttered open parenthesis not again close parenthesis under his breath", "expected": "he muttered (not again) under his breath"}
+{"id": "fx-115", "style": "whisper", "category": "spokenCommand", "input": "insert open bracket town close bracket before the first scene", "expected": "insert [town] before the first scene"}
+{"id": "fx-116", "style": "whisper", "category": "spokenCommand", "input": "the label read open bracket draft close bracket in red ink", "expected": "the label read [draft] in red ink"}
+{"id": "fx-117", "style": "apple", "category": "spokenCommand", "input": "it apostrophe s mine comma she said", "expected": "it’s mine, she said"}
+{"id": "fx-118", "style": "apple", "category": "spokenCommand", "input": "the door opened new paragraph Outside the rain fell", "expected": "the door opened\nOutside the rain fell"}
+{"id": "fx-119", "style": "whisper", "category": "spokenCommand", "input": "The list ended there new line And the next one began.", "expected": "The list ended there\nAnd the next one began."}
+{"id": "fx-120", "style": "whisper", "category": "spokenCommand", "input": "we stopped next line They kept walking", "expected": "we stopped\nThey kept walking"}
+{"id": "fx-121", "style": "whisper", "category": "spokenCommand", "input": "I went to the store scratch that the market", "expected": "I went to the store the market"}
+{"id": "fx-122", "style": "whisper", "category": "spokenCommand", "input": "I turned left delete that right", "expected": "I turned left right"}
+{"id": "fx-123", "style": "whisper", "category": "spokenCommand", "input": "We met at noon strike that at one, comma, by the fountain.", "expected": "We met at noon at one, by the fountain."}
+{"id": "fx-124", "style": "whisper", "category": "spokenCommand", "input": "she chose blue undo that green", "expected": "she chose blue green"}
+{"id": "fx-125", "style": "apple", "category": "spokenCommand", "input": "make this loud caps on we are not quiet caps off now", "expected": "make this loud caps on we are not quiet caps off now", "flags": ["caps on", "caps off"]}
+{"id": "fx-126", "style": "apple", "category": "spokenCommand", "input": "write this in all caps and this in no caps", "expected": "write this in all caps and this in no caps", "flags": ["all caps", "no caps"]}
+{"id": "fx-127", "style": "whisper", "category": "spokenCommand", "input": "She ran. She ran until dawn comma and then she stopped.", "expected": "She ran. She ran until dawn, and then she stopped."}
+{"id": "fx-128", "style": "whisper", "category": "spokenCommand", "input": "He walked to the car. He walked to the car again, comma, and drove off.", "expected": "He walked to the car. He walked to the car again, and drove off."}
+{"id": "fx-129", "style": "apple", "category": "spokenCommand", "input": "Every clause needs a comma before it.", "expected": "Every clause needs a comma before it."}
+{"id": "fx-130", "style": "apple", "category": "spokenCommand", "input": "The Edo period lasted for centuries.", "expected": "The Edo period lasted for centuries."}
+{"id": "fx-131", "style": "apple", "category": "spokenCommand", "input": "Add a dash of salt to the soup.", "expected": "Add a dash of salt to the soup."}
+{"id": "fx-132", "style": "apple", "category": "spokenCommand", "input": "It was a new line of work for her.", "expected": "It was a new line of work for her."}
+{"id": "fx-133", "style": "apple", "category": "spokenCommand", "input": "He made a dash for the door.", "expected": "He made a dash for the door."}
+{"id": "fx-134", "style": "apple", "category": "spokenCommand", "input": "A period of silence followed.", "expected": "A period of silence followed."}
+{"id": "fx-135", "style": "apple", "category": "spokenCommand", "input": "I have to dash or I’ll miss the train.", "expected": "I have to dash or I’ll miss the train."}
+{"id": "fx-136", "style": "apple", "category": "spokenCommand", "input": "We need a colon in that list, not a comma.", "expected": "We need a colon in that list, not a comma."}
+{"id": "fx-137", "style": "apple", "category": "spokenCommand", "input": "He drew a hyphen between them.", "expected": "He drew a hyphen between them."}
+{"id": "fx-138", "style": "apple", "category": "spokenCommand", "input": "The ellipsis is missing its dots.", "expected": "The ellipsis is missing its dots."}
+{"id": "fx-139", "style": "apple", "category": "spokenCommand", "input": "It was a question mark, not a comma.", "expected": "It was a question mark, not a comma."}
+{"id": "fx-140", "style": "apple", "category": "spokenCommand", "input": "This comma splice needs fixing.", "expected": "This comma splice needs fixing."}
+{"id": "fx-141", "style": "apple", "category": "spokenCommand", "input": "Put it on the next line of the form.", "expected": "Put it on the next line of the form."}
+{"id": "fx-142", "style": "apple", "category": "spokenCommand", "input": "The em dash is my favorite mark.", "expected": "The em dash is my favorite mark."}
+{"id": "fx-143", "style": "apple", "category": "spokenCommand", "input": "They used a comma splice throughout.", "expected": "They used a comma splice throughout."}
+{"id": "fx-144", "style": "apple", "category": "spokenCommand", "input": "The word \"comma\" is in the lesson.", "expected": "The word \"comma\" is in the lesson."}
+{"id": "fx-145", "style": "apple", "category": "spokenCommand", "input": "She typed \"open quote\" as a joke.", "expected": "She typed \"open quote\" as a joke."}
+{"id": "fx-146", "style": "apple", "category": "spokenCommand", "input": "The phrase \"quote, unquote\" annoyed her.", "expected": "The phrase \"quote, unquote\" annoyed her."}
+{"id": "fx-147", "style": "apple", "category": "spokenCommand", "input": "He wrote \"full stop\" in the margin.", "expected": "He wrote \"full stop\" in the margin."}
+{"id": "fx-148", "style": "apple", "category": "spokenCommand", "input": "The period at the end of the line is worn.", "expected": "The period at the end of the line is worn."}
+{"id": "fx-149", "style": "dragon", "category": "filledPause", "input": "The cat um, uh, sat", "expected": "The cat sat", "note": "Two adjacent pauses are one cleanup run: both pause words and their punctuation go, leaving one separator between cat and sat."}
+{"id": "fx-150", "style": "dragon", "category": "filledPause", "input": "He left. Um, uh, the door", "expected": "He left. The door", "note": "Adjacent pauses at a sentence start: both go, the sentence-initial word is capitalized, and one space remains after the period."}
+{"id": "fx-151", "style": "dragon", "category": "filledPause", "input": "um, uh, the door", "expected": "The door", "note": "A paragraph that starts with two pauses still capitalizes the first surviving word."}
+{"id": "fx-152", "style": "whisper", "category": "filledPause", "input": "It was, um… fine", "expected": "It was… fine", "note": "A comma lead plus a trailing ellipsis: the ellipsis is the sentence mark, so keep it and drop the comma rather than leaving an orphan comma."}
+{"id": "fx-153", "style": "whisper", "category": "filledPause", "input": "He was, um—thinking", "expected": "He was—thinking", "note": "Same comma-plus-trailing-dash shape: the dash survives as the author’s mark and the comma before the removed pause goes."}
+{"id": "fx-154", "style": "apple", "category": "filledPause", "input": "He said, um. Then", "expected": "He said. Then", "note": "A period is never absorbed. The comma before the removed pause would be orphaned, so it goes too."}
+{"id": "fx-155", "style": "whisper", "category": "filledPause", "input": "He was—um, thinking", "expected": "He was, thinking", "note": "The doc only pairs a dash with a dash. With a comma after the pause, the comma is the surviving mark and the unmatched opening dash goes."}
+{"id": "fx-156", "style": "apple", "category": "filledPause", "input": "He paused—um.", "expected": "He paused.", "note": "The unmatched opening dash goes with the pause; the period belongs to the sentence."}
+{"id": "fx-157", "style": "whisper", "category": "filledPause", "input": "He left. Well, um, I was", "expected": "He left. Well, I was", "note": "Well is a sentence-initial discourse word, so the first comma stays."}
+{"id": "fx-158", "style": "apple", "category": "filledPause", "input": "I, um, think", "expected": "I think", "note": "I is not a discourse word or vocative, so both commas in the pair go."}
+{"id": "fx-159", "style": "apple", "category": "filledPause", "input": "She said \"no\" um, then left.", "expected": "She said \"no\" then left.", "note": "The left context is a closing quote, so keep one space and drop the pause and its comma."}
+{"id": "fx-160", "style": "dragon", "category": "filledPause", "input": "He said um--no", "expected": "He said no", "note": "The trailing ASCII dash is one of the absorbed pause marks."}
+{"id": "fx-161", "style": "dragon", "category": "filledPause", "input": "Um--the door", "expected": "The door", "note": "The pause and trailing dash are removed at a paragraph start, and the next word is capitalized."}
+{"id": "fx-162", "style": "dragon", "category": "filledPause", "input": "I was--um, thinking", "expected": "I was thinking", "note": "Review-supplied edge case the doc does not spell out: the unmatched ASCII dash and the trailing comma collapse to one space."}
+{"id": "fx-163", "style": "dragon", "category": "filledPause", "input": "He said um--uh--no", "expected": "He said no", "note": "The ASCII dashes separate adjacent pauses and are absorbed with them; none survives."}
+{"id": "fx-164", "style": "whisper", "category": "filledPause", "input": "I was - um - thinking", "expected": "I was thinking", "note": "Spaced single hyphens are dictated dashes, so treat the pair as paired and leave one space."}
+{"id": "fx-165", "style": "apple", "category": "placeholder", "input": "[Name] arrived. [NAME] left.", "expected": "[Name] arrived. [NAME] left.", "flags": ["[Name]", "[NAME]"], "note": "Note vocabulary is case-insensitive; the term keeps the author’s surface case."}
+{"id": "fx-166", "style": "apple", "category": "placeholder", "input": "Chapter XXX began", "expected": "Chapter XXX began", "note": "XXX is a Roman chapter number here, the same exception the table gives Chapter XX, not a note to self."}
+{"id": "fx-167", "style": "whisper", "category": "filledPause", "input": "“Um,” she said.", "expected": "“Um,” she said.", "options": {"includeDialogue": true}, "note": "A quoted word on its own is a mention even when includeDialogue is on."}
+{"id": "fx-168", "style": "dragon", "category": "filledPause", "input": "Um.", "expected": "Um.", "note": "A bare interjection with no surrounding sentence has no cleanup, matching the table’s “Um.” row."}
+{"id": "fx-169", "style": "apple", "category": "filledPause", "input": "The cat um, uh, didn’t sit", "expected": "The cat didn’t sit"}
+{"id": "fx-170", "style": "dragon", "category": "filledPause", "input": "It was, um... fine", "expected": "It was... fine", "note": "The straight ellipsis is kept just like the curly one."}
+{"id": "fx-171", "style": "whisper", "category": "filledPause", "input": "He was, um--thinking", "expected": "He was--thinking", "note": "The ASCII dash is the author’s mark after the comma lead, so it survives while the comma goes."}
+{"id": "fx-172", "style": "whisper", "category": "filledPause", "input": "He said, um. Then she didn’t move.", "expected": "He said. Then she didn’t move."}
+{"id": "fx-173", "style": "whisper", "category": "filledPause", "input": "He paused... um.", "expected": "He paused.", "note": "The unmatched ellipsis before the pause goes with it; the period stays."}
+{"id": "fx-174", "style": "whisper", "category": "filledPause", "input": "He was, um, thinking", "expected": "He was thinking", "note": "The comma pair collapses, and the separator keeps U+2028 rather than becoming a space."}
+{"id": "fx-175", "style": "whisper", "category": "filledPause", "input": "He said um--uh--no, and she didn’t answer.", "expected": "He said no, and she didn’t answer.", "note": "Same adjacent-pause ASCII dash cleanup, with a curly apostrophe later in the sentence."}
+{"id": "fx-176", "style": "apple", "category": "filledPause", "input": "Um--the door wasn’t locked.", "expected": "The door wasn’t locked.", "note": "The pause and its trailing ASCII dash are removed at a paragraph start, so The is capitalized."}
+{"id": "fx-177", "style": "apple", "category": "filledPause", "input": "I went to the market um and bought apples.", "expected": "I went to the market and bought apples."}
+{"id": "fx-178", "style": "apple", "category": "filledPause", "input": "we walked um uh to the river", "expected": "we walked to the river", "note": "The sentence already starts lowercase before the pause, so deleting the pause does not change its case."}
+{"id": "fx-179", "style": "whisper", "category": "filledPause", "input": "She paused, um, before she answered.", "expected": "She paused before she answered."}
+{"id": "fx-180", "style": "whisper", "category": "filledPause", "input": "He didn’t answer, uh, at first.", "expected": "He didn’t answer at first."}
+{"id": "fx-181", "style": "whisper", "category": "filledPause", "input": "She said “no” um, then left.", "expected": "She said “no” then left."}
+{"id": "fx-182", "style": "dragon", "category": "filledPause", "input": "She said 'no' um, then left.", "expected": "She said 'no' then left."}
+{"id": "fx-183", "style": "apple", "category": "filledPause", "input": "It wasn’t, um, his fault", "expected": "It wasn’t his fault"}
+{"id": "fx-184", "style": "apple", "category": "filledPause", "input": "I, um, don’t think", "expected": "I don’t think"}
+{"id": "fx-185", "style": "whisper", "category": "filledPause", "input": "He left. Um, uh, the door wasn’t locked.", "expected": "He left. The door wasn’t locked.", "note": "Adjacent pauses after a sentence boundary: both go, the next sentence starts capitalized, and one space remains."}
+{"id": "fx-186", "style": "apple", "category": "filledPause", "input": "the cat um uh sat", "expected": "the cat sat", "note": "Apple-style output has no comma scaffolding, so the two pauses delete with single spaces and the lowercase sentence start stays."}
+{"id": "fx-187", "style": "whisper", "category": "filledPause", "input": "The cat, um, uh, sat.", "expected": "The cat sat.", "note": "Both pauses and both sides of the comma scaffolding go; one space remains before sat."}
+{"id": "fx-188", "style": "whisper", "category": "filledPause", "input": "It was, um… fine", "expected": "It was… fine", "note": "The ellipsis survives and the U+2028 separator is preserved instead of becoming a space."}
+{"id": "fx-189", "style": "apple", "category": "filledPause", "input": "The word “um,” is listed.", "expected": "The word “um,” is listed.", "note": "A quoted listed word is a mention, not a leftover; no includeDialogue is needed."}
+{"id": "fx-190", "style": "dragon", "category": "filledPause", "input": "I was, uh, thinking", "expected": "I was thinking", "note": "The comma pair collapses to one separator, and a U+2028 in that run is kept rather than replaced by a space."}
+{"id": "fx-191", "style": "whisper", "category": "spokenCommand", "input": "We bought milk um comma eggs", "expected": "We bought milk, eggs", "note": "The pause deletion and the command edit do not overlap; removing um leaves the command’s leading space intact."}
+{"id": "fx-192", "style": "whisper", "category": "spokenCommand", "input": "We bought milk comma um eggs", "expected": "We bought milk, eggs", "note": "The comma command comes first; the following pause and its leading space go."}
+{"id": "fx-193", "style": "apple", "category": "spokenCommand", "input": "I paused um comma then left", "expected": "I paused, then left", "note": "The pause and command edits do not overlap: the command owns the whitespace before it, and the pause before that space deletes cleanly."}
+{"id": "fx-194", "style": "dragon", "category": "spokenCommand", "input": "He said um period Then left", "expected": "He said. Then left", "note": "The period command replaces its leading space and the command; the pause before it is deleted separately."}
+{"id": "fx-195", "style": "whisper", "category": "spokenCommand", "input": "He said period um Then left", "expected": "He said. Then left", "note": "After the period command, Um is sentence-initial, so its deletion leaves the already-capitalized Then."}
+{"id": "fx-196", "style": "apple", "category": "spokenCommand", "input": "It was dark um comma and cold", "expected": "It was dark, and cold", "note": "The command follows the pause; after the pause is deleted, the command still replaces its own leading space with the comma."}
+{"id": "fx-197", "style": "whisper", "category": "spokenCommand", "input": "It was dark comma um and cold", "expected": "It was dark, and cold", "note": "The command comes first; the pause after the comma is deleted with its leading space, leaving one space after the comma."}

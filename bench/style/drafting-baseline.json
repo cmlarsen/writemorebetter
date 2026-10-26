@@ -1,0 +1,9 @@
+{
+  "thresholds": {
+    "placeholder": 0.95,
+    "filledPause": 0.6,
+    "spokenCommand": 0.0
+  },
+  "minimumControlRate": 0.9,
+  "note": "Recorded at the D4b fixture recall while the cleanup fixes and spoken commands are on other branches. Raise every threshold to the measured value after those merge; do not lower them to match a regression."
+}
