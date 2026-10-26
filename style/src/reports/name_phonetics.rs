@@ -300,11 +300,29 @@ impl NamePhonetics for EnglishNamePhonetics {
                         step = 2;
                     }
                 }
+                // W is otherwise silent: Stewart and Stuart share STRT.
                 b'W' => {
-                    if i == 0 && vowel(word.get(i + 1)) {
-                        put(&mut result, "A", "F");
-                    } else if vowel(word.get(i + 1)) {
-                        put(&mut result, "W", "W");
+                    if next == Some(b'R') {
+                        put(&mut result, "R", "R");
+                        step = 2;
+                    } else {
+                        if i == 0 && vowel(word.get(i + 1)) {
+                            put(&mut result, "A", "F");
+                        } else if i == 0 && next == Some(b'H') {
+                            put(&mut result, "A", "A");
+                        }
+                        if i + 1 == word.len() && vowel(prev.as_ref())
+                            || i > 0
+                                && [b"EWSKI", b"EWSKY", b"OWSKI", b"OWSKY"]
+                                    .iter()
+                                    .any(|p| at(&word, i - 1, *p))
+                            || at(&word, 0, b"SCH")
+                        {
+                            put(&mut result, "", "F");
+                        } else if at(&word, i, b"WICZ") || at(&word, i, b"WITZ") {
+                            put(&mut result, "TS", "FX");
+                            step = 4;
+                        }
                     }
                 }
                 b'X' => {
@@ -364,5 +382,25 @@ mod tests {
             }
         }
         assert!(errors.is_empty(), "{}", errors.join("; "));
+    }
+
+    // Philips codes W only at a word start or in the Polish and final-W alternates.
+    #[test]
+    fn w_rules() {
+        let encoder = EnglishNamePhonetics;
+        for (name, primary, alternate) in [
+            ("Stewart", "STRT", "STRT"),
+            ("Stuart", "STRT", "STRT"),
+            ("Arnow", "ARN", "ARNF"),
+            ("Walker", "ALKR", "FLKR"),
+            ("Filipowicz", "FLPT", "FLPF"),
+        ] {
+            let actual = encoder.codes(name);
+            assert_eq!(
+                (actual.primary.as_str(), actual.alternate.as_str()),
+                (primary, alternate),
+                "{name}"
+            );
+        }
     }
 }

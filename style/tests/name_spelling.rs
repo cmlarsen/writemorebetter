@@ -230,3 +230,58 @@ fn dictionary_option_and_lowercase_guard() {
     let protected = name_spelling::report(&document, &options).unwrap();
     assert!(protected.flags.is_empty());
 }
+
+#[test]
+fn derived_forms_of_listed_names_are_not_variants() {
+    let report = run(
+        "🙂 “The Stirlings’ house?”—Nantucketers… Mingottian aplomb.\u{2028}Stirlng waited.",
+        &["Stirling", "Nantucket", "Mingott"],
+        true,
+    );
+    assert_eq!(
+        report
+            .flags
+            .iter()
+            .map(|f| f.form.as_str())
+            .collect::<Vec<_>>(),
+        ["Stirlng"]
+    );
+}
+
+#[test]
+fn capitalized_common_and_calendar_words_are_not_candidates() {
+    let text = "🙂 “In June?”—the great Lady’s Cinque Port… Part 1.\u{2028}Jnae came.";
+    let names = ["Jane", "Lydia", "Perth"];
+    let report = run(text, &names, true);
+    assert_eq!(
+        report
+            .flags
+            .iter()
+            .map(|f| (f.form.as_str(), f.name.as_str()))
+            .collect::<Vec<_>>(),
+        [("Jnae", "Jane")]
+    );
+    let document = analyze_document(
+        tokenizer(),
+        text,
+        &DocumentOptions::new().with_skip_names(names.iter().map(|s| (*s).to_owned()).collect()),
+    );
+    let permissive = name_spelling::report(
+        &document,
+        &NameSpellingOptions::new().with_include_dictionary_words(true),
+    )
+    .unwrap();
+    assert!(permissive.flags.iter().any(|f| f.form == "Lady"));
+}
+
+#[test]
+fn medial_w_is_silent_in_phonetic_codes() {
+    let report = run(
+        "🙂 “Stewart?” she asked—Stuart… nodded.\u{2028}",
+        &["Stuart"],
+        true,
+    );
+    assert_eq!(report.flags.len(), 1);
+    assert_eq!(report.flags[0].form, "Stewart");
+    assert_eq!(report.flags[0].reason, NameSpellingReason::Phonetic);
+}

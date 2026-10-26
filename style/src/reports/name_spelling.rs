@@ -5,6 +5,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use serde::{Deserialize, Serialize};
 use unicode_normalization::{char::is_combining_mark, UnicodeNormalization};
 
+use super::diction::ConcretenessTable;
 use super::name_phonetics::{Codes, EnglishNamePhonetics, NamePhonetics};
 use super::Split;
 use crate::pronunciation::initial_sound;
@@ -94,6 +95,34 @@ pub struct NameSpellingReport {
     pub flags: Vec<NameSpellingFlag>,
     pub names: Vec<NameSpellingName>,
 }
+
+// English endings that derive a family plural, demonym or adjective from a listed name
+// (*the Stirlings*, *Nantucketers*, *Mingottian*); such forms are not misspellings.
+const DERIVED: [&str; 7] = ["s", "es", "er", "ers", "ian", "ians", "ish"];
+
+// The tagger reads capitalized mid-sentence words as NNP, so months and weekdays
+// (*June* near *Jane*) need their own list; the bundled lemmas exclude proper nouns.
+const CALENDAR: [&str; 19] = [
+    "january",
+    "february",
+    "march",
+    "april",
+    "june",
+    "july",
+    "august",
+    "september",
+    "october",
+    "november",
+    "december",
+    "monday",
+    "tuesday",
+    "wednesday",
+    "thursday",
+    "friday",
+    "saturday",
+    "sunday",
+    "christmas",
+];
 
 #[derive(Clone)]
 struct Unit<'a> {
@@ -296,6 +325,7 @@ struct RosterIndex {
     first_sound_indices: HashMap<&'static str, Vec<usize>>,
     phonetic_index: HashMap<String, Vec<usize>>,
     lowercase_initial: bool,
+    stems: HashSet<String>,
     joined_prefixes: HashSet<String>,
     phrase_first_sounds: HashSet<&'static str>,
 }
@@ -325,6 +355,9 @@ impl RosterIndex {
                 .map(|word| WordKey::new(word, phonetic))
                 .collect();
             index.all_indices.push(at);
+            index
+                .stems
+                .extend(name_words.iter().map(|word| word.folded.clone()));
             if name_words.len() == 1 {
                 index
                     .first_sound_indices
@@ -383,6 +416,14 @@ impl RosterIndex {
         None
     }
 
+    fn derived(&self, folded: &str) -> bool {
+        DERIVED.iter().any(|suffix| {
+            folded
+                .strip_suffix(suffix)
+                .is_some_and(|stem| self.stems.contains(stem))
+        })
+    }
+
     fn matches(&self, form: &str, fuzzy: bool, phonetic: bool) -> Vec<Match> {
         let keys = Keys::new(form);
         let mut found = Vec::new();
@@ -406,7 +447,7 @@ impl RosterIndex {
                 }
             }
         }
-        if found.is_empty() && fuzzy {
+        if found.is_empty() && fuzzy && !self.derived(&keys.folded) {
             let candidate: Vec<WordKey> = form
                 .split_whitespace()
                 .map(|word| WordKey::new(word, false))
@@ -525,6 +566,16 @@ fn name_like(unit: &Unit<'_>, lowercase_seen: bool, options: &NameSpellingOption
                 .all(|reading| matches!(reading.pos.as_str(), "NNP" | "NNPS")))
 }
 
+// Capitalized common nouns (*Part*, *Port*, *Lady*) read as NNP mid-sentence, so the
+// bundled fiction lemmas stand in for a lowercase use the document may not contain.
+// A phrase is exempt: its other components must already match the listed name (*Van der Berg*).
+fn common_word(text: &str) -> bool {
+    let word = crate::reports::echoes::fold(text);
+    CALENDAR.contains(&word.as_str())
+        || crate::document::honorific(&word)
+        || ConcretenessTable::bundled().get(&word).is_some()
+}
+
 fn inc(split: &mut Split<usize>, mode: Mode) {
     for count in split.all_and_mode_mut(mode) {
         *count += 1;
@@ -583,6 +634,8 @@ pub fn report(
                 .is_some_and(char::is_uppercase)
                 && !first_lower_seen;
             let first_fuzzy = name_like(&units[at], first_lower_seen, options);
+            let first_ordinary_ok =
+                options.include_dictionary_words || !common_word(units[at].text);
             let first_joined: String = first_folded
                 .nfd()
                 .filter(|c| {
@@ -629,6 +682,7 @@ pub fn report(
                     break;
                 }
                 let fuzzy = first_fuzzy
+                    && (size > 1 || first_ordinary_ok)
                     && run.iter().skip(1).all(|u| {
                         !lowercase.contains(&folded(u.text))
                             || u.text.chars().next().is_some_and(char::is_lowercase)

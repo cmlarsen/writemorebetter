@@ -5,6 +5,7 @@ import json
 import random
 import re
 import subprocess
+from collections import Counter
 from pathlib import Path
 
 from common import HERE, ROOT, offsets, write_jsonl
@@ -13,8 +14,18 @@ from tier2 import score
 BASELINE = HERE / 'name-spelling-baseline.json'
 OUT = HERE / 'out/name-spelling'
 SEED = 375
-# Each pair supplies a common English respelling outside the single-edit tier.
-PHONETIC = [('Katherine', 'Kathryn'), ('Stephen', 'Steven'), ('Shaun', 'Shawn')]
+# Common English respellings of a listed name, written for this suite (not from a dataset).
+# Some fall within one or two edits and match at the edit tier first; both tiers are reported.
+PHONETIC = [('Katherine', 'Kathryn'), ('Stephen', 'Steven'), ('Shaun', 'Shawn'),
+            ('Catherine', 'Kathryn'), ('Sean', 'Shawn'), ('Jeffrey', 'Geoffrey'), ('Phillip', 'Filip'),
+            ('Allison', 'Alyson'), ('Caitlin', 'Kaitlyn'), ('Christopher', 'Kristopher'),
+            ('Christine', 'Kristine'), ('Cynthia', 'Synthia'), ('Zachary', 'Zackary'), ('Isaac', 'Izaak'),
+            ('Jillian', 'Gillian'), ('Madeline', 'Madelyn'), ('Michael', 'Mikael'), ('Nicholas', 'Nikolas'),
+            ('Frederick', 'Fredrik'), ('Ashley', 'Ashleigh'), ('Sophia', 'Sofia'), ('Joseph', 'Josef'),
+            ('Raphael', 'Rafael'), ('Eleanor', 'Elinor'), ('Deborah', 'Debra'), ('Gerald', 'Jerald'),
+            ('Philippa', 'Filippa'), ('Tiffany', 'Tiphanie'), ('Cecily', 'Cecilie'), ('Josephine', 'Josefine'),
+            ('Stuart', 'Stewart'), ('Kathleen', 'Cathleen'), ('Marcus', 'Markus'), ('Jasmine', 'Jazmyn'),
+            ('Rebecca', 'Rebekah'), ('Hailey', 'Haleigh'), ('Jonathan', 'Johnathon'), ('Elliott', 'Eliot')]
 FOLDED = [('Zoë', 'Zoe', 'diacritics'), ('Mara', 'MAra', 'case'),
           ('Van der Berg', 'Vanderberg', 'spacing')]
 EDIT = [('Marianne', 'Mariann', 'deletion'), ('Marianne', 'Mariannne', 'insertion'),
@@ -34,7 +45,7 @@ def passages():
 
 def probe(executable, cases):
     payload = ''.join(json.dumps({'file': c['file'], 'text': c['text'], 'names': c['names']}, ensure_ascii=False) + '\n' for c in cases)
-    result = subprocess.run([str(executable)], input=payload, text=True, encoding='utf-8',
+    result = subprocess.run([str(executable)], input=payload, text=True, encoding='utf-8', cwd=ROOT,
                             stdout=subprocess.PIPE, check=True)
     return {row['file']: row for row in map(json.loads, result.stdout.splitlines())}
 
@@ -70,7 +81,7 @@ def cases(split):
             results.append({'file': file, 'text': text, 'names': [name],
                             'gold': {'file': file, 'report': 'nameSpelling', 'pattern': reason,
                                      'name': name, **offsets(text, start, start + len(form))},
-                            'boundary': len(prefix.encode('utf-8')), 'category': category})
+                            'boundary': len(prefix.encode('utf-8')), 'category': category, 'form': form})
         for label, names, form in [('control', ['Katherine', 'Mara'], None),
                                    ('both-listed', ['Mara', 'Mary'], 'Mary'),
                                    ('near-real', ['Mara'], 'Mary')]:
@@ -109,11 +120,21 @@ def evaluate(split, executable):
         items = [d['gold'] for d in docs if d['category'] == category]
         caught = sum((g['file'], g['byte']['start'], g['byte']['end']) in found_spans for g in items)
         category_recall[category] = {'caught': caught, 'total': len(items), 'recall': caught / len(items)}
+    reasons = {(row['file'], row['byte']['start'], row['byte']['end']): row['pattern'] for row in found}
+    pairs = {}
+    for d in docs:
+        if d['category'] == 'phonetic':
+            g = d['gold']
+            reason = reasons.get((g['file'], g['byte']['start'], g['byte']['end']), 'missed')
+            pairs.setdefault(f"{g['name']}/{d['form']}", Counter())[reason] += 1
+    tiers = Counter(reason for counts in pairs.values() for reason in counts.elements())
     words = sum(len(d['text'].split()) for d in docs if d['category'] == 'control')
     times = [measured[d['file']]['reportNs'] / 1e6 for d in docs]
     summary = {'split': split, 'seed': SEED, 'documents': len(docs), 'gold': len(gold),
                'scores': stats, 'categoryRecall': category_recall,
-               'correctSuggestions': correct, 'controlFlags': control_flags,
+               'phoneticTiers': dict(tiers), 'phoneticPairs': {k: dict(v) for k, v in sorted(pairs.items())},
+               'correctSuggestions': correct, 'caughtGold': sum(
+                   (g['file'], g['byte']['start'], g['byte']['end']) in found_spans for g in gold), 'controlFlags': control_flags,
                'controlWords': words, 'nearRealFlags': sum(row['file'].endswith('near-real') for row in found),
                'naturalCount': len(natural), 'naturalSha256': digest,
                'reportMsMedian': sorted(times)[len(times)//2]}
@@ -148,7 +169,8 @@ def main():
         assert rates['phonetic']['recall'] >= 0.80
         assert rates['possessive']['recall'] == 1
         assert all(rates[category]['recall'] == 1 for category in ('case', 'diacritics', 'spacing'))
-        assert test['correctSuggestions'] == test['gold']
+        # Every caught item names the intended entry; misses count against recall above.
+        assert test['correctSuggestions'] == test['caughtGold']
         assert test['controlFlags'] * 10000 <= test['controlWords']
         assert rates['near-real']['recall'] == 1
     print(json.dumps(results, indent=2))

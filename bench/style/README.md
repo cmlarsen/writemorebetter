@@ -1327,5 +1327,14 @@ spacing changes, plus a real-name near miss. Untouched suffixes and both-listed 
 Outputs under ignored `out/name-spelling/` hold exact byte and UTF-16 spans, predictions, natural
 flags and summary JSON. `name-spelling-baseline.json` freezes the held-out natural-text predictions
 by count and exact-span digest; `test_name_spelling.py` checks equality. A deliberate report change
-requires inspecting the flags before `--freeze` updates that baseline. Gate measurements and scope
-are in [STYLE-NAME-SPELLING.md](../../docs/STYLE-NAME-SPELLING.md).
+requires inspecting the flags before `--freeze` updates that baseline. The summary splits the 38
+planted phonetic pairs by the tier that caught them (`phoneticTiers`, `phoneticPairs`).
+
+`python3 bench/style/name_spelling_books.py --check` measures precision with real rosters. It runs
+the release report over bench/public and the 13 public-domain books and chapters in `sources.json`,
+one document per chapter, with the hand-written rosters in `name-spelling-rosters.json`. It prints
+flags per text and per 10,000 words. A seeded sample of at most 150 flags (seed 375) is matched against
+`labels/name-spelling-judgments.jsonl`, labeled `useful`, `not useful` or `unlisted name`.
+`--check` fails if a sampled flag lacks a judgment. All flags, the sample and their contexts are
+written under ignored `out/name-spelling/books/`. Gate measurements and scope are in
+[STYLE-NAME-SPELLING.md](../../docs/STYLE-NAME-SPELLING.md).

@@ -1,0 +1,22 @@
+{
+  "_comment": "Hand-written rosters for the name spelling precision run (#375): each text's main characters and places, as an author would list them. Chosen from reading the texts, not generated from flags.",
+  "story1": ["Marta", "Posy", "Kerrow", "Bellhaven"],
+  "story2": ["Ines", "Teodor", "Aldermere"],
+  "story3": ["Theo", "Reyna", "Sokolov", "Larkspur Junction", "Abilene"],
+  "story4": ["Ellis", "Aduke", "Hollis", "Verity", "Marrow"],
+  "story5": ["Iman", "Pell", "Wren", "Ashgrove"],
+  "moby150k": ["Ahab", "Ishmael", "Queequeg", "Starbuck", "Stubb", "Flask", "Tashtego", "Daggoo", "Fedallah", "Pip", "Peleg", "Bildad", "Elijah", "Perth", "Pequod", "Nantucket", "Moby Dick", "Yojo", "Steelkilt", "Radney"],
+  "moby": ["Ahab", "Ishmael", "Queequeg", "Starbuck", "Stubb", "Flask", "Tashtego", "Daggoo", "Fedallah", "Pip", "Peleg", "Bildad", "Elijah", "Perth", "Pequod", "Nantucket", "Moby Dick", "Yojo", "Steelkilt", "Radney"],
+  "pride": ["Elizabeth", "Lizzy", "Jane", "Lydia", "Kitty", "Mary", "Bennet", "Darcy", "Bingley", "Wickham", "Collins", "Charlotte", "Lucas", "Catherine", "Bourgh", "Georgiana", "Fitzwilliam", "Caroline", "Gardiner", "Longbourn", "Netherfield", "Pemberley", "Rosings", "Meryton", "Hunsford", "Lambton"],
+  "blue_castle": ["Valancy", "Barney", "Snaith", "Stirling", "Cissy", "Olive", "Stickles", "Wellington", "Georgiana", "Benjamin", "Abel", "Doss", "Redfern", "Deerwood", "Mistawis", "Muskoka"],
+  "ackroyd": ["Poirot", "Hercule", "Sheppard", "Caroline", "Ackroyd", "Roger", "Ralph", "Paton", "Flora", "Blunt", "Raymond", "Parker", "Russell", "Fernly", "Ursula", "Bourne", "Raglan", "Melrose", "Ferrars", "King’s Abbot"],
+  "thirty_nine_steps": ["Hannay", "Richard", "Scudder", "Karolides", "Turnbull", "Walter", "Bullivant", "Harry", "Marmaduke Jopley", "Paddock", "Galloway", "Scotland", "Portland", "Bradgate"],
+  "hound": ["Holmes", "Sherlock", "Watson", "Henry", "Charles", "Baskerville", "Mortimer", "Stapleton", "Beryl", "Barrymore", "Selden", "Frankland", "Laura Lyons", "Lestrade", "Hugo", "Grimpen", "Merripit", "Coombe Tracey", "Dartmoor"],
+  "age_of_innocence": ["Newland", "Archer", "Ellen", "Olenska", "May", "Welland", "Beaufort", "Regina", "Mingott", "Catherine", "Medora", "Manson", "Lefferts", "Jackson", "Sillerton", "Janey", "Luyden", "Winsett", "Dallas", "Skuytercliff"],
+  "silas_marner": ["Silas", "Marner", "Godfrey", "Cass", "Dunstan", "Dunsey", "Nancy", "Lammeter", "Priscilla", "Eppie", "Dolly", "Winthrop", "Aaron", "Molly", "Kimble", "Macey", "Raveloe", "Lantern Yard", "Wildfire"],
+  "treasure_island": ["Jim", "Hawkins", "Silver", "Livesey", "Trelawney", "Smollett", "Flint", "Ben Gunn", "Billy Bones", "Pew", "Israel Hands", "Redruth", "Hunter", "Joyce", "Morgan", "Hispaniola", "Benbow", "Bristol", "Skeleton Island"],
+  "styles_ch1": ["Hastings", "Cavendish", "John", "Mary", "Lawrence", "Emily", "Inglethorp", "Alfred", "Evelyn", "Evie", "Howard", "Cynthia", "Murdoch", "Bauerstein", "Styles", "Tadminster"],
+  "gatsby_ch1": ["Nick", "Carraway", "Gatsby", "Daisy", "Tom", "Buchanan", "Jordan", "Baker", "Pammy", "West Egg", "East Egg"],
+  "sign_ch1": ["Holmes", "Sherlock", "Watson", "Morstan", "Lestrade", "Gregson", "Athelney Jones"],
+  "avonlea_ch1": ["Anne", "Shirley", "Marilla", "Cuthbert", "Harrison", "Rachel", "Lynde", "Diana", "Gilbert", "Davy", "Dora", "Ginger", "Avonlea", "Carmody"]
+}

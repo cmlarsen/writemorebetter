@@ -47,8 +47,16 @@ fallback. No report-specific data or name list is bundled.
 
 For each word token, require an initial capital and `!is_skipped`. Reject it as an ordinary word
 when its lowercase form occurs lowercase elsewhere in the document or any available token reading
-is a common-word reading rather than `NNP`/`NNPS`. `includeDictionaryWords` relaxes the reading
-test, but document-local lowercase uses still protect ordinary prose. Sentence-initial capitals
+is a common-word reading rather than `NNP`/`NNPS`. The tagger reads most capitalized
+mid-sentence words as `NNP` (*Part*, *Port*, *Lady*), and one chapter may never use the word
+lowercase, so a single-token candidate is also rejected when it is a lemma in the bundled
+concreteness table (14,572 fiction lemmas without proper nouns), an honorific, or a month, weekday
+or *Christmas*. A multi-word run is exempt from that lemma test, since its other components must
+already match the listed phrase (*Van der Breg*). `includeDictionaryWords` relaxes the reading and
+lemma tests, but document-local lowercase uses still protect ordinary prose. A form that is a listed
+name word plus an English derivational ending (`s`, `es`, `er`, `ers`, `ian`, `ians`, `ish`: *the
+Stirlings*, *Nantucketers*, *Mingottian*) is a family plural, demonym or adjective, not a
+misspelling; it gets no fuzzy match. Sentence-initial capitals
 are allowed through only when this gate leaves them name-like. An all-caps form of a listed name
 counts as that name, as does capitalizing only the first letter of a listed lowercase-initial
 name at a sentence start. Roster entries always win: a variant that is itself listed is counted
@@ -156,26 +164,86 @@ The folded/edit release WASM baseline is 7,890,186 bytes raw and 2,043,283 bytes
 `python3 bench/style/name_spelling.py --gate` uses seed 375 and a held-out split of 12 public-story
 chunks. Each planted item follows untouched public prose containing an emoji, curly quotes, an em
 dash, an ellipsis and U+2028. Exact byte and UTF-16 spans are scored. The development split has
-the same size and results. The 10 hand-built integration cases and the 10 published phonetic-code
+the same size and results. The 13 hand-built integration cases and the published phonetic-code
 fixtures also pass.
 
 | Measure | Pass gate | Held-out result |
 |---|---:|---:|
-| Hand-built cases | 100% | 10/10 pass |
+| Hand-built cases | 100% | 13/13 pass |
 | Single-edit errors, names ≥4 letters | ≥95% recall | 48/48 (100%) |
-| Phonetic respellings, tier 2 enabled | ≥80% recall | 36/36 (100%); 24 use the phonetic reason and 12 match at the earlier edit tier |
+| Phonetic respellings, tier 2 enabled | ≥80% recall | 408/456 (89.5%), 34 of 38 pairs; see below |
 | Diacritic, case and spacing variants | 100% recall | 36/36 (100%) |
-| Correct roster suggestion | 100% | 144/144 (100%) |
-| Untouched appended controls | ≤1 unexpected flag / 10,000 words | 0/2,232 words |
+| Correct roster suggestion | 100% of caught items | 516/516 (100%) |
+| Untouched appended controls | ≤1 unexpected flag / 10,000 words | 0/2,232 words; at scale, 5 not-useful flags in 853,767 words (0.06) |
 | Nearby names both listed | Zero flags | 0/12 flags |
-| Unlisted real-name near misses | Expected flags | 12/12 *Mary* → *Mara* |
-| Natural-text hand review with real rosters | ≥80% useful | Not established: five held-out flags all repeat the one real-name *Marta* → *Mara* under different synthetic rosters; it is recorded separately |
-| Native release time, `moby150k`, 200-name roster | <10 ms | Isolated five-run median 9.617 ms with 200 capitalized public-text forms; synthetic-name median 8.280 ms (analysis excluded) |
+| Unlisted real-name near misses | Expected flags | 12/12 *Mary* → *Mara*; 91 in the books, below |
+| Natural-text hand review with real rosters | ≥80% useful | **Not met:** 11/16 (68.8%) on all 107 book flags |
+| Native release time, `moby150k`, 200-name roster | <10 ms | Median 9.0 ms warm; first call in a process 13.5 ms, of which 3.9 ms parses the bundled concreteness table (analysis excluded) |
+
+The correct-suggestion gate was stated against all planted items while recall was 100%; the
+four missed phonetic pairs now count against recall instead, and the gate checks every caught item.
+
+**Phonetic recall.** The suite plants 38 distinct respelling pairs of common English names, written
+for this suite rather than taken from a dataset, 12 times each. Both tiers are on.
+
+| Tier that caught the pair | Pairs | Pairs |
+|---|---:|---|
+| Edit (one or two edits) | 15 | Christine/Kristine, Christopher/Kristopher, Cynthia/Synthia, Frederick/Fredrik, Gerald/Jerald, Jillian/Gillian, Jonathan/Johnathon, Josephine/Josefine, Kathleen/Cathleen, Madeline/Madelyn, Marcus/Markus, Nicholas/Nikolas, Philippa/Filippa, Shaun/Shawn, Zachary/Zackary |
+| Phonetic | 19 of the other 23 (82.6%) | Allison/Alyson, Ashley/Ashleigh, Caitlin/Kaitlyn, Cecily/Cecilie, Deborah/Debra, Eleanor/Elinor, Elliott/Eliot, Isaac/Izaak, Jasmine/Jazmyn, Jeffrey/Geoffrey, Joseph/Josef, Katherine/Kathryn, Michael/Mikael, Phillip/Filip, Raphael/Rafael, Rebecca/Rebekah, Sophia/Sofia, Stephen/Steven, Stuart/Stewart |
+| Missed | 4 | Catherine/Kathryn, Hailey/Haleigh, Tiffany/Tiphanie (codes agree; OSA 4 and Jaro-Winkler 0.69–0.80 fail the second bound), Sean/Shawn (Double Metaphone gives `SN` and `XN`) |
+
+Stuart/Stewart first failed because the encoder coded W before any vowel. Philips codes W only at
+a word start, in WR, in a final W after a vowel (alternate F) and in Polish -EWSKI and -WICZ. The
+encoder now follows that rule, with `w_rules` and `medial_w_is_silent_in_phonetic_codes` as
+regression tests. The second bound was not loosened to reach the other three: the natural flags
+below that were not useful (*Santa*/*Snaith* 0.77, *Madeira*/*Medora* 0.80) fall inside the
+range of real respellings (*Isaac*/*Izaak* 0.76, *Sean*/*Shawn* 0.81).
+
+**Precision at scale.** `python3 bench/style/name_spelling_books.py --check` runs the release
+report over bench/public and the 13 public-domain books and chapters in `sources.json`, one
+document per chapter, with each text's main characters and places from
+`bench/style/name-spelling-rosters.json` (4 to 26 entries per text). One document per chapter is the
+stricter case, since lowercase uses elsewhere in a book cannot protect a word. `moby150k`
+overlaps the opening of *Moby-Dick*. The run produced 107 flags, below the 150-flag sample size,
+so every flag is judged in `bench/style/labels/name-spelling-judgments.jsonl`: **useful** when it
+is a variant of the listed entity's own name, **unlisted name** when the form is itself another
+real personal name (the *Mary*/*Mara* class, outside the rate), and **not useful** otherwise.
+
+| Text | Words | Flags | per 10,000 | Useful | Not useful | Unlisted name |
+|---|---:|---:|---:|---:|---:|---:|
+| story1–5 | 10,179 | 0 | 0.00 | 0 | 0 | 0 |
+| moby150k | 25,264 | 2 | 0.79 | 1 | 1 | 0 |
+| moby | 205,102 | 1 | 0.05 | 0 | 0 | 1 |
+| pride | 121,450 | 0 | 0.00 | 0 | 0 | 0 |
+| blue_castle | 68,011 | 66 | 9.70 | 1 | 1 | 64 |
+| ackroyd | 69,294 | 8 | 1.15 | 8 | 0 | 0 |
+| age_of_innocence | 101,176 | 30 | 2.97 | 1 | 3 | 26 |
+| thirty_nine_steps, hound, silas_marner, treasure_island, 4 chapters | 253,291 | 0 | 0.00 | 0 | 0 | 0 |
+| **all** | 853,767 | 107 | 1.25 | 11 | 5 | 91 |
+
+Useful (11): *Porrott* for *Poirot* ×6, a character's mispronunciation; *Fernley* for *Fernly* and
+*Ferrar’s* for *Ferrars*, inconsistencies in the source text; *MOBY-DICK* for *Moby Dick*;
+syllabified *Val-an-cy* and *O-len-ska*. Not useful (5): *Madeira* (the wine) for *Medora* ×3,
+*Santa* in *Santa-Clausy* for *Snaith*, and the French demonym *Nantuckois*. Unlisted names (91):
+*Stalling* for *Stirling* ×37 (another character), *Bernie* for *Barney* ×25 (his father's name for
+him), *Olenski* for *Olenska* ×21 (her husband), *Dossie*, *Elaine*, *Jane* (Jane Merry) ×2 each, *Ahaz*
+and *Manzoni*. The useful rate is 68.8% (11/16; 6 of 9 distinct forms), below the 80% gate.
+With n = 16, the 95% Wilson interval is 44–86%, and two forms make up four of the five misses.
+Repeated unlisted names dominate the flags; listing *Bernie*, *Stalling* and *Olenski* removes 83
+of the 107.
+
+Before the fixes, the same run produced 373 flags (4.37 per 10,000 words), of which 14 were
+useful. Derived forms of listed names (*Stirlings* ×37, *Luydens* ×33, *Mingotts* ×30,
+*Nantucketer* ×22 and 22 other forms) accounted for 252. Capitalized common or calendar words
+accounted for 14: *June* ×4, *Lady* ×2, *John* ×2, *Part*, *Port*, *Harrow*, and *Sterling* ×3.
+*Sterling* was useful: a letter misaddresses *Miss Stirling*. It is the one useful flag the lemma
+gate loses; a misspelling that is itself a common word is out of reach without
+`includeDictionaryWords`.
 
 The held-out natural predictions are frozen by count and exact-span digest in
-`bench/style/name-spelling-baseline.json`; the test fails if those predictions change. This seeded suite has only
-three phonetic respelling pairs across five public stories. The natural-text
-usefulness gate needs a larger hand-judged run with real rosters before it can be claimed.
+`bench/style/name-spelling-baseline.json`; the test fails if those predictions change. The fixes
+and the larger phonetic suite left them unchanged (5 flags, same digest), so the baseline was not
+refreshed.
 
 The release WASM binary after phonetic matching is 7,912,711 bytes raw and 2,050,646 bytes with
 gzip, an increase of 12,525 and 7,363 bytes respectively against the folded/edit baseline above.
