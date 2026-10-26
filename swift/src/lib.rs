@@ -1380,8 +1380,7 @@ pub fn title_case_json(
 
 #[uniffi::export]
 impl StyleDocument {
-    /// Returns the opt-in vague-words lens on the retained analysis; narration and dialogue are
-    /// counted separately.
+    /// Returns drafting leftovers and their mechanical edits on the retained analysis.
     #[uniffi::method(default(options_json = None))]
     pub fn drafting_json(&self, options_json: Option<String>) -> Result<String, CheckError> {
         self.inner
@@ -1392,6 +1391,8 @@ impl StyleDocument {
             })
     }
 
+    /// Returns the opt-in vague-words lens on the retained analysis; narration and dialogue are
+    /// counted separately.
     #[uniffi::method(default(options_json = None))]
     pub fn vague_words_json(&self, options_json: Option<String>) -> Result<String, CheckError> {
         self.inner

@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::OnceLock;
 
 use regex::Regex;
@@ -144,30 +144,73 @@ fn quoted_alone(text: &str, start: usize, end: usize) -> bool {
     ) {
         return false;
     }
-    let after = text[end..].trim_start_matches(['.', '!', '?']);
+    let after = text[end..].trim_start_matches(['.', '!', '?', ',']);
     matches!(after.chars().next(), Some('”' | '’' | '"' | '\''))
 }
-fn listed(kind: &str, word: &str) -> bool {
-    PLACEHOLDERS.lines().any(|line| {
-        line.split_once('\t')
-            .is_some_and(|(k, w)| k == kind && w == word)
+struct PlaceholderLists {
+    marks: HashSet<&'static str>,
+    words: HashSet<String>,
+    verbs: HashSet<String>,
+}
+fn placeholder_lists() -> &'static PlaceholderLists {
+    static LISTS: OnceLock<PlaceholderLists> = OnceLock::new();
+    LISTS.get_or_init(|| {
+        let mut lists = PlaceholderLists {
+            marks: HashSet::new(),
+            words: HashSet::new(),
+            verbs: HashSet::new(),
+        };
+        for line in PLACEHOLDERS
+            .lines()
+            .filter(|line| !line.starts_with('#') && !line.is_empty())
+        {
+            let (kind, value) = line.split_once('\t').expect("placeholder TSV");
+            match kind {
+                "mark" => {
+                    lists.marks.insert(value);
+                }
+                "word" => {
+                    lists.words.insert(value.to_ascii_lowercase());
+                }
+                "verb" => {
+                    lists.verbs.insert(value.to_ascii_lowercase());
+                }
+                _ => unreachable!("placeholder kind"),
+            }
+        }
+        lists
     })
+}
+fn listed(kind: &str, word: &str) -> bool {
+    let lists = placeholder_lists();
+    match kind {
+        "mark" => lists.marks.contains(word),
+        "word" => lists.words.contains(&word.to_ascii_lowercase()),
+        "verb" => lists.verbs.contains(&word.to_ascii_lowercase()),
+        _ => false,
+    }
 }
 fn filler(word: &str) -> bool {
     let lower = word.to_ascii_lowercase();
-    if FILLERS.lines().any(|line| line == lower) {
-        return true;
-    }
-    static PATTERNS: OnceLock<Vec<Regex>> = OnceLock::new();
-    PATTERNS
+    static LIST: OnceLock<HashSet<&'static str>> = OnceLock::new();
+    if LIST
         .get_or_init(|| {
-            ["^u+m+$", "^u+h+$", "^u+h+m+$", "^e+r+m+$", "^e+h+m+$"]
-                .into_iter()
-                .map(|pattern| Regex::new(pattern).expect("filler pattern"))
+            FILLERS
+                .lines()
+                .filter(|line| !line.starts_with('#') && !line.is_empty())
                 .collect()
         })
-        .iter()
-        .any(|pattern| pattern.is_match(&lower))
+        .contains(lower.as_str())
+    {
+        return true;
+    }
+    filler_pattern().is_match(&lower)
+}
+fn filler_pattern() -> &'static Regex {
+    static PATTERN: OnceLock<Regex> = OnceLock::new();
+    PATTERN.get_or_init(|| {
+        Regex::new(r"^(?:u+m+|u+h+m+|u+h+|e+r+m+|e+h+m+)$").expect("filled-pause pattern")
+    })
 }
 fn pause_term(word: &str) -> &'static str {
     let lower = word.to_ascii_lowercase();
@@ -187,7 +230,7 @@ fn pause_term(word: &str) -> &'static str {
 }
 fn mark_allowed(tokens: &[&Token], at: usize) -> bool {
     let text = tokens[at].text.as_str();
-    if !matches!(text, "XX" | "XXXX") {
+    if !matches!(text, "XX" | "XXX" | "XXXX") {
         return true;
     }
     let before = tokens[..at]
@@ -322,6 +365,32 @@ fn command_entries() -> &'static [CommandEntry] {
         entries
     })
 }
+fn command_index() -> &'static HashMap<&'static str, Vec<&'static CommandEntry>> {
+    static INDEX: OnceLock<HashMap<&'static str, Vec<&'static CommandEntry>>> = OnceLock::new();
+    INDEX.get_or_init(|| {
+        let mut index: HashMap<&'static str, Vec<&'static CommandEntry>> = HashMap::new();
+        for entry in command_entries() {
+            index.entry(entry.words[0]).or_default().push(entry);
+        }
+        index
+    })
+}
+fn command_begins(rest: &str) -> bool {
+    let lower = rest.to_ascii_lowercase();
+    let first = lower
+        .split(|ch: char| !ch.is_alphabetic())
+        .next()
+        .unwrap_or("");
+    command_index().get(first).is_some_and(|entries| {
+        entries.iter().any(|entry| {
+            lower.starts_with(entry.phrase)
+                && lower[entry.phrase.len()..]
+                    .chars()
+                    .next()
+                    .is_none_or(|ch| !ch.is_alphabetic())
+        })
+    })
+}
 
 struct CommandCandidate {
     entry: &'static CommandEntry,
@@ -412,6 +481,33 @@ fn command_guard(
     let after = words.get(candidate.last_word + 1).map(|(token, _)| *token);
     let previous = before.map(|token| word(&token.text));
     let next_word = after.map(|token| word(&token.text));
+    if entry.mark == "dash" {
+        let lead = paragraph.text[..candidate.start].trim_end();
+        if lead.is_empty()
+            || lead.ends_with(['.', '!', '?', '“', '”', '"'])
+            || matches!(
+                next_word.as_deref(),
+                Some("my" | "your" | "himself" | "herself" | "themselves")
+            )
+        {
+            return false;
+        }
+    }
+    if entry.mark == "delete"
+        && (before.is_some_and(|token| has_pos(token, "MD"))
+            || matches!(
+                previous.as_deref(),
+                Some("you" | "i" | "he" | "she" | "we" | "they" | "cannot" | "can't")
+            )
+            || ["can't", "can’t"]
+                .iter()
+                .any(|end| paragraph.text[..candidate.start].trim_end().ends_with(end)))
+    {
+        return false;
+    }
+    if entry.phrase == "no caps" && next_word.as_deref() == Some("at") {
+        return false;
+    }
     if entry.guard == "unquote" {
         let prefix = paragraph.text[..candidate.start].trim_end();
         if prefix.ends_with("quote,") || prefix.ends_with("quote-") {
@@ -427,21 +523,43 @@ fn command_guard(
             return false;
         }
     }
-    if matches!(entry.guard, "noun" | "dash") {
-        let prev_guard = before.is_some_and(|token| {
-            has_pos(token, "DT")
-                || has_pos(token, "PRP$")
-                || has_pos(token, "JJ")
-                || has_pos(token, "CD")
-                || token.text.chars().all(|ch| ch.is_ascii_digit())
-        }) || (candidate.first_word >= 2
-            && before.is_some_and(|token| has_pos(token, "JJ") || has_pos(token, "NNP"))
-            && has_pos(words[candidate.first_word - 2].0, "DT"))
-            || previous.as_deref() == Some("of")
-            || matches!(
-                previous.as_deref(),
-                Some("a" | "an" | "the" | "her" | "his" | "their" | "my" | "our")
-            );
+    {
+        let prior_typed_mark = match entry.mark {
+            "comma" => paragraph.text[..candidate.start].trim_end().ends_with(','),
+            "period" => paragraph.text[..candidate.start].trim_end().ends_with('.'),
+            "dash" => paragraph.text[..candidate.start].trim_end().ends_with('—'),
+            _ => false,
+        };
+        let preceding_verb =
+            candidate.first_word >= 2 && has_pos(words[candidate.first_word - 2].0, "VB");
+        let adjective_guard = !matches!(entry.mark, "delete" | "flag")
+            && before.is_some_and(|token| has_pos(token, "JJ"))
+            && candidate.first_word >= 2
+            && has_pos(words[candidate.first_word - 2].0, "DT")
+            && !candidate
+                .first_word
+                .checked_sub(3)
+                .is_some_and(|index| has_pos(words[index].0, "VB"));
+        let prev_guard = !prior_typed_mark
+            && (before.is_some_and(|token| {
+                has_pos(token, "DT")
+                    || (has_pos(token, "PRP$") && token.text != "mine")
+                    || has_pos(token, "CD")
+                    || token.text.chars().all(|ch| ch.is_ascii_digit())
+                    || (adjective_guard && !preceding_verb)
+            }) || (candidate.first_word >= 2
+                && !matches!(entry.mark, "delete" | "flag")
+                && before.is_some_and(|token| has_pos(token, "JJ") || has_pos(token, "NNP"))
+                && has_pos(words[candidate.first_word - 2].0, "DT")
+                && !candidate
+                    .first_word
+                    .checked_sub(3)
+                    .is_some_and(|index| has_pos(words[index].0, "VB")))
+                || previous.as_deref() == Some("of")
+                || matches!(
+                    previous.as_deref(),
+                    Some("a" | "an" | "the" | "her" | "his" | "their" | "my" | "our")
+                ));
         let next_guard = matches!(next_word.as_deref(), Some("of" | "in" | "for" | "between"));
         let object_guard = matches!(previous.as_deref(), Some("made" | "took" | "put" | "used"));
         let dash_guard = entry.guard == "dash"
@@ -460,21 +578,31 @@ fn positive_cue(
     paragraph: &Paragraph,
     other: bool,
 ) -> bool {
-    if candidate.entry.words.len() > 1 {
+    if !matches!(candidate.entry.mark, "period" | "dash") {
         return true;
     }
     let after = words.get(candidate.last_word + 1).map(|(token, _)| *token);
     let next_word = after.map(|token| word(&token.text));
     let clause = after.is_some_and(|token| {
-        has_pos(token, "PRP")
+        (has_pos(token, "PRP") && !has_pos(token, "PRP$"))
             || has_pos(token, "DT")
             || has_pos(token, "NNP")
             || token.text.chars().next().is_some_and(char::is_uppercase)
     }) || matches!(next_word.as_deref(), Some("and" | "but" | "so"))
         && words
             .get(candidate.last_word + 2)
-            .is_some_and(|(token, _)| has_pos(token, "PRP"));
-    clause || paragraph.text[candidate.end..].trim().is_empty() || other
+            .is_some_and(|(token, _)| {
+                has_pos(token, "PRP")
+                    || candidate.entry.mark == "dash"
+                        && (has_pos(token, "VB") || has_pos(token, "RB"))
+            });
+    let after_pause = next_word.as_deref().is_some_and(filler)
+        && words
+            .get(candidate.last_word + 2)
+            .is_some_and(|(token, _)| {
+                has_pos(token, "PRP") || token.text.chars().next().is_some_and(char::is_uppercase)
+            });
+    clause || after_pause || paragraph.text[candidate.end..].trim().is_empty() || other
 }
 
 fn command_candidates(paragraph: &Paragraph) -> Vec<CommandCandidate> {
@@ -492,22 +620,28 @@ fn command_candidates(paragraph: &Paragraph) -> Vec<CommandCandidate> {
     let mut candidates = Vec::new();
     let mut at = 0;
     while at < words.len() {
-        let found = command_entries().iter().find(|entry| {
-            if at + entry.words.len() > words.len() {
-                return false;
-            }
-            entry.words.iter().enumerate().all(|(offset, expected)| {
-                let token = words[at + offset].0;
-                if token.is_skipped || !token.text.eq_ignore_ascii_case(expected) {
+        let folded = word(&words[at].0.text);
+        let found = command_index()
+            .get(folded.as_str())
+            .into_iter()
+            .flatten()
+            .copied()
+            .find(|entry| {
+                if at + entry.words.len() > words.len() {
                     return false;
                 }
-                offset == 0
-                    || paragraph.text[rel(paragraph, words[at + offset - 1].0.span.byte.end)
-                        ..rel(paragraph, token.span.byte.start)]
-                        .chars()
-                        .all(char::is_whitespace)
-            })
-        });
+                entry.words.iter().enumerate().all(|(offset, expected)| {
+                    let token = words[at + offset].0;
+                    if token.is_skipped || !token.text.eq_ignore_ascii_case(expected) {
+                        return false;
+                    }
+                    offset == 0
+                        || paragraph.text[rel(paragraph, words[at + offset - 1].0.span.byte.end)
+                            ..rel(paragraph, token.span.byte.start)]
+                            .chars()
+                            .all(char::is_whitespace)
+                })
+            });
         if let Some(entry) = found {
             let last = at + entry.words.len() - 1;
             let start = rel(paragraph, words[at].0.span.byte.start);
@@ -527,7 +661,18 @@ fn command_candidates(paragraph: &Paragraph) -> Vec<CommandCandidate> {
             at += 1;
         }
     }
-    candidates.retain(|candidate| command_guard(candidate, &words, paragraph));
+    let opening_brackets: Vec<usize> = candidates
+        .iter()
+        .filter(|candidate| candidate.entry.mark == "openBracket")
+        .map(|candidate| candidate.start)
+        .collect();
+    candidates.retain(|candidate| {
+        (candidate.entry.mark == "closeBracket"
+            && opening_brackets
+                .iter()
+                .any(|start| *start < candidate.start))
+            || command_guard(candidate, &words, paragraph)
+    });
     let count = candidates.len();
     candidates.retain(|candidate| positive_cue(candidate, &words, paragraph, count > 1));
     candidates
@@ -548,14 +693,23 @@ fn command_edit(
         .replacement(candidate.entry.mark)
         .expect("command mark");
     let text = &paragraph.text;
+    let is_open_mark = candidate.entry.mark.starts_with("open");
     let mut start = candidate.start;
-    while prev(text, start).is_some_and(|(_, ch)| ch == ' ' || ch == '\t') {
-        start = prev(text, start).unwrap().0;
+    if !is_open_mark {
+        while prev(text, start).is_some_and(|(_, ch)| ch == ' ' || ch == '\t') {
+            start = prev(text, start).unwrap().0;
+        }
     }
     let mut end = candidate.end;
-    let opening = candidate.entry.mark.starts_with("open")
-        || matches!(candidate.entry.mark, "apostrophe" | "dash");
-    if opening {
+    let consume_after = is_open_mark
+        || matches!(candidate.entry.mark, "apostrophe" | "dash" | "newline")
+        || candidate.entry.mark == "hyphen"
+            && text[candidate.end..]
+                .trim_start_matches([' ', '\t'])
+                .chars()
+                .next()
+                .is_some_and(char::is_lowercase);
+    if consume_after {
         while next(text, end).is_some_and(|ch| ch == ' ' || ch == '\t') {
             end += next(text, end).unwrap().len_utf8();
         }
@@ -572,7 +726,12 @@ fn command_edit(
     } else {
         text[candidate.end..].starts_with(mark)
     };
-    let mut replacement = if already {
+    let paired_mark = matches!(mark, "," | "." | "?" | "!" | ":" | ";" | "—" | "-")
+        && text[..start].ends_with(mark);
+    if paired_mark && already {
+        end = candidate.end + mark.len();
+    }
+    let mut replacement = if already || paired_mark {
         String::new()
     } else {
         mark.to_owned()
@@ -581,12 +740,18 @@ fn command_edit(
     if terminal && !already {
         let remaining = &text[end..];
         let gap = remaining.len() - remaining.trim_start_matches([' ', '\t']).len();
-        if let Some(letter) = next(text, end + gap).filter(|ch| ch.is_lowercase()) {
-            let mut upper = letter.to_uppercase();
-            if let (Some(upper), None) = (upper.next(), upper.next()) {
-                replacement.push_str(&remaining[..gap]);
-                replacement.push(upper);
-                end += gap + letter.len_utf8();
+        let next_word = remaining[gap..]
+            .split(|ch: char| !ch.is_alphabetic())
+            .next()
+            .unwrap_or("");
+        if !filler(next_word) {
+            if let Some(letter) = next(text, end + gap).filter(|ch| ch.is_lowercase()) {
+                let mut upper = letter.to_uppercase();
+                if let (Some(upper), None) = (upper.next(), upper.next()) {
+                    replacement.push_str(&remaining[..gap]);
+                    replacement.push(upper);
+                    end += gap + letter.len_utf8();
+                }
             }
         }
     }
@@ -653,88 +818,186 @@ fn commands(
     speech
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum PauseMark {
+    Comma,
+    Dash,
+    Ellipsis,
+}
+
+fn mark_before(text: &str, at: usize) -> Option<(usize, PauseMark)> {
+    let prefix = &text[..at];
+    for (mark, kind) in [
+        ("...", PauseMark::Ellipsis),
+        ("--", PauseMark::Dash),
+        ("…", PauseMark::Ellipsis),
+        ("—", PauseMark::Dash),
+        ("–", PauseMark::Dash),
+        (",", PauseMark::Comma),
+        ("-", PauseMark::Dash),
+    ] {
+        if prefix.ends_with(mark) {
+            return Some((at - mark.len(), kind));
+        }
+    }
+    None
+}
+fn mark_after(text: &str, at: usize) -> Option<(usize, PauseMark)> {
+    let rest = &text[at..];
+    for (mark, kind) in [
+        ("...", PauseMark::Ellipsis),
+        ("--", PauseMark::Dash),
+        ("…", PauseMark::Ellipsis),
+        ("—", PauseMark::Dash),
+        ("–", PauseMark::Dash),
+        (",", PauseMark::Comma),
+        ("-", PauseMark::Dash),
+    ] {
+        if rest.starts_with(mark) {
+            return Some((at + mark.len(), kind));
+        }
+    }
+    None
+}
+fn horizontal(ch: char) -> bool {
+    ch == ' ' || ch == '\t'
+}
+fn discourse_comma(paragraph: &Paragraph, before: usize, core: usize) -> bool {
+    let at = paragraph.span.byte.start + core;
+    let sentence = paragraph
+        .sentences
+        .partition_point(|item| item.span.byte.start <= at)
+        .saturating_sub(1);
+    let sentence_start = rel(paragraph, paragraph.sentences[sentence].span.byte.start);
+    let lead = paragraph.text[sentence_start..before]
+        .trim()
+        .trim_start_matches(['“', '"', '‘', '\''])
+        .trim();
+    ["Well", "Oh", "So", "Yes", "No", "Okay"].contains(&lead)
+        || (lead != "I"
+            && lead.split_whitespace().count() == 1
+            && lead.chars().next().is_some_and(char::is_uppercase))
+}
+fn opening_straight_quote(text: &str, quote: usize) -> bool {
+    prev(text, quote).is_none_or(|(_, ch)| !ch.is_alphanumeric() && !".,;:!?)]}”’".contains(ch))
+}
 fn pause_edit(paragraph: &Paragraph, core_start: usize, core_end: usize) -> DraftingEdit {
     let text = &paragraph.text;
     let mut start = core_start;
     let mut end = core_end;
-    let mut right = end;
-    while next(text, right).is_some_and(|c| c == ' ' || c == '\t') {
-        right += next(text, right).unwrap().len_utf8();
+    let mut before = start;
+    while prev(text, before).is_some_and(|(_, ch)| horizontal(ch)) {
+        before = prev(text, before).unwrap().0;
     }
-    let trailing = [",", "…", "...", "—", "–", "--"]
-        .into_iter()
-        .find(|mark| text[right..].starts_with(mark));
-    let mut trailing_kind = None;
-    let closing_comma =
-        trailing == Some(",") && next(text, right + 1).is_some_and(|c| "”’\")]}".contains(c));
-    if let Some(mark) = trailing {
-        let after = right + mark.len();
-        if !(mark == "," && next(text, after).is_some_and(|c| "”’\")]}".contains(c))) {
-            end = after;
-            trailing_kind = Some(mark);
+    let left = mark_before(text, before);
+    let mut after = end;
+    while next(text, after).is_some_and(horizontal) {
+        after += next(text, after).unwrap().len_utf8();
+    }
+    let right = mark_after(text, after);
+    let mixed = match (left, right) {
+        (Some((left_start, left_kind)), Some((right_end, right_kind)))
+            if left_kind != right_kind =>
+        {
+            Some((left_start, right_end, &text[after..right_end]))
         }
-    }
-    let mut left = start;
-    while prev(text, left).is_some_and(|(_, c)| c == ' ' || c == '\t') {
-        left = prev(text, left).unwrap().0;
-    }
-    let before = prev(text, left);
-    let paired_dash = trailing_kind.is_some_and(|m| matches!(m, "—" | "–" | "--"))
-        && before.is_some_and(|(_, c)| matches!(c, '—' | '–' | '-'));
-    if paired_dash {
-        start = before.unwrap().0;
-        if text[..start].ends_with('-') {
-            start -= 1;
+        _ => None,
+    };
+    let terminal = next(text, after).is_some_and(|ch| ".?!;:".contains(ch)) && right.is_none();
+    let right_closing = right.is_some_and(|(right_end, kind)| {
+        kind == PauseMark::Comma && next(text, right_end).is_some_and(|ch| "”’\"')]}".contains(ch))
+    });
+    match (left, right) {
+        (Some((left_start, left_kind)), Some((right_end, right_kind)))
+            if left_kind == PauseMark::Dash && right_kind == PauseMark::Dash =>
+        {
+            start = left_start;
+            end = right_end;
         }
-    } else if closing_comma && before.is_some_and(|(_, c)| c == ',') {
-        start = before.unwrap().0;
-    } else if trailing_kind == Some(",") && before.is_some_and(|(_, c)| c == ',') {
-        let lead = text[..before.unwrap().0].trim();
-        let discourse = ["Well", "Oh", "So", "Yes", "No", "Okay"].contains(&lead)
-            || (lead.split_whitespace().count() == 1
-                && lead.chars().next().is_some_and(char::is_uppercase));
-        if !discourse {
-            start = before.unwrap().0;
+        (Some((left_start, PauseMark::Comma)), Some((right_end, PauseMark::Comma)))
+            if !right_closing && discourse_comma(paragraph, left_start, core_start) =>
+        {
+            end = right_end;
         }
+        (Some((_, PauseMark::Ellipsis)), Some((right_end, PauseMark::Ellipsis))) => {
+            end = right_end;
+        }
+        (Some((left_start, _)), Some((right_end, right_kind)))
+            if !right_closing && right_kind == PauseMark::Comma =>
+        {
+            start = left_start;
+            end = right_end;
+        }
+        (Some((left_start, _)), Some(_)) => {
+            start = left_start;
+        }
+        (Some((left_start, _)), None) if terminal => {
+            start = left_start;
+        }
+        (None, Some((right_end, _))) => {
+            end = right_end;
+        }
+        _ => {}
     }
-    while prev(text, start).is_some_and(|(_, c)| c == ' ' || c == '\t') {
+    if let Some((left_start, right_end, _)) = mixed {
+        start = left_start;
+        end = right_end;
+    }
+    while prev(text, start).is_some_and(|(_, ch)| horizontal(ch)) {
         start = prev(text, start).unwrap().0;
     }
-    while next(text, end).is_some_and(|c| c == ' ' || c == '\t') {
+    while next(text, end).is_some_and(horizontal) {
         end += next(text, end).unwrap().len_utf8();
     }
-    let left_context = prev(text, start).map(|(_, c)| c);
+    let left_context = prev(text, start);
     let right_context = next(text, end);
-    let separator = if left_context.is_none_or(|c| "“‘\"([\u{2028}".contains(c))
-        || right_context.is_none_or(|c| ".,;:!?…”’\")]}\u{2028}".contains(c))
-    {
-        ""
+    let left_open = left_context.is_none_or(|(_, ch)| "“‘([\u{2028}".contains(ch))
+        || left_context.is_some_and(|(at, ch)| ch == '"' && opening_straight_quote(text, at));
+    let right_close = right_context.is_none_or(|ch| ".,;:!?…”’\")]}\u{2028}".contains(ch));
+    let mut replacement = if left_open || right_close {
+        String::new()
     } else {
-        " "
+        " ".to_owned()
     };
-    let mut replacement = separator.to_owned();
-    let at_sentence_start = left_context.is_none_or(|c| ".?!“‘\"".contains(c))
-        && !text[..start].ends_with("...")
-        && !text[..start].ends_with('…');
+    if let Some((_, _, mark)) = mixed {
+        replacement = mark.to_owned();
+        if text[right.unwrap().0..end].chars().any(horizontal)
+            && right_context.is_some_and(char::is_alphanumeric)
+        {
+            replacement.push(' ');
+        }
+    }
+    let prior_command = text[..start].trim_end();
+    let after_terminal_command = [
+        "period",
+        "full stop",
+        "question mark",
+        "exclamation point",
+        "exclamation mark",
+    ]
+    .iter()
+    .any(|command| prior_command.ends_with(command));
+    let at_sentence_start = after_terminal_command
+        || left_context.is_none_or(|(_, ch)| ".?!“‘".contains(ch))
+        || left_context.is_some_and(|(at, ch)| ch == '"' && opening_straight_quote(text, at));
+    let at_sentence_start =
+        at_sentence_start && !text[..start].ends_with("...") && !text[..start].ends_with('…');
     let next_word = text[end..]
-        .split(|c: char| !c.is_alphabetic())
+        .split(|ch: char| !ch.is_alphabetic())
         .next()
         .unwrap_or("");
-    if at_sentence_start
-        && !filler(next_word)
-        && !command_entries()
-            .iter()
-            .any(|entry| entry.words[0] == next_word)
-    {
-        if let Some(c) = right_context.filter(|c| c.is_lowercase()) {
-            let mut upper = c.to_uppercase();
+    if command_begins(&text[end..]) {
+        replacement.clear();
+    }
+    if at_sentence_start && !filler(next_word) && !command_begins(&text[end..]) {
+        if let Some(ch) = right_context.filter(|ch| ch.is_lowercase()) {
+            let mut upper = ch.to_uppercase();
             if let (Some(first), None) = (upper.next(), upper.next()) {
                 replacement.push(first);
-                end += c.len_utf8();
+                end += ch.len_utf8();
             }
         }
     }
-    // Minimize the edit while preserving its exact output.
     let original = &text[start..end];
     let mut head = 0;
     while let (Some(a), Some(b)) = (next(original, head), next(&replacement, head)) {
@@ -765,6 +1028,19 @@ fn pause_edit(paragraph: &Paragraph, core_start: usize, core_end: usize) -> Draf
     }
 }
 
+struct PauseCandidate {
+    start: usize,
+    end: usize,
+    sentence: usize,
+    mode: Mode,
+    term: String,
+}
+fn adjacent_pauses(text: &str) -> bool {
+    !text.is_empty()
+        && text
+            .chars()
+            .all(|ch| horizontal(ch) || matches!(ch, ',' | '—' | '–' | '-' | '…' | '.'))
+}
 fn pauses(
     paragraph: &Paragraph,
     sentence_offset: usize,
@@ -773,77 +1049,63 @@ fn pauses(
     speech: &[std::ops::Range<usize>],
     out: &mut Vec<DraftingMatch>,
 ) {
+    static SCAN: OnceLock<Regex> = OnceLock::new();
+    let scan = SCAN.get_or_init(|| Regex::new(r"(?i)u+m+|u+h+m+|u+h+|e+r+m+|e+h+m+|er").unwrap());
     let text = &paragraph.text;
-    for (sentence_index, sentence) in paragraph.sentences.iter().enumerate() {
-        let tokens: Vec<&Token> = sentence
-            .tokens
-            .iter()
-            .filter(|t| !t.is_whitespace)
-            .collect();
-        for token in tokens {
-            if !token.is_word || token.is_skipped || token.text.chars().all(char::is_uppercase) {
+    let tokens: Vec<&Token> = paragraph
+        .sentences
+        .iter()
+        .flat_map(|sentence| &sentence.tokens)
+        .collect();
+    let mut candidates = Vec::new();
+    for found in scan.find_iter(text) {
+        let start = found.start();
+        let end = found.end();
+        let before = prev(text, start).map(|(_, ch)| ch);
+        let after = next(text, end);
+        if before.is_some_and(char::is_alphanumeric)
+            || after.is_some_and(char::is_alphanumeric)
+            || (before == Some('-') && !text[..start].ends_with("--"))
+            || (after == Some('-') && !text[end..].starts_with("--"))
+            || found.as_str().chars().all(char::is_uppercase)
+            || quoted_alone(text, start, end)
+        {
+            continue;
+        }
+        let at = paragraph.span.byte.start + start;
+        let token = tokens.get(tokens.partition_point(|token| token.span.byte.end <= at));
+        if token.is_some_and(|token| token.is_skipped && token.span.byte.start <= at) {
+            continue;
+        }
+        let term = pause_term(found.as_str());
+        if term == "er" {
+            if !options.er {
                 continue;
             }
-            let start = rel(paragraph, token.span.byte.start);
-            let end = rel(paragraph, token.span.byte.end);
-            let er = token.text.eq_ignore_ascii_case("er");
-            if !filler(&token.text) && !(options.er && er) {
-                continue;
-            }
-            if er {
-                let before = text[..start].trim_end_matches([' ', '\t']);
-                let after = text[end..].trim_start_matches([' ', '\t']);
-                let paired = [",", "—", "–", "--"]
+            let before = text[..start].trim_end_matches([' ', '\t']);
+            let after = text[end..].trim_start_matches([' ', '\t']);
+            let paired = [",", "—", "–", "--"]
+                .into_iter()
+                .any(|mark| before.ends_with(mark))
+                && [",", "—", "–", "--"]
                     .into_iter()
-                    .any(|mark| before.ends_with(mark))
-                    && [",", "—", "–", "--"]
-                        .into_iter()
-                        .any(|mark| after.starts_with(mark));
-                if !(paired || after.starts_with('…') || after.starts_with("...")) {
-                    continue;
-                }
-            }
-            if (text[..start].ends_with('-') && !text[..start].ends_with("--"))
-                || (text[end..].starts_with('-') && !text[end..].starts_with("--"))
-                || quoted_alone(text, start, end)
-            {
+                    .any(|mark| after.starts_with(mark));
+            if !(paired || after.starts_with('…') || after.starts_with("...")) {
                 continue;
             }
-            let mode = if speech
-                .iter()
-                .any(|range| range.contains(&token.span.byte.start))
-            {
-                Mode::Dialogue
-            } else {
-                document.mode_at(token.span.byte.start)
-            };
-            if mode == Mode::Dialogue && !options.include_dialogue {
-                continue;
-            }
-            out.push(DraftingMatch {
-                span: token.span.clone(),
-                sentence: sentence_offset + sentence_index,
-                category: DraftingCategory::FilledPause,
-                term: pause_term(&token.text).to_owned(),
-                mode,
-                edits: vec![pause_edit(paragraph, start, end)],
-            });
         }
-    }
-    // The tokenizer can keep a double-dash phrase in one token. Its middle word still has
-    // char-boundary offsets, so recover the pause at that punctuation seam.
-    static DASHED: OnceLock<Regex> = OnceLock::new();
-    let dashed =
-        DASHED.get_or_init(|| Regex::new(r"(?i)--(u+m+|u+h+m+|u+h+|e+r+m+|e+h+m+|er)--").unwrap());
-    for capture in dashed.captures_iter(text) {
-        let middle = capture.get(1).expect("pause capture");
-        if middle.as_str().eq_ignore_ascii_case("er") && !options.er {
+        let bare = text.trim();
+        if bare.eq_ignore_ascii_case(found.as_str())
+            || [".", "!", "?", ","]
+                .into_iter()
+                .any(|mark| bare.eq_ignore_ascii_case(&format!("{}{mark}", found.as_str())))
+        {
             continue;
         }
-        if middle.as_str().chars().all(char::is_uppercase) {
-            continue;
-        }
-        let at = paragraph.span.byte.start + middle.start();
+        let sentence = paragraph
+            .sentences
+            .partition_point(|item| item.span.byte.start <= at)
+            .saturating_sub(1);
         let mode = if speech.iter().any(|range| range.contains(&at)) {
             Mode::Dialogue
         } else {
@@ -852,21 +1114,35 @@ fn pauses(
         if mode == Mode::Dialogue && !options.include_dialogue {
             continue;
         }
-        if out.iter().any(|found| found.span.byte.start == at) {
-            continue;
-        }
-        let sentence = paragraph
-            .sentences
-            .partition_point(|s| s.span.byte.start <= at)
-            .saturating_sub(1);
-        out.push(DraftingMatch {
-            span: span(paragraph, middle.start(), middle.end()),
+        candidates.push(PauseCandidate {
+            start,
+            end,
             sentence: sentence_offset + sentence,
-            category: DraftingCategory::FilledPause,
-            term: pause_term(middle.as_str()).to_owned(),
             mode,
-            edits: vec![pause_edit(paragraph, middle.start(), middle.end())],
+            term: term.to_owned(),
         });
+    }
+    let mut at = 0;
+    while at < candidates.len() {
+        let first = &candidates[at];
+        let mut last = at;
+        while last + 1 < candidates.len()
+            && candidates[last + 1].sentence == first.sentence
+            && candidates[last + 1].mode == first.mode
+            && adjacent_pauses(&text[candidates[last].end..candidates[last + 1].start])
+        {
+            last += 1;
+        }
+        let end = candidates[last].end;
+        out.push(DraftingMatch {
+            span: span(paragraph, first.start, end),
+            sentence: first.sentence,
+            category: DraftingCategory::FilledPause,
+            term: first.term.clone(),
+            mode: first.mode,
+            edits: vec![pause_edit(paragraph, first.start, end)],
+        });
+        at = last + 1;
     }
 }
 
@@ -945,7 +1221,10 @@ pub fn report(
     for found in &mut matches {
         for edit in &mut found.edits {
             if edit.span.byte.start < used_end && used_end <= found.span.byte.start {
-                if let Some(paragraph) = document.paragraphs.iter().find(|p| {
+                let paragraph_index = document
+                    .paragraphs
+                    .partition_point(|p| p.span.byte.end <= used_end);
+                if let Some(paragraph) = document.paragraphs.get(paragraph_index).filter(|p| {
                     p.span.byte.start <= used_end && edit.span.byte.end <= p.span.byte.end
                 }) {
                     edit.span = span(
@@ -973,8 +1252,8 @@ pub fn report(
             empty_lead = last.replacement.is_empty()
                 && document
                     .paragraphs
-                    .iter()
-                    .any(|p| p.span.byte.start == last.span.byte.start);
+                    .binary_search_by_key(&last.span.byte.start, |p| p.span.byte.start)
+                    .is_ok();
         }
     }
     let mut terms: BTreeMap<(DraftingCategory, String), DraftingTerm> = BTreeMap::new();

@@ -232,10 +232,10 @@ fn spoken_command_table() {
             "She said… he left",
             "dot dot dot",
         ),
-        ("She said open quote hello", "She said“hello", "open quote"),
+        ("She said open quote hello", "She said “hello", "open quote"),
         (
             "She said begin quote hello",
-            "She said“hello",
+            "She said “hello",
             "begin quote",
         ),
         (
@@ -247,7 +247,7 @@ fn spoken_command_table() {
         ("hello unquote she said", "hello” she said", "unquote"),
         (
             "She said open single quote hello",
-            "She said‘hello",
+            "She said ‘hello",
             "open single quote",
         ),
         (
@@ -255,10 +255,10 @@ fn spoken_command_table() {
             "hello’ she said",
             "close single quote",
         ),
-        ("She said open paren hello", "She said(hello", "open paren"),
+        ("She said open paren hello", "She said (hello", "open paren"),
         (
             "She said open parenthesis hello",
-            "She said(hello",
+            "She said (hello",
             "open parenthesis",
         ),
         (
@@ -273,7 +273,7 @@ fn spoken_command_table() {
         ),
         (
             "She said open bracket hello",
-            "She said[hello",
+            "She said [hello",
             "open bracket",
         ),
         (
@@ -284,17 +284,17 @@ fn spoken_command_table() {
         ("She typed apostrophe", "She typed’", "apostrophe"),
         (
             "She left new paragraph He returned",
-            "She left\n He returned",
+            "She left\nHe returned",
             "new paragraph",
         ),
         (
             "She left new line He returned",
-            "She left\n He returned",
+            "She left\nHe returned",
             "new line",
         ),
         (
             "She left next line He returned",
-            "She left\n He returned",
+            "She left\nHe returned",
             "next line",
         ),
         (
@@ -542,6 +542,142 @@ fn spoken_commands_keep_utf8_context() {
         assert_eq!(
             applied(source, DraftingOptions::new()),
             expected,
+            "{source:?}"
+        );
+    }
+}
+
+#[test]
+fn review_cleanup_regressions() {
+    let cases = [
+        ("The cat um, uh, sat", "The cat sat"),
+        ("He left. Um, uh, the door", "He left. The door"),
+        ("um, uh, the door", "The door"),
+        ("It was, um… fine", "It was… fine"),
+        ("He was, um—thinking", "He was—thinking"),
+        ("He said, um. Then", "He said. Then"),
+        ("He was—um, thinking", "He was, thinking"),
+        ("He paused—um.", "He paused."),
+        ("He left. Well, um, I was", "He left. Well, I was"),
+        ("I, um, think", "I think"),
+        (
+            "She said \"no\" um, then left.",
+            "She said \"no\" then left.",
+        ),
+        ("He said um--no", "He said no"),
+        ("Um--the door", "The door"),
+        ("I was--um, thinking", "I was, thinking"),
+        ("He said um--uh--no", "He said no"),
+        ("I was - um - thinking", "I was thinking"),
+        (
+            "the light turned green period she drove on",
+            "the light turned green. She drove on",
+        ),
+        (
+            "are you coming question mark he asked",
+            "are you coming? He asked",
+        ),
+        (
+            "she listed the tools colon hammer saw and nails",
+            "she listed the tools: hammer saw and nails",
+        ),
+        (
+            "I reached for the handle dash and stopped",
+            "I reached for the handle—and stopped",
+        ),
+        (
+            "the road ran north hyphen south for miles comma then turned",
+            "the road ran north-south for miles, then turned",
+        ),
+        (
+            "I bought bread coma cheese and apples",
+            "I bought bread, cheese and apples",
+        ),
+        (
+            "she said open quote come in close quote and shut the door",
+            "she said “come in” and shut the door",
+        ),
+        (
+            "the door opened new paragraph Outside",
+            "the door opened\nOutside",
+        ),
+        ("milk, comma, and", "milk, and"),
+        ("left—then right, comma, and", "left—then right, and"),
+        ("it apostrophe s mine", "it’s mine"),
+    ];
+    for (source, expected) in cases {
+        assert_eq!(
+            applied(source, DraftingOptions::new()),
+            expected,
+            "{source:?}"
+        );
+    }
+    for source in [
+        "“Um,” she said.",
+        "\"Um,\" she said.",
+        "Um.",
+        "Put it on the next line of the form.",
+        "The em dash is my favorite mark.",
+        "Chapter XXX began",
+        "A lone period in a well-punctuated paragraph.",
+    ] {
+        assert_eq!(
+            applied(source, DraftingOptions::new()),
+            source,
+            "{source:?}"
+        );
+    }
+    for source in ["[Name]", "[NAME]"] {
+        assert!(report(source, DraftingOptions::new())
+            .matches
+            .iter()
+            .any(|found| found.category == DraftingCategory::Placeholder));
+    }
+    let mut dialogue = DraftingOptions::new();
+    dialogue.include_dialogue = true;
+    for source in ["“Um,” she said.", "\"Um,\" she said.", "Um."] {
+        assert_eq!(applied(source, dialogue.clone()), source);
+        assert!(!report(source, dialogue.clone())
+            .matches
+            .iter()
+            .any(|found| found.category == DraftingCategory::FilledPause));
+    }
+    assert_eq!(
+        applied("“Well, um, I was going.”", dialogue),
+        "“Well, I was going.”"
+    );
+    for source in [
+        "The cat um, uh, sat",
+        "He left. Um, uh, the door",
+        "um, uh, the door",
+    ] {
+        let found = report(source, DraftingOptions::new());
+        let edits: Vec<_> = found.matches.iter().flat_map(|item| &item.edits).collect();
+        assert_eq!(edits.len(), 1, "{source:?}");
+        assert_eq!(
+            drafting::apply(source, &edits),
+            applied(source, DraftingOptions::new())
+        );
+        assert_eq!(drafting::apply(source, &[]), source);
+    }
+}
+
+#[test]
+fn published_prose_command_guards() {
+    for source in [
+        "For a short period his patience held.",
+        "Dash it, we missed the train!",
+        "Dash the paint from the door.",
+        "The birds dash themselves against the glass.",
+        "But dash my luck!",
+        "Shall I strike that?",
+        "I saw you strike that wooden post.",
+        "You cannot undo that.",
+        "There are no caps at sea.",
+    ] {
+        assert_eq!(
+            applied(source, DraftingOptions::new()),
+            source,
             "{source:?}"
         );
     }

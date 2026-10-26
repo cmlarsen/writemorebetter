@@ -12,6 +12,10 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
 - Opt-in drafting report for placeholders, spoken commands and filled pauses, with deletion, punctuation, line-break and capitalization edits across Rust, WASM, Swift and Python. Dictated quote pairs count as speech.
 
+### Fixed
+
+- Drafting cleanup now handles adjacent pauses, mixed punctuation, dictated marks beside pauses, and case-insensitive note vocabulary; spoken-command guards avoid ordinary prose uses.
+
 # 0.14.0 (2026-10-24)
 
 ### Added

@@ -107,9 +107,9 @@ so the host applies it as is.
 - **A paragraph break is `"\n"`**, matching how the document splits paragraphs. A host whose editor
   models paragraphs as blocks maps a replacement containing `"\n"` to a block split.
 - **No overlaps.** Edits within one match never overlap, and edits of different matches never
-  overlap. The report resolves collisions before returning: a filled pause inside a restart's first
-  copy is folded into the restart, and when two matches would widen into the same whitespace, the
-  later one gives up the shared character. A host can apply any subset in descending start order.
+  overlap. Adjacent filled pauses separated only by punctuation and spaces form one match with one
+  cleanup edit, so accepting that match removes the whole run. The report resolves other collisions
+  before returning. A host can apply any subset in descending start order.
 - **Spans come from tokens.** Byte offsets are taken from token spans and from scanning whole chars,
   so they are always char boundaries. Nothing slices text by arithmetic.
 - **`drafting::apply(text, edits)`** sorts edits by start, skips any that overlap an earlier one,
@@ -134,6 +134,9 @@ core) so the text reads as if they were never there:
    absorb the second: `“I was, um,” she said` → `“I was,” she said`.
 3. **Dash pairs.** A dash before and after the core goes with it, and the replacement is one space:
    `I was—um—thinking` → `I was thinking`.
+   When different marks surround the pause, keep the right mark: `He was—um, thinking` →
+   `He was, thinking`, including when the left dash is written `--`. If terminal punctuation follows
+   the pause, drop the left mark: `He said, um. Then` → `He said. Then`.
 4. **Whitespace.** Keep exactly one separator between the left and right context. Keep none when
    the right context starts with closing punctuation (`.,;:!?…”’)]`) or the left context is the
    paragraph start, an opening quote, `(` or `[`. If a collapsed whitespace run holds a U+2028,
@@ -174,9 +177,10 @@ This is the only edit that touches the author's words, and it changes nothing bu
 ## Spoken commands
 
 A command edit replaces the whitespace before the command and the command words with the mark.
-Spacing after the mark stays as the author left it, except that an opening mark also takes the
-space after it. If the dictation engine typed the mark too (`said comma, he`), the replacement is
-`""`.
+An opening mark keeps the whitespace before it and consumes the whitespace after it. Apostrophes,
+hyphens joining two lowercase words, dashes and paragraph breaks also consume following whitespace.
+If the dictation engine typed the mark too (`said comma, he` or `milk, comma, and`), the command
+and a duplicate mark after it are deleted.
 
 | Command | Replacement | Guard |
 |---|---|---|
@@ -199,13 +203,13 @@ space after it. If the dictation engine typed the mark too (`said comma, he`), t
 | *scratch that*, *delete that*, *strike that*, *undo that* | `""` (the command only) | |
 | *caps on*, *caps off*, *all caps*, *no caps* | none (flag only) | |
 
-- **Noun guard.** A single-word command (and *new line*, *question mark*) is skipped when the
+- **Noun guard.** Every command is skipped when the
   previous word is a determiner, possessive, adjective, number or *of* (*a comma*, *the Edo period*,
   *a dash of salt*, *a new line of work*), when the next word is *of*, *in*, *for* or *between* (*a
   period of time*), or when it is the object of *made*, *took*, *put* or *used* (*made a dash*).
   *dash* is also skipped after *to* or a modal (*I have to dash*). *Period.* or *Full stop.* as its
   own sentence is emphasis, not a command.
-- **Positive cue.** A single-word command also needs one of: the next word opens a clause (a
+- **Positive cue.** *Period* and *dash* also need one of: the next word opens a clause (a
   pronoun, determiner, proper noun, capitalized word, or *and*/*but*/*so* + pronoun), the command
   ends the paragraph, or the paragraph has another command match. A lone *period* in a
   well-punctuated paragraph is probably the noun.
@@ -237,7 +241,7 @@ author's reminder.
 |---|---|---|
 | `TK`, `TKTK`, `TKTKTK` | a whole token, case-sensitive | *Tkachenko*, *atkins*, *T.K.*, *tk* |
 | `TODO`, `FIXME`, `TBD`, `TBA`, `XXX` | a whole token, case-sensitive | *todo* in prose |
-| `XX`, `XXXX` | not a Roman numeral | *Chapter XX*, *Book XX*, *Part XX*, *Act XX*, *Pius XX*, *XX chromosome*, lowercase *xx* |
+| `XX`, `XXX`, `XXXX` | not a Roman numeral | *Chapter XX*, *Chapter XXX*, *Book XX*, *Part XX*, *Act XX*, *Pius XX*, *XX chromosome*, lowercase *xx* |
 | `[…]`, `{{…}}`, `<<…>>` notes | 1–5 words from the placeholder vocabulary (*name*, *place*, *city*, *date*, *something*, *X*, …), starting with *insert*, *add*, *check*, *fix*, *need*, *research* or *describe*, or ending in `?` | *[sic]*, *[redacted]*, *[inaudible]*, *[…]*, *[1]* |
 | `(…)` notes to self | 1–4 words starting with one of those verbs, or ending in `?`: *(check this)*, *(name?)*, *(?)*, *(TK)* | ordinary parentheticals |
 | prefix notes | a paragraph starting *Note:*, *NOTE:*, *Note to self:*, *NTS:* or *TODO:* | |
@@ -248,6 +252,9 @@ this)* are flag only, like *TK*. Placeholders are a report category only in v1. 
 builtin (`BUILTIN/DRAFT_PLACEHOLDER` in the fiction profile) is possible later, because they need no
 speech logic, but isn't planned. If the speller already flags *TK*, the implementation records which
 flag the host should show.
+
+The vocabulary inside bracketed and parenthesized notes is case-insensitive: `[name]`, `[Name]`
+and `[NAME]` are equivalent. Standalone placeholder marks remain case-sensitive.
 
 ## Filled pauses
 
