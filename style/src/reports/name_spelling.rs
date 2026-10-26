@@ -138,7 +138,6 @@ const CALENDAR: [&str; 19] = [
     "christmas",
 ];
 
-#[derive(Clone)]
 struct Unit<'a> {
     text: &'a str,
     span: Span,
@@ -147,7 +146,8 @@ struct Unit<'a> {
 }
 
 // A unit joins the next only when both are parts of one hyphenated token, or of two word tokens
-// around a lone hyphen token: the tokenizer splits U+2011 into its own token (*Val\u{2011}an*).
+// around a lone hyphen token: the tokenizer splits U+2010 and U+2011 into their own tokens
+// (*Val\u{2011}an*).
 fn units(sentence: &crate::Sentence) -> Vec<Unit<'_>> {
     let mut out: Vec<Unit<'_>> = Vec::new();
     let mut previous: Option<&Token> = None;
@@ -341,6 +341,8 @@ impl Keys {
 }
 
 struct WordKey {
+    // The word as written, for listed lowercase particles and hyphen parts.
+    text: String,
     folded: String,
     letters: usize,
     sound: &'static str,
@@ -350,6 +352,7 @@ struct WordKey {
 impl WordKey {
     fn new(value: &str, phonetic: bool) -> Self {
         Self {
+            text: value.to_owned(),
             folded: folded(value),
             letters: letters(value),
             sound: initial_sound(value),
@@ -368,8 +371,6 @@ struct RosterIndex {
     plain: HashMap<String, Vec<usize>>,
     joined: HashMap<String, Vec<usize>>,
     words: Vec<Vec<WordKey>>,
-    // The listed entries, for their lowercase particles.
-    texts: Vec<String>,
     all_indices: Vec<usize>,
     first_sound_indices: HashMap<&'static str, Vec<usize>>,
     phonetic_index: HashMap<String, Vec<usize>>,
@@ -381,13 +382,79 @@ struct RosterIndex {
     max_units: usize,
 }
 
+fn lowercase_initial(value: &str) -> bool {
+    value.chars().next().is_some_and(char::is_lowercase)
+}
+
+fn uppercase_initial(value: &str) -> bool {
+    value.chars().next().is_some_and(char::is_uppercase)
+}
+
+fn hyphen_parts(word: &str) -> impl Iterator<Item = &str> {
+    word.split(HYPHENS).filter(|part| !part.is_empty())
+}
+
 // A lowercase word in a candidate phrase must be the listed entry's own word at that place
 // (*de* in *Anna Maria de Sousa*); otherwise *Jane hurt* would be a near miss of *Jane Hart*.
-fn particles_match(candidate: &[&str], name: &str) -> bool {
+fn particles_match(candidate: &[&str], name: &[WordKey]) -> bool {
     candidate
         .iter()
-        .zip(name.split_whitespace())
-        .all(|(a, b)| !a.chars().next().is_some_and(char::is_lowercase) || *a == b)
+        .zip(name)
+        .all(|(a, b)| !lowercase_initial(a) || *a == b.text)
+}
+
+// A spaced form's later words are capitalized or the entry's own lowercase particles, unless a
+// capitalized word ends the run (*Van der Berg* for *Vanderberg*): *Lou is* is not *Louis*, nor
+// *I on a* *Iona*.
+fn spacing_words_match(form: &str, name: &[WordKey]) -> bool {
+    form.split_whitespace()
+        .last()
+        .is_some_and(uppercase_initial)
+        || later_words_listed(form, name)
+}
+
+// Every later word of the form is capitalized or the entry's own lowercase particle.
+fn later_words_listed(form: &str, name: &[WordKey]) -> bool {
+    form.split_whitespace()
+        .skip(1)
+        .all(|word| !lowercase_initial(word) || name.iter().any(|listed| listed.text == word))
+}
+
+// A later lowercase hyphen part makes a compound (*Anna-like*, *Mary-go-round*, *Hart-shaped*)
+// when it is an ordinary word the entry does not use, or, for fuzzy and case matches, when it is
+// shorter than the listed part at its place or has none. *Mary-ann* still meets *Mary-Ann*.
+fn compound_parts_match(form: &str, name: &[WordKey], by_place: bool) -> bool {
+    !form.contains(HYPHENS)
+        || form.split_whitespace().enumerate().all(|(at, word)| {
+            let listed: Vec<&str> = name
+                .get(at)
+                .map(|listed| hyphen_parts(&listed.text).collect())
+                .unwrap_or_default();
+            hyphen_parts(word)
+                .enumerate()
+                .skip(1)
+                .filter(|(_, part)| lowercase_initial(part))
+                .all(|(place, part)| {
+                    let ordinary = !name
+                        .iter()
+                        .any(|listed| hyphen_parts(&listed.text).any(|p| p == part))
+                        && common_word(part);
+                    !ordinary
+                        && (!by_place
+                            || listed
+                                .get(place)
+                                .is_some_and(|listed| letters(part) >= letters(listed)))
+                })
+        })
+}
+
+// Hyphens are not compared by OSA, so *Mary-Anne* and *Maryann* differ by one letter.
+fn unhyphenated(folded: &str) -> Cow<'_, str> {
+    if folded.contains('-') {
+        Cow::Owned(folded.chars().filter(|c| *c != '-').collect())
+    } else {
+        Cow::Borrowed(folded)
+    }
 }
 
 impl RosterIndex {
@@ -440,10 +507,10 @@ impl RosterIndex {
                 index.phrase_first_sounds.insert(name_words[0].sound);
             }
             index.particles.extend(
-                name.name
-                    .split_whitespace()
-                    .filter(|word| word.chars().next().is_some_and(char::is_lowercase))
-                    .map(str::to_owned),
+                name_words
+                    .iter()
+                    .filter(|word| lowercase_initial(&word.text))
+                    .map(|word| word.text.clone()),
             );
             let units = name
                 .name
@@ -452,7 +519,6 @@ impl RosterIndex {
                 .count();
             index.max_units = index.max_units.max(units);
             index.words.push(name_words);
-            index.texts.push(name.name.clone());
             index.lowercase_initial |= name.name.chars().next().is_some_and(char::is_lowercase);
         }
         for key in index.joined.keys() {
@@ -463,9 +529,8 @@ impl RosterIndex {
         index
     }
 
+    // The form's inner whitespace is already normalized by spaced().
     fn correct(&self, form: &str, sentence_start: bool) -> Option<usize> {
-        let form = spaced(form);
-        let form = form.as_ref();
         if let Some(&at) = self.exact.get(form) {
             return Some(at);
         }
@@ -511,7 +576,18 @@ impl RosterIndex {
         ] {
             if let Some(indices) = map.get(key) {
                 for &index in indices {
-                    if seen.insert(index) {
+                    // An entry rejected in one tier is not tried in a later one: a compound
+                    // (*Hart-shaped*) is not a spacing variant of *Hart-Shaped* either.
+                    if !seen.insert(index) {
+                        continue;
+                    }
+                    let name = &self.words[index];
+                    let parts_match = if reason == NameSpellingReason::Spacing {
+                        spacing_words_match(form, name) && compound_parts_match(form, name, false)
+                    } else {
+                        compound_parts_match(form, name, true)
+                    };
+                    if parts_match {
                         found.push(Match {
                             index,
                             reason,
@@ -536,7 +612,7 @@ impl RosterIndex {
             };
             for &index in edit_indices {
                 let name = &self.words[index];
-                if candidate.len() != name.len() || !particles_match(&words, &self.texts[index]) {
+                if candidate.len() != name.len() || !particles_match(&words, name) {
                     continue;
                 }
                 let mut differing = candidate
@@ -550,12 +626,14 @@ impl RosterIndex {
                     continue;
                 }
                 let limit = if b.letters < 8 { 1 } else { 2 };
-                if a.folded.chars().count().abs_diff(b.folded.chars().count()) > limit
+                let (a_bare, b_bare) = (unhyphenated(&a.folded), unhyphenated(&b.folded));
+                if a_bare.chars().count().abs_diff(b_bare.chars().count()) > limit
                     || a.sound != b.sound
+                    || !compound_parts_match(form, name, true)
                 {
                     continue;
                 }
-                let distance = osa(&a.folded, &b.folded);
+                let distance = osa(&a_bare, &b_bare);
                 if distance <= limit {
                     found.push(Match {
                         index,
@@ -580,7 +658,9 @@ impl RosterIndex {
                 }
                 for index in plausible {
                     let name = &self.words[index];
-                    if candidate.len() != name.len() || !particles_match(&words, &self.texts[index])
+                    if candidate.len() != name.len()
+                        || !particles_match(&words, name)
+                        || !compound_parts_match(form, name, true)
                     {
                         continue;
                     }
@@ -741,6 +821,7 @@ pub fn report(
                         .phrase_first_sounds
                         .contains(initial_sound(units[at].text)));
             let mut selected = None;
+            let mut first_listed = None;
             for size in (1..=longest.min(units.len() - at)).rev() {
                 if size > 1 && !may_join {
                     continue;
@@ -765,7 +846,10 @@ pub fn report(
                 let Some(form) = sentence.text.get(start..end) else {
                     continue;
                 };
-                let exact = index.correct(form, at == 0);
+                // Lookups use the form with inner whitespace runs as one space, as roster entries
+                // are normalized; the flag keeps the surface form.
+                let normal = spaced(form);
+                let exact = index.correct(&normal, at == 0);
                 if let Some(index) = exact {
                     selected = Some((size, form.to_owned(), Some(index), Vec::new()));
                     break;
@@ -784,21 +868,33 @@ pub fn report(
                     && run.windows(2).all(|pair| {
                         let u = &pair[1];
                         if pair[0].join_next {
-                            !u.text.chars().next().is_some_and(char::is_uppercase)
-                                || !lowercase.contains(&folded(u.text))
-                        } else if u.text.chars().next().is_some_and(char::is_uppercase) {
+                            !uppercase_initial(u.text) || !lowercase.contains(&folded(u.text))
+                        } else if uppercase_initial(u.text) {
                             !lowercase.contains(&folded(u.text))
                         } else {
                             index.particles.contains(u.text)
                         }
                     });
                 let cache = &mut cache[usize::from(fuzzy)];
-                let matches = match cache.get(form) {
+                let matches = match cache.get(normal.as_ref()) {
                     Some(matches) => matches,
                     None => cache
-                        .entry(form.to_owned())
-                        .or_insert_with(|| index.matches(form, fuzzy, options.phonetic)),
+                        .entry(normal.clone().into_owned())
+                        .or_insert_with(|| index.matches(&normal, fuzzy, options.phonetic)),
                 };
+                // A listed first word is counted rather than read as the start of a spaced
+                // name whose later lowercase words are not that entry's particles (*Tom as*
+                // with *Tom* and *Tomas* listed).
+                if size > 1
+                    && matches.first().is_some_and(|best| {
+                        best.reason == NameSpellingReason::Spacing
+                            && !later_words_listed(&normal, &index.words[best.index])
+                    })
+                    && *first_listed
+                        .get_or_insert_with(|| index.correct(units[at].text, at == 0).is_some())
+                {
+                    continue;
+                }
                 if !matches.is_empty() {
                     selected = Some((size, form.to_owned(), None, matches.clone()));
                     break;

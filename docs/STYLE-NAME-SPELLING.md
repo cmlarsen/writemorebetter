@@ -39,9 +39,10 @@ The report normalizes each roster entry before matching: it trims the entry, col
 run of whitespace to one space, and drops entries left empty. Duplicates are removed by the exact
 normalized string, keeping the first. The report's `names` hold the normalized strings, so
 `"Van  der Berg"` is reported, and matched, as `Van der Berg`. This normalization is the report's
-own; `skip_names_supplied` and the document's skip matching are unchanged. A document form with
-the same inner whitespace runs, such as *Van  der Berg* for that entry, is normalized the same way
-before the exact lookup, so it counts as the listed name, as the skip matcher already treats it.
+own; `skip_names_supplied` and the document's skip matching are unchanged. A document form's
+inner whitespace runs are normalized the same way once, before every lookup, so *Van  der Berg*
+counts as the listed name, as the skip matcher already treats it, and *Van  Der Berg* is a case
+variant of it, not a spacing one. The flag keeps the surface form.
 
 Use `Sentence.tokens` for word text and spans, `is_skipped` for listed occurrences, and
 `Document::mode_at` for narration/dialogue. Exact listed forms are never flags; count them under
@@ -89,13 +90,27 @@ Apply these comparisons in order:
    into more parts (*Val-an-cy*). The third extends the run while its words joined are the start
    of a listed entry's joined key, so a one-word *Vanderberg* still meets *Van der Berg* and
    *Maryann* meets *Mary Ann*. A run crosses only whitespace, apostrophe punctuation, or one
-   hyphen between two parts. The tokenizer splits U+2011 into its own token; a lone hyphen token
-   joins the words on both sides as one hyphenated word, so a non-breaking *Mary‑Ann* counts as a
-   listed *Mary-Ann* and *Val‑an‑cy* is a spacing variant of *Valancy*. Hyphen-joined listed
-   words are spacing variants with either hyphen: *Jane-Hart* and *Jane‑Hart* (U+2011) for
+   hyphen between two parts. The tokenizer splits U+2010 and U+2011 into their own tokens; a lone
+   hyphen token joins the words on both sides as one hyphenated word, so a non-breaking *Mary‑Ann*
+   counts as a listed *Mary-Ann* and *Val‑an‑cy* is a spacing variant of *Valancy*. Hyphen-joined
+   listed words are spacing variants with either hyphen: *Jane-Hart* and *Jane‑Hart* (U+2011) for
    *Jane Hart*. The full matched run supplies the span.
+
+   A spacing variant's later words must each start with a capital or be a lowercase word of that
+   entry, unless the run ends on a capitalized word (*Van der Berg* for *Vanderberg*). So *Lou is*
+   is not *Louis*, *Tim on* not *Timon*, *Ali son* not *Alison*, and *I on a* not *Iona*; *Free
+   Man* is still a spacing variant of *Freeman*. When the first word is itself listed, it is
+   counted rather than read as the start of a spaced name whose later lowercase words are not that
+   entry's own (*Van der Berg* with *Van* and *Vanderberg* listed counts *Van*).
+
+   A later lowercase hyphen part makes a compound, not a name variant, in every tier, when it is an
+   ordinary word (the bundled lemma test above) that the entry does not use: *Anna‑like* is not
+   *Annalise*, *Mary‑go‑round* not *Mary-Jo*, and *Hart‑shaped* not *Hart-Shaped*. For case,
+   diacritic and fuzzy matches, a later lowercase hyphen part must also be at least as long as the
+   listed part at its place, and that part must exist. *Mary‑ann Smyth* is still an edit of
+   *Mary-Ann Smith*, and *Val‑an‑cy* still a spacing variant of *Valancy*.
 2. **Tier 1, typed errors:** use Damerau's optimal string alignment (OSA) distance on Unicode
-   scalar values. Both candidate and roster name must have at least four letters. Allow distance
+   scalar values, with hyphens removed from both words, so the joined forms are compared. Both candidate and roster name must have at least four letters. Allow distance
    at most 1 for a listed name under 8 letters and at most 2 otherwise. Require a shared first
    sound from the CMUdict-derived `initial_sound()` table already used by alliteration, with its
    spelling fallback for names absent from the table. Length and first-sound checks precede OSA.
@@ -231,7 +246,7 @@ published phonetic-code fixtures also pass.
 | Nearby names both listed | Zero flags | 0/12 flags |
 | Unlisted real-name near misses | Expected flags | 12/12 one-off *Mary* → *Mara*; in the books, 29 flagged and 4 forms listed, below |
 | Natural-text hand review with real rosters | ≥80% useful | 5/6 (83.3%) on all 35 book flags; Wilson 95% interval 44–97%, so n is too small to show the gate is met |
-| Native release time, `moby150k`, 200-name roster | <10 ms | Median of 19 warm calls: 5.2 ms synthetic, 7.0 ms real capitalized forms, after computing each sentence's units once and deferring key allocation past the cheap rejections (7.9 and 8.8 ms before, same machine). Bounding runs by joined roster prefixes, so one-word entries meet spaced variants, measured 5.4 ms synthetic and 6.5 ms real against 5.4 and 5.9 ms just before it in one session; first call in a process about 13 ms, of which 3.9 ms parses the bundled concreteness table (analysis excluded) |
+| Native release time, `moby150k`, 200-name roster | <10 ms | Median of 19 warm calls: 5.2 ms synthetic, 7.0 ms real capitalized forms, after computing each sentence's units once and deferring key allocation past the cheap rejections (7.9 and 8.8 ms before, same machine). Bounding runs by joined roster prefixes, so one-word entries meet spaced variants, measured 5.4 ms synthetic and 6.5 ms real against 5.4 and 5.9 ms just before it in one session; first call in a process about 13 ms, of which 3.9 ms parses the bundled concreteness table (analysis excluded). With the spacing-run and hyphen-compound checks, 5.85 ms synthetic and 6.44 ms real against 5.87 and 6.45 ms before them (medians of five interleaved 300-call runs); caching each unit's folded and joined keys measured about 0.3 ms slower, since a unit's keys are rarely needed twice, and was not kept |
 
 The correct-suggestion gate was stated against all planted items while recall was 100%. Missed
 phonetic pairs count against recall instead, and the gate checks every caught item.
@@ -336,7 +351,8 @@ word is out of reach without `includeDictionaryWords`.
 The held-out natural predictions are frozen by count and exact-span digest in
 `bench/style/name-spelling-baseline.json`; the test fails if those predictions change. Neither
 change altered them (5 flags, same digest; none is a near miss used three times), so the baseline
-was not refreshed.
+was not refreshed. The spacing-run, hyphen-compound and whitespace fixes from the third
+review changed none of the held-out predictions, gate figures or book flags.
 
 The release WASM binary is now 7,922,724 bytes raw and 2,052,475 bytes with gzip, an increase of
 10,013 and 1,829 bytes over the first phonetic build (7,912,711 and 2,050,646). That build was

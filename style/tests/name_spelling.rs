@@ -558,3 +558,95 @@ fn hyphen_joined_separate_names_are_spacing_variants() {
         assert_eq!(report.flags[0].reason, NameSpellingReason::Spacing);
     }
 }
+
+#[test]
+fn a_short_listed_name_and_a_lowercase_word_are_not_a_spaced_name() {
+    for (names, text, short) in [
+        (["Lou", "Louis"], "Lou is here—“Lou’s” too…\u{2028}", "Lou"),
+        (
+            ["Tom", "Tomas"],
+            "Tom as usual—“Tom” as ever…\u{2028}",
+            "Tom",
+        ),
+        (
+            ["Tim", "Timon"],
+            "Tim on the porch—“Tim” on it…\u{2028}",
+            "Tim",
+        ),
+        (
+            ["Ali", "Alison"],
+            "Ali son of Omar—“Ali” son…\u{2028}",
+            "Ali",
+        ),
+        (
+            ["Van", "Vanderberg"],
+            "Then Van der Berg came—“Van”…\u{2028}",
+            "Van",
+        ),
+    ] {
+        let report = run(text, &names, true);
+        assert!(report.flags.is_empty(), "{text}: {:?}", report.flags);
+        assert_eq!(report.names[0].name, short);
+        assert_eq!(report.names[0].counts.all, 2, "{text}");
+    }
+    let report = run("I on a boat—“I on a” raft…\u{2028}", &["Iona"], true);
+    assert!(report.flags.is_empty(), "{:?}", report.flags);
+    let report = run(
+        "Then Free Man came—“Free Man’s” dog…\u{2028}",
+        &["Freeman"],
+        true,
+    );
+    assert_eq!(forms(&report), ["Free Man", "Free Man"]);
+    assert!(report
+        .flags
+        .iter()
+        .all(|f| f.reason == NameSpellingReason::Spacing));
+}
+
+#[test]
+fn hyphen_compounds_are_not_name_variants() {
+    for hyphen in ["-", "\u{2011}"] {
+        for (name, text) in [
+            (
+                "Annalise",
+                format!("An Anna{hyphen}like voice—“Anna{hyphen}like”…\u{2028}"),
+            ),
+            (
+                "Mary-Jo",
+                format!("A Mary{hyphen}go{hyphen}round—“Mary{hyphen}go”…\u{2028}"),
+            ),
+            (
+                "Hart-Shaped",
+                format!("The Hart{hyphen}shaped box—“Hart{hyphen}shaped”…\u{2028}"),
+            ),
+        ] {
+            let report = run(&text, &[name], true);
+            assert!(report.flags.is_empty(), "{text}: {:?}", report.flags);
+        }
+        let text = format!("“Mary{hyphen}ann Smyth’s”—there…\u{2028}");
+        let report = run(&text, &["Mary-Ann Smith"], true);
+        assert_eq!(forms(&report), [format!("Mary{hyphen}ann Smyth")]);
+        assert_eq!(report.flags[0].reason, NameSpellingReason::Edit);
+        let text = format!("“Val{hyphen}an{hyphen}cy!” she said…\u{2028}");
+        let report = run(&text, &["Valancy"], true);
+        assert_eq!(report.flags[0].reason, NameSpellingReason::Spacing);
+        let report = run(
+            &format!("“Mary{hyphen}Ann’s”—then…\u{2028}"),
+            &["Mary-Ann"],
+            true,
+        );
+        assert!(report.flags.is_empty(), "{:?}", report.flags);
+        assert_eq!(report.names[0].counts.all, 1);
+    }
+}
+
+#[test]
+fn inner_whitespace_runs_are_normalized_before_matching() {
+    let text = "She saw Van  Der Berg—“Van \u{2028}Der Berg’s” dog…";
+    let report = run(text, &["Van der Berg"], true);
+    assert_eq!(forms(&report), ["Van  Der Berg", "Van \u{2028}Der Berg"]);
+    for flag in &report.flags {
+        assert_eq!(flag.reason, NameSpellingReason::Case);
+        assert_eq!(text.get(flag.span.byte.clone()), Some(flag.form.as_str()));
+    }
+}

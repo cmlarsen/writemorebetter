@@ -116,8 +116,9 @@ struct Table {
 }
 const ALL_SYSTEMS: u8 = 0b111;
 
-// The hyphens a word token can contain. U+2011 is left out of HYPHENS here: the tokenizer splits
-// on it, so it never occurs inside a token, and regional spelling has always split on these two.
+// The hyphens regional spelling splits a word token on. U+2011 is left out of WORD_HYPHENS. The
+// tokenizer splits U+2010 into its own token too, like U+2011, so in practice only '-' occurs
+// inside a token; U+2010 stays listed so regional behavior is unchanged.
 const WORD_HYPHENS: [char; 2] = ['-', '\u{2010}'];
 
 fn table() -> &'static Table {
