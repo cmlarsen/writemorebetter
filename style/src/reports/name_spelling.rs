@@ -1,5 +1,6 @@
 //! Opt-in comparison of capitalized document forms with the caller's name roster.
 
+use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
@@ -145,12 +146,25 @@ struct Unit<'a> {
     join_next: bool,
 }
 
-// A unit joins the next only when both are parts of one hyphenated token.
+// A unit joins the next only when both are parts of one hyphenated token, or of two word tokens
+// around a lone hyphen token: the tokenizer splits U+2011 into its own token (*Val\u{2011}an*).
 fn units(sentence: &crate::Sentence) -> Vec<Unit<'_>> {
     let mut out: Vec<Unit<'_>> = Vec::new();
+    let mut previous: Option<&Token> = None;
     for token in &sentence.tokens {
+        let before = previous.replace(token);
         if !token.is_word {
             continue;
+        }
+        if let (Some(hyphen), Some(last)) = (before, out.last_mut()) {
+            let mut chars = hyphen.text.chars();
+            if chars.next().is_some_and(|c| HYPHENS.contains(&c))
+                && chars.next().is_none()
+                && last.token.span.byte.end == hyphen.span.byte.start
+                && hyphen.span.byte.end == token.span.byte.start
+            {
+                last.join_next = true;
+            }
         }
         let first = out.len();
         for (start, part) in parts(&token.text, &HYPHENS) {
@@ -195,11 +209,31 @@ fn plain(folded: &str) -> String {
 }
 
 // The comparison key without spaces, apostrophes or hyphens (*Vanderberg*, *Mary Ann*).
+// The input comes through nfc(), which has already mapped every hyphen to '-'.
 fn joined(plain: &str) -> String {
     plain
         .chars()
-        .filter(|c| !c.is_whitespace() && !matches!(c, '\'' | '’') && !HYPHENS.contains(c))
+        .filter(|c| !c.is_whitespace() && !matches!(c, '\'' | '’' | '-'))
         .collect()
+}
+
+// Inner whitespace runs as one space, as roster entries are normalized.
+fn spaced(value: &str) -> Cow<'_, str> {
+    let mut previous_space = false;
+    let normal = value.chars().all(|c| {
+        let ok = if c.is_whitespace() {
+            c == ' ' && !previous_space
+        } else {
+            true
+        };
+        previous_space = c.is_whitespace();
+        ok
+    });
+    if normal {
+        Cow::Borrowed(value)
+    } else {
+        Cow::Owned(value.split_whitespace().collect::<Vec<_>>().join(" "))
+    }
 }
 
 fn letters(value: &str) -> usize {
@@ -307,7 +341,6 @@ impl Keys {
 }
 
 struct WordKey {
-    text: String,
     folded: String,
     letters: usize,
     sound: &'static str,
@@ -317,7 +350,6 @@ struct WordKey {
 impl WordKey {
     fn new(value: &str, phonetic: bool) -> Self {
         Self {
-            text: value.to_owned(),
             folded: folded(value),
             letters: letters(value),
             sound: initial_sound(value),
@@ -336,6 +368,8 @@ struct RosterIndex {
     plain: HashMap<String, Vec<usize>>,
     joined: HashMap<String, Vec<usize>>,
     words: Vec<Vec<WordKey>>,
+    // The listed entries, for their lowercase particles.
+    texts: Vec<String>,
     all_indices: Vec<usize>,
     first_sound_indices: HashMap<&'static str, Vec<usize>>,
     phonetic_index: HashMap<String, Vec<usize>>,
@@ -349,11 +383,11 @@ struct RosterIndex {
 
 // A lowercase word in a candidate phrase must be the listed entry's own word at that place
 // (*de* in *Anna Maria de Sousa*); otherwise *Jane hurt* would be a near miss of *Jane Hart*.
-fn particles_match(candidate: &[WordKey], name: &[WordKey]) -> bool {
+fn particles_match(candidate: &[&str], name: &str) -> bool {
     candidate
         .iter()
-        .zip(name)
-        .all(|(a, b)| !a.text.chars().next().is_some_and(char::is_lowercase) || a.text == b.text)
+        .zip(name.split_whitespace())
+        .all(|(a, b)| !a.chars().next().is_some_and(char::is_lowercase) || *a == b)
 }
 
 impl RosterIndex {
@@ -406,10 +440,10 @@ impl RosterIndex {
                 index.phrase_first_sounds.insert(name_words[0].sound);
             }
             index.particles.extend(
-                name_words
-                    .iter()
-                    .filter(|word| word.text.chars().next().is_some_and(char::is_lowercase))
-                    .map(|word| word.text.clone()),
+                name.name
+                    .split_whitespace()
+                    .filter(|word| word.chars().next().is_some_and(char::is_lowercase))
+                    .map(str::to_owned),
             );
             let units = name
                 .name
@@ -418,6 +452,7 @@ impl RosterIndex {
                 .count();
             index.max_units = index.max_units.max(units);
             index.words.push(name_words);
+            index.texts.push(name.name.clone());
             index.lowercase_initial |= name.name.chars().next().is_some_and(char::is_lowercase);
         }
         for key in index.joined.keys() {
@@ -429,6 +464,8 @@ impl RosterIndex {
     }
 
     fn correct(&self, form: &str, sentence_start: bool) -> Option<usize> {
+        let form = spaced(form);
+        let form = form.as_ref();
         if let Some(&at) = self.exact.get(form) {
             return Some(at);
         }
@@ -486,10 +523,9 @@ impl RosterIndex {
             }
         }
         if found.is_empty() && fuzzy && !self.derived(&keys.folded) {
-            let candidate: Vec<WordKey> = form
-                .split_whitespace()
-                .map(|word| WordKey::new(word, false))
-                .collect();
+            let words: Vec<&str> = form.split_whitespace().collect();
+            let candidate: Vec<WordKey> =
+                words.iter().map(|word| WordKey::new(word, false)).collect();
             let edit_indices = if candidate.len() == 1 {
                 self.first_sound_indices
                     .get(candidate[0].sound)
@@ -500,7 +536,7 @@ impl RosterIndex {
             };
             for &index in edit_indices {
                 let name = &self.words[index];
-                if candidate.len() != name.len() || !particles_match(&candidate, name) {
+                if candidate.len() != name.len() || !particles_match(&words, &self.texts[index]) {
                     continue;
                 }
                 let mut differing = candidate
@@ -544,7 +580,8 @@ impl RosterIndex {
                 }
                 for index in plausible {
                     let name = &self.words[index];
-                    if candidate.len() != name.len() || !particles_match(&candidate, name) {
+                    if candidate.len() != name.len() || !particles_match(&words, &self.texts[index])
+                    {
                         continue;
                     }
                     let mut differing = candidate
@@ -678,25 +715,38 @@ pub fn report(
             let first_fuzzy = allow_folded && name_like(&units[at], first_lower_seen, options);
             let first_ordinary_ok =
                 first_fuzzy && (options.include_dictionary_words || !common_word(units[at].text));
-            // Runs reach the longest roster entry, or a whole hyphenated token, which may split a
-            // listed word into more parts (*Val-an-cy*).
+            // Runs reach the longest roster entry, a whole hyphenated token, which may split a
+            // listed word into more parts (*Val-an-cy*), or as far as the words joined are the
+            // start of a listed key (*Van der Berg* for *Vanderberg*). Only folded matches use
+            // that last bound, so the key is built only when they are allowed or a run is.
             let token_parts = 1 + units[at..].iter().take_while(|u| u.join_next).count();
-            let longest = index.max_units.max(token_parts);
+            let listed_longest = index.max_units.max(token_parts);
+            let mut key = String::new();
+            if allow_folded || listed_longest > 1 {
+                key = joined(&plain(&first_folded));
+            }
+            let prefix = !key.is_empty() && index.joined_prefixes.contains(&key);
+            let mut prefix_units = 1;
+            while prefix && allow_folded && at + prefix_units < units.len() {
+                key.push_str(&joined(&plain(&folded(units[at + prefix_units].text))));
+                prefix_units += 1;
+                if !index.joined_prefixes.contains(&key) {
+                    break;
+                }
+            }
+            let longest = listed_longest.max(prefix_units);
             let may_join = longest > 1
-                && (index
-                    .phrase_first_sounds
-                    .contains(initial_sound(units[at].text))
+                && (prefix
                     || index
-                        .joined_prefixes
-                        .contains(&joined(&plain(&first_folded))));
+                        .phrase_first_sounds
+                        .contains(initial_sound(units[at].text)));
             let mut selected = None;
             for size in (1..=longest.min(units.len() - at)).rev() {
                 if size > 1 && !may_join {
                     continue;
                 }
                 let run = &units[at..at + size];
-                // A run crosses only whitespace, apostrophe punctuation, or a split hyphen. The
-                // tokenizer splits U+2011 into its own token, so a lone hyphen gap joins too.
+                // A run crosses only whitespace, apostrophe punctuation, or a hyphen in a name.
                 if run.windows(2).any(|pair| {
                     if pair[0].join_next {
                         return false;
@@ -704,13 +754,8 @@ pub fn report(
                     let from = pair[0].span.byte.end - sentence.span.byte.start;
                     let to = pair[1].span.byte.start - sentence.span.byte.start;
                     sentence.text.get(from..to).is_none_or(|gap| {
-                        let mut chars = gap.chars();
-                        let lone_hyphen = chars.next().is_some_and(|c| HYPHENS.contains(&c))
-                            && chars.next().is_none();
-                        !lone_hyphen
-                            && !gap
-                                .chars()
-                                .all(|c| c.is_whitespace() || c == '\'' || c == '’')
+                        !gap.chars()
+                            .all(|c| c.is_whitespace() || c == '\'' || c == '’')
                     })
                 }) {
                     continue;
@@ -732,11 +777,16 @@ pub fn report(
                     continue;
                 }
                 // Each later word needs a capital not used lowercase in the document, or must be
-                // a lowercase particle of a listed name (*de*, *van*), checked per entry.
+                // a lowercase particle of a listed name (*de*, *van*), checked per entry. A later
+                // hyphen part (*Mary-ann*) is not a word and needs neither.
                 let fuzzy = first_fuzzy
                     && (size > 1 || first_ordinary_ok)
-                    && run.iter().skip(1).all(|u| {
-                        if u.text.chars().next().is_some_and(char::is_uppercase) {
+                    && run.windows(2).all(|pair| {
+                        let u = &pair[1];
+                        if pair[0].join_next {
+                            !u.text.chars().next().is_some_and(char::is_uppercase)
+                                || !lowercase.contains(&folded(u.text))
+                        } else if u.text.chars().next().is_some_and(char::is_uppercase) {
                             !lowercase.contains(&folded(u.text))
                         } else {
                             index.particles.contains(u.text)

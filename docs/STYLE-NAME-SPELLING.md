@@ -39,7 +39,9 @@ The report normalizes each roster entry before matching: it trims the entry, col
 run of whitespace to one space, and drops entries left empty. Duplicates are removed by the exact
 normalized string, keeping the first. The report's `names` hold the normalized strings, so
 `"Van  der Berg"` is reported, and matched, as `Van der Berg`. This normalization is the report's
-own; `skip_names_supplied` and the document's skip matching are unchanged.
+own; `skip_names_supplied` and the document's skip matching are unchanged. A document form with
+the same inner whitespace runs, such as *Van  der Berg* for that entry, is normalized the same way
+before the exact lookup, so it counts as the listed name, as the skip matcher already treats it.
 
 Use `Sentence.tokens` for word text and spans, `is_skipped` for listed occurrences, and
 `Document::mode_at` for narration/dialogue. Exact listed forms are never flags; count them under
@@ -80,13 +82,18 @@ Apply these comparisons in order:
    comparisons work for names shorter than four letters. Keep the
    existing document skip rules unchanged: NFC handling here must not alter other reports' counts.
    Match runs of adjacent words, longest first, so *Van der Berg* and *Vanderberg* can meet
-   without absorbing an unrelated neighbor. The longest run tried is the longest roster entry,
-   counted in units: words split at whitespace and at hyphens (`-`, U+2010 and U+2011), so
-   *Anna Maria de Sousa* allows four and *Mary-Ann* two. A whole hyphenated token is also
-   tried, since syllabified dialogue can split a listed word into more parts (*Val-an-cy*). A run crosses only whitespace,
-   apostrophe punctuation, or one hyphen between two parts; the tokenizer splits U+2011 into its
-   own token, and a non-breaking *Mary‑Ann* counts as a listed *Mary-Ann*. The full matched run
-   supplies the span.
+   without absorbing an unrelated neighbor. The longest run tried is the longest of three
+   bounds. The first is the longest roster entry, counted in units: words split at whitespace
+   and at hyphens (`-`, U+2010 and U+2011), so *Anna Maria de Sousa* allows four and *Mary-Ann*
+   two. The second is a whole hyphenated word, since syllabified dialogue can split a listed word
+   into more parts (*Val-an-cy*). The third extends the run while its words joined are the start
+   of a listed entry's joined key, so a one-word *Vanderberg* still meets *Van der Berg* and
+   *Maryann* meets *Mary Ann*. A run crosses only whitespace, apostrophe punctuation, or one
+   hyphen between two parts. The tokenizer splits U+2011 into its own token; a lone hyphen token
+   joins the words on both sides as one hyphenated word, so a non-breaking *Mary‑Ann* counts as a
+   listed *Mary-Ann* and *Val‑an‑cy* is a spacing variant of *Valancy*. Hyphen-joined listed
+   words are spacing variants with either hyphen: *Jane-Hart* and *Jane‑Hart* (U+2011) for
+   *Jane Hart*. The full matched run supplies the span.
 2. **Tier 1, typed errors:** use Damerau's optimal string alignment (OSA) distance on Unicode
    scalar values. Both candidate and roster name must have at least four letters. Allow distance
    at most 1 for a listed name under 8 letters and at most 2 otherwise. Require a shared first
@@ -130,7 +137,8 @@ standalone roster names from the phrase. Every compared word of a fuzzy multi-wo
 an initial capital, and a capitalized later word must not occur lowercase in the document. The one
 exception is a lowercase particle that is exactly the listed entry's own lowercase word at that
 place: *de* in *Anna Maria de Sousa*, *van* or *der*. So *Jane hurt* is not a near miss of
-*Jane Hart*, and *da Sousa* is not one of *de Sousa*.
+*Jane Hart*, and *da Sousa* is not one of *de Sousa*. A later part of a hyphenated word is not a
+separate word, so *Mary-ann Smyth* is still a near miss of *Mary-Ann Smith*.
 
 Possessive clitics (`'s`, `’s`, trailing apostrophes) stay outside the flag span. Hyphenated
 parts use the same UTF-8-safe subspan construction as regional spelling. Build multi-token spans
@@ -223,7 +231,7 @@ published phonetic-code fixtures also pass.
 | Nearby names both listed | Zero flags | 0/12 flags |
 | Unlisted real-name near misses | Expected flags | 12/12 one-off *Mary* → *Mara*; in the books, 29 flagged and 4 forms listed, below |
 | Natural-text hand review with real rosters | ≥80% useful | 5/6 (83.3%) on all 35 book flags; Wilson 95% interval 44–97%, so n is too small to show the gate is met |
-| Native release time, `moby150k`, 200-name roster | <10 ms | Median of 19 warm calls: 5.2 ms synthetic, 7.0 ms real capitalized forms, after computing each sentence's units once and deferring key allocation past the cheap rejections (7.9 and 8.8 ms before, same machine); first call in a process about 13 ms, of which 3.9 ms parses the bundled concreteness table (analysis excluded) |
+| Native release time, `moby150k`, 200-name roster | <10 ms | Median of 19 warm calls: 5.2 ms synthetic, 7.0 ms real capitalized forms, after computing each sentence's units once and deferring key allocation past the cheap rejections (7.9 and 8.8 ms before, same machine). Bounding runs by joined roster prefixes, so one-word entries meet spaced variants, measured 5.4 ms synthetic and 6.5 ms real against 5.4 and 5.9 ms just before it in one session; first call in a process about 13 ms, of which 3.9 ms parses the bundled concreteness table (analysis excluded) |
 
 The correct-suggestion gate was stated against all planted items while recall was 100%. Missed
 phonetic pairs count against recall instead, and the gate checks every caught item.

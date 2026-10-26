@@ -116,6 +116,10 @@ struct Table {
 }
 const ALL_SYSTEMS: u8 = 0b111;
 
+// The hyphens a word token can contain. U+2011 is left out of HYPHENS here: the tokenizer splits
+// on it, so it never occurs inside a token, and regional spelling has always split on these two.
+const WORD_HYPHENS: [char; 2] = ['-', '\u{2010}'];
+
 fn table() -> &'static Table {
     static TABLE: OnceLock<Table> = OnceLock::new();
     TABLE.get_or_init(|| {
@@ -213,7 +217,7 @@ pub fn report(
             if !token.is_word || token.is_skipped || probable_name(document, &tokens, at) {
                 continue;
             }
-            for (start, part) in parts(&token.text, &['-', '\u{2010}']) {
+            for (start, part) in parts(&token.text, &WORD_HYPHENS) {
                 let folded = part.to_lowercase();
                 if let Some((&form, _)) = table.spellings.get_key_value(folded.as_str()) {
                     occurrences.push(Occurrence {

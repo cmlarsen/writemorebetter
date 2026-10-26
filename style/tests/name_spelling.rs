@@ -494,3 +494,67 @@ fn syllabified_names_longer_than_the_entry_are_spacing_variants() {
     assert_eq!(forms(&report), ["Val-an-cy"]);
     assert_eq!(report.flags[0].reason, NameSpellingReason::Spacing);
 }
+
+#[test]
+fn spaced_variants_of_single_word_entries_flag() {
+    let report = run(
+        "She saw Van der Berg there—“Van der Berg’s” too…\u{2028}",
+        &["Vanderberg"],
+        true,
+    );
+    assert_eq!(forms(&report), ["Van der Berg", "Van der Berg"]);
+    assert!(report
+        .flags
+        .iter()
+        .all(|f| f.reason == NameSpellingReason::Spacing));
+    let report = run("She saw Mary Ann there.", &["Maryann"], true);
+    assert_eq!(forms(&report), ["Mary Ann"]);
+    assert_eq!(report.flags[0].reason, NameSpellingReason::Spacing);
+}
+
+#[test]
+fn listed_forms_with_inner_whitespace_runs_are_exact() {
+    for text in [
+        "She saw Van  der Berg there.",
+        "She saw “Van  der Berg’s” dog—then left…\u{2028}",
+    ] {
+        let report = run(text, &["Van  der Berg"], true);
+        assert_eq!(report.names[0].counts.all, 1, "{text}");
+        assert!(report.flags.is_empty(), "{text}: {:?}", report.flags);
+    }
+}
+
+#[test]
+fn lowercase_hyphen_parts_are_not_particles() {
+    let report = run("She saw Mary-ann Smyth there.", &["Mary-Ann Smith"], true);
+    assert_eq!(forms(&report), ["Mary-ann Smyth"]);
+    assert_eq!(report.flags[0].reason, NameSpellingReason::Edit);
+    let report = run(
+        "“Mary\u{2011}ann Smyth’s”—there…\u{2028}",
+        &["Mary-Ann Smith"],
+        true,
+    );
+    assert_eq!(forms(&report), ["Mary\u{2011}ann Smyth"]);
+}
+
+#[test]
+fn non_breaking_syllabified_names_are_spacing_variants() {
+    let text = "“Val\u{2011}an\u{2011}cy!” she said—then left…\u{2028}";
+    let report = run(text, &["Valancy"], true);
+    assert_eq!(forms(&report), ["Val\u{2011}an\u{2011}cy"]);
+    assert_eq!(report.flags[0].reason, NameSpellingReason::Spacing);
+    assert_eq!(
+        text.get(report.flags[0].span.byte.clone()),
+        Some("Val\u{2011}an\u{2011}cy")
+    );
+}
+
+#[test]
+fn hyphen_joined_separate_names_are_spacing_variants() {
+    for form in ["Jane-Hart", "Jane\u{2011}Hart"] {
+        let text = format!("“{form}’s” here—then left…\u{2028}");
+        let report = run(&text, &["Jane Hart"], true);
+        assert_eq!(forms(&report), [form]);
+        assert_eq!(report.flags[0].reason, NameSpellingReason::Spacing);
+    }
+}
