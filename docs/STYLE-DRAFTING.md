@@ -495,11 +495,15 @@ above and flagged with no edit everywhere else.
     the*), *this*, *that*, *some*, *any* and *no*;
   - **a pause word after a determiner and an adjective**, which makes the pause their noun
     (*He let out a long uhhhh.*, *He let out a long uhhhh and sat down.*, *a long uhhhh that
-    filled the room*, *She heard a faint um from the back row.*, *a loud uh of surprise*), unless
-    a noun follows (*a long um day* is still a pause) or the next word, maybe after *I mean*, is
-    itself a determiner from the list above or an adjective that isn't also a verb or adverb,
-    which makes it a restart (*She grabbed the red um the blue one.*, *She picked a big um big
-    one.*, *It was a good um I mean a great day.*) that pattern (a) deletes in dictated text;
+    filled the room*, *She heard a faint um from the back row.*, *She heard a faint um every few
+    seconds.*, *a loud uh of surprise*, *He let out a long uhhhh. The dog barked.*). When the next
+    word is a noun or adjective the pause is flagged with no edit in both modes (*a long um day*,
+    *She picked a big um big one.*, *It was a long um. Long enough.*), because the pause may still
+    be their noun. A pause there is never edited in v1. A restart after a determiner and
+    adjective (*She grabbed the red um the blue one.*, *It was a good um I mean a great day.*)
+    gets no match: telling it from a noun needs the restart detection planned for v1.1 (see
+    [Restarts](#restarts-v11)), and an earlier lookahead for it reached past the end of the
+    sentence and deleted noun uses;
   - **a pause word as the subject of a sentence naming it**: at a sentence start or after *and*,
     *but* or *or*, then *is* or *was* (after at most one comma-enclosed aside of one to three
     words), then an article, a possessive or *one*, optionally after *not* or *never*: *and um was
@@ -625,7 +629,10 @@ citing the owner's decision and its old flag-only value. After the D2m review, i
 inputs are fixtures with `dictated` (title-cased commands, breaks at the paragraph end or after
 U+2028, spaced typed marks, typed possessives, apostrophe style) or negatives (*New Line Cinema*,
 *He let out a long uhhhh and sat down.*), plus the U+2028 break cases; the negatives are also
-fixture controls in both modes. An `expected`
+fixture controls in both modes. After the D2n decision, a pause after a determiner and
+adjective is never edited: the restart fixtures expect no match and the noun-head ones flag only,
+each with a note citing the decision and its old value, and the review's cross-sentence and
+adverbial-phrase inputs are fixtures in both modes. An `expected`
   value is derived from the rules here, never copied from the report's output. Scoring
   is exact equality of the text after `drafting::apply` per category and style, with no flags on a
   negative; this catches orphan commas and spacing bugs that span scores miss.

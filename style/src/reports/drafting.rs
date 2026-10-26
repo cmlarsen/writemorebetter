@@ -792,15 +792,10 @@ fn command_guard(
         // A single-word command after a different typed mark is prose (*No more, period.*). The
         // same mark typed before it separates it from the word before, so the noun guard doesn't
         // apply; whether the edit can absorb that mark is `absorbed_before`'s decision.
-        let typed_before = prev(
-            &paragraph.text,
-            paragraph.text[..candidate.start]
-                .trim_end_matches(horizontal)
-                .len(),
-        )
-        .is_some_and(|(_, ch)| typed_mark(ch));
-        let prior_typed_mark = same_mark_before(&paragraph.text, candidate).is_some();
-        if entry.words.len() == 1 && typed_before && !prior_typed_mark {
+        let typed_before = mark_before(&paragraph.text, candidate);
+        let prior_typed_mark =
+            typed_before.is_some_and(|(_, ch)| sentence_mark(entry.mark) == Some(ch));
+        if entry.words.len() == 1 && typed_before.is_some() && !prior_typed_mark {
             return false;
         }
         let preceding_verb = candidate.first_word >= 2
@@ -1304,14 +1299,8 @@ fn typed_mark(ch: char) -> bool {
 /// for.
 fn sentence_mark(mark: &str) -> Option<char> {
     match mark {
-        "comma" => Some(','),
-        "period" => Some('.'),
-        "question" => Some('?'),
-        "exclamation" => Some('!'),
-        "colon" => Some(':'),
-        "semicolon" => Some(';'),
-        "dash" => Some('—'),
-        "hyphen" => Some('-'),
+        "comma" | "period" | "question" | "exclamation" | "colon" | "semicolon" | "dash"
+        | "hyphen" => fixed_mark(mark)?.chars().next(),
         _ => None,
     }
 }
@@ -1328,10 +1317,14 @@ fn break_after(text: &str, at: usize) -> bool {
 /// The offset of the command's own sentence mark typed right before it across spaces or tabs
 /// (*said, comma he*), which separates the command from the word before.
 fn same_mark_before(text: &str, candidate: &CommandCandidate) -> Option<usize> {
-    let start = text[..candidate.start].trim_end_matches(horizontal).len();
-    prev(text, start)
+    mark_before(text, candidate)
         .filter(|(_, ch)| sentence_mark(candidate.entry.mark) == Some(*ch))
         .map(|(at, _)| at)
+}
+/// The offset and char of the typed mark right before the command across spaces or tabs.
+fn mark_before(text: &str, candidate: &CommandCandidate) -> Option<(usize, char)> {
+    let start = text[..candidate.start].trim_end_matches(horizontal).len();
+    prev(text, start).filter(|(_, ch)| typed_mark(*ch))
 }
 
 /// Where a command's edit starts, and whether the same sentence mark typed right before it stands
@@ -1850,7 +1843,7 @@ struct PauseCandidate {
     sentence: usize,
     mode: Mode,
     term: String,
-    verbatim: bool,
+    flag_only: bool,
 }
 /// Where a paragraph's pauses count as speech or quoted words. `dictated` holds document byte
 /// ranges inside dictated quote pairs; `quotes` and `own` are paragraph byte ranges from
@@ -1993,44 +1986,21 @@ fn pauses<'a>(
                 has_pos(token, "NN") || token.readings.iter().any(|reading| reading.pos == "JJ")
             });
         // A determiner and an adjective before the pause make it their noun too (*a long uhhhh
-        // and sat down*), unless another determiner or adjective follows it, maybe after *I
-        // mean*, which makes it a restart (*the red um the blue one*, *a good um I mean a great
-        // day*).
-        let ahead: Vec<&Token> = tokens
+        // and sat down*), and v1 treats a restart the same way (*the red um the blue one*). With a
+        // noun or adjective after it, the pause may still be a noun (*a long um. Long enough.*),
+        // so it is flag only.
+        let adjective_word = tokens
             .iter()
-            .filter(|token| {
-                token.is_word && token.span.byte.start >= paragraph.span.byte.start + end
-            })
-            .take(3)
-            .copied()
-            .collect();
-        let following = match ahead.as_slice() {
-            [i, mean, rest @ ..] if i.text == "I" && mean.text.eq_ignore_ascii_case("mean") => {
-                rest.first()
-            }
-            _ => ahead.first(),
-        };
-        let restart = following.is_some_and(|token| {
-            determiner(&word(&token.text))
-                || token.readings.iter().any(|reading| reading.pos == "JJ")
-                    && !has_pos(token, "VB")
-                    && !has_pos(token, "RB")
-        });
-        let adjective_word = !restart
-            && tokens
-                .iter()
-                .rev()
-                .find(|token| {
-                    token.is_word && token.span.byte.end <= paragraph.span.byte.start + start
-                })
-                .is_some_and(|token| {
-                    token.readings.iter().any(|reading| reading.pos == "JJ")
-                        && !before_word.is_empty()
-                        && determiner(&spaced_word_before(
-                            text,
-                            rel(paragraph, token.span.byte.start),
-                        ))
-                });
+            .rev()
+            .find(|token| token.is_word && token.span.byte.end <= paragraph.span.byte.start + start)
+            .is_some_and(|token| {
+                token.readings.iter().any(|reading| reading.pos == "JJ")
+                    && !before_word.is_empty()
+                    && determiner(&spaced_word_before(
+                        text,
+                        rel(paragraph, token.span.byte.start),
+                    ))
+            });
         if reported.is_some_and(|stop| stop < start && adjacent_pauses(&text[stop..start]))
             || reporting_verb(&before_word)
             || before_word == "an"
@@ -2111,7 +2081,7 @@ fn pauses<'a>(
             sentence: sentence_offset + sentence,
             mode,
             term: term.to_owned(),
-            verbatim,
+            flag_only: verbatim || adjective_word,
         });
     }
     let mut at = 0;
@@ -2131,7 +2101,7 @@ fn pauses<'a>(
             end,
             kind: LeftoverKind::Pause { run: last > at },
             found: out.len(),
-            flag_only: candidates[at..=last].iter().any(|item| item.verbatim),
+            flag_only: candidates[at..=last].iter().any(|item| item.flag_only),
         });
         out.push(DraftingMatch {
             span: span(paragraph, first.start, end),

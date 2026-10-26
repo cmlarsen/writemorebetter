@@ -1325,7 +1325,7 @@ fn review_d2k_pause_words_as_nouns() {
 
 /// Review D2l: the edit builder alone decides whether a command absorbs a typed mark beside it,
 /// so nothing it can't absorb is ever doubled; line breaks after typed terminal punctuation; the
-/// dialogue-tag period before a break or another quote; pause-only pairs; restarts after a
+/// dialogue-tag period before a break or another quote; pause-only pairs; no edit after a
 /// determiner and adjective; and mark style per kind.
 #[test]
 fn review_d2l_absorption_breaks_and_tags() {
@@ -1399,31 +1399,17 @@ fn review_d2l_absorption_breaks_and_tags() {
         ),
         "“hi” he said period new paragraph, the end"
     );
-    // A restart after a determiner and adjective is a pause; a pause ending the clause there is
-    // their noun.
+    // A pause after a determiner and adjective is never edited in v1 (manager decision, D2n): a
+    // restart there gets no match until restart detection (v1.1), and a pause ending the clause
+    // is their noun.
     let restarts = [
-        (
-            "She grabbed the red um the blue one.",
-            "She grabbed the red the blue one.",
-        ),
-        (
-            "I want the big uh the small box.",
-            "I want the big the small box.",
-        ),
-        (
-            "It was a good um I mean a great day.",
-            "It was a good I mean a great day.",
-        ),
+        "She grabbed the red um the blue one.",
+        "I want the big uh the small box.",
+        "It was a good um I mean a great day.",
+        "He let out a long uhhhh.",
     ];
-    assert_cases(&restarts, spoken());
-    for (text, _) in restarts {
-        assert_eq!(
-            report(text, DraftingOptions::new()).matches.len(),
-            1,
-            "{text:?}"
-        );
-    }
-    assert_silent(&["He let out a long uhhhh."], spoken());
+    assert_silent(&restarts, spoken());
+    assert_silent(&restarts, DraftingOptions::new());
     // Each quote kind follows the document's own marks of that kind.
     assert_cases(
         &[
@@ -1445,7 +1431,7 @@ fn review_d2l_absorption_breaks_and_tags() {
 }
 
 /// Review D2m: title-cased command phrases and names after a break are prose; a pause after a
-/// determiner and adjective is their noun unless a restart follows; a spaced typed mark, a break
+/// determiner and adjective is their noun, or flag only before a noun or adjective; a spaced typed mark, a break
 /// at the paragraph end and a possessive the engine typed are flag only; and the apostrophe
 /// follows the document's apostrophes.
 #[test]
@@ -1485,9 +1471,6 @@ fn review_d2m_dictated_findings() {
         &[
             ("He left. New paragraph The next day", "He left.\nThe next day"),
             ("He left. Next line The next day", "He left.\nThe next day"),
-            ("He let out a long uh the short one.", "He let out a long the short one."),
-            ("It was a long uh day.", "It was a long day."),
-            ("He wore a blue um blue shirt.", "He wore a blue blue shirt."),
             ("It was a well—hyphen known fact.", "It was a well—hyphen known fact."),
             // The apostrophe follows the apostrophes, not the single quotes.
             (
@@ -1501,4 +1484,47 @@ fn review_d2m_dictated_findings() {
         ],
         spoken(),
     );
+}
+
+/// Manager decision D2n (2026-10-26): a pause right after a determiner and adjective is never
+/// edited in v1. Before a noun or adjective it is flag only; anywhere else it is their noun, even
+/// when the next sentence or a later phrase starts with a determiner, adjective or noun.
+#[test]
+fn review_d2n_no_edit_after_determiner_adjective() {
+    assert_flag_only(
+        &[
+            "It was a long uh day.",
+            "He wore a blue um blue shirt.",
+            "She picked a big um big one.",
+        ],
+        spoken(),
+    );
+    let nouns = [
+        "He let out a long uh the short one.",
+        "He let out a long uhhhh. The dog barked.",
+        "He let out a long uhhhh! A dog barked.",
+        "He let out a long uhhhh. Every head turned.",
+        "She heard a faint um every few seconds.",
+        "a nervous um the whole time",
+        "a long uhhhh a second time",
+    ];
+    assert_silent(&nouns, spoken());
+    assert_silent(&nouns, DraftingOptions::new());
+    for text in [
+        "It was a long um. Long enough.",
+        "It was a long uhhhh. Quiet followed.",
+        "He let out a long uhhhh loud enough to wake the dead.",
+        "He let out a long uhhhh full of regret.",
+    ] {
+        for options in [spoken(), DraftingOptions::new()] {
+            for (source, _) in variants(text, text) {
+                let result = report(&source, options.clone());
+                assert!(
+                    result.matches.iter().all(|m| m.edits.is_empty()),
+                    "{source:?}: {:?}",
+                    result.matches
+                );
+            }
+        }
+    }
 }
