@@ -1,0 +1,30 @@
+# Source: project-authored drafting reminders (MIT OR Apache-2.0).
+# Whole-token marks, followed by note vocabulary and note verbs.
+mark	TK
+mark	TKTK
+mark	TKTKTK
+mark	TODO
+mark	FIXME
+mark	TBD
+mark	TBA
+mark	XXX
+mark	XX
+mark	XXXX
+word	name
+word	place
+word	city
+word	date
+word	something
+word	X
+word	who
+word	where
+word	when
+word	thing
+word	detail
+verb	insert
+verb	add
+verb	check
+verb	fix
+verb	need
+verb	research
+verb	describe

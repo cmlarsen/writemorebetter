@@ -247,6 +247,7 @@ let pronouns: PronounStartsReport = try document.pronounStarts()
 let consistency: ConsistencyReport = try document.consistency()
 let adverbs: AdverbsReport = try document.adverbs()
 let emotions: EmotionTellsReport = try document.emotionTells()
+let drafting: DraftingReport = try document.drafting()
 let vague: VagueWordsReport = try document.vagueWords()
 let hidden: HiddenVerbsReport = try document.hiddenVerbs()
 ```

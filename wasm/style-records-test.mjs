@@ -92,6 +92,9 @@ export function checkStyleRecords(checker) {
   results.push(["VagueWordsReport", vagueDocument.vagueWords()]);
   results.push(["HiddenVerbsReport", vagueDocument.hiddenVerbs()]);
   assert.deepEqual(JSON.parse(vagueDocument.hiddenVerbs()).matches.map(m => m.pattern), ["lightVerb", "ofPhrase"]);
+  const draftingDocument = checker.styleDocument("Um, the door. TK");
+  results.push(["DraftingReport", draftingDocument.drafting()]);
+  draftingDocument.free();
   vagueDocument.free();
   const presetDocument = checker.styleDocument("“Mom, I saw 7 crows at 5 AM,” I said. James’ dad walked towards it—okay—“slowly”.");
   results.push(["PresetReport", presetDocument.preset()]);

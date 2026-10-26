@@ -948,6 +948,14 @@ pub fn title_case(headings_json: &str, options_json: Option<String>) -> Result<S
 
 #[wasm_bindgen]
 impl StyleDocument {
+    #[wasm_bindgen(js_name = drafting)]
+    pub fn drafting(&self, options_json: Option<String>) -> Result<String, JsValue> {
+        self.inner
+            .drafting(options_json.as_deref())
+            .map(|report| reports::to_utf16_json(&report))
+            .map_err(style_error)
+    }
+
     #[wasm_bindgen(js_name = vagueWords)]
     /// Returns the opt-in vague-words lens (fillers, hedges, vague quantities, nouns and
     /// adjectives) on the retained analysis, narration and dialogue counted separately.

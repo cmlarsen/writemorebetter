@@ -512,6 +512,13 @@ for (const method of ["vagueWords", "hiddenVerbs"]) {
   eq(styleError(() => vagueDocument[method]('{"typo":true}')).kind, "invalidOptions", `${method} rejects unknown options`);
   eq(styleError(() => vagueCompact[method]()).kind, "needsTokenDetails", `compact rejects ${method}`);
 }
+const draftText = "😀. Um, the door. TK";
+const draftDocument = checker.styleDocument(draftText);
+const draft = JSON.parse(draftDocument.drafting());
+eq(draft.matches.map(m => draftText.slice(m.span.start, m.span.end)), ["Um", "TK"], "drafting UTF-16 spans");
+eq(draft.matches[0].edits[0].replacement, "T", "drafting case edit");
+eq(styleError(() => draftDocument.drafting('{"restarts":true}')).kind, "invalidOptions", "future drafting key rejected");
+draftDocument.free();
 vagueCompact.free();
 vagueDocument.free();
 eq(sensory.groups.all.words, JSON.parse(senseDocument.stats()).words.all, "sensory denominator");

@@ -1,0 +1,7 @@
+# Source: project-authored filled pauses for the drafting report (MIT OR Apache-2.0).
+# Stretched spellings are matched by the patterns in drafting.rs.
+um
+uh
+uhm
+erm
+ehm

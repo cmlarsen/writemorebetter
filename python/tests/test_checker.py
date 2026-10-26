@@ -197,7 +197,7 @@ def test_style_reports_use_code_point_spans(checker):
         "sentence_starts", "transitions", "pronoun_starts", "sensory_balance", "pacing",
         "diction", "overused_words", "consistency", "readability", "passive", "clarity",
         "regional_spelling", "emotion_tells", "preset_checks", "preset", "alliteration",
-        "vague_words", "hidden_verbs",
+        "vague_words", "hidden_verbs", "drafting",
     ]:
         assert isinstance(getattr(document, name)(), dict), name
     assert isinstance(document.dialogue_tags(baseline="none"), dict)
@@ -475,3 +475,12 @@ def test_too_often_used_counts_the_whole_document(data_dir):
         checker.set_too_often_used_percent(0)
     checker.set_too_often_used_percent(100)
     assert not [s for s in checker.check(document) if "TOO_OFTEN_USED" in s.source]
+
+
+def test_drafting(checker):
+    document = checker.style_document("😀. Um, the door. TK")
+    result = document.drafting()
+    assert [m["term"] for m in result["matches"]] == ["um", "TK"]
+    assert result["matches"][0]["span"] == {"start": 3, "end": 5}
+    with pytest.raises(StyleError):
+        document.drafting({"restarts": True})

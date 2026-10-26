@@ -846,3 +846,10 @@ export interface HiddenVerbsReport {
   terms: Array<HiddenVerbTerm>;
   groups: Split<HiddenVerbsGroup>;
 }
+
+export type DraftingCategory = "placeholder" | "spokenCommand" | "filledPause" | "restart" | "selfCorrection";
+export interface DraftingEdit { span: Span; replacement: string; }
+export interface DraftingMatch { span: Span; sentence: number; category: DraftingCategory; term: string; mode: Mode; edits: Array<DraftingEdit>; }
+export interface DraftingTerm { term: string; category: DraftingCategory; count: number; narration: number; dialogue: number; }
+export interface DraftingGroup { matches: number; edits: number; words: number; perThousandWords: number | null; }
+export interface DraftingReport { matches: Array<DraftingMatch>; terms: Array<DraftingTerm>; groups: Split<DraftingGroup>; }

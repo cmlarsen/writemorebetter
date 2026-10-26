@@ -400,6 +400,9 @@ class StyleDocument:
     def alliteration(self, options: Options = None) -> dict:
         return self._report("alliteration", options)
 
+    def drafting(self, options: Options = None) -> dict:
+        return self._report("drafting", options)
+
     def vague_words(self, options: Options = None) -> dict:
         return self._report("vague_words", options)
 

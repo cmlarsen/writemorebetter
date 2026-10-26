@@ -641,6 +641,7 @@ impl StyleDocument {
             }
             "alliteration" => no_extra(name).and_then(|_| run!(doc.alliteration(options))),
             "vague_words" => no_extra(name).and_then(|_| run!(doc.vague_words(options))),
+            "drafting" => no_extra(name).and_then(|_| run!(doc.drafting(options))),
             "hidden_verbs" => no_extra(name).and_then(|_| run!(doc.hidden_verbs(options))),
             _ => Err(new_style_error(
                 "unknownReport",

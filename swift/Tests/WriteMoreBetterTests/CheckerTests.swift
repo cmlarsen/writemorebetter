@@ -769,6 +769,15 @@ final class CheckerTests: XCTestCase {
         XCTAssertThrowsError(try TitleCase.check(headings, optionsJson: "{\"style\":\"apa\"}"))
     }
 
+    func testDrafting() throws {
+        let text = "😀. Um, the door. TK"
+        let document = try checker().styleDocument(text: text)
+        let report = try document.drafting()
+        XCTAssertEqual(report.matches.map { (text as NSString).substring(with: $0.span.nsRange) }, ["Um", "TK"])
+        XCTAssertEqual(report.matches[0].edits[0].replacement, "T")
+        XCTAssertThrowsError(try document.drafting(optionsJson: "{\"restarts\":true}"))
+    }
+
     func testVagueWordsAndHiddenVerbs() throws {
         let text = "😀 It was sort of cold—then a little warmer… “Well, it’s kind of nice,” she said.\u{2028}She made a decision."
         let document = try checker().styleDocument(text: text)

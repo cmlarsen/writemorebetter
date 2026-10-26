@@ -1321,6 +1321,12 @@ public protocol StyleDocumentProtocol: AnyObject, Sendable {
     func dictionJson(optionsJson: String?, table: String?) throws  -> String
     
     /**
+     * Returns the opt-in vague-words lens on the retained analysis; narration and dialogue are
+     * counted separately.
+     */
+    func draftingJson(optionsJson: String?) throws  -> String
+    
+    /**
      * Returns this report on the retained analysis; options default when omitted.
      */
     func echoesJson(optionsJson: String?) throws  -> String
@@ -1418,10 +1424,6 @@ public protocol StyleDocumentProtocol: AnyObject, Sendable {
      */
     func transitionsJson(optionsJson: String?) throws  -> String
     
-    /**
-     * Returns the opt-in vague-words lens on the retained analysis; narration and dialogue are
-     * counted separately.
-     */
     func vagueWordsJson(optionsJson: String?) throws  -> String
     
 }
@@ -1569,6 +1571,20 @@ open func dictionJson(optionsJson: String? = nil, table: String? = nil)throws  -
             self.uniffiCloneHandle(),
         FfiConverterOptionString.lower(optionsJson),
         FfiConverterOptionString.lower(table),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * Returns the opt-in vague-words lens on the retained analysis; narration and dialogue are
+     * counted separately.
+     */
+open func draftingJson(optionsJson: String? = nil)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_method_styledocument_drafting_json(
+            self.uniffiCloneHandle(),
+        FfiConverterOptionString.lower(optionsJson),uniffiCallStatus
     )
 })
 }
@@ -1819,10 +1835,6 @@ open func transitionsJson(optionsJson: String? = nil)throws  -> String  {
 })
 }
     
-    /**
-     * Returns the opt-in vague-words lens on the retained analysis; narration and dialogue are
-     * counted separately.
-     */
 open func vagueWordsJson(optionsJson: String? = nil)throws  -> String  {
     return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
         uniffiCallStatus in
@@ -3402,6 +3414,9 @@ private let initializationResult: InitializationResult = {
     if (uniffi_writemorebetter_swift_checksum_method_styledocument_diction_json() != 63532) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_writemorebetter_swift_checksum_method_styledocument_drafting_json() != 49949) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_writemorebetter_swift_checksum_method_styledocument_echoes_json() != 31563) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -3456,7 +3471,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_writemorebetter_swift_checksum_method_styledocument_transitions_json() != 58172) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_writemorebetter_swift_checksum_method_styledocument_vague_words_json() != 15335) {
+    if (uniffi_writemorebetter_swift_checksum_method_styledocument_vague_words_json() != 40597) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_constructor_checker_new() != 1239) {
