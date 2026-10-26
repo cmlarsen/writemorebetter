@@ -230,15 +230,23 @@ command):
   U+2028 between members isn't a plain space, so `left period` U+2028 `period the` is flag only as
   a whole rather than two edits that would each insert a `.`. The edit replaces the whole
   stretch with the marks, each spaced as it would be alone: `milk um comma eggs` → `milk, eggs`,
-  `left period new paragraph the` → `left.` ⏎ `The`, `fine period close quote and` → `fine.” and`.
+  `left period new paragraph the` → `left.` ⏎ `The`, `open quote fine period close quote and` → `“fine.” and`.
 - Otherwise every member of the cluster is flag only, so a flag-only pause never leaves its
   neighbouring command's mark doubled or dropped.
-- **A dictated pair of marks is edited together or not at all.** An opening command (*open quote*,
-  *open single quote*, *open paren*, *open bracket*) pairs with the first unused closing command of
-  its kind after it in the paragraph. If either side's cluster is flag only, both are
-  (`open quote fine period close quote comma he said` is flag only as a whole, because
-  `period close quote comma` would put two sentence marks together). An opening command with no
-  closing command after it is flag only, because its edit would insert an unmatched mark.
+- **A dictated pair of marks is edited together or not at all.** Pairs come only from
+  `mark_pairs`: an opening command (*open quote*, *open single quote*, *open paren*, *open
+  bracket*) pairs with the next command phrase of its kind in the paragraph when that phrase is a
+  closing command, both passed every guard and mention filter, and at least one word lies between
+  them. The next phrase counts whether or not the guards kept it, so a rejected phrase in between
+  leaves both sides unpaired (`open paren a open paren b close paren`), and so does another
+  opening (`open quote wait open quote stop close quote` pairs only the second opening:
+  `open quote wait “stop”`). **Any quote, paren or bracket command outside a pair is flag only**,
+  opening or closing, because its edit would insert an unmatched mark: `He said hi close quote and
+  left.`, `the words open quote and close quote appeared`, `open quote hi close paren`. In `he said
+  open quote hi close quote and then open quote bye close quote` the second opening fails its guard
+  (*then* reads as an adjective), so only the first pair converts. If either side's cluster is
+  flag only, both are (`open quote fine period close quote comma he said` is flag only as a whole,
+  because `period close quote comma` would put two sentence marks together).
 
 ### Capitalization
 
@@ -267,6 +275,19 @@ An opening mark keeps the whitespace before it and consumes the whitespace after
 hyphens joining two lowercase words, dashes and paragraph breaks also consume following whitespace.
 If the dictation engine typed the mark too (`said comma, he` or `milk, comma, and`), the command
 and a duplicate mark after it are deleted.
+
+**A typed mark beside a command makes it flag only.** If the engine typed any other mark (anything
+but a letter, digit or whitespace) right before or after a command, with only whitespace between,
+the two marks would meet, so the command is flag only, and so is its pair when it has one. The one
+exception is the identical mark the rule above absorbs: the same sentence mark (`,` `.` `?` `!`
+`:` `;` `—` `-`) before the command, or the command's own mark typed right after it with no space
+(`late period. she` → `late. She`, `tired comma, and` → `tired, and`). This applies to single- and
+multi-word commands alike. Flag only: `it was late period, she left`, `she left, full stop she
+never came back`, `where are you going, question mark she asked`, `it was late question mark. she
+left`, `he was tired colon, the end`, `he paused, dot dot dot then spoke`, `He left. New paragraph
+The next day`, `he said, open quote, hi, close quote`, `She said open quote I don’t know. Close
+quote.` and `She said, "Open quote I don’t know close quote."` (a typed quote before an opening
+command isn't absorbed).
 
 | Command | Replacement | Guard |
 |---|---|---|
@@ -304,6 +325,13 @@ and a duplicate mark after it are deleted.
   `I said question mark to myself.` are prose, `she said comma he left` and
   `she said open quote come in close quote` are dictation. A mention is no match, and no evidence
   for another command in the paragraph.
+- **Dictated dialogue tag.** Two marks after a verb of saying are commands, not mentions, because
+  they belong to a dictated pair: *comma* right before a paired opening quote command
+  (`she said comma open quote come in close quote` → `she said, “come in”`), and *period* at the
+  paragraph end after a paired closing quote command (`open quote I’m fine comma thanks close
+  quote he said period` → `“I’m fine, thanks” he said.`). Each goes with its pair member: if the
+  pair is flag only, so is the tag mark. Every other command after a verb of saying keeps the
+  mention rule (`He wanted the last word, so he said period.` is no match).
 - **Positive cue.** Every single-word command needs evidence beyond its spelling: the next word
   opens a clause (a pronoun, determiner, proper noun, capitalized word, or *and*/*but*/*so* plus a
   clause), the words around a comma or colon form a list, a hyphen joins words, an apostrophe joins
@@ -316,8 +344,8 @@ and a duplicate mark after it are deleted.
   single-word command; without it the match is flag only rather than dropped.
 - **Sentence start.** A command at the start of a sentence, after any quotes, brackets or filled
   pauses, is ordinary prose (*Full stop signs*, *Um comma the dog ran*), except one of a dictated
-  pair (an opening mark with a later closing command, or that closing command, as in
-  `fine. close quote`) and a line break before a capital (*New paragraph The next day*).
+  pair (`Open quote hello close quote she said`) and a line break before a capital
+  (*He left new paragraph The next day*).
   Mid-sentence, a capitalized command word is a name (*His brother Colon then left*).
 - **Deletion command boundary.** *Scratch that*, *delete that*, *strike that* and *undo that* need
   punctuation immediately after *that* or the end of the paragraph; when followed by an object,
@@ -332,9 +360,13 @@ and a duplicate mark after it are deleted.
   command beside it.
 - **Caps flags.** *all caps* and *no caps* after *in* or *of* describe lettering (*printed in all
   caps*); the command comes before the words it caps.
-- **Marks follow the document.** Quotes and ellipses follow the document's majority, counted as the
-  consistency report counts them (`doubleQuotes`, `singleQuotes`, `ellipses`), and default to curly
-  quotes and `…` on a tie or with none to count. Dashes are always a closed `—`.
+- **Marks follow the document.** Inserted quotes and apostrophes share one style, counted as the
+  consistency report counts them over `doubleQuotes`, `singleQuotes` and `apostrophes` together:
+  if straight marks of any kind outnumber curly ones, every inserted quote and apostrophe is
+  straight; otherwise curly, which is also the default with nothing to count. So a dictated quote
+  never sits curly beside the engine's straight apostrophe: `she said open quote I don't know close
+  quote and left` → `she said "I don't know" and left`. Ellipses follow the `ellipses` majority and
+  default to `…`. Dashes are always a closed `—`.
 - **`scratch that`** deletes only the command. The words it refers to have no recoverable extent
   in text, so the report never deletes them; the host's message can say so.
 - **Case commands** can't become a fixed edit without re-casing words, so they are flag only.
@@ -347,8 +379,8 @@ or *begin quote* with the next *close quote*, *end quote* or *unquote* in the sa
 treats the words between as speech: filled pauses, restarts and self-corrections inside are skipped
 unless `includeDialogue`, and matches inside have mode `dialogue`. The two commands are still
 reported, with their edits, in every mode, and are edited together or not at all
-([Clusters](#clusters)). An unpaired opening command is flag only and marks no speech; an unpaired
-closing command keeps its edit, since the author may have typed the opening mark.
+([Clusters](#clusters)). An unpaired opening or closing command is flag only and marks no speech,
+even where the author typed the other mark (`She said "I don't know close quote and left.`).
 
 The report inserts only what was dictated. A missing comma before a dialogue tag (`“I’m fine” she
 said`) is a separate problem the grammar rules cover.
@@ -406,6 +438,16 @@ above and flagged with no edit everywhere else.
     punctuation between, is reported too (*He said um--uh--no*). Words that also stand alone are
     left out of the determiner list, because dictated pauses follow them: *her* (*I told her um
     the*), *this*, *that*, *some*, *any* and *no*;
+  - **a pause word after a determiner and an adjective** with no noun or adjective after it, which
+    makes the pause their noun (*He let out a long uhhhh.*); *a long um day* is still a pause;
+  - **a pause word as the subject of a sentence naming it**: at a sentence start or after *and*,
+    *but* or *or*, then *is* or *was* (after at most one comma-enclosed aside of one to three
+    words), then an article, a possessive or *one*, optionally after *not* or *never*: *and um was
+    her favorite word*, *Um, she thought, was not a word.* A subject before the pause (*I um was
+    going*), no article after the verb (*and um was going to leave*) or a question (*Um, he said,
+    was the door open?*) keeps the pause. One shape is ambiguous, *and um was the best*, where a
+    dictated filler is possible but rare; it is skipped, since a missed flag costs less than a
+    false one;
   - skipped names, and speech or quoted text unless `includeDialogue` (see [Speech](#speech)).
 
 ## Restarts (v1.1)
@@ -488,7 +530,10 @@ The command replacement key selects a fixed mark, the document-majority quote or
   per category and mode. Expect near zero, and zero matches with edits. The books are the
   adversarial set: *Chapter XX*, *er* in Victorian dialogue, *at that period*, *made a dash for*.
   On story1–5 every flag must be judged correct. Hand-judge a held-out
-  `--sample 50` per category; a category that falls below 0.95 (restarts 0.9) ships off by default.
+  `--sample 50` per category, drawn from each mode: the default-mode sample goes to
+  `out/drafting/sample.jsonl` and the dictated-mode sample, with matches that have edits drawn
+  first, to `out/drafting/sample-dictated.jsonl`. Dictated-mode matches with edits are printed per
+  category and must be 0 on published text; a category that falls below 0.95 (restarts 0.9) ships off by default.
   The owner can add drafting to the tier 3 flag-rate sweep for published rates.
 - **Recall on fixtures.** `bench/style/drafting_fixtures.jsonl` holds self-written paragraphs as
   `{id, style, category, input, expected}`, plus `flags` for flag-only matches, `options` where
@@ -509,7 +554,10 @@ review, the pattern (d) fixtures are flag only with a note citing that decision,
 inputs are fixtures, or negatives where they are ordinary prose (*Umm Kulthum*). After the D2j
 review, fixtures that changed under its guards carry a note citing it, and its inputs are fixtures
 in both modes, or negatives (*She said um and looked away.*, *Uh oh, he thought.*,
-*They called it “the um thing”*). An `expected`
+*They called it “the um thing”*). After the D2k review, its inputs and the dictated `rv5`–`rv8`
+and command `rv3` probe lines are fixtures with `dictated` (pair, typed-mark, dialogue-tag and
+mark-style cases), or negatives (*He let out a long uhhhh.*, *Um, she thought, was not a word.*,
+*He wanted the last word, so he said period.*). An `expected`
   value is derived from the rules here, never copied from the report's output. Scoring
   is exact equality of the text after `drafting::apply` per category and style, with no flags on a
   negative; this catches orphan commas and spacing bugs that span scores miss.

@@ -308,3 +308,7 @@
 {"id": "neg-308", "word": "new paragraph", "input": "She typed new paragraph and hit enter.", "note": "verb sense, review D2j (2026-10-26): a command word after a writing verb is a mention"}
 {"id": "neg-309", "word": "question mark", "input": "I said question mark to myself.", "note": "verb sense, review D2j (2026-10-26): a command word after a reporting verb is a mention"}
 {"id": "neg-310", "word": "quote", "input": "The words open quote appeared on the screen.", "note": "noun sense, review D2j (2026-10-26): a command phrase after words is a mention"}
+{"id": "neg-311", "word": "um", "input": "He let out a long uhhhh.", "note": "noun sense, review D2k (2026-10-26): a pause word after a determiner and adjective with no noun after it is their noun"}
+{"id": "neg-312", "word": "um", "input": "Her name was Uma, and um was her favorite word.", "note": "mention, review D2k (2026-10-26): a pause word as the subject of is or was plus an article or possessive names the word"}
+{"id": "neg-313", "word": "um", "input": "Um, she thought, was not a word.", "note": "mention, review D2k (2026-10-26): the same, after one comma-enclosed aside"}
+{"id": "neg-314", "word": "period", "input": "He wanted the last word, so he said period.", "note": "mention, review D2k (2026-10-26): said period is a dialogue tag only after a paired closing quote command"}

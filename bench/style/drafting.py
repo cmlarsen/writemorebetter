@@ -281,14 +281,16 @@ def precision(probe, books=True, sample_size=SAMPLE, seed=SEED):
     OUT.mkdir(parents=True, exist_ok=True)
     for name, options in NEGATIVE_MODES:
         print(f'## Precision on published text, {name} mode\n')
-        summary[name] = precision_mode(probe, documents, options, sample_size, seed,
-                                       sample=not options)
+        sample = 'sample.jsonl' if not options else f'sample-{name}.jsonl'
+        summary[name] = precision_mode(probe, documents, options, sample_size, seed, sample)
         print()
     (OUT / 'precision.json').write_text(json.dumps(summary, indent=2) + '\n', encoding='utf-8')
     return summary
 
 
 def precision_mode(probe, documents, options, sample_size, seed, sample):
+    """One mode's counts, and a seeded hand-judgment sample written to `OUT / sample`. Matches
+    with edits are sampled first, since only they can change the author's text."""
     results = report(probe, [{'id': name, 'text': text, 'options': options}
                              for name, text in documents])
 
@@ -321,6 +323,7 @@ def precision_mode(probe, documents, options, sample_size, seed, sample):
                 'match': text[start:end],
                 'context': text[max(0, start - 40):end + 40],
                 'span': match['span'],
+                'edits': match['edits'],
             })
 
     print(f'{len(documents)} documents, {words["all"]} words.')
@@ -334,7 +337,9 @@ def precision_mode(probe, documents, options, sample_size, seed, sample):
             print(f'| {category} | {mode} | {found} | {edited[category][mode]} | {total} | '
                   f'{rank(rate)} |')
     edits = sum(edited[category]['all'] for category in CATEGORIES)
-    print(f'\n{edits} matches with edits in published text.')
+    print(f'\n{edits} matches with edits in published text'
+          + (': ' + ', '.join(f'{category} {edited[category]["all"]}' for category in CATEGORIES)
+             if options.get('dictated') else '') + '.')
 
     per_category = Counter()
     if sample:
@@ -342,15 +347,17 @@ def precision_mode(probe, documents, options, sample_size, seed, sample):
         pools = {category: list(sampled[category]) for category in CATEGORIES}
         for pool in pools.values():
             rng.shuffle(pool)
+            # `pop` takes from the end, so matches with edits come out first.
+            pool.sort(key=lambda row: bool(row['edits']))
         while len(samples) < sample_size and any(pools.values()):
             for category in CATEGORIES:
                 if pools[category] and len(samples) < sample_size:
                     samples.append(pools[category].pop())
         OUT.mkdir(parents=True, exist_ok=True)
-        write_jsonl(OUT / 'sample.jsonl', samples)
+        write_jsonl(OUT / sample, samples)
         per_category = Counter(row['category'] for row in samples)
         print(f"\nWrote {len(samples)} seeded matches (seed {seed}) to "
-              f"`bench/style/out/drafting/sample.jsonl` for hand judgment"
+              f"`bench/style/out/drafting/{sample}` for hand judgment"
               + (': ' + ', '.join(f'{category} {per_category[category]}'
                                   for category in CATEGORIES) if samples else '.'))
 

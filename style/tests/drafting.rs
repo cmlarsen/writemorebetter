@@ -544,12 +544,17 @@ fn spoken_command_table() {
             "She said “hello”",
             "begin quote",
         ),
+        // An unpaired closing command is flag only (review D2k).
         (
             "hello close quote she said",
-            "hello” she said",
+            "hello close quote she said",
             "close quote",
         ),
-        ("hello end quote she said", "hello” she said", "end quote"),
+        (
+            "hello end quote she said",
+            "hello end quote she said",
+            "end quote",
+        ),
         (
             "open quote hello unquote she said",
             "“hello” she said",
@@ -562,7 +567,7 @@ fn spoken_command_table() {
         ),
         (
             "hello close single quote she said",
-            "hello’ she said",
+            "hello close single quote she said",
             "close single quote",
         ),
         (
@@ -577,12 +582,12 @@ fn spoken_command_table() {
         ),
         (
             "hello close paren she said",
-            "hello) she said",
+            "hello close paren she said",
             "close paren",
         ),
         (
             "hello close parenthesis she said",
-            "hello) she said",
+            "hello close parenthesis she said",
             "close parenthesis",
         ),
         (
@@ -592,7 +597,7 @@ fn spoken_command_table() {
         ),
         (
             "hello close bracket she said",
-            "hello] she said",
+            "hello close bracket she said",
             "close bracket",
         ),
         ("She stopped apostrophe", "She stopped’", "apostrophe"),
@@ -752,13 +757,13 @@ fn review_command_guards() {
         &[
             ("Open quote hello close quote she said", "“hello” she said"),
             (
-                "She said open quote I’m fine. close quote and left",
+                "She said open quote I’m fine period close quote and left",
                 "She said “I’m fine.” and left",
             ),
             unchanged("Close quote marks are curly."),
             (
-                "He left. New paragraph The next day",
-                "He left.\nThe next day",
+                "He left new paragraph The next day",
+                "He left\nThe next day",
             ),
         ],
         spoken(),
@@ -1178,4 +1183,142 @@ fn review_d2j_commands_and_pairs() {
         applied("I said uh question mark then left.", spoken()),
         "I said uh? Then left."
     );
+}
+
+/// Every match is a flag with no edit.
+fn assert_commands_flag_only(cases: &[&str], options: DraftingOptions) {
+    for source in cases {
+        let result = report(source, options.clone());
+        assert!(!result.matches.is_empty(), "{source:?}");
+        assert!(
+            result.matches.iter().all(|m| m.edits.is_empty()),
+            "{source:?}: {:?}",
+            result.matches
+        );
+    }
+}
+
+/// Review D2k: quote, paren and bracket commands are edited only as a pair from `mark_pairs`, a
+/// mark the engine typed beside a command makes it flag only, the dictated dialogue tag, and one
+/// mark style for quotes and apostrophes.
+#[test]
+fn review_d2k_pairs_typed_marks_and_tags() {
+    assert_commands_flag_only(
+        &[
+            // Unpaired opening or closing commands.
+            "the words open quote and close quote appeared on the screen",
+            "she typed the word open paren then close paren and stopped",
+            "the then open quote leader close quote resigned",
+            "She said “I’m fine close quote and left.",
+            "She said \"I'm fine close quote and left.",
+            "He said hi close quote and left.",
+            "open quote hi close paren",
+            "open paren a open paren b close paren",
+            "she said open quote close quote and left",
+            // A typed mark beside the command, before or after it.
+            "it was late period, she left",
+            "she left, full stop she never came back",
+            "where are you going, question mark she asked",
+            "stop, exclamation point he shouted",
+            "it was late question mark. she left",
+            "he was tired colon, the end",
+            "he paused, dot dot dot then spoke",
+            "he paused… dot dot dot then spoke",
+            "he paused, em dash then spoke",
+            "it was late period\u{2028}, she left",
+            "it was late,\u{2028}period she left",
+            "it was over, new paragraph the next day",
+            "he said, open quote, hi, close quote",
+            "She said, open quote, I don’t know, close quote.",
+            "She said open quote I don’t know. Close quote.",
+            "She said, “Open quote I don’t know close quote.”",
+            "she said open quote hi, close quote, and left",
+            "He left. New paragraph The next day",
+        ],
+        spoken(),
+    );
+    assert_cases(
+        &[
+            // The later opening is the one paired; the earlier stays literal.
+            (
+                "she said open quote wait open quote stop close quote and ran",
+                "she said open quote wait “stop” and ran",
+            ),
+            // The second opening fails its guard, so only the first pair converts.
+            (
+                "he said open quote hi close quote and then open quote bye close quote",
+                "he said “hi” and then open quote bye close quote",
+            ),
+            // The same mark typed beside the command is absorbed.
+            ("he paused—dash then spoke", "he paused—then spoke"),
+            ("it was late period. she left", "it was late. She left"),
+            (
+                "he was tired comma, and she left",
+                "he was tired, and she left",
+            ),
+            // The dictated dialogue tag.
+            (
+                "she said comma open quote come in close quote",
+                "she said, “come in”",
+            ),
+            (
+                "open quote I’m fine comma thanks close quote he said period",
+                "“I’m fine, thanks” he said.",
+            ),
+            // Mark style counts apostrophes too: straight wins here, curly on a tie.
+            (
+                "she said open quote I don't know close quote and left",
+                "she said \"I don't know\" and left",
+            ),
+            (
+                "she said open quote I don’t know close quote and left",
+                "she said “I don’t know” and left",
+            ),
+            (
+                "she said open quote come in close quote",
+                "she said “come in”",
+            ),
+        ],
+        spoken(),
+    );
+    // A dialogue-tag mark goes with its pair: a flag-only pair leaves the tag flag only.
+    assert_commands_flag_only(
+        &[
+            "she said comma open quote come in, close quote",
+            "open quote fine, close quote he said period",
+        ],
+        spoken(),
+    );
+    // Without a pair, *said period* and *said comma* stay mentions.
+    assert_silent(&["He wanted the last word, so he said period."], spoken());
+}
+
+/// Review D2k: a pause word that is a noun after a determiner and adjective, or the subject of a
+/// sentence naming it, is not a pause, in both modes. A subject before the pause, a verb that
+/// isn't followed by an article, or a question keeps the pause.
+#[test]
+fn review_d2k_pause_words_as_nouns() {
+    let words = [
+        "He let out a long uhhhh.",
+        "Her name was Uma, and um was her favorite word.",
+        "Um, she thought, was not a word.",
+    ];
+    assert_silent(&words, DraftingOptions::new());
+    assert_silent(&words, spoken());
+    for text in [
+        "I um was going home.",
+        "She stood and um was going to leave.",
+        "Um, he said, was the door open?",
+        "it was a long um day",
+    ] {
+        let result = report(text, DraftingOptions::new());
+        assert!(
+            result
+                .matches
+                .iter()
+                .any(|m| m.category == DraftingCategory::FilledPause),
+            "{text:?}: {:?}",
+            result.matches
+        );
+    }
 }

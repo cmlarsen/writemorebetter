@@ -1321,13 +1321,13 @@ calls the actual report. The example also applies every returned edit with `draf
 harness compares the text a host would get, not just spans. It reads `storage/en_tokenizer.bin` and
 needs no Python packages beyond the standard library.
 
-`drafting_fixtures.jsonl` holds 342 project-authored sentences: each line is
+`drafting_fixtures.jsonl` holds 411 project-authored sentences: each line is
 `{id, style, category, input, expected}` with optional `flags`, `options` and `note`. `style` is
 `dragon` (kept filled pauses, inconsistent capitalization), `apple` (light punctuation, commands
 typed as words) or `whisper` (well punctuated, literal command words and deliberate repeats);
 `category` is `placeholder`, `filledPause` or `spokenCommand`. Edits are offered only for dictated
 text, so every fixture with an edit, and every command fixture with a match, sets
-`"options": {"dictated": true}` (172 of the 342); the rest run in default (typed) mode, where the
+`"options": {"dictated": true}` (240 of the 411); the rest run in default (typed) mode, where the
 expected text is the input and `flags` lists the expected terms. `options` also carries
 `includeDialogue` where needed. A fixture with `expected == input` and no `flags` must produce no
 matches at all. The set covers every row of the deletion worked-case table and the command table in
@@ -1336,7 +1336,7 @@ review round's inputs, and curly quotes/apostrophes, em dashes, ellipses and U+2
 variants). Expected values are worked out from the rules, never copied from the report; a fixture
 whose expectation changed with a decision carries a `note` citing it and the old value.
 
-`drafting_negatives.jsonl` (310 rows) is a separate precision set: ordinary prose that merely
+`drafting_negatives.jsonl` (314 rows) is a separate precision set: ordinary prose that merely
 contains a command word or a pause word. Each line is `{id, word, input, note}`; `word` is the
 trigger, `input` is the sentence or short paragraph, and `note` records how the word is used
 (sentence start, dialogue, after an adjective, before a comma, medical sense, stage direction, Roman
@@ -1363,26 +1363,28 @@ rate, every negative silent in both modes (`minimumNegativeRate` 1.0), and no ed
 `test_drafting.py` checks the files' shape, word and sense coverage, typography and options, and
 runs the gate.
 
-Measured on 2026-10-26 (review D2j):
+Measured on 2026-10-26 (review D2k):
 
 | Category | Positives | Caught | Controls clean |
 |---|---:|---:|---:|
 | `placeholder` | 22 | 22 | 21 / 21 |
-| `filledPause` | 160 | 160 | 24 / 24 |
-| `spokenCommand` | 51 | 51 | 64 / 64 |
-| all | 233 | 233 | 109 / 109 |
+| `filledPause` | 163 | 163 | 24 / 24 |
+| `spokenCommand` | 110 | 110 | 71 / 71 |
+| all | 295 | 295 | 116 / 116 |
 
-All 310 negatives are silent in both modes, and the 652 fixtures and negatives run without
+All 314 negatives are silent in both modes, and the 725 fixtures and negatives run without
 `dictated` return no edits. JSON summaries go to ignored `out/drafting/`.
 
 `--precision` runs `story1`–`story5`, `moby150k` and the 13 public-domain books and chapters in
 `sources.json` (the same loader pacing and vague/hidden verbs use) twice, in default mode and with
 `dictated`, printing matches, matches with edits, words and matches per 1,000 words per category
-and mode. On 2026-10-26 (review D2j) that was 19 documents and 871,778 words with **0 matches in
-every category in both modes**, so 0 matches with edits. That is the expected result for published
-fiction, but it also means the sample is empty: the seeded sample of 50 (`--sample 50`,
-`--seed 376`) from the default-mode run is written to `out/drafting/sample.jsonl` whenever matches
-exist, with a short context window and the exact `match` text for hand judgment. Judging any hit on
+and mode, and the dictated run's matches with edits per category, which must be 0. On 2026-10-26
+(review D2k) that was 19 documents and 871,778 words with **0 matches in every category in both
+modes**, so 0 matches with edits. That is the expected result for published fiction, but it also
+means the samples are empty: a seeded sample of 50 (`--sample 50`, `--seed 376`) is drawn from each
+run, the default-mode one to `out/drafting/sample.jsonl` and the dictated-mode one, with matches
+that have edits drawn first, to `out/drafting/sample-dictated.jsonl`, whenever matches exist, with
+a short context window, the exact `match` text and the edits for hand judgment. Judging any hit on
 published fiction is therefore judging a false positive; a category below 0.95 precision should ship
 off by default, as the design doc requires.
 
