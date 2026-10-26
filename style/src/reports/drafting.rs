@@ -683,7 +683,7 @@ fn positive_cue(
     if text[begin..candidate.start]
         .split(|ch: char| !ch.is_alphanumeric())
         .all(|lead| lead.is_empty() || filler(lead))
-        || sentence_start(text, candidate.start)
+        || after_terminal(text, candidate.start)
     {
         return match candidate.entry.mark {
             "newline" => words
@@ -934,20 +934,12 @@ fn command_edit(
     };
     let terminal = matches!(candidate.entry.mark, "period" | "question" | "exclamation");
     if terminal && !already {
-        let remaining = &text[end..];
-        let gap = remaining.len() - remaining.trim_start_matches([' ', '\t']).len();
-        let next_word = remaining[gap..]
-            .split(|ch: char| !ch.is_alphabetic())
-            .next()
-            .unwrap_or("");
-        if !filler(next_word) {
-            if let Some(letter) = next(text, end + gap).filter(|ch| ch.is_lowercase()) {
-                let mut upper = letter.to_uppercase();
-                if let (Some(upper), None) = (upper.next(), upper.next()) {
-                    replacement.push_str(&remaining[..gap]);
-                    replacement.push(upper);
-                    end += gap + letter.len_utf8();
-                }
+        let word = text.len() - text[end..].trim_start_matches(horizontal).len();
+        if !filler(next_word(text, word)) {
+            if let Some((upper, len)) = capital(text, word) {
+                replacement.push_str(&text[end..word]);
+                replacement.push(upper);
+                end = word + len;
             }
         }
     }
@@ -962,17 +954,17 @@ fn command_edit(
             } else {
                 mark.len()
             };
-        while next(text, after_mark).is_some_and(|ch| ch == ' ' || ch == '\t') {
-            after_mark += next(text, after_mark).unwrap().len_utf8();
+        while next(text, after_mark).is_some_and(horizontal) {
+            after_mark += 1;
         }
-        if let Some(letter) = next(text, after_mark).filter(|ch| ch.is_lowercase()) {
-            let mut upper = letter.to_uppercase();
-            if let (Some(upper), None) = (upper.next(), upper.next()) {
-                edits.push(DraftingEdit {
-                    span: span(paragraph, after_mark, after_mark + letter.len_utf8()),
-                    replacement: upper.to_string(),
-                });
-            }
+        // The typed mark is already in the text, so the tokenizer says whether a sentence starts.
+        if let Some((upper, len)) =
+            capital(text, after_mark).filter(|_| sentence_start(paragraph, after_mark))
+        {
+            edits.push(DraftingEdit {
+                span: span(paragraph, after_mark, after_mark + len),
+                replacement: upper.to_string(),
+            });
         }
     }
     edits
@@ -1006,8 +998,9 @@ fn opening_straight_quote(text: &str, quote: usize) -> bool {
     prev(text, quote).is_none_or(|(_, ch)| !ch.is_alphanumeric() && !".,;:!?)]}”’".contains(ch))
 }
 /// The paragraph start, after terminal punctuation (and any closing quotes) plus a space, or
-/// right after an opening quote.
-fn sentence_start(text: &str, at: usize) -> bool {
+/// right after an opening quote. Only a guard that keeps commands there as prose; edits use
+/// `sentence_start`.
+fn after_terminal(text: &str, at: usize) -> bool {
     let before = text[..at].trim_end_matches(horizontal);
     let Some((last_at, last)) = prev(before, before.len()) else {
         return true;
@@ -1018,6 +1011,28 @@ fn sentence_start(text: &str, at: usize) -> bool {
     }
     let core = before.trim_end_matches(['”', '’', '"', '\'', ')', ']']);
     core.ends_with(['.', '!', '?']) && !core.ends_with("..")
+}
+/// The index of the tokenizer sentence whose first word starts at `at`.
+fn first_word(paragraph: &Paragraph, at: usize) -> Option<usize> {
+    paragraph.sentences.iter().position(|sentence| {
+        sentence
+            .tokens
+            .iter()
+            .find(|token| token.is_word)
+            .is_some_and(|token| rel(paragraph, token.span.byte.start) == at)
+    })
+}
+/// Whether the word at `at` starts a tokenizer sentence that doesn't follow a closing quote. A
+/// lowercase dialogue tag may follow a quote (*“Why?” um, she asked*), so nothing there is
+/// capitalized or edited.
+fn sentence_start(paragraph: &Paragraph, at: usize) -> bool {
+    first_word(paragraph, at).is_some_and(|index| {
+        index == 0
+            || !paragraph.sentences[index - 1]
+                .text
+                .trim_end()
+                .ends_with(['”', '’', '"', '\''])
+    })
 }
 fn next_word(text: &str, at: usize) -> &str {
     text[at..]
@@ -1033,20 +1048,6 @@ fn capital(text: &str, at: usize) -> Option<(char, usize)> {
         (Some(upper), None) => Some((upper, letter.len_utf8())),
         _ => None,
     }
-}
-fn word_token(paragraph: &Paragraph, at: usize, ending: bool) -> Option<&Token> {
-    paragraph
-        .sentences
-        .iter()
-        .flat_map(|sentence| &sentence.tokens)
-        .find(|token| {
-            let edge = if ending {
-                token.span.byte.end
-            } else {
-                token.span.byte.start
-            };
-            token.is_word && rel(paragraph, edge) == at
-        })
 }
 /// An edit replacing `start..end`, narrowed past any text the replacement keeps at either end.
 fn trimmed_edit(
@@ -1086,17 +1087,31 @@ const DISCOURSE: &[&str] = &[
 
 /// The edit that deletes the filled pause or `scratch that` at `start..end`, or `None` where the
 /// punctuation around it is ambiguous and the leftover is flag only. A `run` of several pauses
-/// is deleted only between plain spaces.
+/// is deleted only when plain spaces separate them and surround it.
 fn deletion(paragraph: &Paragraph, start: usize, end: usize, run: bool) -> Option<DraftingEdit> {
     let text = &paragraph.text;
+    if run
+        && !text[start..end]
+            .chars()
+            .all(|ch| ch.is_alphabetic() || horizontal(ch))
+    {
+        return None;
+    }
     let left = text[..start].trim_end_matches(horizontal).len();
     let right = text.len() - text[end..].trim_start_matches(horizontal).len();
     let before = prev(text, left).map(|(_, ch)| ch);
     let after = next(text, right);
-    // (a) Spaces on both sides, or a space before and terminal punctuation right after.
-    if left < start && before.is_some_and(char::is_alphanumeric) {
+    // (a) Spaces on both sides, or a space before and terminal punctuation right after. Between
+    // spaces, the word before may end in a period that doesn't end a tokenizer sentence
+    // (*3 p.m. um the*).
+    let abbreviation = before == Some('.')
+        && !text[..left].ends_with("..")
+        && prev(text, left - 1).is_some_and(|(_, ch)| ch.is_alphabetic())
+        && first_word(paragraph, start).is_none();
+    if left < start && (before.is_some_and(char::is_alphanumeric) || abbreviation) {
         let spaced = right > end && after.is_some_and(char::is_alphanumeric);
         let terminal = right == end
+            && !abbreviation
             && after.is_some_and(|ch| matches!(ch, '.' | '!' | '?'))
             && !text[end..].starts_with("..");
         if spaced || terminal {
@@ -1106,8 +1121,9 @@ fn deletion(paragraph: &Paragraph, start: usize, end: usize, run: bool) -> Optio
     if run {
         return None;
     }
-    // (b) A sentence start, then one comma, an ellipsis or nothing, then a word to capitalize.
-    if sentence_start(text, start) {
+    // (b) The first word of a tokenizer sentence, not after U+2028, then one comma, an ellipsis
+    // or nothing, then a word to capitalize.
+    if sentence_start(paragraph, start) && before != Some('\u{2028}') {
         let mark = [",", "…", "..."]
             .into_iter()
             .find(|mark| text[end..].starts_with(mark))
@@ -1126,7 +1142,8 @@ fn deletion(paragraph: &Paragraph, start: usize, end: usize, run: bool) -> Optio
         }
         return None;
     }
-    // (c) and (d): a comma pair, `X, um, y`.
+    // (c) A comma pair, `Well, um, I`, after a sentence-initial discourse word keeps its comma.
+    // Any other comma pair is flag only, because the first comma may be the author's.
     if before != Some(',') || left == start || !text[end..].starts_with(',') {
         return None;
     }
@@ -1141,30 +1158,8 @@ fn deletion(paragraph: &Paragraph, start: usize, end: usize, run: bool) -> Optio
     if first == comma {
         return None;
     }
-    let left_word = &text[first..comma];
-    // (c) After a sentence-initial discourse word, keep its comma.
-    if DISCOURSE.contains(&left_word) && sentence_start(text, first) {
-        return Some(trimmed_edit(paragraph, start, word, String::new()));
-    }
-    // (d) Elsewhere both commas go, unless a noun or name before or a conjunction or preposition
-    // after suggests the first comma is the author's (*bread, um, and milk*, *Mary, um, I*).
-    let noun = word_token(paragraph, comma, true).is_none_or(|token| has_pos(token, "NN"))
-        || left_word.starts_with(char::is_uppercase)
-            && left_word != "I"
-            && !sentence_start(text, first);
-    let joins = word_token(paragraph, word, false).is_none_or(|token| {
-        ["CC", "IN", "TO", "RP"]
-            .into_iter()
-            .any(|tag| has_pos(token, tag))
-    });
-    if noun
-        || joins
-        || !text[word..].starts_with(char::is_lowercase)
-        || filler(next_word(text, word))
-    {
-        return None;
-    }
-    Some(trimmed_edit(paragraph, comma, end + 1, String::new()))
+    (DISCOURSE.contains(&&text[first..comma]) && sentence_start(paragraph, first))
+        .then(|| trimmed_edit(paragraph, start, word, String::new()))
 }
 
 /// A filled-pause run or an accepted command, with the index of its match.
@@ -1182,13 +1177,14 @@ enum LeftoverKind<'a> {
     },
     Command(&'a CommandCandidate),
 }
+/// A U+2028 gap joins a cluster too, and its members' separation isn't plain spaces, so the whole
+/// cluster is flag only (*left period* U+2028 *period the*).
 fn joined(gap: &str) -> bool {
-    !gap.chars()
-        .any(|ch| ch.is_alphanumeric() || ch == '\u{2028}')
+    !gap.chars().any(char::is_alphanumeric)
 }
 
-/// The edits for one cluster of leftovers, carried by its first match, or `None` when the
-/// cluster is flag only.
+/// The edits for one cluster of leftovers, or `None` when the cluster is flag only. The caller
+/// attaches them to the cluster's first command match, or to its pause when it has no command.
 fn cluster_edit(
     paragraph: &Paragraph,
     members: &[Leftover],
@@ -1236,7 +1232,8 @@ fn cluster_edit(
 
 /// One edit for commands with deletable leftovers between them: the marks in order, each spaced
 /// as it would be alone. `None` unless the cluster sits between words, or where two sentence
-/// marks would meet (*left period um comma then*).
+/// marks would meet, even across closing quotes or brackets (*left period um comma then*,
+/// *fine period close quote comma he*).
 fn compose(
     paragraph: &Paragraph,
     first: usize,
@@ -1268,6 +1265,9 @@ fn compose(
         || before.is_none() && !keys[0].starts_with("open")
         || keys.contains(&"apostrophe")
         || keys
+            .iter()
+            .filter(|key| !key.starts_with("close"))
+            .collect::<Vec<_>>()
             .windows(2)
             .any(|pair| sentence_mark(pair[0]) && sentence_mark(pair[1]))
     {
@@ -1363,6 +1363,17 @@ fn pauses<'a>(
                 .any(|word| prior_word.eq_ignore_ascii_case(word))
             || found.as_str().chars().all(char::is_uppercase)
             || quoted_alone(text, start, end)
+        {
+            continue;
+        }
+        // A capitalized pause word mid-sentence is a name (*Umm Kulthum*, *Umm Qasr*), and so is
+        // *Umm* before another capitalized word at a sentence start.
+        let rest = text[end..].trim_start_matches(horizontal);
+        let named = rest.len() < text.len() - end
+            && rest.starts_with(char::is_uppercase)
+            && next_word(rest, 0) != "I";
+        if found.as_str().starts_with(char::is_uppercase)
+            && (first_word(paragraph, start).is_none() || found.as_str() == "Umm" && named)
         {
             continue;
         }
@@ -1518,8 +1529,9 @@ pub fn report(
                 &mut leftovers,
             );
         }
-        // Pauses and commands separated only by spaces and punctuation form one cluster with one
-        // edit, computed from the text on both sides, so no two edits share a mark or a space.
+        // Pauses and commands separated only by spaces, punctuation and U+2028 form one cluster
+        // with one edit, computed from the text on both sides, so no two edits share a mark or a
+        // space.
         leftovers.sort_by_key(|leftover| leftover.start);
         let mut at = 0;
         while at < leftovers.len() {
@@ -1531,7 +1543,11 @@ pub fn report(
                 last += 1;
             }
             if let Some(edits) = cluster_edit(paragraph, &leftovers[at..=last], style) {
-                found[leftovers[at].found].edits = edits;
+                let carrier = leftovers[at..=last]
+                    .iter()
+                    .find(|leftover| matches!(leftover.kind, LeftoverKind::Command(_)))
+                    .unwrap_or(&leftovers[at]);
+                found[carrier.found].edits = edits;
             }
             at = last + 1;
         }

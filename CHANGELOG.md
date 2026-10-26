@@ -16,6 +16,7 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
 - Drafting cleanup now handles adjacent pauses, mixed punctuation, dictated marks beside pauses, and case-insensitive note vocabulary; spoken-command guards avoid ordinary prose uses.
 - Drafting edits preserve prose when a punctuation name is a noun, keep dictated commas beside pauses, and remove isolated pause sentences without doubling punctuation.
+- Drafting edits take sentence starts from the tokenizer, so they no longer capitalize after an abbreviation or a closing quote; comma pairs other than after a discourse word, pause runs with punctuation inside, and command clusters that would double a sentence mark are flag only, and names such as *Umm Kulthum* are no longer pauses.
 
 # 0.14.0 (2026-10-24)
 

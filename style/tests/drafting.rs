@@ -136,7 +136,6 @@ fn pattern_b_sentence_start() {
             ("Um… the door", "The door"),
             ("Um the door", "The door"),
             ("He’d left. Um, the door—", "He’d left. The door—"),
-            ("He left!” Um… the door", "He left!” The door"),
             ("Um, I don’t know", "I don’t know"),
             ("Um, ßeta", "ßeta"),
         ],
@@ -175,30 +174,25 @@ fn pattern_c_discourse_comma_pair() {
     );
 }
 
+/// Pattern (d) was removed after review D2h: every comma pair other than pattern (c) is flag only.
 #[test]
-fn pattern_d_comma_pair_elsewhere() {
-    assert_edits(
+fn comma_pairs_elsewhere_are_flag_only() {
+    assert_flag_only(
         &[
-            ("I was, uh, thinking", "I was thinking"),
-            ("He, uh, left.", "He left."),
-            ("It wasn’t, um, his fault—", "It wasn’t his fault—"),
-            (
-                "She waited… and, uh, then left",
-                "She waited… and then left",
-            ),
-        ],
-        DraftingOptions::new(),
-    );
-    assert_edits(
-        &[(
+            "I was, uh, thinking",
+            "He, uh, left.",
+            "It wasn’t, um, his fault—",
+            "She waited… and, uh, then left",
             "“I was, um, thinking,” she said.",
-            "“I was thinking,” she said.",
-        )],
+            "She laughed, um, cried, and left.",
+            "If you want, um, we can go.",
+            "As I said, um, it’s late.",
+        ],
         dialogue(),
     );
     let mut options = dialogue();
     options.er = true;
-    assert_edits(&[("He was, er, tired", "He was tired")], options);
+    assert_flag_only(&["He was, er, tired"], options);
 }
 
 #[test]
@@ -222,6 +216,10 @@ fn flag_only_contexts() {
             "He paused. Um. Then he spoke.",
             "He left. Um?! Then",
             "He left. Um. then",
+            // After a closing quote, a lowercase dialogue tag may follow.
+            "He left!” Um… the door",
+            "“Why?” um, she asked.",
+            "“Stop!” um he shouted.",
             // Ellipsis pairs and other mixed marks.
             "I was… um… thinking",
             "It was, um… fine",
@@ -229,6 +227,9 @@ fn flag_only_contexts() {
             "it was erm, cold",
             // Chains that aren't all plain spaces.
             "The cat um, uh, sat",
+            "The cat um, uh sat down.",
+            "The cat um—uh sat down.",
+            "He said um… uh the door was open.",
             "um, uh, the door",
             "He left. Uh. Um. Then",
             // U+2028 and paragraph ends.
@@ -881,5 +882,94 @@ fn pauses_beside_command_words() {
             ],
             options,
         );
+    }
+}
+
+/// Review D2h: sentence starts come from the tokenizer, capitalized pause words mid-sentence are
+/// names, and a command carries its cluster's edit.
+#[test]
+fn review_d2h_sentence_starts_names_and_clusters() {
+    // An abbreviation's period isn't a sentence end, so pattern (a) applies without a capital.
+    assert_edits(
+        &[
+            (
+                "He left at 3 p.m. um the door was open.",
+                "He left at 3 p.m. the door was open.",
+            ),
+            (
+                "She lived in the U.S. um before the war—",
+                "She lived in the U.S. before the war—",
+            ),
+            (
+                "“It’s late, etc. um and so on.”",
+                "“It’s late, etc. and so on.”",
+            ),
+        ],
+        dialogue(),
+    );
+    for text in [
+        "They listened to Umm Kulthum all night.",
+        "The ship docked at Umm Qasr before dawn.",
+        "Umm Kulthum sang on the radio.",
+        "“Umm Kulthum’s voice…” she said.",
+    ] {
+        for (source, _) in variants(text, text) {
+            let result = report(&source, dialogue());
+            assert!(
+                result.matches.is_empty(),
+                "{source:?}: {:?}",
+                result.matches
+            );
+        }
+    }
+    // A capitalized pause that starts a sentence is still a pause, before *I* too.
+    assert_edits(
+        &[
+            ("Umm, the door", "The door"),
+            ("Umm I don’t know", "I don’t know"),
+        ],
+        dialogue(),
+    );
+    let flag_only = |text: &str| {
+        let result = report(text, spoken());
+        assert!(!result.matches.is_empty(), "{text:?}");
+        assert!(
+            result.matches.iter().all(|m| m.edits.is_empty()),
+            "{text:?}: {:?}",
+            result.matches
+        );
+    };
+    flag_only("he left period close paren period then");
+    flag_only("he left period\u{2028}period the door");
+    flag_only("he left period\u{2028}um the door");
+    // Only the opening quote, a cluster of its own, keeps an edit.
+    let result = report("open quote fine period close quote comma he said", spoken());
+    assert_eq!(
+        result
+            .matches
+            .iter()
+            .filter(|m| !m.edits.is_empty())
+            .map(|m| m.term.as_str())
+            .collect::<Vec<_>>(),
+        ["open quote"]
+    );
+    for (text, command, expected) in [
+        (
+            "he said uh question mark then left",
+            "question mark",
+            "he said? Then left",
+        ),
+        ("milk um comma eggs", "comma", "milk, eggs"),
+    ] {
+        let result = report(text, spoken());
+        for found in &result.matches {
+            assert_eq!(
+                found.edits.is_empty(),
+                found.term != command,
+                "{text:?}: {:?}",
+                result.matches
+            );
+        }
+        assert_eq!(applied(text, spoken()), expected);
     }
 }

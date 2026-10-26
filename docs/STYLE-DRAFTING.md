@@ -110,9 +110,10 @@ so the host applies it as is.
 - **No overlaps.** Edits within one match never overlap, and edits of different matches never
   overlap. Adjacent filled pauses in one sentence, separated only by punctuation and spaces, form
   one match. Pauses and accepted commands separated only by spaces and punctuation form one
-  **cluster**, and the cluster gets one edit, carried by its first match and computed from the
-  text on both sides of the cluster; the other matches in it are flag only. Clusters are separated
-  by words, so a host can apply any subset in descending start order.
+  **cluster**, and the cluster gets one edit, computed from the text on both sides of the cluster.
+  The cluster's first command match carries it, or its pause match when the cluster has no
+  command; the other matches in it carry no edits. Clusters are separated by words, so a host can
+  apply any subset in descending start order.
 - **Spans come from tokens.** Byte offsets are taken from token spans and from scanning whole chars,
   so they are always char boundaries. Nothing slices text by arithmetic.
 - **`drafting::apply(text, edits)`** sorts edits by start, skips any that overlap an earlier one,
@@ -126,41 +127,47 @@ conservative: an edit is returned only where the punctuation around the pause le
 result. **Everywhere else the pause is flagged with no edit** (empty `edits`) and the author fixes
 it. A missed convenience is acceptable; a damaged sentence is not.
 
-The edit patterns, where *word* means a letter or digit and spaces are spaces or tabs:
+The edit patterns, where *word* means a letter or digit, spaces are spaces or tabs, and a sentence
+start is the first word token of one of the tokenizer's sentences (`paragraph.sentences`), never a
+scan for `.` or a closing quote:
 
 - **(a) Spaces on both sides**, with a word on each side and no punctuation next to the pause:
   `So um I was` → `So I was`. A pause right before terminal punctuation counts too:
-  `He left um.` → `He left.` A run of pauses separated only by spaces is deleted the same way
-  (`we walked um uh to the river`).
+  `He left um.` → `He left.` A run of pauses is deleted the same way only when every gap inside it
+  is spaces alone (`we walked um uh to the river`). The word before may end in a period that
+  doesn't end a tokenizer sentence, as after an abbreviation, and nothing is capitalized:
+  `He left at 3 p.m. um the door` → `He left at 3 p.m. the door`.
 - **(b) Sentence start**, then one comma, an ellipsis or nothing, then a word: `Um, the door`,
-  `Um… the door` and `Um the door` all become `The door`, with the capital below. Sentence start
-  means the paragraph start, terminal punctuation (and any closing quotes) plus a space, or right
-  after an opening quote, in dialogue with `includeDialogue`.
+  `Um… the door` and `Um the door` all become `The door`, with the capital below. In dialogue,
+  with `includeDialogue`, the first word inside an opening quote counts when the tokenizer starts
+  a sentence there (`“Um, I don’t know.”`). A pause after U+2028, or at a sentence start that
+  follows a sentence ending with a closing quote, is flag only: a lowercase dialogue tag may come
+  next (`“Why?” um, she asked.`).
 - **(c) A comma pair after a sentence-initial discourse word** (*Well*, *Oh*, *So*, *Yes*, *Yeah*,
   *No*, *Okay*, *OK*, *Now*, *Right*, *Sure*, *Look*, *Listen*) keeps the first comma:
-  `Well, um, I was` → `Well, I was`.
-- **(d) A comma pair elsewhere** drops both commas when the word before is not a noun or name and
-  the word after starts lowercase and is not a conjunction or preposition: `I was, uh, thinking` →
-  `I was thinking`, `He, uh, left.` → `He left.` In doubt, flag only: `bread, um, and milk`,
-  `The house, uh, in the woods` and `Mary, um, I was` are flag only, because the first comma may be
-  the author's.
+  `Well, um, I was` → `Well, I was`. Every other comma pair is flag only, because the first comma
+  may be the author's: `I was, uh, thinking`, `She laughed, um, cried, and left.`,
+  `If you want, um, we can go.`, `bread, um, and milk`, `Mary, um, I was`.
 
 **Flag only:** any dash next to the pause, a bracket or parenthesis, a quote edge, a pause between
-two terminal marks (`He paused. Um. Then`), an ellipsis or comma on one side only, a pause at a
-paragraph end, U+2028 next to the pause, a run of pauses with punctuation between them
-(`The cat um, uh, sat`), and every other shape not listed above. The report never deletes across a
-paragraph boundary.
+two terminal marks (`He paused. Um. Then`), an ellipsis or comma on one side only, a comma pair
+other than (c), a pause after a sentence that ends with a closing quote, a pause at a paragraph
+end, U+2028 next to the pause, a run of pauses with a comma, dash or ellipsis inside it
+(`The cat um, uh, sat`, `The cat um—uh sat`), and every other shape not listed above. The report
+never deletes across a paragraph boundary.
 
 | Input | Edit span → replacement | Result |
 |---|---|---|
 | `So um I was` | ` um` → `` | `So I was` |
 | `Well, um, I was` | `um, ` → `` | `Well, I was` |
-| `I was, uh, thinking` | `, uh,` → `` | `I was thinking` |
+| `I was, uh, thinking` | flag only | unchanged |
 | `I was—um—thinking` | flag only | unchanged |
 | `I was… um… thinking` | flag only | unchanged |
 | `Um, the door` | `Um, t` → `T` | `The door` |
 | `Um… the door` | `Um… t` → `T` | `The door` |
 | `He left um.` | ` um` → `` | `He left.` |
+| `He left at 3 p.m. um the door` | ` um` → `` | `He left at 3 p.m. the door` |
+| `“Why?” um, she asked.` | flag only | unchanged |
 | `He left um”` (dialogue, `includeDialogue`) | flag only | unchanged |
 | `“I was, um,” she said` (`includeDialogue`) | flag only | unchanged |
 | `“Um, I don’t know.”` (`includeDialogue`) | `Um, ` → `` | `“I don’t know.”` |
@@ -173,14 +180,18 @@ Tests repeat each pattern with straight and curly quotes, curly apostrophes, `�
 
 ### Clusters
 
-Pauses and accepted commands separated only by spaces and punctuation form one cluster with one
-edit:
+Pauses and accepted commands separated only by spaces, punctuation and U+2028 form one cluster
+with one edit, carried by the cluster's first command match (or by its pause when it has no
+command):
 
 - A cluster of one is the pause's edit above or the command's own edit.
 - A larger cluster gets an edit only when its members are separated by plain spaces, every pause
   in it would be deletable on its own, it sits between words or at the paragraph edge, and its
   commands' marks can follow each other: repeats collapse (`comma um comma` gives one `,`), and two
-  sentence marks never meet (`left period um comma then` is flag only). The edit replaces the whole
+  sentence marks never meet, even across closing quotes or brackets (`left period um comma then`,
+  `fine period close quote comma he` and `left period close paren period then` are flag only).
+  U+2028 between members isn't a plain space, so `left period` U+2028 `period the` is flag only as
+  a whole rather than two edits that would each insert a `.`. The edit replaces the whole
   stretch with the marks, each spaced as it would be alone: `milk um comma eggs` → `milk, eggs`,
   `left period new paragraph the` → `left.` ⏎ `The`, `fine period close quote and` → `fine.” and`.
 - Otherwise every member of the cluster is flag only, so a flag-only pause never leaves its
@@ -191,8 +202,9 @@ edit:
 When a deletion or a dictated sentence-ending mark (*period*, *question mark*, *exclamation point*,
 *full stop*) leaves a lowercase word at a sentence start, the edit extends over that word's first
 letter and replaces it with its upper case: `Um, the` → `The`, `left period she` → `left. She`.
-Sentence start means after the paragraph start, terminal punctuation or an opening quote. The change
-applies only when `char::to_uppercase` returns exactly one char; otherwise the letter is left alone.
+After a deletion, sentence start means the first word of a tokenizer sentence that doesn't follow a
+closing quote; after a dictated mark, the mark itself starts the sentence. Where the text already
+has the mark (`left period. she`), the tokenizer decides. The change applies only when `char::to_uppercase` returns exactly one char; otherwise the letter is left alone.
 Without it, accepting the edit leaves a lowercase start that `UPPERCASE_SENTENCE_START` then flags.
 This is the only edit that touches the author's words, and it changes nothing but case.
 The drafting report recognizes capitalization after a dictated terminal command only when that
@@ -259,8 +271,9 @@ and a duplicate mark after it are deleted.
   (*Did Mary delete that?*). A deletion command is deleted with the filled-pause patterns, so
   `spoke scratch that. Then` → `spoke. Then`, and other shapes are flag only.
 - **Pause beside a command.** A pause and a command next to each other form one cluster with
-  one edit (see [Clusters](#clusters)): `I said uh question mark then` → `I said? Then`. If the
-  pause is flag only, so is the command beside it.
+  one edit (see [Clusters](#clusters)), carried by the command match: `I said uh question mark
+  then` → `I said? Then`, and the `uh` match has no edit. If the pause is flag only, so is the
+  command beside it.
 - **Caps flags.** *all caps* and *no caps* after *in* or *of* describe lettering (*printed in all
   caps*); the command comes before the words it caps.
 - **Marks follow the document.** Quotes and ellipses follow the document's majority, counted as the
@@ -317,7 +330,10 @@ above and flagged with no edit everywhere else.
   interjections (*Ah, there you are*, *Hmm. She frowned.*).
 - ***er*** is off by default and behind the `er` option. Comic narration uses it on purpose (*He was,
   er, indisposed*). When on, it counts only between commas or dashes or before an ellipsis.
-- **Guards:** skip all-caps tokens (*UM*, *UH*, *ER* are names and abbreviations), hyphenated forms
+- **Guards:** skip all-caps tokens (*UM*, *UH*, *ER* are names and abbreviations), a capitalized
+  pause word that isn't the first word of a tokenizer sentence (*Umm Kulthum*, *Umm Qasr* are
+  names), *Umm* before another capitalized word other than *I* at a sentence start
+  (*Umm Kulthum sang*), hyphenated forms
   (*uh-huh*, *uh-oh*, *um-hm*), skipped names, and speech unless `includeDialogue`.
 
 ## Restarts (v1.1)
@@ -403,7 +419,9 @@ The command replacement key selects a fixed mark, the document-majority quote or
   Apple/Whisper filler, U+2028 separators, case-insensitive `[Name]` notes, `Chapter XXX` as a
   numeral, quoted mentions and commands next to pauses. After the 2026-10-26 decision, fixtures
   whose punctuation is no longer an edit pattern expect the input unchanged plus a `flags` entry,
-  with a note citing decision 2, and the inputs from the D2g review are fixtures too. An `expected`
+  with a note citing decision 2, and the inputs from the D2g review are fixtures too. After the D2h
+review, the pattern (d) fixtures are flag only with a note citing that decision, and the D2h
+inputs are fixtures, or negatives where they are ordinary prose (*Umm Kulthum*). An `expected`
   value is derived from the rules here, never copied from the report's output. Scoring
   is exact equality of the text after `drafting::apply` per category and style, with no flags on a
   negative; this catches orphan commas and spacing bugs that span scores miss.

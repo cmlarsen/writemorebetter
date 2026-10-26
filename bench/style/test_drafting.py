@@ -27,7 +27,8 @@ DELETIONS = (
     'So um I was', 'Well, um, I was', 'I was, uh, thinking', 'I was—um—thinking',
     'I was… um… thinking', 'Um, the door', 'Um… the door', 'He left um.', 'He left um”',
     '“I was, um,” she said', '“Um, I don’t know.”', 'the um\u2028next',
-    'He waited um\nThen', '“Um.”',
+    'He waited um\nThen', '“Um.”', 'He left at 3 p.m. um the door was open.',
+    '“Why?” um, she asked.',
 )
 NEGATIVES = (
     'Chapter XX', 'The atkins diet is popular.', 'The ledger said [sic] in the margin.',

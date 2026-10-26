@@ -281,3 +281,6 @@
 {"id": "neg-281", "word": "XXX", "input": "Part XXX of the serial never aired.", "note": "Roman numeral after a section noun"}
 {"id": "neg-282", "word": "XXX", "input": "Chapter XXX of the novel was never finished.", "note": "Roman numeral after a section noun"}
 {"id": "neg-283", "word": "XXX", "input": "The tombstone read Henry XXX, which puzzled the tourists.", "note": "Roman numeral after a regnal name"}
+{"id": "neg-284", "word": "Umm", "input": "They listened to Umm Kulthum all night.", "note": "name with Umm mid-sentence (review D2h)"}
+{"id": "neg-285", "word": "Umm", "input": "The ship docked at Umm Qasr before dawn.", "note": "place name with Umm mid-sentence (review D2h)"}
+{"id": "neg-286", "word": "Umm", "input": "Umm Kulthum sang on the radio.", "note": "name with Umm at a sentence start, before a capitalized word (review D2h)"}
