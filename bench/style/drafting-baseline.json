@@ -1,0 +1,9 @@
+{
+  "thresholds": {
+    "placeholder": 0.95,
+    "filledPause": 0.95,
+    "spokenCommand": 0.0
+  },
+  "minimumControlRate": 1.0,
+  "note": "spokenCommand is 0 until the spoken-command branch merges; the fixtures already cover its table and are expected to fail before then. Raise it once they pass."
+}

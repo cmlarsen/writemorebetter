@@ -321,31 +321,34 @@ entry is needed.
 
 ## Evaluation
 
-- **Precision on published fiction.** `python3 bench/style/drafting.py --books` (modelled on
+- **Precision on published fiction.** `python3 bench/style/drafting.py --precision` (modelled on
   `vague_hidden_verbs.py`) runs `bench/public` and the 13 public-domain books in
   `bench/style/sources.json` and prints matches per 1,000 words per category and mode. Expect near
   zero. The books are the adversarial set: *Chapter XX*, *er* in Victorian dialogue, *at that
   period*, *made a dash for*. On story1–5 every flag must be judged correct. Hand-judge a held-out
   `--sample 50` per category; a category that falls below 0.95 (restarts 0.9) ships off by default.
   The owner can add drafting to the tier 3 flag-rate sweep for published rates.
-- **Recall on fixtures.** `bench/style/drafting/` holds self-written CC0 paragraphs labelled as JSONL
-  `{text, category, span, applied}`, covering each category in narration and dialogue, in Dragon-,
+- **Recall on fixtures.** `bench/style/drafting_fixtures.jsonl` holds self-written paragraphs as
+  `{id, style, category, input, expected}`, plus `flags` for flag-only categories and `options`
+  where `includeDialogue` is needed, covering each category in narration and dialogue, in Dragon-,
   Apple- and Whisper-style output (misheard *coma*, lowercase after *period*, doubled marks, kept or
   dropped fillers), and every typographic variant above. Each guard has a negative twin (*a comma*,
   *the Edo period*, *Chapter XX*, *She ran. She ran*, *quote, unquote*, *[sic]*, *uh-huh*). Scoring
-  is span recall and precision per category plus **applied-edit equality**: apply the edits with
-  `drafting::apply` and compare with `applied` byte for byte, which catches orphan commas and
-  spacing bugs that span scores miss.
+  is exact equality of the text after `drafting::apply` per category and style, with no flags on a
+  negative; this catches orphan commas and spacing bugs that span scores miss.
 - **Private draft, owner only.** `bench/corpus/` holds a partly dictated draft. The owner runs, on
   their machine,
-  `python3 -I bench/style/drafting.py --file bench/corpus/<draft>.txt --out bench/runs/drafting-<draft>.json`,
-  which prints counts per category and line numbers; `--show` prints short windows to the local
-  terminal only. The owner judges the flags locally. Nothing leaves the machine: no `parity.py` API
-  leg, no `lt_api.py`, no agent or LLM. Only aggregate numbers (flags per category, judged
-  precision) are published. Workers never read `bench/corpus/`.
-- **Gates.** The report is style-only, so conformance and `recall.py` should be unchanged; the PR
-  confirms it with `bench/tools/gates.sh`. The tagger, speller and rule loading are untouched, so
-  the RSS gate doesn't apply. Report check time on moby150k and the WASM size change.
+  `python3 -I bench/style/drafting.py --local-dir bench/corpus/<draft-directory>`, which prints
+  only aggregate counts per category and mode and never text, titles or paths. The owner judges the
+  flags locally. Nothing leaves the machine: no `parity.py` API leg, no `lt_api.py`, no agent or
+  LLM. Only aggregate numbers (flags per category, judged precision) are published. Workers never
+  read `bench/corpus/`.
+- **Gates.** `python3 bench/style/drafting.py --gate` enforces the per-category recall thresholds
+  and clean-control rate in `bench/style/drafting-baseline.json`; the spoken-command threshold stays
+  0 until that category ships. The report is style-only, so conformance and `recall.py` should be
+  unchanged; the PR confirms it with `bench/tools/gates.sh`. The tagger, speller and rule loading
+  are untouched, so the RSS gate doesn't apply. Report check time on moby150k and the WASM size
+  change.
 
 ## Out of scope
 

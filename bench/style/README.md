@@ -1306,6 +1306,72 @@ below 0.85. `--write` updates `emotion-tells-baseline.json`. `sample` and `heldo
 (unlabeled). Definitions, results and limitations are in
 [STYLE-EMOTION-TELLS.md](../../docs/STYLE-EMOTION-TELLS.md).
 
+## Drafting leftovers (#376)
+
+```sh
+python3 bench/style/drafting.py               # recall on the self-written fixtures
+python3 bench/style/drafting.py --gate        # recall, then the drafting-baseline.json thresholds
+python3 bench/style/drafting.py --precision   # bench/public plus the 13 books and chapters
+python3 bench/style/drafting.py --precision --public-only   # no downloads
+python3 bench/style/drafting.py --local-dir PATH            # owner only, aggregate counts
+```
+
+`drafting.py` builds the release `drafting_jsonl` example (`style/examples/drafting_jsonl.rs`) and
+calls the actual report. The example also applies every returned edit with `drafting::apply`, so the
+harness compares the text a host would get, not just spans. It reads `storage/en_tokenizer.bin` and
+needs no Python packages beyond the standard library.
+
+`drafting_fixtures.jsonl` holds 148 project-authored sentences: each line is
+`{id, style, category, input, expected}` with optional `flags` and `options`. `style` is `dragon`
+(kept filled pauses, inconsistent capitalization), `apple` (light punctuation, commands typed as
+words) or `whisper` (well punctuated, literal command words and deliberate repeats); `category` is
+`placeholder`, `filledPause` or `spokenCommand`. Placeholders and case commands are flag only, so
+their `expected` equals `input` and `flags` lists the expected terms. `options` carries
+`includeDialogue` where the deletion table needs it. A negative has `expected == input`, no `flags`,
+and must produce no matches at all. The set covers every row of the deletion worked-case table and
+the command table in [STYLE-DRAFTING.md](../../docs/STYLE-DRAFTING.md), the noun-guard negatives,
+dialogue skipping, and curly quotes/apostrophes, em dashes, ellipses and U+2028 (plus straight
+variants). Fifty-two of the 148 are negatives.
+
+The recall table is exact equality per category and style. Measured at this commit:
+
+| Category | Positives | Caught | Controls clean |
+|---|---:|---:|---:|
+| `placeholder` | 21 | 21 | 19 / 19 |
+| `filledPause` | 35 | 35 | 13 / 13 |
+| `spokenCommand` | 40 | 0 | 20 / 20 |
+| all | 96 | 56 | 52 / 52 |
+
+`spokenCommand` is expected to fail until the spoken-command branch merges; its 40 positives and 20
+guards are already written. `drafting-baseline.json` records the gate thresholds
+(`placeholder` 0.95, `filledPause` 0.95, `spokenCommand` 0.0) and `minimumControlRate` 1.0. Raise the
+`spokenCommand` threshold once the fixtures pass. `--gate` still prints the tables, then says
+`Gate passed` or lists the category that fell below its threshold. JSON summaries go to ignored
+`out/drafting/`.
+
+`--precision` runs defaults over `story1`–`story5`, `moby150k` and the 13 public-domain books and
+chapters in `sources.json` (the same loader pacing and vague/hidden verbs use), printing matches,
+words and matches per 1,000 words per category and mode. On 2026-10-26 that was 19 documents and
+871,778 words (581,826 narration, 289,952 dialogue) with **0 matches in every category** and
+therefore 0.000 per 1,000 words. That is the expected result for published fiction, but it also means
+the sample is empty: the seeded sample of 50 (`--sample 50`, `--seed 376`) is written to
+`out/drafting/sample.jsonl` whenever matches exist, with a short context window and the exact
+`match` text for hand judgment. Judging any hit on published fiction is therefore judging a false
+positive; a category below 0.95 precision should ship off by default, as the design doc requires.
+
+### Owner-only private draft
+
+```sh
+python3 -I bench/style/drafting.py --local-dir ~/drafts
+```
+
+The owner runs this on their own drafts. It reads `.txt`, `.md` and `.markdown` files below the
+directory, prints only file and word counts plus aggregate matches per category (and narration/
+dialogue split), and never prints text, titles, paths or a sample. It does not use `parity.py`,
+`lt_api.py`, an agent or an LLM, and writes nothing. Workers never point it at `bench/corpus/`; the
+owner judges those flags locally and publishes only aggregate numbers. The directory is a positional
+path of the owner's choosing, so the repository's private corpus is never scanned automatically.
+
 ## Vague words and hidden verbs (#307)
 
 `python3 bench/style/vague_hidden_verbs.py` builds the `vague_hidden_verbs` probe, runs both
