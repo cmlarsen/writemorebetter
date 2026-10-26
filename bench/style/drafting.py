@@ -9,6 +9,11 @@
 The report is called through the release `drafting_jsonl` example, which also applies the edits with
 `drafting::apply`. Fixtures are self-written; nothing from bench/corpus is read. The `--local-dir`
 mode reads the owner's drafts only when the owner names them and prints no text, titles or paths.
+
+`drafting_negatives.jsonl` holds ordinary prose that uses the command words as ordinary words
+(*Coma patients rarely wake up.*, *a dash of salt*), so the report must leave every line unchanged.
+Recall prints a `negatives` row and lists any line the report edits; `--gate` requires all of them
+clean.
 """
 import argparse
 from collections import Counter, defaultdict
@@ -25,6 +30,7 @@ from common import HERE, ROOT, write_jsonl
 from pacing_labels import BOOKS, source_documents
 
 FIXTURES = HERE / 'drafting_fixtures.jsonl'
+NEGATIVES = HERE / 'drafting_negatives.jsonl'
 BASELINE = HERE / 'drafting-baseline.json'
 OUT = HERE / 'out/drafting'
 PUBLIC = ('story1', 'story2', 'story3', 'story4', 'story5', 'moby150k')
@@ -75,6 +81,41 @@ def fixture_passes(fixture, result):
 
 def is_positive(fixture):
     return 'flags' in fixture or fixture['input'] != fixture['expected']
+
+
+def negatives(probe):
+    """Ordinary prose that uses a command word as an ordinary word must not be edited."""
+    with NEGATIVES.open(encoding='utf-8') as stream:
+        rows = [json.loads(line) for line in stream if line.strip()]
+    results = report(probe, [{'id': row['id'], 'text': row['input']} for row in rows])
+    scored = []
+    for row in rows:
+        result = results[row['id']]
+        scored.append({
+            'id': row['id'],
+            'word': row['word'],
+            'note': row['note'],
+            'input': row['input'],
+            'applied': result['applied'],
+            'clean': result['applied'] == row['input'],
+            'matches': len(result['report']['matches']),
+        })
+
+    total = len(scored)
+    clean = sum(row['clean'] for row in scored)
+    flagged = sum(row['matches'] > 0 for row in scored)
+    failures = [row for row in scored if not row['clean']]
+    print('\n## Ordinary-prose negatives\n')
+    print('| Set | Clean | Total | Rate | Flagged |')
+    print('|---|---:|---:|---:|---:|')
+    print(f'| negatives | {clean} | {total} | '
+          f'{rank(clean / total if total else None)} | {flagged} |')
+    if failures:
+        print(f"\nFailing negatives ({len(failures)}): "
+              + ', '.join(row['id'] for row in failures))
+    else:
+        print('\nEvery negative is unchanged.')
+    return {'total': total, 'clean': clean, 'flagged': flagged, 'failures': failures}
 
 
 def recall(probe):
@@ -155,6 +196,8 @@ def recall(probe):
     if summary['failures']:
         print('Failing fixtures:', ', '.join(row['id'] for row in summary['failures']))
 
+    summary['negatives'] = negatives(probe)
+
     OUT.mkdir(parents=True, exist_ok=True)
     (OUT / 'recall.json').write_text(json.dumps(summary, indent=2) + '\n', encoding='utf-8')
     return summary
@@ -172,10 +215,17 @@ def check_gate(summary):
     minimum = baseline['minimumControlRate']
     if clean < minimum:
         failures.append(f'controls: {clean:.3f} < {minimum:.3f}')
+    found = summary.get('negatives') or {}
+    negative_rate = (found['clean'] / found['total']) if found.get('total') else 1.0
+    negative_minimum = baseline.get('minimumNegativeRate', 1.0)
+    if negative_rate < negative_minimum:
+        failures.append(f"negatives: {found['clean']}/{found['total']} clean, "
+                        f'needs {negative_minimum:.3f}')
     if failures:
         print('\nGate failed: ' + '; '.join(failures))
         return 1
-    print('\nGate passed: category recall and controls meet drafting-baseline.json.')
+    print('\nGate passed: category recall, controls and negatives meet '
+          'drafting-baseline.json.')
     return 0
 
 
@@ -331,6 +381,9 @@ def main():
         print('\nFailing rows:')
         for row in summary['failures'][:args.failures]:
             print(f"{row['id']} {row['category']}: expected {row['expected']!r}, "
+                  f"got {row['applied']!r}")
+        for row in summary['negatives']['failures'][:args.failures]:
+            print(f"{row['id']} negative ({row['word']}): expected {row['input']!r}, "
                   f"got {row['applied']!r}")
     if args.gate:
         return check_gate(summary)

@@ -1333,6 +1333,32 @@ the command table in [STYLE-DRAFTING.md](../../docs/STYLE-DRAFTING.md), the noun
 dialogue skipping, and curly quotes/apostrophes, em dashes, ellipses and U+2028 (plus straight
 variants). Fifty-six of the 197 are negatives.
 
+`drafting_negatives.jsonl` (283 rows) is a separate precision set: ordinary prose that merely
+contains a command word. Each line is `{id, word, input, note}`; `word` is the trigger, `input` is
+the sentence or short paragraph, and `note` records how the word is used (sentence start, dialogue,
+after an adjective, before a comma, medical sense, stage direction, Roman numeral, and so on). The
+report must return every `input` unchanged. The set covers each command in the table in
+[STYLE-DRAFTING.md](../../docs/STYLE-DRAFTING.md) at least eight times: comma, coma, period, full stop, colon, semicolon, dash, hyphen, ellipsis, apostrophe,
+question mark, quote, unquote, bracket, new line, next line, new paragraph, and
+scratch/delete/strike/undo that followed by an object noun. It also holds the exclamation marks,
+paren/parenthesis, caps and all caps, the interjection compounds (uh-huh, uh–huh, um-hm), `“Um.”` as
+a whole quoted line, `*um*` in emphasis markup, `um.edu`, TK inside names, XX inside sizes and
+karyotypes, XXX as a Roman numeral, bracketed stage directions, and the medical, typographic and
+idiomatic senses (sigmoid colon, Oxford comma, the Jurassic period, a dash of salt, made a dash for
+it, I have to dash). More than 30 rows use curly quotes and apostrophes, em dashes, ellipses or
+U+2028.
+
+`drafting.py` prints an `ordinary-prose negatives` table with a `negatives` row (clean versus
+total, plus how many raised any match) and lists every failing id; `--failures N` also prints each
+failure's input and the text its edits produced. `--gate` requires all rows clean, through
+`minimumNegativeRate` 1.0 in `drafting-baseline.json`. Measured at this commit, 209 of 283 are clean
+and 74 fail: the report still turns `Comma placement obsessed him that winter.` into
+`, placement obsessed him that winter.`, edits `wanted to delete that sentence`, deletes `uh` from
+`uh–huh`, strips `um` out of `*um*` and `um.edu`, and so on. Those 74 are the precision bug the fix
+branch addresses; their `input` must not be changed to match current output. `test_drafting.py`
+checks the file's shape, word and sense coverage and typography, and tolerates a `--gate` failure
+only when the negative rate is the sole failing reason.
+
 The first 148 fixtures were the original table coverage. The last 49 (added after the D4 review) are
 independent cleanup edge cases worked out from the deletion rules rather than from the current
 report: adjacent pauses, comma-plus-ellipsis and comma-plus-dash shapes, orphan punctuation before a

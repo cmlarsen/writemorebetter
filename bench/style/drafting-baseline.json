@@ -5,5 +5,6 @@
     "spokenCommand": 1.0
   },
   "minimumControlRate": 0.9,
-  "note": "All 197 project-authored drafting fixtures pass after the cleanup and spoken-command review fixes. Do not lower a threshold to match a regression."
+  "minimumNegativeRate": 1.0,
+  "note": "All 197 project-authored drafting fixtures pass after the cleanup and spoken-command review fixes. Do not lower a threshold to match a regression. Every row in drafting_negatives.jsonl is ordinary prose and must come back unchanged, so the negative rate stays at 1.0; the precision fix for those guards is landing separately."
 }
