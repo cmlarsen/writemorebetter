@@ -184,7 +184,7 @@ annotate the value decoded with `JSON.parse`.
 
 Subplot chooses which methods to call. Its recommended default set is **clichés, dialogue tags,
 sentence length statistics and monotony, and sentence starts**. **Echoes, repeated phrases,
-long-sentence flags, overused and filler words, transitions, pronoun starts, adverbs, sensory balance, diction, pacing, readability and regional spelling** are opt-in lenses;
+long-sentence flags, overused and filler words, transitions, pronoun starts, adverbs, sensory balance, diction, pacing, readability, regional spelling and name spelling** are opt-in lenses;
 sensory balance and diction stay opt-in until the owner has seen usefulness numbers on real manuscripts. Length statistics and monotony remain available without
 `includeLongSentences`. Pacing thresholds are calibrated on published-fiction flag rates (2026-10-16), not on labeled passages.
 A pacing strip should highlight only `slowRuns` and draw the per-paragraph signals as neutral
@@ -211,7 +211,7 @@ measurements: single paragraphs that meet two thresholds are mostly in-scene noi
 | clarity | `clarity::report(&Document, &ClarityOptions)` | `minimumSentences`, `minimumSentenceWords`, `stickyGluePercent`, `longClauseWords` | none | yes |
 | house style | `house_style::report(&Document, &HouseStyleRules, &HouseStyleOptions)` | `skipDialogue` | none (rules caller-supplied: `HouseStyleRules::parse`) | no |
 | regional spelling (opt-in) | `regional_spelling::report(&Document, &RegionalSpellingOptions)` | `minimumMarkers`, `system` | none (table bundled) | no |
-| name spelling (opt-in) | `name_spelling::report(&Document, &NameSpellingOptions)` | `includeDictionaryWords`, `phonetic` | none | no (readings improve candidate gate) |
+| name spelling (opt-in) | `name_spelling::report(&Document, &NameSpellingOptions)` | `includeDictionaryWords` (tier 2 and `phonetic` follow separately) | none | no (readings improve candidate gate) |
 | emotion tells | `emotion_tells::report(&Document, &EmotionTellsOptions)` | `includeDialogue` | none (lexicon bundled) | yes |
 | preset checks | `preset_checks::report(&Document, &PresetChecks)`; a whole preset: `StylePreset::report(&Document)` | `numbers`, `quotePunctuation`, `possessives`, `timeAbbreviations`, `familyTitles` | none | no |
 | vague words | `vague_words::report(&Document, &VagueWordsOptions)` | `fillers` | none (lists bundled) | yes |

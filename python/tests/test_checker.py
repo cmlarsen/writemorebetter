@@ -196,7 +196,7 @@ def test_style_reports_use_code_point_spans(checker):
         "echoes", "repeated_phrases", "cliches", "dialogue_tags", "sentence_length",
         "sentence_starts", "transitions", "pronoun_starts", "sensory_balance", "pacing",
         "diction", "overused_words", "consistency", "readability", "passive", "clarity",
-        "regional_spelling", "emotion_tells", "preset_checks", "preset", "alliteration",
+        "regional_spelling", "name_spelling", "emotion_tells", "preset_checks", "preset", "alliteration",
         "vague_words", "hidden_verbs",
     ]:
         assert isinstance(getattr(document, name)(), dict), name
@@ -206,6 +206,18 @@ def test_style_reports_use_code_point_spans(checker):
     assert error.value.kind == "invalidRules"
     with pytest.raises(StyleError):
         document.echoes({"no_such_option": 1})
+
+
+def test_name_spelling(checker):
+    text = "🙂 Marra greeted Mara."
+    report = checker.style_document(text, {"skip_names": ["Mara", "Unused"]}).name_spelling()
+    assert [(flag["form"], flag["name"]) for flag in report["flags"]] == [("Marra", "Mara")]
+    span = report["flags"][0]["span"]
+    assert text[span["start"]:span["end"]] == "Marra"
+    assert report["names"][1]["counts"]["all"] == 0
+    with pytest.raises(StyleError) as error:
+        checker.style_document(text).name_spelling({"phonetic": True})
+    assert error.value.kind == "invalidOptions"
 
 
 def test_house_style_rules(checker):

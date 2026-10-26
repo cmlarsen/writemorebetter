@@ -8,6 +8,9 @@ it never constructs replacement prose. The idea comes from rule 1 of
 dictation scorer is not ported: a probe on `bench/public` matched *the*, *to* and *they* to *Theo*
 193 times in one roughly 2,000-word story.
 
+The current implementation covers folded exact matches and tier 1 typed errors. Tier 2
+phonetic matches and their option follow in N3.
+
 | Surface | Call |
 |---|---|
 | Rust | `name_spelling::report(&Document, &NameSpellingOptions)` |
@@ -21,7 +24,7 @@ The speller already searches its user-dictionary entries when suggesting correct
 `addWords` and `skipNames`. The speller can then suggest *Mara* for an unknown *Marra*. This report
 adds a whole-document view, always identifies the listed name, and can flag a near spelling that
 the speller accepts as a word or name. Whether particular names are present in the built English
-speller data still needs checking. Subplot dedupes overlapping speller and report flags by span.
+speller data still needs checking. Subplot should dedupe overlapping speller and report flags by span.
 
 ## Roster and document
 
@@ -91,7 +94,7 @@ quotes and apostrophes, em dashes, ellipses, U+2028, NFC and NFD spellings, and 
 
 `NameSpellingReport` has `flags` and `names`. A `NameSpellingFlag` has `span`, global `sentence`
 index, `form` (the flagged surface), `name` (the exact listed spelling), `alternatives` (other
-equally ranked listed names), `reason` (`edit`, `phonetic`, `diacritics`, `case` or `spacing`),
+equally ranked listed names), `reason` (`edit`, `diacritics`, `case` or `spacing`; `phonetic` joins in N3),
 optional `distance` for edit matches, and `mode`. `NameSpellingName` has the listed `name`,
 `counts: Split<usize>` for correct occurrences, and `variants`; each variant records `form`,
 `reason`, `counts: Split<usize>` and `spans`. Return roster entries even at zero count so a caller
@@ -107,7 +110,7 @@ bindings.
 | Option | Default | Meaning |
 |---|---|---|
 | `includeDictionaryWords` | `false` | Allow capitalized forms with common-word token readings into fuzzy matching. Lowercase document uses still exclude ordinary words. |
-| `phonetic` | `true` | Run tier 2 after folded exact and edit matching. |
+| `phonetic` (planned for N3; currently rejected) | `true` once added | Run tier 2 after folded exact and edit matching. |
 
 The four-letter minimum and tier 1 distances are fixed in v1. Short names still receive folded
 exact checks. A caller wanting *Mary* and *Mara* treated as separate characters lists both.
@@ -141,9 +144,15 @@ public stories and one in the public Moby-Dick excerpt. These are prototype meas
 Rust results or evidence for tier 2. Measure report time and WASM size when implemented. Run
 `bench/tools/gates.sh` after any data rebuild; this design changes no grammar rules or data.
 
+N2 measurement on this Apple Silicon Mac: the release report took 8.0–9.0 ms on
+`bench/public/moby150k.txt` with 200 entries, using both synthetic `Name000`-style entries and
+200 distinct capitalized forms from that public text (three runs each; analysis excluded).
+The release WASM binary is 7,890,186 bytes raw and 2,043,283 bytes with gzip. These are
+current build sizes, not a before/after delta.
+
 ## Out of scope for v1
 
 - Roster-free detection and a list of likely proper-noun variants.
 - Treating `Mara Vale` in the roster as implying separate `Mara` or `Vale` entries. That would
   change existing skip and word-count behavior across reports.
-- A speller-dedupe option. Subplot already dedupes overlapping flags by span.
+- A speller-dedupe option. Subplot should dedupe overlapping flags by span.

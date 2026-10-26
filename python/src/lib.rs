@@ -627,6 +627,7 @@ impl StyleDocument {
             "regional_spelling" => {
                 no_extra(name).and_then(|_| run!(doc.regional_spelling(options)))
             }
+            "name_spelling" => no_extra(name).and_then(|_| run!(doc.name_spelling(options))),
             "emotion_tells" => no_extra(name).and_then(|_| run!(doc.emotion_tells(options))),
             "preset_checks" => no_extra(name).and_then(|_| run!(doc.preset_checks(options))),
             "preset" => {

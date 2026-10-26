@@ -6,6 +6,12 @@ inherited 0.6.4 track this project's own release line. Each version is a top-lev
 `# <version>` heading; the Release workflow copies that section verbatim into the GitHub
 release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
+# Unreleased
+
+### Added
+
+- Opt-in name spelling report for a supplied `skipNames` roster, with folded exact and typed-error matches across Rust, Swift, WASM, and Python. Tier 2 phonetic matching follows separately.
+
 # 0.14.0 (2026-10-24)
 
 ### Added

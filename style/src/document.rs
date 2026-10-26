@@ -192,6 +192,8 @@ pub struct Document {
     #[serde(default)]
     pub skip_names_supplied: bool,
     #[serde(default)]
+    pub skip_names: Vec<String>,
+    #[serde(default)]
     pub compound_heads: BTreeMap<String, Vec<(String, String)>>,
 }
 
@@ -642,6 +644,7 @@ pub fn analyze_document(tokenizer: &Tokenizer, text: &str, options: &DocumentOpt
         word_count: 0,
         token_details: options.include_token_details,
         skip_names_supplied: !options.skip_names.is_empty(),
+        skip_names: options.skip_names.clone(),
         hard_wrapped: options.hard_wrapped,
         compound_heads: BTreeMap::new(),
     };

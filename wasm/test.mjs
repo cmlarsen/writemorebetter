@@ -481,6 +481,13 @@ eq(spanText.slice(echo.later.start, echo.later.end), "walking", "UTF-16 later ec
 const phrase = JSON.parse(spanDocument.repeatedPhrases()).phrases[0];
 for (const span of phrase.spans) eq(spanText.slice(span.start, span.end), "The old lamp", "UTF-16 phrase after emoji");
 spanDocument.free();
+const nameText = "😀.\u2028“Marra’s—Zoe…” Mara replied.";
+const nameDocument = checker.styleDocument(nameText, '{"skipNames":["Mara","Zoë","Unused"]}');
+const nameReport = JSON.parse(nameDocument.nameSpelling());
+eq(nameReport.flags.map(f => [nameText.slice(f.span.start, f.span.end), f.name]), [["Marra", "Mara"], ["Zoe", "Zoë"]], "name spans use UTF-16 and omit possessives");
+eq(nameReport.names.map(n => n.counts.all), [1, 0, 0], "names include zero-count entries");
+eq(styleError(() => nameDocument.nameSpelling('{"phonetic":true}')).kind, "invalidOptions", "name spelling rejects future option");
+nameDocument.free();
 const senseText = "😀.\u2028The red lamp’s glow—a bell… “Perfume,” she said.";
 const senseDocument = checker.styleDocument(senseText);
 const sensory = JSON.parse(senseDocument.sensoryBalance('{"minimumSenseWords":1}'));

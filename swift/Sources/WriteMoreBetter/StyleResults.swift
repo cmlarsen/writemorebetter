@@ -806,6 +806,46 @@ public extension StyleDocument {
     }
 }
 
+public enum NameSpellingReason: String, Codable, Sendable {
+    case edit, diacritics, spacing
+    case `case`
+}
+
+public struct NameSpellingFlag: Codable, Equatable, Sendable {
+    public let span: Span
+    public let sentence: Int
+    public let form: String
+    public let name: String
+    public let alternatives: [String]
+    public let reason: NameSpellingReason
+    public let distance: Int?
+    public let mode: Mode
+}
+
+public struct NameSpellingVariant: Codable, Equatable, Sendable {
+    public let form: String
+    public let reason: NameSpellingReason
+    public let counts: Split<Int>
+    public let spans: [Span]
+}
+
+public struct NameSpellingName: Codable, Equatable, Sendable {
+    public let name: String
+    public let counts: Split<Int>
+    public let variants: [NameSpellingVariant]
+}
+
+public struct NameSpellingReport: Codable, Equatable, Sendable {
+    public let flags: [NameSpellingFlag]
+    public let names: [NameSpellingName]
+}
+
+public extension StyleDocument {
+    func nameSpelling(optionsJson: String? = nil) throws -> NameSpellingReport {
+        try decodeStyle(nameSpellingJson(optionsJson: optionsJson))
+    }
+}
+
 public enum EmotionTellPattern: String, Codable, Sendable { case predicate, object, subject }
 
 public struct EmotionTell: Codable, Equatable, Sendable {

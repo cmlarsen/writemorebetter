@@ -85,6 +85,12 @@ export function checkStyleRecords(checker) {
   results.push(["RegionalSpellingReport", spelling]);
   assert.deepEqual(JSON.parse(spelling).flags.map(flag => [flag.form, flag.reason]), [["focused", "form"], ["color", "system"]]);
   spellingDocument.free();
+  const namesDocument = checker.styleDocument("🙂 Marra greeted Zoë. Mara replied.", '{"skipNames":["Mara","Zoë","Unused"]}');
+  const nameSpelling = namesDocument.nameSpelling();
+  results.push(["NameSpellingReport", nameSpelling]);
+  assert.equal(JSON.parse(nameSpelling).names.length, 3);
+  assert.deepEqual(JSON.parse(nameSpelling).flags.map(flag => [flag.form, flag.name]), [["Marra", "Mara"]]);
+  namesDocument.free();
   const emotionDocument = checker.styleDocument("She was afraid. “I was so angry,” he said.");
   results.push(["EmotionTellsReport", emotionDocument.emotionTells('{"includeDialogue":true}')]);
   emotionDocument.free();

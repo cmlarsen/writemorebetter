@@ -9,6 +9,7 @@ pub mod echoes;
 pub mod emotion_tells;
 pub mod hidden_verbs;
 pub mod house_style;
+pub mod name_spelling;
 mod norms;
 pub mod overused_words;
 pub mod pacing;

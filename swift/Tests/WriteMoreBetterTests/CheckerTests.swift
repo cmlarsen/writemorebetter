@@ -630,6 +630,12 @@ final class CheckerTests: XCTestCase {
         XCTAssertEqual(spelling.flags.map(\.form), ["focused", "color"])
         XCTAssertEqual(spelling.flags.map(\.reason), [.form, .system])
         XCTAssertEqual(spelling.dominant, [.british, .oxford])
+        let namesDocument = try checker().styleDocument(text: "🙂 Marra greeted Mara.", options: DocumentOptions(skipNames: ["Mara", "Unused"]))
+        try roundTrip(NameSpellingReport.self, namesDocument.nameSpellingJson(optionsJson: nil))
+        let names = try namesDocument.nameSpelling()
+        XCTAssertEqual(names.flags.map(\.form), ["Marra"])
+        XCTAssertEqual(names.flags.first?.span.start, 3)
+        XCTAssertEqual(names.names.last?.counts.all, 0)
         let normText = try String(contentsOf: Self.repositoryRoot.appendingPathComponent("style/tests/fixtures/norm-records.txt"), encoding: .utf8)
         let normDocument = try checker().styleDocument(text: normText)
         let table = "{\"hope\": 1.5, \"idea\": 1.6, \"freedom\": 1.3, \"lamp\": 4.8}"
