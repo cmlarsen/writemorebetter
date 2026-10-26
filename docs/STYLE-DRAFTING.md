@@ -287,9 +287,10 @@ letter, digit or whitespace. The edit absorbs:
 
 - **Before the command**, the same sentence mark (`,` `.` `?` `!` `:` `;` `—` `-`) typed right
   before it across spaces or tabs, which then stands in for the command's own
-  (`tired, comma and` → `tired, and`). A spaced dash isn't absorbed, because the edit would close
-  it on one side only (`It was a long day — dash the longest.` and `She turned — dash and ran.`
-  are flag only). The edit consumes only spaces and tabs before a command, so any other whitespace
+  (`tired, comma and` → `tired, and`). A spaced mark, one with whitespace before it, isn't
+  absorbed, because the edit would close it on one side only (`It was a long day — dash the
+  longest.`, `She turned — dash and ran.`, `It was a well - hyphen known fact.`, `well -hyphen
+  known` and `She paused , comma and left.` are flag only). The edit consumes only spaces and tabs before a command, so any other whitespace
   between a typed mark and the command stays, and the command is flag only rather than doubling
   the mark (`She paused,` U+2028 `comma and left.`, the same with a no-break space, and
   `It was late —` U+2028 `dash she left.`). An opening mark keeps the whitespace before it, so
@@ -300,10 +301,21 @@ letter, digit or whitespace. The edit absorbs:
   paragraph The next day` → `He left.` ⏎ `The next day`, `“Go.” New paragraph She left.` →
   `“Go.”` ⏎ `She left.` (owner decision, 2026-10-26). After any other mark it is flag only
   (`it was over, new paragraph the next day`).
+- **Never beside a paragraph separator.** A line-break command with nothing after it in the
+  paragraph, or with U+2028 after it, is flag only, alone or in a cluster, so it never inserts
+  `"\n"` next to an existing separator (`He left. New paragraph` ⏎ `She stayed.`, `“Go.” New
+  paragraph`).
 - **After the command**, only its own mark typed right after it with no space between
   (`late period. she` → `late. She`, `tired comma, and` → `tired, and`). An ellipsis command
   never absorbs a typed period: `I don't know dot dot dot.` and `He paused dot dot dot. Then he
   spoke.` are flag only, never `….`, and so is `She trailed off ellipsis.`.
+- **An apostrophe beside one the engine typed** is flag only: the word before already ends in
+  `'` or `’`, with or without an `s` after it (`the dog's apostrophe s bone`), or the `s` after
+  the command has one (`the dog apostrophe s' bone`).
+
+`absorbed_before`, `absorbed_after` and `command_edit` hold these rules. The guards only ask
+whether the command's own mark is typed right before it (`same_mark_before`, shared with
+`absorbed_before`), which separates it from the word before so the noun guard doesn't apply.
 
 Everything else typed beside a command is flag only, for single- and multi-word commands alike:
 `it was late period, she left`, `she left, full stop she never came back`, `where are you going,
@@ -374,15 +386,19 @@ period.`).
   commands keep the noun guard. A lone *period* in a well-punctuated paragraph is probably the noun.
   *Full stop* is ordinary English too (*I love you full stop.*), so it needs the same evidence as a
   single-word command; without it the match is flag only rather than dropped. So is a lowercase
-  *ellipsis* followed by nothing but typed terminal punctuation to the paragraph end (`She trailed
-  off ellipsis.`), which matches `dot dot dot.`: both are flag only, because the edit can't absorb
-  the typed period.
+  *ellipsis* followed by nothing but typed marks to the paragraph end (`She trailed off
+  ellipsis.`, `She trailed off ellipsis…`), which matches `dot dot dot.`.
 - **Sentence start.** A command at the start of a sentence, after any quotes, brackets or filled
   pauses, is ordinary prose (*Full stop signs*, *Um comma the dog ran*), except one of a dictated
   pair (`Open quote hello close quote she said`) and a line break before a capital
   (*He left new paragraph The next day*), which may also follow a typed ellipsis or closing quote
-  (*He left… New paragraph The next day*).
+  (*He left… New paragraph The next day*). A capital there that the tagger reads only as a proper
+  noun may continue the command words as prose, so it is no match (*She read the first line
+  aloud. Next line Tom read.*); a missed break costs less than deleting the words.
   Mid-sentence, a capitalized command word is a name (*His brother Colon then left*).
+- **Title case.** A multi-word command with any word after the first capitalized is a name or
+  title, never a command: *She worked in film. New Line Cinema hired her.*, *“Where?” New Line
+  Cinema, he said.*
 - **Deletion command boundary.** *Scratch that*, *delete that*, *strike that* and *undo that* need
   punctuation immediately after *that* or the end of the paragraph; when followed by an object,
   they are ordinary prose. A subject or modal immediately before the phrase also blocks it, and so
@@ -397,10 +413,11 @@ period.`).
 - **Caps flags.** *all caps* and *no caps* after *in* or *of* describe lettering (*printed in all
   caps*); the command comes before the words it caps.
 - **Marks follow the document, per kind.** Inserted double quotes follow the document's double
-  quotes, counted as the consistency report counts `doubleQuotes`, and inserted single quotes and
-  apostrophes (one character, `’` or `'`) follow its `singleQuotes`. A kind the document doesn't
-  use falls back to the `apostrophes` count, and curly is the default with nothing to count;
-  curly wins a tie. So a manuscript with curly dialogue keeps curly inserted quotes beside straight
+  quotes, counted as the consistency report counts `doubleQuotes`, and inserted single quotes
+  follow its `singleQuotes`. A quote kind the document doesn't use falls back to the
+  `apostrophes` count. An inserted apostrophe (one character, `’` or `'`) follows the
+  `apostrophes` count, then `singleQuotes` (`He said 'no' twice. I don’t know. … The dog apostrophe
+  s bone` → `dog’s`). Curly is the default with nothing to count, and curly wins a tie. So a manuscript with curly dialogue keeps curly inserted quotes beside straight
   apostrophes (`“I can't,” she said. … He said open quote fine close quote` → `He said “fine”`),
   and a dictated quote in text without quotes matches the engine's apostrophes: `she said open
   quote I don't know close quote and left` → `she said "I don't know" and left`. Ellipses follow
@@ -476,11 +493,13 @@ above and flagged with no edit everywhere else.
     punctuation between, is reported too (*He said um--uh--no*). Words that also stand alone are
     left out of the determiner list, because dictated pauses follow them: *her* (*I told her um
     the*), *this*, *that*, *some*, *any* and *no*;
-  - **a pause word after a determiner and an adjective** that ends the clause, with punctuation or
-    the paragraph end after it, which makes the pause their noun (*He let out a long uhhhh.*);
-    *a long um day* is still a pause, and so is a restart (*She grabbed the red um the blue one.*,
-    *I want the big uh the small box.*, *It was a good um I mean a great day.*), which pattern
-    (a) deletes in dictated text;
+  - **a pause word after a determiner and an adjective**, which makes the pause their noun
+    (*He let out a long uhhhh.*, *He let out a long uhhhh and sat down.*, *a long uhhhh that
+    filled the room*, *She heard a faint um from the back row.*, *a loud uh of surprise*), unless
+    a noun follows (*a long um day* is still a pause) or the next word, maybe after *I mean*, is
+    itself a determiner from the list above or an adjective that isn't also a verb or adverb,
+    which makes it a restart (*She grabbed the red um the blue one.*, *She picked a big um big
+    one.*, *It was a good um I mean a great day.*) that pattern (a) deletes in dictated text;
   - **a pause word as the subject of a sentence naming it**: at a sentence start or after *and*,
     *but* or *or*, then *is* or *was* (after at most one comma-enclosed aside of one to three
     words), then an article, a possessive or *one*, optionally after *not* or *never*: *and um was
@@ -602,7 +621,11 @@ mark-style cases), or negatives (*He let out a long uhhhh.*, *Um, she thought, w
 with `dictated` (absorption across U+2028 and no-break spaces, spaced dashes, ellipsis before a
 typed period, pause-only pairs, the dialogue-tag period before a break or quote, restarts and
 per-kind mark style), and `He left. New paragraph The next day` expects a line break, with a note
-citing the owner's decision and its old flag-only value. An `expected`
+citing the owner's decision and its old flag-only value. After the D2m review, its 164 new
+inputs are fixtures with `dictated` (title-cased commands, breaks at the paragraph end or after
+U+2028, spaced typed marks, typed possessives, apostrophe style) or negatives (*New Line Cinema*,
+*He let out a long uhhhh and sat down.*), plus the U+2028 break cases; the negatives are also
+fixture controls in both modes. An `expected`
   value is derived from the rules here, never copied from the report's output. Scoring
   is exact equality of the text after `drafting::apply` per category and style, with no flags on a
   negative; this catches orphan commas and spacing bugs that span scores miss.

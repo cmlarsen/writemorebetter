@@ -312,3 +312,18 @@
 {"id": "neg-312", "word": "um", "input": "Her name was Uma, and um was her favorite word.", "note": "mention, review D2k (2026-10-26): a pause word as the subject of is or was plus an article or possessive names the word"}
 {"id": "neg-313", "word": "um", "input": "Um, she thought, was not a word.", "note": "mention, review D2k (2026-10-26): the same, after one comma-enclosed aside"}
 {"id": "neg-314", "word": "period", "input": "He wanted the last word, so he said period.", "note": "mention, review D2k (2026-10-26): said period is a dialogue tag only after a paired closing quote command"}
+{"id": "neg-315", "word": "new line", "input": "She worked in film. New Line Cinema hired her.", "note": "name, sentence start, review D2m (2026-10-26): title-cased New Line is a name."}
+{"id": "neg-316", "word": "new line", "input": "She worked in film. New Line Cinema hired her", "note": "name, sentence start, review D2m (2026-10-26): title-cased New Line is a name."}
+{"id": "neg-317", "word": "um", "input": "It was a long uhhhh.", "note": "noun sense, after an adjective, review D2m (2026-10-26): a pause after a determiner and adjective with nothing after it is their noun."}
+{"id": "neg-318", "word": "um", "input": "It was a long uhhhh, and she left.", "note": "noun sense, after an adjective, before a comma, review D2m (2026-10-26): a pause after a determiner and adjective before a conjunction is their noun."}
+{"id": "neg-319", "word": "um", "input": "It was the red um.", "note": "noun sense, after an adjective, review D2m (2026-10-26): a pause after a determiner and adjective at the end is their noun."}
+{"id": "neg-320", "word": "um", "input": "He let out a long uhhhh and sat down.", "note": "noun sense, after an adjective, review D2m (2026-10-26): a pause after a determiner and adjective before a conjunction is their noun."}
+{"id": "neg-321", "word": "um", "input": "He let out a long uhhhh that filled the room.", "note": "noun sense, after an adjective, review D2m (2026-10-26): a pause after a determiner and adjective before a relative pronoun is their noun."}
+{"id": "neg-322", "word": "hmm", "input": "She made a soft hmm sound.", "note": "noun sense, after an adjective, review D2m (2026-10-26): hmm is not a pause word."}
+{"id": "neg-323", "word": "um", "input": "He gave a loud uh of surprise.", "note": "noun sense, after an adjective, review D2m (2026-10-26): a pause after a determiner and adjective before of is their noun."}
+{"id": "neg-324", "word": "um", "input": "She heard a faint um from the back row.", "note": "noun sense, after an adjective, review D2m (2026-10-26): a pause after a determiner and adjective before a preposition is their noun."}
+{"id": "neg-325", "word": "um", "input": "He let out a long uhhhh — then sat.", "note": "noun sense, after an adjective, review D2m (2026-10-26): a pause after a determiner and adjective before a dash is their noun."}
+{"id": "neg-326", "word": "new line", "input": "“New Line Cinema,” he said.", "note": "name, dialogue, review D2m (2026-10-26): title-cased New Line is a name."}
+{"id": "neg-327", "word": "next line", "input": "She read the first line aloud. Next line Tom read.", "note": "name, sentence start, review D2m (2026-10-26): a break before a name at a sentence start is prose."}
+{"id": "neg-328", "word": "new line", "input": "He said “New Line Cinema called.”", "note": "name, dialogue, review D2m (2026-10-26): title-cased New Line is a name."}
+{"id": "neg-329", "word": "new line", "input": "“Where?” New Line Cinema, he said.", "note": "name, dialogue, review D2m (2026-10-26): title-cased New Line is a name."}

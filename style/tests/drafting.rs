@@ -1348,6 +1348,7 @@ fn review_d2l_absorption_breaks_and_tags() {
             "open quote um comma close quote",
             // A line break after a typed comma, or after U+2028.
             "it was over, new paragraph the next day",
+            "He left.\u{2028}New paragraph The next day",
         ],
         spoken(),
     );
@@ -1437,6 +1438,65 @@ fn review_d2l_absorption_breaks_and_tags() {
             (
                 "It's late. He said open single quote fine close single quote and left.",
                 "It's late. He said 'fine' and left.",
+            ),
+        ],
+        spoken(),
+    );
+}
+
+/// Review D2m: title-cased command phrases and names after a break are prose; a pause after a
+/// determiner and adjective is their noun unless a restart follows; a spaced typed mark, a break
+/// at the paragraph end and a possessive the engine typed are flag only; and the apostrophe
+/// follows the document's apostrophes.
+#[test]
+fn review_d2m_dictated_findings() {
+    let prose = [
+        "She worked in film. New Line Cinema hired her.",
+        "“Where?” New Line Cinema, he said.",
+        "She read the first line aloud. Next line Tom read.",
+        "He let out a long uhhhh and sat down.",
+        "He let out a long uhhhh that filled the room.",
+        "She heard a faint um from the back row.",
+        "He gave a loud uh of surprise.",
+        "He let out a long uhhhh — then sat.",
+    ];
+    assert_silent(&prose, DraftingOptions::new());
+    assert_silent(&prose, spoken());
+    assert_commands_flag_only(
+        &[
+            // A typed mark with whitespace before it would be closed on one side only.
+            "It was a well - hyphen known fact.",
+            "He was late - hyphen she left.",
+            "It was a well -hyphen known fact.",
+            "She paused , comma and left.",
+            // A line break with nothing after it in the paragraph.
+            "He left. New paragraph\nShe stayed.",
+            "He left new paragraph\nShe stayed.",
+            "He left new paragraph\u{2028}The next day",
+            "“Go.” New paragraph",
+            // A possessive the engine already typed.
+            "the dog's apostrophe s bone",
+            "the dog’s apostrophe s bone",
+            "the dog apostrophe s' bone",
+        ],
+        spoken(),
+    );
+    assert_cases(
+        &[
+            ("He left. New paragraph The next day", "He left.\nThe next day"),
+            ("He left. Next line The next day", "He left.\nThe next day"),
+            ("He let out a long uh the short one.", "He let out a long the short one."),
+            ("It was a long uh day.", "It was a long day."),
+            ("He wore a blue um blue shirt.", "He wore a blue blue shirt."),
+            ("It was a well—hyphen known fact.", "It was a well—hyphen known fact."),
+            // The apostrophe follows the apostrophes, not the single quotes.
+            (
+                "He said 'no' twice. I don’t know. It wasn’t mine. The dog apostrophe s bone was gone.",
+                "He said 'no' twice. I don’t know. It wasn’t mine. The dog’s bone was gone.",
+            ),
+            (
+                "‘Go,’ she said. I don't know. It wasn't mine. She can't. The dog apostrophe s bone was gone.",
+                "‘Go,’ she said. I don't know. It wasn't mine. She can't. The dog's bone was gone.",
             ),
         ],
         spoken(),

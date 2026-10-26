@@ -563,8 +563,8 @@ struct Marks {
     double_open: &'static str,
     double_close: &'static str,
     single_open: &'static str,
-    /// The closing single quote, which is also the apostrophe.
     single_close: &'static str,
+    apostrophe: &'static str,
     ellipsis: &'static str,
 }
 
@@ -573,14 +573,17 @@ fn marks(document: &Document) -> Marks {
         .expect("default consistency options");
     // Each kind follows the document's own marks of that kind, and the apostrophes when it has
     // none, so a dictated quote matches the typed dialogue beside it and never sits curly beside
-    // a straight apostrophe in a document without quotes (*"I don't know"*).
+    // a straight apostrophe in a document without quotes (*"I don't know"*). An apostrophe
+    // follows the document's apostrophes, then its single quotes.
     let curly = |check: &consistency::ConsistencyCheck| {
         let [curly, straight] = [0, 1].map(|form| check.variants[form].counts.all);
         (curly + straight > 0).then_some(curly >= straight)
     };
-    let fallback = curly(&report.apostrophes).unwrap_or(true);
+    let apostrophes = curly(&report.apostrophes);
+    let fallback = apostrophes.unwrap_or(true);
     let double = curly(&report.double_quotes).unwrap_or(fallback);
     let single = curly(&report.single_quotes).unwrap_or(fallback);
+    let apostrophe = apostrophes.unwrap_or(single);
     let character = report.ellipses.variants[0].counts.all
         >= report.ellipses.variants[1].counts.all + report.ellipses.variants[2].counts.all;
     Marks {
@@ -588,6 +591,7 @@ fn marks(document: &Document) -> Marks {
         double_close: if double { "”" } else { "\"" },
         single_open: if single { "‘" } else { "'" },
         single_close: if single { "’" } else { "'" },
+        apostrophe: if apostrophe { "’" } else { "'" },
         ellipsis: if character { "…" } else { "..." },
     }
 }
@@ -595,27 +599,33 @@ fn marks(document: &Document) -> Marks {
 impl Marks {
     fn replacement(&self, mark: &str) -> Option<&'static str> {
         match mark {
-            "comma" => Some(","),
-            "period" => Some("."),
-            "question" => Some("?"),
-            "exclamation" => Some("!"),
-            "colon" => Some(":"),
-            "semicolon" => Some(";"),
-            "dash" => Some("—"),
-            "hyphen" => Some("-"),
             "ellipsis" => Some(self.ellipsis),
             "openDouble" => Some(self.double_open),
             "closeDouble" => Some(self.double_close),
             "openSingle" => Some(self.single_open),
             "closeSingle" => Some(self.single_close),
-            "openParen" => Some("("),
-            "closeParen" => Some(")"),
-            "openBracket" => Some("["),
-            "closeBracket" => Some("]"),
-            "apostrophe" => Some(self.single_close),
-            "newline" => Some("\n"),
-            _ => None,
+            "apostrophe" => Some(self.apostrophe),
+            _ => fixed_mark(mark),
         }
+    }
+}
+/// The mark a command inserts whatever the document's style.
+fn fixed_mark(mark: &str) -> Option<&'static str> {
+    match mark {
+        "comma" => Some(","),
+        "period" => Some("."),
+        "question" => Some("?"),
+        "exclamation" => Some("!"),
+        "colon" => Some(":"),
+        "semicolon" => Some(";"),
+        "dash" => Some("—"),
+        "hyphen" => Some("-"),
+        "openParen" => Some("("),
+        "closeParen" => Some(")"),
+        "openBracket" => Some("["),
+        "closeBracket" => Some("]"),
+        "newline" => Some("\n"),
+        _ => None,
     }
 }
 
@@ -649,6 +659,13 @@ fn command_guard(
     } else {
         next_word.clone()
     };
+    // A multi-word command with a later word capitalized is a name or title (*New Line Cinema*).
+    if words[candidate.first_word + 1..=candidate.last_word]
+        .iter()
+        .any(|(token, _)| token.text.starts_with(char::is_uppercase))
+    {
+        return false;
+    }
     // A mention of the command word (*the word comma*, *The words open quote appeared*).
     if matches!(
         previous.as_deref(),
@@ -774,17 +791,16 @@ fn command_guard(
     {
         // A single-word command after a different typed mark is prose (*No more, period.*). The
         // same mark typed before it separates it from the word before, so the noun guard doesn't
-        // apply; whether the edit can absorb that mark is `command_edit`'s decision.
+        // apply; whether the edit can absorb that mark is `absorbed_before`'s decision.
         let typed_before = prev(
             &paragraph.text,
             paragraph.text[..candidate.start]
                 .trim_end_matches(horizontal)
                 .len(),
         )
-        .map(|(_, ch)| ch)
-        .filter(|ch| typed_mark(*ch));
-        let prior_typed_mark = typed_before.is_some() && typed_before == sentence_mark(entry.mark);
-        if entry.words.len() == 1 && typed_before.is_some() && !prior_typed_mark {
+        .is_some_and(|(_, ch)| typed_mark(ch));
+        let prior_typed_mark = same_mark_before(&paragraph.text, candidate).is_some();
+        if entry.words.len() == 1 && typed_before && !prior_typed_mark {
             return false;
         }
         let preceding_verb = candidate.first_word >= 2
@@ -846,10 +862,19 @@ fn positive_cue(
         || after_terminal(text, candidate.start)
         || candidate.entry.mark == "newline" && break_after(text, candidate.start)
     {
+        // A name after the break may continue the command words as prose (*She read the first
+        // line aloud. Next line Tom read.*).
+        let name = |token: &Token| {
+            !token.readings.is_empty()
+                && token
+                    .readings
+                    .iter()
+                    .all(|reading| reading.pos.starts_with("NNP"))
+        };
         return match candidate.entry.mark {
-            "newline" => words
-                .get(candidate.last_word + 1)
-                .is_none_or(|(token, _)| token.text.starts_with(char::is_uppercase)),
+            "newline" => words.get(candidate.last_word + 1).is_none_or(|(token, _)| {
+                token.text.starts_with(char::is_uppercase) && !name(token)
+            }),
             _ => paired,
         };
     }
@@ -1108,7 +1133,18 @@ fn command_candidates(paragraph: &Paragraph) -> Vec<CommandCandidate> {
                 count > 1,
                 candidate.pair.is_some(),
             );
-            candidate.flag_only = !cue && before_typed_end(paragraph, candidate);
+            // A lowercase *ellipsis* mid-sentence with nothing after it but typed marks (*She
+            // trailed off ellipsis.*): the engine typed the end of the sentence the spoken mark
+            // ends. Without a positive cue it is a match but flag only; what an edit could absorb
+            // is `command_edit`'s question alone.
+            let text = &paragraph.text;
+            let rest = text[candidate.end..].trim();
+            candidate.flag_only = !cue
+                && candidate.entry.phrase == "ellipsis"
+                && text[candidate.start..].starts_with(char::is_lowercase)
+                && !after_terminal(text, candidate.start)
+                && !rest.is_empty()
+                && rest.chars().all(typed_mark);
             cue || candidate.flag_only
         })
         .collect();
@@ -1141,20 +1177,6 @@ fn command_candidates(paragraph: &Paragraph) -> Vec<CommandCandidate> {
         candidate.flag_only = flag_only;
     }
     candidates
-}
-
-/// *ellipsis* mid-sentence with nothing but typed terminal punctuation after it to the paragraph
-/// end (*She trailed off ellipsis.*): the engine typed the period of the sentence the spoken mark
-/// ends. Without a positive cue it is flag only, like *dot dot dot.*, whose edit can't absorb the
-/// typed period either.
-fn before_typed_end(paragraph: &Paragraph, candidate: &CommandCandidate) -> bool {
-    let text = &paragraph.text;
-    let rest = text[candidate.end..].trim();
-    candidate.entry.phrase == "ellipsis"
-        && text[candidate.start..].starts_with(char::is_lowercase)
-        && !after_terminal(text, candidate.start)
-        && !rest.is_empty()
-        && rest.chars().all(|ch| matches!(ch, '.' | '?' | '!' | '…'))
 }
 
 /// The candidates that `keep` marks, with the indexes they hold into each other renumbered. A
@@ -1303,13 +1325,23 @@ fn break_after(text: &str, at: usize) -> bool {
     })
 }
 
+/// The offset of the command's own sentence mark typed right before it across spaces or tabs
+/// (*said, comma he*), which separates the command from the word before.
+fn same_mark_before(text: &str, candidate: &CommandCandidate) -> Option<usize> {
+    let start = text[..candidate.start].trim_end_matches(horizontal).len();
+    prev(text, start)
+        .filter(|(_, ch)| sentence_mark(candidate.entry.mark) == Some(*ch))
+        .map(|(at, _)| at)
+}
+
 /// Where a command's edit starts, and whether the same sentence mark typed right before it stands
 /// in for the command's own (*said, comma he*), or `None` where the edit can't absorb what is
 /// typed before it. An opening mark keeps the whitespace before it, so any typed mark across that
 /// whitespace would meet it (*said, open quote*). Any other mark consumes the spaces and tabs
 /// before it, so other whitespace stays (*paused,* U+2028 *comma*), and so does any other typed
-/// mark, except terminal punctuation or a closing quote before a line break. A spaced dash isn't
-/// absorbed either, because the edit would close it on one side only (*day — dash the*).
+/// mark, except terminal punctuation or a closing quote before a line break. A spaced mark isn't
+/// absorbed either, because the edit would close it on one side only (*day — dash the*, *well -
+/// hyphen known*).
 fn absorbed_before(text: &str, candidate: &CommandCandidate) -> Option<(usize, bool)> {
     let mark = candidate.entry.mark;
     if mark.starts_with("open") {
@@ -1321,20 +1353,38 @@ fn absorbed_before(text: &str, candidate: &CommandCandidate) -> Option<(usize, b
         return (!typed).then_some((candidate.start, false));
     }
     let start = text[..candidate.start].trim_end_matches(horizontal).len();
-    let Some((at, before)) = prev(text, start) else {
+    let Some((_, before)) = prev(text, start) else {
         return Some((start, false));
     };
     if before.is_alphanumeric() || mark == "newline" && break_after(text, candidate.start) {
         return Some((start, false));
     }
-    let spaced_dash = before == '—' && prev(text, at).is_some_and(|(_, ch)| ch.is_whitespace());
-    (sentence_mark(mark) == Some(before) && !spaced_dash).then_some((start, true))
+    let at = same_mark_before(text, candidate)?;
+    prev(text, at)
+        .is_none_or(|(_, ch)| !ch.is_whitespace())
+        .then_some((start, true))
+}
+
+/// Whether the command's own mark is typed right after it with no space between, which its edit
+/// absorbs (*late period. she*, *tired comma, and*), or `None` where another typed mark follows
+/// it across any whitespace, which the edit can't absorb.
+fn absorbed_after(text: &str, candidate: &CommandCandidate) -> Option<bool> {
+    let rest = &text[candidate.end..];
+    let already = match candidate.entry.mark {
+        "ellipsis" => rest.starts_with('…') || rest.starts_with("..."),
+        "openDouble" | "closeDouble" => rest.starts_with(['“', '”', '"']),
+        "openSingle" | "closeSingle" | "apostrophe" => rest.starts_with(['‘', '’', '\'']),
+        mark => fixed_mark(mark).is_some_and(|mark| rest.starts_with(mark)),
+    };
+    (already || !rest.trim_start().starts_with(typed_mark)).then_some(already)
 }
 
 /// The edit for a command alone, or `None` where it can't absorb a mark typed beside it, which
 /// makes the command flag only, and its pair and dialogue tag with it. Before the command,
-/// `absorbed_before` decides; after it, only the command's own mark typed with no space between
-/// is absorbed (*late period. she*, *tired comma, and*).
+/// `absorbed_before` decides; after it, `absorbed_after`. A line break with nothing after it in
+/// the paragraph would sit beside the paragraph separator, and an apostrophe beside one the
+/// engine typed would double it (*the dog's apostrophe s*, *the dog apostrophe s'*): both are
+/// flag only too.
 fn command_edit(
     paragraph: &Paragraph,
     candidate: &CommandCandidate,
@@ -1360,20 +1410,23 @@ fn command_edit(
             end += next(text, end).unwrap().len_utf8();
         }
     }
-    let already = if mark == "…" || mark == "..." {
-        text[candidate.end..].starts_with('…') || text[candidate.end..].starts_with("...")
-    } else if matches!(candidate.entry.mark, "openDouble" | "closeDouble") {
-        text[candidate.end..].starts_with(['“', '”', '"'])
-    } else if matches!(
-        candidate.entry.mark,
-        "openSingle" | "closeSingle" | "apostrophe"
-    ) {
-        text[candidate.end..].starts_with(['‘', '’', '\''])
-    } else {
-        text[candidate.end..].starts_with(mark)
-    };
-    if !already && text[candidate.end..].trim_start().starts_with(typed_mark) {
+    let already = absorbed_after(text, candidate)?;
+    if candidate.entry.mark == "newline"
+        && text[end..].chars().next().is_none_or(char::is_whitespace)
+    {
         return None;
+    }
+    let apostrophe = |piece: &str| piece.ends_with(['\'', '’']);
+    if candidate.entry.mark == "apostrophe" {
+        let lead = &text[..start];
+        if apostrophe(lead)
+            || lead.strip_suffix('s').is_some_and(apostrophe)
+            || text[end..]
+                .strip_prefix('s')
+                .is_some_and(|rest| rest.starts_with(['\'', '’']))
+        {
+            return None;
+        }
     }
     if paired_mark && already {
         end = candidate.end + mark.len();
@@ -1733,7 +1786,7 @@ fn compose(
     let right = text.len() - text[last..].trim_start_matches(horizontal).len();
     let before = prev(text, left).map(|(_, ch)| ch);
     let after = next(text, right);
-    let sentence_mark = |key: &str| {
+    let separating_mark = |key: &str| {
         matches!(
             key,
             "comma"
@@ -1751,12 +1804,13 @@ fn compose(
         || after.is_some_and(|ch| !ch.is_alphanumeric())
         || before.is_none() && !keys[0].starts_with("open")
         || keys.contains(&"apostrophe")
+        || keys.contains(&"newline") && after.is_none()
         || keys
             .iter()
             .filter(|key| !key.starts_with("close"))
             .collect::<Vec<_>>()
             .windows(2)
-            .any(|pair| sentence_mark(pair[0]) && sentence_mark(pair[1]))
+            .any(|pair| separating_mark(pair[0]) && separating_mark(pair[1]))
     {
         return None;
     }
@@ -1938,15 +1992,31 @@ fn pauses<'a>(
             .is_some_and(|token| {
                 has_pos(token, "NN") || token.readings.iter().any(|reading| reading.pos == "JJ")
             });
-        // A determiner and an adjective before the pause make it their noun too (*a long
-        // uhhhh.*), but only where the pause ends the clause, before punctuation or the paragraph
-        // end; otherwise it is a restart (*the red um the blue one*).
-        let clause_end = text[end..]
-            .trim_start_matches(horizontal)
-            .chars()
-            .next()
-            .is_none_or(|ch| !ch.is_alphanumeric());
-        let adjective_word = clause_end
+        // A determiner and an adjective before the pause make it their noun too (*a long uhhhh
+        // and sat down*), unless another determiner or adjective follows it, maybe after *I
+        // mean*, which makes it a restart (*the red um the blue one*, *a good um I mean a great
+        // day*).
+        let ahead: Vec<&Token> = tokens
+            .iter()
+            .filter(|token| {
+                token.is_word && token.span.byte.start >= paragraph.span.byte.start + end
+            })
+            .take(3)
+            .copied()
+            .collect();
+        let following = match ahead.as_slice() {
+            [i, mean, rest @ ..] if i.text == "I" && mean.text.eq_ignore_ascii_case("mean") => {
+                rest.first()
+            }
+            _ => ahead.first(),
+        };
+        let restart = following.is_some_and(|token| {
+            determiner(&word(&token.text))
+                || token.readings.iter().any(|reading| reading.pos == "JJ")
+                    && !has_pos(token, "VB")
+                    && !has_pos(token, "RB")
+        });
+        let adjective_word = !restart
             && tokens
                 .iter()
                 .rev()
