@@ -12,6 +12,12 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
 - Opt-in drafting report for placeholders, spoken commands and filled pauses, with deletion, punctuation, line-break and capitalization edits across Rust, WASM, Swift and Python. Spoken commands are off by default (`spokenCommands`) and meant for text the host knows came from dictation; filled pauses get an edit only where the punctuation around them is unambiguous and are flagged otherwise. Dictated quote pairs count as speech.
 - Opt-in name spelling report for a supplied `skipNames` roster, with folded exact, typed-error and English phonetic matches across Rust, Swift, WASM, and Python. A near miss used at least `otherCharacterMinimum` times (default 3) is listed under its entry's `possibleCharacters` as possibly another character instead of flagged.
+- **Fiction clichés and opt-in stock beats in the cliché report.** 764 owner-authored fiction
+  clichés ("her blood ran cold", "a breath she didn't know she'd been holding", "the coast was
+  clear") join the vendored list, selected by how rarely published fiction uses them. A new
+  `stockBeat` kind covers 608 stock gestures ("arched an eyebrow", "ran a hand through his hair");
+  it is off unless `includeStockBeats` is set, and `ClicheCounts` gains `stockBeats`. Both lists
+  are AI-generated drafts selected by the maintainer; see `docs/STYLE-CLICHES.md`.
 
 ### Changed
 

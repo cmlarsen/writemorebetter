@@ -27,6 +27,7 @@ public struct PacingParagraphRange: Codable, Equatable, Sendable {
 public enum ClicheKind: String, Codable, Sendable {
     case cliche
     case redundancy
+    case stockBeat
 }
 
 public enum DialogueTagPosition: String, Codable, Sendable {
@@ -124,6 +125,7 @@ public struct ClicheMatch: Codable, Equatable, Sendable {
 public struct ClicheCounts: Codable, Equatable, Sendable {
     public let cliches: Int
     public let redundancies: Int
+    public let stockBeats: Int
     public let words: Int
 }
 

@@ -5,7 +5,8 @@ use std::time::Instant;
 use serde::de::DeserializeOwned;
 use serde_json::{json, Value};
 use writemorebetter_style::reports::cliches::{
-    report as cliches, ClicheList as PhraseList, ClicheOptions,
+    bundled_entries, report as cliches, ClicheEntry, ClicheKind, ClicheList as PhraseList,
+    ClicheOptions,
 };
 use writemorebetter_style::reports::dialogue_tags::{
     non_speech_verbs, report as dialogue_tags, speech_verbs, DialogueTagOptions,
@@ -248,8 +249,22 @@ fn starts_unit(group: &sentence_starts::SentenceStartsGroup) -> Value {
     json!({ "universal": universal })
 }
 
-fn vocabulary(tokenizer: &nlprule::Tokenizer) -> Value {
-    let phrases = PhraseList::bundled(tokenizer);
+/// The bundled list, plus candidate clichés from the TSV (`phrase<TAB>source`) named by
+/// `WMB_CLICHE_LIST`, so candidates are measured alongside the shipped entries.
+fn phrase_list(tokenizer: &nlprule::Tokenizer) -> Result<PhraseList, Box<dyn std::error::Error>> {
+    let mut entries = bundled_entries();
+    if let Some(path) = std::env::var_os("WMB_CLICHE_LIST") {
+        for line in std::fs::read_to_string(path)?.lines() {
+            if let Some((phrase, source)) = line.split_once('\t') {
+                entries.push(ClicheEntry::new(ClicheKind::Cliche, phrase, source));
+            }
+        }
+    }
+    Ok(PhraseList::new(tokenizer, entries))
+}
+
+fn vocabulary(tokenizer: &nlprule::Tokenizer) -> Result<Value, Box<dyn std::error::Error>> {
+    let phrases = phrase_list(tokenizer)?;
     let mut entries: Vec<&str> = phrases
         .entries()
         .iter()
@@ -268,7 +283,7 @@ fn vocabulary(tokenizer: &nlprule::Tokenizer) -> Value {
     let phrase_options = PhraseOptions::new();
     let tag_options = DialogueTagOptions::new();
     let diction_options = diction::DictionOptions::new();
-    json!({
+    Ok(json!({
         "defaults": {
             "sentence_length_minimum_sentences": length.minimum_sentences,
             "long_sentence_words": length.long_sentence_words,
@@ -293,7 +308,7 @@ fn vocabulary(tokenizer: &nlprule::Tokenizer) -> Value {
         "cliche_sources": sources,
         "speech_verbs": speech_verbs().collect::<Vec<_>>(),
         "non_speech_verbs": non_speech_verbs().collect::<Vec<_>>(),
-    })
+    }))
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -303,7 +318,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (tokenizer, length_baseline, starts_baseline) = match args.as_slice() {
         [flag, tokenizer] if flag == "--vocabulary" => {
             let tokenizer = nlprule::Tokenizer::new(tokenizer)?;
-            serde_json::to_writer(&mut output, &vocabulary(&tokenizer))?;
+            serde_json::to_writer(&mut output, &vocabulary(&tokenizer)?)?;
             writeln!(output)?;
             return Ok(());
         }
@@ -330,7 +345,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "bundled" => Some(diction::ConcretenessTable::bundled()),
         _ => caller_table.as_ref(),
     };
-    let phrase_list = PhraseList::bundled(&tokenizer);
+    let phrase_list = phrase_list(&tokenizer)?;
     let speech: Vec<&str> = speech_verbs().collect();
     let non_speech: Vec<&str> = non_speech_verbs().collect();
     for line in io::stdin().lock().lines() {

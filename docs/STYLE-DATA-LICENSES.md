@@ -29,6 +29,21 @@ commit, the OSF license record, or the authors' and publisher's pages.
   | `wallace`, `nordquist` in `redundancy/misc.py` | 2 + 4 | David Foster Wallace; Richard Nordquist | not stated |
   | `cliches/hell.py`, `redundancy/ras_syndrome.py` | 1 + 20 | none | proselint, BSD-3-Clause: **vendored** |
 
+### Owner-authored clichés and stock beats (#246)
+
+`style/data/cliches/writemorebetter.txt` (764) and `style/data/cliches/stock-beats.txt` (608) are
+writemorebetter's own lists, MIT OR Apache-2.0, built 2026-10-27
+([STYLE-CLICHES.md](STYLE-CLICHES.md#owner-authored-lists)). They are **AI-generated**: drafted by
+Claude (Opus 5.5, Anthropic Commercial Terms, [above](#concreteness-256)), Codex (`gpt-6-sol`, through the
+Codex CLI) and DeepSeek (`deepseek-v4-pro` through OpenCode Go), then selected by
+published-fiction flag rates, Google Books Ngram English Fiction frequencies (CC BY 3.0, used only to
+select; no Ngram numbers ship) and a reviewed triage. No published cliché list was given to the models
+or copied; the brief asked them not to reproduce one. The disclosure DeepSeek's terms require (§8.1)
+is in each file's header, here and in NOTICE. OpenCode use follows the owner decision recorded in
+the OpenCode Go row above. OpenAI's terms page returned HTTP 403 when checked on 2026-10-27, so
+its text is not recorded here; the owner approved using the Codex draft. Short stock phrases are
+generally not copyrightable; the license covers the selection.
+
 ## Word norms (#250)
 
 Licenses checked 2026-10-15 (recorded in #246, below). #250 vendors one derived table:
@@ -146,7 +161,7 @@ the same cache and pinned the same way.
 | Provider | Terms | Operative text | Decision |
 |---|---|---|---|
 | Anthropic (Claude Team plan) | [Commercial Terms of Service](https://www.anthropic.com/legal/commercial-terms), effective 2025-06-17 | "Customer (a) retains all rights to its Inputs, and (b) owns its Outputs. Anthropic hereby assigns to Customer its right, title and interest (if any) in and to Outputs." Restriction: Customer may not "build a competing product or service, including to train competing AI models". | used: a lookup table is neither; the table is never used to train a model |
-| OpenCode Go (`opencode-go/deepseek-v4-pro`, `opencode-go/muse-spark-1.3-contributor`) | [OpenCode Terms of Service](https://opencode.ai/legal/terms-of-service), effective 2026-08-15 | Output is assigned to the user, but "You will only use the Services for your own internal use, and not on behalf of or for the benefit of any third party", and users may not use the Services in a way that "automatically or programmatically extracts data or Output". | **not used**: a scripted run whose output ships in a public library falls under both clauses. The Go API key had also expired (`api_key_expired`), so headless runs failed |
+| OpenCode Go (`opencode-go/deepseek-v4-pro`, `opencode-go/muse-spark-1.3-contributor`) | [OpenCode Terms of Service](https://opencode.ai/legal/terms-of-service), effective 2026-08-15 | Output is assigned to the user, but "You will only use the Services for your own internal use, and not on behalf of or for the benefit of any third party", and users may not use the Services in a way that "automatically or programmatically extracts data or Output". | **not used** for this table: a scripted run whose output ships in a public library was read as falling under both clauses. The Go API key had also expired (`api_key_expired`), so headless runs failed. **Superseded 2026-10-27 by owner decision (Caleb):** the extraction clause covers extracting data, not a model's synthetic output, which is used like generated code; DeepSeek output may ship ([cliché lists](#owner-authored-clichés-and-stock-beats-246)) |
 | DeepSeek (upstream of the above) | [Open Platform Terms](https://cdn.deepseek.com/policies/en-US/deepseek-open-platform-terms-of-service.html), effective 2026-04-29 | "We assign any rights, title, and interests—if any—in the Outputs of the Services to you"; §8.1 requires disclosing that output is AI-generated | permissive, but reachable here only through OpenCode |
 | Meta (Muse Spark, upstream of the above) | [Meta Model API terms](https://dev.meta.ai/legal/terms-of-service), updated 2026-10-09 | "you own all rights, title, and interests in and to your Inputs and Outputs"; the Geographic Use Policy bars making Outputs available in listed territories, and the Contributor tier trains on prompts and completions | not used (OpenCode terms; the geography clause leaves redistribution unclear) |
 

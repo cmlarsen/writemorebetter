@@ -4,7 +4,7 @@ export interface Split<T> { all: T; narration: T; dialogue: T; }
 export interface SentenceRange { start: number; end: number; }
 export interface PacingParagraphRange { start: number; end: number; }
 
-export type ClicheKind = "cliche" | "redundancy";
+export type ClicheKind = "cliche" | "redundancy" | "stockBeat";
 export type DialogueTagPosition = "before" | "after" | "split";
 export type DialogueTagVerbClass = "speech" | "nonSpeech" | "unlisted";
 export type SensoryModality = "sight" | "sound" | "touch" | "smell" | "taste" | "interoception";
@@ -70,6 +70,7 @@ export interface ClicheMatch {
 export interface ClicheCounts {
   cliches: number;
   redundancies: number;
+  stockBeats: number;
   words: number;
 }
 
