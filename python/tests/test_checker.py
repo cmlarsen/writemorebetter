@@ -196,7 +196,7 @@ def test_style_reports_use_code_point_spans(checker):
         "echoes", "repeated_phrases", "cliches", "dialogue_tags", "sentence_length",
         "sentence_starts", "transitions", "pronoun_starts", "sensory_balance", "pacing",
         "diction", "overused_words", "consistency", "readability", "passive", "clarity",
-        "regional_spelling", "emotion_tells", "preset_checks", "preset", "alliteration",
+        "regional_spelling", "name_spelling", "emotion_tells", "preset_checks", "preset", "alliteration",
         "vague_words", "hidden_verbs",
     ]:
         assert isinstance(getattr(document, name)(), dict), name
@@ -206,6 +206,29 @@ def test_style_reports_use_code_point_spans(checker):
     assert error.value.kind == "invalidRules"
     with pytest.raises(StyleError):
         document.echoes({"no_such_option": 1})
+
+
+def test_name_spelling(checker):
+    text = "🙂 Marra greeted Mara."
+    report = checker.style_document(text, {"skip_names": ["Mara", "Unused"]}).name_spelling()
+    assert [(flag["form"], flag["name"]) for flag in report["flags"]] == [("Marra", "Mara")]
+    span = report["flags"][0]["span"]
+    assert text[span["start"]:span["end"]] == "Marra"
+    assert report["names"][1]["counts"]["all"] == 0
+    phonetic = checker.style_document("Kathryn spoke.", {"skip_names": ["Katherine"]}).name_spelling()
+    assert [(flag["name"], flag["reason"]) for flag in phonetic["flags"]] == [("Katherine", "phonetic")]
+    assert checker.style_document("Kathryn spoke.", {"skip_names": ["Katherine"]}).name_spelling({"phonetic": False})["flags"] == []
+    other_text = "🙂 “Marra—Marra’s… Marra?”\u2028Mara."
+    other_document = checker.style_document(other_text, {"skip_names": ["Mara"]})
+    other = other_document.name_spelling()
+    assert other["flags"] == []
+    listed = other["names"][0]["possibleCharacters"]
+    assert [(item["form"], item["counts"]["all"]) for item in listed] == [("Marra", 3)]
+    assert [other_text[s["start"]:s["end"]] for s in listed[0]["spans"]] == ["Marra"] * 3
+    assert len(other_document.name_spelling({"other_character_minimum": 0})["flags"]) == 3
+    with pytest.raises(StyleError) as error:
+        checker.style_document(text).name_spelling({"notAnOption": True})
+    assert error.value.kind == "invalidOptions"
 
 
 def test_house_style_rules(checker):

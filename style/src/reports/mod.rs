@@ -9,6 +9,8 @@ pub mod echoes;
 pub mod emotion_tells;
 pub mod hidden_verbs;
 pub mod house_style;
+mod name_phonetics;
+pub mod name_spelling;
 mod norms;
 pub mod overused_words;
 pub mod pacing;
@@ -157,6 +159,38 @@ pub fn sentence_table(document: &Document) -> Vec<SentenceRow> {
             words: sentence.word_count(),
         })
         .collect()
+}
+
+/// Hyphens that join the parts of a compound word (`grey-green`, `Mary\u{2011}Ann`).
+pub(crate) const HYPHENS: [char; 3] = ['-', '\u{2010}', '\u{2011}'];
+
+/// The parts of `text` between `separators`, with their byte offsets in `text`.
+pub(crate) fn parts<'a>(
+    text: &'a str,
+    separators: &'a [char],
+) -> impl Iterator<Item = (usize, &'a str)> + 'a {
+    let mut start = 0;
+    text.split(separators).map(move |part| {
+        let at = start;
+        start += part.len()
+            + text[at + part.len()..]
+                .chars()
+                .next()
+                .map_or(0, char::len_utf8);
+        (at, part)
+    })
+}
+
+/// The span of `part`, which starts at byte `start` of a token with `text` and `span`.
+pub(crate) fn part_span(span: &Span, text: &str, start: usize, part: &str) -> Span {
+    let before = &text[..start];
+    let char = span.char.start + before.chars().count();
+    let utf16 = span.utf16.start + before.encode_utf16().count();
+    Span {
+        byte: span.byte.start + start..span.byte.start + start + part.len(),
+        char: char..char + part.chars().count(),
+        utf16: utf16..utf16 + part.encode_utf16().count(),
+    }
 }
 
 pub(crate) fn bundled_baseline<T: serde::de::DeserializeOwned>(json: &str) -> T {

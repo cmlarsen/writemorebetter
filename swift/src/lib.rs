@@ -1263,6 +1263,16 @@ impl StyleDocument {
             })
     }
 
+    #[uniffi::method(default(options_json = None))]
+    pub fn name_spelling_json(&self, options_json: Option<String>) -> Result<String, CheckError> {
+        self.inner
+            .name_spelling(options_json.as_deref())
+            .map(|report| writemorebetter_style::reports::to_utf16_json(&report))
+            .map_err(|error| CheckError::ReportInput {
+                message: error.to_string(),
+            })
+    }
+
     /// Returns the opt-in emotion-tells lens on the retained analysis; narration only by default.
     #[uniffi::method(default(options_json = None))]
     pub fn emotion_tells_json(&self, options_json: Option<String>) -> Result<String, CheckError> {

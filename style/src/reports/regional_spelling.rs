@@ -3,7 +3,7 @@ use std::sync::OnceLock;
 
 use serde::{Deserialize, Serialize};
 
-use super::Split;
+use super::{part_span, parts, Split};
 use crate::{Document, Mode, Span, StyleError, Token};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -116,6 +116,11 @@ struct Table {
 }
 const ALL_SYSTEMS: u8 = 0b111;
 
+// The hyphens regional spelling splits a word token on. U+2011 is left out of WORD_HYPHENS. The
+// tokenizer splits U+2010 into its own token too, like U+2011, so in practice only '-' occurs
+// inside a token; U+2010 stays listed so regional behavior is unchanged.
+const WORD_HYPHENS: [char; 2] = ['-', '\u{2010}'];
+
 fn table() -> &'static Table {
     static TABLE: OnceLock<Table> = OnceLock::new();
     TABLE.get_or_init(|| {
@@ -186,31 +191,6 @@ fn probable_name(document: &Document, tokens: &[&Token], at: usize) -> bool {
             .is_some_and(|next| next.is_word && capitalized(&next.text))
 }
 
-/// The parts of a hyphenated compound (`grey-green`), with their byte offsets in the token.
-fn parts(text: &str) -> impl Iterator<Item = (usize, &str)> {
-    let mut start = 0;
-    text.split(['-', '\u{2010}']).map(move |part| {
-        let at = start;
-        start += part.len()
-            + text[at + part.len()..]
-                .chars()
-                .next()
-                .map_or(0, char::len_utf8);
-        (at, part)
-    })
-}
-
-fn part_span(span: &Span, text: &str, start: usize, part: &str) -> Span {
-    let before = &text[..start];
-    let char = span.char.start + before.chars().count();
-    let utf16 = span.utf16.start + before.encode_utf16().count();
-    Span {
-        byte: span.byte.start + start..span.byte.start + start + part.len(),
-        char: char..char + part.chars().count(),
-        utf16: utf16..utf16 + part.encode_utf16().count(),
-    }
-}
-
 struct Occurrence {
     span: Span,
     sentence: usize,
@@ -238,7 +218,7 @@ pub fn report(
             if !token.is_word || token.is_skipped || probable_name(document, &tokens, at) {
                 continue;
             }
-            for (start, part) in parts(&token.text) {
+            for (start, part) in parts(&token.text, &WORD_HYPHENS) {
                 let folded = part.to_lowercase();
                 if let Some((&form, _)) = table.spellings.get_key_value(folded.as_str()) {
                     occurrences.push(Occurrence {
