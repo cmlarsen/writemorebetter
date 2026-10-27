@@ -5,6 +5,7 @@ pub mod cliches;
 pub mod consistency;
 pub mod dialogue_tags;
 pub mod diction;
+pub mod drafting;
 pub mod echoes;
 pub mod emotion_tells;
 pub mod hidden_verbs;

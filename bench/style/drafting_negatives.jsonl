@@ -1,0 +1,332 @@
+{"id": "neg-001", "word": "comma", "input": "Comma placement obsessed him that winter.", "note": "sentence start, noun subject"}
+{"id": "neg-002", "word": "comma", "input": "Every clause in the contract needs a comma before the conjunction.", "note": "mid-sentence, after a determiner"}
+{"id": "neg-003", "word": "comma", "input": "She taught the class where the comma goes.", "note": "mid-sentence, after a determiner"}
+{"id": "neg-004", "word": "comma", "input": "He counted every comma in the manuscript twice.", "note": "mid-sentence, after a determiner, before a U+2028 break"}
+{"id": "neg-005", "word": "comma", "input": "The comma splice on page four—the one she had missed—was the least of her problems.", "note": "after an adjective, between em dashes"}
+{"id": "neg-006", "word": "comma", "input": "Add a comma after the greeting, the editor wrote.", "note": "inside a reported instruction, after a determiner"}
+{"id": "neg-007", "word": "comma", "input": "There was a stray comma between the two clauses.", "note": "after an adjective, after a determiner"}
+{"id": "neg-008", "word": "comma", "input": "Her thesis was about the comma in nineteenth-century printing.", "note": "end of a clause, object of a preposition"}
+{"id": "neg-009", "word": "comma", "input": "“Put a comma there,” the editor said, tapping the page.", "note": "dialogue, after a determiner, before a closing quote"}
+{"id": "neg-010", "word": "comma", "input": "He put a comma where a semicolon belonged.", "note": "mid-sentence, after a determiner"}
+{"id": "neg-011", "word": "comma", "input": "The Oxford comma is optional in journalism.", "note": "typographic sense: the Oxford comma as a subject"}
+{"id": "neg-012", "word": "comma", "input": "Her publisher insisted on the Oxford comma.", "note": "typographic sense: object of a preposition"}
+{"id": "neg-013", "word": "comma", "input": "He argued about the Oxford comma for an hour.", "note": "typographic sense: before a preposition"}
+{"id": "neg-014", "word": "comma", "input": "Comma splices were her specialty.", "note": "attributive plural noun at a sentence start"}
+{"id": "neg-015", "word": "comma", "input": "The lesson was about comma splices.", "note": "attributive plural noun after a preposition"}
+{"id": "neg-016", "word": "comma", "input": "He studies comma splices for a living.", "note": "attributive plural noun after a verb"}
+{"id": "neg-017", "word": "comma", "input": "Comma was the word she used for it.", "note": "the word itself as a sentence subject"}
+{"id": "neg-018", "word": "comma", "input": "The marks she hated were the comma, the semicolon, and the dash.", "note": "list item: the comma before a comma"}
+{"id": "neg-019", "word": "coma", "input": "Coma patients rarely wake up.", "note": "sentence start, attributive noun before a plural subject"}
+{"id": "neg-020", "word": "coma", "input": "He came out of the coma three weeks later.", "note": "mid-sentence, after a determiner"}
+{"id": "neg-021", "word": "coma", "input": "The doctor said the coma was induced.", "note": "mid-sentence, after a determiner"}
+{"id": "neg-022", "word": "coma", "input": "She had been in a coma since the crash.", "note": "mid-sentence, after a determiner"}
+{"id": "neg-023", "word": "coma", "input": "A coma can last for years.", "note": "after a determiner, subject of its clause"}
+{"id": "neg-024", "word": "coma", "input": "The word coma entered English from Greek.", "note": "mid-sentence, mentioned as a word"}
+{"id": "neg-025", "word": "coma", "input": "“He’s in a coma,” the nurse said.", "note": "dialogue, after a determiner, before a comma and closing quote"}
+{"id": "neg-026", "word": "coma", "input": "After the coma, he spoke only in riddles.", "note": "after a prepositional phrase, before a comma"}
+{"id": "neg-027", "word": "coma", "input": "Deep coma patients need constant care.", "note": "after an adjective, attributive use"}
+{"id": "neg-028", "word": "period", "input": "The Edo period shaped Japanese theatre for centuries.", "note": "mid-sentence, historical noun"}
+{"id": "neg-029", "word": "period", "input": "A period of silence followed the announcement.", "note": "noun followed by of"}
+{"id": "neg-030", "word": "period", "input": "She waited a period of three weeks…and heard nothing.", "note": "noun followed by of, with an ellipsis"}
+{"id": "neg-031", "word": "period", "input": "Put a period at the end of the sentence.", "note": "typographic noun, after a determiner"}
+{"id": "neg-032", "word": "period", "input": "He studies the Victorian period at university.", "note": "mid-sentence, after a determiner"}
+{"id": "neg-033", "word": "period", "input": "The period between the wars was brief.", "note": "noun before a preposition"}
+{"id": "neg-034", "word": "period", "input": "“That’s the period before the war,” she said.", "note": "dialogue, noun before a preposition"}
+{"id": "neg-035", "word": "period", "input": "Her period came early that month.", "note": "medical sense: menstruation, after a possessive"}
+{"id": "neg-036", "word": "period", "input": "The rehearsal period ran through July.", "note": "mid-sentence, after a determiner"}
+{"id": "neg-037", "word": "period", "input": "The Jurassic period ended with a bang.", "note": "time sense: the Jurassic period as a subject"}
+{"id": "neg-038", "word": "period", "input": "Fossils from the Jurassic period filled the drawer.", "note": "time sense: object of a preposition"}
+{"id": "neg-039", "word": "period", "input": "The Jurassic period lasted fifty-six million years.", "note": "time sense: subject of its clause"}
+{"id": "neg-040", "word": "period", "input": "Period, comma, semicolon: she listed them.", "note": "list item: period before a comma, beside two other mark names"}
+{"id": "neg-041", "word": "full stop", "input": "The train came to a full stop.", "note": "after a determiner, object of a preposition"}
+{"id": "neg-042", "word": "full stop", "input": "The bus made a full stop at the corner.", "note": "after made, after a determiner"}
+{"id": "neg-043", "word": "full stop", "input": "He typed a full stop and then deleted it.", "note": "typographic name, after a determiner"}
+{"id": "neg-044", "word": "full stop", "input": "A full stop ends a declarative sentence.", "note": "sentence start, subject of its clause"}
+{"id": "neg-045", "word": "full stop", "input": "She put a full stop after the abbreviation.", "note": "after a determiner"}
+{"id": "neg-046", "word": "full stop", "input": "The car rolled to a full stop—then the engine died.", "note": "after a determiner, before an em dash"}
+{"id": "neg-047", "word": "full stop", "input": "Full stop is the British name for this mark.", "note": "sentence start, mentioned as a term"}
+{"id": "neg-048", "word": "full stop", "input": "“Full stop,” she said, meaning the argument was over.", "note": "dialogue, quoted mention before a comma"}
+{"id": "neg-049", "word": "full stop", "input": "There was a full stop in the middle of his sentence.", "note": "after a determiner"}
+{"id": "neg-050", "word": "colon", "input": "The sigmoid colon is part of the large intestine.", "note": "medical sense: anatomy, after an adjective"}
+{"id": "neg-051", "word": "colon", "input": "The sigmoid colon—the last stretch before the rectum—was clear.", "note": "medical sense: anatomy between em dashes"}
+{"id": "neg-052", "word": "colon", "input": "The surgeon removed a section of colon.", "note": "medical sense: object of a preposition"}
+{"id": "neg-053", "word": "colon", "input": "Colon cancer runs in her family.", "note": "medical sense: sentence start, attributive noun"}
+{"id": "neg-054", "word": "colon", "input": "The transverse colon lay beneath the scar.", "note": "medical sense: anatomy, after an adjective"}
+{"id": "neg-055", "word": "colon", "input": "The colon separates the two clauses.", "note": "typographic sense, after a determiner"}
+{"id": "neg-056", "word": "colon", "input": "Put a colon before the list.", "note": "typographic sense, after a determiner"}
+{"id": "neg-057", "word": "colon", "input": "A colon introduces the quotation.", "note": "typographic sense, sentence start"}
+{"id": "neg-058", "word": "colon", "input": "The word colon comes from Greek.", "note": "mid-sentence, mentioned as a word"}
+{"id": "neg-059", "word": "colon", "input": "“They found a polyp in his colon,” she said.", "note": "medical sense in dialogue, after a possessive"}
+{"id": "neg-060", "word": "colon", "input": "Colon was the medical term the family avoided.", "note": "the word itself as a sentence subject"}
+{"id": "neg-061", "word": "semicolon", "input": "Use a semicolon between the two independent clauses.", "note": "after a determiner"}
+{"id": "neg-062", "word": "semicolon", "input": "A semicolon would have saved that sentence.", "note": "sentence start, subject of its clause"}
+{"id": "neg-063", "word": "semicolon", "input": "The semicolon on the keyboard stuck.", "note": "after a determiner, physical key"}
+{"id": "neg-064", "word": "semicolon", "input": "He pressed the semicolon and waited.", "note": "after a determiner"}
+{"id": "neg-065", "word": "semicolon", "input": "Semicolon usage divides editors.", "note": "sentence start, attributive noun"}
+{"id": "neg-066", "word": "semicolon", "input": "“A semicolon is a pause with ambition,” she said.", "note": "dialogue, subject of its clause"}
+{"id": "neg-067", "word": "semicolon", "input": "Semicolon usage—a perennial argument—divides editors.", "note": "attributive use between em dashes"}
+{"id": "neg-068", "word": "semicolon", "input": "The semicolon key was worn smooth.", "note": "after a determiner"}
+{"id": "neg-069", "word": "semicolon", "input": "Every semicolon in the draft looked like a mistake to him.", "note": "mid-sentence, after a determiner"}
+{"id": "neg-070", "word": "semicolon", "input": "Semicolon was her least favorite key.", "note": "the word itself as a sentence subject"}
+{"id": "neg-071", "word": "dash", "input": "Add a dash of salt to the stew.", "note": "noun sense: a small amount, after a determiner"}
+{"id": "neg-072", "word": "dash", "input": "A dash of salt improved the sauce.", "note": "noun sense: a small amount, sentence start"}
+{"id": "neg-073", "word": "dash", "input": "A dash of salt—and the sauce was saved.", "note": "noun sense: a small amount, before an em dash"}
+{"id": "neg-074", "word": "dash", "input": "He has a dash of vanity in him.", "note": "noun sense: a small amount, after a determiner"}
+{"id": "neg-075", "word": "dash", "input": "There was a dash of cinnamon in the coffee.", "note": "noun sense: a small amount, after a determiner"}
+{"id": "neg-076", "word": "dash", "input": "He made a dash for the stairs.", "note": "idiom: a sudden run, object of made"}
+{"id": "neg-077", "word": "dash", "input": "She made a dash across the platform.", "note": "idiom: a sudden run, object of made"}
+{"id": "neg-078", "word": "dash", "input": "They made a dash for the car.", "note": "idiom: a sudden run, object of made"}
+{"id": "neg-079", "word": "dash", "input": "The hundred-meter dash was the last event.", "note": "noun sense: a footrace, after an adjective"}
+{"id": "neg-080", "word": "dash", "input": "The dash between the numbers means a range.", "note": "typographic sense, after a determiner"}
+{"id": "neg-081", "word": "dash", "input": "I have to dash or I’ll miss my stop.", "note": "verb sense: to leave hurriedly, after have to"}
+{"id": "neg-082", "word": "dash", "input": "I have to dash, he told the waiter, before the kitchen closed.", "note": "verb sense: to leave hurriedly, before a comma"}
+{"id": "neg-083", "word": "dash", "input": "She has to dash before the shops close.", "note": "verb sense: to leave hurriedly, after has to"}
+{"id": "neg-084", "word": "dash", "input": "Dash it all, he said.", "note": "idiom: a mild exclamation in dialogue"}
+{"id": "neg-085", "word": "hyphen", "input": "The hyphen between the words is optional.", "note": "typographic sense, after a determiner"}
+{"id": "neg-086", "word": "hyphen", "input": "A hyphen joins the two parts of the compound.", "note": "sentence start, subject of its clause"}
+{"id": "neg-087", "word": "hyphen", "input": "She typed a hyphen where a slash belonged.", "note": "after a determiner"}
+{"id": "neg-088", "word": "hyphen", "input": "Hyphen rules vary between publishers.", "note": "sentence start, attributive noun"}
+{"id": "neg-089", "word": "hyphen", "input": "The hyphen key on the laptop was broken.", "note": "after a determiner"}
+{"id": "neg-090", "word": "hyphen", "input": "Put a hyphen between the two names.", "note": "after a determiner"}
+{"id": "neg-091", "word": "hyphen", "input": "He removed the hyphen from the author’s name.", "note": "after a determiner, with a curly apostrophe"}
+{"id": "neg-092", "word": "hyphen", "input": "“That’s a hyphen, not an underscore,” she said.", "note": "dialogue, after a determiner"}
+{"id": "neg-093", "word": "hyphen", "input": "The hyphen in her surname caused trouble at passport control.", "note": "after a determiner, before a preposition"}
+{"id": "neg-094", "word": "hyphen", "input": "Hyphen was his childhood nickname.", "note": "a nickname as a sentence subject"}
+{"id": "neg-095", "word": "ellipsis", "input": "An ellipsis marks the omitted words.", "note": "sentence start, subject of its clause"}
+{"id": "neg-096", "word": "ellipsis", "input": "The ellipsis at the end of his sentence—three dots and no more—trailed off.", "note": "after a determiner, between em dashes"}
+{"id": "neg-097", "word": "ellipsis", "input": "She used an ellipsis instead of a pause.", "note": "after a determiner"}
+{"id": "neg-098", "word": "ellipsis", "input": "The editor circled the ellipsis in red.", "note": "after a determiner"}
+{"id": "neg-099", "word": "ellipsis", "input": "Ellipsis points are three, not four.", "note": "sentence start, attributive noun"}
+{"id": "neg-100", "word": "ellipsis", "input": "He typed an ellipsis…and then deleted it.", "note": "after a determiner, followed by an ellipsis"}
+{"id": "neg-101", "word": "ellipsis", "input": "“That’s an ellipsis, not a pause,” he said.", "note": "dialogue, after a determiner"}
+{"id": "neg-102", "word": "ellipsis", "input": "The ellipsis in the quotation stood for a whole paragraph.", "note": "after a determiner"}
+{"id": "neg-103", "word": "ellipsis", "input": "A single ellipsis can change the meaning of a line.", "note": "sentence start, after an adjective"}
+{"id": "neg-104", "word": "ellipsis", "input": "Ellipsis was her favorite mark.", "note": "the mark name as a sentence subject"}
+{"id": "neg-105", "word": "apostrophe", "input": "The apostrophe in the possessive was missing.", "note": "typographic sense, after a determiner"}
+{"id": "neg-106", "word": "apostrophe", "input": "She typed an apostrophe and the spellchecker complained.", "note": "after a determiner"}
+{"id": "neg-107", "word": "apostrophe", "input": "The apostrophe key stuck on the old keyboard.", "note": "after a determiner"}
+{"id": "neg-108", "word": "apostrophe", "input": "“An apostrophe is not decoration,” the teacher said.", "note": "dialogue, subject of its clause"}
+{"id": "neg-109", "word": "apostrophe", "input": "He put the apostrophe after the s.", "note": "after a determiner"}
+{"id": "neg-110", "word": "apostrophe", "input": "The grocer’s apostrophe—that errant mark—is a British epidemic.", "note": "after a possessive, between em dashes"}
+{"id": "neg-111", "word": "apostrophe", "input": "Every apostrophe in the letter was typed as a curly mark.", "note": "after a determiner"}
+{"id": "neg-112", "word": "apostrophe", "input": "The apostrophe in “don’t” looked like a comma.", "note": "after a determiner, beside a curly apostrophe"}
+{"id": "neg-113", "word": "apostrophe", "input": "She inserted an apostrophe between the two words.", "note": "after a determiner"}
+{"id": "neg-114", "word": "question mark", "input": "The question mark at the end of her note—the only one—puzzled him.", "note": "after a determiner, between em dashes"}
+{"id": "neg-115", "word": "question mark", "input": "He put a question mark in the margin.", "note": "after a determiner"}
+{"id": "neg-116", "word": "question mark", "input": "A question mark followed every one of his guesses.", "note": "sentence start, subject of its clause"}
+{"id": "neg-117", "word": "question mark", "input": "“A question mark is not an answer,” she said.", "note": "dialogue, subject of its clause"}
+{"id": "neg-118", "word": "question mark", "input": "The question mark key was sticky.", "note": "after a determiner"}
+{"id": "neg-119", "word": "question mark", "input": "She deleted the question mark and kept the sentence.", "note": "after a determiner"}
+{"id": "neg-120", "word": "question mark", "input": "There was a question mark after the date.", "note": "after a determiner"}
+{"id": "neg-121", "word": "question mark", "input": "Every question mark in the transcript marked a raised voice.", "note": "after a determiner"}
+{"id": "neg-122", "word": "question mark", "input": "Question mark was the title of the painting.", "note": "the mark name as a sentence subject"}
+{"id": "neg-123", "word": "exclamation point", "input": "The exclamation point was the only punctuation in the note.", "note": "after a determiner"}
+{"id": "neg-124", "word": "exclamation point", "input": "He added an exclamation point for emphasis.", "note": "after a determiner"}
+{"id": "neg-125", "word": "exclamation point", "input": "“An exclamation point is a shout,” she said.", "note": "dialogue, subject of its clause"}
+{"id": "neg-126", "word": "exclamation point", "input": "The exclamation point key was missing.", "note": "after a determiner"}
+{"id": "neg-127", "word": "exclamation mark", "input": "The exclamation mark at the end of the line startled her.", "note": "after a determiner"}
+{"id": "neg-128", "word": "exclamation mark", "input": "She used an exclamation mark where a pause would do.", "note": "after a determiner"}
+{"id": "neg-129", "word": "exclamation mark", "input": "Every exclamation mark in his diary embarrassed him later.", "note": "after a determiner"}
+{"id": "neg-130", "word": "exclamation mark", "input": "An exclamation mark punctuated the warning on the gate.", "note": "sentence start, subject of its clause"}
+{"id": "neg-131", "word": "quote", "input": "The quote on the back cover was from a review.", "note": "noun: a cited passage, after a determiner"}
+{"id": "neg-132", "word": "quote", "input": "She saved the quote for her commonplace book.", "note": "noun, after a determiner"}
+{"id": "neg-133", "word": "quote", "input": "A quote from the mayor opened the article.", "note": "noun, sentence start"}
+{"id": "neg-134", "word": "quote", "input": "He could not remember the exact quote.", "note": "noun, after an adjective"}
+{"id": "neg-135", "word": "quote", "input": "The word quote appeared twice in the margin.", "note": "noun, mentioned as a word"}
+{"id": "neg-136", "word": "quote", "input": "“Quote me on that,” he said.", "note": "verb: to cite, at the start of dialogue"}
+{"id": "neg-137", "word": "quote", "input": "He said quote, unquote and waved his hand.", "note": "the phrase quote, unquote used as a noun"}
+{"id": "neg-138", "word": "quote", "input": "Her quote-unquote friends never showed up.", "note": "hyphenated quote-unquote used as an adjective"}
+{"id": "neg-139", "word": "quote", "input": "The quote-unquote expert had never finished school.", "note": "hyphenated quote-unquote used as an adjective"}
+{"id": "neg-140", "word": "quote", "input": "Quote is a verb as well as a noun.", "note": "the word itself as a sentence subject"}
+{"id": "neg-141", "word": "unquote", "input": "The unquote at the end was missing.", "note": "noun: a closing quotation mark, sentence start"}
+{"id": "neg-142", "word": "unquote", "input": "She typed unquote and hit send.", "note": "verb: to close a quotation, before a U+2028 break"}
+{"id": "neg-143", "word": "unquote", "input": "He said the word unquote as if it tasted bad.", "note": "noun, mentioned as a word"}
+{"id": "neg-144", "word": "unquote", "input": "The memo ended with an unquote in the margin.", "note": "noun, after a determiner"}
+{"id": "neg-145", "word": "unquote", "input": "“Unquote,” she said, closing the air quotes.", "note": "dialogue, quoted as a word"}
+{"id": "neg-146", "word": "unquote", "input": "The word unquote is jargon from dictation.", "note": "noun, mentioned as a word"}
+{"id": "neg-147", "word": "unquote", "input": "He read the letter aloud and then said unquote.", "note": "verb, at the end of a clause"}
+{"id": "neg-148", "word": "unquote", "input": "A stray unquote closed nothing at all.", "note": "noun, sentence start after an adjective"}
+{"id": "neg-149", "word": "unquote", "input": "Unquote was a word he could not pronounce.", "note": "the word itself as a sentence subject"}
+{"id": "neg-150", "word": "unquote", "input": "He said, unquote, it was fine.", "note": "the word itself before a comma"}
+{"id": "neg-151", "word": "unquote", "input": "Quote unquote, the deal was done.", "note": "the phrase quote unquote before a comma"}
+{"id": "neg-152", "word": "paren", "input": "Put a paren around the date.", "note": "short form of parenthesis, after a determiner"}
+{"id": "neg-153", "word": "paren", "input": "The paren after the number was never closed.", "note": "after a determiner"}
+{"id": "neg-154", "word": "paren", "input": "He typed a paren and forgot the other half.", "note": "after a determiner"}
+{"id": "neg-155", "word": "paren", "input": "Every paren in the comment matched.", "note": "after a determiner"}
+{"id": "neg-156", "word": "paren", "input": "The open paren before the list was missing.", "note": "after an adjective"}
+{"id": "neg-157", "word": "parenthesis", "input": "He put the aside in a parenthesis.", "note": "after a determiner"}
+{"id": "neg-158", "word": "parenthesis", "input": "A single parenthesis can hold a whole sentence.", "note": "sentence start, after an adjective"}
+{"id": "neg-159", "word": "parenthesis", "input": "She deleted the parenthesis and rewrote the clause.", "note": "after a determiner"}
+{"id": "neg-160", "word": "parenthesis", "input": "The parenthesis key was hidden under a shift.", "note": "after a determiner"}
+{"id": "neg-161", "word": "parenthesis", "input": "The parenthesis after the name held her maiden name.", "note": "after a determiner"}
+{"id": "neg-162", "word": "bracket", "input": "The bracket held the lamp to the wall.", "note": "physical sense: a support, after a determiner"}
+{"id": "neg-163", "word": "bracket", "input": "She put the citation in a bracket.", "note": "typographic sense, after a determiner"}
+{"id": "neg-164", "word": "bracket", "input": "A bracket around the number meant a footnote.", "note": "typographic sense, sentence start"}
+{"id": "neg-165", "word": "bracket", "input": "He loosened the bracket on the shelf.", "note": "physical sense, after a determiner"}
+{"id": "neg-166", "word": "bracket", "input": "The bracket at the end of the line was missing.", "note": "typographic sense, after a determiner"}
+{"id": "neg-167", "word": "bracket", "input": "Every bracket in the draft needed a closing partner.", "note": "typographic sense, after a determiner"}
+{"id": "neg-168", "word": "bracket", "input": "The bracket was rusted to the frame.", "note": "physical sense, after a determiner"}
+{"id": "neg-169", "word": "bracket", "input": "She replaced the bracket with a footnote number.", "note": "typographic sense, after a determiner"}
+{"id": "neg-170", "word": "bracket", "input": "The bracket on the bookshelf sagged under the weight.", "note": "physical sense, after a determiner"}
+{"id": "neg-171", "word": "bracket", "input": "[She exits stage left.] The door closed behind her.", "note": "stage direction: a bracketed playwright’s note at a sentence start"}
+{"id": "neg-172", "word": "bracket", "input": "He read the bracketed direction [he pours the tea] and sighed.", "note": "stage direction: a bracketed action inside narration"}
+{"id": "neg-173", "word": "bracket", "input": "The script said [lights fade] and the curtain fell.", "note": "stage direction: a bracketed cue after a reporting verb"}
+{"id": "neg-174", "word": "bracket", "input": "The stage direction [the clock strikes twelve] came too early.", "note": "stage direction: a bracketed direction after the noun"}
+{"id": "neg-175", "word": "new line", "input": "The new line of work suited her.", "note": "ordinary phrase: a new kind of job, after a determiner"}
+{"id": "neg-176", "word": "new line", "input": "He opened a new line of credit.", "note": "ordinary phrase: a credit facility, after a determiner"}
+{"id": "neg-177", "word": "new line", "input": "It was a new line of inquiry.", "note": "ordinary phrase: a new direction of questioning, after a determiner"}
+{"id": "neg-178", "word": "new line", "input": "The new line on the map crossed the river.", "note": "ordinary phrase: a route on a map, after a determiner"}
+{"id": "neg-179", "word": "new line", "input": "She started a new line of business that spring.", "note": "ordinary phrase: a business category, after a determiner"}
+{"id": "neg-180", "word": "new line", "input": "“Start a new line when the speaker changes,” the typist was told.", "note": "ordinary phrase inside a reported instruction, after a determiner"}
+{"id": "neg-181", "word": "new line", "input": "The new line of poetry broke mid-phrase.", "note": "ordinary phrase: a line of verse, after a determiner"}
+{"id": "neg-182", "word": "new line", "input": "The new line of tiles ran the length of the hall.", "note": "ordinary phrase: a row of tiles, after a determiner"}
+{"id": "neg-183", "word": "next line", "input": "The next line of the poem was missing.", "note": "ordinary phrase: the following line of verse, after a determiner"}
+{"id": "neg-184", "word": "next line", "input": "He read the next line aloud.", "note": "ordinary phrase, after a determiner"}
+{"id": "neg-185", "word": "next line", "input": "The next line on the form asked for her address.", "note": "ordinary phrase: the following row of a form, after a determiner"}
+{"id": "neg-186", "word": "next line", "input": "“The next line is the chorus,” she said.", "note": "ordinary phrase in dialogue, after a determiner"}
+{"id": "neg-187", "word": "next line", "input": "The next line in the queue moved slowly.", "note": "ordinary phrase: the following queue, after a determiner"}
+{"id": "neg-188", "word": "next line", "input": "The next line of the script had no stage direction.", "note": "ordinary phrase: the following line of a script"}
+{"id": "neg-189", "word": "next line", "input": "The next line of the song was hers to sing.", "note": "ordinary phrase: the following lyric, after a determiner"}
+{"id": "neg-190", "word": "next line", "input": "The next line of text was in smaller print.", "note": "ordinary phrase: the following line of text, after a determiner"}
+{"id": "neg-191", "word": "new paragraph", "input": "The new paragraph began halfway down the page.", "note": "ordinary phrase: a paragraph block, after a determiner, before U+2028"}
+{"id": "neg-192", "word": "new paragraph", "input": "A new paragraph should start with an indent.", "note": "ordinary phrase: a paragraph block, sentence start"}
+{"id": "neg-193", "word": "new paragraph", "input": "The new paragraph on page nine was misplaced.", "note": "ordinary phrase, after a determiner"}
+{"id": "neg-194", "word": "new paragraph", "input": "Each new paragraph in the letter was shorter.", "note": "ordinary phrase, after each"}
+{"id": "neg-195", "word": "new paragraph", "input": "He deleted the new paragraph and started over.", "note": "ordinary phrase, after a determiner"}
+{"id": "neg-196", "word": "new paragraph", "input": "The new paragraph was the only one she kept.", "note": "ordinary phrase, after a determiner"}
+{"id": "neg-197", "word": "new paragraph", "input": "She marked the new paragraph with a caret.", "note": "ordinary phrase, after a determiner"}
+{"id": "neg-198", "word": "new paragraph", "input": "The new paragraph broke the page in two.", "note": "ordinary phrase, after a determiner"}
+{"id": "neg-199", "word": "scratch that", "input": "We should scratch that idea and start again.", "note": "scratch that plus the object noun idea"}
+{"id": "neg-200", "word": "scratch that", "input": "He decided to scratch that line from the script.", "note": "scratch that plus the object noun line"}
+{"id": "neg-201", "word": "scratch that", "input": "The committee voted to scratch that plan.", "note": "scratch that plus the object noun plan"}
+{"id": "neg-202", "word": "scratch that", "input": "She wanted to scratch that note before sending.", "note": "scratch that plus the object noun note"}
+{"id": "neg-203", "word": "scratch that", "input": "You can scratch that paragraph, the editor said.", "note": "scratch that plus the object noun paragraph, before a comma"}
+{"id": "neg-204", "word": "scratch that", "input": "Let’s scratch that name off the list.", "note": "scratch that plus the object noun name, with a curly apostrophe"}
+{"id": "neg-205", "word": "scratch that", "input": "He had to scratch that entry from the ledger.", "note": "scratch that plus the object noun entry"}
+{"id": "neg-206", "word": "scratch that", "input": "They agreed to scratch that sentence entirely.", "note": "scratch that plus the object noun sentence"}
+{"id": "neg-207", "word": "scratch that", "input": "“Scratch that idea,” she said, “it’s too expensive.”", "note": "dialogue, scratch that plus the object noun idea, before a comma"}
+{"id": "neg-208", "word": "scratch that", "input": "He wanted to scratch that line.", "note": "scratch that plus the object noun line, in reported intention"}
+{"id": "neg-209", "word": "scratch that", "input": "She wanted to scratch that itch.", "note": "scratch that plus the object noun itch, in reported intention"}
+{"id": "neg-210", "word": "delete that", "input": "He told her to delete that sentence.", "note": "delete that plus the object noun sentence, in reported speech"}
+{"id": "neg-211", "word": "delete that", "input": "The editor asked him to delete that paragraph.", "note": "delete that plus the object noun paragraph, in reported speech"}
+{"id": "neg-212", "word": "delete that", "input": "She refused to delete that scene.", "note": "delete that plus the object noun scene, after refused"}
+{"id": "neg-213", "word": "delete that", "input": "The program will delete that row at midnight.", "note": "delete that plus the object noun row, after will"}
+{"id": "neg-214", "word": "delete that", "input": "They had to delete that file before the audit.", "note": "delete that plus the object noun file, after had to"}
+{"id": "neg-215", "word": "delete that", "input": "I meant to delete that email.", "note": "delete that plus the object noun email, after meant to"}
+{"id": "neg-216", "word": "delete that", "input": "He pressed the key to delete that character.", "note": "delete that plus the object noun character"}
+{"id": "neg-217", "word": "delete that", "input": "She chose to delete that comment.", "note": "delete that plus the object noun comment"}
+{"id": "neg-218", "word": "delete that", "input": "She wanted to delete that sentence.", "note": "delete that plus the object noun sentence, in reported intention"}
+{"id": "neg-219", "word": "delete that", "input": "She wanted to delete that scene.", "note": "delete that plus the object noun scene, in reported intention"}
+{"id": "neg-220", "word": "delete that", "input": "She tried to delete that line.", "note": "delete that plus the object noun line, after tried to"}
+{"id": "neg-221", "word": "delete that", "input": "He wanted to delete that file.", "note": "delete that plus the object noun file, in reported intention"}
+{"id": "neg-222", "word": "strike that", "input": "The judge ordered the clerk to strike that question.", "note": "strike that plus the object noun question, in a courtroom"}
+{"id": "neg-223", "word": "strike that", "input": "She asked him to strike that line from the record.", "note": "strike that plus the object noun line, from the record"}
+{"id": "neg-224", "word": "strike that", "input": "The union voted to strike that clause from the contract.", "note": "strike that plus the object noun clause"}
+{"id": "neg-225", "word": "strike that", "input": "He wanted to strike that name off the roll.", "note": "strike that plus the object noun name"}
+{"id": "neg-226", "word": "strike that", "input": "The editor decided to strike that paragraph.", "note": "strike that plus the object noun paragraph"}
+{"id": "neg-227", "word": "strike that", "input": "They agreed to strike that entry from the log.", "note": "strike that plus the object noun entry"}
+{"id": "neg-228", "word": "strike that", "input": "The teacher told him to strike that sentence.", "note": "strike that plus the object noun sentence, in reported speech"}
+{"id": "neg-229", "word": "strike that", "input": "She moved to strike that remark from the minutes.", "note": "strike that plus the object noun remark"}
+{"id": "neg-230", "word": "strike that", "input": "He wanted to strike that paragraph.", "note": "strike that plus the object noun paragraph, in reported intention"}
+{"id": "neg-231", "word": "strike that", "input": "She wanted to strike that sentence.", "note": "strike that plus the object noun sentence, in reported intention"}
+{"id": "neg-232", "word": "undo that", "input": "He tried to undo that change and failed.", "note": "undo that plus the object noun change, after tried to"}
+{"id": "neg-233", "word": "undo that", "input": "She wanted to undo that edit before anyone saw it.", "note": "undo that plus the object noun edit"}
+{"id": "neg-234", "word": "undo that", "input": "The app lets you undo that action within a minute.", "note": "undo that plus the object noun action, after lets you"}
+{"id": "neg-235", "word": "undo that", "input": "He could not undo that decision.", "note": "undo that plus the object noun decision, after could not"}
+{"id": "neg-236", "word": "undo that", "input": "You can undo that move in the settings.", "note": "undo that plus the object noun move, after can"}
+{"id": "neg-237", "word": "undo that", "input": "She wished she could undo that sentence.", "note": "undo that plus the object noun sentence, after could"}
+{"id": "neg-238", "word": "undo that", "input": "The system will undo that update overnight.", "note": "undo that plus the object noun update, after will"}
+{"id": "neg-239", "word": "undo that", "input": "He clicked to undo that deletion.", "note": "undo that plus the object noun deletion, after clicked to"}
+{"id": "neg-240", "word": "undo that", "input": "She wanted to undo that edit.", "note": "undo that plus the object noun edit, in reported intention"}
+{"id": "neg-241", "word": "undo that", "input": "I need to undo that change.", "note": "undo that plus the object noun change, after need to"}
+{"id": "neg-242", "word": "undo that", "input": "They tried to undo that damage.", "note": "undo that plus the object noun damage, after tried to"}
+{"id": "neg-243", "word": "caps", "input": "Bottle caps littered the beach.", "note": "noun: lids, sentence start, before a U+2028 break"}
+{"id": "neg-244", "word": "caps", "input": "The caps of the pens were missing.", "note": "noun: lids, after a determiner"}
+{"id": "neg-245", "word": "caps", "input": "He collected baseball caps.", "note": "noun: hats, after an adjective"}
+{"id": "neg-246", "word": "caps", "input": "The caps on the pipes leaked.", "note": "noun: fittings, after a determiner"}
+{"id": "neg-247", "word": "all caps", "input": "The sign was printed in all caps.", "note": "typographic sense: upper-case letters, after in"}
+{"id": "neg-248", "word": "all caps", "input": "Her name appeared in all caps on the diploma.", "note": "typographic sense, after in"}
+{"id": "neg-249", "word": "all caps", "input": "He wrote the warning in all caps.", "note": "typographic sense, after in"}
+{"id": "neg-250", "word": "all caps", "input": "All caps means shouting, she said.", "note": "typographic sense, sentence start, subject of its clause"}
+{"id": "neg-251", "word": "uh-huh", "input": "He said uh-huh—then went back to his paper.", "note": "interjection: agreement, before an em dash"}
+{"id": "neg-252", "word": "uh-huh", "input": "“Uh-huh,” she said, not looking up.", "note": "interjection in dialogue, before a comma and closing quote"}
+{"id": "neg-253", "word": "uh-huh", "input": "The answer was a flat uh-huh.", "note": "interjection used as a noun, after an adjective"}
+{"id": "neg-254", "word": "uh-huh", "input": "She gave him an uh-huh and kept typing.", "note": "interjection used as a noun, after a determiner"}
+{"id": "neg-255", "word": "uh–huh", "input": "He murmured uh–huh into the phone.", "note": "interjection with an en dash, after a verb"}
+{"id": "neg-256", "word": "uh–huh", "input": "“Uh–huh,” she said, unconvinced.", "note": "interjection with an en dash in dialogue"}
+{"id": "neg-257", "word": "uh–huh", "input": "The reply was an uh–huh, barely audible.", "note": "interjection with an en dash used as a noun"}
+{"id": "neg-258", "word": "um-hm", "input": "She nodded um-hm and turned the page.", "note": "interjection: agreement, after a verb"}
+{"id": "neg-259", "word": "um-hm", "input": "“Um-hm,” he said, writing it down.", "note": "interjection in dialogue, before a comma and closing quote"}
+{"id": "neg-260", "word": "um-hm", "input": "The doctor answered with an um-hm.", "note": "interjection used as a noun, after a determiner"}
+{"id": "neg-261", "word": "Um.", "input": "“Um.” That was all she could manage.", "note": "the whole quoted line is a mention, followed by a new sentence"}
+{"id": "neg-262", "word": "Um.", "input": "He read the line aloud: “Um.”", "note": "the whole quoted line is a mention, after a reporting clause"}
+{"id": "neg-263", "word": "Um.", "input": "“Um.” The word hung in the silent room.", "note": "the whole quoted line is a mention, followed by a sentence"}
+{"id": "neg-264", "word": "*um*", "input": "She italicized um every time it appeared: *um*.", "note": "emphasis markup around a quoted hesitation"}
+{"id": "neg-265", "word": "*um*", "input": "The style guide says to set *um* in italics when quoted.", "note": "emphasis markup around the word itself"}
+{"id": "neg-266", "word": "*um*", "input": "He typed *um* and the editor asked why.", "note": "emphasis markup around the word itself"}
+{"id": "neg-267", "word": "um.edu", "input": "The address ends in um.edu, not um.com.", "note": "email domain ending in um, before a comma"}
+{"id": "neg-268", "word": "um.edu", "input": "She sent the form to registrar@um.edu.", "note": "email domain inside an address"}
+{"id": "neg-269", "word": "um.edu", "input": "Their homepage at um.edu was down.", "note": "email-style domain, after a preposition"}
+{"id": "neg-270", "word": "um.edu", "input": "Mail um.edu today, the flyer said.", "note": "domain used as a bare name, before an adverb"}
+{"id": "neg-271", "word": "TK", "input": "Tkachev signed the treaty.", "note": "TK inside a surname, sentence start"}
+{"id": "neg-272", "word": "TK", "input": "Atkinson took the notes.", "note": "TK inside a surname, sentence start"}
+{"id": "neg-273", "word": "TK", "input": "The Tkinter window opened slowly.", "note": "TK inside a library name"}
+{"id": "neg-274", "word": "TK", "input": "Tkaczyk ran the bakery on Main Street.", "note": "TK inside a surname, sentence start"}
+{"id": "neg-275", "word": "XX", "input": "He bought an XXL jacket.", "note": "XX inside a clothing size, after a determiner"}
+{"id": "neg-276", "word": "XX", "input": "The XXY chromosome pattern was rare.", "note": "XX inside a karyotype name, sentence start"}
+{"id": "neg-277", "word": "XX", "input": "Her size was XXS in that brand.", "note": "XX inside a clothing size, after was"}
+{"id": "neg-278", "word": "XX", "input": "The label read XXL and the shirt was still tight.", "note": "XX inside a clothing size, after read"}
+{"id": "neg-279", "word": "XXX", "input": "Act XXX of the play was cut.", "note": "Roman numeral after a section noun"}
+{"id": "neg-280", "word": "XXX", "input": "Volume XXX of the encyclopedia was lost.", "note": "Roman numeral after a section noun"}
+{"id": "neg-281", "word": "XXX", "input": "Part XXX of the serial never aired.", "note": "Roman numeral after a section noun"}
+{"id": "neg-282", "word": "XXX", "input": "Chapter XXX of the novel was never finished.", "note": "Roman numeral after a section noun"}
+{"id": "neg-283", "word": "XXX", "input": "The tombstone read Henry XXX, which puzzled the tourists.", "note": "Roman numeral after a regnal name"}
+{"id": "neg-284", "word": "Umm", "input": "They listened to Umm Kulthum all night.", "note": "name with Umm mid-sentence (review D2h)"}
+{"id": "neg-285", "word": "Umm", "input": "The ship docked at Umm Qasr before dawn.", "note": "place name with Umm mid-sentence (review D2h)"}
+{"id": "neg-286", "word": "Umm", "input": "Umm Kulthum sang on the radio.", "note": "name with Umm at a sentence start, before a capitalized word (review D2h)"}
+{"id": "neg-287", "word": "um", "input": "She said um and looked away.", "note": "noun sense, review D2j (2026-10-26): a pause word after a reporting verb is the word reported"}
+{"id": "neg-288", "word": "um", "input": "Had he really just said um?", "note": "noun sense, review D2j (2026-10-26): reported word before terminal punctuation"}
+{"id": "neg-289", "word": "um", "input": "She never said um.", "note": "noun sense, review D2j (2026-10-26): reported word at the sentence end"}
+{"id": "neg-290", "word": "um", "input": "He answered with an um and a shrug.", "note": "noun sense, review D2j (2026-10-26): after an, the pause word is a noun"}
+{"id": "neg-291", "word": "um", "input": "She hated his um more than his silence.", "note": "noun sense, review D2j (2026-10-26): after a possessive with no noun of its own"}
+{"id": "neg-292", "word": "uh", "input": "The baby went uh uh uh and stopped.", "note": "noun sense, review D2j (2026-10-26): a run reported after went"}
+{"id": "neg-293", "word": "uh oh", "input": "Uh oh, he thought.", "note": "idiom, review D2j (2026-10-26): interjection written with a space, sentence start"}
+{"id": "neg-294", "word": "uh oh", "input": "It was an uh oh moment.", "note": "idiom, review D2j (2026-10-26): interjection used as a modifier"}
+{"id": "neg-295", "word": "uh huh", "input": "Uh huh. That was all he said.", "note": "idiom, review D2j (2026-10-26): interjection written with a space"}
+{"id": "neg-296", "word": "uh huh", "input": "He said uh huh and kept walking.", "note": "idiom, review D2j (2026-10-26): interjection after a reporting verb"}
+{"id": "neg-297", "word": "uh oh", "input": "Uh, oh. The door.", "note": "idiom, review D2j (2026-10-26): interjection written with a comma, before a comma"}
+{"id": "neg-298", "word": "um hm", "input": "Um hm, she said nothing.", "note": "idiom, review D2j (2026-10-26): agreement written with a space, before a comma"}
+{"id": "neg-299", "word": "um", "input": "They called it “the um thing” for years.", "note": "emphasis markup, review D2j (2026-10-26): scare quotes are the author’s verbatim wording"}
+{"id": "neg-300", "word": "um", "input": "He wrote “I was um going” on the wall.", "note": "emphasis markup, review D2j (2026-10-26): quoted written text, not speech"}
+{"id": "neg-301", "word": "um", "input": "He said 'I was um going' and left.", "note": "dialogue, review D2j (2026-10-26): straight single-quoted speech mid-sentence"}
+{"id": "neg-302", "word": "um", "input": "She said, “I was going home and um the door was open.", "note": "dialogue, review D2j (2026-10-26): an opening quote that never closes is speech to the paragraph end"}
+{"id": "neg-303", "word": "um", "input": "“It’s fine,” she said. “I was going home and um the door was open.", "note": "dialogue, review D2j (2026-10-26): unclosed second quote in the paragraph"}
+{"id": "neg-304", "word": "um", "input": "“I was going home and um the door was open.\n\nShe left.", "note": "dialogue, review D2j (2026-10-26): unclosed quote followed by a narration paragraph"}
+{"id": "neg-305", "word": "um", "input": "—Um, I don't know, she said.", "note": "dialogue, review D2j (2026-10-26): a paragraph opening with an em dash is dialogue"}
+{"id": "neg-306", "word": "um", "input": "--Um, the door was open, he said.", "note": "dialogue, review D2j (2026-10-26): em dash typed as two hyphens"}
+{"id": "neg-307", "word": "Um", "input": "Um Kulthum sang.", "note": "name with single-m Um at a sentence start, before a capitalized word (review D2j): the name rule holds for any pause spelling"}
+{"id": "neg-308", "word": "new paragraph", "input": "She typed new paragraph and hit enter.", "note": "verb sense, review D2j (2026-10-26): a command word after a writing verb is a mention"}
+{"id": "neg-309", "word": "question mark", "input": "I said question mark to myself.", "note": "verb sense, review D2j (2026-10-26): a command word after a reporting verb is a mention"}
+{"id": "neg-310", "word": "quote", "input": "The words open quote appeared on the screen.", "note": "noun sense, review D2j (2026-10-26): a command phrase after words is a mention"}
+{"id": "neg-311", "word": "um", "input": "He let out a long uhhhh.", "note": "noun sense, review D2k (2026-10-26): a pause word after a determiner and adjective with no noun after it is their noun"}
+{"id": "neg-312", "word": "um", "input": "Her name was Uma, and um was her favorite word.", "note": "mention, review D2k (2026-10-26): a pause word as the subject of is or was plus an article or possessive names the word"}
+{"id": "neg-313", "word": "um", "input": "Um, she thought, was not a word.", "note": "mention, review D2k (2026-10-26): the same, after one comma-enclosed aside"}
+{"id": "neg-314", "word": "period", "input": "He wanted the last word, so he said period.", "note": "mention, review D2k (2026-10-26): said period is a dialogue tag only after a paired closing quote command"}
+{"id": "neg-315", "word": "new line", "input": "She worked in film. New Line Cinema hired her.", "note": "name, sentence start, review D2m (2026-10-26): title-cased New Line is a name."}
+{"id": "neg-316", "word": "new line", "input": "She worked in film. New Line Cinema hired her", "note": "name, sentence start, review D2m (2026-10-26): title-cased New Line is a name."}
+{"id": "neg-317", "word": "um", "input": "It was a long uhhhh.", "note": "noun sense, after an adjective, review D2m (2026-10-26): a pause after a determiner and adjective with nothing after it is their noun."}
+{"id": "neg-318", "word": "um", "input": "It was a long uhhhh, and she left.", "note": "noun sense, after an adjective, before a comma, review D2m (2026-10-26): a pause after a determiner and adjective before a conjunction is their noun."}
+{"id": "neg-319", "word": "um", "input": "It was the red um.", "note": "noun sense, after an adjective, review D2m (2026-10-26): a pause after a determiner and adjective at the end is their noun."}
+{"id": "neg-320", "word": "um", "input": "He let out a long uhhhh and sat down.", "note": "noun sense, after an adjective, review D2m (2026-10-26): a pause after a determiner and adjective before a conjunction is their noun."}
+{"id": "neg-321", "word": "um", "input": "He let out a long uhhhh that filled the room.", "note": "noun sense, after an adjective, review D2m (2026-10-26): a pause after a determiner and adjective before a relative pronoun is their noun."}
+{"id": "neg-322", "word": "hmm", "input": "She made a soft hmm sound.", "note": "noun sense, after an adjective, review D2m (2026-10-26): hmm is not a pause word."}
+{"id": "neg-323", "word": "um", "input": "He gave a loud uh of surprise.", "note": "noun sense, after an adjective, review D2m (2026-10-26): a pause after a determiner and adjective before of is their noun."}
+{"id": "neg-324", "word": "um", "input": "She heard a faint um from the back row.", "note": "noun sense, after an adjective, review D2m (2026-10-26): a pause after a determiner and adjective before a preposition is their noun."}
+{"id": "neg-325", "word": "um", "input": "He let out a long uhhhh — then sat.", "note": "noun sense, after an adjective, review D2m (2026-10-26): a pause after a determiner and adjective before a dash is their noun."}
+{"id": "neg-326", "word": "new line", "input": "“New Line Cinema,” he said.", "note": "name, dialogue, review D2m (2026-10-26): title-cased New Line is a name."}
+{"id": "neg-327", "word": "next line", "input": "She read the first line aloud. Next line Tom read.", "note": "name, sentence start, review D2m (2026-10-26): a break before a name at a sentence start is prose."}
+{"id": "neg-328", "word": "new line", "input": "He said “New Line Cinema called.”", "note": "name, dialogue, review D2m (2026-10-26): title-cased New Line is a name."}
+{"id": "neg-329", "word": "new line", "input": "“Where?” New Line Cinema, he said.", "note": "name, dialogue, review D2m (2026-10-26): title-cased New Line is a name."}
+{"id": "neg-330", "word": "placeholder", "input": "“She’ll check the map—later…”", "note": "D2o: curly quotes and em dash without placeholder."}
+{"id": "neg-331", "word": "placeholder", "input": "“She’ll check the map—later…” Then she left.", "note": "D2o: U+2028 after curly typography without placeholder."}
+{"id": "neg-332", "word": "placeholder", "input": "The road—was closed “for repairs.”", "note": "D2o: em dash and U+2028 without placeholder."}

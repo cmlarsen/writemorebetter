@@ -337,6 +337,13 @@ impl StyleDocument {
         crate::reports::vague_words::report(&self.document, &options(json)?)
     }
 
+    pub fn drafting(
+        &self,
+        json: Option<&str>,
+    ) -> Result<crate::reports::drafting::DraftingReport, StyleError> {
+        crate::reports::drafting::report(&self.document, &options(json)?)
+    }
+
     pub fn hidden_verbs(
         &self,
         json: Option<&str>,

@@ -1,0 +1,42 @@
+# Source: project-authored ordinary spoken names of punctuation and dictation commands (MIT OR Apache-2.0).
+# phrase<TAB>replacement key<TAB>guard
+comma	comma	noun
+coma	comma	noun
+period	period	noun
+full stop	period	plain
+question mark	question	noun
+exclamation point	exclamation	plain
+exclamation mark	exclamation	plain
+colon	colon	noun
+semicolon	semicolon	plain
+dash	dash	dash
+em dash	dash	plain
+m dash	dash	plain
+hyphen	hyphen	noun
+ellipsis	ellipsis	noun
+dot dot dot	ellipsis	plain
+open quote	openDouble	plain
+begin quote	openDouble	plain
+close quote	closeDouble	plain
+end quote	closeDouble	plain
+unquote	closeDouble	unquote
+open single quote	openSingle	plain
+close single quote	closeSingle	plain
+open paren	openParen	plain
+open parenthesis	openParen	plain
+close paren	closeParen	plain
+close parenthesis	closeParen	plain
+open bracket	openBracket	plain
+close bracket	closeBracket	plain
+apostrophe	apostrophe	noun
+new paragraph	newline	plain
+new line	newline	noun
+next line	newline	plain
+scratch that	delete	plain
+delete that	delete	plain
+strike that	delete	plain
+undo that	delete	plain
+caps on	flag	plain
+caps off	flag	plain
+all caps	flag	plain
+no caps	flag	plain

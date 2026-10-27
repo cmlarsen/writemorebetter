@@ -1321,6 +1321,11 @@ public protocol StyleDocumentProtocol: AnyObject, Sendable {
     func dictionJson(optionsJson: String?, table: String?) throws  -> String
     
     /**
+     * Returns drafting leftovers and their mechanical edits on the retained analysis.
+     */
+    func draftingJson(optionsJson: String?) throws  -> String
+    
+    /**
      * Returns this report on the retained analysis; options default when omitted.
      */
     func echoesJson(optionsJson: String?) throws  -> String
@@ -1571,6 +1576,19 @@ open func dictionJson(optionsJson: String? = nil, table: String? = nil)throws  -
             self.uniffiCloneHandle(),
         FfiConverterOptionString.lower(optionsJson),
         FfiConverterOptionString.lower(table),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * Returns drafting leftovers and their mechanical edits on the retained analysis.
+     */
+open func draftingJson(optionsJson: String? = nil)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_method_styledocument_drafting_json(
+            self.uniffiCloneHandle(),
+        FfiConverterOptionString.lower(optionsJson),uniffiCallStatus
     )
 })
 }
@@ -3412,6 +3430,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_method_styledocument_diction_json() != 63532) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_writemorebetter_swift_checksum_method_styledocument_drafting_json() != 56789) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_method_styledocument_echoes_json() != 31563) {

@@ -1306,6 +1306,101 @@ below 0.85. `--write` updates `emotion-tells-baseline.json`. `sample` and `heldo
 (unlabeled). Definitions, results and limitations are in
 [STYLE-EMOTION-TELLS.md](../../docs/STYLE-EMOTION-TELLS.md).
 
+## Drafting leftovers (#376)
+
+```sh
+python3 bench/style/drafting.py               # recall on the self-written fixtures
+python3 bench/style/drafting.py --gate        # recall, then the drafting-baseline.json thresholds
+python3 bench/style/drafting.py --precision   # bench/public plus the 13 books and chapters
+python3 bench/style/drafting.py --precision --public-only   # no downloads
+python3 bench/style/drafting.py --local-dir PATH            # owner only, aggregate counts
+```
+
+`drafting.py` builds the release `drafting_jsonl` example (`style/examples/drafting_jsonl.rs`) and
+calls the actual report. The example also applies every returned edit with `drafting::apply`, so the
+harness compares the text a host would get, not just spans. It reads `storage/en_tokenizer.bin` and
+needs no Python packages beyond the standard library.
+
+`drafting_fixtures.jsonl` holds 616 project-authored sentences: each line is
+`{id, style, category, input, expected}` with optional `flags`, `options` and `note`. `style` is
+`dragon` (kept filled pauses, inconsistent capitalization), `apple` (light punctuation, commands
+typed as words) or `whisper` (well punctuated, literal command words and deliberate repeats);
+`category` is `placeholder`, `filledPause` or `spokenCommand`. Edits are offered only for dictated
+text, so every fixture with an edit, and every command fixture with a match, sets
+`"options": {"dictated": true}` (429 of the 616); the rest run in default (typed) mode, where the
+expected text is the input and `flags` lists the expected terms. `options` also carries
+`includeDialogue` where needed. A fixture with `expected == input` and no `flags` must produce no
+matches at all. The set covers every row of the deletion worked-case table and the command table in
+[STYLE-DRAFTING.md](../../docs/STYLE-DRAFTING.md), the noun-guard negatives, dialogue skipping, each
+review round's inputs, and curly quotes/apostrophes, em dashes, ellipses and U+2028 (plus straight
+variants). Expected values are worked out from the rules, never copied from the report; a fixture
+whose expectation changed with a decision carries a `note` citing it and the old value.
+
+`drafting_negatives.jsonl` (329 rows) is a separate precision set: ordinary prose that merely
+contains a command word or a pause word. Each line is `{id, word, input, note}`; `word` is the
+trigger, `input` is the sentence or short paragraph, and `note` records how the word is used
+(sentence start, dialogue, after an adjective, before a comma, medical sense, stage direction, Roman
+numeral, and so on). The report must find nothing in any `input`, in default mode and with
+`dictated`. The set covers each command in the table in
+[STYLE-DRAFTING.md](../../docs/STYLE-DRAFTING.md) at least eight times: comma, coma, period, full
+stop, colon, semicolon, dash, hyphen, ellipsis, apostrophe, question mark, quote, unquote, bracket,
+new line, next line, new paragraph, and scratch/delete/strike/undo that followed by an object noun.
+It also holds the exclamation marks, paren/parenthesis, caps and all caps, the interjection compounds
+(uh-huh, uh–huh, um-hm, uh oh, uh huh, um hm), `“Um.”` as a whole quoted line, `*um*` in emphasis
+markup, `um.edu`, pause words reported or used as nouns (*She said um*, *an um*), quoted and
+unclosed-quote and em-dash dialogue, names (*Um Kulthum*, *Umm Qasr*), command words after a
+reporting verb (*I said question mark to myself*), TK inside names, XX inside sizes and karyotypes,
+XXX as a Roman numeral, bracketed stage directions, and the medical, typographic and idiomatic
+senses (sigmoid colon, Oxford comma, the Jurassic period, a dash of salt, made a dash for it, I
+have to dash). More than 30 rows use curly quotes and apostrophes, em dashes, ellipses or U+2028.
+
+`drafting.py` prints an `ordinary-prose negatives` table with a row per mode (`default`,
+`dictated`: silent versus total, plus how many raised any match) and lists every failing id, then a
+`Default mode` line counting fixtures and negatives that got any edit without `dictated`;
+`--failures N` also prints each failure's input and the text its edits produced. `--gate` requires
+every category's recall at its threshold in `drafting-baseline.json` (all 1.0), the clean-control
+rate, every negative silent in both modes (`minimumNegativeRate` 1.0), and no edit in default mode.
+`test_drafting.py` checks the files' shape, word and sense coverage, typography and options, and
+runs the gate.
+
+Measured on 2026-10-26 (review D2m):
+
+| Category | Positives | Caught | Controls clean |
+|---|---:|---:|---:|
+| `placeholder` | 22 | 22 | 21 / 21 |
+| `filledPause` | 175 | 175 | 42 / 42 |
+| `spokenCommand` | 254 | 254 | 102 / 102 |
+| all | 451 | 451 | 165 / 165 |
+
+All 329 negatives are silent in both modes, and the 945 fixtures and negatives run without
+`dictated` return no edits. JSON summaries go to ignored `out/drafting/`.
+
+`--precision` runs `story1`–`story5`, `moby150k` and the 13 public-domain books and chapters in
+`sources.json` (the same loader pacing and vague/hidden verbs use) twice, in default mode and with
+`dictated`, printing matches, matches with edits, words and matches per 1,000 words per category
+and mode, and the dictated run's matches with edits per category, which must be 0. On 2026-10-26
+(review D2m) that was 19 documents and 871,778 words with **0 matches in every category in both
+modes**, so 0 matches with edits. That is the expected result for published fiction, but it also
+means the samples are empty: a seeded sample of 50 (`--sample 50`, `--seed 376`) is drawn from each
+run, the default-mode one to `out/drafting/sample.jsonl` and the dictated-mode one, with matches
+that have edits drawn first, to `out/drafting/sample-dictated.jsonl`, whenever matches exist, with
+a short context window, the exact `match` text and the edits for hand judgment. Judging any hit on
+published fiction is therefore judging a false positive; a category below 0.95 precision should ship
+off by default, as the design doc requires.
+
+### Owner-only private draft
+
+```sh
+python3 -I bench/style/drafting.py --local-dir ~/drafts
+```
+
+The owner runs this on their own drafts. It reads `.txt`, `.md` and `.markdown` files below the
+directory, prints only file and word counts plus aggregate matches per category (and narration/
+dialogue split), and never prints text, titles, paths or a sample. It does not use `parity.py`,
+`lt_api.py`, an agent or an LLM, and writes nothing. Workers never point it at `bench/corpus/`; the
+owner judges those flags locally and publishes only aggregate numbers. The directory is a positional
+path of the owner's choosing, so the repository's private corpus is never scanned automatically.
+
 ## Vague words and hidden verbs (#307)
 
 `python3 bench/style/vague_hidden_verbs.py` builds the `vague_hidden_verbs` probe, runs both

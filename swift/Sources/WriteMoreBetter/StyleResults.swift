@@ -1075,3 +1075,43 @@ public extension StyleDocument {
         try decodeStyle(hiddenVerbsJson(optionsJson: optionsJson))
     }
 }
+
+public enum DraftingCategory: String, Codable, Sendable { case placeholder, spokenCommand, filledPause, restart, selfCorrection }
+public struct DraftingEdit: Codable, Equatable, Sendable {
+    public let span: Span
+    public let replacement: String
+}
+public struct DraftingMatch: Codable, Equatable, Sendable {
+    public let span: Span
+    public let sentence: Int
+    public let category: DraftingCategory
+    public let term: String
+    public let mode: Mode
+    public let edits: [DraftingEdit]
+}
+public struct DraftingTerm: Codable, Equatable, Sendable {
+    public let term: String
+    public let category: DraftingCategory
+    public let count: Int
+    public let narration: Int
+    public let dialogue: Int
+}
+public struct DraftingGroup: Codable, Equatable, Sendable {
+    public let matches: Int
+    public let edits: Int
+    public let words: Int
+    public let perThousandWords: Double?
+}
+public struct DraftingReport: Codable, Equatable, Sendable {
+    public let matches: [DraftingMatch]
+    public let terms: [DraftingTerm]
+    public let groups: Split<DraftingGroup>
+}
+public extension StyleDocument {
+    /// Drafting leftovers. Typed text is flag only; pass `{"dictated":true}` when the host knows
+    /// the text came from speech-to-text, which turns on edits and spoken commands
+    /// (`"spokenCommands":false` turns commands back off; `true` without `dictated` throws).
+    func drafting(optionsJson: String? = nil) throws -> DraftingReport {
+        try decodeStyle(draftingJson(optionsJson: optionsJson))
+    }
+}

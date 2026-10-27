@@ -788,6 +788,21 @@ final class CheckerTests: XCTestCase {
         XCTAssertThrowsError(try TitleCase.check(headings, optionsJson: "{\"style\":\"apa\"}"))
     }
 
+    func testDrafting() throws {
+        let text = "😀. Um, the door. TK"
+        let document = try checker().styleDocument(text: text)
+        let report = try document.drafting()
+        XCTAssertEqual(report.matches.map { (text as NSString).substring(with: $0.span.nsRange) }, ["Um", "TK"])
+        XCTAssertTrue(report.matches.allSatisfy { $0.edits.isEmpty })
+        let dictated = try document.drafting(optionsJson: "{\"dictated\":true}")
+        XCTAssertEqual(dictated.matches[0].edits[0].replacement, "T")
+        let spoken = try checker().styleDocument(text: "She said comma he left")
+        XCTAssertTrue(try spoken.drafting().matches.isEmpty)
+        XCTAssertEqual(try spoken.drafting(optionsJson: "{\"dictated\":true}").matches[0].category, .spokenCommand)
+        XCTAssertThrowsError(try spoken.drafting(optionsJson: "{\"spokenCommands\":true}"))
+        XCTAssertThrowsError(try document.drafting(optionsJson: "{\"restarts\":true}"))
+    }
+
     func testVagueWordsAndHiddenVerbs() throws {
         let text = "😀 It was sort of cold—then a little warmer… “Well, it’s kind of nice,” she said.\u{2028}She made a decision."
         let document = try checker().styleDocument(text: text)

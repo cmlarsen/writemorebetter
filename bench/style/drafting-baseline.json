@@ -1,0 +1,10 @@
+{
+  "thresholds": {
+    "placeholder": 1.0,
+    "filledPause": 1.0,
+    "spokenCommand": 1.0
+  },
+  "minimumControlRate": 0.9,
+  "minimumNegativeRate": 1.0,
+  "note": "All 292 project-authored drafting fixtures pass under the 2026-10-26 decisions (spoken commands opt-in, conservative filled-pause edits). Do not lower a threshold to match a regression. Every row in drafting_negatives.jsonl is ordinary prose and must come back unchanged with spokenCommands off and on, so the negative rate stays at 1.0."
+}

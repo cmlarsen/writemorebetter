@@ -531,6 +531,21 @@ for (const method of ["vagueWords", "hiddenVerbs"]) {
   eq(styleError(() => vagueDocument[method]('{"typo":true}')).kind, "invalidOptions", `${method} rejects unknown options`);
   eq(styleError(() => vagueCompact[method]()).kind, "needsTokenDetails", `compact rejects ${method}`);
 }
+const draftText = "😀. Um, the door. TK";
+const draftDocument = checker.styleDocument(draftText);
+const draft = JSON.parse(draftDocument.drafting());
+eq(draft.matches.map(m => draftText.slice(m.span.start, m.span.end)), ["Um", "TK"], "drafting UTF-16 spans");
+eq(draft.matches.every(m => m.edits.length === 0), true, "typed text is flag only");
+const dictatedDraft = JSON.parse(draftDocument.drafting('{"dictated":true}'));
+eq(dictatedDraft.matches[0].edits[0].replacement, "T", "drafting case edit for dictated text");
+eq(JSON.parse(draftDocument.drafting('{"dictated":true,"spokenCommands":false}')).matches.length, draft.matches.length, "drafting commands option accepts false");
+const spokenDocument = checker.styleDocument("She said comma he left");
+eq(JSON.parse(spokenDocument.drafting()).matches.length, 0, "spoken commands off for typed text");
+eq(JSON.parse(spokenDocument.drafting('{"dictated":true}')).matches[0].category, "spokenCommand", "spoken commands on for dictated text");
+eq(styleError(() => spokenDocument.drafting('{"spokenCommands":true}')).kind, "invalidOptions", "spokenCommands needs dictated");
+spokenDocument.free();
+eq(styleError(() => draftDocument.drafting('{"restarts":true}')).kind, "invalidOptions", "future drafting key rejected");
+draftDocument.free();
 vagueCompact.free();
 vagueDocument.free();
 eq(sensory.groups.all.words, JSON.parse(senseDocument.stats()).words.all, "sensory denominator");

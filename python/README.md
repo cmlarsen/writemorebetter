@@ -171,8 +171,8 @@ report input raises `StyleError`, a `ValueError` whose `kind` (e.g. `"invalidOpt
 The reports are `echoes`, `repeated_phrases`, `cliches`, `dialogue_tags`, `sentence_length`,
 `sentence_starts`, `transitions`, `pronoun_starts`, `adverbs`, `sensory_balance`, `pacing`,
 `diction`, `overused_words`, `consistency`, `readability`, `passive`, `clarity`, `house_style`,
-`regional_spelling`, `name_spelling`, `emotion_tells`, `preset_checks`, `preset`, `alliteration`, `vague_words`
-and `hidden_verbs`. Module functions: `style_preset_names()`, `load_style_preset(name)`,
+`regional_spelling`, `name_spelling`, `emotion_tells`, `preset_checks`, `preset`, `alliteration`, `vague_words`,
+`hidden_verbs` and `drafting`. Module functions: `style_preset_names()`, `load_style_preset(name)`,
 `parse_style_preset(json)` and `title_case(headings)`. See
 [`docs/STYLE-REPORTS.md`](https://github.com/cmlarsen/writemorebetter/blob/main/docs/STYLE-REPORTS.md).
 
