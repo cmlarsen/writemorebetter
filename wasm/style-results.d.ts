@@ -636,6 +636,38 @@ export interface RegionalSpellingReport {
   flags: Array<RegionalSpellingFlag>;
 }
 
+export type NameSpellingReason = "edit" | "phonetic" | "diacritics" | "case" | "spacing";
+
+export interface NameSpellingFlag {
+  span: Span;
+  sentence: number;
+  form: string;
+  name: string;
+  alternatives: Array<string>;
+  reason: NameSpellingReason;
+  distance: number | null;
+  mode: Mode;
+}
+
+export interface NameSpellingVariant {
+  form: string;
+  reason: NameSpellingReason;
+  counts: Split<number>;
+  spans: Array<Span>;
+}
+
+export interface NameSpellingName {
+  name: string;
+  counts: Split<number>;
+  variants: Array<NameSpellingVariant>;
+  possibleCharacters: Array<NameSpellingVariant>;
+}
+
+export interface NameSpellingReport {
+  flags: Array<NameSpellingFlag>;
+  names: Array<NameSpellingName>;
+}
+
 export type EmotionTellPattern = "predicate" | "object" | "subject";
 
 export interface EmotionTell {

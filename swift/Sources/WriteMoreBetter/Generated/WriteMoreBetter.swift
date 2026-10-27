@@ -1347,6 +1347,8 @@ public protocol StyleDocumentProtocol: AnyObject, Sendable {
      */
     func houseStyleJson(optionsJson: String?, rules: String?) throws  -> String
     
+    func nameSpellingJson(optionsJson: String?) throws  -> String
+    
     /**
      * Returns this report on the retained analysis; options default when omitted.
      * Baseline: omitted/null means bundled; "none" disables comparisons; otherwise pass a JSON object.
@@ -1642,6 +1644,16 @@ open func houseStyleJson(optionsJson: String? = nil, rules: String? = nil)throws
             self.uniffiCloneHandle(),
         FfiConverterOptionString.lower(optionsJson),
         FfiConverterOptionString.lower(rules),uniffiCallStatus
+    )
+})
+}
+    
+open func nameSpellingJson(optionsJson: String? = nil)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCheckError_lift) {
+        uniffiCallStatus in
+    uniffi_writemorebetter_swift_fn_method_styledocument_name_spelling_json(
+            self.uniffiCloneHandle(),
+        FfiConverterOptionString.lower(optionsJson),uniffiCallStatus
     )
 })
 }
@@ -3433,6 +3445,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_method_styledocument_house_style_json() != 48244) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_writemorebetter_swift_checksum_method_styledocument_name_spelling_json() != 20524) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_writemorebetter_swift_checksum_method_styledocument_overused_words_json() != 59855) {

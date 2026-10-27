@@ -386,6 +386,9 @@ class StyleDocument:
     def regional_spelling(self, options: Options = None) -> dict:
         return self._report("regional_spelling", options)
 
+    def name_spelling(self, options: Options = None) -> dict:
+        return self._report("name_spelling", options)
+
     def emotion_tells(self, options: Options = None) -> dict:
         return self._report("emotion_tells", options)
 

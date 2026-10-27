@@ -256,6 +256,13 @@ impl StyleDocument {
         crate::reports::regional_spelling::report(&self.document, &options(json)?)
     }
 
+    pub fn name_spelling(
+        &self,
+        json: Option<&str>,
+    ) -> Result<crate::reports::name_spelling::NameSpellingReport, StyleError> {
+        crate::reports::name_spelling::report(&self.document, &options(json)?)
+    }
+
     pub fn emotion_tells(
         &self,
         json: Option<&str>,
