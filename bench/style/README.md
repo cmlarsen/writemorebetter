@@ -724,6 +724,13 @@ default options: sentence length and sentence starts with the shipped
 bundled cliché/redundancy list, and dialogue tags (no dialogue-tag baseline ships). The probe returns
 counts only.
 
+To measure candidate cliché entries, set `WMB_CLICHE_LIST` to a TSV of `phrase<TAB>source` lines: the
+probe adds them to the bundled list, so overlaps resolve as they would if they shipped, and each one
+appears under `patterns` like a bundled entry (they are list vocabulary, so the key allowlist accepts
+them). A candidate that contains a bundled entry takes that entry's matches, so drop or fold such
+candidates first. This is how the owner-authored list was selected
+([STYLE-CLICHES.md](../../docs/STYLE-CLICHES.md#owner-authored-lists)).
+
 Output is one JSON object of numbers. Its keys come from a fixed allowlist: structure names, report
 categories, the percentile, sweep and phrase-length digits in use, and the reports' **public list
 vocabulary** (bundled cliché entries and sources, listed dialogue speech/non-speech verb lemmas),

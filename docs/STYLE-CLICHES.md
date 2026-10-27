@@ -1,8 +1,9 @@
 # Clichés and redundancies
 
 `writemorebetter_style::reports::cliches` flags clichés ("dead as a doornail") and redundancies ("ATM
-machine") from vendored phrase lists, with spans, and counts narration and dialogue separately (#246).
-It diagnoses only and never suggests replacement wording.
+machine") from vendored phrase lists and an owner-authored fiction list ("blood ran cold"), with spans,
+and counts narration and dialogue separately (#246). Stock beats ("arched an eyebrow") are an opt-in
+third kind. It diagnoses only and never suggests replacement wording.
 
 ```rust
 use writemorebetter_style::reports::cliches::{self, ClicheList, ClicheOptions};
@@ -12,9 +13,10 @@ let report = cliches::report(&document, &list, &ClicheOptions::new())?;
 
 The report is the public module `reports::cliches`; nothing is re-exported at the crate root or in
 `reports`. Build the `ClicheList` once per tokenizer and cache it (compiling the bundled list analyzes
-each of its 882 entries). `reports::StyleResources` does that lazily, and both
+each of its 2,254 entries). `reports::StyleResources` does that lazily, and both
 bindings keep one per `Checker`, so only the first `StyleDocument.cliches()` call pays for
-it. `ClicheOptions` has no fields yet; JSON `{}` uses its defaults.
+it. `ClicheOptions` has one field, `includeStockBeats` (default `false`; Rust
+`ClicheOptions::new().with_stock_beats(true)`); JSON `{}` uses its defaults.
 `ClicheList::new(&tokenizer, entries)` takes a caller-supplied list instead: each `ClicheEntry` has a
 kind, phrase, source, optional acronym, a fixed-wording flag, an open-slot flag and `not_followed_by`
 guards (each a word or a space-separated word sequence). This is the
@@ -24,11 +26,11 @@ caller-supplied list can compile to fewer patterns than `entries().len()`.
 
 ## Output
 
-- `matches`: one `ClicheMatch` per occurrence with `kind` (`cliche` / `redundancy`), `mode`
+- `matches`: one `ClicheMatch` per occurrence with `kind` (`cliche` / `redundancy` / `stockBeat`), `mode`
   (`narration` / `dialogue`), the list `phrase`, its `source` and an absolute byte/char/UTF-16
   `span`. Matches no longer carry a paragraph index: the span is self-contained.
 - `groups`: `Split<ClicheCounts>` (`all`, `narration`, `dialogue`), each with `cliches`,
-  `redundancies` and `words` (word tokens outside skipped names, the `Document::word_count`
+  `redundancies`, `stockBeats` (0 unless `includeStockBeats`) and `words` (word tokens outside skipped names, the `Document::word_count`
   convention). `all.words` is the document's word count and the mode `words` are exactly the
   `StyleDocument.stats().words`.
 
@@ -106,10 +108,13 @@ anatomy.
 | `style/data/cliches/proselint.txt` | 1 | proselint `cliches/hell.py`, BSD-3-Clause |
 | `style/data/redundancy/redundant-acronyms.tsv` | 82 acronyms → 186 phrases | retext-redundant-acronyms v5.0.0, MIT |
 | `style/data/redundancy/proselint-ras.tsv` | 20 (4 not already above) | proselint `redundancy/ras_syndrome.py`, BSD-3-Clause |
+| `style/data/cliches/writemorebetter.txt` | 764 | owner-authored, MIT OR Apache-2.0, AI-generated ([below](#owner-authored-lists)) |
+| `style/data/cliches/stock-beats.txt` | 608 | owner-authored, MIT OR Apache-2.0, AI-generated ([below](#stock-beats)) |
 
 Each acronym row yields one entry per suffix of its expansion after the first word, following
 retext-redundant-acronyms: `ATM automated teller machine` gives "ATM teller machine" and "ATM machine".
-After de-duplication there are 889 vendored entries; 882 ship. Commits, copyright lines and license
+After de-duplication there are 889 vendored entries; 882 ship, followed by the 1,372 owner-authored
+entries (764 clichés, 608 stock beats), for 2,254. Commits, copyright lines and license
 texts are in `NOTICE` and `style/data/licenses/`. See [STYLE-DATA-LICENSES.md](STYLE-DATA-LICENSES.md)
 for the license check.
 
@@ -118,6 +123,76 @@ sources. proselint's larger redundancy lists (After the Deadline, Garner) and it
 (GNU diction, Garner) were dropped because proselint names a GPL or all-rights-reserved origin for
 them. No replacement list was authored for this PR; add one through `ClicheList::new` or a new data
 file once its origin is approved.
+
+## Owner-authored lists
+
+The vendored list is mostly business and folk sayings; it had almost none of the body-language and
+emotion phrases editors flag in fiction ("her blood ran cold", "a breath she didn't know she'd been
+holding"). `style/data/cliches/writemorebetter.txt` adds 764 of them, with source `writemorebetter`.
+It was built on 2026-10-27:
+
+1. **Drafts.** Claude (Opus 5.5), Codex (`gpt-6-sol`) and DeepSeek (`deepseek-v4-pro`, through OpenCode)
+   each drafted a fiction cliché list from the same brief, which asked for base-form verbs, `your` and
+   `I`/`you` as slots, and no copying of published lists. 1,343 phrases were new against the shipped
+   list. The lists overlapped little: 98 came from two or more models.
+2. **Clean-up.** 39 candidates that only prefixed a shipped entry ("as dead as a doornail") were
+   dropped, 61 that contained a shorter candidate were folded into it (otherwise "your heart skip a
+   beat" took every match from "heart skip a beat"), and `is`/`was`/`are`/`were` became `be`, which
+   matches every form while an inflected list word matches only itself. 1,233 candidates remained.
+3. **Measurement.** `WMB_CLICHE_LIST` (see [the flag-rate calibration](../bench/style/README.md#flag-rate-calibration-241))
+   ran them with the shipped list over the published-fiction baseline (210 units, 71 authors, 7.7M
+   words; aggregate counts only). Shipped entries for scale: 374 of 882 occur at all, the median
+   occurring entry is used by 2.8% of authors, p99 by 28.2%.
+4. **Selection (owner rule).** A candidate used by **14% or more of authors** is ordinary language, not
+   a cliché, and is left out: "no way", "never mind", "raise an eyebrow", "narrow your eyes". Below
+   that, Claude triaged the rest at the owner's direction, keeping figurative or idiomatic stock phrases and dropped generic genre
+   nouns ("a vast desert", "a powerful wizard"), ordinary speech ("sit tight"), wordings the matcher
+   cannot use, and variants that a shipped entry's slots already cover ("over your dead body"). Phrases
+   with no published occurrence were kept when they are recognizable clichés: edited fiction avoids
+   them, drafts do not ("the last straw" has no match in the 210 units).
+
+The flagged literal readings got guards in `literal-guards.txt` ("broke the ice **on** the pond", "spilled
+the beans **all over** the stove", "pulled the plug **out**", "sat on the fence **post**", "cut corners
+**off**"). Base forms of shipped entries that matched only one wording are in the list ("burn your
+bridges" beside "don't burn your bridges", "spill the beans" beside "spilled the beans"), as is "think
+outside the box".
+
+**Effect on published fiction** (tier 3 flag rates, same export, default options so no stock beats,
+2026-10-27): the cliché report now flags 79.7% of chapter windows and 93.0% of authors, against
+59.8% and 85.9% on 2026-10-16, and its median rate doubles from 0.16 to 0.32 flags per 1,000 words
+(p95 0.98), about 1.6 flags in a 5,000-word chapter. 411 owner entries occur at all and supply 51%
+of the flags; none dominates (the most common, "hit the road", is in 1.9% of chapter windows).
+
+## Stock beats
+
+Stock beats are stock gestures and physical reactions used as emotional shorthand: "arched an
+eyebrow", "her stomach lurched", "ran a hand through his hair". They are not clichés in the "dead as a
+doornail" sense, and published fiction uses many of them often, so they are a separate kind,
+`stockBeat`, reported only with `includeStockBeats`. `style/data/cliches/stock-beats.txt` holds 608,
+selected on 2026-10-27 in two rounds:
+
+1. **118 from the cliché candidates**, at any author share (the most common, "raise an eyebrow" and
+   "roll your eyes", are in 47% and 39% of authors' books). Plain gestures that are just wording
+   ("look away", "take a step back") were dropped.
+2. **490 from a dedicated round.** Codex and DeepSeek were given the definition and the first 118 and
+   asked for new ones; 746 were new after folding and de-duplication. Each was measured in
+   **Google Books Ngram, English Fiction 2019** (1990–2019, case-insensitive, tenses and pronoun slots
+   summed, through the Ngram Viewer; phrases over five words were measured by a core of at most five
+   words). The first 118 span 0.014–28.8 occurrences per million words (median 0.77), and their Ngram
+   ranking agrees with their rate in the 210-unit published corpus (Spearman 0.82). Candidates below
+   0.014 per million were dropped: 120 of them, 21 never attested, mostly invented fantasy wording
+   ("your magic thrum"). Of the rest, gestures and reactions used as emotional shorthand were kept;
+   plain movement and contact ("lean back", "stride toward the door", "lay a hand on your arm"),
+   weapon and magic actions, non-human reactions, and phrases the cliché list already covers were
+   dropped. The 77 phrases longer than five words were judged without a rate.
+
+Frequency is not a reason to drop a stock beat: the intent is to compare a manuscript's rate with
+published fiction's, so a common beat ("tilt your head", 9.4 per million) still belongs on the list.
+No Ngram numbers ship; they only guided the selection.
+
+Stock beats have their own pattern index, so when they are off they are never tried, and they never
+hide a cliché. With them on, a beat and a cliché that overlap without one containing the other are
+both reported, like any two partial overlaps.
 
 ## Overlap with the grammar checker
 
@@ -135,6 +210,12 @@ enabled, and kept only hits from style and redundancy rules whose span is the ph
 | PIN number | `REDUNDANCY/PIN_NUMBER` | on |
 | ISBN number | `REDUNDANCY/PIN_NUMBER` | on |
 | for all intents and purposes | `PLAIN_ENGLISH/FOR_ALL_INTENTS_AND_PURPOSES` | off |
+
+On 2026-10-27 `--covered` also ran over the owner-authored entries (it now reads both lists): no rule
+flags one of them as a style or redundancy problem on the phrase itself, so none is suppressed. Their
+hits are carrier artifacts (lowercase *i*, E-Prime on the base-form *be*, `TYPOS/HELL`,
+`TYPOS/SAVE_SAFE`) or off-by-default rules on part of the phrase (`USELESS_THAT`, `TIRED_INTENSIFIERS`,
+`SENT_START_CONJUNCTION`).
 
 Other hits were kept: grammar-rule hits caused by the carrier sentence, off-by-default E-Prime rules
 (which flag forms of *be*, not the phrase), `USELESS_THAT`, `THREE_NN`, the `EN_COMPOUNDS_*` hyphenation
@@ -179,3 +260,9 @@ document (209,407 words, compact document). Before the review fixes: building th
 the same machine at load average 64: 3.9 s, 349 ms and 34.2 s. The report stays at about 1% of
 `analyze_document`; the compile time varies most with load. Besides its match list, the report builds a token-to-lemma map from the lemma
 index and one token stream per paragraph.
+
+With the owner-authored lists (2026-10-27, `bench/public/moby150k.txt`, 25,002 words, load average
+about 10): compiling 2,254 patterns takes 560 ms against 212 ms for the vendored 882, and the report
+with default options 49 ms against 25 ms (median of 5), about 3% of `analyze_document` (1.48 s).
+Before stock beats got their own index, the 223 that start with a possessive slot were tried at every
+token even when off, and the report took 114 ms.

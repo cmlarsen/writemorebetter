@@ -2,8 +2,8 @@ use std::sync::OnceLock;
 
 use nlprule::Tokenizer;
 use writemorebetter_style::reports::cliches::{
-    self, bundled_entries, suppressed_phrases, vendored_entries, ClicheEntry, ClicheKind,
-    ClicheList, ClicheOptions, ClicheReport,
+    self, bundled_entries, owned_entries, suppressed_phrases, vendored_entries, ClicheEntry,
+    ClicheKind, ClicheList, ClicheOptions, ClicheReport,
 };
 use writemorebetter_style::{analyze_document, Document, DocumentOptions, Mode, Span};
 
@@ -286,7 +286,11 @@ fn entries_already_covered_by_grammar_rules_are_dropped() {
     assert!(!bundled
         .iter()
         .any(|entry| suppressed.contains(&entry.phrase.as_str())));
-    assert_eq!(vendored.len(), bundled.len() + suppressed.len());
+    let bundled_vendored = bundled
+        .iter()
+        .filter(|entry| entry.source != "writemorebetter")
+        .count();
+    assert_eq!(vendored.len(), bundled_vendored + suppressed.len());
     assert!(phrases("The ATM machines were empty.").is_empty());
 }
 
@@ -302,16 +306,20 @@ fn bundled_lists_are_complete() {
     assert_eq!(count("no-cliches", ClicheKind::Cliche), 697);
     assert_eq!(count("proselint", ClicheKind::Cliche), 1);
     assert!(count("retext-redundant-acronyms", ClicheKind::Redundancy) > 100);
+    assert_eq!(count("writemorebetter", ClicheKind::Cliche), 764);
+    assert_eq!(count("writemorebetter", ClicheKind::StockBeat), 608);
     assert_eq!(vendored_entries().len(), 889);
-    assert_eq!(entries.len(), 882);
+    assert_eq!(owned_entries().len(), 764 + 608);
+    assert_eq!(entries.len(), 882 + 764 + 608);
     assert_eq!(bundled().len(), entries.len());
 }
 
 #[test]
-fn guard_and_slot_lists_name_vendored_entries() {
+fn guard_and_slot_lists_name_listed_entries() {
     let normalize = |text: &str| text.replace(['’', '‘'], "'").to_lowercase();
     let vendored: Vec<_> = vendored_entries()
         .iter()
+        .chain(&owned_entries())
         .map(|entry| normalize(&entry.phrase))
         .collect();
     for data in [
@@ -695,4 +703,137 @@ fn review_adversarial_cases() {
             .collect();
         assert_eq!(found(text, options), expected, "{text:?}");
     }
+}
+
+fn with_beats(text: &str) -> ClicheReport {
+    cliches::report(
+        &analyze_document(tokenizer(), text, &DocumentOptions::new()),
+        bundled(),
+        &ClicheOptions::new().with_stock_beats(true),
+    )
+    .unwrap()
+}
+
+#[test]
+fn owned_fiction_cliches() {
+    assert_eq!(
+        phrases("Her blood ran cold. His heart skipped a beat. The coast was clear."),
+        vec![
+            pair("blood run cold", "blood ran cold"),
+            pair("heart skip a beat", "heart skipped a beat"),
+            pair("the coast be clear", "The coast was clear"),
+        ]
+    );
+    assert_eq!(
+        phrases("She let out a breath she didn’t know she’d been holding."),
+        vec![pair(
+            "breath i didn't know i'd been holding",
+            "breath she didn’t know she’d been holding"
+        )]
+    );
+    assert_eq!(
+        phrases("A shiver ran down her spine—then nothing. Time stood still…"),
+        vec![
+            pair("shiver run down your spine", "shiver ran down her spine"),
+            pair("time stand still", "Time stood still"),
+        ]
+    );
+    assert_eq!(
+        phrases("He burned his\u{2028}bridges."),
+        vec![pair("burn your bridges", "burned his\u{2028}bridges")]
+    );
+    assert_eq!(
+        found(
+            "“It’s not rocket science,” she said.",
+            &DocumentOptions::new()
+        ),
+        vec![(
+            "it's not rocket science".to_owned(),
+            "It’s not rocket science".to_owned(),
+            Mode::Dialogue
+        )]
+    );
+}
+
+#[test]
+fn owned_literal_guards() {
+    for text in [
+        "They broke the ice on the pond.",
+        "He spilled the beans all over the stove.",
+        "She pulled the plug out of the wall.",
+        "They sat on the fence post.",
+    ] {
+        assert!(phrases(text).is_empty(), "{text}");
+    }
+    assert_eq!(
+        phrases("She broke the ice with a joke."),
+        vec![pair("break the ice", "broke the ice")]
+    );
+}
+
+#[test]
+fn stock_beats_are_opt_in() {
+    let text = "She arched an eyebrow. “Fine,” he said, and ran a hand through his hair.";
+    assert!(phrases(text).is_empty());
+    let report = with_beats(text);
+    let beats: Vec<_> = report
+        .matches
+        .iter()
+        .map(|found| {
+            (
+                found.kind,
+                found.phrase.as_str(),
+                &text[found.span.byte.clone()],
+            )
+        })
+        .collect();
+    assert_eq!(
+        beats,
+        vec![
+            (
+                ClicheKind::StockBeat,
+                "arch an eyebrow",
+                "arched an eyebrow"
+            ),
+            (
+                ClicheKind::StockBeat,
+                "run a hand through your hair",
+                "ran a hand through his hair"
+            ),
+        ]
+    );
+    assert_eq!(report.groups.all.stock_beats, 2);
+    assert_eq!(report.groups.narration.stock_beats, 2);
+    assert_eq!(report.groups.all.cliches, 0);
+    let json = serde_json::to_value(&report).unwrap();
+    assert_eq!(json["matches"][0]["kind"], "stockBeat");
+    assert_eq!(json["groups"]["all"]["stockBeats"], 2);
+    let options: ClicheOptions = serde_json::from_str(r#"{"includeStockBeats":true}"#).unwrap();
+    assert_eq!(options, ClicheOptions::new().with_stock_beats(true));
+}
+
+#[test]
+fn disabled_stock_beats_never_hide_cliches() {
+    let list = ClicheList::new(
+        tokenizer(),
+        vec![
+            ClicheEntry::new(ClicheKind::Cliche, "heart skip a beat", "custom"),
+            ClicheEntry::new(ClicheKind::StockBeat, "your heart skip", "custom"),
+        ],
+    );
+    let text = "Her heart skipped a beat.";
+    let document = analyze_document(tokenizer(), text, &DocumentOptions::new());
+    let kinds = |options: &ClicheOptions| {
+        cliches::report(&document, &list, options)
+            .unwrap()
+            .matches
+            .into_iter()
+            .map(|found| found.kind)
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(kinds(&ClicheOptions::new()), vec![ClicheKind::Cliche]);
+    assert_eq!(
+        kinds(&ClicheOptions::new().with_stock_beats(true)),
+        vec![ClicheKind::StockBeat, ClicheKind::Cliche]
+    );
 }

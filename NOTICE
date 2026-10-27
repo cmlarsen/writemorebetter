@@ -93,6 +93,13 @@ style/data/norms/not-sensory.txt, style/data/suppressed.txt, style/data/fixed-wo
 style/data/literal-guards.txt and style/data/open-slot.txt are writemorebetter's
 own lists (MIT OR Apache-2.0).
 
+style/data/cliches/writemorebetter.txt and style/data/cliches/stock-beats.txt
+are writemorebetter's own lists, licensed MIT OR Apache-2.0. Their entries are
+AI-generated: drafted on 2026-10-27 by Anthropic's claude-opus-5-5, OpenAI's
+gpt-6-sol (Codex) and DeepSeek's deepseek-v4-pro (through OpenCode) from
+writemorebetter's own brief, then selected by writemorebetter. No published
+cliché list was copied.
+
 The word lists in style/data/dialogue/ were written for writemorebetter and are
 not taken from any third-party source.
 

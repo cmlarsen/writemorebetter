@@ -10,6 +10,8 @@ use crate::{Document, Mode, Span, Token};
 
 const NO_CLICHES: &str = include_str!("../../data/cliches/no-cliches.txt");
 const PROSELINT_CLICHES: &str = include_str!("../../data/cliches/proselint.txt");
+const OWNED_CLICHES: &str = include_str!("../../data/cliches/writemorebetter.txt");
+const STOCK_BEATS: &str = include_str!("../../data/cliches/stock-beats.txt");
 const REDUNDANT_ACRONYMS: &str = include_str!("../../data/redundancy/redundant-acronyms.tsv");
 const PROSELINT_RAS: &str = include_str!("../../data/redundancy/proselint-ras.tsv");
 const SUPPRESSED: &str = include_str!("../../data/suppressed.txt");
@@ -89,16 +91,24 @@ const PHRASE_PUNCTUATION: &[&str] = &[",", ";", ":", "—", "–", "-", "…"];
 pub enum ClicheKind {
     Cliche,
     Redundancy,
+    StockBeat,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields, rename_all = "camelCase")]
 #[non_exhaustive]
-pub struct ClicheOptions {}
+pub struct ClicheOptions {
+    #[serde(alias = "include_stock_beats")]
+    pub include_stock_beats: bool,
+}
 
 impl ClicheOptions {
     pub fn new() -> Self {
         Self::default()
+    }
+    pub fn with_stock_beats(mut self, enabled: bool) -> Self {
+        self.include_stock_beats = enabled;
+        self
     }
 }
 
@@ -177,12 +187,20 @@ struct Pattern {
     elements: Vec<(Element, bool)>,
 }
 
+/// Patterns by their first element; patterns starting with a slot are tried at every token.
+#[derive(Debug, Clone, Default)]
+struct Index {
+    by_first_key: HashMap<String, Vec<usize>>,
+    slot_first: Vec<usize>,
+}
+
 #[derive(Debug, Clone)]
 pub struct ClicheList {
     entries: Vec<ClicheEntry>,
     patterns: Vec<Pattern>,
-    by_first_key: HashMap<String, Vec<usize>>,
-    slot_first: Vec<usize>,
+    /// Clichés and redundancies; stock beats have their own index so disabled beats cost nothing.
+    index: Index,
+    beat_index: Index,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -202,6 +220,7 @@ pub struct ClicheMatch {
 pub struct ClicheCounts {
     pub cliches: usize,
     pub redundancies: usize,
+    pub stock_beats: usize,
     pub words: usize,
 }
 
@@ -283,6 +302,26 @@ pub fn vendored_entries() -> Vec<ClicheEntry> {
                 .with_acronym(acronym),
         );
     }
+    let mut seen = BTreeSet::new();
+    entries.retain(|entry| seen.insert((entry.kind, normalize(&entry.phrase))));
+    with_guards(&mut entries);
+    entries
+}
+
+/// The owner-authored clichés and stock beats (docs/STYLE-CLICHES.md#owner-authored-lists).
+pub fn owned_entries() -> Vec<ClicheEntry> {
+    let mut entries: Vec<_> = lines(OWNED_CLICHES)
+        .map(|line| ClicheEntry::new(ClicheKind::Cliche, line, "writemorebetter"))
+        .chain(
+            lines(STOCK_BEATS)
+                .map(|line| ClicheEntry::new(ClicheKind::StockBeat, line, "writemorebetter")),
+        )
+        .collect();
+    with_guards(&mut entries);
+    entries
+}
+
+fn with_guards(entries: &mut [ClicheEntry]) {
     let fixed: BTreeSet<_> = lines(FIXED_WORDING).map(normalize).collect();
     let open: BTreeSet<_> = lines(OPEN_SLOT).map(normalize).collect();
     let guards: HashMap<_, _> = lines(LITERAL_GUARDS)
@@ -294,21 +333,27 @@ pub fn vendored_entries() -> Vec<ClicheEntry> {
             )
         })
         .collect();
-    let mut seen = BTreeSet::new();
-    entries.retain(|entry| seen.insert((entry.kind, normalize(&entry.phrase))));
-    for entry in &mut entries {
+    for entry in entries {
         let key = normalize(&entry.phrase);
         entry.fixed_wording = fixed.contains(&key);
         entry.open_slot = open.contains(&key);
         entry.not_followed_by = guards.get(&key).cloned().unwrap_or_default();
     }
-    entries
 }
 
 pub fn bundled_entries() -> Vec<ClicheEntry> {
     let suppressed: BTreeSet<_> = lines(SUPPRESSED).map(normalize).collect();
     let mut entries = vendored_entries();
     entries.retain(|entry| !suppressed.contains(&normalize(&entry.phrase)));
+    let mut seen: BTreeSet<_> = entries
+        .iter()
+        .map(|entry| normalize(&entry.phrase))
+        .collect();
+    entries.extend(
+        owned_entries()
+            .into_iter()
+            .filter(|entry| seen.insert(normalize(&entry.phrase))),
+    );
     entries
 }
 
@@ -445,8 +490,8 @@ impl ClicheList {
     pub fn new(tokenizer: &Tokenizer, entries: Vec<ClicheEntry>) -> Self {
         let mut list = Self {
             patterns: Vec::new(),
-            by_first_key: HashMap::new(),
-            slot_first: Vec::new(),
+            index: Index::default(),
+            beat_index: Index::default(),
             entries,
         };
         for (index, entry) in list.entries.iter().enumerate() {
@@ -454,18 +499,23 @@ impl ClicheList {
                 continue;
             };
             let id = list.patterns.len();
+            let index = if entry.kind == ClicheKind::StockBeat {
+                &mut list.beat_index
+            } else {
+                &mut list.index
+            };
             match &pattern.elements[0].0 {
                 Element::Word { surface, lemmas } => {
                     for key in lemmas.iter().chain([surface]) {
-                        list.by_first_key.entry(key.clone()).or_default().push(id);
+                        index.by_first_key.entry(key.clone()).or_default().push(id);
                     }
                 }
-                Element::Acronym(acronym) => list
+                Element::Acronym(acronym) => index
                     .by_first_key
                     .entry(normalize(acronym))
                     .or_default()
                     .push(id),
-                Element::Slot(_) => list.slot_first.push(id),
+                Element::Slot(_) => index.slot_first.push(id),
             }
             list.patterns.push(pattern);
         }
@@ -666,9 +716,14 @@ fn token_keys(document: &Document) -> HashMap<(usize, usize, usize), Vec<&str>> 
 pub fn report(
     document: &Document,
     phrases: &ClicheList,
-    _options: &ClicheOptions,
+    options: &ClicheOptions,
 ) -> Result<ClicheReport, StyleError> {
     let keys = token_keys(document);
+    let indexes: &[&Index] = if options.include_stock_beats {
+        &[&phrases.index, &phrases.beat_index]
+    } else {
+        &[&phrases.index]
+    };
     let mut report = ClicheReport {
         matches: Vec::new(),
         groups: word_split(document).map(|words| ClicheCounts {
@@ -731,12 +786,16 @@ pub fn report(
             item.name_end = name_end;
         }
         for start in 0..stream.len() {
-            let candidates = stream[start]
-                .keys
+            let candidates = indexes
                 .iter()
-                .filter_map(|key| phrases.by_first_key.get(key))
-                .flatten()
-                .chain(&phrases.slot_first)
+                .flat_map(|index| {
+                    stream[start]
+                        .keys
+                        .iter()
+                        .filter_map(|key| index.by_first_key.get(key))
+                        .flatten()
+                        .chain(&index.slot_first)
+                })
                 .collect::<BTreeSet<_>>();
             for &id in candidates {
                 let pattern = &phrases.patterns[id];
@@ -780,6 +839,7 @@ pub fn report(
             match entry.kind {
                 ClicheKind::Cliche => counts.cliches += 1,
                 ClicheKind::Redundancy => counts.redundancies += 1,
+                ClicheKind::StockBeat => counts.stock_beats += 1,
             }
         }
         report.matches.push(ClicheMatch {

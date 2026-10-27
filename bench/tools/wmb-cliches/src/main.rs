@@ -4,7 +4,9 @@ use std::time::Instant;
 
 use nlprule::{Rules, Tokenizer};
 use serde::Deserialize;
-use writemorebetter_style::reports::cliches::{self, vendored_entries, ClicheList, ClicheOptions};
+use writemorebetter_style::reports::cliches::{
+    self, owned_entries, vendored_entries, ClicheList, ClicheOptions,
+};
 use writemorebetter_style::{analyze_document, DocumentOptions};
 
 #[derive(Deserialize)]
@@ -48,7 +50,7 @@ fn covered(
     }
     let stdout = io::stdout();
     let mut output = io::BufWriter::new(stdout.lock());
-    for entry in vendored_entries() {
+    for entry in vendored_entries().into_iter().chain(owned_entries()) {
         let mut hits = BTreeSet::new();
         for frame in FRAMES {
             let phrase = if frame.starts_with("{}") {

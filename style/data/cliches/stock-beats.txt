@@ -1,0 +1,613 @@
+# Owner-authored stock beats (stock gestures and physical reactions), MIT OR Apache-2.0
+# (see docs/STYLE-CLICHES.md#stock-beats). Reported only with `includeStockBeats`.
+# AI-generated: drafted by Claude (Opus 5.5), Codex (gpt-6-sol) and DeepSeek (v4-pro, via OpenCode),
+# then selected on 2026-10-27 by published-fiction frequency (Google Books Ngram English Fiction,
+# 1990-2019) and review. Verbs are base forms; "your" and "I"/"you" are slots.
+a knowing look
+a laugh die in your throat
+a lingering look
+a muscle jump in your cheek
+a muscle jump in your jaw
+a muscle twitch in your jaw
+a pang in your chest
+a prickle of unease
+a shadow cross your face
+a shadow pass over your face
+a shaky voice
+a shiver ripple through you
+a shiver run through you
+a smile tug at your lips
+a tear escape
+a tear roll down your cheek
+a tear track down your face
+a tear trickle down
+a tightness in your chest
+a trembling voice
+a wave of nausea
+arch an eyebrow
+arch your back
+avert your gaze
+ball your hands into fists
+bare your fangs
+bare your teeth
+bat your lashes
+beads of sweat form on your brow
+bite back a smile
+bite back a sob
+bite the inside of your cheek
+bite your lip
+bite your nails
+bite your tongue
+blanch white
+blink back tears
+blink in surprise
+blink slowly
+blood drain from your face
+blood pound in your ears
+blow out a breath
+blush crimson
+blush furiously
+blush to the roots of your hair
+bolt upright
+bow your head
+brace your hands on your knees
+break eye contact
+breathe out through your nose
+breathe shallowly
+bury your face in your hands
+cast your eyes down
+catch your breath
+chew the inside of your cheek
+chew your fingernails
+chew your lip
+choke back a sob
+choke out the words
+clap a hand over your mouth
+clasp your hands
+clear your throat
+clench your fists
+clench your jaw
+click your tongue
+cock an eyebrow
+cock your head
+color bloom in your cheeks
+color creep into your cheeks
+color drain from your face
+color flood your cheeks
+color rise to your cheeks
+color stain your cheeks
+comb your fingers through your hair
+corners of your mouth turn down
+corners of your mouth turn up
+cough into your fist
+cover your mouth with your hand
+crack your knuckles
+cradle your face
+crane your neck
+crease your brow
+cross your arms
+cup your face
+curl in on yourself
+curl your fingers into a fist
+dab at your eyes
+dart your eyes to the door
+dash a hand across your eyes
+deepen the kiss
+dip your head
+draw a ragged breath
+draw a sharp breath
+draw your brows together
+draw yourself up
+drink in the sight
+drop your gaze
+drop your head into your hands
+drop your shoulders
+drum your fingers
+duck your head
+every muscle tense
+exchange a glance
+exhale slowly
+eyes bore into
+eyes brim with tears
+eyes cloud over
+eyes dance
+eyes dim
+eyes fill with tears
+eyes flash
+eyes flicker
+eyes flutter open
+eyes flutter shut
+eyes gleam
+eyes go glassy
+eyes light up
+eyes mist over
+eyes narrow to slits
+eyes redden
+eyes screw shut
+eyes shine
+eyes slide shut
+eyes snap open
+eyes sting
+eyes swim
+eyes turn cold
+eyes twinkle
+eyes water
+fall silent
+feather a kiss
+fight a smile
+fight back tears
+flash a grin
+flash a smile
+flash your fangs
+flex your fingers
+flinch at the sound
+flip your hair
+flutter your lashes
+fold your arms across your chest
+fold your hands in your lap
+forget to breathe
+freeze in place
+furrow your brow
+gasp for air
+gaze into the distance
+glance over your shoulder
+go crimson
+go pale
+go scarlet
+go still
+go tense
+goosebumps break out
+goosebumps rise on your arms
+grin broadly
+grin lopsidedly
+grin wolfishly
+grind your molars
+grind your teeth
+grit your teeth
+grow pale
+growl low in your throat
+gulp air
+hang your head
+heart hammer against your ribs
+heat crawl up your neck
+heat creep up your neck
+heat flood your face
+heat pool low in your belly
+heave a sigh
+hide your smile
+hiss through your teeth
+hold your breath
+hold your gaze
+hood your eyes
+hug yourself
+hum under your breath
+hunch forward
+hunch into yourself
+hunch your shoulders
+incline your head
+inhale sharply
+interlace your fingers
+jab a finger
+jaw flex
+jaw go slack
+jaw lock
+jaw tick
+jaw tighten
+jut your chin
+kiss your temple
+knead the back of your neck
+knit your brows
+lace your fingers through
+lace your fingers together
+let out a breath
+let out a gasp
+let out a long breath
+let out a sigh
+let out a sob
+let your head fall back
+lick your lips
+lift an eyebrow
+lift your chin
+lips curve into a smile
+lips flatten
+lips pull back
+lips quirk
+lips quiver
+lock eyes
+loosen your grip
+massage your temples
+meet your eyes
+moisten your lips
+mouth hang open
+mouth quiver
+mouth thin
+narrow your eyes
+nip your lower lip
+nod slowly
+nuzzle your neck
+pace the floor
+pace the room
+part your lips
+pick at a thread
+pick at your cuticles
+pinch the bridge of your nose
+plant your hands on your hips
+play with your hair
+pluck at your sleeve
+press a hand to the small of your back
+press a kiss to
+press your fingers to your lips
+press your lips together
+press your palms together
+prop your chin on your hand
+puff out your cheeks
+purse your lips
+push your hair back
+put your hands on your hips
+quirk an eyebrow
+raise an eyebrow
+raise both eyebrows
+rake a hand through your hair
+rap your knuckles
+release a breath
+rest your chin in your hand
+rest your forehead against
+risk a glance
+rock back and forth
+roll your eyes
+roll your neck
+roll your shoulders
+rub the back of your neck
+rub your chin
+rub your face
+rub your palms together
+rub your temples
+run a hand through your hair
+run a thumb over your knuckles
+run your tongue over your teeth
+scratch the back of your neck
+screw up your eyes
+scrub a hand over your face
+scrunch up your nose
+scrunch your brow
+search your face
+set your jaw
+shift from foot to foot
+shoot a look
+show your teeth
+shrink back
+shuffle your feet
+sit up straighter
+slump back
+slump forward
+smack your lips
+smile faintly
+smile grimly
+smile ruefully
+smile wanly
+smile wryly
+smooth your brow
+smooth your hair back
+speak through clenched teeth
+speak through gritted teeth
+splay your fingers
+square your shoulders
+squeeze your hand
+squint into the distance
+stare blankly
+stare into space
+stare unblinking
+steal a glance
+steel your nerves
+steel yourself
+steeple your fingers
+stiffen your spine
+stifle a gasp
+straighten your spine
+stroke your cheek
+stroke your chin
+stroke your hair
+struggle to breathe
+study your face
+suck in a breath
+suck in air
+suck in your cheeks
+suppress a smile
+swallow a gasp
+swallow a sob
+swallow audibly
+swallow convulsively
+swallow hard
+sweat bead on your upper lip
+sweat pool in the small of your back
+sweat trickle down your back
+sweaty palms
+sweep your hair back
+take a deep breath
+take a shaky breath
+take a shallow breath
+tap the side of your nose
+tap your chin
+tap your fingers
+tap your foot
+tap your temple
+tears blur your vision
+tears burn your eyes
+tears gather in your eyes
+tears leak from your eyes
+tears overflow
+tears pool in your eyes
+tears prick your eyes
+tears run down your face
+tears slip down your cheeks
+tears spill down your cheeks
+tears spill over
+tears spring to your eyes
+tears stand in your eyes
+tears sting your eyes
+tears streak your face
+tears well in your eyes
+tense up
+tent your fingers
+the hair on your arms rise
+the room spin
+the tips of your ears turn red
+throw up your hands
+throw your head back
+tilt your head
+tip your head
+toss your head
+trace the line of your jaw
+trail kisses along
+tuck a strand of hair behind your ear
+tuck your chin
+tug at your collar
+tug your hair
+tug your sleeve
+turn ashen
+turn crimson
+turn pale
+turn scarlet
+turn white
+twiddle your thumbs
+twirl a strand of hair
+twist a lock of hair
+twist your ring
+unclench your fists
+uncross your arms
+uncurl your fingers
+wag your finger
+warmth spread through you
+wet your lips
+widen your eyes
+wipe away a tear
+wipe your eyes with the back of your hand
+work your jaw
+worry the hem of your sleeve
+wrap your arms around yourself
+wring your hands
+wrinkle your brow
+wrinkle your nose
+your belly tighten
+your blood heat
+your blood roar in your ears
+your blood rush
+your blood sing
+your blood warm
+your body go rigid
+your body recoil
+your body sag
+your body sway
+your breath catch
+your breath come in ragged gasps
+your breath come in short gasps
+your breath hitch
+your breath mingle
+your breath rasp
+your breath slow
+your breath steady
+your breath stutter
+your breathing grow ragged
+your breathing hitch
+your breathing quicken
+your breathing steady
+your brow crease
+your brows draw together
+your brows knit
+your brows shoot up
+your cheeks burn
+your cheeks color
+your cheeks flush
+your cheeks grow hot
+your cheeks redden
+your chest constrict
+your chest heave
+your chest hitch
+your chest rise and fall
+your chest tighten
+your chin dip
+your chin jut out
+your chin quiver
+your chin wobble
+your ears burn
+your eyelids flutter
+your eyelids grow heavy
+your eyes burn with tears
+your eyes crinkle
+your eyes darken
+your eyes dart between
+your eyes glaze over
+your eyes glitter
+your eyes glow
+your eyes go wide
+your eyes harden
+your eyes lock
+your eyes soften
+your eyes squeeze shut
+your face blanch
+your face drain of color
+your face fall
+your face go ashen
+your face heat
+your face whiten
+your feet move of their own accord
+your feet root to the floor
+your fingers curl into your palms
+your fingers fumble
+your fingers go numb
+your fingers lace together
+your fingers tighten around
+your fingers twitch
+your flesh crawl
+your gaze bore into
+your gaze linger on
+your gaze sharpen
+your gaze snag on
+your gaze soften
+your grin spread
+your grip loosen
+your grip tighten
+your gut clench
+your gut knot
+your gut twist
+your hackles rise
+your hand falter
+your hand fly to your throat
+your hands curl into fists
+your hands fly to your mouth
+your hands shake
+your hands tremble
+your head hang
+your head snap up
+your head whip around
+your heart ache
+your heart clench
+your heart climb into your throat
+your heart falter
+your heart flip
+your heart give a leap
+your heart hammer in your chest
+your heart jump
+your heart lodge in your throat
+your heart lurch
+your heart pound
+your heart race
+your heart seize
+your heart shatter
+your heart sink
+your heart slam against your ribs
+your heart squeeze
+your heart stop
+your heart stutter
+your heart swell
+your heart thud
+your heart thump
+your heart thunder in your ears
+your heart twist
+your heart wrench
+your heartbeat thud
+your instincts scream
+your jaw drop
+your jaw work
+your knees buckle
+your knees turn to water
+your knuckles whiten
+your legs wobble
+your lip tremble
+your lips curl
+your lips part
+your lips thin
+your lips tremble
+your lips twitch
+your lungs burn
+your lungs seize
+your mouth fall open
+your mouth go dry
+your mouth snap shut
+your mouth twitch
+your mouth work soundlessly
+your muscles coil
+your muscles lock
+your nails bite into your skin
+your nails dig into your palms
+your neck flush
+your nose burn
+your nostrils flare
+your palms grow damp
+your posture stiffen
+your pulse beat at your temples
+your pulse flutter
+your pulse jump
+your pulse leap
+your pulse quicken
+your pulse race
+your pulse slow
+your pulse spike
+your pulse throb in your throat
+your pulse thunder
+your pupils dilate
+your senses sharpen
+your shoulders creep toward your ears
+your shoulders sag
+your shoulders shake
+your shoulders slump
+your shoulders stiffen
+your shoulders tense
+your skin flush
+your skin go cold
+your skin heat
+your skin prickle
+your skin tingle
+your smile fade
+your smile falter
+your smile freeze
+your smile slip
+your spine stiffen
+your step falter
+your stomach churn
+your stomach clench
+your stomach coil
+your stomach drop
+your stomach flip
+your stomach flutter
+your stomach heave
+your stomach knot
+your stomach lurch
+your stomach pitch
+your stomach plunge
+your stomach roil
+your stomach roll
+your stomach seize
+your stomach sink
+your stomach sour
+your stomach tighten
+your stomach turn
+your stomach twist
+your teeth chatter
+your thoughts scatter
+your throat bob
+your throat close up
+your throat constrict
+your throat go dry
+your throat tighten
+your tongue dart over your lips
+your vision blur
+your vision swim
+your voice catch
+your voice climb
+your voice come out a croak
+your voice crack
+your voice drop
+your voice falter
+your voice go flat
+your voice go hoarse
+your voice harden
+your voice lower
+your voice quiver
+your voice rise
+your voice soften
+your voice steady
+your voice thicken
+your voice tremble
+your voice waver
+your words tumble out
