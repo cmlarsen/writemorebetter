@@ -3,6 +3,7 @@ use std::ops::Range;
 
 use serde::{Deserialize, Serialize};
 
+use super::preset_checks::{space, Meridiem};
 use super::sentence_starts::penn_to_universal;
 use super::Split;
 use crate::document::leading_elision;
@@ -471,28 +472,13 @@ fn clock_times(document: &Document, positions: &Positions, check: &mut Consisten
             }
             end += 3;
         }
-        if at(end).is_some_and(|ch| matches!(ch, ' ' | '\u{a0}' | '\u{202f}')) {
+        if at(end).is_some_and(space) {
             end += 1;
-        }
-        if !at(end).is_some_and(|ch| matches!(ch, 'a' | 'A' | 'p' | 'P')) {
-            continue;
-        }
-        end += 1;
-        let dotted = at(end) == Some('.');
-        if dotted {
-            end += 1;
-        }
-        if !at(end).is_some_and(|ch| matches!(ch, 'm' | 'M')) {
-            continue;
-        }
-        end += 1;
-        if at(end).is_some_and(char::is_alphanumeric) {
-            continue;
         }
         // `a.m.` keeps its final period; after `am` a period ends the sentence.
-        if dotted && at(end) == Some('.') {
-            end += 1;
-        }
+        let Some(end) = Meridiem::parse(at, end).map(|meridiem| meridiem.word_end()) else {
+            continue;
+        };
         let mode = document.mode_at(positions.at[start].0);
         let form = usize::from(!minutes);
         record(&mut check.variants[form], positions.span(start..end), mode);

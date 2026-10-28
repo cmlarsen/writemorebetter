@@ -355,7 +355,8 @@ fn numbers_leave_o_clock_to_the_clock_check() {
 fn doubled_time_words() {
     let text = "At 5 p.m. in the evening, and 6 a.m. this morning. “At 10 PM tonight,” she said. \
                 At 2 a.m. in the afternoon. At 9 a.m. This morning I left. At 5 pm, in the evening \
-                light. At 11 p.m. at night.\u{2028}At eight a.m. in the morning…";
+                light. At 11 p.m. at night.\u{2028}At eight a.m. in the morning… \
+                At 6 p.m. tonight—or later.";
     let found = run(text, &clock(OClock::Words));
     assert_eq!(
         texts(text, &found),
@@ -365,7 +366,8 @@ fn doubled_time_words() {
             "PM tonight",
             "p.m. at night",
             "eight a.m.",
-            "a.m. in the morning"
+            "a.m. in the morning",
+            "p.m. tonight"
         ]
     );
     assert_eq!(

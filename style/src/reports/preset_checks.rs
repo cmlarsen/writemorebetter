@@ -1108,11 +1108,11 @@ fn possessive_matches(
 // Time abbreviations
 
 /// *a.m.* or *p.m.* in any form (`AM`, `pm`, `a.m`, `P.M.`) starting at a char, ending at a word
-/// boundary.
+/// boundary. The consistency report reads clock times with the same parser.
 #[derive(Clone, Copy)]
-struct Meridiem {
-    start: usize,
-    end: usize,
+pub(super) struct Meridiem {
+    pub(super) start: usize,
+    pub(super) end: usize,
     /// `a` or `p`, as written.
     letter: char,
     first_dot: bool,
@@ -1121,23 +1121,26 @@ struct Meridiem {
 
 impl Meridiem {
     fn at(text: &Text, start: usize) -> Option<Self> {
-        let letter = text
-            .char(start)
-            .filter(|ch| matches!(ch, 'a' | 'A' | 'p' | 'P'))?;
+        Self::parse(|index| text.char(index), start)
+    }
+
+    /// Reads a meridiem from char `start`, with `char_at` giving the char at an index.
+    pub(super) fn parse(char_at: impl Fn(usize) -> Option<char>, start: usize) -> Option<Self> {
+        let letter = char_at(start).filter(|ch| matches!(ch, 'a' | 'A' | 'p' | 'P'))?;
         let mut end = start + 1;
-        let first_dot = text.char(end) == Some('.');
+        let first_dot = char_at(end) == Some('.');
         if first_dot {
             end += 1;
         }
-        if !text.char(end).is_some_and(|ch| matches!(ch, 'm' | 'M')) {
+        if !char_at(end).is_some_and(|ch| matches!(ch, 'm' | 'M')) {
             return None;
         }
         end += 1;
-        let second_dot = text.char(end) == Some('.');
+        let second_dot = char_at(end) == Some('.');
         if second_dot {
             end += 1;
         }
-        if text.char(end).is_some_and(char::is_alphanumeric) {
+        if char_at(end).is_some_and(char::is_alphanumeric) {
             return None;
         }
         Some(Self {
@@ -1154,7 +1157,7 @@ impl Meridiem {
     }
 
     /// The end without an undotted form's final period, which ends the sentence (`ten am.`).
-    fn word_end(&self) -> usize {
+    pub(super) fn word_end(&self) -> usize {
         if self.second_dot && !self.first_dot {
             self.end - 1
         } else {
@@ -1177,7 +1180,7 @@ impl Meridiem {
 }
 
 /// A space that can sit inside a time (`5 a.m.`, `5\u{a0}PM`); a line break cannot.
-fn space(ch: char) -> bool {
+pub(super) fn space(ch: char) -> bool {
     matches!(ch, ' ' | '\u{a0}' | '\u{202f}')
 }
 
@@ -1502,7 +1505,17 @@ fn doubled(text: &Text, meridiem: &Meridiem, out: &mut Vec<Found>) {
     if !text.char(meridiem.end).is_some_and(space) {
         return;
     }
-    let after = text.words_after(meridiem.end, 3);
+    // A dash or ellipsis closed up to a word ends the phrase (`tonight—or later`).
+    let mut after = text.words_after(meridiem.end, 3);
+    if let Some(cut) = after.iter().position(|word| {
+        (word.start..word.end).any(|index| matches!(text.char(index), Some('—' | '–' | '…')))
+    }) {
+        after.truncate(cut + 1);
+        let word = &mut after[cut];
+        word.end = (word.start..word.end)
+            .find(|&index| matches!(text.char(index), Some('—' | '–' | '…')))
+            .unwrap_or(word.end);
+    }
     let keys: Vec<String> = after
         .iter()
         .map(|word| key(text.slice(word.start, word.end)))
