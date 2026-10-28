@@ -1,7 +1,7 @@
 {
   "format": 1,
   "name": "uk",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "extends": "chicago-fiction",
   "description": "British book conventions for fiction over the Chicago fiction preset: British spelling, spaced en dashes, no serial comma, and quoted words and phrases that keep their period or comma outside the quotation marks.",
   "grammar": {

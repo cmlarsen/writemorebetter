@@ -2,7 +2,7 @@ use nlprule::{Rules, Tokenizer};
 use std::sync::{Arc, OnceLock};
 use writemorebetter_style::preset::{StylePreset, DEFAULT_PRESET, PRESET_FORMAT};
 use writemorebetter_style::reports::preset_checks::{
-    Possessives, PresetCheck, QuotePunctuation, TimeAbbreviations,
+    ClockTimeCheck, OClock, Possessives, PresetCheck, QuotePunctuation, TimeAbbreviations,
 };
 use writemorebetter_style::reports::{to_utf16_json, StyleResources};
 use writemorebetter_style::{DocumentOptions, Mode, StyleDocument, StyleError};
@@ -55,7 +55,7 @@ fn builtin_presets_load_by_name() {
         let preset = StylePreset::builtin(name).unwrap();
         assert_eq!(preset.name, name);
         assert_eq!(preset.format, PRESET_FORMAT);
-        assert_eq!(preset.version.as_deref(), Some("1.1.0"));
+        assert_eq!(preset.version.as_deref(), Some("1.2.0"));
         assert!(preset.description.is_some());
         assert_eq!(StylePreset::load(name).unwrap().to_json(), preset.to_json());
     }
@@ -92,6 +92,10 @@ fn chicago_fiction_settings() {
         preset.checks.time_abbreviations,
         Some(TimeAbbreviations::Dotted)
     );
+    assert_eq!(
+        preset.checks.clock_times,
+        Some(ClockTimeCheck::new().with_o_clock(OClock::Words))
+    );
     assert!(preset.checks.family_titles);
 }
 
@@ -106,6 +110,10 @@ fn ap_and_uk_extend_chicago_fiction() {
     assert!(numbers.ages_as_numerals && !numbers.match_larger);
     assert_eq!(ap.checks.possessives, Some(Possessives::ApostropheOnly));
     assert_eq!(ap.consistency.preferred.dashes.as_deref(), Some("emSpaced"));
+    assert_eq!(
+        ap.checks.clock_times,
+        Some(ClockTimeCheck::new().with_o_clock(OClock::Numerals))
+    );
     // Inherited unchanged.
     assert_eq!(ap.checks.quote_punctuation, Some(QuotePunctuation::Inside));
     assert_eq!(
@@ -120,6 +128,10 @@ fn ap_and_uk_extend_chicago_fiction() {
     assert_eq!(uk.consistency.preferred.dashes.as_deref(), Some("enSpaced"));
     assert_eq!(rule_names(&uk), ["Preset.Meridiem", "Preset.OK"]);
     assert_eq!(uk.checks.numbers.as_ref().unwrap().spell_out_through, 100);
+    assert_eq!(
+        uk.checks.clock_times,
+        Some(ClockTimeCheck::new().with_o_clock(OClock::Words))
+    );
 }
 
 #[test]
@@ -385,7 +397,7 @@ fn one_call_runs_every_report_a_preset_drives() {
     let style = document(text);
     let chicago = style.preset(None).unwrap();
     assert_eq!(chicago.preset, "chicago-fiction");
-    assert_eq!(chicago.version.as_deref(), Some("1.1.0"));
+    assert_eq!(chicago.version.as_deref(), Some("1.2.0"));
     let checks: Vec<(PresetCheck, &str)> = chicago
         .checks
         .matches
@@ -395,7 +407,7 @@ fn one_call_runs_every_report_a_preset_drives() {
     assert_eq!(
         checks,
         [
-            (PresetCheck::Numbers, "7"),
+            (PresetCheck::ClockTimes, "7"),
             (PresetCheck::Possessives, "’"),
             (PresetCheck::QuotePunctuation, "’."),
             (PresetCheck::TimeAbbreviations, "AM."),
@@ -437,11 +449,12 @@ fn one_call_runs_every_report_a_preset_drives() {
         .matches
         .iter()
         .all(|found| found.check != PresetCheck::Possessives));
+    // AP sets the hour before *o'clock* as a numeral.
     assert!(ap
         .checks
         .matches
         .iter()
-        .any(|found| found.check == PresetCheck::Numbers));
+        .all(|found| &text[found.span.byte.clone()] != "7"));
 
     let json: serde_json::Value = serde_json::from_str(&to_utf16_json(&chicago)).unwrap();
     assert_eq!(
