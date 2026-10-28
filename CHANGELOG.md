@@ -22,7 +22,7 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 - **Clock times in the style presets.** A `clockTimes` preset check flags a spelled-out time with
   *a.m.* or *p.m.* (*eight a.m.*), the hour before *o’clock* (`6 o’clock` in `chicago-fiction` and
   `uk`, `six o’clock` in `ap`), *o’clock* with *a.m.*, and a phrase that repeats the abbreviation
-  (*p.m. in the evening*). The consistency report gains `clockTimes`, which counts `6:00 a.m.`
+  (*p.m. in the evening*, but not *p.m. tonight*, which also names the day). The consistency report gains `clockTimes`, which counts `6:00 a.m.`
   against `6 a.m.` and accepts `clockTimes` in `preferred`. The built-in presets are now `1.2.0`.
   The Swift `PresetCheck` and `ConsistencyReport` types and the WASM typings include the new
   fields.

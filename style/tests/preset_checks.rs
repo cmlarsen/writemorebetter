@@ -337,9 +337,9 @@ fn o_clock_hours() {
 
 #[test]
 fn doubled_time_words_after_a_closed_up_numeral() {
-    let text = "Call at 6pm tonight, or 7AM in the morning…";
+    let text = "Call at 6pm at night, or 7AM in the morning…";
     let found = run(text, &clock(OClock::Words));
-    assert_eq!(texts(text, &found), ["pm tonight", "AM in the morning"]);
+    assert_eq!(texts(text, &found), ["pm at night", "AM in the morning"]);
 }
 
 #[test]
@@ -353,28 +353,27 @@ fn numbers_leave_o_clock_to_the_clock_check() {
 
 #[test]
 fn doubled_time_words() {
-    let text = "At 5 p.m. in the evening, and 6 a.m. this morning. “At 10 PM tonight,” she said. \
+    let text = "At 5 p.m. in the evening, and 6 a.m. this morning. “At 10 PM at night,” she said. \
                 At 2 a.m. in the afternoon. At 9 a.m. This morning I left. At 5 pm, in the evening \
                 light. At 11 p.m. at night.\u{2028}At eight a.m. in the morning… \
-                At 6 p.m. tonight—or later.";
+                At 6 p.m. tonight—or later. At 7 p.m. this evening. At 8 p.m. in the evening—or later.";
     let found = run(text, &clock(OClock::Words));
     assert_eq!(
         texts(text, &found),
         [
             "p.m. in the evening",
-            "a.m. this morning",
-            "PM tonight",
+            "PM at night",
             "p.m. at night",
             "eight a.m.",
             "a.m. in the morning",
-            "p.m. tonight"
+            "p.m. in the evening"
         ]
     );
     assert_eq!(
         found[0].message,
         "“p.m.” and “in the evening” say the same thing; keep one."
     );
-    assert_eq!(found[2].mode, Mode::Dialogue);
+    assert_eq!(found[1].mode, Mode::Dialogue);
 }
 
 #[test]

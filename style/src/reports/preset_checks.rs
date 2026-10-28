@@ -1305,13 +1305,9 @@ const MINUTES: &[&str] = &[
 /// Phrases that repeat what *a.m.* or *p.m.* already says, by whether they mean the morning.
 const DOUBLED: &[(bool, &[&str])] = &[
     (true, &["in", "the", "morning"]),
-    (true, &["this", "morning"]),
     (false, &["in", "the", "afternoon"]),
     (false, &["in", "the", "evening"]),
     (false, &["at", "night"]),
-    (false, &["this", "afternoon"]),
-    (false, &["this", "evening"]),
-    (false, &["tonight"]),
 ];
 
 fn parts(word: &str) -> impl Iterator<Item = &str> {
@@ -1505,7 +1501,7 @@ fn doubled(text: &Text, meridiem: &Meridiem, out: &mut Vec<Found>) {
     if !text.char(meridiem.end).is_some_and(space) {
         return;
     }
-    // A dash or ellipsis closed up to a word ends the phrase (`tonight—or later`).
+    // A dash or ellipsis closed up to a word ends the phrase (`at night—or later`).
     let mut after = text.words_after(meridiem.end, 3);
     if let Some(cut) = after.iter().position(|word| {
         (word.start..word.end).any(|index| matches!(text.char(index), Some('—' | '–' | '…')))
