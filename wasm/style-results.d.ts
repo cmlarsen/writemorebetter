@@ -451,7 +451,7 @@ export interface ConsistencyReport {
   apostrophes: ConsistencyCheck;
   ellipses: ConsistencyCheck;
   dashes: ConsistencyCheck;
-  /** Times on the hour with a.m. or p.m.: `withMinutes` (`6:00 a.m.`) and `hourOnly` (`6 a.m.`). */
+  /** Times on the hour with a.m. or p.m., `withMinutes` or `hourOnly`. */
   clockTimes: ConsistencyCheck;
   dashCharacters: Array<ConsistencyCount>;
   capitalization: Array<ConsistencyWord>;
