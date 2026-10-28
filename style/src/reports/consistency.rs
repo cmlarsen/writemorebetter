@@ -3,6 +3,7 @@ use std::ops::Range;
 
 use serde::{Deserialize, Serialize};
 
+use super::preset_checks::{space, Meridiem};
 use super::sentence_starts::penn_to_universal;
 use super::Split;
 use crate::document::leading_elision;
@@ -43,17 +44,20 @@ pub struct ConsistencyPreferred {
     pub ellipses: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub dashes: Option<String>,
+    #[serde(alias = "clock_times", skip_serializing_if = "Option::is_none")]
+    pub clock_times: Option<String>,
 }
 
 impl ConsistencyPreferred {
     /// Each check's name, preference and allowed forms, in report order.
-    fn checks(&self) -> [(&'static str, Option<&str>, &'static [&'static str]); 5] {
+    fn checks(&self) -> [(&'static str, Option<&str>, &'static [&'static str]); 6] {
         [
             ("doubleQuotes", self.double_quotes.as_deref(), &QUOTE_FORMS),
             ("singleQuotes", self.single_quotes.as_deref(), &QUOTE_FORMS),
             ("apostrophes", self.apostrophes.as_deref(), &QUOTE_FORMS),
             ("ellipses", self.ellipses.as_deref(), &ELLIPSIS_FORMS),
             ("dashes", self.dashes.as_deref(), &DASH_FORMS),
+            ("clockTimes", self.clock_times.as_deref(), &CLOCK_FORMS),
         ]
     }
 
@@ -121,6 +125,8 @@ pub struct ConsistencyReport {
     pub apostrophes: ConsistencyCheck,
     pub ellipses: ConsistencyCheck,
     pub dashes: ConsistencyCheck,
+    /// Times on the hour with *a.m.* or *p.m.*: `6:00 a.m.` or `6 a.m.`
+    pub clock_times: ConsistencyCheck,
     pub dash_characters: Vec<ConsistencyCount>,
     pub capitalization: Vec<ConsistencyWord>,
     pub hyphenation: Vec<ConsistencyWord>,
@@ -135,6 +141,7 @@ const DASH_FORMS: [&str; 5] = [
     "doubleHyphen",
     "spacedHyphen",
 ];
+const CLOCK_FORMS: [&str; 2] = ["withMinutes", "hourOnly"];
 const DASH_CHARACTERS: [&str; 3] = ["hyphen", "enDash", "emDash"];
 
 // Closed words that read as two ordinary words when open (`every one`, `may be`, `any way`) are
@@ -427,6 +434,58 @@ fn punctuation(
     }
 }
 
+/// Times on the hour from 1 to 12 with *a.m.* or *p.m.* in any form: `6:00 a.m.` has minutes,
+/// `6 a.m.` the hour only. Other times (`6:30 a.m.`, `18:00`) have no on-the-hour choice.
+fn clock_times(document: &Document, positions: &Positions, check: &mut ConsistencyCheck) {
+    let chars = &positions.chars;
+    let at = |index: usize| chars.get(index).copied();
+    let mut index = 0;
+    while index < chars.len() {
+        let start = index;
+        if !chars[start].is_ascii_digit()
+            || start.checked_sub(1).is_some_and(|before| {
+                chars[before].is_alphanumeric() || matches!(chars[before], ':' | '.' | ',')
+            })
+        {
+            index += 1;
+            continue;
+        }
+        while at(index).is_some_and(|ch| ch.is_ascii_digit()) {
+            index += 1;
+        }
+        let hour: String = chars[start..index].iter().collect();
+        if !hour
+            .parse::<u8>()
+            .is_ok_and(|hour| (1..=12).contains(&hour))
+            || hour.starts_with('0')
+        {
+            continue;
+        }
+        let mut end = index;
+        let minutes = at(end) == Some(':');
+        if minutes {
+            if at(end + 1) != Some('0')
+                || at(end + 2) != Some('0')
+                || at(end + 3).is_some_and(|ch| ch.is_ascii_digit())
+            {
+                continue;
+            }
+            end += 3;
+        }
+        if at(end).is_some_and(space) {
+            end += 1;
+        }
+        // `a.m.` keeps its final period; after `am` a period ends the sentence.
+        let Some(end) = Meridiem::parse(at, end).map(|meridiem| meridiem.word_end()) else {
+            continue;
+        };
+        let mode = document.mode_at(positions.at[start].0);
+        let form = usize::from(!minutes);
+        record(&mut check.variants[form], positions.span(start..end), mode);
+        index = end;
+    }
+}
+
 struct Word {
     range: Range<usize>,
     text: String,
@@ -673,6 +732,11 @@ pub fn report(
             variants: variants(&DASH_FORMS),
             ..Default::default()
         },
+        clock_times: ConsistencyCheck {
+            mixed: false,
+            variants: variants(&CLOCK_FORMS),
+            ..Default::default()
+        },
         ..Default::default()
     };
     let mut dash_characters: [Split<usize>; 3] = Default::default();
@@ -685,6 +749,7 @@ pub fn report(
     for (paragraph_index, paragraph) in document.paragraphs.iter().enumerate() {
         let positions = &paragraph_positions[paragraph_index];
         punctuation(document, positions, &mut report, &mut dash_characters);
+        clock_times(document, positions, &mut report.clock_times);
         let titled = title(paragraph);
         let emphasized = emphasis(positions);
         for sentence in &paragraph.sentences {
@@ -870,6 +935,7 @@ pub fn report(
         &mut report.apostrophes,
         &mut report.ellipses,
         &mut report.dashes,
+        &mut report.clock_times,
     ] {
         check.mixed = mixed(&check.variants, options.minimum_minority);
     }
@@ -880,6 +946,7 @@ pub fn report(
         &mut report.apostrophes,
         &mut report.ellipses,
         &mut report.dashes,
+        &mut report.clock_times,
     ]
     .into_iter()
     .zip(preferred)

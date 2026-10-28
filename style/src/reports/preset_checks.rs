@@ -30,6 +30,10 @@ pub struct PresetChecks {
     /// The form of *a.m.* and *p.m.* after a time.
     #[serde(alias = "time_abbreviations", skip_serializing_if = "Option::is_none")]
     pub time_abbreviations: Option<TimeAbbreviations>,
+    /// Clock times: a spelled-out hour with *a.m.* or *p.m.*, the hour before *o'clock*, and
+    /// doubled time words (*a.m. in the morning*).
+    #[serde(alias = "clock_times", skip_serializing_if = "Option::is_none")]
+    pub clock_times: Option<ClockTimeCheck>,
     /// *Mom* and *Dad* capitalized as names and lowercase after *my*, *the* or a possessive.
     #[serde(alias = "family_titles")]
     pub family_titles: bool,
@@ -61,6 +65,11 @@ impl PresetChecks {
 
     pub fn with_time_abbreviations(mut self, style: Option<TimeAbbreviations>) -> Self {
         self.time_abbreviations = style;
+        self
+    }
+
+    pub fn with_clock_times(mut self, check: Option<ClockTimeCheck>) -> Self {
+        self.clock_times = check;
         self
     }
 
@@ -159,6 +168,39 @@ pub enum TimeAbbreviations {
     Undotted,
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields, rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct ClockTimeCheck {
+    /// How the hour before *o'clock* is written.
+    #[serde(alias = "o_clock")]
+    pub o_clock: OClock,
+}
+
+impl ClockTimeCheck {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn with_o_clock(mut self, o_clock: OClock) -> Self {
+        self.o_clock = o_clock;
+        self
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub enum OClock {
+    /// *six o'clock*: the hour is spelled out (book style).
+    #[default]
+    Words,
+    /// *6 o'clock*: the hour is a numeral (news style).
+    Numerals,
+    /// Either form.
+    Either,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
@@ -167,6 +209,7 @@ pub enum PresetCheck {
     QuotePunctuation,
     Possessives,
     TimeAbbreviations,
+    ClockTimes,
     FamilyTitles,
 }
 
@@ -200,7 +243,8 @@ pub fn report(
     for paragraph in &document.paragraphs {
         let text = Text::new(paragraph);
         if let Some(numbers) = &checks.numbers {
-            number_matches(&text, paragraph, numbers, &mut found);
+            let o_clock = checks.clock_times.is_some();
+            number_matches(&text, paragraph, numbers, o_clock, &mut found);
         }
         if let Some(style) = checks.quote_punctuation {
             quote_matches(document, &text, style, &mut found);
@@ -210,6 +254,9 @@ pub fn report(
         }
         if let Some(style) = checks.time_abbreviations {
             time_matches(&text, style, &mut found);
+        }
+        if let Some(check) = checks.clock_times {
+            clock_matches(&text, check, &mut found);
         }
         if checks.family_titles {
             family_matches(paragraph, &mut found);
@@ -734,7 +781,14 @@ fn address(text: &Text, end: usize) -> bool {
     false
 }
 
-fn number_matches(text: &Text, paragraph: &Paragraph, check: &NumberCheck, out: &mut Vec<Found>) {
+/// `o_clock` leaves a numeral before *o'clock* to the clock-time check.
+fn number_matches(
+    text: &Text,
+    paragraph: &Paragraph,
+    check: &NumberCheck,
+    o_clock: bool,
+    out: &mut Vec<Found>,
+) {
     let numerals = numerals(text, check);
     let limit = check.spell_out_through;
     // A sentence that needs a numeral for a larger number keeps its small ones as numerals too,
@@ -768,6 +822,9 @@ fn number_matches(text: &Text, paragraph: &Paragraph, check: &NumberCheck, out: 
             continue;
         }
         if large.contains(&sentence_of(numeral)) {
+            continue;
+        }
+        if o_clock && o_clock_after(text, numeral.chars.end) {
             continue;
         }
         let mut end = numeral.chars.end;
@@ -1050,6 +1107,83 @@ fn possessive_matches(
 // ---------------------------------------------------------------------------------------------
 // Time abbreviations
 
+/// *a.m.* or *p.m.* in any form (`AM`, `pm`, `a.m`, `P.M.`) starting at a char, ending at a word
+/// boundary. The consistency report reads clock times with the same parser.
+#[derive(Clone, Copy)]
+pub(super) struct Meridiem {
+    pub(super) start: usize,
+    pub(super) end: usize,
+    /// `a` or `p`, as written.
+    letter: char,
+    first_dot: bool,
+    second_dot: bool,
+}
+
+impl Meridiem {
+    fn at(text: &Text, start: usize) -> Option<Self> {
+        Self::parse(|index| text.char(index), start)
+    }
+
+    /// Reads a meridiem from char `start`, with `char_at` giving the char at an index.
+    pub(super) fn parse(char_at: impl Fn(usize) -> Option<char>, start: usize) -> Option<Self> {
+        let letter = char_at(start).filter(|ch| matches!(ch, 'a' | 'A' | 'p' | 'P'))?;
+        let mut end = start + 1;
+        let first_dot = char_at(end) == Some('.');
+        if first_dot {
+            end += 1;
+        }
+        if !char_at(end).is_some_and(|ch| matches!(ch, 'm' | 'M')) {
+            return None;
+        }
+        end += 1;
+        let second_dot = char_at(end) == Some('.');
+        if second_dot {
+            end += 1;
+        }
+        if char_at(end).is_some_and(char::is_alphanumeric) {
+            return None;
+        }
+        Some(Self {
+            start,
+            end,
+            letter,
+            first_dot,
+            second_dot,
+        })
+    }
+
+    fn morning(&self) -> bool {
+        self.letter.eq_ignore_ascii_case(&'a')
+    }
+
+    /// The end without an undotted form's final period, which ends the sentence (`ten am.`).
+    pub(super) fn word_end(&self) -> usize {
+        if self.second_dot && !self.first_dot {
+            self.end - 1
+        } else {
+            self.end
+        }
+    }
+
+    /// An undotted *am* is the verb or a radio band when a word follows (`which one am I`, `one
+    /// AM station`), so after a word only an *am* before punctuation or the paragraph end is a time.
+    fn after_word(&self, text: &Text) -> bool {
+        if self.first_dot || self.second_dot || !self.morning() {
+            return true;
+        }
+        let mut index = self.end;
+        while text.char(index).is_some_and(space) {
+            index += 1;
+        }
+        !text.char(index).is_some_and(char::is_alphanumeric)
+    }
+}
+
+/// A space that can sit inside a time (`5 a.m.`, `5\u{a0}PM`); a line break cannot.
+pub(super) fn space(ch: char) -> bool {
+    matches!(ch, ' ' | '\u{a0}' | '\u{202f}')
+}
+
 fn time_matches(text: &Text, style: TimeAbbreviations, out: &mut Vec<Found>) {
     let mut index = 0;
     while index < text.chars.len() {
@@ -1066,41 +1200,24 @@ fn time_matches(text: &Text, style: TimeAbbreviations, out: &mut Vec<Found>) {
             index += 1;
         }
         let mut start = index;
-        if text
-            .char(start)
-            .is_some_and(|ch| matches!(ch, ' ' | '\u{a0}' | '\u{202f}'))
-        {
+        if text.char(start).is_some_and(space) {
             start += 1;
         }
-        // a, optional period, m, optional period, then the end of the word.
-        let Some(meridiem) = text
-            .char(start)
-            .filter(|ch| matches!(ch, 'a' | 'A' | 'p' | 'P'))
-        else {
+        let Some(meridiem) = Meridiem::at(text, start) else {
             continue;
         };
-        let mut end = start + 1;
-        let first_dot = text.char(end) == Some('.');
-        if first_dot {
-            end += 1;
-        }
-        if !text.char(end).is_some_and(|ch| matches!(ch, 'm' | 'M')) {
-            continue;
-        }
-        end += 1;
-        let second_dot = text.char(end) == Some('.');
-        if second_dot {
-            end += 1;
-        }
-        if text.char(end).is_some_and(char::is_alphanumeric) {
-            continue;
-        }
+        let Meridiem {
+            end,
+            first_dot,
+            second_dot,
+            ..
+        } = meridiem;
         let surface = text.slice(start, end);
         // `A.M.` and `P.M.` are a substitution pair in the dotted presets' house-style rules.
         if style == TimeAbbreviations::Dotted && (surface == "A.M." || surface == "P.M.") {
             continue;
         }
-        let lower = meridiem.to_ascii_lowercase();
+        let lower = meridiem.letter.to_ascii_lowercase();
         let (wanted, span_end) = match style {
             TimeAbbreviations::Dotted => (format!("{lower}.m."), end),
             TimeAbbreviations::Undotted => {
@@ -1145,6 +1262,342 @@ fn ends_sentence(text: &Text, mut index: usize) -> bool {
                 .is_none_or(|ch| ch.is_uppercase() || matches!(ch, '“' | '"' | '‘' | '\''))
         }
         Some(_) => false,
+    }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Clock times
+
+const HOURS: [&str; 12] = [
+    "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven",
+    "twelve",
+];
+
+/// Words that spell the minutes after an hour (`thirty`, `forty-five`, `oh five`).
+const MINUTES: &[&str] = &[
+    "oh",
+    "o",
+    "one",
+    "two",
+    "three",
+    "four",
+    "five",
+    "six",
+    "seven",
+    "eight",
+    "nine",
+    "ten",
+    "eleven",
+    "twelve",
+    "thirteen",
+    "fourteen",
+    "fifteen",
+    "sixteen",
+    "seventeen",
+    "eighteen",
+    "nineteen",
+    "twenty",
+    "thirty",
+    "forty",
+    "fifty",
+];
+
+/// Phrases that repeat what *a.m.* or *p.m.* already says, by whether they mean the morning.
+const DOUBLED: &[(bool, &[&str])] = &[
+    (true, &["in", "the", "morning"]),
+    (true, &["this", "morning"]),
+    (false, &["in", "the", "afternoon"]),
+    (false, &["in", "the", "evening"]),
+    (false, &["at", "night"]),
+    (false, &["this", "afternoon"]),
+    (false, &["this", "evening"]),
+    (false, &["tonight"]),
+];
+
+fn parts(word: &str) -> impl Iterator<Item = &str> {
+    word.split(['-', '‐'])
+}
+
+/// An hour spelled out, alone or hyphenated to its minutes (`eight`, `eight-thirty`).
+fn hour_word(word: &str) -> bool {
+    let mut parts = parts(word);
+    parts.next().is_some_and(|hour| HOURS.contains(&hour))
+        && parts.all(|part| MINUTES.contains(&part))
+}
+
+fn minute_word(word: &str) -> bool {
+    parts(word).all(|part| MINUTES.contains(&part))
+}
+
+/// The word ending at char `end` made of letters and hyphens, as a char range.
+fn letters_before(text: &Text, end: usize) -> Option<Range<usize>> {
+    let mut start = end;
+    while start > 0 {
+        let ch = text.chars[start - 1].1;
+        if !(ch.is_alphabetic() || (start < end && matches!(ch, '-' | '‐'))) {
+            break;
+        }
+        start -= 1;
+    }
+    while start < end && !text.chars[start].1.is_alphabetic() {
+        start += 1;
+    }
+    (start < end).then_some(start..end)
+}
+
+/// The start of a time spelled out in words ending just before char `index` across spaces
+/// (`eight`, `six thirty`, `ten forty-five`, `nine oh five`).
+fn spelled_time(text: &Text, index: usize) -> Option<usize> {
+    // Up to three number words, nearest first.
+    let mut words: Vec<(usize, String)> = Vec::new();
+    let mut at = index;
+    while words.len() < 3 {
+        let mut end = at;
+        while end > 0 && space(text.chars[end - 1].1) {
+            end -= 1;
+        }
+        if end == at {
+            break;
+        }
+        let Some(word) = letters_before(text, end) else {
+            break;
+        };
+        let surface = text.slice(word.start, word.end).to_lowercase();
+        if !hour_word(&surface) && !minute_word(&surface) {
+            break;
+        }
+        words.push((word.start, surface));
+        at = word.start;
+    }
+    // The hour is the farthest word that has only minutes after it: `six thirty`, not `thirty`.
+    (0..words.len())
+        .rev()
+        .find(|&hour| {
+            hour_word(&words[hour].1) && words[..hour].iter().all(|(_, w)| minute_word(w))
+        })
+        .map(|hour| words[hour].0)
+}
+
+/// Whether *o'clock* is the next word after char `end`.
+fn o_clock_after(text: &Text, end: usize) -> bool {
+    let mut start = end;
+    while text.char(start).is_some_and(space) {
+        start += 1;
+    }
+    start > end && o_clock_at(text, start)
+}
+
+/// Whether *o'clock* (any apostrophe or case) is the word starting at char `start`.
+fn o_clock_at(text: &Text, start: usize) -> bool {
+    // Most words starting with `o` (`of`, `on`, `or`) fail here without allocating.
+    if !matches!(text.char(start), Some('o' | 'O'))
+        || !text.char(start + 1).is_some_and(is_apostrophe)
+    {
+        return false;
+    }
+    let word: String = (start..start + 7)
+        .filter_map(|index| text.char(index))
+        .collect();
+    key(&word) == "o'clock" && !text.char(start + 7).is_some_and(char::is_alphanumeric)
+}
+
+fn clock_matches(text: &Text, check: ClockTimeCheck, out: &mut Vec<Found>) {
+    let mut index = 0;
+    while index < text.chars.len() {
+        let start = index;
+        index += 1;
+        // A meridiem may follow its numeral directly (`6pm`); anything else starts a word.
+        let after_digit = text.before(start).is_some_and(|ch| ch.is_ascii_digit())
+            && matches!(text.char(start), Some('a' | 'A' | 'p' | 'P'));
+        if text.before(start).is_some_and(char::is_alphanumeric) && !after_digit {
+            continue;
+        }
+        if text.char(start).is_some_and(|ch| ch.is_ascii_digit()) {
+            o_clock_numeral(text, start, check.o_clock, out);
+            continue;
+        }
+        if matches!(text.char(start), Some('o' | 'O')) {
+            if o_clock_at(text, start) {
+                o_clock_word(text, start, check.o_clock, out);
+            }
+            continue;
+        }
+        let Some(meridiem) = Meridiem::at(text, start) else {
+            continue;
+        };
+        let Some(time) = time_before(text, &meridiem) else {
+            continue;
+        };
+        if !meridiem.after_word(text) && time != Time::Numeral {
+            continue;
+        }
+        let surface = text.slice(meridiem.start, meridiem.word_end());
+        match time {
+            Time::Spelled(hour) => {
+                let twelve = text.slice(hour, meridiem.start).trim_end_matches(space);
+                let instead = match (twelve.eq_ignore_ascii_case("twelve"), meridiem.morning()) {
+                    (true, true) => "write “midnight”",
+                    (true, false) => "write “noon”",
+                    (false, true) => "spell the time out with “in the morning”",
+                    (false, false) => {
+                        "spell the time out with “in the afternoon” or “in the evening”"
+                    }
+                };
+                out.push((
+                    PresetCheck::ClockTimes,
+                    format!("Use numerals with “{surface}”, or {instead} instead."),
+                    text.span(hour, meridiem.word_end()),
+                    None,
+                ));
+            }
+            Time::OClock(o_clock) => out.push((
+                PresetCheck::ClockTimes,
+                format!(
+                    "Use “{}” or “{surface}”, not both.",
+                    text.slice(o_clock, o_clock + 7)
+                ),
+                text.span(o_clock, meridiem.word_end()),
+                None,
+            )),
+            Time::Numeral => {}
+        }
+        doubled(text, &meridiem, out);
+        index = meridiem.end;
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Time {
+    /// `8 a.m.`, `8:30 a.m.`
+    Numeral,
+    /// `eight a.m.`, from the char where the hour starts.
+    Spelled(usize),
+    /// `six o'clock a.m.`, from the char where *o'clock* starts.
+    OClock(usize),
+}
+
+/// What reads as a time before *a.m.* or *p.m.*, if anything does.
+fn time_before(text: &Text, meridiem: &Meridiem) -> Option<Time> {
+    let mut end = meridiem.start;
+    while end > 0 && space(text.chars[end - 1].1) {
+        end -= 1;
+    }
+    if end > 0 && text.chars[end - 1].1.is_ascii_digit() {
+        return (end == meridiem.start || end + 1 == meridiem.start).then_some(Time::Numeral);
+    }
+    if end == meridiem.start {
+        return None;
+    }
+    if let Some(word) = text.word_before(meridiem.start) {
+        if key(text.slice(word.start, word.end)) == "o'clock" {
+            return Some(Time::OClock(word.start));
+        }
+    }
+    spelled_time(text, meridiem.start).map(Time::Spelled)
+}
+
+/// `5 p.m. in the evening`: a phrase after *a.m.* or *p.m.* that says the same thing.
+fn doubled(text: &Text, meridiem: &Meridiem, out: &mut Vec<Found>) {
+    // `at 9 a.m. This morning, …` starts a new sentence.
+    if meridiem.second_dot && ends_sentence(text, meridiem.end) {
+        return;
+    }
+    if !text.char(meridiem.end).is_some_and(space) {
+        return;
+    }
+    // A dash or ellipsis closed up to a word ends the phrase (`tonight—or later`).
+    let mut after = text.words_after(meridiem.end, 3);
+    if let Some(cut) = after.iter().position(|word| {
+        (word.start..word.end).any(|index| matches!(text.char(index), Some('—' | '–' | '…')))
+    }) {
+        after.truncate(cut + 1);
+        let word = &mut after[cut];
+        word.end = (word.start..word.end)
+            .find(|&index| matches!(text.char(index), Some('—' | '–' | '…')))
+            .unwrap_or(word.end);
+    }
+    let keys: Vec<String> = after
+        .iter()
+        .map(|word| key(text.slice(word.start, word.end)))
+        .collect();
+    for (morning, phrase) in DOUBLED {
+        if *morning != meridiem.morning()
+            || keys.len() < phrase.len()
+            || !keys
+                .iter()
+                .zip(phrase.iter())
+                .all(|(word, want)| word == want)
+        {
+            continue;
+        }
+        let mut end = after[phrase.len() - 1].end;
+        while text.before(end) == Some('.') {
+            end -= 1;
+        }
+        out.push((
+            PresetCheck::ClockTimes,
+            format!(
+                "“{}” and “{}” say the same thing; keep one.",
+                text.slice(meridiem.start, meridiem.end),
+                text.slice(after[0].start, end)
+            ),
+            text.span(meridiem.start, end),
+            None,
+        ));
+        return;
+    }
+}
+
+/// `6 o'clock` in the `words` style: the numeral at char `start`.
+fn o_clock_numeral(text: &Text, start: usize, style: OClock, out: &mut Vec<Found>) {
+    if style != OClock::Words
+        || text
+            .before(start)
+            .is_some_and(|ch| matches!(ch, ':' | '.' | ','))
+    {
+        return;
+    }
+    let mut end = start;
+    while text.char(end).is_some_and(|ch| ch.is_ascii_digit()) {
+        end += 1;
+    }
+    // Only an hour from 1 to 12 reads as a clock time (`0 o'clock`, `99 o'clock` do not).
+    let hour = text.slice(start, end);
+    if hour.starts_with('0')
+        || !hour
+            .parse::<u8>()
+            .is_ok_and(|hour| (1..=12).contains(&hour))
+        || !o_clock_after(text, end)
+    {
+        return;
+    }
+    out.push((
+        PresetCheck::ClockTimes,
+        "Spell out the hour before “o’clock”.".to_string(),
+        text.span(start, end),
+        None,
+    ));
+}
+
+/// `six o'clock` in the `numerals` style: *o'clock* from char `start`.
+fn o_clock_word(text: &Text, start: usize, style: OClock, out: &mut Vec<Found>) {
+    if style != OClock::Numerals || !text.before(start).is_some_and(space) {
+        return;
+    }
+    let mut end = start;
+    while end > 0 && space(text.chars[end - 1].1) {
+        end -= 1;
+    }
+    let Some(word) = letters_before(text, end) else {
+        return;
+    };
+    if HOURS.contains(&text.slice(word.start, word.end).to_lowercase().as_str()) {
+        out.push((
+            PresetCheck::ClockTimes,
+            "Use a numeral for the hour before “o’clock”.".to_string(),
+            text.span(word.start, word.end),
+            None,
+        ));
     }
 }
 

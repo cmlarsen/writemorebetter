@@ -2,7 +2,7 @@
 
 Issue #298 (part of #296) adds an opt-in **consistency** lens over an existing `StyleDocument`. It
 counts and locates mixed usage inside one document: quotes, apostrophes, ellipses, dashes,
-capitalization and hyphenation. It diagnoses only. The author picks the house style; the report
+on-the-hour clock times, capitalization and hyphenation. It diagnoses only. The author picks the house style; the report
 never says which form is right and never generates replacement text. It needs no data files.
 
 | Surface | Call |
@@ -19,13 +19,13 @@ snake_case aliases and reject unknown keys:
 | Option | Default | Meaning |
 |---|---|---|
 | `minimumMinority` | 1 | A check or word is `mixed` only when its second most common form occurs at least this often. Must be at least 1. Raise it to hide a single stray form. |
-| `preferred` | none | A house form per punctuation check, as a [style preset](STYLE-PRESETS.md) sets it: `{"doubleQuotes", "singleQuotes", "apostrophes": "curly" \| "straight", "ellipses": "character" \| "periods" \| "spacedPeriods", "dashes": "emClosed" \| "emSpaced" \| "enSpaced" \| "doubleHyphen" \| "spacedHyphen"}`. An unknown check or form is an `invalidOptions` error. |
+| `preferred` | none | A house form per punctuation check, as a [style preset](STYLE-PRESETS.md) sets it: `{"doubleQuotes", "singleQuotes", "apostrophes": "curly" \| "straight", "ellipses": "character" \| "periods" \| "spacedPeriods", "dashes": "emClosed" \| "emSpaced" \| "enSpaced" \| "doubleHyphen" \| "spacedHyphen", "clockTimes": "withMinutes" \| "hourOnly"}`. An unknown check or form is an `invalidOptions` error. |
 
 ## Result
 
 ```text
 ConsistencyReport {
-  doubleQuotes, singleQuotes, apostrophes, ellipses, dashes: ConsistencyCheck
+  doubleQuotes, singleQuotes, apostrophes, ellipses, dashes, clockTimes: ConsistencyCheck
   dashCharacters: [ConsistencyCount]          // hyphen, enDash, emDash
   capitalization, hyphenation: [ConsistencyWord]  // mixed words only
 }
@@ -101,6 +101,22 @@ space, the epigraph attribution form (`whale.” —_Hamlet_`). Closed en dashes
 
 `dashCharacters` reports raw character counts for `hyphen` (`-` and U+2010), `enDash` and
 `emDash`, including hyphens inside words. These have no `mixed` flag and no spans.
+
+### Clock times
+
+`clockTimes` counts times on the hour, 1 through 12, followed by *a.m.* or *p.m.* in any form
+(`a.m.`, `AM`, `pm`, with a space, a no-break space, a narrow no-break space or nothing between):
+
+| Form | Matches |
+|---|---|
+| `withMinutes` | `6:00 a.m.`, `12:00 pm` |
+| `hourOnly` | `6 a.m.`, `7 PM`, `9am` |
+
+Both are correct; a document that uses both is `mixed`. Times with other minutes (`6:30 a.m.`),
+24-hour times (`18:00`), hours above 12 and numbers after a decimal point or another digit are not
+counted. The span covers the time and its abbreviation. Whether *a.m.* is dotted is the
+`timeAbbreviations` [preset check](STYLE-PRESETS.md#timeabbreviations); a spelled-out hour with
+*a.m.* is the `clockTimes` [preset check](STYLE-PRESETS.md#clocktimes).
 
 ### Capitalization
 

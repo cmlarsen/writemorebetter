@@ -187,6 +187,28 @@ fn dash_forms_and_characters() {
 }
 
 #[test]
+fn clock_times_on_the_hour() {
+    let text = "“Be here at 6:00 a.m.” Nobody is up at 6 a.m.—or 7\u{a0}PM… At 6:30 a.m., 18:00, \
+                12:00 pm and 13 a.m.\u{2028}At 9am. At 10 AM. Item 5 amps, 3 am I.\n";
+    let report = run(text);
+    assert!(report.clock_times.mixed);
+    assert_eq!(
+        counts(&report.clock_times),
+        [("withMinutes", 2), ("hourOnly", 5)]
+    );
+    assert_eq!(
+        texts(text, &report.clock_times, "withMinutes"),
+        ["6:00 a.m.", "12:00 pm"]
+    );
+    assert_eq!(
+        texts(text, &report.clock_times, "hourOnly"),
+        ["6 a.m.", "7\u{a0}PM", "9am", "10 AM", "3 am"]
+    );
+    assert_eq!(report.clock_times.variants[0].counts.dialogue, 1);
+    assert!(!run("At 6 a.m. and 7 p.m.\n").clock_times.mixed);
+}
+
+#[test]
 fn dash_beside_line_separator_is_not_spaced() {
     let text = "He paused—\u{2028}then left. She ran—fast.\n";
     let report = run(text);
@@ -430,7 +452,8 @@ fn public_counts() {
 #[test]
 fn preferred_forms_count_every_other_form() {
     let text =
-        "“Wait—” she said. \"Fine\" he left — then… then... ‘no’ and don't.\u{2028}It’s late.";
+        "“Wait—” she said. \"Fine\" he left — then… then... ‘no’ and don't.\u{2028}It’s late. \
+                At 6:00 a.m. and 7 a.m.";
     let style = StyleDocument::new(
         tokenizer().clone(),
         Arc::new(StyleResources::new()),
@@ -439,7 +462,7 @@ fn preferred_forms_count_every_other_form() {
     );
     let report = style
         .consistency(Some(
-            r#"{"preferred": {"doubleQuotes": "curly", "apostrophes": "curly", "ellipses": "character", "dashes": "emClosed"}}"#,
+            r#"{"preferred": {"doubleQuotes": "curly", "apostrophes": "curly", "ellipses": "character", "dashes": "emClosed", "clockTimes": "hourOnly"}}"#,
         ))
         .unwrap();
     assert_eq!(report.double_quotes.preferred.as_deref(), Some("curly"));
@@ -447,6 +470,7 @@ fn preferred_forms_count_every_other_form() {
     assert_eq!(report.apostrophes.non_preferred, 1);
     assert_eq!(report.ellipses.non_preferred, 1);
     assert_eq!(report.dashes.non_preferred, 1);
+    assert_eq!(report.clock_times.non_preferred, 1);
     // Without a preference, nothing is counted against the document.
     assert_eq!(report.single_quotes.preferred, None);
     assert_eq!(report.single_quotes.non_preferred, 0);
@@ -472,6 +496,7 @@ fn preferred_forms_are_validated() {
         r#"{"preferred": {"dashes": "emDash"}}"#,
         r#"{"preferred": {"quotes": "curly"}}"#,
         r#"{"preferred": {"ellipses": "curly"}}"#,
+        r#"{"preferred": {"clockTimes": "minutes"}}"#,
     ] {
         let error = style.consistency(Some(bad)).unwrap_err();
         assert!(

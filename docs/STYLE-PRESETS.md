@@ -7,7 +7,7 @@ Issue #305 (part of #296) adds **style presets**: one named, versioned JSON file
 2. the [consistency](STYLE-CONSISTENCY.md) report's preferred forms;
 3. [house-style](STYLE-HOUSE-STYLE.md) rules in Vale's format, as a rule map or an embedded bundle;
 4. the built-in **preset checks**, house rules that the regex schema can't express cleanly
-   (numbers, quote punctuation, possessives, *a.m.*/*p.m.* and *Mom*/*Dad*);
+   (numbers, quote punctuation, possessives, *a.m.*/*p.m.*, clock times and *Mom*/*Dad*);
 5. the [title-case](STYLE-TITLE-CASE.md) style for headings such as chapter titles (#307).
 
 Three presets are built in: **`chicago-fiction`** (the default), **`ap`** and **`uk`**. A user preset
@@ -71,6 +71,7 @@ the last parsed preset is cached, so a repeated call doesn't reparse or recompil
     "quotePunctuation": "inside",
     "possessives": "apostropheS",
     "timeAbbreviations": "dotted",
+    "clockTimes": {"oClock": "words"},
     "familyTitles": true
   },
   "titleCase": "chicago"
@@ -81,7 +82,7 @@ the last parsed preset is cached, so a repeated call doesn't reparse or recompil
 |---|---|
 | `format` | Required. The file format; this engine reads `1` and rejects anything else |
 | `name` | Required, non-empty. Never inherited: a file that `extends` a built-in names itself |
-| `version` | The preset's own version, any string. The built-ins started at `1.0.0` and change it whenever their settings change; `titleCase` (#307) made them `1.1.0`. Not inherited |
+| `version` | The preset's own version, any string. The built-ins started at `1.0.0` and change it whenever their settings change; `titleCase` (#307) made them `1.1.0` and `clockTimes` `1.2.0`. Not inherited |
 | `description` | Free text. Not inherited |
 | `extends` | A built-in preset to start from (see below) |
 | `grammar.profile` | `"default"` or `"fiction"`, applied first |
@@ -140,6 +141,7 @@ inherited, with no `extends`. Parsing that output gives the same preset, so it i
 | Quote punctuation | inside | inherited | outside for quoted words and phrases |
 | Possessives | *James’s* | *James’* | inherited |
 | *a.m.* / *p.m.* | dotted | inherited | inherited |
+| Clock times | *six o’clock*; numerals with *a.m.* | *6 o’clock* | inherited |
 | *Mom* / *Dad* | on | inherited | inherited |
 | Headings (`titleCase`) | Chicago-style headline case | AP-style headline case (*With*, *From* capitalized) | sentence case |
 
@@ -230,6 +232,33 @@ of the paragraph, or a space and then a capital or opening quote): `at 5 p.m. Th
 Then`. Mid-sentence the span takes both periods, so `at 9 a.m. on Friday` → `at 9 am on Friday`. The
 uppercase dotted forms `A.M.` and `P.M.` are left to the `Preset.Meridiem` house rule in dotted mode,
 which flags them anywhere.
+
+### `clockTimes`
+
+Times of day, as book and news styles set them. `{"clockTimes": {}}` turns the check on with the
+defaults. It flags:
+
+- **A spelled-out time with *a.m.* or *p.m.***: *eight a.m.*, *six thirty p.m.*, *ten forty-five
+  PM*, *eight-thirty a.m.* The hour is *one* through *twelve*, optionally followed by minutes in
+  words (*thirty*, *forty-five*, *oh five*). The message asks for numerals with the abbreviation or
+  the time in words without it (*in the morning*, *in the afternoon* or *in the evening*;
+  *noon* and *midnight* for *twelve*). An undotted *am* or *AM* after a word counts only before
+  punctuation or the end of the paragraph, so *which one am I* and *one AM station* are not times.
+- **The hour before *o’clock***, by `oClock`: `words` (the default, book style) flags `6 o’clock`;
+  `numerals` (news style) flags `six o’clock`; `either` accepts both. When the check is on, the
+  `numbers` check leaves a numeral before *o’clock* to it. `7:00 o’clock` is left to the grammar
+  checker's `CD_00_O_CLOCK`.
+- ***o’clock* with *a.m.* or *p.m.***: `six o’clock a.m.` (the span covers both).
+- **A phrase that repeats the abbreviation**: *a.m. in the morning*, *a.m. this morning*, *p.m. in
+  the afternoon*, *p.m. in the evening*, *p.m. this afternoon*, *p.m. this evening*, *p.m. at
+  night*, *p.m. tonight*. A comma between them (*5 pm, in the evening light*) or a sentence break
+  (*at 9 a.m. This morning*) is not a repeat.
+
+A time and its abbreviation may be separated by a space, a no-break space or a narrow no-break
+space, never a line break. The check offers no replacement. `chicago-fiction` and `uk` set `words`,
+`ap` sets `numerals`. Whether a document writes on-the-hour times as `6:00 a.m.` or `6 a.m.` is the
+[consistency](STYLE-CONSISTENCY.md#clock-times) report's `clockTimes` check, since both forms are
+correct.
 
 ### `familyTitles`
 

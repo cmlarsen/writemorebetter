@@ -572,6 +572,7 @@ public struct ConsistencyReport: Codable, Equatable, Sendable {
     public let apostrophes: ConsistencyCheck
     public let ellipses: ConsistencyCheck
     public let dashes: ConsistencyCheck
+    public let clockTimes: ConsistencyCheck
     public let dashCharacters: [ConsistencyCount]
     public let capitalization: [ConsistencyWord]
     public let hyphenation: [ConsistencyWord]
@@ -882,7 +883,7 @@ public extension StyleDocument {
 }
 
 public enum PresetCheck: String, Codable, Sendable {
-    case numbers, quotePunctuation, possessives, timeAbbreviations, familyTitles
+    case numbers, quotePunctuation, possessives, timeAbbreviations, clockTimes, familyTitles
 }
 
 public struct PresetCheckMatch: Codable, Equatable, Sendable {

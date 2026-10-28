@@ -451,6 +451,8 @@ export interface ConsistencyReport {
   apostrophes: ConsistencyCheck;
   ellipses: ConsistencyCheck;
   dashes: ConsistencyCheck;
+  /** Times on the hour with a.m. or p.m., `withMinutes` or `hourOnly`. */
+  clockTimes: ConsistencyCheck;
   dashCharacters: Array<ConsistencyCount>;
   capitalization: Array<ConsistencyWord>;
   hyphenation: Array<ConsistencyWord>;
@@ -695,6 +697,7 @@ export interface EmotionTellsReport {
 export type QuotePunctuation = "inside" | "outside";
 export type Possessives = "apostropheS" | "apostropheOnly";
 export type TimeAbbreviations = "dotted" | "undotted";
+export type OClock = "words" | "numerals" | "either";
 // Inputs are type aliases rather than interfaces: style-records-test.mjs checks every interface
 // against a result record.
 export type NumberCheck = {
@@ -702,16 +705,20 @@ export type NumberCheck = {
   agesAsNumerals?: boolean;
   matchLarger?: boolean;
 };
+export type ClockTimeCheck = {
+  oClock?: OClock;
+};
 /** Options for `presetChecks`, and a preset's `checks`. Every check is off by default. */
 export type PresetChecks = {
   numbers?: NumberCheck | null;
   quotePunctuation?: QuotePunctuation | null;
   possessives?: Possessives | null;
   timeAbbreviations?: TimeAbbreviations | null;
+  clockTimes?: ClockTimeCheck | null;
   familyTitles?: boolean;
 };
 
-export type PresetCheck = "numbers" | "quotePunctuation" | "possessives" | "timeAbbreviations" | "familyTitles";
+export type PresetCheck = "numbers" | "quotePunctuation" | "possessives" | "timeAbbreviations" | "clockTimes" | "familyTitles";
 export interface PresetCheckMatch {
   check: PresetCheck;
   message: string;
@@ -731,6 +738,7 @@ export type ConsistencyPreferred = {
   apostrophes?: "curly" | "straight";
   ellipses?: "character" | "periods" | "spacedPeriods";
   dashes?: "emClosed" | "emSpaced" | "enSpaced" | "doubleHyphen" | "spacedHyphen";
+  clockTimes?: "withMinutes" | "hourOnly";
 };
 
 /** A resolved style preset, as `loadStylePreset` and `parseStylePreset` return it. */

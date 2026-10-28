@@ -19,6 +19,14 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   it is off unless `includeStockBeats` is set, and `ClicheCounts` gains `stockBeats`. Both lists
   are AI-generated drafts selected by the maintainer; see `docs/STYLE-CLICHES.md`.
 
+- **Clock times in the style presets.** A `clockTimes` preset check flags a spelled-out time with
+  *a.m.* or *p.m.* (*eight a.m.*), the hour before *o’clock* (`6 o’clock` in `chicago-fiction` and
+  `uk`, `six o’clock` in `ap`), *o’clock* with *a.m.*, and a phrase that repeats the abbreviation
+  (*p.m. in the evening*). The consistency report gains `clockTimes`, which counts `6:00 a.m.`
+  against `6 a.m.` and accepts `clockTimes` in `preferred`. The built-in presets are now `1.2.0`.
+  The Swift `PresetCheck` and `ConsistencyReport` types and the WASM typings include the new
+  fields.
+
 ### Changed
 
 - The drafting report offers edits only for dictated text. A new `dictated` option (default `false`) marks text the host knows came from speech-to-text; without it every match is flag only and spoken commands aren't detected. `spokenCommands` now follows `dictated`, and `spokenCommands: true` without `dictated` is `invalidOptions`. A dictated quote (or paren, bracket) pair is edited together or not at all, and any opening or closing command outside a pair is flag only, even when the author typed the other mark. A command whose edit can't absorb a mark typed beside it is flag only, along with its pair, its dialogue tag mark and its cluster; the edit builder is the one place that decides. A paragraph or line break after typed terminal punctuation or a closing quote keeps the typed mark (*He left. New paragraph The next day* gives *He left.* and a new paragraph). Inserted double quotes follow the document's double quotes and single quotes its single quotes, each falling back to its apostrophes, so curly dialogue keeps curly inserted quotes; an inserted apostrophe follows the document's apostrophes, then its single quotes. In dictated text a title-cased command phrase (*New Line Cinema*) or a break before a name at a sentence start is prose, a pause after a determiner and adjective is their noun unless a determiner or adjective follows it (a restart), and a line break at the paragraph end, a spaced typed mark beside a command, and an apostrophe command beside a possessive the engine typed are flag only.

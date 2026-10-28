@@ -1,8 +1,8 @@
 use nlprule::Tokenizer;
 use std::sync::{Arc, OnceLock};
 use writemorebetter_style::reports::preset_checks::{
-    self, NumberCheck, Possessives, PresetCheck, PresetCheckMatch, PresetChecks, QuotePunctuation,
-    TimeAbbreviations,
+    self, ClockTimeCheck, NumberCheck, OClock, Possessives, PresetCheck, PresetCheckMatch,
+    PresetChecks, QuotePunctuation, TimeAbbreviations,
 };
 use writemorebetter_style::reports::{to_utf16_json, StyleResources};
 use writemorebetter_style::{analyze_document, DocumentOptions, Mode, StyleDocument, StyleError};
@@ -49,6 +49,10 @@ fn possessives(style: Possessives) -> PresetChecks {
 
 fn times(style: TimeAbbreviations) -> PresetChecks {
     PresetChecks::new().with_time_abbreviations(Some(style))
+}
+
+fn clock(o_clock: OClock) -> PresetChecks {
+    PresetChecks::new().with_clock_times(Some(ClockTimeCheck::new().with_o_clock(o_clock)))
 }
 
 fn family() -> PresetChecks {
@@ -276,6 +280,104 @@ fn undotted_times_keep_only_a_sentence_ending_period() {
 }
 
 #[test]
+fn spelled_out_hours_with_a_meridiem() {
+    let text =
+        "“Be here at 6:00 a.m.” She meant eight a.m.—not six thirty p.m.… At ten forty-five \
+                PM, then eight-thirty a.m.\u{2028}It was Ten am. Meet at twelve pm or twelve a.m.";
+    let found = run(text, &clock(OClock::Words));
+    assert_eq!(
+        texts(text, &found),
+        [
+            "eight a.m.",
+            "six thirty p.m.",
+            "ten forty-five PM",
+            "eight-thirty a.m.",
+            "Ten am",
+            "twelve pm",
+            "twelve a.m."
+        ]
+    );
+    assert!(found.iter().all(|m| m.check == PresetCheck::ClockTimes));
+    assert!(found.iter().all(|m| m.replacement.is_none()));
+    assert_eq!(
+        found[0].message,
+        "Use numerals with “a.m.”, or spell the time out with “in the morning” instead."
+    );
+    assert!(found[1].message.contains("“in the evening”"));
+    assert!(found[5].message.contains("“noon”"));
+    assert!(found[6].message.contains("“midnight”"));
+    assert_eq!(found[0].mode, Mode::Narration);
+}
+
+#[test]
+fn spelled_out_hours_skip_verbs_and_other_words() {
+    // `am` before a word is the verb or a radio band; a number word that is not an hour, or a
+    // line break before the abbreviation, is not a time.
+    let text =
+        "Which one am I? One AM station played. Twenty a.m. Five hundred a.m. Eight\u{2028}a.m.";
+    assert!(run(text, &clock(OClock::Words)).is_empty());
+}
+
+#[test]
+fn o_clock_hours() {
+    let text =
+        "We left at 6 o'clock, or 7 o’clock—or eleven o’clock. At 7:00 o'clock. At 6 o’clock a.m.";
+    let words = run(text, &clock(OClock::Words));
+    assert_eq!(texts(text, &words), ["6", "7", "6", "o’clock a.m."]);
+    assert_eq!(words[0].message, "Spell out the hour before “o’clock”.");
+    assert_eq!(words[3].message, "Use “o’clock” or “a.m.”, not both.");
+    let numerals = run(text, &clock(OClock::Numerals));
+    assert_eq!(texts(text, &numerals), ["eleven", "o’clock a.m."]);
+    let either = run(text, &clock(OClock::Either));
+    assert_eq!(texts(text, &either), ["o’clock a.m."]);
+    // Not hours: no clock-time match.
+    let text = "At 0 o'clock, 13 o’clock or 99 o'clock.";
+    assert!(run(text, &clock(OClock::Words)).is_empty());
+}
+
+#[test]
+fn doubled_time_words_after_a_closed_up_numeral() {
+    let text = "Call at 6pm tonight, or 7AM in the morning…";
+    let found = run(text, &clock(OClock::Words));
+    assert_eq!(texts(text, &found), ["pm tonight", "AM in the morning"]);
+}
+
+#[test]
+fn numbers_leave_o_clock_to_the_clock_check() {
+    let text = "We left at 6 o'clock with 3 bags.";
+    assert_eq!(texts(text, &run(text, &numbers(100))), ["6", "3"]);
+    let both =
+        numbers(100).with_clock_times(Some(ClockTimeCheck::new().with_o_clock(OClock::Either)));
+    assert_eq!(texts(text, &run(text, &both)), ["3"]);
+}
+
+#[test]
+fn doubled_time_words() {
+    let text = "At 5 p.m. in the evening, and 6 a.m. this morning. “At 10 PM tonight,” she said. \
+                At 2 a.m. in the afternoon. At 9 a.m. This morning I left. At 5 pm, in the evening \
+                light. At 11 p.m. at night.\u{2028}At eight a.m. in the morning… \
+                At 6 p.m. tonight—or later.";
+    let found = run(text, &clock(OClock::Words));
+    assert_eq!(
+        texts(text, &found),
+        [
+            "p.m. in the evening",
+            "a.m. this morning",
+            "PM tonight",
+            "p.m. at night",
+            "eight a.m.",
+            "a.m. in the morning",
+            "p.m. tonight"
+        ]
+    );
+    assert_eq!(
+        found[0].message,
+        "“p.m.” and “in the evening” say the same thing; keep one."
+    );
+    assert_eq!(found[2].mode, Mode::Dialogue);
+}
+
+#[test]
 fn family_titles_as_names_and_after_possessives() {
     let text = "My Mom called. I asked Mom, and Dad laughed. Thanks, mom. Her dad left. \
                 I told dad. Jake’s Mom waved. Mom and dad came. My mom and dad came. \
@@ -359,7 +461,7 @@ fn options_are_strict_camel_case() {
     );
     let report = style
         .preset_checks(Some(
-            r#"{"numbers": {"spellOutThrough": 9}, "time_abbreviations": "dotted"}"#,
+            r#"{"numbers": {"spellOutThrough": 9}, "time_abbreviations": "dotted", "clockTimes": {}}"#,
         ))
         .unwrap();
     assert_eq!(report.matches.len(), 2);
@@ -368,6 +470,8 @@ fn options_are_strict_camel_case() {
         r#"{"quotes": "inside"}"#,
         r#"{"quotePunctuation": "sideways"}"#,
         r#"{"numbers": {"spellOutThrough": 5000}}"#,
+        r#"{"clockTimes": {"oClock": "roman"}}"#,
+        r#"{"clockTimes": true}"#,
     ] {
         let error = style.preset_checks(Some(bad)).unwrap_err();
         assert!(
