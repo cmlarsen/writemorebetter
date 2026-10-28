@@ -1386,6 +1386,12 @@ fn o_clock_after(text: &Text, end: usize) -> bool {
 
 /// Whether *o'clock* (any apostrophe or case) is the word starting at char `start`.
 fn o_clock_at(text: &Text, start: usize) -> bool {
+    // Most words starting with `o` (`of`, `on`, `or`) fail here without allocating.
+    if !matches!(text.char(start), Some('o' | 'O'))
+        || !text.char(start + 1).is_some_and(is_apostrophe)
+    {
+        return false;
+    }
     let word: String = (start..start + 7)
         .filter_map(|index| text.char(index))
         .collect();
@@ -1397,7 +1403,10 @@ fn clock_matches(text: &Text, check: ClockTimeCheck, out: &mut Vec<Found>) {
     while index < text.chars.len() {
         let start = index;
         index += 1;
-        if text.before(start).is_some_and(char::is_alphanumeric) {
+        // A meridiem may follow its numeral directly (`6pm`); anything else starts a word.
+        let after_digit = text.before(start).is_some_and(|ch| ch.is_ascii_digit())
+            && matches!(text.char(start), Some('a' | 'A' | 'p' | 'P'));
+        if text.before(start).is_some_and(char::is_alphanumeric) && !after_digit {
             continue;
         }
         if text.char(start).is_some_and(|ch| ch.is_ascii_digit()) {
@@ -1539,7 +1548,14 @@ fn o_clock_numeral(text: &Text, start: usize, style: OClock, out: &mut Vec<Found
     while text.char(end).is_some_and(|ch| ch.is_ascii_digit()) {
         end += 1;
     }
-    if end - start > 2 || !o_clock_after(text, end) {
+    // Only an hour from 1 to 12 reads as a clock time (`0 o'clock`, `99 o'clock` do not).
+    let hour = text.slice(start, end);
+    if hour.starts_with('0')
+        || !hour
+            .parse::<u8>()
+            .is_ok_and(|hour| (1..=12).contains(&hour))
+        || !o_clock_after(text, end)
+    {
         return;
     }
     out.push((

@@ -330,6 +330,16 @@ fn o_clock_hours() {
     assert_eq!(texts(text, &numerals), ["eleven", "o’clock a.m."]);
     let either = run(text, &clock(OClock::Either));
     assert_eq!(texts(text, &either), ["o’clock a.m."]);
+    // Not hours: no clock-time match.
+    let text = "At 0 o'clock, 13 o’clock or 99 o'clock.";
+    assert!(run(text, &clock(OClock::Words)).is_empty());
+}
+
+#[test]
+fn doubled_time_words_after_a_closed_up_numeral() {
+    let text = "Call at 6pm tonight, or 7AM in the morning…";
+    let found = run(text, &clock(OClock::Words));
+    assert_eq!(texts(text, &found), ["pm tonight", "AM in the morning"]);
 }
 
 #[test]

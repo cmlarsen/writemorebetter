@@ -218,7 +218,7 @@ measurements: single paragraphs that meet two thresholds are mostly in-scene noi
 | regional spelling (opt-in) | `regional_spelling::report(&Document, &RegionalSpellingOptions)` | `minimumMarkers`, `system` | none (table bundled) | no |
 | name spelling (opt-in) | `name_spelling::report(&Document, &NameSpellingOptions)` | `includeDictionaryWords`, `phonetic` | none | no (readings improve candidate gate) |
 | emotion tells | `emotion_tells::report(&Document, &EmotionTellsOptions)` | `includeDialogue` | none (lexicon bundled) | yes |
-| preset checks | `preset_checks::report(&Document, &PresetChecks)`; a whole preset: `StylePreset::report(&Document)` | `numbers`, `quotePunctuation`, `possessives`, `timeAbbreviations`, `familyTitles` | none | no |
+| preset checks | `preset_checks::report(&Document, &PresetChecks)`; a whole preset: `StylePreset::report(&Document)` | `numbers`, `quotePunctuation`, `possessives`, `timeAbbreviations`, `clockTimes`, `familyTitles` | none | no |
 | vague words | `vague_words::report(&Document, &VagueWordsOptions)` | `fillers` | none (lists bundled) | yes |
 | hidden verbs | `hidden_verbs::report(&Document, &HiddenVerbsOptions)` | `ofPhrases` | none (table bundled) | yes |
 | drafting (v1, #376) | `drafting::report(&Document, &DraftingOptions)` | `placeholders`, `dictated` (edits only when true), `spokenCommands` (follows `dictated`), `filledPauses`, `er`, `includeDialogue`; `restarts` and `selfCorrections` are future options (v1.1 and later) | none (lists bundled) | yes |
