@@ -249,9 +249,9 @@ defaults. It flags:
   `numbers` check leaves a numeral before *o’clock* to it. `7:00 o’clock` is left to the grammar
   checker's `CD_00_O_CLOCK`.
 - ***o’clock* with *a.m.* or *p.m.***: `six o’clock a.m.` (the span covers both).
-- **A phrase that repeats the abbreviation**: *a.m. in the morning*, *a.m. this morning*, *p.m. in
-  the afternoon*, *p.m. in the evening*, *p.m. this afternoon*, *p.m. this evening*, *p.m. at
-  night*, *p.m. tonight*. A comma between them (*5 pm, in the evening light*) or a sentence break
+- **A phrase that repeats the abbreviation**: *a.m. in the morning*, *p.m. in the afternoon*,
+  *p.m. in the evening*, *p.m. at night*. *Tonight*, *this morning*, *this afternoon* and *this
+  evening* also name the day, so *6 p.m. tonight* is not a repeat. A comma between them (*5 pm, in the evening light*) or a sentence break
   (*at 9 a.m. This morning*) is not a repeat.
 
 A time and its abbreviation may be separated by a space, a no-break space or a narrow no-break
