@@ -28,7 +28,7 @@ permissions:
 jobs:
   validate:
     name: Validate version and tag
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       version: ${{ steps.check.outputs.version }}
       dry_run: ${{ steps.check.outputs.dry_run }}
@@ -86,7 +86,7 @@ jobs:
   build-data:
     name: Build data
     needs: validate
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
@@ -210,7 +210,7 @@ jobs:
     # leaves nothing to roll back and a dry run is only needed to rehearse workflow changes.
     needs: [validate, build-data, build-xcframework, consumer-check]
     if: needs.validate.outputs.dry_run != 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
         with:
