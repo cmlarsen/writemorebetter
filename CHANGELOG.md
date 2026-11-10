@@ -6,6 +6,21 @@ inherited 0.6.4 track this project's own release line. Each version is a top-lev
 `# <version>` heading; the Release workflow copies that section verbatim into the GitHub
 release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
+# 0.15.1 (2026-11-10)
+
+### Added
+
+- Releases now publish `writemorebetter-web-<version>.zip`, the browser build of the `wasm`
+  crate (`wasm-bindgen --target web` output, `writemorebetter_wasm.js` and
+  `writemorebetter_wasm_bg.wasm`, shrunk with `wasm-opt -Oz`) for pages and Web Workers, with
+  `NOTICE` and the third-party license texts. It loads the data zip's binaries at runtime, and
+  `SHA256SUMS` covers it.
+
+### Fixed
+
+- CI and the Release workflow install the wasm-bindgen CLI at the version `Cargo.lock`
+  resolves for the `wasm-bindgen` crate, instead of a pinned 0.2.129 that no longer matched.
+
 # 0.15.0 (2026-10-28)
 
 ### Added
