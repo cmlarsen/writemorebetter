@@ -173,6 +173,99 @@ jobs:
           path: WriteMoreBetterFFI.xcframework.zip
           if-no-files-found: error
 
+  # The browser build: `wasm-bindgen --target web` output (writemorebetter_wasm.js and
+  # writemorebetter_wasm_bg.wasm) shrunk with `wasm-opt -Oz`, smoke-tested against this
+  # release's data, and zipped with NOTICE and licenses/: like the XCFramework, the .wasm
+  # compiles in the style crate's third-party tables, whose licenses require the notices.
+  build-web:
+    name: Build web
+    needs: [validate, build-data]
+    runs-on: ubuntu-24.04
+    env:
+      # Pinned so the .wasm can be reproduced later, like the toolchain.
+      BINARYEN_VERSION: '133'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          # Same pinned toolchain as the other builds: it is an input to the artifacts.
+          toolchain: 1.99.0
+          targets: wasm32-unknown-unknown
+
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Build the wasm crate
+        run: cargo build --release --target wasm32-unknown-unknown -p writemorebetter-wasm
+
+      # The wasm-bindgen CLI has to match the wasm-bindgen crate version exactly (the schema
+      # version is checked), and Cargo.lock is not committed, so read it from the lockfile the
+      # build just resolved instead of pinning a literal that drifts.
+      - name: Resolve the wasm-bindgen version
+        id: bindgen
+        run: echo "version=$(cargo pkgid wasm-bindgen | sed 's/.*@//')" >> "$GITHUB_OUTPUT"
+
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-bindgen-cli@${{ steps.bindgen.outputs.version }}
+
+      - name: Install binaryen
+        run: |
+          set -euo pipefail
+          curl -fsSL "https://github.com/WebAssembly/binaryen/releases/download/version_${BINARYEN_VERSION}/binaryen-version_${BINARYEN_VERSION}-x86_64-linux.tar.gz" \
+            | tar -xz -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/binaryen-version_${BINARYEN_VERSION}/bin" >> "$GITHUB_PATH"
+
+      - name: Generate the bindings and optimize
+        run: |
+          set -euo pipefail
+          wasm-bindgen --target web --out-dir web-raw \
+            target/wasm32-unknown-unknown/release/writemorebetter_wasm.wasm
+          mkdir -p web
+          cp web-raw/writemorebetter_wasm.js web/
+          # The features rustc's wasm32 target enables by default; wasm-opt must keep them.
+          wasm-opt -Oz \
+            --enable-bulk-memory --enable-nontrapping-float-to-int --enable-sign-ext \
+            --enable-mutable-globals --enable-reference-types --enable-multivalue \
+            web-raw/writemorebetter_wasm_bg.wasm -o web/writemorebetter_wasm_bg.wasm
+          ls -l web-raw/writemorebetter_wasm_bg.wasm web/writemorebetter_wasm_bg.wasm
+
+      - name: Download the data
+        uses: actions/download-artifact@v4
+        with:
+          name: writemorebetter-data-${{ needs.validate.outputs.version }}
+          path: data-artifacts
+
+      # Loads the build the way a browser consumer does and calls its API; the optimized
+      # build must answer exactly like the unoptimized one.
+      - name: Smoke-test the web build
+        run: |
+          set -euo pipefail
+          mkdir -p data-web
+          unzip -q data-artifacts/writemorebetter-data-*.zip -d data-web
+          node wasm/web-smoke.mjs web-raw data-web > smoke-raw.txt
+          node wasm/web-smoke.mjs web data-web > smoke-opt.txt
+          diff smoke-raw.txt smoke-opt.txt
+
+      - name: Package the web build
+        run: |
+          cp NOTICE web/NOTICE
+          mkdir -p web/licenses
+          cp style/data/licenses/* web/licenses/
+          cd web
+          zip -qrX "$GITHUB_WORKSPACE/writemorebetter-web-${{ needs.validate.outputs.version }}.zip" \
+            writemorebetter_wasm.js writemorebetter_wasm_bg.wasm NOTICE licenses
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: writemorebetter-web-${{ needs.validate.outputs.version }}
+          path: writemorebetter-web-*.zip
+          if-no-files-found: error
+
   consumer-check:
     name: Consumer check
     needs: [validate, build-data, build-xcframework]
@@ -208,7 +301,7 @@ jobs:
     name: Publish release
     # Every check runs before anything is committed, tagged or published, so a failed run
     # leaves nothing to roll back and a dry run is only needed to rehearse workflow changes.
-    needs: [validate, build-data, build-xcframework, consumer-check]
+    needs: [validate, build-data, build-xcframework, build-web, consumer-check]
     if: needs.validate.outputs.dry_run != 'true'
     runs-on: ubuntu-24.04
     steps:
@@ -229,6 +322,12 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: writemorebetter-xcframework-${{ needs.validate.outputs.version }}
+          path: release-assets
+
+      - name: Download the web build
+        uses: actions/download-artifact@v4
+        with:
+          name: writemorebetter-web-${{ needs.validate.outputs.version }}
           path: release-assets
 
       - name: Stage the binary target url and checksum, tag and publish
@@ -261,7 +360,7 @@ jobs:
             exit 1
           fi
 
-          # Checksums of the two published archives, next to the assets.
+          # Checksums of the published archives (data, XCFramework, web), next to the assets.
           ( cd release-assets && sha256sum *.zip ) > release-assets/SHA256SUMS
 
           git config user.name "writemorebetter release bot"
