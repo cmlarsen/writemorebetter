@@ -98,6 +98,9 @@
   "quoteli3_pp_test": {
     "filename": "quoteli3-pp_test.xml",
     "url": "https://nlp.stanford.edu/~muzny/data/pp_test.xml",
+    "mirrors": [
+      "https://raw.githubusercontent.com/muzny/academic_website/51d68b72b7dc5b4bd491af44eead306639bcdc22/data/pp_test.xml"
+    ],
     "version": "Last-Modified 2021-04-27T21:09:12Z",
     "license": "none found; owner decision 2026-10-16: local/CI benchmarking only, never committed or redistributed",
     "sha256": "55056da60b81fa35d0b42214451d106248d36d14aa8fd92547fdc49d192590bf",

@@ -9,6 +9,7 @@ import runpy
 import sys
 import tarfile
 import unittest
+import urllib.error
 from unittest.mock import patch
 
 import common
@@ -276,6 +277,40 @@ class BenchTests(unittest.TestCase):
             (cache / 'one').write_bytes(b'wrong')
             with patch.object(common, 'HERE', here), patch.object(common, 'CACHE', cache):
                 with self.assertRaises(ValueError):
+                    common.fetch('fixture')
+
+    def test_fetch_falls_back_to_a_mirror_and_still_checks_the_hash(self):
+        class Response(io.BytesIO):
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+        def urlopen(url, timeout):
+            if url == 'https://primary.invalid':
+                raise urllib.error.URLError('timed out')
+            return Response(served[url])
+
+        with tempfile.TemporaryDirectory() as directory:
+            here = Path(directory)
+            cache = here / 'cache'
+            entry = {'filename': 'one', 'url': 'https://primary.invalid',
+                     'mirrors': ['https://mirror.invalid'],
+                     'sha256': hashlib.sha256(b'correct').hexdigest()}
+            (here / 'sources.json').write_text(json.dumps({'fixture': entry}))
+            with patch.object(common, 'HERE', here), patch.object(common, 'CACHE', cache), \
+                    patch.object(common.urllib.request, 'urlopen', urlopen), \
+                    patch('sys.stderr', io.StringIO()):
+                served = {'https://mirror.invalid': b'wrong'}
+                with self.assertRaises(ValueError):
+                    common.fetch('fixture')
+                served = {'https://mirror.invalid': b'correct'}
+                self.assertEqual(common.fetch('fixture').read_bytes(), b'correct')
+                entry['mirrors'] = []
+                (here / 'sources.json').write_text(json.dumps({'fixture': entry}))
+                (cache / 'one').unlink()
+                with self.assertRaises(urllib.error.URLError):
                     common.fetch('fixture')
 
     def test_pins_splits_and_statistics(self):

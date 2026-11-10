@@ -3,6 +3,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 import urllib.request
 
 HERE = Path(__file__).resolve().parent
@@ -15,8 +16,19 @@ def fetch(key):
     CACHE.mkdir(exist_ok=True)
     path = CACHE / entry['filename']
     if not path.exists():
-        with urllib.request.urlopen(entry['url'], timeout=120) as response:
-            data = response.read()
+        # Mirrors are byte-identical copies of the same pinned file, tried in order when the
+        # primary URL is unreachable; every download is checked against the one sha256.
+        urls = [entry['url']] + entry.get('mirrors', [])
+        for index, url in enumerate(urls):
+            try:
+                with urllib.request.urlopen(url, timeout=120) as response:
+                    data = response.read()
+                break
+            except OSError as error:
+                if index == len(urls) - 1:
+                    raise
+                print('fetch %s: %s unreachable (%s); trying the next mirror' % (key, url, error),
+                      file=sys.stderr)
         if hashlib.sha256(data).hexdigest() != entry['sha256']:
             raise ValueError('download checksum mismatch: ' + key)
         path.write_bytes(data)
