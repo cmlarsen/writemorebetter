@@ -77,7 +77,10 @@ workload counts, not editorial judgments.
 source. Downloads are verified before parsing, including on cache hits, and stored in the git-ignored
 `.cache/`. Archives are read as data without extracting or executing their members. No downloaded text
 or annotations are committed. CI caches by the complete lockfile hash. Delete a damaged cache file to
-fetch it again; checksum mismatches fail rather than accepting changed inputs. GitHub codeload tarball
+fetch it again; checksum mismatches fail rather than accepting changed inputs. An entry may list
+`mirrors`: byte-identical copies tried in order when the primary URL is unreachable, held to the
+same SHA-256. QuoteLi3's `pp_test.xml` falls back to the author's own copy in
+`muzny/academic_website` at a pinned commit, because `nlp.stanford.edu` is not always reachable. GitHub codeload tarball
 bytes can change even at an unchanged commit (for example, recompression). If that occurs, migrate to
 per-file raw URLs at the same pinned commit with individually reviewed checksums; do not simply accept
 a new archive hash without checking its contents.
