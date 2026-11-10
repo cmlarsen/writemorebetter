@@ -69,9 +69,15 @@ jobs:
       - name: Test
         run: cargo test --workspace --exclude writemorebetter-python --all-features --release
 
+      # The CLI must match the resolved wasm-bindgen crate exactly (its schema version is
+      # checked), and Cargo.lock is not committed, so read the version the build resolved.
+      - name: Resolve the wasm-bindgen version
+        id: bindgen
+        run: echo "version=$(cargo pkgid wasm-bindgen | sed 's/.*@//')" >> "$GITHUB_OUTPUT"
+
       - uses: taiki-e/install-action@v2
         with:
-          tool: wasm-bindgen-cli@0.2.129
+          tool: wasm-bindgen-cli@${{ steps.bindgen.outputs.version }}
 
       - name: Build wasm package and run its JS tests
         run: |

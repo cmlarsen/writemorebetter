@@ -14,11 +14,15 @@ binary target URL.
 |---|---|
 | `writemorebetter-data-<version>.zip` | `scripts/build-data.sh` on ubuntu-latest — the two LGPL-2.1 data binaries (`en_tokenizer.bin`, `en_rules.bin`) with `SHA256SUMS`, `README.md` and `LICENSE-LGPL-2.1.txt` |
 | `WriteMoreBetterFFI.xcframework.zip` | `scripts/build-xcframework.sh` on macos-15 — the SwiftPM binary target |
-| `SHA256SUMS` | sha256 of both zip archives |
+| `writemorebetter-web-<version>.zip` | the `wasm` crate on ubuntu-24.04 — `wasm-bindgen --target web` output (`writemorebetter_wasm.js`, `writemorebetter_wasm_bg.wasm`) shrunk with `wasm-opt -Oz`, for browsers and Web Workers; it loads the data zip's binaries at runtime |
+| `SHA256SUMS` | sha256 of the three zip archives |
 
-Both jobs use the same pinned Rust toolchain (`1.99.0`), which is an input to the
-reproducible artifacts. The data binaries are **not** inside the XCFramework zip: the
-checker loads them from disk, so an app ships them as resources.
+All three builds use the same pinned Rust toolchain (`1.99.0`), which is an input to the
+reproducible artifacts. The data binaries are **not** inside the XCFramework or web zip: the
+checker loads them from disk (or, on the web, from bytes the page fetches), so an app ships
+them as resources. The web build's wasm-bindgen CLI version is read from the resolved
+`Cargo.lock`, because it has to match the `wasm-bindgen` crate exactly, and binaryen is pinned
+in the workflow.
 
 ## Before you start
 
@@ -44,12 +48,13 @@ gh workflow run release.yml --repo cmlarsen/writemorebetter --ref main \
 gh run watch --repo cmlarsen/writemorebetter --exit-status
 ```
 
-The `publish` job waits for every other job: the data build, the XCFramework build and the
-**Consumer check**, which resolves the package as a git dependency the way an app does and runs
+The `publish` job waits for every other job: the data build, the XCFramework build, the web
+build (which smoke-tests the optimized `.wasm` against the release's data and checks it answers
+exactly like the unoptimized one, see `wasm/web-smoke.mjs`) and the **Consumer check**, which resolves the package as a git dependency the way an app does and runs
 a tiny app that loads the data and calls `check`. If any of them fails, nothing is committed,
 tagged or published; fix the cause and dispatch again.
 
-A dry run (`-f dry_run=true`) builds everything and uploads the two zip archives as workflow
+A dry run (`-f dry_run=true`) builds everything and uploads the three zip archives as workflow
 artifacts without committing, tagging or publishing. It is only needed to rehearse a change to
 `release.yml` itself, and may be dispatched from a branch (`--ref <branch>`); a real release
 refuses to run from anything but `main`.
@@ -66,16 +71,16 @@ The `publish` job, only when `dry_run` is false:
 4. pushes that commit to `main` — if `main` moved while the artifacts were being built the
    push is rejected (non-fast-forward) and nothing is tagged or released,
 5. tags the commit `<version>` and pushes the tag,
-6. creates the GitHub release on the tag with both zips, `SHA256SUMS`, `NOTICE` and the
+6. creates the GitHub release on the tag with the three zips, `SHA256SUMS`, `NOTICE` and the
    changelog section as the notes.
 
-Both zips also carry `NOTICE` and the third-party license texts (`licenses/`, copied from
-`style/data/licenses/`, including `cmudict.txt`, `varcon.txt` and `WordNet-LICENSE`) at their
-root, next to the XCFramework or the data binaries. The CMUdict, VarCon and WordNet licenses
-require binary redistributions to reproduce their notices in materials provided with the
-distribution, and the XCFramework compiles in the style crate's CMUdict, regional-spelling,
-emotion, hidden-verbs and filler tables. SwiftPM ignores the extra files when it resolves the
-binary target.
+The XCFramework, data and web zips all carry `NOTICE` and the third-party license texts
+(`licenses/`, copied from `style/data/licenses/`, including `cmudict.txt`, `varcon.txt` and
+`WordNet-LICENSE`) at their root, next to the XCFramework, the data binaries or the web build's
+two files. The CMUdict, VarCon and WordNet licenses require binary redistributions to reproduce
+their notices in materials provided with the distribution, and the XCFramework and the web
+build compile in the style crate's CMUdict, regional-spelling, emotion, hidden-verbs and filler
+tables. SwiftPM ignores the extra files when it resolves the binary target.
 
 ## Python packages
 
