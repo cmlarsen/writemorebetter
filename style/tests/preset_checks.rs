@@ -71,10 +71,57 @@ fn numbers_through_one_hundred_are_spelled_out() {
     let found = run(text, &numbers(100));
     assert_eq!(texts(text, &found), ["7", "45", "100", "3rd", "0"]);
     assert!(found.iter().all(|m| m.check == PresetCheck::Numbers));
-    assert!(found.iter().all(|m| m.replacement.is_none()));
+    assert_eq!(
+        replacements(&found),
+        [
+            Some("seven"),
+            Some("forty-five"),
+            Some("One hundred"),
+            Some("third"),
+            Some("zero")
+        ]
+    );
     assert_eq!(
         found[0].message,
         "Spell out whole numbers from zero through 100 in prose."
+    );
+}
+
+#[test]
+fn spelled_out_numbers_follow_cmos_hyphenation() {
+    let text = "He counted 21, 99, 101, 250 and 999 crows—and the 42nd, 100th and 101st.";
+    let found = run(text, &numbers(999));
+    assert_eq!(
+        texts(text, &found),
+        ["21", "99", "101", "250", "999", "42nd", "100th", "101st"]
+    );
+    assert_eq!(
+        replacements(&found),
+        [
+            Some("twenty-one"),
+            Some("ninety-nine"),
+            Some("one hundred one"),
+            Some("two hundred fifty"),
+            Some("nine hundred ninety-nine"),
+            Some("forty-second"),
+            Some("one hundredth"),
+            Some("one hundred first")
+        ]
+    );
+}
+
+#[test]
+fn numbers_capitalize_where_the_span_opens_a_sentence() {
+    let text = "45 men came. She saw 7. “7 of them,” she said. And 45 left.";
+    let found = run(text, &numbers(100));
+    assert_eq!(
+        replacements(&found),
+        [
+            Some("Forty-five"),
+            Some("seven"),
+            Some("Seven"),
+            Some("forty-five")
+        ]
     );
 }
 
@@ -87,6 +134,16 @@ fn centuries_get_their_own_message() {
     assert_eq!(texts(text, &found), ["19th", "3rd", "20th", "4th", "5th"]);
     let century = "Spell out centuries in prose, as in “the nineteenth century”.";
     assert!(found[..4].iter().all(|m| m.message == century));
+    assert_eq!(
+        replacements(&found),
+        [
+            Some("nineteenth"),
+            Some("third"),
+            Some("twentieth"),
+            Some("fourth"),
+            Some("fifth")
+        ]
+    );
     assert_eq!(
         found[4].message,
         "Spell out whole numbers from zero through 100 in prose."
@@ -298,7 +355,18 @@ fn spelled_out_hours_with_a_meridiem() {
         ]
     );
     assert!(found.iter().all(|m| m.check == PresetCheck::ClockTimes));
-    assert!(found.iter().all(|m| m.replacement.is_none()));
+    assert_eq!(
+        replacements(&found),
+        [
+            Some("8 a.m."),
+            Some("6:30 p.m."),
+            Some("10:45 PM"),
+            Some("8:30 a.m."),
+            Some("10 am"),
+            Some("12 pm"),
+            Some("12 a.m.")
+        ]
+    );
     assert_eq!(
         found[0].message,
         "Use numerals with “a.m.”, or spell the time out with “in the morning” instead."
@@ -319,20 +387,68 @@ fn spelled_out_hours_skip_verbs_and_other_words() {
 }
 
 #[test]
+fn spelled_out_minutes_become_numerals() {
+    let text = "At nine oh five a.m. and six-twenty p.m., then eight\u{a0}a.m.";
+    let found = run(text, &clock(OClock::Words));
+    assert_eq!(
+        replacements(&found),
+        [Some("9:05 a.m."), Some("6:20 p.m."), Some("8\u{a0}a.m.")]
+    );
+}
+
+#[test]
+fn relative_times_get_no_replacement() {
+    let text = "At quarter to eight p.m., twenty past six a.m. and half past nine p.m.";
+    let found = run(text, &clock(OClock::Words));
+    assert_eq!(texts(text, &found), ["eight p.m.", "six a.m.", "nine p.m."]);
+    assert!(found.iter().all(|found| found.replacement.is_none()));
+}
+
+#[test]
+fn unreadable_minute_words_get_no_replacement() {
+    let text = "At five six seven a.m., six thirty twelve p.m. and six five thirty a.m., \
+                or eight fifty-fifty-fifty-fifty-fifty-fifty a.m.";
+    let found = run(text, &clock(OClock::Words));
+    assert_eq!(
+        texts(text, &found),
+        [
+            "five six seven a.m.",
+            "six thirty twelve p.m.",
+            "six five thirty a.m.",
+            "eight fifty-fifty-fifty-fifty-fifty-fifty a.m."
+        ]
+    );
+    assert!(found.iter().all(|found| found.replacement.is_none()));
+}
+
+#[test]
 fn o_clock_hours() {
     let text =
         "We left at 6 o'clock, or 7 o’clock—or eleven o’clock. At 7:00 o'clock. At 6 o’clock a.m.";
     let words = run(text, &clock(OClock::Words));
     assert_eq!(texts(text, &words), ["6", "7", "6", "o’clock a.m."]);
+    assert_eq!(
+        replacements(&words),
+        [Some("six"), Some("seven"), Some("six"), None]
+    );
     assert_eq!(words[0].message, "Spell out the hour before “o’clock”.");
     assert_eq!(words[3].message, "Use “o’clock” or “a.m.”, not both.");
     let numerals = run(text, &clock(OClock::Numerals));
     assert_eq!(texts(text, &numerals), ["eleven", "o’clock a.m."]);
+    assert_eq!(replacements(&numerals), [Some("11"), None]);
     let either = run(text, &clock(OClock::Either));
     assert_eq!(texts(text, &either), ["o’clock a.m."]);
+    assert_eq!(replacements(&either), [None]);
     // Not hours: no clock-time match.
     let text = "At 0 o'clock, 13 o’clock or 99 o'clock.";
     assert!(run(text, &clock(OClock::Words)).is_empty());
+}
+
+#[test]
+fn o_clock_hours_capitalize_at_the_start_of_a_sentence() {
+    let text = "6 o’clock came. We left at 6 o’clock.";
+    let found = run(text, &clock(OClock::Words));
+    assert_eq!(replacements(&found), [Some("Six"), Some("six")]);
 }
 
 #[test]
@@ -374,6 +490,12 @@ fn doubled_time_words() {
         "“p.m.” and “in the evening” say the same thing; keep one."
     );
     assert_eq!(found[1].mode, Mode::Dialogue);
+    assert_eq!(found[3].replacement.as_deref(), Some("8 a.m."));
+    for (index, found) in found.iter().enumerate() {
+        if index != 3 {
+            assert_eq!(found.replacement, None, "{found:#?}");
+        }
+    }
 }
 
 #[test]

@@ -63,6 +63,8 @@ interface — keep English specifics out of the generic engine, but do not build
 cases yet. N-gram confusion rules are out of scope for the on-device engine.
 
 The `style` crate diagnoses and never generates replacement prose; the drafting report's mechanical edits
-(deletions, whitespace, table punctuation, line breaks, a first-letter case change) are the one exception. It
-holds no LGPL data, doesn't duplicate LanguageTool rules that `nlprule` ports, and never ships text from any
-corpus, only aggregate numbers (see `docs/STYLE-REPORTS.md`).
+(deletions, whitespace, table punctuation, line breaks, a first-letter case change) and the preset
+checks' fixed terms from their own tables (a spelled-out number, a clock-time form such as `8 a.m.`,
+*mom*, *a.m.*) are the exceptions. It holds no LGPL data, doesn't duplicate LanguageTool rules that
+`nlprule` ports, and never ships text from any corpus, only aggregate numbers (see
+`docs/STYLE-REPORTS.md`).
