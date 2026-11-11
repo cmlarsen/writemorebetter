@@ -380,53 +380,159 @@ impl MultitokenSpeller {
     }
 }
 
+/// A `word<TAB>lemma<TAB>tag` line of a tag file.
+pub(in crate::compile) type TagLine = (String, String, String);
+
+/// How [`read_removals`] handles a file that does not exist.
+#[derive(Clone, Copy, Debug)]
+pub(in crate::compile) enum MissingFile {
+    /// A missing file is an error.
+    Error,
+    /// A missing file is skipped with a warning.
+    Skip,
+}
+
+/// Reads `word<TAB>lemma<TAB>tag` lines from `paths` into a set, skipping
+/// `#` comments and blank lines.
+pub(in crate::compile) fn read_removals<S: AsRef<Path>>(
+    paths: &[S],
+    missing: MissingFile,
+) -> std::io::Result<HashSet<TagLine>> {
+    let mut removals = HashSet::new();
+
+    for path in paths {
+        let path = path.as_ref();
+        let content = match std::fs::read_to_string(path) {
+            Ok(content) => content,
+            Err(error)
+                if matches!(missing, MissingFile::Skip)
+                    && error.kind() == std::io::ErrorKind::NotFound =>
+            {
+                warn!(
+                    "Removal file {} does not exist. Skipping it.",
+                    path.display()
+                );
+                continue;
+            }
+            Err(error) => return Err(error),
+        };
+
+        removals.extend(
+            content
+                .lines()
+                .filter(|line| !line.is_empty() && !line.starts_with('#'))
+                .map(parse_tag_line),
+        );
+    }
+
+    Ok(removals)
+}
+
+/// Splits one tag file line into its word, lemma and tag.
+fn parse_tag_line(line: &str) -> TagLine {
+    let mut parts = line.split('\t');
+    let word = parts.next().expect("a tag line has a word");
+    let inflection = parts.next().expect("a tag line has a lemma");
+    let tag = parts.next().expect("a tag line has a tag");
+
+    (word.to_owned(), inflection.to_owned(), tag.to_owned())
+}
+
+/// Word forms that the tagger keeps but synthesis never returns.
+#[derive(Default)]
+pub(in crate::compile) struct SynthExclusions {
+    /// Readings from `filter_archaic.txt`. LanguageTool applies that list only
+    /// when it builds its synthesis dictionary from the output dump.
+    archaic: HashSet<TagLine>,
+    /// Readings from `do-not-synthesize.txt`. LanguageTool subtracts them from
+    /// every synthesis lookup.
+    removed: HashSet<TagLine>,
+    /// Exception forms matched exactly.
+    exact: HashSet<String>,
+    /// Exception prefixes, from entries that end in `*`.
+    prefixes: Vec<String>,
+}
+
+impl SynthExclusions {
+    /// `archaic` applies only to output-dump lines; `removed` and `exceptions`
+    /// apply to every tag line.
+    pub(in crate::compile) fn new(
+        archaic: HashSet<TagLine>,
+        removed: HashSet<TagLine>,
+        exceptions: &[String],
+    ) -> Self {
+        let mut exact = HashSet::new();
+        let mut prefixes = Vec::new();
+
+        for exception in exceptions {
+            match exception.strip_suffix('*') {
+                Some(prefix) => prefixes.push(prefix.to_owned()),
+                None => {
+                    exact.insert(exception.clone());
+                }
+            }
+        }
+
+        SynthExclusions {
+            archaic,
+            removed,
+            exact,
+            prefixes,
+        }
+    }
+
+    /// Whether the tag line `line`, read from the output dump if `from_dump` is
+    /// set, must not be synthesized.
+    fn excludes(&self, line: &TagLine, from_dump: bool) -> bool {
+        self.exact.contains(&line.0)
+            || self
+                .prefixes
+                .iter()
+                .any(|prefix| line.0.starts_with(prefix.as_str()))
+            || self.removed.contains(line)
+            || (from_dump && self.archaic.contains(line))
+    }
+}
+
 impl Tagger {
+    /// Reads the tag lines from `paths`, skipping the lines in `remove_paths`.
+    ///
+    /// The lines of the first path come first in the result; the returned count
+    /// is how many of them the first path contributed. That path is the output
+    /// dump, which is the only one `filter_archaic.txt` applies to.
     fn get_lines<S1: AsRef<Path>, S2: AsRef<Path>>(
         paths: &[S1],
         remove_paths: &[S2],
-    ) -> std::io::Result<Vec<(String, String, String)>> {
+    ) -> std::io::Result<(Vec<TagLine>, usize)> {
+        let disallowed = read_removals(remove_paths, MissingFile::Error)?;
         let mut output = Vec::new();
-        let mut disallowed: Vec<String> = Vec::new();
+        let mut dump_len = 0;
 
-        for path in remove_paths {
+        for (index, path) in paths.iter().enumerate() {
+            let before = output.len();
             let file = File::open(path.as_ref())?;
             let reader = std::io::BufReader::new(file);
 
             for line in reader.lines() {
                 let line = line?;
-                if line.starts_with('#') {
+                if line.is_empty() || line.starts_with('#') {
                     continue;
                 }
 
-                disallowed.push(line.to_string());
+                let tag_line = parse_tag_line(&line);
+                if disallowed.contains(&tag_line) {
+                    continue;
+                }
+
+                output.push(tag_line);
+            }
+
+            if index == 0 {
+                dump_len = output.len() - before;
             }
         }
 
-        for path in paths {
-            let file = File::open(path.as_ref())?;
-            let reader = std::io::BufReader::new(file);
-
-            for line in reader.lines() {
-                let line = line?;
-                if line.starts_with('#') {
-                    continue;
-                }
-
-                if disallowed.contains(&line) {
-                    continue;
-                }
-
-                let parts: Vec<_> = line.split('\t').collect();
-
-                let word = parts[0].to_string();
-                let inflection = parts[1].to_string();
-                let tag = parts[2].to_string();
-
-                output.push((word, inflection, tag))
-            }
-        }
-
-        Ok(output)
+        Ok((output, dump_len))
     }
 
     /// Creates a tagger from raw files.
@@ -436,16 +542,12 @@ impl Tagger {
     /// separated by tabs, to be added to the tagger.
     /// * `remove_paths`: Paths to files where each line contains the word, lemma and tag, respectively,
     /// separated by tabs, to be removed from the tagger if present in the files from `paths`.
-    /// * `synth_remove_paths`: Paths to files in the format of `remove_paths` whose lines are kept
-    /// for tagging but never synthesized. A missing file is skipped.
-    /// * `synth_exceptions`: Word forms that are tagged but never synthesized. An entry ending in
-    /// `*` excludes every form starting with the text before it.
-    pub(in crate::compile) fn from_dumps<S1: AsRef<Path>, S2: AsRef<Path>, S3: AsRef<Path>>(
+    /// * `synth_exclusions`: Word forms that are tagged but never synthesized.
+    pub(in crate::compile) fn from_dumps<S1: AsRef<Path>, S2: AsRef<Path>>(
         paths: &[S1],
         remove_paths: &[S2],
-        synth_remove_paths: &[S3],
         common_words: &HashSet<String>,
-        synth_exceptions: &[String],
+        synth_exclusions: &SynthExclusions,
         lang_options: TaggerLangOptions,
     ) -> std::io::Result<Self> {
         let mut tag_store = HashSet::new();
@@ -454,7 +556,7 @@ impl Tagger {
         // add language specific special tags
         tag_store.extend(lang_options.extra_tags.iter().map(|x| x.as_str()));
 
-        let lines = Tagger::get_lines(paths, remove_paths)?;
+        let (lines, dump_len) = Tagger::get_lines(paths, remove_paths)?;
 
         let punct = "!\"#$%&\\'()*+,-./:;<=>?@[\\]^_`{|}~";
         for i in 0..punct.len() {
@@ -565,33 +667,12 @@ impl Tagger {
         // form carrying it, and the POS tag lets the caller filter by target tag.
         let mut synth: Vec<Option<Vec<(WordIdInt, PosIdInt)>>> = vec![None; word_store.len()];
 
-        let mut synth_removed: HashSet<String> = HashSet::new();
-        for path in synth_remove_paths {
-            let path = path.as_ref();
-            if !path.exists() {
-                warn!("Synthesis removal file {} does not exist.", path.display());
+        for (index, line) in lines.iter().enumerate() {
+            if synth_exclusions.excludes(line, index < dump_len) {
                 continue;
             }
-            let content = std::fs::read_to_string(path)?;
-            synth_removed.extend(
-                content
-                    .lines()
-                    .filter(|line| !line.starts_with('#'))
-                    .map(str::to_owned),
-            );
-        }
 
-        let synthesizable = |(word, inflection, tag): &&(String, String, String)| {
-            !synth_exceptions
-                .iter()
-                .any(|exception| match exception.strip_suffix('*') {
-                    Some(prefix) => word.starts_with(prefix),
-                    None => word == exception,
-                })
-                && !synth_removed.contains(&format!("{}\t{}\t{}", word, inflection, tag))
-        };
-
-        for (word, inflection, tag) in lines.iter().filter(synthesizable) {
+            let (word, inflection, tag) = line;
             let word_id = *word_store.get_by_left(word).unwrap();
             let lemma_id = *word_store.get_by_left(inflection).unwrap();
             let pos_id = *tag_store.get_by_left(tag).unwrap();
@@ -2696,40 +2777,83 @@ mod tests {
         }
     }
 
+    /// A private temporary directory, removed when the test ends even if an
+    /// assertion panics.
+    struct TempDir(PathBuf);
+
+    impl TempDir {
+        fn new() -> Self {
+            use std::sync::atomic::{AtomicUsize, Ordering};
+
+            static NEXT: AtomicUsize = AtomicUsize::new(0);
+            let dir = std::env::temp_dir().join(format!(
+                "wmb-synth-exclusions-{}-{}",
+                std::process::id(),
+                NEXT.fetch_add(1, Ordering::Relaxed)
+            ));
+            std::fs::create_dir_all(&dir).unwrap();
+            TempDir(dir)
+        }
+
+        fn file(&self, name: &str, content: &str) -> PathBuf {
+            let path = self.0.join(name);
+            std::fs::write(&path, content).unwrap();
+            path
+        }
+
+        fn missing(&self, name: &str) -> PathBuf {
+            self.0.join(name)
+        }
+    }
+
+    impl Drop for TempDir {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
     #[test]
     fn synth_exclusions_are_tagged_but_not_synthesized() {
-        let path =
-            std::env::temp_dir().join(format!("wmb-synth-exceptions-{}.txt", std::process::id()));
-        std::fs::write(
-            &path,
+        let dir = TempDir::new();
+        let dump = dir.file(
+            "output.dump",
             "have\thave\tVBP\n've\thave\tVBP\no'er\tover\tIN\nover\tover\tIN\n\
-             am\tbe\tVBP\nare\tbe\tVBP\nam\tbe\tNN\n",
-        )
-        .unwrap();
-        let removed =
-            std::env::temp_dir().join(format!("wmb-synth-removed-{}.txt", std::process::id()));
-        std::fs::write(&removed, "# undesired\nam\tbe\tVBP\n").unwrap();
-        let missing = std::env::temp_dir().join("wmb-synth-removed-missing.txt");
+             am\tbe\tVBP\nare\tbe\tVBP\nam\tbe\tNN\nshall\tshall\tMD\nwast\tbe\tVBD\n",
+        );
+        // LanguageTool applies filter-archaic.txt only to output.dump, so the
+        // same reading from added.txt is still synthesized.
+        let added = dir.file("added.txt", "wast\tbe\tVBD\n");
+        let removed = dir.file("removed.txt", "# undesired\nam\tbe\tVBP\n");
+        let missing = dir.missing("missing.txt");
+
         let tagger = Tagger::from_dumps(
-            &[&path],
+            &[&dump, &added],
             &[] as &[&Path],
-            &[&removed, &missing],
             &HashSet::new(),
-            &["'*".to_string(), "o'er".to_string()],
+            &SynthExclusions::new(
+                HashSet::from([
+                    ("shall".to_string(), "shall".to_string(), "MD".to_string()),
+                    ("wast".to_string(), "be".to_string(), "VBD".to_string()),
+                ]),
+                read_removals(&[&removed, &missing], MissingFile::Skip).unwrap(),
+                &["'*".to_string(), "o'er".to_string()],
+            ),
             TaggerLangOptions::default(),
         )
         .unwrap();
-        std::fs::remove_file(&path).unwrap();
-        std::fs::remove_file(&removed).unwrap();
 
         assert_eq!(tagger.synthesize("have", |pos| pos == "VBP"), vec!["have"]);
         assert_eq!(tagger.synthesize("over", |pos| pos == "IN"), vec!["over"]);
         assert_eq!(tagger.synthesize("be", |pos| pos == "VBP"), vec!["are"]);
         assert_eq!(tagger.synthesize("be", |pos| pos == "NN"), vec!["am"]);
+        assert!(tagger.synthesize("shall", |pos| pos == "MD").is_empty());
+        assert_eq!(tagger.synthesize("be", |pos| pos == "VBD"), vec!["wast"]);
         for (word, lemma, pos) in [
             ("'ve", "have", "VBP"),
             ("o'er", "over", "IN"),
             ("am", "be", "VBP"),
+            ("shall", "shall", "MD"),
+            ("wast", "be", "VBD"),
         ] {
             let tags: Vec<_> = tagger
                 .get_tags(word)

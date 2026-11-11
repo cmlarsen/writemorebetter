@@ -36,7 +36,7 @@ struct BuildFilePaths {
     lang_code_path: PathBuf,
     tag_paths: Vec<PathBuf>,
     tag_remove_paths: Vec<PathBuf>,
-    synth_remove_paths: Vec<PathBuf>,
+    do_not_synthesize_path: PathBuf,
     chunker_path: PathBuf,
     disambiguation_path: PathBuf,
     grammar_path: PathBuf,
@@ -61,10 +61,7 @@ impl BuildFilePaths {
             lang_code_path: p.join("lang_code.txt"),
             tag_paths: vec![p.join("tags/output.dump"), p.join("tags/added.txt")],
             tag_remove_paths: vec![p.join("tags/removed.txt")],
-            synth_remove_paths: vec![
-                p.join("builtin/filter-archaic.txt"),
-                p.join("tags/do-not-synthesize.txt"),
-            ],
+            do_not_synthesize_path: p.join("tags/do-not-synthesize.txt"),
             chunker_path: p.join("chunker.json"),
             disambiguation_path: p.join("disambiguation.xml"),
             grammar_path: p.join("grammar.xml"),
@@ -191,13 +188,28 @@ pub fn compile(
             }
         })?;
 
+    // LanguageTool builds its synthesis dictionary from `output.dump` minus
+    // `filter-archaic.txt`, and subtracts `do-not-synthesize.txt` from every
+    // lookup. `filter_archaic.txt` is English data, and a missing copy is an
+    // error: a stale build directory would otherwise silently ship the
+    // excluded forms as suggestions.
+    let archaic = if lang_code.trim() == "en" {
+        builtin::read_tag_removals(build_dir, "filter_archaic")?
+    } else {
+        Default::default()
+    };
+    let synth_exclusions = impls::SynthExclusions::new(
+        archaic,
+        impls::read_removals(&[&paths.do_not_synthesize_path], impls::MissingFile::Skip)?,
+        &builtin::read_list(build_dir, "synth_exceptions"),
+    );
+
     info!("Creating tagger.");
     let tagger = Tagger::from_dumps(
         &paths.tag_paths,
         &paths.tag_remove_paths,
-        &paths.synth_remove_paths,
         &common_words,
-        &builtin::read_list(build_dir, "synth_exceptions"),
+        &synth_exclusions,
         tagger_lang_options,
     )?;
 

@@ -43,11 +43,15 @@ cp -r build/builtin-data/en/. data/en/builtin/
   forms `ne'er`, `e'er`, `o'er`, `ol'`, `ma'am`, `n't`, `informations`. Taken
   from LanguageTool's `EnglishSynthesizer.isException`. An entry ending in `*`
   excludes every form that starts with the text before it.
-- `filter-archaic.txt` — word/lemma/tag readings that suggestion synthesis
+- `filter_archaic.txt` — word/lemma/tag readings that suggestion synthesis
   never produces (archaic forms such as `hath` and `wast`, apostrophe-less
   contraction stems such as `haven`, and `am` for `be`), copied verbatim from
-  LanguageTool's `en/filter-archaic.txt`. LanguageTool applies it when building
-  its synthesis dictionary, and the file is not in the release zip.
+  LanguageTool's `en/filter-archaic.txt` (renamed to the underscore convention
+  of this directory). LanguageTool applies it when building its synthesis
+  dictionary from `output.dump`, and the file is not in the release zip. Unlike
+  the other builtin lists, the compiler makes this one a required file, so a
+  stale build directory fails instead of shipping unfiltered synthesis. It is
+  not serialized into the rules binary; only the tagger reads it.
 - `word_repeat_exceptions.txt` — repetitions that the English word-repeat rule
   should not flag, taken from LanguageTool's `WordRepeatRule` and
   `EnglishWordRepeatRule`. A single word allows that word to be repeated; a

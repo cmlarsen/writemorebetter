@@ -15,8 +15,9 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   "wast" and "hath", and "am" for an inflected *be*. The data build drops them from the synthesis
   table only, so tagging is unchanged. The forms come from LanguageTool's `do-not-synthesize.txt`,
   now copied into the build directory, and from two files in `build/builtin-data/en/`:
-  `filter-archaic.txt` (vendored, since the release zip lacks it) and `synth_exceptions.txt`
-  (LanguageTool's `EnglishSynthesizer` exceptions). The fix needs rebuilt data binaries.
+  `filter_archaic.txt` (vendored from LanguageTool's `en/filter-archaic.txt`, since the release
+  zip lacks it) and `synth_exceptions.txt` (LanguageTool's `EnglishSynthesizer` exceptions).
+  The fix needs rebuilt data binaries.
 - `EN_A_VS_AN` replacements now cover the whole flagged span ("an apple", not "an"). The
   span runs from the article through the following word, so applying the old article-only
   replacement to "be an staving and" gave "be a and".
