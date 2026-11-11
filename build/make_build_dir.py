@@ -97,6 +97,7 @@ def copy_lt_files(out_dir, lt_dir, lang_code, grammar_path=None, segment_path=No
     for source, dest in [
         (lt_resource_dir / "added.txt", tag_dir / "added.txt"),
         (lt_resource_dir / "removed.txt", tag_dir / "removed.txt"),
+        (lt_resource_dir / "do-not-synthesize.txt", tag_dir / "do-not-synthesize.txt"),
         (lt_resource_dir / "disambiguation.xml", out_dir / "disambiguation.xml"),
         (lt_resource_dir / "multiwords.txt", tag_dir / "multiwords.txt",),
         (grammar_path or lt_rule_dir / "grammar.xml", out_dir / "grammar.xml"),

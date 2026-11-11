@@ -36,6 +36,7 @@ struct BuildFilePaths {
     lang_code_path: PathBuf,
     tag_paths: Vec<PathBuf>,
     tag_remove_paths: Vec<PathBuf>,
+    synth_remove_paths: Vec<PathBuf>,
     chunker_path: PathBuf,
     disambiguation_path: PathBuf,
     grammar_path: PathBuf,
@@ -60,6 +61,10 @@ impl BuildFilePaths {
             lang_code_path: p.join("lang_code.txt"),
             tag_paths: vec![p.join("tags/output.dump"), p.join("tags/added.txt")],
             tag_remove_paths: vec![p.join("tags/removed.txt")],
+            synth_remove_paths: vec![
+                p.join("builtin/filter-archaic.txt"),
+                p.join("tags/do-not-synthesize.txt"),
+            ],
             chunker_path: p.join("chunker.json"),
             disambiguation_path: p.join("disambiguation.xml"),
             grammar_path: p.join("grammar.xml"),
@@ -190,7 +195,9 @@ pub fn compile(
     let tagger = Tagger::from_dumps(
         &paths.tag_paths,
         &paths.tag_remove_paths,
+        &paths.synth_remove_paths,
         &common_words,
+        &builtin::read_list(build_dir, "synth_exceptions"),
         tagger_lang_options,
     )?;
 

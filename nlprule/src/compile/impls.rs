@@ -436,10 +436,16 @@ impl Tagger {
     /// separated by tabs, to be added to the tagger.
     /// * `remove_paths`: Paths to files where each line contains the word, lemma and tag, respectively,
     /// separated by tabs, to be removed from the tagger if present in the files from `paths`.
-    pub(in crate::compile) fn from_dumps<S1: AsRef<Path>, S2: AsRef<Path>>(
+    /// * `synth_remove_paths`: Paths to files in the format of `remove_paths` whose lines are kept
+    /// for tagging but never synthesized. A missing file is skipped.
+    /// * `synth_exceptions`: Word forms that are tagged but never synthesized. An entry ending in
+    /// `*` excludes every form starting with the text before it.
+    pub(in crate::compile) fn from_dumps<S1: AsRef<Path>, S2: AsRef<Path>, S3: AsRef<Path>>(
         paths: &[S1],
         remove_paths: &[S2],
+        synth_remove_paths: &[S3],
         common_words: &HashSet<String>,
+        synth_exceptions: &[String],
         lang_options: TaggerLangOptions,
     ) -> std::io::Result<Self> {
         let mut tag_store = HashSet::new();
@@ -559,7 +565,33 @@ impl Tagger {
         // form carrying it, and the POS tag lets the caller filter by target tag.
         let mut synth: Vec<Option<Vec<(WordIdInt, PosIdInt)>>> = vec![None; word_store.len()];
 
-        for (word, inflection, tag) in lines.iter() {
+        let mut synth_removed: HashSet<String> = HashSet::new();
+        for path in synth_remove_paths {
+            let path = path.as_ref();
+            if !path.exists() {
+                warn!("Synthesis removal file {} does not exist.", path.display());
+                continue;
+            }
+            let content = std::fs::read_to_string(path)?;
+            synth_removed.extend(
+                content
+                    .lines()
+                    .filter(|line| !line.starts_with('#'))
+                    .map(str::to_owned),
+            );
+        }
+
+        let synthesizable = |(word, inflection, tag): &&(String, String, String)| {
+            !synth_exceptions
+                .iter()
+                .any(|exception| match exception.strip_suffix('*') {
+                    Some(prefix) => word.starts_with(prefix),
+                    None => word == exception,
+                })
+                && !synth_removed.contains(&format!("{}\t{}\t{}", word, inflection, tag))
+        };
+
+        for (word, inflection, tag) in lines.iter().filter(synthesizable) {
             let word_id = *word_store.get_by_left(word).unwrap();
             let lemma_id = *word_store.get_by_left(inflection).unwrap();
             let pos_id = *tag_store.get_by_left(tag).unwrap();
@@ -2661,6 +2693,59 @@ mod tests {
         ModelData {
             outcome_labels: vec!["B-NP".into(), "I-NP".into(), "B-VP".into(), "O".into()],
             pmap,
+        }
+    }
+
+    #[test]
+    fn synth_exclusions_are_tagged_but_not_synthesized() {
+        let path =
+            std::env::temp_dir().join(format!("wmb-synth-exceptions-{}.txt", std::process::id()));
+        std::fs::write(
+            &path,
+            "have\thave\tVBP\n've\thave\tVBP\no'er\tover\tIN\nover\tover\tIN\n\
+             am\tbe\tVBP\nare\tbe\tVBP\nam\tbe\tNN\n",
+        )
+        .unwrap();
+        let removed =
+            std::env::temp_dir().join(format!("wmb-synth-removed-{}.txt", std::process::id()));
+        std::fs::write(&removed, "# undesired\nam\tbe\tVBP\n").unwrap();
+        let missing = std::env::temp_dir().join("wmb-synth-removed-missing.txt");
+        let tagger = Tagger::from_dumps(
+            &[&path],
+            &[] as &[&Path],
+            &[&removed, &missing],
+            &HashSet::new(),
+            &["'*".to_string(), "o'er".to_string()],
+            TaggerLangOptions::default(),
+        )
+        .unwrap();
+        std::fs::remove_file(&path).unwrap();
+        std::fs::remove_file(&removed).unwrap();
+
+        assert_eq!(tagger.synthesize("have", |pos| pos == "VBP"), vec!["have"]);
+        assert_eq!(tagger.synthesize("over", |pos| pos == "IN"), vec!["over"]);
+        assert_eq!(tagger.synthesize("be", |pos| pos == "VBP"), vec!["are"]);
+        assert_eq!(tagger.synthesize("be", |pos| pos == "NN"), vec!["am"]);
+        for (word, lemma, pos) in [
+            ("'ve", "have", "VBP"),
+            ("o'er", "over", "IN"),
+            ("am", "be", "VBP"),
+        ] {
+            let tags: Vec<_> = tagger
+                .get_tags(word)
+                .map(|data| {
+                    (
+                        data.lemma().as_str().to_string(),
+                        data.pos().as_str().to_string(),
+                    )
+                })
+                .collect();
+            assert!(
+                tags.contains(&(lemma.to_string(), pos.to_string())),
+                "{}: {:?}",
+                word,
+                tags
+            );
         }
     }
 

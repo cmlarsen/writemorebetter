@@ -580,7 +580,7 @@
 1286 | SPELLCHECK/SINGLE | "harpooneer" -> ["harpooner"] | Possibly misspelled word.
 1289 | SPELLCHECK/SINGLE | "harpooneer" -> ["harpooner"] | Possibly misspelled word.
 1289 | GRAMMAR/ADVERB_OR_HYPHENATED_ADJECTIVE/0 | "dark complexioned" -> ["dark-complexioned"] | Make sure that the adjective 'dark' is correct. Possibly, it should be an adverb (typically ~ly) that modifies 'complexioned'. Possibly, it should be the first word in a compound adjective (hyphenated adjective). Possibly, it is correct.
-1290 | GRAMMAR/HE_VERB_AGR/0 | "do" -> ["does", "dost", "doth", "did", "didst"] | The pronoun 'he' is usually used with a third-person or a past tense verb.
+1290 | GRAMMAR/HE_VERB_AGR/0 | "do" -> ["does", "did"] | The pronoun 'he' is usually used with a third-person or a past tense verb.
 1292 | SPELLCHECK/SINGLE | "harpooneer" -> ["harpooner"] | Possibly misspelled word.
 1297 | SPELLCHECK/SINGLE | "harpooneer" -> ["harpooner"] | Possibly misspelled word.
 1308 | SPELLCHECK/SINGLE | "Feegees" -> ["Fee gees"] | Possibly misspelled word.
@@ -630,7 +630,7 @@
 1479 | SPELLCHECK/SINGLE | "sarmon" -> ["salmon", "sermon", "Salmon", "Harmon"] | Possibly misspelled word.
 1480 | SPELLCHECK/SINGLE | "harpooneer" -> ["harpooner"] | Possibly misspelled word.
 1481 | SPELLCHECK/SINGLE | "balmed" -> ["blamed", "calmed", "balked", "balled", "baled", "palmed", "balded"] | Possibly misspelled word.
-1484 | GRAMMAR/AGREEMENT_SENT_START/35 | "is" -> ["'m", "'re", "am", "are"] | Possible agreement error. You should probably use: 'm.|Possible agreement error. You should probably use: 're.|Possible agreement error. You should probably use: am.|Possible agreement error. You should probably use: are.
+1484 | GRAMMAR/AGREEMENT_SENT_START/35 | "is" -> ["are"] | Possible agreement error. You should probably use: are.
 1487 | SPELLCHECK/SINGLE | "airth" -> ["earth", "Earth", "birth", "Gareth", "Garth", "earthy", "girth", "hearth", "Aretha", "Barth"] | Possibly misspelled word.
 1487 | SPELLCHECK/SINGLE | "inions" -> ["unions", "minions", "onions", "Unions", "anions", "pinions", "Onions"] | Possibly misspelled word.
 1491 | SPELLCHECK/SINGLE | "harpooneer" -> ["harpooner"] | Possibly misspelled word.
@@ -872,4 +872,4 @@
 2812 | SPELLCHECK/SINGLE | "Queequeg" -> ["Queue", "Queues", "Queued", "Queening", "Queened", "Queering", "Queenie", "Queenies", "Queered", "Queerer"] | Possibly misspelled word.
 2816 | SPELLCHECK/SINGLE | "idolator" -> ["isolator", "idolater"] | Possibly misspelled word.
 2817 | PUNCTUATION/SENT_START_CONJUNCTIVE_LINKING_ADVERB_COMMA/0 | "Hence" -> ["Hence,"] | A comma may be missing after the conjunctive/linking adverb 'Hence'.
-2822 | GRAMMAR/HE_VERB_AGR/0 | "being" -> ["'s", "is", "was", "wast", "were"] | The pronoun 'he' is usually used with a third-person or a past tense verb.
+2822 | GRAMMAR/HE_VERB_AGR/0 | "being" -> ["is", "was", "were"] | The pronoun 'he' is usually used with a third-person or a past tense verb.

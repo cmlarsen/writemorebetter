@@ -1,0 +1,11 @@
+# Word forms the English synthesizer never returns, from LanguageTool's
+# EnglishSynthesizer.isException (6.6). An entry ending in * excludes every
+# form that starts with the text before it.
+'*
+ne'er
+e'er
+o'er
+ol'
+ma'am
+n't
+informations

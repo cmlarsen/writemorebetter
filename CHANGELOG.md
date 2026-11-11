@@ -6,6 +6,18 @@ inherited 0.6.4 track this project's own release line. Each version is a top-lev
 `# <version>` heading; the Release workflow copies that section verbatim into the GitHub
 release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
+# 0.15.2
+
+### Fixed
+
+- Synthesized suggestions leave out the forms LanguageTool's English synthesizer excludes:
+  clitics ("the dregs that has" now suggests "have", not "'ve" as well), archaic forms such as
+  "wast" and "hath", and "am" for an inflected *be*. The data build drops them from the synthesis
+  table only, so tagging is unchanged. The forms come from LanguageTool's `do-not-synthesize.txt`,
+  now copied into the build directory, and from two files in `build/builtin-data/en/`:
+  `filter-archaic.txt` (vendored, since the release zip lacks it) and `synth_exceptions.txt`
+  (LanguageTool's `EnglishSynthesizer` exceptions). The fix needs rebuilt data binaries.
+
 # 0.15.1 (2026-11-10)
 
 ### Added

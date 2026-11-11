@@ -37,6 +37,17 @@ cp -r build/builtin-data/en/. data/en/builtin/
   begin with a vowel letter (e.g. "hour", "MBA"). Taken from LanguageTool's
   `det_an.txt`. Lines starting with `*` are case-sensitive; all others are
   matched case-insensitively.
+- `synth_exceptions.txt` — word forms that suggestion synthesis never
+  produces, although the tagger still reads them: clitics such as `'ve` and
+  `'re` (any form starting with an apostrophe) and the poetic or nonstandard
+  forms `ne'er`, `e'er`, `o'er`, `ol'`, `ma'am`, `n't`, `informations`. Taken
+  from LanguageTool's `EnglishSynthesizer.isException`. An entry ending in `*`
+  excludes every form that starts with the text before it.
+- `filter-archaic.txt` — word/lemma/tag readings that suggestion synthesis
+  never produces (archaic forms such as `hath` and `wast`, apostrophe-less
+  contraction stems such as `haven`, and `am` for `be`), copied verbatim from
+  LanguageTool's `en/filter-archaic.txt`. LanguageTool applies it when building
+  its synthesis dictionary, and the file is not in the release zip.
 - `word_repeat_exceptions.txt` — repetitions that the English word-repeat rule
   should not flag, taken from LanguageTool's `WordRepeatRule` and
   `EnglishWordRepeatRule`. A single word allows that word to be repeated; a
