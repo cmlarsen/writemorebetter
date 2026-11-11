@@ -13,7 +13,8 @@ Issue #305 (part of #296) adds **style presets**: one named, versioned JSON file
 Three presets are built in: **`chicago-fiction`** (the default), **`ap`** and **`uk`**. A user preset
 can extend a built-in one and override any part of it. Like every style report, a preset only
 diagnoses. A match's `replacement` is at most a fixed term that the rule or check lists (`toward`,
-`a.m.`, `mom`, a period moved past a quotation mark). Nothing builds replacement prose.
+`a.m.`, `mom`, `forty-six`, `8 a.m.`, a period moved past a quotation mark). Nothing builds
+replacement prose.
 
 The presets describe common editorial conventions in our own words. `chicago-fiction` is modeled on
 how US book publishers apply *The Chicago Manual of Style* to fiction, and `ap` on the *AP
@@ -152,11 +153,12 @@ and the consistency report still flags a manuscript that mixes them.
 
 `PresetChecks` is also the options object of `presetChecks`, which runs the checks without a preset.
 Every match carries `check`, `message`, `span` (UTF-16 `{start, end}` in the bindings), `mode`
-(narration or dialogue) and `replacement`. `counts` splits the matches by mode. Matches that touch a
-skipped name are dropped. The checks read the text with curly and straight quotes and apostrophes,
-em dashes, ellipses and U+2028 line separators alike, and work on compact documents. Family titles
-and possessives use token readings when the document has them, and fall back to word lists and
-position without them (see each check).
+(narration or dialogue) and `replacement`, a fixed term from the check's table when it has one
+(`null` when the fix would need a wider span or a wording choice). `counts` splits the matches by
+mode. Matches that touch a skipped name are dropped. The checks read the text with curly and
+straight quotes and apostrophes, em dashes, ellipses and U+2028 line separators alike, and work on
+compact documents. Family titles and possessives use token readings when the document has them,
+and fall back to word lists and position without them (see each check).
 
 ### `numbers`
 
@@ -185,8 +187,11 @@ small ones as numerals too (`Of 250 guests, 12 stayed`), so the numbers it compa
 them. `ap` sets `spellOutThrough: 9`, `agesAsNumerals: true` and `matchLarger: false`.
 
 The message names the limit, except on an ordinal before *century* or *centuries* (`19th-century`),
-where it asks for the century spelled out (CMOS 9.33). The check offers no replacement: spelling a number out is the author's
-wording.
+where it asks for the century spelled out (CMOS 9.33). The replacement is the number written out
+(`7` → `seven`, `45` → `forty-five`, `101` → `one hundred one`, `3rd` → `third`, `19th-century` →
+`nineteenth-century`): the hyphenation for 21–99 is CMOS's, so the check's own table has one
+spelling per number. A numeral the table cannot render keeps no replacement rather than guessing;
+the check skips those today (`1,000`, `$20`, `5 km`).
 
 ### `quotePunctuation`
 
@@ -255,8 +260,13 @@ defaults. It flags:
   (*at 9 a.m. This morning*) is not a repeat.
 
 A time and its abbreviation may be separated by a space, a no-break space or a narrow no-break
-space, never a line break. The check offers no replacement. `chicago-fiction` and `uk` set `words`,
-`ap` sets `numerals`. Whether a document writes on-the-hour times as `6:00 a.m.` or `6 a.m.` is the
+space, never a line break. The replacement is the form the message names first: a time spelled out
+becomes numerals with the abbreviation as written (`eight a.m.` → `8 a.m.`, `six oh five p.m.` →
+`6:05 p.m.`), and the hour before *o'clock* becomes a word or a numeral (`6 o’clock` →
+`six o’clock`, `six o’clock` → `6 o’clock`). *o’clock* with *a.m.* or *p.m.* and the repeat findings
+(*a.m. in the morning*) carry no replacement, since deleting the extra words needs a wider span than
+the finding has. `chicago-fiction` and `uk` set `words`, `ap` sets `numerals`. Whether a document
+writes on-the-hour times as `6:00 a.m.` or `6 a.m.` is the
 [consistency](STYLE-CONSISTENCY.md#clock-times) report's `clockTimes` check, since both forms are
 correct.
 

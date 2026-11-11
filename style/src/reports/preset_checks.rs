@@ -1,7 +1,8 @@
 //! Built-in checks that a style preset turns on: house rules that the house-style regex schema
 //! can't express cleanly, because they need number context, quotation structure or token readings.
 //! Like every style report, they diagnose. A match's `replacement` is at most a fixed term from the
-//! check's own table (`a.m.`, `mom`, a moved period); no check builds replacement prose.
+//! check's own table (`a.m.`, `mom`, `forty-six`, a moved period); no check builds replacement
+//! prose.
 
 use std::ops::Range;
 
@@ -836,14 +837,128 @@ fn number_matches(
         } else {
             message.clone()
         };
+        let is_ordinal = end > numeral.chars.end;
+        let replacement = numeral.amount.and_then(|amount| {
+            if is_ordinal {
+                ordinal(amount)
+            } else {
+                cardinal(amount)
+            }
+        });
         out.push((
             PresetCheck::Numbers,
             message,
             text.span(numeral.chars.start, end),
-            None,
+            replacement,
         ));
     }
 }
+
+/// The words for a whole number from zero through 999: `zero`, `forty-six`, `one hundred one`.
+/// The hyphen for 21–99 is CMOS's, so a number has one correct spelling.
+fn cardinal(amount: u64) -> Option<String> {
+    if amount > 999 {
+        return None;
+    }
+    if amount == 0 {
+        return Some(ONES[0].to_string());
+    }
+    let hundreds = amount / 100;
+    let rest = amount % 100;
+    let mut words = String::new();
+    if hundreds > 0 {
+        words.push_str(ONES[hundreds as usize]);
+        words.push_str(" hundred");
+    }
+    if rest > 0 {
+        if !words.is_empty() {
+            words.push(' ');
+        }
+        if rest < 20 {
+            words.push_str(ONES[rest as usize]);
+        } else {
+            words.push_str(TENS[(rest / 10) as usize - 2]);
+            if !rest.is_multiple_of(10) {
+                words.push('-');
+                words.push_str(ONES[(rest % 10) as usize]);
+            }
+        }
+    }
+    Some(words)
+}
+
+/// The words for a whole number from zero through 999 as an ordinal: `third`, `nineteenth`,
+/// `one hundred twenty-first`. Zero has no ordinal in the check's table.
+fn ordinal(amount: u64) -> Option<String> {
+    let words = cardinal(amount)?;
+    let cut = words.rfind([' ', '-']).map_or(0, |at| at + 1);
+    let (head, last) = words.split_at(cut);
+    Some(format!("{head}{}", ordinal_word(last)?))
+}
+
+/// The ordinal of one word of a cardinal: `four` → `fourth`, `twenty` → `twentieth`.
+fn ordinal_word(word: &str) -> Option<String> {
+    let irregular = match word {
+        "one" => "first",
+        "two" => "second",
+        "three" => "third",
+        "five" => "fifth",
+        "eight" => "eighth",
+        "nine" => "ninth",
+        "twelve" => "twelfth",
+        "hundred" => "hundredth",
+        _ => "",
+    };
+    if !irregular.is_empty() {
+        return Some(irregular.to_string());
+    }
+    if let Some(stem) = word.strip_suffix('y') {
+        return Some(format!("{stem}ieth"));
+    }
+    matches!(
+        word,
+        "four"
+            | "six"
+            | "seven"
+            | "ten"
+            | "eleven"
+            | "thirteen"
+            | "fourteen"
+            | "fifteen"
+            | "sixteen"
+            | "seventeen"
+            | "eighteen"
+            | "nineteen"
+    )
+    .then(|| format!("{word}th"))
+}
+
+const ONES: [&str; 20] = [
+    "zero",
+    "one",
+    "two",
+    "three",
+    "four",
+    "five",
+    "six",
+    "seven",
+    "eight",
+    "nine",
+    "ten",
+    "eleven",
+    "twelve",
+    "thirteen",
+    "fourteen",
+    "fifteen",
+    "sixteen",
+    "seventeen",
+    "eighteen",
+    "nineteen",
+];
+
+const TENS: [&str; 8] = [
+    "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety",
+];
 
 /// Whether `century` or `centuries` follows the ordinal ending at char `end`, as its own word or
 /// joined by a hyphen (`19th century`, `19th-century ruins`).
@@ -1341,6 +1456,55 @@ fn letters_before(text: &Text, end: usize) -> Option<Range<usize>> {
     (start < end).then_some(start..end)
 }
 
+/// The numeral form of a time spelled out in words before *a.m.* or *p.m.*, keeping the
+/// abbreviation as written: `eight a.m.` → `8 a.m.`, `six oh five p.m.` → `6:05 p.m.`,
+/// `eight-thirty\u{a0}a.m.` → `8:30\u{a0}a.m.`
+fn numeral_time(text: &Text, start: usize, meridiem: &Meridiem) -> Option<String> {
+    let between = text.slice(start, meridiem.start);
+    let words: Vec<&str> = between.split_whitespace().collect();
+    let (hour, minutes) = words.split_first()?;
+    let mut parts = hour.split(['-', '‐']);
+    let hour = hour_number(parts.next()?)?;
+    let minutes: Vec<&str> = parts.chain(minutes.iter().copied()).collect();
+    let mut replacement = hour.to_string();
+    if !minutes.is_empty() {
+        replacement.push_str(&format!(":{:02}", minutes_number(&minutes)?));
+    }
+    // The space (or no-break space) before the abbreviation stays as the author set it.
+    replacement.push_str(&between[between.trim_end_matches(space).len()..]);
+    replacement.push_str(text.slice(meridiem.start, meridiem.word_end()));
+    Some(replacement)
+}
+
+/// The hour a spelled-out hour word is worth: `eight` → 8, `twelve` → 12.
+fn hour_number(word: &str) -> Option<u32> {
+    let word = word.to_lowercase();
+    HOURS
+        .iter()
+        .position(|hour| *hour == word)
+        .map(|index| index as u32 + 1)
+}
+
+/// The minutes a spelled-out minute is worth: `thirty` → 30, `oh five` → 5, `forty-five` → 45.
+fn minutes_number(words: &[&str]) -> Option<u8> {
+    let mut minutes = 0u8;
+    for word in words.iter().flat_map(|word| word.split(['-', '‐'])) {
+        let value = match word.to_lowercase().as_str() {
+            "oh" | "o" => 0,
+            "twenty" => 20,
+            "thirty" => 30,
+            "forty" => 40,
+            "fifty" => 50,
+            word => ONES
+                .iter()
+                .position(|ones| *ones == word)
+                .filter(|value| *value > 0)? as u8,
+        };
+        minutes += value;
+    }
+    (minutes < 60).then_some(minutes)
+}
+
 /// The start of a time spelled out in words ending just before char `index` across spaces
 /// (`eight`, `six thirty`, `ten forty-five`, `nine oh five`).
 fn spelled_time(text: &Text, index: usize) -> Option<usize> {
@@ -1443,7 +1607,7 @@ fn clock_matches(text: &Text, check: ClockTimeCheck, out: &mut Vec<Found>) {
                     PresetCheck::ClockTimes,
                     format!("Use numerals with “{surface}”, or {instead} instead."),
                     text.span(hour, meridiem.word_end()),
-                    None,
+                    numeral_time(text, hour, &meridiem),
                 ));
             }
             Time::OClock(o_clock) => out.push((
@@ -1559,19 +1723,17 @@ fn o_clock_numeral(text: &Text, start: usize, style: OClock, out: &mut Vec<Found
     }
     // Only an hour from 1 to 12 reads as a clock time (`0 o'clock`, `99 o'clock` do not).
     let hour = text.slice(start, end);
-    if hour.starts_with('0')
-        || !hour
-            .parse::<u8>()
-            .is_ok_and(|hour| (1..=12).contains(&hour))
-        || !o_clock_after(text, end)
-    {
+    let Ok(parsed) = hour.parse::<u8>() else {
+        return;
+    };
+    if hour.starts_with('0') || !(1..=12).contains(&parsed) || !o_clock_after(text, end) {
         return;
     }
     out.push((
         PresetCheck::ClockTimes,
         "Spell out the hour before “o’clock”.".to_string(),
         text.span(start, end),
-        None,
+        cardinal(u64::from(parsed)),
     ));
 }
 
@@ -1587,14 +1749,15 @@ fn o_clock_word(text: &Text, start: usize, style: OClock, out: &mut Vec<Found>) 
     let Some(word) = letters_before(text, end) else {
         return;
     };
-    if HOURS.contains(&text.slice(word.start, word.end).to_lowercase().as_str()) {
-        out.push((
-            PresetCheck::ClockTimes,
-            "Use a numeral for the hour before “o’clock”.".to_string(),
-            text.span(word.start, word.end),
-            None,
-        ));
-    }
+    let Some(hour) = hour_number(text.slice(word.start, word.end)) else {
+        return;
+    };
+    out.push((
+        PresetCheck::ClockTimes,
+        "Use a numeral for the hour before “o’clock”.".to_string(),
+        text.span(word.start, word.end),
+        Some(hour.to_string()),
+    ));
 }
 
 // ---------------------------------------------------------------------------------------------
