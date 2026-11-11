@@ -17,6 +17,9 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
   now copied into the build directory, and from two files in `build/builtin-data/en/`:
   `filter-archaic.txt` (vendored, since the release zip lacks it) and `synth_exceptions.txt`
   (LanguageTool's `EnglishSynthesizer` exceptions). The fix needs rebuilt data binaries.
+- `EN_A_VS_AN` replacements now cover the whole flagged span ("an apple", not "an"). The
+  span runs from the article through the following word, so applying the old article-only
+  replacement to "be an staving and" gave "be a and".
 
 # 0.15.1 (2026-11-10)
 

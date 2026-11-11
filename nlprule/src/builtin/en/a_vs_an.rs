@@ -188,6 +188,9 @@ impl AVsAn {
                             )
                         };
 
+                        let base = sentence.span().start().byte;
+                        let rest = &sentence.text()[tokens[article_index].span().end().byte - base
+                            ..token.span().end().byte - base];
                         suggestions.push(Suggestion::new(
                             format!("BUILTIN/{}", ID),
                             message,
@@ -195,7 +198,7 @@ impl AVsAn {
                                 tokens[article_index].span().start(),
                                 token.span().end(),
                             ),
-                            vec![replacement.to_owned()],
+                            vec![format!("{}{}", replacement, rest)],
                         ));
                     }
                 }

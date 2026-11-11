@@ -10,7 +10,7 @@
 33 | TYPOS/MODAL_OF/0 | "should of" -> ["should have", "should've"] | It's never correct to use 'of' after a modal verb. Use should have, or, in informal register, should've.
 34 | GRAMMAR/FEWER_LESS/1 | "Less" -> ["Fewer"] | Did you mean fewer? The noun "people" is countable.
 35 | SPELLCHECK/SINGLE | "concious" -> ["conscious"] | Possibly misspelled word.
-39 | BUILTIN/EN_A_VS_AN | "a apple" -> ["an"] | Use "an" instead of "a" if the following word starts with a vowel sound, e.g. "an article", "an hour".
+39 | BUILTIN/EN_A_VS_AN | "a apple" -> ["an apple"] | Use "an" instead of "a" if the following word starts with a vowel sound, e.g. "an article", "an hour".
 44 | SPELLCHECK/SINGLE | "Aduke" -> ["Duke", "A duke"] | Possibly misspelled word.
 46 | GRAMMAR/THE_WHETHER/0 | "The whether" -> ["Whether", "The weather"] | Possible error detected.
 48 | GRAMMAR/IT_IT/3 | "It it" -> ["If it"] | It seems you mean if it.
