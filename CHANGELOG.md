@@ -6,6 +6,14 @@ inherited 0.6.4 track this project's own release line. Each version is a top-lev
 `# <version>` heading; the Release workflow copies that section verbatim into the GitHub
 release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
+# Unreleased
+
+### Fixed
+
+- `EN_A_VS_AN` replacements now cover the whole flagged span ("an apple", not "an"). The
+  span runs from the article through the following word, so applying the old article-only
+  replacement to "be an staving and" gave "be a and".
+
 # 0.15.1 (2026-11-10)
 
 ### Added
