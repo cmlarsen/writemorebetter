@@ -257,7 +257,7 @@ pub fn report(
             time_matches(&text, style, &mut found);
         }
         if let Some(check) = checks.clock_times {
-            clock_matches(&text, check, &mut found);
+            clock_matches(&text, paragraph, check, &mut found);
         }
         if checks.family_titles {
             family_matches(paragraph, &mut found);
@@ -838,13 +838,16 @@ fn number_matches(
             message.clone()
         };
         let is_ordinal = end > numeral.chars.end;
-        let replacement = numeral.amount.and_then(|amount| {
-            if is_ordinal {
-                ordinal(amount)
-            } else {
-                cardinal(amount)
-            }
-        });
+        let replacement = numeral
+            .amount
+            .and_then(|amount| {
+                if is_ordinal {
+                    ordinal(amount)
+                } else {
+                    cardinal(amount)
+                }
+            })
+            .map(|replacement| capitalized(text, paragraph, numeral.chars.start, replacement));
         out.push((
             PresetCheck::Numbers,
             message,
@@ -1117,6 +1120,19 @@ fn opens_sentence(text: &Text, paragraph: &Paragraph, start: usize) -> bool {
         .is_some_and(|before| !before.chars().any(char::is_alphanumeric))
 }
 
+/// The replacement with its first letter capitalized when the flagged span opens its sentence
+/// (`45 men came.` → `Forty-five`).
+fn capitalized(text: &Text, paragraph: &Paragraph, start: usize, replacement: String) -> String {
+    if !opens_sentence(text, paragraph, start) {
+        return replacement;
+    }
+    let mut letters = replacement.chars();
+    match letters.next() {
+        Some(first) => first.to_uppercase().chain(letters).collect(),
+        None => replacement,
+    }
+}
+
 /// Words after `’s` that make it *is* or *has* (`Chris’s going`, `Ross’s been`), not a possessive.
 const AFTER_CONTRACTED_S: &[&str] = &[
     "been", "being", "going", "gone", "got", "gotten", "coming", "done", "doing", "had", "here",
@@ -1383,38 +1399,34 @@ fn ends_sentence(text: &Text, mut index: usize) -> bool {
 // ---------------------------------------------------------------------------------------------
 // Clock times
 
-const HOURS: [&str; 12] = [
-    "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven",
-    "twelve",
-];
-
-/// Words that spell the minutes after an hour (`thirty`, `forty-five`, `oh five`).
-const MINUTES: &[&str] = &[
-    "oh",
-    "o",
-    "one",
-    "two",
-    "three",
-    "four",
-    "five",
-    "six",
-    "seven",
-    "eight",
-    "nine",
-    "ten",
-    "eleven",
-    "twelve",
-    "thirteen",
-    "fourteen",
-    "fifteen",
-    "sixteen",
-    "seventeen",
-    "eighteen",
-    "nineteen",
-    "twenty",
-    "thirty",
-    "forty",
-    "fifty",
+/// Words that spell the minutes after an hour, with the minutes each is worth (`thirty`,
+/// `forty-five`, `oh five`).
+const MINUTES: &[(&str, u8)] = &[
+    ("oh", 0),
+    ("o", 0),
+    ("one", 1),
+    ("two", 2),
+    ("three", 3),
+    ("four", 4),
+    ("five", 5),
+    ("six", 6),
+    ("seven", 7),
+    ("eight", 8),
+    ("nine", 9),
+    ("ten", 10),
+    ("eleven", 11),
+    ("twelve", 12),
+    ("thirteen", 13),
+    ("fourteen", 14),
+    ("fifteen", 15),
+    ("sixteen", 16),
+    ("seventeen", 17),
+    ("eighteen", 18),
+    ("nineteen", 19),
+    ("twenty", 20),
+    ("thirty", 30),
+    ("forty", 40),
+    ("fifty", 50),
 ];
 
 /// Phrases that repeat what *a.m.* or *p.m.* already says, by whether they mean the morning.
@@ -1432,12 +1444,12 @@ fn parts(word: &str) -> impl Iterator<Item = &str> {
 /// An hour spelled out, alone or hyphenated to its minutes (`eight`, `eight-thirty`).
 fn hour_word(word: &str) -> bool {
     let mut parts = parts(word);
-    parts.next().is_some_and(|hour| HOURS.contains(&hour))
-        && parts.all(|part| MINUTES.contains(&part))
+    parts.next().is_some_and(|hour| hour_value(hour).is_some())
+        && parts.all(|part| minute_value(part).is_some())
 }
 
 fn minute_word(word: &str) -> bool {
-    parts(word).all(|part| MINUTES.contains(&part))
+    parts(word).all(|part| minute_value(part).is_some())
 }
 
 /// The word ending at char `end` made of letters and hyphens, as a char range.
@@ -1463,46 +1475,68 @@ fn numeral_time(text: &Text, start: usize, meridiem: &Meridiem) -> Option<String
     let between = text.slice(start, meridiem.start);
     let words: Vec<&str> = between.split_whitespace().collect();
     let (hour, minutes) = words.split_first()?;
-    let mut parts = hour.split(['-', '‐']);
-    let hour = hour_number(parts.next()?)?;
-    let minutes: Vec<&str> = parts.chain(minutes.iter().copied()).collect();
+    let mut hour_parts = parts(hour);
+    let hour = hour_number(hour_parts.next()?)?;
+    let minutes: Vec<&str> = hour_parts.chain(minutes.iter().copied()).collect();
     let mut replacement = hour.to_string();
     if !minutes.is_empty() {
         replacement.push_str(&format!(":{:02}", minutes_number(&minutes)?));
     }
-    // The space (or no-break space) before the abbreviation stays as the author set it.
     replacement.push_str(&between[between.trim_end_matches(space).len()..]);
     replacement.push_str(text.slice(meridiem.start, meridiem.word_end()));
     Some(replacement)
 }
 
+/// Whether the hour at char `start` follows *to*, *past* and the like (`quarter to eight`,
+/// `twenty past six`); a numeral cannot keep the phrase, so the check leaves the time alone.
+fn relative_hour(text: &Text, start: usize) -> bool {
+    text.word_before(start).is_some_and(|word| {
+        matches!(
+            key(text.slice(word.start, word.end)).as_str(),
+            "to" | "past" | "till" | "til" | "'til" | "before" | "after"
+        )
+    })
+}
+
 /// The hour a spelled-out hour word is worth: `eight` → 8, `twelve` → 12.
-fn hour_number(word: &str) -> Option<u32> {
-    let word = word.to_lowercase();
-    HOURS
+fn hour_number(word: &str) -> Option<u8> {
+    hour_value(&word.to_lowercase())
+}
+
+/// The hour a lowercase spelled-out hour word is worth, from the check's own table.
+fn hour_value(word: &str) -> Option<u8> {
+    ONES.iter()
+        .position(|ones| *ones == word)
+        .filter(|hour| (1..=12).contains(hour))
+        .map(|hour| hour as u8)
+}
+
+/// The minutes one part of a spelled-out minute is worth, from the check's own table.
+fn minute_value(part: &str) -> Option<u8> {
+    let part = part.to_lowercase();
+    MINUTES
         .iter()
-        .position(|hour| *hour == word)
-        .map(|index| index as u32 + 1)
+        .find(|(word, _)| *word == part)
+        .map(|(_, minutes)| *minutes)
 }
 
 /// The minutes a spelled-out minute is worth: `thirty` → 30, `oh five` → 5, `forty-five` → 45.
+/// Minutes have one valid shape (`oh` and a unit, a teen, or a ten with an optional unit), so an
+/// unreadable list of number words is not turned into a confident time.
 fn minutes_number(words: &[&str]) -> Option<u8> {
-    let mut minutes = 0u8;
-    for word in words.iter().flat_map(|word| word.split(['-', '‐'])) {
-        let value = match word.to_lowercase().as_str() {
-            "oh" | "o" => 0,
-            "twenty" => 20,
-            "thirty" => 30,
-            "forty" => 40,
-            "fifty" => 50,
-            word => ONES
-                .iter()
-                .position(|ones| *ones == word)
-                .filter(|value| *value > 0)? as u8,
-        };
-        minutes += value;
+    let values: Vec<u8> = words
+        .iter()
+        .flat_map(|word| parts(word))
+        .map(minute_value)
+        .collect::<Option<_>>()?;
+    match values.as_slice() {
+        [minute @ 1..=59] => Some(*minute),
+        [0, unit @ 1..=9] => Some(*unit),
+        [tens, unit @ 1..=9] if (20..=50).contains(tens) && tens.is_multiple_of(10) => {
+            Some(tens + unit)
+        }
+        _ => None,
     }
-    (minutes < 60).then_some(minutes)
 }
 
 /// The start of a time spelled out in words ending just before char `index` across spaces
@@ -1561,7 +1595,7 @@ fn o_clock_at(text: &Text, start: usize) -> bool {
     key(&word) == "o'clock" && !text.char(start + 7).is_some_and(char::is_alphanumeric)
 }
 
-fn clock_matches(text: &Text, check: ClockTimeCheck, out: &mut Vec<Found>) {
+fn clock_matches(text: &Text, paragraph: &Paragraph, check: ClockTimeCheck, out: &mut Vec<Found>) {
     let mut index = 0;
     while index < text.chars.len() {
         let start = index;
@@ -1573,7 +1607,7 @@ fn clock_matches(text: &Text, check: ClockTimeCheck, out: &mut Vec<Found>) {
             continue;
         }
         if text.char(start).is_some_and(|ch| ch.is_ascii_digit()) {
-            o_clock_numeral(text, start, check.o_clock, out);
+            o_clock_numeral(text, paragraph, start, check.o_clock, out);
             continue;
         }
         if matches!(text.char(start), Some('o' | 'O')) {
@@ -1607,7 +1641,11 @@ fn clock_matches(text: &Text, check: ClockTimeCheck, out: &mut Vec<Found>) {
                     PresetCheck::ClockTimes,
                     format!("Use numerals with “{surface}”, or {instead} instead."),
                     text.span(hour, meridiem.word_end()),
-                    numeral_time(text, hour, &meridiem),
+                    if relative_hour(text, hour) {
+                        None
+                    } else {
+                        numeral_time(text, hour, &meridiem)
+                    },
                 ));
             }
             Time::OClock(o_clock) => out.push((
@@ -1709,7 +1747,13 @@ fn doubled(text: &Text, meridiem: &Meridiem, out: &mut Vec<Found>) {
 }
 
 /// `6 o'clock` in the `words` style: the numeral at char `start`.
-fn o_clock_numeral(text: &Text, start: usize, style: OClock, out: &mut Vec<Found>) {
+fn o_clock_numeral(
+    text: &Text,
+    paragraph: &Paragraph,
+    start: usize,
+    style: OClock,
+    out: &mut Vec<Found>,
+) {
     if style != OClock::Words
         || text
             .before(start)
@@ -1733,7 +1777,8 @@ fn o_clock_numeral(text: &Text, start: usize, style: OClock, out: &mut Vec<Found
         PresetCheck::ClockTimes,
         "Spell out the hour before “o’clock”.".to_string(),
         text.span(start, end),
-        cardinal(u64::from(parsed)),
+        cardinal(u64::from(parsed))
+            .map(|replacement| capitalized(text, paragraph, start, replacement)),
     ));
 }
 

@@ -76,7 +76,7 @@ fn numbers_through_one_hundred_are_spelled_out() {
         [
             Some("seven"),
             Some("forty-five"),
-            Some("one hundred"),
+            Some("One hundred"),
             Some("third"),
             Some("zero")
         ]
@@ -106,6 +106,21 @@ fn spelled_out_numbers_follow_cmos_hyphenation() {
             Some("forty-second"),
             Some("one hundredth"),
             Some("one hundred first")
+        ]
+    );
+}
+
+#[test]
+fn numbers_capitalize_where_the_span_opens_a_sentence() {
+    let text = "45 men came. She saw 7. “7 of them,” she said. And 45 left.";
+    let found = run(text, &numbers(100));
+    assert_eq!(
+        replacements(&found),
+        [
+            Some("Forty-five"),
+            Some("seven"),
+            Some("Seven"),
+            Some("forty-five")
         ]
     );
 }
@@ -382,6 +397,31 @@ fn spelled_out_minutes_become_numerals() {
 }
 
 #[test]
+fn relative_times_get_no_replacement() {
+    let text = "At quarter to eight p.m., twenty past six a.m. and half past nine p.m.";
+    let found = run(text, &clock(OClock::Words));
+    assert_eq!(texts(text, &found), ["eight p.m.", "six a.m.", "nine p.m."]);
+    assert!(found.iter().all(|found| found.replacement.is_none()));
+}
+
+#[test]
+fn unreadable_minute_words_get_no_replacement() {
+    let text = "At five six seven a.m., six thirty twelve p.m. and six five thirty a.m., \
+                or eight fifty-fifty-fifty-fifty-fifty-fifty a.m.";
+    let found = run(text, &clock(OClock::Words));
+    assert_eq!(
+        texts(text, &found),
+        [
+            "five six seven a.m.",
+            "six thirty twelve p.m.",
+            "six five thirty a.m.",
+            "eight fifty-fifty-fifty-fifty-fifty-fifty a.m."
+        ]
+    );
+    assert!(found.iter().all(|found| found.replacement.is_none()));
+}
+
+#[test]
 fn o_clock_hours() {
     let text =
         "We left at 6 o'clock, or 7 o’clock—or eleven o’clock. At 7:00 o'clock. At 6 o’clock a.m.";
@@ -402,6 +442,13 @@ fn o_clock_hours() {
     // Not hours: no clock-time match.
     let text = "At 0 o'clock, 13 o’clock or 99 o'clock.";
     assert!(run(text, &clock(OClock::Words)).is_empty());
+}
+
+#[test]
+fn o_clock_hours_capitalize_at_the_start_of_a_sentence() {
+    let text = "6 o’clock came. We left at 6 o’clock.";
+    let found = run(text, &clock(OClock::Words));
+    assert_eq!(replacements(&found), [Some("Six"), Some("six")]);
 }
 
 #[test]
@@ -443,8 +490,6 @@ fn doubled_time_words() {
         "“p.m.” and “in the evening” say the same thing; keep one."
     );
     assert_eq!(found[1].mode, Mode::Dialogue);
-    // Deleting the repeat needs a wider span than the finding carries, so it has no replacement;
-    // the spelled-out time in the same paragraph still offers its numeral form.
     assert_eq!(found[3].replacement.as_deref(), Some("8 a.m."));
     for (index, found) in found.iter().enumerate() {
         if index != 3 {

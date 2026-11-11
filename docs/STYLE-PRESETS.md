@@ -189,7 +189,8 @@ them. `ap` sets `spellOutThrough: 9`, `agesAsNumerals: true` and `matchLarger: f
 The message names the limit, except on an ordinal before *century* or *centuries* (`19th-century`),
 where it asks for the century spelled out (CMOS 9.33). The replacement is the number written out
 (`7` → `seven`, `45` → `forty-five`, `101` → `one hundred one`, `3rd` → `third`, `19th-century` →
-`nineteenth-century`): the hyphenation for 21–99 is CMOS's, so the check's own table has one
+`nineteenth-century`), capitalized when the numeral opens its sentence or dialogue line (`45 men
+came.` → `Forty-five`). The hyphenation for 21–99 is CMOS's, so the check's own table has one
 spelling per number. A numeral the table cannot render keeps no replacement rather than guessing;
 the check skips those today (`1,000`, `$20`, `5 km`).
 
@@ -263,12 +264,14 @@ A time and its abbreviation may be separated by a space, a no-break space or a n
 space, never a line break. The replacement is the form the message names first: a time spelled out
 becomes numerals with the abbreviation as written (`eight a.m.` → `8 a.m.`, `six oh five p.m.` →
 `6:05 p.m.`), and the hour before *o'clock* becomes a word or a numeral (`6 o’clock` →
-`six o’clock`, `six o’clock` → `6 o’clock`). *o’clock* with *a.m.* or *p.m.* and the repeat findings
-(*a.m. in the morning*) carry no replacement, since deleting the extra words needs a wider span than
-the finding has. `chicago-fiction` and `uk` set `words`, `ap` sets `numerals`. Whether a document
-writes on-the-hour times as `6:00 a.m.` or `6 a.m.` is the
-[consistency](STYLE-CONSISTENCY.md#clock-times) report's `clockTimes` check, since both forms are
-correct.
+`six o’clock`, `six o’clock` → `6 o’clock`), capitalized when the hour opens a sentence (`6
+o’clock came.` → `Six`). A time that is part of a relative phrase (*quarter to eight p.m.*, *twenty
+past six a.m.*) keeps no replacement, since the numeral form cannot keep the phrase. *o’clock* with
+*a.m.* or *p.m.* and the repeat findings (*a.m. in the morning*) carry no replacement, since
+deleting the extra words needs a wider span than the finding has. `chicago-fiction` and `uk` set
+`words`, `ap` sets `numerals`. Whether a document writes on-the-hour times as `6:00 a.m.` or `6
+a.m.` is the [consistency](STYLE-CONSISTENCY.md#clock-times) report's `clockTimes` check, since
+both forms are correct.
 
 ### `familyTitles`
 

@@ -11,11 +11,13 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 ### Changed
 
 - The `numbers` preset check now returns a `replacement`: the number written out (`45` →
-  `forty-five`, `3rd` → `third`, `19th-century` → `nineteenth-century`), so a host can offer the
-  fix instead of only *Ignore*. The `clockTimes` check returns one for a spelled-out time (`eight
-  a.m.` → `8 a.m.`, `six oh five p.m.` → `6:05 p.m.`) and for the hour before *o’clock* (`6
-  o’clock` ↔ `six o’clock`). The doubled-time-word findings and *o’clock* with *a.m.*/*p.m.* still
-  carry no replacement, since deleting their extra words needs a wider span than the match has.
+  `forty-five`, `3rd` → `third`, `19th-century` → `nineteenth-century`), capitalized when it opens
+  a sentence or dialogue line, so a host can offer the fix instead of only *Ignore*. The
+  `clockTimes` check returns one for a spelled-out time (`eight a.m.` → `8 a.m.`, `six oh five
+  p.m.` → `6:05 p.m.`) and for the hour before *o’clock* (`6 o’clock` ↔ `six o’clock`). The
+  doubled-time-word findings and *o’clock* with *a.m.*/*p.m.* still carry no replacement, since
+  deleting their extra words needs a wider span than the match has; neither does a time in a
+  relative phrase (*quarter to eight p.m.*).
 
 ### Fixed
 
