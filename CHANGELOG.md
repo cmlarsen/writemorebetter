@@ -10,9 +10,9 @@ release notes (see [`docs/RELEASING.md`](docs/RELEASING.md)).
 
 ### Fixed
 
-- `EN_A_VS_AN` flags only the article, as LanguageTool does. Its span used to run through
-  the following word while the replacement held just the new article, so applying the
-  suggestion to "be an staving and" gave "be a and".
+- `EN_A_VS_AN` replacements now cover the whole flagged span ("an apple", not "an"). The
+  span runs from the article through the following word, so applying the old article-only
+  replacement to "be an staving and" gave "be a and".
 
 # 0.15.1 (2026-11-10)
 
