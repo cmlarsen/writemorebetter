@@ -7,7 +7,7 @@
 //! This mirrors the behavior of the corresponding LanguageTool rule, including
 //! the treatment of quotes, hyphens and abbreviations.
 
-use crate::types::{DefaultHashSet, Sentence, Span, Suggestion, Token};
+use crate::types::{DefaultHashSet, Sentence, Suggestion, Token};
 use serde::{Deserialize, Serialize};
 
 /// The identifier of the LanguageTool rule this builtin reimplements.
@@ -191,10 +191,7 @@ impl AVsAn {
                         suggestions.push(Suggestion::new(
                             format!("BUILTIN/{}", ID),
                             message,
-                            Span::from_positions(
-                                tokens[article_index].span().start(),
-                                token.span().end(),
-                            ),
+                            tokens[article_index].span().clone(),
                             vec![replacement.to_owned()],
                         ));
                     }

@@ -2332,7 +2332,7 @@ fn builtin_a_vs_an_flags(text: &str) -> Vec<(String, String)> {
 fn builtin_a_vs_an_flags_a_apple() {
     assert_eq!(
         builtin_a_vs_an_flags("She ate a apple."),
-        vec![("a apple".to_string(), "an".to_string())]
+        vec![("a".to_string(), "an".to_string())]
     );
 }
 
@@ -2340,7 +2340,7 @@ fn builtin_a_vs_an_flags_a_apple() {
 fn builtin_a_vs_an_flags_a_before_honest() {
     assert_eq!(
         builtin_a_vs_an_flags("He is a honest man."),
-        vec![("a honest".to_string(), "an".to_string())]
+        vec![("a".to_string(), "an".to_string())]
     );
     assert!(builtin_a_vs_an_flags("He is an honest man.").is_empty());
 }
@@ -2349,7 +2349,7 @@ fn builtin_a_vs_an_flags_a_before_honest() {
 fn builtin_a_vs_an_flags_an_before_consonant() {
     assert_eq!(
         builtin_a_vs_an_flags("They met an year ago."),
-        vec![("an year".to_string(), "a".to_string())]
+        vec![("an".to_string(), "a".to_string())]
     );
 }
 
@@ -2370,7 +2370,7 @@ fn builtin_a_vs_an_accepts_an_mba() {
     assert!(builtin_a_vs_an_flags("She has an MBA.").is_empty());
     assert_eq!(
         builtin_a_vs_an_flags("She has a MBA."),
-        vec![("a MBA".to_string(), "an".to_string())]
+        vec![("a".to_string(), "an".to_string())]
     );
 }
 
@@ -2391,7 +2391,7 @@ fn builtin_a_vs_an_ignores_unknown_abbreviations() {
 fn builtin_a_vs_an_flags_capitalized_article_at_sentence_start() {
     assert_eq!(
         builtin_a_vs_an_flags("A apple fell."),
-        vec![("A apple".to_string(), "An".to_string())]
+        vec![("A".to_string(), "An".to_string())]
     );
 }
 
@@ -2404,7 +2404,7 @@ fn builtin_a_vs_an_accepts_capitalized_an() {
 fn builtin_a_vs_an_flags_inside_curly_quotes() {
     assert_eq!(
         builtin_a_vs_an_flags("He was a \u{201c}honest\u{201d} man."),
-        vec![("a \u{201c}honest".to_string(), "an".to_string())]
+        vec![("a".to_string(), "an".to_string())]
     );
     // A correct article inside the quotes is left alone.
     assert!(builtin_a_vs_an_flags("It took an \u{201c}hour\u{201d} or so\u{2026}").is_empty());
@@ -2412,11 +2412,9 @@ fn builtin_a_vs_an_flags_inside_curly_quotes() {
 
 #[test]
 fn builtin_a_vs_an_flags_before_em_dash_word() {
-    // The em dash is a token of its own, so the flag covers just the article
-    // and the "a"-initial word.
     assert_eq!(
         builtin_a_vs_an_flags("He gave me a apple\u{2014}then left."),
-        vec![("a apple".to_string(), "an".to_string())]
+        vec![("a".to_string(), "an".to_string())]
     );
 }
 
@@ -2437,8 +2435,21 @@ fn builtin_a_vs_an_checks_across_u2028() {
     assert!(builtin_a_vs_an_flags("It was a one-time thing.\u{2028}An honest mistake.").is_empty());
     assert_eq!(
         builtin_a_vs_an_flags("It was a apple.\u{2028}An year passed."),
-        vec![("a apple".to_string(), "an".to_string())]
+        vec![("a".to_string(), "an".to_string())]
     );
+}
+
+#[test]
+fn builtin_a_vs_an_replacement_keeps_the_following_word() {
+    let text = "one tigger can be an staving and then exposure to light.";
+    let suggestion = RULES
+        .suggest(text, &*TOKENIZER)
+        .into_iter()
+        .find(|suggestion| suggestion.source() == "BUILTIN/EN_A_VS_AN")
+        .expect("an staving is flagged");
+    let mut fixed = text.to_string();
+    fixed.replace_range(suggestion.span().byte().clone(), &suggestion.replacements()[0]);
+    assert_eq!(fixed, "one tigger can be a staving and then exposure to light.");
 }
 
 /// Runs the English comma/parenthesis-whitespace builtin over a paragraph and
