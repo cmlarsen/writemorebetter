@@ -2402,7 +2402,10 @@ fn builtin_a_vs_an_accepts_capitalized_an() {
 fn builtin_a_vs_an_flags_inside_curly_quotes() {
     assert_eq!(
         builtin_a_vs_an_flags("He was a \u{201c}honest\u{201d} man."),
-        vec![("a \u{201c}honest".to_string(), "an \u{201c}honest".to_string())]
+        vec![(
+            "a \u{201c}honest".to_string(),
+            "an \u{201c}honest".to_string()
+        )]
     );
     // A correct article inside the quotes is left alone.
     assert!(builtin_a_vs_an_flags("It took an \u{201c}hour\u{201d} or so\u{2026}").is_empty());
