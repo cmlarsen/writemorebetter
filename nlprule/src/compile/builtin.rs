@@ -4,7 +4,7 @@
 //! `<build_dir>/builtin/<name>.txt` and serialized into the rules binary, which
 //! keeps that LGPL data out of the engine source.
 
-use std::path::Path;
+use std::{collections::HashSet, path::Path};
 
 use fs_err as fs;
 use log::{info, warn};
@@ -16,7 +16,10 @@ use crate::{
     utils::regex::Regex,
 };
 
-use super::Error;
+use super::{
+    impls::{read_removals, MissingFile, TagLine},
+    Error,
+};
 
 /// Builds the builtin rules for the language `lang_code`.
 pub(crate) fn for_language(
@@ -325,6 +328,16 @@ pub(super) fn read_list(build_dir: &Path, name: &str) -> Vec<String> {
             Vec::new()
         }
     }
+}
+
+/// Reads the word/lemma/tag list `<build_dir>/builtin/<name>.txt`. Unlike
+/// [`read_list`], a missing file is an error: a stale build directory must not
+/// silently compile a binary without a synthesis filter.
+pub(super) fn read_tag_removals(build_dir: &Path, name: &str) -> std::io::Result<HashSet<TagLine>> {
+    read_removals(
+        &[build_dir.join("builtin").join(format!("{}.txt", name))],
+        MissingFile::Error,
+    )
 }
 
 /// Reads the lines of `<build_dir>/builtin/<name>.txt` as they are, for lists
